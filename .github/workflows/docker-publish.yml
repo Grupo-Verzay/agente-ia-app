@@ -31,7 +31,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/verzay-app
+          images: ghcr.io/${{ github.repository_owner }}/agente-ia-app
           tags: |
             type=raw,value=latest
             type=sha
