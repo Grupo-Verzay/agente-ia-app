@@ -2,7 +2,7 @@ version: "3.7"
 
 services:
   verzay_app:
-    image: ghcr.io/diazemanuel21/verzay-app:latest
+    image: ghcr.io/grupo-verzay/agente-ia-app:latest
     networks:
       - minha_rede
     environment:
