@@ -1,0 +1,44 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /e/EMANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app -path \"*/\\(root\\)/tags/*\" -type f)",
+      "Bash(grep -r \"useMutation.*tag\\\\|useQuery.*tag\" /e/EMANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app/app --include=*.ts --include=*.tsx)",
+      "Read(//e/EMANUEL-DEV/Verzay/VERZAY/backend-api/**)",
+      "Bash(grep -r \"interface.*[Tt]ag\\\\|type.*[Tt]ag\\\\|class.*[Tt]ag\" /e/EMANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app --include=*.ts --include=*.tsx --exclude-dir=node_modules --exclude-dir=.next)",
+      "Bash(find /e/EMANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app -name schema.prisma -o -name *.prisma)",
+      "Read(//e/EMANUEL-DEV/Verzay/VERZAY/**)",
+      "Bash(grep -r \"dnd-kit\\\\|sortable\\\\|draggable\" /e/EMANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app/app --include=*.tsx --include=*.ts -l)",
+      "Read(//e/MANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app/actions/**)",
+      "Bash(find \"e:\\\\EMANUEL-DEV\\\\Verzay\\\\VERZAY\\\\verzay-app-main\\\\verzay-app/app/\\(root\\)/chats/_components\" -type f)",
+      "Bash(for f:*)",
+      "Bash(do wc:*)",
+      "Bash(done)",
+      "Bash(tail -20 \"e:\\\\EMANUEL-DEV\\\\Verzay\\\\VERZAY\\\\verzay-app-main\\\\verzay-app/app/\\(root\\)/chats/_components/chat-main.tsx\")",
+      "Bash(ls \"e:/EMANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app/app/\\(root\\)/chats/_components/\")",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(grep -r \"UserBilling\\\\|createUserWithPausar\" /e/EMANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app/actions --include=\"*.ts\" ! -path \"*/node_modules/*\")",
+      "Bash(grep -r \"registerAction\\\\|UserBilling\" /e/EMANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app --include=\"*.ts\" --include=\"*.tsx\" ! -path \"*/node_modules/*\" ! -path \"*/.next/*\")",
+      "Bash(grep -r \"\"\"sonner\"\"\" package.json)",
+      "Bash(ls app/\\\\\\(auth\\\\\\)/)",
+      "Bash(mkdir -p \"e:/EMANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app/app/\\(root\\)/ai-image/_components/hooks\")",
+      "Bash(mkdir -p \"e:/EMANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app/app/\\(root\\)/ai-image/_components/steps\")",
+      "Bash(grep -r 'prisma.$transaction\\\\|\\\\.transaction\\\\|await callback' src/modules/webhook/services/message-buffer/ '--include=*.ts')",
+      "Bash(cmd /c \"dir /b \\\\\"e:\\\\EMANUEL-DEV\\\\Verzay\\\\VERZAY\\\\backend-api\\\\api-webhook\\\\src\\\\modules\\\\webhook\\\\services\\\\orchestator\\\\\"\")",
+      "Bash(claude logout:*)",
+      "Bash(npx nest:*)",
+      "Bash(node --max-old-space-size=4096 node_modules/.bin/nest build)",
+      "Bash(node --max-old-space-size=4096 node_modules/@nestjs/cli/bin/nest.js build)",
+      "Bash(node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit --project tsconfig.json --diagnostics)",
+      "Read(//e/MANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app/app/\\(root\\)/crm/dashboard/components/records-table/**)",
+      "Bash(find /e/EMANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app/lib -name \"zod.ts\" -exec cat {} \\\\;)",
+      "Bash(PRISMA_FORCE_COLOR=1 npx prisma db push)",
+      "Read(//e/EMANUEL-DEV/Verzay/IERZAY/backend-api/api-webhook/src/modules/ai-agent/**)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\home\\.claude",
+      "e:\\EMANUEL-DEV\\Verzay\\VERZAY\\backend-api\\api-webhook\\src\\modules\\webhook\\services\\orchestator",
+      "e:\\EMANUEL-DEV\\Verzay\\VERZAY\\backend-api\\api-webhook"
+    ]
+  }
+}
