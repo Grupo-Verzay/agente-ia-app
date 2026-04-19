@@ -38,6 +38,3 @@ next-env.d.ts
 
 #prisma/migrations
 prisma/migrations/*
-
-# tsconfig
-tsconfig.json
