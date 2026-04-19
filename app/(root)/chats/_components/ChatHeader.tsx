@@ -12,6 +12,8 @@ import type { Session, SimpleTag } from '@/types/session';
 import { SessionTagsCombobox } from '../../tags/components';
 import { CrmFollowUpSummaryBadge } from '../../crm/dashboard/components/CrmFollowUpSummaryBadge';
 import { SwitchStatus } from '../../sessions/_components';
+import { LeadStatusSelect } from './LeadStatusSelect';
+import { SintesisEditDialog } from './SintesisEditDialog';
 
 interface ChatHeaderProps {
   header: ChatHeaderData;
@@ -133,6 +135,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               <Badge variant="outline" className={`${sessionStatusTone} text-xs py-0.5`}>
                 {session.status ? 'Activa' : 'Pausada'}
               </Badge>
+              <LeadStatusSelect
+                sessionId={session.id}
+                currentStatus={session.leadStatus}
+                onUpdated={onSessionRefresh}
+              />
+              <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               {crmBadge}
             </div>
             {tagsCombobox}
@@ -183,7 +191,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
         {session && (
           <div className="flex flex-1 overflow-hidden gap-1">
-            <div className="flex flex-1 justify-end gap-1">{crmBadge}</div>
+            <div className="flex flex-1 justify-end items-center gap-1.5">
+              <LeadStatusSelect
+                sessionId={session.id}
+                currentStatus={session.leadStatus}
+                onUpdated={onSessionRefresh}
+              />
+              <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
+              {crmBadge}
+            </div>
             {tagsCombobox}
           </div>
         )}

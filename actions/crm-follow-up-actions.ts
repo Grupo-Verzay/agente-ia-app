@@ -719,3 +719,63 @@ export async function reactivateUserSentCrmFollowUps(
     };
   }
 }
+
+export async function getSessionLatestSummarySnapshot(sessionId: number): Promise<{
+  success: boolean;
+  data?: { id: string; summarySnapshot: string | null } | null;
+  message?: string;
+}> {
+  try {
+    const session = await db.session.findUnique({
+      where: { id: sessionId },
+      select: { userId: true },
+    });
+    if (!session?.userId) {
+      return { success: false, message: "Sesion no encontrada." };
+    }
+
+    await assertUserCanUseApp(session.userId);
+
+    const followUp = await db.crmFollowUp.findFirst({
+      where: { sessionId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, summarySnapshot: true },
+    });
+
+    return { success: true, data: followUp ?? null };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Error al obtener síntesis",
+    };
+  }
+}
+
+export async function updateFollowUpSummarySnapshot(
+  followUpId: string,
+  summarySnapshot: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const followUp = await db.crmFollowUp.findUnique({
+      where: { id: followUpId },
+      select: { userId: true },
+    });
+    if (!followUp?.userId) {
+      return { success: false, message: "Follow-up no encontrado." };
+    }
+
+    await assertUserCanUseApp(followUp.userId);
+
+    await db.crmFollowUp.update({
+      where: { id: followUpId },
+      data: { summarySnapshot },
+    });
+
+    return { success: true, message: "Síntesis actualizada correctamente" };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Error al actualizar síntesis",
+    };
+  }
+}

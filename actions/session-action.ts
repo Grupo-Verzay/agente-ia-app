@@ -10,6 +10,7 @@ import {
   ChatContactSessionMap,
   ChatContactSessionSummary,
   CrmFollowUpStatus,
+  LeadStatus,
   Session as AppSession,
   SessionCrmFollowUpHistoryItem,
   SessionCrmFollowUpSummary,
@@ -986,5 +987,38 @@ export async function toggleAgentDisabled(userId: string, sessionId: number, age
     return { success: true, message: 'Estado actualizado correctamente' };
   } catch (error: any) {
     return { success: false, message: error?.message || 'Error al actualizar' };
+  }
+}
+
+export async function updateSessionLeadStatus(
+  sessionId: number,
+  leadStatus: LeadStatus | null
+): Promise<SessionsListResponse> {
+  try {
+    const session = await db.session.findUnique({
+      where: { id: sessionId },
+      select: { userId: true },
+    });
+    if (!session?.userId) {
+      return { success: false, message: 'Sesion no encontrada.' };
+    }
+
+    await assertUserCanUseApp(session.userId);
+
+    await db.session.update({
+      where: { id: sessionId },
+      data: {
+        leadStatus: leadStatus ?? null,
+        leadStatusSourceHash: null,
+        leadStatusUpdatedAt: new Date(),
+      },
+    });
+
+    return { success: true, message: 'Estado del lead actualizado correctamente' };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'No se pudo actualizar el estado del lead',
+    };
   }
 }
