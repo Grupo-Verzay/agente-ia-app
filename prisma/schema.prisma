@@ -1,0 +1,1137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refreshToken      String?  @map("refresh_token")
+  accessToken       String?  @map("access_token")
+  expiresAt         Int?     @map("expires_at")
+  tokenType         String?  @map("token_type")
+  scope             String?
+  idToken           String?  @map("id_token")
+  sessionState      String?  @map("session_state")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@index([userId])
+}
+
+model AgentPrompt {
+  id                  String                @id @default(uuid()) @db.Uuid
+  userId              String
+  agentId             String?
+  status              PromptStatus          @default(draft)
+  version             Int                   @default(1)
+  sections            Json
+  promptText          String
+  businessName        String?
+  businessSector      String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentPromptRevision AgentPromptRevision[]
+
+  @@index([agentId])
+  @@index([businessName])
+  @@index([businessSector])
+  @@index([sections], type: Gin)
+  @@index([status])
+  @@index([userId])
+}
+
+model AntifloodBlock {
+  id           Int      @id @default(autoincrement())
+  remoteJid    String
+  instanceName String
+  blockedUntil DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([remoteJid, instanceName])
+  @@index([blockedUntil])
+}
+
+model AgentPromptRevision {
+  id                 String      @id @default(uuid()) @db.Uuid
+  promptId           String      @db.Uuid
+  revisionNumber     Int
+  sectionsSnapshot   Json
+  promptTextSnapshot String
+  publishedBy        String
+  publishedAt        DateTime    @default(now())
+  notes              String?
+  agentPrompt        AgentPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  user               User        @relation(fields: [publishedBy], references: [id], onDelete: Cascade)
+
+  @@unique([promptId, revisionNumber])
+  @@index([publishedAt])
+}
+
+model ApiKey {
+  id        String   @id @default(uuid())
+  url       String
+  key       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+}
+
+model Appointment {
+  id        String            @id @default(uuid())
+  userId    String
+  sessionId Int
+  startTime DateTime
+  endTime   DateTime
+  timezone  String
+  status    AppointmentStatus @default(PENDIENTE)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  serviceId String?
+  service   Service?          @relation(fields: [serviceId], references: [id])
+  session   Session           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startTime])
+  @@index([sessionId])
+  @@index([serviceId])
+}
+
+model GuideUrl {
+  id          String   @id @default(uuid())
+  path        String
+  title       String
+  description String?
+  url         String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tipo        String?
+
+  @@map("GuidesUrl")
+}
+
+model Instancia {
+  id           Int     @id @default(autoincrement())
+  instanceName String
+  userId       String
+  instanceId   String
+  instanceType String? @default("Whatsapp")
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("Instancias")
+}
+
+model Log {
+  id        String   @id @default(uuid())
+  level     String
+  message   String
+  context   String?
+  timestamp DateTime @default(now())
+}
+
+model Manual {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  url         String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Module {
+  id                     String       @id @default(uuid())
+  label                  String
+  route                  String
+  icon                   String
+  showInSidebar          Boolean?     @default(true)
+  hiddenModuleToSelector Boolean?     @default(false)
+  adminOnly              Boolean      @default(false)
+  requiresPremium        Boolean      @default(false)
+  allowedPlans           Plan[]
+  order                  Int          @default(0)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+  showOnlySelectedPlans  Boolean?     @default(false)
+  customUrl              String?
+  moduleItems            ModuleItem[]
+  userModules            UserModule[]
+}
+
+model ModuleItem {
+  id        String   @id @default(uuid())
+  title     String
+  url       String
+  moduleId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  customUrl String?
+  module    Module   @relation(fields: [moduleId], references: [id])
+}
+
+model Pausar {
+  userId      String
+  mensaje     String   @default("Fue un gusto ayudarte.")
+  tipo        String   @default("abrir")
+  baseurl     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  apikeyId    String
+  instanciaId String
+  id          Int      @id @default(autoincrement())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  description String?
+  price       Decimal  @db.Decimal(65, 2)
+  sku         String?  @unique
+  stock       Int      @default(0)
+  isActive    Boolean  @default(true)
+  images      String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  category    String
+  tags        String[]
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, title])
+}
+
+model PromptInstance {
+  id           Int     @id @default(autoincrement())
+  instanceType String?
+  description  String?
+  content      String?
+  instanceId   Int?
+  userId       String
+  user         User    @relation(fields: [userId], references: [id])
+}
+
+model PromptTemplate {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  content     String
+  category    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Registro {
+  tipo         TipoRegistro
+  fecha        DateTime?
+  estado       String?
+  resumen      String?
+  lead         Boolean?
+  nombre       String?
+  detalles     String?
+  meta         Json?
+  sessionId    Int
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  id           Int           @id @default(autoincrement())
+  session      Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  crmFollowUps CrmFollowUp[]
+
+  @@index([tipo, fecha])
+  @@index([sessionId])
+}
+
+model Reminders {
+  id           String      @id @default(uuid())
+  title        String
+  description  String?
+  time         String?
+  repeatType   RepeatType? @default(NONE)
+  repeatEvery  Int?
+  endsAt       DateTime?
+  instanceName String?
+  serverUrl    String?
+  apikey       String?
+  userId       String?
+  workflowId   String?
+  remoteJid    String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  pushName     String?
+  isSchedule   Boolean?    @default(false)
+}
+
+model Service {
+  id           String        @id @default(uuid())
+  userId       String
+  name         String
+  description  String?
+  messageText  String
+  createdAt    DateTime      @default(now())
+  appointments Appointment[]
+  user         User          @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model Session {
+  userId               String
+  remoteJid            String
+  pushName             String
+  instanceId           String
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  status               Boolean
+  id                   Int                    @id @default(autoincrement())
+  seguimientos         String?                @default("")
+  inactividad          String?                @default("")
+  sessionDelay         String?
+  flujos               String?                @default("")
+  remoteJidAlt         String?
+  agentDisabled        Boolean                @default(false)
+  leadStatus           LeadStatus?
+  leadStatusReason     String?                @map("lead_status_reason")
+  leadStatusSourceHash String?                @map("lead_status_source_hash")
+  leadStatusUpdatedAt  DateTime?              @map("lead_status_updated_at")
+  appointments         Appointment[]
+  registros            Registro[]
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionTags          SessionTag[]
+  sessionTrigger       SessionTrigger?
+  workflowStates       SessionWorkflowState[]
+  crmFollowUps         CrmFollowUp[]
+  financeTransactions  FinanceTransaction[]
+
+  @@index([userId, remoteJid])
+}
+
+model ChatConversationPreference {
+  id         String    @id @default(cuid())
+  userId     String
+  remoteJid  String
+  pinnedAt   DateTime?
+  archivedAt DateTime?
+  deletedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, remoteJid])
+  @@index([userId, pinnedAt])
+  @@index([userId, archivedAt])
+  @@index([userId, deletedAt])
+}
+
+model SessionTag {
+  sessionId Int
+  tagId     Int
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, tagId])
+}
+
+model SessionTrigger {
+  id        Int      @id @default(autoincrement())
+  time      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessionId Int      @unique
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model SystemMessage {
+  id         String        @id @default(uuid())
+  message    String
+  userId     String
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  title      String        @default("Sin título")
+  typePrompt TypePromptAi? @default(TRAINING)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Tag {
+  id          Int          @id @default(autoincrement())
+  userId      String
+  name        String
+  slug        String
+  color       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  order       Int          @default(0)
+  sessionTags SessionTag[]
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, slug])
+  @@index([userId])
+}
+
+model Tool {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("Tools")
+}
+
+model User {
+  id                                 String                       @id @default(uuid())
+  name                               String?
+  email                              String                       @unique
+  password                           String?
+  emailVerified                      DateTime?
+  image                              String?
+  role                               Role                         @default(user)
+  createdAt                          DateTime                     @default(now())
+  updatedAt                          DateTime                     @updatedAt
+  apiUrl                             String                       @default("https://api.openAI.co")
+  company                            String                       @default("Empresa Demo")
+  lat                                String                       @default("0.0000")
+  lng                                String                       @default("0.0000")
+  mapsUrl                            String                       @default("https://maps.google.com/?q=0,0")
+  notificationNumber                 String                       @default("0000000000")
+  openingPhrase                      String?                      @default("DEPRECATED")
+  apiKeyId                           String?
+  delSeguimiento                     String?                      @default("Estamos para servirle.") @map("del_seguimiento")
+  plan                               Plan                         @default(basico)
+  autoReactivate                     String?
+  webhookUrl                         String?                      @default("https://n8npro.verzay.co/webhook")
+  theme                              ThemeApp?                    @default(Default)
+  muteAgentResponses                 Boolean                      @default(false)
+  timezone                           String?
+  meetingDuration                    Int?
+  onFacebook                         Boolean                      @default(false)
+  onInstagram                        Boolean                      @default(false)
+  aiModelId                          String?
+  defaultAiModelId                   String?
+  defaultProviderId                  String?
+  delayTimeGpt                       String?                      @map("delayTimeGPT")
+  meetingUrl                         String?
+  preferredCurrencyCode              String                       @default("COP")
+  tokenVersion                       Int                          @default(0)
+  passPlainTxt                       String?                      @default("IA@verzay.1234")
+  enabledSynthesizer                 Boolean                      @default(false)
+  status                             Boolean                      @default(true)
+  enabledCrmFollowUps                Boolean                      @default(false)
+  enabledLeadStatusClassifier        Boolean                      @default(false)
+  accounts                           Account[]
+  agentPrompts                       AgentPrompt[]
+  publishedAgentPromptRevisions      AgentPromptRevision[]
+  appointments                       Appointment[]
+  chatConversationPreferences        ChatConversationPreference[]
+  instancias                         Instancia[]
+  pausar                             Pausar[]
+  products                           Product[]
+  promptInstances                    PromptInstance[]
+  services                           Service[]
+  sessions                           Session[]
+  systemMessages                     SystemMessage[]
+  tags                               Tag[]
+  tools                              Tool[]
+  apiKey                             ApiKey?                      @relation(fields: [apiKeyId], references: [id])
+  defaultAiModel                     AiModel?                     @relation(fields: [defaultAiModelId], references: [id])
+  userAvailability                   UserAvailability[]
+  billing                            UserBilling?
+  notificationContacts               UserNotificationContact[]
+  userModules                        UserModule[]
+  crmFollowUpRules                   CrmFollowUpRule[]
+  crmFollowUps                       CrmFollowUp[]
+  externalClientData                 ExternalClientData[]
+  externalDataToolConfigs            ExternalDataToolConfig[]
+  financeAccounts                    FinanceAccount[]
+  financeAttachments                 FinanceAttachment[]
+  financeCategories                  FinanceCategory[]
+  financeTransactions                FinanceTransaction[]
+  iaCredits                          IaCredit?
+  reseller_reseller_reselleridToUser Reseller[]                   @relation("reseller_reselleridToUser")
+  reseller_reseller_userIdToUser     Reseller[]                   @relation("reseller_userIdToUser")
+  aiConfigs                          UserAiConfig[]
+}
+
+model UserNotificationContact {
+  id        String   @id @default(uuid())
+  userId    String
+  phone     String
+  label     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model CrmFollowUp {
+  id                      String            @id @default(cuid())
+  sessionId               Int
+  userId                  String
+  sourceReportId          Int?
+  remoteJid               String
+  instanceId              String
+  leadStatusSnapshot      LeadStatus
+  summarySnapshot         String?           @map("summary_snapshot")
+  ruleKey                 String            @map("rule_key")
+  sourceHash              String?           @map("source_hash")
+  scheduledFor            DateTime          @map("scheduled_for")
+  status                  CrmFollowUpStatus @default(PENDING)
+  cancelOnReply           Boolean           @default(true) @map("cancel_on_reply")
+  maxAttempts             Int               @default(2) @map("max_attempts")
+  attemptCount            Int               @default(0) @map("attempt_count")
+  generatedMessage        String?           @map("generated_message")
+  errorReason             String?           @map("error_reason")
+  lastProcessedAt         DateTime?         @map("last_processed_at")
+  sentAt                  DateTime?         @map("sent_at")
+  cancelledAt             DateTime?         @map("cancelled_at")
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  goalSnapshot            String?           @map("goal_snapshot")
+  promptSnapshot          String?           @map("prompt_snapshot")
+  fallbackMessageSnapshot String?           @map("fallback_message_snapshot")
+  allowedWeekdaysSnapshot Int[]             @default([]) @map("allowed_weekdays_snapshot")
+  sendStartTimeSnapshot   String?           @map("send_start_time_snapshot")
+  sendEndTimeSnapshot     String?           @map("send_end_time_snapshot")
+  session                 Session           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sourceReport            Registro?         @relation(fields: [sourceReportId], references: [id])
+  user                    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, ruleKey, sourceHash])
+  @@index([sessionId, status])
+  @@index([status, scheduledFor])
+  @@index([userId, status])
+  @@index([remoteJid, instanceId, status])
+  @@map("crm_follow_ups")
+}
+
+model CrmFollowUpRule {
+  id              String     @id @default(uuid())
+  userId          String
+  leadStatus      LeadStatus
+  enabled         Boolean    @default(true)
+  delayMinutes    Int        @default(60) @map("delay_minutes")
+  maxAttempts     Int        @default(1) @map("max_attempts")
+  goal            String?
+  prompt          String?
+  fallbackMessage String?    @map("fallback_message")
+  allowedWeekdays Int[]      @default([]) @map("allowed_weekdays")
+  sendStartTime   String     @default("08:00") @map("send_start_time")
+  sendEndTime     String     @default("18:00") @map("send_end_time")
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @default(now()) @updatedAt
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade, map: "crm_follow_up_rules_user_fkey")
+
+  @@unique([userId, leadStatus], map: "crm_follow_up_rules_user_lead_status_uidx")
+  @@index([userId], map: "crm_follow_up_rules_user_idx")
+  @@map("crm_follow_up_rules")
+}
+
+model UserBilling {
+  id                     String              @id @default(uuid())
+  userId                 String              @unique
+  price                  Decimal?            @db.Decimal(18, 2)
+  currencyCode           String              @default("COP")
+  paymentMethodLabel     String?
+  paymentNotes           String?
+  dueDate                DateTime?
+  billingStatus          BillingStatus       @default(UNPAID)
+  accessStatus           ServiceAccessStatus @default(ACTIVE)
+  suspendedAt            DateTime?
+  suspendedReason        String?
+  lastPaymentAt          DateTime?
+  lastReminderAt         DateTime?
+  lastReminderDueDate    DateTime?
+  graceDays              Int                 @default(0)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  notifyRemoteJid        String?
+  serviceActiveDaysTotal Int                 @default(0)
+  serviceEndAt           DateTime?
+  serviceEndsAt          DateTime?
+  serviceName            String?
+  serviceStartAt         DateTime?
+  lastInstanceName       String?
+  licenseDays            Int?
+  user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([dueDate])
+  @@index([serviceEndsAt])
+  @@index([billingStatus])
+  @@index([accessStatus])
+}
+
+model UserAvailability {
+  id        String @id @default(uuid())
+  userId    String
+  dayOfWeek Int
+  startTime String
+  endTime   String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dayOfWeek, startTime, endTime])
+}
+
+model VerificationToken {
+  identifier String   @id @unique
+  token      String
+  expires    DateTime
+}
+
+model Workflow {
+  id            String                 @id @default(cuid())
+  userId        String
+  name          String
+  description   String?
+  definition    String
+  status        String
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt @map("updateAt")
+  umbral        Float                  @default(0.5)
+  isPro         Boolean                @default(false)
+  order         Int                    @default(0)
+  sessionStates SessionWorkflowState[]
+  workflowEdges WorkflowEdge[]
+  nodes         WorkflowNode[]
+
+  @@unique([name, userId])
+}
+
+model WorkflowExecutionLock {
+  id           String   @id @default(cuid())
+  userId       String
+  instanceName String
+  remoteJid    String
+  workflowId   String
+  lockKey      String   @unique
+  createdAt    DateTime @default(now())
+
+  @@index([userId, instanceName, remoteJid, workflowId])
+}
+
+model SessionWorkflowState {
+  id                String        @id @default(cuid())
+  sessionId         Int
+  workflowId        String
+  currentNodeId     String?
+  intentionAttempts Int           @default(0)
+  intentionStatus   String        @default("idle")
+  intentionData     Json?
+  lastPromptAt      DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  currentNode       WorkflowNode? @relation(fields: [currentNodeId], references: [id])
+  session           Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  workflow          Workflow      @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, workflowId])
+  @@index([workflowId])
+  @@index([sessionId])
+}
+
+model WorkflowEdge {
+  id           String       @id @default(cuid())
+  workflowId   String
+  sourceId     String
+  targetId     String
+  createdAt    DateTime     @default(now())
+  sourceHandle String       @default("default")
+  targetHandle String?
+  source       WorkflowNode @relation("EdgeSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  target       WorkflowNode @relation("EdgeTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  workflow     Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, sourceId, sourceHandle])
+  @@index([workflowId])
+  @@index([sourceId])
+  @@index([targetId])
+}
+
+model WorkflowNode {
+  id                    String                 @id @default(uuid())
+  workflowId            String
+  message               String
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  tipo                  String
+  url                   String?
+  delay                 String?
+  inactividad           Boolean?
+  nameFile              String?                @map("name_file")
+  order                 Int                    @default(0)
+  posX                  Float?
+  posY                  Float?
+  intentionMaxAttempts  Int                    @default(3)
+  intentionPrompt       String?
+  keywords              String?
+  miniPrompt            String?
+  noMatchMessage        String?
+  threshold             Float?
+  followUpCancelOnReply Boolean                @default(true)
+  followUpGoal          String?
+  followUpMaxAttempts   Int                    @default(3)
+  followUpMode          String                 @default("static")
+  followUpPrompt        String?
+  aiEnabled             Boolean                @default(false)
+  sessionWorkflowStates SessionWorkflowState[]
+  outgoingEdges         WorkflowEdge[]         @relation("EdgeSource")
+  incomingEdges         WorkflowEdge[]         @relation("EdgeTarget")
+  workflow              Workflow               @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+}
+
+model AiModel {
+  id           String     @id @default(uuid())
+  providerId   String
+  name         String
+  description  String?
+  costPerToken Float?
+  createdAt    DateTime   @default(now())
+  modelName    String?
+  updatedAt    DateTime   @updatedAt
+  users        User[]
+  provider     AiProvider @relation(fields: [providerId], references: [id])
+
+  @@unique([providerId, name])
+  @@map("ai_models")
+}
+
+model AiProvider {
+  id          String         @id @default(uuid())
+  name        String         @unique
+  description String?
+  aiModel     String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  models      AiModel[]
+  configs     UserAiConfig[]
+
+  @@map("ai_providers")
+}
+
+model FinanceAccount {
+  id           String               @id @default(uuid())
+  userId       String
+  name         String
+  type         FinanceAccountType   @default(PERSONAL)
+  isDefault    Boolean              @default(false)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  currencyCode String?
+  currency     FinanceCurrency?     @relation(fields: [currencyCode], references: [code])
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions FinanceTransaction[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@index([userId, currencyCode])
+  @@map("finance_accounts")
+}
+
+model FinanceAttachment {
+  id            String             @id @default(uuid())
+  userId        String
+  transactionId String
+  url           String
+  fileName      String?
+  mimeType      String?
+  sizeBytes     Int?
+  createdAt     DateTime           @default(now())
+  transaction   FinanceTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId])
+  @@index([userId])
+  @@map("finance_attachments")
+}
+
+model FinanceCategory {
+  id           String               @id @default(uuid())
+  userId       String
+  name         String
+  type         FinanceTxType
+  color        String?
+  order        Int                  @default(0)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions FinanceTransaction[]
+
+  @@unique([userId, type, name])
+  @@index([userId, type])
+  @@map("finance_categories")
+}
+
+model FinanceCurrency {
+  code         String               @id
+  name         String
+  symbol       String
+  decimals     Int                  @default(2)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  accounts     FinanceAccount[]
+  transactions FinanceTransaction[]
+
+  @@map("finance_currencies")
+}
+
+model FinanceTransaction {
+  id                String              @id @default(uuid())
+  userId            String
+  type              FinanceTxType
+  status            FinanceTxStatus     @default(ACTIVE)
+  occurredAt        DateTime
+  amount            Decimal             @db.Decimal(18, 2)
+  currencyCode      String
+  accountId         String
+  categoryId        String?
+  title             String?
+  description       String?
+  counterparty      String?
+  reference         String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  deletedAt         DateTime?
+  discount          Decimal             @default(0)
+  extra             Decimal             @default(0)
+  sessionId         Int?
+  externalReference String?             @unique
+  paymentSource     PaymentSource?
+  attachments       FinanceAttachment[]
+  account           FinanceAccount      @relation(fields: [accountId], references: [id])
+  category          FinanceCategory?    @relation(fields: [categoryId], references: [id])
+  currency          FinanceCurrency     @relation(fields: [currencyCode], references: [code])
+  session           Session?            @relation(fields: [sessionId], references: [id])
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, accountId, occurredAt])
+  @@index([userId, categoryId, occurredAt])
+  @@index([userId, currencyCode, occurredAt])
+  @@index([userId, occurredAt])
+  @@index([userId, type, status])
+  @@index([userId, sessionId, occurredAt])
+  @@index([paymentSource])
+  @@map("finance_transactions")
+}
+
+model IaCredit {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  total       Int      @default(0)
+  used        Int      @default(0)
+  renewalDate DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ia_credits")
+}
+
+model ExternalClientData {
+  id        String   @id @default(uuid())
+  userId    String
+  remoteJid String
+  data      Json
+  source    String?  @default("manual")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, remoteJid])
+  @@index([userId])
+  @@map("external_client_data")
+}
+
+model ExternalDataToolConfig {
+  id              String   @id @default(uuid())
+  userId          String
+  toolKey         String
+  displayName     String
+  toolDescription String
+  /// builtin: notificacion_asesor | ejecutar_flujos | listar_workflows | consultar_datos_cliente | buscar_cliente_por_dato
+  /// data_query: auto_inject | search_by_field
+  toolType        String   @default("search_by_field")
+  searchField     String?
+  promptTemplate  String?
+  isEnabled       Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  /// true = sembrado por el sistema como configuración por defecto
+  isDefault       Boolean  @default(false)
+  /// 'builtin' = implementación fija en NestJS (solo nombre/descripción/enabled editable)
+  /// 'data_query' = totalmente dinámico desde config
+  toolCategory    String   @default("data_query")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, toolKey])
+  @@index([userId])
+  @@index([isEnabled])
+  @@map("external_data_tool_configs")
+}
+
+model N8nChatHistory {
+  id        Int    @id @default(autoincrement())
+  sessionId String @map("session_id") @db.VarChar(255)
+  message   Json
+
+  @@map("n8n_chat_histories")
+}
+
+model Reseller {
+  id                             Int      @id @default(autoincrement())
+  resellerid                     String?
+  userId                         String?
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
+  theme                          ThemeApp @default(Default)
+  user_reseller_reselleridToUser User?    @relation("reseller_reselleridToUser", fields: [resellerid], references: [id])
+  user_reseller_userIdToUser     User?    @relation("reseller_userIdToUser", fields: [userId], references: [id])
+
+  @@map("reseller")
+}
+
+model QuickReply {
+  id         Int      @id @default(autoincrement())
+  workflowId String?
+  mensaje    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  userId     String
+  order      Int      @default(0)
+  name       String?
+
+  @@map("rr")
+}
+
+model Seguimiento {
+  id                    Int      @id @default(autoincrement())
+  idNodo                String?
+  serverurl             String?
+  instancia             String?
+  apikey                String?
+  remoteJid             String?
+  mensaje               String?
+  tipo                  String?
+  time                  String?
+  nameFile              String?  @map("name_file")
+  consecutivo           String?
+  media                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @default(now()) @updatedAt
+  idempotencyKey        String?  @unique
+  errorReason           String?  @map("error_reason")
+  followUpAttempt       Int      @default(0)
+  followUpCancelOnReply Boolean  @default(true)
+  followUpGoal          String?
+  followUpMaxAttempts   Int      @default(3)
+  followUpMode          String   @default("static")
+  followUpPrompt        String?
+  followUpStatus        String   @default("pending")
+  generatedMessage      String?  @map("generated_message")
+
+  @@map("seguimientos")
+}
+
+model UserAiConfig {
+  id         String     @id @default(uuid())
+  userId     String
+  providerId String
+  apiKey     String
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  provider   AiProvider @relation(fields: [providerId], references: [id])
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, providerId])
+  @@map("user_ai_configs")
+}
+
+model UserModule {
+  A      String
+  B      String
+  Module Module @relation(fields: [A], references: [id], onDelete: Cascade)
+  User   User   @relation(fields: [B], references: [id], onDelete: Cascade)
+
+  @@id([A, B], map: "_UserModules_AB_pkey")
+  @@index([B], map: "_UserModules_B_index")
+  @@map("_UserModules")
+}
+
+model crm_follow_ups_archive {
+  id                        String            @id
+  sessionId                 Int
+  userId                    String
+  sourceReportId            Int?
+  remoteJid                 String
+  instanceId                String
+  leadStatusSnapshot        LeadStatus
+  summary_snapshot          String?
+  rule_key                  String
+  source_hash               String?
+  scheduled_for             DateTime
+  status                    CrmFollowUpStatus @default(PENDING)
+  cancel_on_reply           Boolean           @default(true)
+  max_attempts              Int               @default(2)
+  attempt_count             Int               @default(0)
+  generated_message         String?
+  error_reason              String?
+  last_processed_at         DateTime?
+  sent_at                   DateTime?
+  cancelled_at              DateTime?
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime
+  goal_snapshot             String?
+  prompt_snapshot           String?
+  fallback_message_snapshot String?
+  allowed_weekdays_snapshot Int[]             @default([])
+  send_start_time_snapshot  String?
+  send_end_time_snapshot    String?
+
+  @@unique([sessionId, rule_key, source_hash], map: "crm_follow_ups_archive_sessionId_rule_key_source_hash_idx")
+  @@index([remoteJid, instanceId, status])
+  @@index([sessionId, status])
+  @@index([status, scheduled_for])
+  @@index([userId, status])
+}
+
+enum LeadStatus {
+  FRIO
+  TIBIO
+  CALIENTE
+  FINALIZADO
+  DESCARTADO
+}
+
+enum CrmFollowUpStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+  SKIPPED
+}
+
+enum AppointmentStatus {
+  PENDIENTE
+  CONFIRMADA
+  CANCELADA
+  ATENDIDA
+  NO_ASISTIDA
+}
+
+enum FinanceAccountType {
+  COMPANY
+  PERSONAL
+}
+
+enum FinanceTxStatus {
+  ACTIVE
+  VOIDED
+  DELETED
+}
+
+enum FinanceTxType {
+  SALE
+  EXPENSE
+}
+
+enum Plan {
+  enterprise
+  lite
+  unico
+  basico
+  intermedio
+  avanzado
+  personalizado
+}
+
+enum PromptStatus {
+  draft
+  published
+}
+
+enum RepeatType {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+  WEEKDAYS
+  EVERYDAY
+}
+
+enum Role {
+  user
+  admin
+  reseller
+  super_admin
+}
+
+enum ThemeApp {
+  Default
+  Red
+  Rose
+  Orange
+  Green
+  Blue
+  Yellow
+  Violet
+  Cyan
+  Black
+  White
+  Teal
+  MidnightBlue
+  AquaBlue
+  LightBlue
+}
+
+enum TipoRegistro {
+  REPORTE
+  SOLICITUD
+  PEDIDO
+  RECLAMO
+  PAGO
+  RESERVA
+}
+
+enum TypePromptAi {
+  TRAINING
+  FAQs
+  ACTIONS
+  DATA_CAPTURE
+  DATA_QUERY
+}
+
+enum BillingStatus {
+  PAID
+  UNPAID
+}
+
+enum ServiceAccessStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum PaymentSource {
+  WHATSAPP_RECEIPT
+  WOMPI_WEBHOOK
+  MANUAL
+}
