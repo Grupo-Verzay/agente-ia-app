@@ -20,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight, MoreVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PromptToolbar } from "./PromptToolbar";
-import { PaymentReceiptPromptBuilder } from "./PaymentReceiptPromptBuilder";
 import {
     buildExtrasMarkdown,
     buildFaqMarkdown,
@@ -38,7 +37,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { GenericDeleteDialog } from "@/components/shared/GenericDeleteDialog";
 import { deleteAgentPromptsByUserId } from "@/actions/prompt-actions";
-import { AGENT_PROMPT_IDS } from "@/lib/agent-prompt-ids";
 
 export const TYPE_AI_LABELS = {
     business: "Perfil",
@@ -47,12 +45,11 @@ export const TYPE_AI_LABELS = {
     products: "Productos",
     more: "Extras",
     management: "Gestion",
-    paymentReceipt: "Comprobantes",
 } as const;
 
 type TabKey = keyof typeof TYPE_AI_LABELS;
 
-export const MainAi = ({ flows, user, promptMeta, sections, paymentReceiptPrompt }: MainAiProps) => {
+export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     const [showAlertDialog, setShowAlertDialog] = useState(false);
 
     const trainingMd = sections?.training
@@ -127,7 +124,6 @@ export const MainAi = ({ flows, user, promptMeta, sections, paymentReceiptPrompt
     };
 
     const prompt = useMemo(() => buildPrompt(values), [values]);
-    const isPaymentReceiptTab = activeTab === "paymentReceipt";
 
     return (
         <>
@@ -166,8 +162,7 @@ export const MainAi = ({ flows, user, promptMeta, sections, paymentReceiptPrompt
                                     {TYPE_AI_LABELS[key]}
                                 </button>
                             ))}
-                            {!isPaymentReceiptTab && (
-                                <PromptToolbar
+                            <PromptToolbar
                                     promptId={promptMeta.id}
                                     version={promptVersion}
                                     userId={user.id}
@@ -234,7 +229,6 @@ export const MainAi = ({ flows, user, promptMeta, sections, paymentReceiptPrompt
                                     revisions={[]}
                                     onManualSave={handleManualSaveCurrent}
                                 />
-                            )}
 
                             <DropdownMenu modal={false}>
                                 <DropdownMenuTrigger asChild>
@@ -386,26 +380,12 @@ export const MainAi = ({ flows, user, promptMeta, sections, paymentReceiptPrompt
                             />
                         </TabsContent>
 
-                        <TabsContent value="paymentReceipt" className="m-0">
-                            <PaymentReceiptPromptBuilder
-                                userId={user.id}
-                                agentId={AGENT_PROMPT_IDS.paymentReceiptAnalyzer}
-                                title="Analizador de comprobantes"
-                                description="Administra el prompt especializado para analizar comprobantes de pago."
-                                initialPromptText={paymentReceiptPrompt?.promptText ?? ""}
-                                initialExists={!!paymentReceiptPrompt}
-                                showInlineSaveButton
-                                registerSaveHandler={(fn) => registerSaveHandler("paymentReceipt", fn)}
-                            />
-                        </TabsContent>
                         <div className="h-6" />
                     </div>
 
-                    {!isPaymentReceiptTab && (
-                        <aside className="hidden lg:block lg:w-[420px]">
-                            <PromptPreview prompt={prompt} />
-                        </aside>
-                    )}
+                    <aside className="hidden lg:block lg:w-[420px]">
+                        <PromptPreview prompt={prompt} />
+                    </aside>
                 </div>
             </Tabs>
 
