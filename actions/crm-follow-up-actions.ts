@@ -433,6 +433,136 @@ export async function retrySessionFailedCrmFollowUps(
   }
 }
 
+export async function retrySessionCancelledCrmFollowUps(
+  input: CrmFollowUpSessionInput
+): Promise<CrmFollowUpSessionActionResult> {
+  try {
+    const sessionCheck = await ensureSessionOwnership(input);
+    if (!sessionCheck.ok) return sessionCheck.result;
+
+    const cancelledFollowUps = await db.crmFollowUp.findMany({
+      where: {
+        sessionId: sessionCheck.input.id,
+        status: "CANCELLED",
+      },
+      select: {
+        id: true,
+        leadStatusSnapshot: true,
+      },
+    });
+
+    if (cancelledFollowUps.length === 0) {
+      return {
+        success: true,
+        message: "No hay follow-ups cancelados para reactivar.",
+        data: { count: 0 },
+      };
+    }
+
+    const { updates, skippedCount } = await buildReactivationUpdates(
+      sessionCheck.input.userId,
+      cancelledFollowUps.map((followUp) => ({
+        id: followUp.id,
+        leadStatusSnapshot: followUp.leadStatusSnapshot as LeadStatus,
+      }))
+    );
+
+    if (updates.length === 0) {
+      return {
+        success: false,
+        message: "Las reglas actuales no permiten reactivar los follow-ups cancelados.",
+      };
+    }
+
+    await db.$transaction(updates);
+
+    return {
+      success: true,
+      message: `${formatCountMessage({
+        count: updates.length,
+        zero: "No hay follow-ups cancelados para reactivar.",
+        singular: "Se reactivo 1 follow-up cancelado.",
+        plural: (count) => `Se reactivaron ${count} follow-ups cancelados.`,
+      })}${formatSkippedReactivationMessage(skippedCount)}`,
+      data: { count: updates.length },
+    };
+  } catch (error) {
+    console.error("[retrySessionCancelledCrmFollowUps]", error);
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "No se pudieron reactivar los follow-ups cancelados.",
+    };
+  }
+}
+
+export async function retrySessionReactivatableCrmFollowUps(
+  input: CrmFollowUpSessionInput
+): Promise<CrmFollowUpSessionActionResult> {
+  try {
+    const sessionCheck = await ensureSessionOwnership(input);
+    if (!sessionCheck.ok) return sessionCheck.result;
+
+    const reactivatableFollowUps = await db.crmFollowUp.findMany({
+      where: {
+        sessionId: sessionCheck.input.id,
+        status: { in: ["FAILED", "CANCELLED", "SENT"] },
+      },
+      select: {
+        id: true,
+        leadStatusSnapshot: true,
+      },
+    });
+
+    if (reactivatableFollowUps.length === 0) {
+      return {
+        success: true,
+        message: "No hay follow-ups para reactivar.",
+        data: { count: 0 },
+      };
+    }
+
+    const { updates, skippedCount } = await buildReactivationUpdates(
+      sessionCheck.input.userId,
+      reactivatableFollowUps.map((followUp) => ({
+        id: followUp.id,
+        leadStatusSnapshot: followUp.leadStatusSnapshot as LeadStatus,
+      }))
+    );
+
+    if (updates.length === 0) {
+      return {
+        success: false,
+        message: "Las reglas actuales no permiten reactivar los follow-ups.",
+      };
+    }
+
+    await db.$transaction(updates);
+
+    return {
+      success: true,
+      message: `${formatCountMessage({
+        count: updates.length,
+        zero: "No hay follow-ups para reactivar.",
+        singular: "Se reactivo 1 follow-up IA.",
+        plural: (count) => `Se reactivaron ${count} follow-ups IA.`,
+      })}${formatSkippedReactivationMessage(skippedCount)}`,
+      data: { count: updates.length },
+    };
+  } catch (error) {
+    console.error("[retrySessionReactivatableCrmFollowUps]", error);
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "No se pudieron reactivar los follow-ups IA.",
+    };
+  }
+}
+
 export async function updateCrmFollowUpSchedule(
   input: CrmFollowUpScheduleInput
 ): Promise<CrmFollowUpSessionActionResult> {

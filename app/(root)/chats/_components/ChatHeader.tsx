@@ -160,7 +160,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       </div>
 
       {/* ── Desktop ── */}
-      <div className="hidden md:flex items-center justify-between p-3 gap-4">
+      <div className="hidden md:flex items-center justify-between p-3 gap-2 min-w-0 overflow-hidden">
         <div className="flex items-center gap-3 min-w-0">
           <Avatar className="w-14 h-14 ring-2 ring-border flex-shrink-0">
             <AvatarImage src={header.avatarSrc || '/default-avatar.png'} />

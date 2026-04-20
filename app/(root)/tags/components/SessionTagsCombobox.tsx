@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { ChevronsUpDown, Check, Tag as TagIcon } from "lucide-react";
+import { Check, Tag as TagIcon } from "lucide-react";
 import {
     assignTagToSessionAction,
     removeTagFromSessionAction,
@@ -145,7 +145,6 @@ export function SessionTagsCombobox({
                     <span className="flex items-center gap-1 truncate">
                         <span className="truncate">{summaryLabel()}</span>
                     </span>
-                    <ChevronsUpDown />
                 </Button>
             </PopoverTrigger>
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -42,14 +41,12 @@ export function LeadStatusSelect({ sessionId, currentStatus, onUpdated }: LeadSt
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild disabled={isPending}>
-        <button
-          className="flex items-center gap-0.5 cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50"
-          aria-label="Cambiar estado del lead"
-        >
-          <LeadStatusBadge status={currentStatus} />
-          <ChevronDown className="h-3 w-3 text-muted-foreground" />
-        </button>
+      <DropdownMenuTrigger
+        disabled={isPending}
+        className="flex items-center gap-0.5 cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50 focus:outline-none"
+        aria-label="Cambiar estado del lead"
+      >
+        <LeadStatusBadge status={currentStatus} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuGroup>

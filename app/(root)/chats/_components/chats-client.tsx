@@ -729,7 +729,7 @@ export function ChatsClient({
       <div
         className={`${
           !isSidebarVisible ? "flex-1 w-full" : "hidden sm:flex-1"
-        } h-full transition-all duration-300`}
+        } h-full min-w-0 transition-all duration-300`}
       >
         {selectedJid ? (
           <ChatMain

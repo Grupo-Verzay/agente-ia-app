@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { RefreshCcw, XCircle } from "lucide-react";
 
 import {
   cancelSessionCrmFollowUps,
-  retrySessionFailedCrmFollowUps,
+  retrySessionReactivatableCrmFollowUps,
 } from "@/actions/crm-follow-up-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -78,8 +79,8 @@ export function CrmFollowUpSummaryBadge({
   instanceId?: string | null;
   onUpdated?: () => Promise<void> | void;
 }) {
-  const [pendingAction, setPendingAction] = useState<"cancel" | "retry" | null>(null);
-  const [confirmAction, setConfirmAction] = useState<"cancel" | "retry" | null>(null);
+  const [pendingAction, setPendingAction] = useState<"cancel" | "reactivate" | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"cancel" | "reactivate" | null>(null);
 
   if (!summary || summary.total === 0) {
     return (
@@ -97,7 +98,7 @@ export function CrmFollowUpSummaryBadge({
 
   const canManage = Boolean(userId && remoteJid && instanceId);
   const canCancel = canManage && summary.active > 0;
-  const canRetry = canManage && summary.failed > 0;
+  const canReactivate = canManage && (summary.failed > 0 || summary.cancelled > 0 || summary.sent > 0);
 
   const renderBadges = () => (
     <div className="flex gap-1 flex-wrap">
@@ -125,14 +126,12 @@ export function CrmFollowUpSummaryBadge({
     </div>
   );
 
-  const handleAction = async (action: "cancel" | "retry") => {
+  const handleAction = async (action: "cancel" | "reactivate") => {
     if (!userId || !remoteJid || !instanceId) return;
 
     const toastId = `crm-follow-up-${action}-${instanceId}-${remoteJid}`;
     toast.loading(
-      action === "cancel"
-        ? "Cancelando follow-ups..."
-        : "Reactivando follow-ups...",
+      action === "cancel" ? "Cancelando follow-ups..." : "Reactivando follow-ups...",
       { id: toastId }
     );
     setPendingAction(action);
@@ -140,16 +139,8 @@ export function CrmFollowUpSummaryBadge({
     try {
       const result =
         action === "cancel"
-          ? await cancelSessionCrmFollowUps({
-              userId,
-              remoteJid,
-              instanceId,
-            })
-          : await retrySessionFailedCrmFollowUps({
-              userId,
-              remoteJid,
-              instanceId,
-            });
+          ? await cancelSessionCrmFollowUps({ userId, remoteJid, instanceId })
+          : await retrySessionReactivatableCrmFollowUps({ userId, remoteJid, instanceId });
 
       if (!result.success) {
         throw new Error(result.message);
@@ -169,18 +160,15 @@ export function CrmFollowUpSummaryBadge({
     }
   };
 
-  const hasActions = canCancel || canRetry;
+  const hasActions = canCancel || canReactivate;
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="text-left"
-          title="Ver follow-up"
-        >
-          {renderBadges()}
-        </button>
+      <PopoverTrigger
+        className="text-left focus:outline-none"
+        title="Ver follow-up"
+      >
+        {renderBadges()}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[380px] p-0">
         <ScrollArea className="h-[420px]">
@@ -271,15 +259,17 @@ export function CrmFollowUpSummaryBadge({
           )}
 
           {hasActions && (
-            <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
-              {canRetry && (
+            <div className="flex gap-2 border-t pt-3">
+              {canReactivate && (
                 <Button
                   size="sm"
                   variant="outline"
+                  className="flex-1 text-xs"
                   disabled={pendingAction !== null}
-                  onClick={() => setConfirmAction("retry")}
+                  onClick={() => setConfirmAction("reactivate")}
                 >
-                  Reactivar fallidos
+                  <RefreshCcw className="h-3.5 w-3.5 text-emerald-500" />
+                  Reactivar follow-up
                 </Button>
               )}
 
@@ -287,10 +277,12 @@ export function CrmFollowUpSummaryBadge({
                 <Button
                   size="sm"
                   variant="outline"
+                  className="flex-1 text-xs"
                   disabled={pendingAction !== null}
                   onClick={() => setConfirmAction("cancel")}
                 >
-                  Cancelar activos
+                  <XCircle className="h-3.5 w-3.5 text-rose-500" />
+                  Cancelar follow-up
                 </Button>
               )}
             </div>
@@ -306,16 +298,16 @@ export function CrmFollowUpSummaryBadge({
         }}
         title={
           confirmAction === "cancel"
-            ? "Cancelar follow-ups activos"
-            : "Reactivar follow-ups fallidos"
+            ? "Cancelar follow-up"
+            : "Reactivar follow-up"
         }
         description={
           confirmAction === "cancel"
             ? "Los follow-ups pendientes o en proceso de este lead pasaran a estado cancelado."
-            : "Los follow-ups fallidos de este lead se reprogramaran usando las reglas actuales."
+            : "Los follow-ups de este lead se reprogramaran usando las reglas actuales."
         }
         confirmLabel={
-          confirmAction === "cancel" ? "Cancelar activos" : "Reactivar fallidos"
+          confirmAction === "cancel" ? "Cancelar follow-up" : "Reactivar follow-up"
         }
         tone={confirmAction === "cancel" ? "destructive" : "default"}
         onConfirm={async () => {
