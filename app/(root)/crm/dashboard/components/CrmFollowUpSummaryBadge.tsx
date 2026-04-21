@@ -16,6 +16,12 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   SessionCrmFollowUpHistoryItem,
   SessionCrmFollowUpSummary,
 } from "@/types/session";
@@ -163,158 +169,211 @@ export function CrmFollowUpSummaryBadge({
   const hasActions = canCancel || canReactivate;
 
   return (
-    <Popover>
-      <PopoverTrigger
-        className="text-left focus:outline-none"
-        title="Ver follow-up"
-      >
-        {renderBadges()}
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-[380px] p-0">
-        <ScrollArea className="h-[420px]">
-        <div className="space-y-3 p-3">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Follow-up IA</p>
-            <p className="text-xs text-muted-foreground">
-              {formattedLatestDate
-                ? `Proximo envio: ${formattedLatestDate}`
-                : "Sin programacion disponible"}
-            </p>
-          </div>
+    <>
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <Popover>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <button type="button" className="focus:outline-none text-left">
+                <Badge variant="outline" className={getStatusClassName(summary.latestStatus)}>
+                  {latestLabel}
+                  {summary.active > 0 && (
+                    <span className="ml-1 font-normal opacity-75">· {summary.active}</span>
+                  )}
+                </Badge>
+              </button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <PopoverContent align="start" className="w-[380px] p-0">
+            <ScrollArea className="h-[420px]">
+              <div className="space-y-3 p-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Follow-up IA</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formattedLatestDate
+                      ? `Proximo envio: ${formattedLatestDate}`
+                      : "Sin programacion disponible"}
+                  </p>
+                </div>
 
-          <div className="flex flex-wrap gap-1">
-            {renderBadges()}
-          </div>
+                <div className="flex flex-wrap gap-1">
+                  {renderBadges()}
+                </div>
 
-          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-            <span>Total: {summary.total}</span>
-            <span>Procesando: {summary.processing}</span>
-            <span>Pendientes: {summary.pending}</span>
-            <span>Cancelados: {summary.cancelled}</span>
-          </div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                  <span>Total: {summary.total}</span>
+                  <span>Procesando: {summary.processing}</span>
+                  <span>Pendientes: {summary.pending}</span>
+                  <span>Cancelados: {summary.cancelled}</span>
+                </div>
 
-          <div className="space-y-1">
-            <p className="text-xs font-medium">Ultimo mensaje</p>
-            <p className="whitespace-pre-wrap text-xs text-muted-foreground">
-              {summary.latestGeneratedMessage || "Aun no se ha enviado un mensaje."}
-            </p>
-          </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium">Ultimo mensaje</p>
+                  <p className="whitespace-pre-wrap text-xs text-muted-foreground">
+                    {summary.latestGeneratedMessage || "Aun no se ha enviado un mensaje."}
+                  </p>
+                </div>
 
-          {summary.recentItems.length > 0 && (
-            <div className="space-y-2 border-t pt-3">
-              <p className="text-xs font-medium">Historial reciente</p>
-              <div className="space-y-2">
-                {summary.recentItems.map((item) => {
-                  const scheduledFor = formatDate(item.scheduledFor);
-                  const updatedAt = formatDate(item.updatedAt);
+                {summary.recentItems.length > 0 && (
+                  <div className="space-y-2 border-t pt-3">
+                    <p className="text-xs font-medium">Historial reciente</p>
+                    <div className="space-y-2">
+                      {summary.recentItems.map((item) => {
+                        const scheduledFor = formatDate(item.scheduledFor);
+                        const updatedAt = formatDate(item.updatedAt);
 
-                  return (
-                    <div
-                      key={item.id}
-                      className="rounded-md border border-border/70 bg-muted/20 p-2"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-1">
-                          <Badge
-                            variant="outline"
-                            className={getStatusClassName(item.status)}
+                        return (
+                          <div
+                            key={item.id}
+                            className="rounded-md border border-border/70 bg-muted/20 p-2"
                           >
-                            {STATUS_LABELS[item.status]}
-                          </Badge>
-                          <LeadStatusBadge status={item.leadStatusSnapshot} />
-                          <span className="text-[11px] text-muted-foreground">
-                            {getHistoryAttemptLabel(item)}
-                          </span>
-                        </div>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-1">
+                                <Badge
+                                  variant="outline"
+                                  className={getStatusClassName(item.status)}
+                                >
+                                  {STATUS_LABELS[item.status]}
+                                </Badge>
+                                <LeadStatusBadge status={item.leadStatusSnapshot} />
+                                <span className="text-[11px] text-muted-foreground">
+                                  {getHistoryAttemptLabel(item)}
+                                </span>
+                              </div>
 
-                        <CrmFollowUpItemActions
-                          item={item}
-                          userId={userId}
-                          onUpdated={onUpdated}
-                        />
-                      </div>
+                              <CrmFollowUpItemActions
+                                item={item}
+                                userId={userId}
+                                onUpdated={onUpdated}
+                              />
+                            </div>
 
-                      <div className="mt-2 grid gap-1 text-[11px] text-muted-foreground">
-                        <span>Programado: {scheduledFor ?? "Sin fecha"}</span>
-                        <span>Actualizado: {updatedAt ?? "Sin fecha"}</span>
-                      </div>
+                            <div className="mt-2 grid gap-1 text-[11px] text-muted-foreground">
+                              <span>Programado: {scheduledFor ?? "Sin fecha"}</span>
+                              <span>Actualizado: {updatedAt ?? "Sin fecha"}</span>
+                            </div>
 
-                      <p className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">
-                        {item.message || "Sin mensaje almacenado."}
-                      </p>
+                            <p className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">
+                              {item.message || "Sin mensaje almacenado."}
+                            </p>
 
-                      {item.errorReason && (
-                        <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1">
-                          <p className="text-[11px] font-medium text-rose-700">Error</p>
-                          <p className="whitespace-pre-wrap text-xs text-rose-700">
-                            {item.errorReason}
-                          </p>
-                        </div>
-                      )}
+                            {item.errorReason && (
+                              <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1">
+                                <p className="text-[11px] font-medium text-rose-700">Error</p>
+                                <p className="whitespace-pre-wrap text-xs text-rose-700">
+                                  {item.errorReason}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  </div>
+                )}
+
+                {hasActions && (
+                  <div className="flex gap-2 border-t pt-3">
+                    {canReactivate && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 text-xs"
+                        disabled={pendingAction !== null}
+                        onClick={() => setConfirmAction("reactivate")}
+                      >
+                        <RefreshCcw className="h-3.5 w-3.5 text-emerald-500" />
+                        Reactivar follow-up
+                      </Button>
+                    )}
+
+                    {canCancel && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 text-xs"
+                        disabled={pendingAction !== null}
+                        onClick={() => setConfirmAction("cancel")}
+                      >
+                        <XCircle className="h-3.5 w-3.5 text-rose-500" />
+                        Cancelar follow-up
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
+            </ScrollArea>
+          </PopoverContent>
+        </Popover>
+
+        <TooltipContent side="bottom" align="start" className="p-2 space-y-1.5 max-w-[220px]">
+          <p className="text-xs font-semibold">Follow-up IA</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+            {summary.pending > 0 && (
+              <>
+                <span className="text-muted-foreground">Pendientes</span>
+                <span className="font-medium">{summary.pending}</span>
+              </>
+            )}
+            {summary.active > 0 && (
+              <>
+                <span className="text-muted-foreground">Activos</span>
+                <span className="font-medium">{summary.active}</span>
+              </>
+            )}
+            {summary.sent > 0 && (
+              <>
+                <span className="text-muted-foreground">Enviados</span>
+                <span className="font-medium">{summary.sent}</span>
+              </>
+            )}
+            {summary.failed > 0 && (
+              <>
+                <span className="text-muted-foreground">Fallidos</span>
+                <span className="font-medium">{summary.failed}</span>
+              </>
+            )}
+            {summary.cancelled > 0 && (
+              <>
+                <span className="text-muted-foreground">Cancelados</span>
+                <span className="font-medium">{summary.cancelled}</span>
+              </>
+            )}
+          </div>
+          {formattedLatestDate && (
+            <p className="text-[11px] text-muted-foreground border-t pt-1">
+              Próximo: {formattedLatestDate}
+            </p>
           )}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
 
-          {hasActions && (
-            <div className="flex gap-2 border-t pt-3">
-              {canReactivate && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 text-xs"
-                  disabled={pendingAction !== null}
-                  onClick={() => setConfirmAction("reactivate")}
-                >
-                  <RefreshCcw className="h-3.5 w-3.5 text-emerald-500" />
-                  Reactivar follow-up
-                </Button>
-              )}
-
-              {canCancel && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 text-xs"
-                  disabled={pendingAction !== null}
-                  onClick={() => setConfirmAction("cancel")}
-                >
-                  <XCircle className="h-3.5 w-3.5 text-rose-500" />
-                  Cancelar follow-up
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-        </ScrollArea>
-      </PopoverContent>
-
-      <CrmConfirmActionDialog
-        open={confirmAction !== null}
-        onOpenChange={(open) => {
-          if (!open) setConfirmAction(null);
-        }}
-        title={
-          confirmAction === "cancel"
-            ? "Cancelar follow-up"
-            : "Reactivar follow-up"
-        }
-        description={
-          confirmAction === "cancel"
-            ? "Los follow-ups pendientes o en proceso de este lead pasaran a estado cancelado."
-            : "Los follow-ups de este lead se reprogramaran usando las reglas actuales."
-        }
-        confirmLabel={
-          confirmAction === "cancel" ? "Cancelar follow-up" : "Reactivar follow-up"
-        }
-        tone={confirmAction === "cancel" ? "destructive" : "default"}
-        onConfirm={async () => {
-          if (!confirmAction) return;
-          await handleAction(confirmAction);
-        }}
-      />
-    </Popover>
+    <CrmConfirmActionDialog
+      open={confirmAction !== null}
+      onOpenChange={(open) => {
+        if (!open) setConfirmAction(null);
+      }}
+      title={
+        confirmAction === "cancel"
+          ? "Cancelar follow-up"
+          : "Reactivar follow-up"
+      }
+      description={
+        confirmAction === "cancel"
+          ? "Los follow-ups pendientes o en proceso de este lead pasaran a estado cancelado."
+          : "Los follow-ups de este lead se reprogramaran usando las reglas actuales."
+      }
+      confirmLabel={
+        confirmAction === "cancel" ? "Cancelar follow-up" : "Reactivar follow-up"
+      }
+      tone={confirmAction === "cancel" ? "destructive" : "default"}
+      onConfirm={async () => {
+        if (!confirmAction) return;
+        await handleAction(confirmAction);
+      }}
+    />
+    </>
   );
 }

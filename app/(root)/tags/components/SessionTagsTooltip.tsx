@@ -24,8 +24,7 @@ export function SessionTagsTooltip({
     <TooltipProvider delayDuration={150}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button
-            type="button"
+          <span
             className={cn(
               "inline-flex h-8 items-center gap-1 rounded-md border border-border/60 bg-background/70 px-2 text-xs text-muted-foreground",
               hasTags ? "hover:text-foreground" : "opacity-70",
@@ -57,7 +56,7 @@ export function SessionTagsTooltip({
             ) : (
               <TagIcon className="h-3.5 w-3.5" />
             )}
-          </button>
+          </span>
         </TooltipTrigger>
 
         <TooltipContent align="start" className="max-w-64 space-y-2">

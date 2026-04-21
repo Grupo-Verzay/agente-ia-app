@@ -160,38 +160,38 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       </div>
 
       {/* ── Desktop ── */}
-      <div className="hidden md:flex items-center justify-between p-3 gap-2 min-w-0 overflow-hidden">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="hidden md:flex items-center justify-between p-3 gap-2 min-w-0">
+        {/* Nombre — puede encoger con el sidebar */}
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <Avatar className="w-14 h-14 ring-2 ring-border flex-shrink-0">
             <AvatarImage src={header.avatarSrc || '/default-avatar.png'} />
             <AvatarFallback className="text-lg font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
           </Avatar>
 
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              {header.isPinned && (
-                <Pin className="h-4 w-4 fill-current text-amber-500 flex-shrink-0" />
-              )}
-              <h2 className="truncate text-lg font-bold">{displayedContactName}</h2>
-              {session && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-full hover:bg-muted flex-shrink-0"
-                  onClick={onOpenContactEditor}
-                  title="Editar contacto"
-                >
-                  <PencilLine className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            {header.isPinned && (
+              <Pin className="h-4 w-4 fill-current text-amber-500 flex-shrink-0" />
+            )}
+            <h2 className="truncate text-lg font-bold" title={displayedContactName}>{displayedContactName}</h2>
+            {session && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full hover:bg-muted flex-shrink-0"
+                onClick={onOpenContactEditor}
+                title="Editar contacto"
+              >
+                <PencilLine className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
 
-        {session && (
-          <div className="flex flex-1 overflow-hidden gap-1">
-            <div className="flex flex-1 justify-end items-center gap-1.5">
+        {/* Badges + acciones — nunca encogen */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {session && (
+            <>
               <LeadStatusSelect
                 sessionId={session.id}
                 currentStatus={session.leadStatus}
@@ -199,12 +199,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               {crmBadge}
-            </div>
-            {tagsCombobox}
-          </div>
-        )}
-
-        <div className="flex items-center gap-2 flex-shrink-0">{sessionActions}</div>
+              {tagsCombobox}
+            </>
+          )}
+          {sessionActions}
+        </div>
       </div>
 
       {!session && (
