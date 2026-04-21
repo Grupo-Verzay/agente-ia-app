@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { FileText, Loader2 } from "lucide-react";
+import { FileText, Loader2, PlusCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  createManualSynthesis,
   getSessionLatestSummarySnapshot,
   updateFollowUpSummarySnapshot,
 } from "@/actions/crm-follow-up-actions";
@@ -66,6 +67,24 @@ export function SintesisEditDialog({ sessionId, onUpdated }: SintesisEditDialogP
     }
   };
 
+  const handleCreate = async () => {
+    setIsSaving(true);
+    try {
+      const result = await createManualSynthesis(sessionId, synthesis);
+      if (result.success && result.data) {
+        toast.success("Síntesis guardada");
+        setFollowUpId(result.data.id);
+        setHasFollowUp(true);
+        setOpen(false);
+        await onUpdated?.();
+      } else {
+        toast.error(result.message);
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <>
       <Button
@@ -89,30 +108,44 @@ export function SintesisEditDialog({ sessionId, onUpdated }: SintesisEditDialogP
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : !hasFollowUp ? (
-            <p className="text-sm text-muted-foreground py-4">
-              Este lead no tiene ningún follow-up registrado. La síntesis se genera
-              automáticamente cuando el CRM crea el primer seguimiento.
-            </p>
           ) : (
-            <Textarea
-              value={synthesis}
-              onChange={(e) => setSynthesis(e.target.value)}
-              placeholder="Escribe la síntesis del lead..."
-              rows={8}
-              className="resize-none"
-            />
+            <>
+              {!hasFollowUp && (
+                <p className="text-xs text-muted-foreground -mb-1">
+                  Este lead aún no tiene follow-up. Puedes escribir una síntesis
+                  manual para registrar contexto del lead.
+                </p>
+              )}
+              <Textarea
+                value={synthesis}
+                onChange={(e) => setSynthesis(e.target.value)}
+                placeholder="Escribe la síntesis del lead..."
+                rows={8}
+                className="resize-y min-h-[160px]"
+              />
+            </>
           )}
 
-          {hasFollowUp && !isLoading && (
+          {!isLoading && (
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)} disabled={isSaving}>
                 Cancelar
               </Button>
-              <Button onClick={handleSave} disabled={isSaving}>
-                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Guardar
-              </Button>
+              {hasFollowUp ? (
+                <Button onClick={handleSave} disabled={isSaving || !synthesis.trim()}>
+                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Guardar
+                </Button>
+              ) : (
+                <Button onClick={handleCreate} disabled={isSaving || !synthesis.trim()}>
+                  {isSaving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                  )}
+                  Guardar síntesis
+                </Button>
+              )}
             </DialogFooter>
           )}
         </DialogContent>

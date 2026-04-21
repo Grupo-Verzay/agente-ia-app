@@ -147,3 +147,52 @@ export async function updateReminder(id: string, formData: formValuesReminderSch
         }
     }
 }
+
+export async function getReminderFormDeps(userId: string, instanceId: string): Promise<{
+    success: boolean
+    message?: string
+    data?: {
+        apikey: string
+        serverUrl: string
+        instanceName: string
+        workflows: { id: string; name: string; userId: string; description: string | null; definition: string; status: string; createdAt: Date; updatedAt: Date; order: number }[]
+        leads: { id: number; userId: string; remoteJid: string; pushName: string; instanceId: string; status: boolean; leadStatus: string | null }[]
+    }
+}> {
+    try {
+        const user = await db.user.findUnique({
+            where: { id: userId },
+            select: { apiKeyId: true },
+        })
+
+        const [apiKey, instances, workflows, leads] = await Promise.all([
+            user?.apiKeyId
+                ? db.apiKey.findUnique({ where: { id: user.apiKeyId }, select: { url: true, key: true } })
+                : null,
+            db.instancia.findMany({ where: { userId }, select: { instanceName: true, instanceId: true } }),
+            db.workflow.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
+            db.session.findMany({
+                where: { userId },
+                select: { id: true, userId: true, remoteJid: true, pushName: true, instanceId: true, status: true, leadStatus: true },
+                orderBy: { pushName: 'asc' },
+                take: 200,
+            }),
+        ])
+
+        const instance = instances.find(i => i.instanceId === instanceId) ?? instances[0]
+
+        return {
+            success: true,
+            data: {
+                apikey: apiKey?.key ?? '',
+                serverUrl: apiKey?.url ?? '',
+                instanceName: instance?.instanceName ?? instanceId,
+                workflows: workflows as any,
+                leads: leads as any,
+            },
+        }
+    } catch (error) {
+        console.error('[GET_REMINDER_FORM_DEPS]', error)
+        return { success: false, message: 'Error al cargar datos del formulario.' }
+    }
+}

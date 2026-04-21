@@ -64,6 +64,7 @@ export interface ReminderInterface {
     onSuccess?: () => void,
     dateSchedule?: string,
     instanceId?: string,
+    forceCreate?: boolean,
 };
 
 export interface MainReminderInterface {

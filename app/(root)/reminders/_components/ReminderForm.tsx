@@ -35,6 +35,7 @@ export const ReminderForm = ({
     onSuccess,
     initialData,
     isSchedule,
+    forceCreate,
 }: ReminderInterface) => {
     const router = useRouter();
     const { selectedReminderId: reminderId, isCampaignPage } = useReminderDialogStore();
@@ -60,7 +61,7 @@ export const ReminderForm = ({
         }
     });
 
-    const isEdit = !!initialData;
+    const isEdit = !!initialData && !forceCreate;
 
     useEffect(() => {
         const fetchReminders = async () => {

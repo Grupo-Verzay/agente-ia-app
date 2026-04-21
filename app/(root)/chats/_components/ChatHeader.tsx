@@ -14,6 +14,7 @@ import { CrmFollowUpSummaryBadge } from '../../crm/dashboard/components/CrmFollo
 import { SwitchStatus } from '../../sessions/_components';
 import { LeadStatusSelect } from './LeadStatusSelect';
 import { SintesisEditDialog } from './SintesisEditDialog';
+import { ChatReminderDialog } from './ChatReminderDialog';
 
 interface ChatHeaderProps {
   header: ChatHeaderData;
@@ -141,6 +142,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 onUpdated={onSessionRefresh}
               />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
+              <ChatReminderDialog session={session as any} userId={userId} />
               {crmBadge}
             </div>
             {tagsCombobox}
@@ -160,15 +162,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       </div>
 
       {/* ── Desktop ── */}
-      <div className="hidden md:flex items-center justify-between p-3 gap-2 min-w-0">
-        {/* Nombre — puede encoger con el sidebar */}
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+      <div className="hidden md:grid md:grid-cols-[1fr_auto] items-center p-3 gap-3 overflow-hidden">
+        {/* Columna 1 (1fr): nombre encoge para ceder espacio a los badges */}
+        <div className="flex items-center gap-3 min-w-0">
           <Avatar className="w-14 h-14 ring-2 ring-border flex-shrink-0">
             <AvatarImage src={header.avatarSrc || '/default-avatar.png'} />
             <AvatarFallback className="text-lg font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
           </Avatar>
-
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 min-w-0">
             {header.isPinned && (
               <Pin className="h-4 w-4 fill-current text-amber-500 flex-shrink-0" />
             )}
@@ -178,18 +179,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full hover:bg-muted flex-shrink-0"
+                className="h-7 w-7 rounded-full hover:bg-muted flex-shrink-0"
                 onClick={onOpenContactEditor}
                 title="Editar contacto"
               >
-                <PencilLine className="h-4 w-4" />
+                <PencilLine className="h-3.5 w-3.5" />
               </Button>
             )}
           </div>
         </div>
 
-        {/* Badges + acciones — nunca encogen */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        {/* Columna 2 (auto): badges siempre visibles, ancho natural */}
+        <div className="flex items-center gap-1.5">
           {session && (
             <>
               <LeadStatusSelect
@@ -198,6 +199,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 onUpdated={onSessionRefresh}
               />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
+              <ChatReminderDialog session={session as any} userId={userId} />
               {crmBadge}
               {tagsCombobox}
             </>

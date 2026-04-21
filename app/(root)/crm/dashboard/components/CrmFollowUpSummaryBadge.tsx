@@ -175,11 +175,16 @@ export function CrmFollowUpSummaryBadge({
         <Popover>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <button type="button" className="focus:outline-none text-left">
-                <Badge variant="outline" className={getStatusClassName(summary.latestStatus)}>
+              <button type="button" className="inline-flex h-7 items-center focus:outline-none">
+                <Badge
+                  variant="outline"
+                  className={`h-7 gap-1.5 rounded-md px-2 text-xs font-medium ${getStatusClassName(summary.latestStatus)}`}
+                >
                   {latestLabel}
                   {summary.active > 0 && (
-                    <span className="ml-1 font-normal opacity-75">· {summary.active}</span>
+                    <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-current/20 px-1 text-[10px] font-bold leading-none">
+                      {summary.active}
+                    </span>
                   )}
                 </Badge>
               </button>

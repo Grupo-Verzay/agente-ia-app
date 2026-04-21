@@ -881,6 +881,53 @@ export async function getSessionLatestSummarySnapshot(sessionId: number): Promis
   }
 }
 
+export async function createManualSynthesis(
+  sessionId: number,
+  summarySnapshot: string
+): Promise<{ success: boolean; message: string; data?: { id: string } }> {
+  try {
+    const session = await db.session.findUnique({
+      where: { id: sessionId },
+      select: { userId: true, remoteJid: true, instanceId: true, leadStatus: true },
+    });
+    if (!session?.userId) {
+      return { success: false, message: "Sesión no encontrada." };
+    }
+
+    await assertUserCanUseApp(session.userId);
+
+    const followUp = await db.crmFollowUp.upsert({
+      where: {
+        sessionId_ruleKey_sourceHash: {
+          sessionId,
+          ruleKey: "manual-synthesis",
+          sourceHash: "__manual__",
+        },
+      },
+      update: { summarySnapshot },
+      create: {
+        sessionId,
+        userId: session.userId,
+        remoteJid: session.remoteJid,
+        instanceId: session.instanceId,
+        leadStatusSnapshot: session.leadStatus ?? "TIBIO",
+        ruleKey: "manual-synthesis",
+        sourceHash: "__manual__",
+        scheduledFor: new Date(),
+        status: "CANCELLED",
+        summarySnapshot,
+      },
+    });
+
+    return { success: true, message: "Síntesis guardada correctamente", data: { id: followUp.id } };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Error al guardar síntesis",
+    };
+  }
+}
+
 export async function updateFollowUpSummarySnapshot(
   followUpId: string,
   summarySnapshot: string
