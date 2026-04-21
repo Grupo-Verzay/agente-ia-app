@@ -107,8 +107,8 @@ export function buildBillingMessage(args: {
     const header = type === "REMINDER_3D"
         ? `🏢 ${companyName || "Cliente"}:`
         : type === "DUE_TODAY"
-            ? `🔔 *Hoy vence su servicio:*`
-            : `🚫 *Su servicio esta vencido desde hace ${overdueDays ?? 0} ${overdueDays === 1 ? "dia" : "dias"}:*`;
+            ? `🏢 ${companyName || "Cliente"}:\n🔔 *Hoy vence su servicio:*`
+            : `🏢 ${companyName || "Cliente"}:\n🚫 *Su servicio esta vencido desde hace ${overdueDays ?? 0} ${overdueDays === 1 ? "dia" : "dias"}:*`;
 
     return [
         header,
