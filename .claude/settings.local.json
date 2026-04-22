@@ -42,7 +42,12 @@
       "Bash(find \"e:\\\\EMANUEL-DEV\\\\Verzay\\\\VERZAY\\\\verzay-app-main\\\\verzay-app/app/\\(root\\)/\\(protected\\)\" -maxdepth 2 -name \"page.tsx\")",
       "Bash(wc -l /e/EMANUEL-DEV/Verzay/VERZAY/backend-api/api-webhook/src/**/*.ts)",
       "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
-      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")"
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(find \"c:\\\\\\\\Proyectos\\\\\\\\agente-ia-app\" -type f -path \"*agent*\" \\\\\\( -name \"*.ts\" -o -name \"*.js\" \\\\\\))",
+      "Bash(find \"c:\\\\\\\\Proyectos\\\\\\\\agente-ia-app\" -type f -path \"*chats*\" \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\))",
+      "Bash(find \"c:\\\\\\\\Proyectos\\\\\\\\agente-ia-app\" -type f -name \"*AI*\" -o -name \"*ai*\")",
+      "Bash(grep -r \"buscar_producto\\\\|listar_productos\\\\|tool\" \"c:\\\\\\\\Proyectos\\\\\\\\agente-ia-app/app/api\" --include=\"*.ts\")",
+      "Bash(grep -r \"product\\\\|images\" \"c:\\\\\\\\Proyectos\\\\\\\\agente-ia-app/types\" --include=\"*.ts\" -A 3)"
     ]
   }
 }

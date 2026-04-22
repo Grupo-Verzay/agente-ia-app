@@ -76,10 +76,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'buscar_producto',
     defaultDisplayName: 'Buscar producto',
     defaultDescription:
-      'Busca un producto del catálogo por nombre, categoría o SKU. Úsala cuando el cliente pregunte por un producto específico, su precio, disponibilidad o características.',
+      'Busca un producto del catálogo por nombre, categoría o SKU. Úsala cuando el cliente pregunte por un producto específico, su precio, disponibilidad o características. El resultado incluye nombre, precio, stock, categoría, descripción e imágenes del producto (campo images[]). Si el producto tiene imágenes, el sistema las enviará automáticamente al cliente.',
     isCritical: false,
     helpText:
-      'Permite al agente consultar el catálogo de productos en tiempo real. El agente recibe nombre, precio, stock y categoría del producto encontrado.',
+      'Permite al agente consultar el catálogo de productos en tiempo real. Retorna nombre, precio, stock, categoría y URLs de imágenes. Las imágenes se envían vía /api/send-media.',
     sortOrder: 5,
   },
   {
@@ -87,10 +87,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'listar_productos',
     defaultDisplayName: 'Listar productos disponibles',
     defaultDescription:
-      'Lista todos los productos activos del catálogo con nombre, precio, categoría y stock. Úsala cuando el cliente quiera ver qué productos están disponibles o pida el catálogo completo.',
+      'Lista todos los productos activos del catálogo con nombre, precio, categoría, stock e imágenes. Úsala cuando el cliente quiera ver qué productos están disponibles o pida el catálogo completo. Cada producto incluye un campo images[] con URLs de sus imágenes, que el sistema enviará al cliente automáticamente.',
     isCritical: false,
     helpText:
-      'Devuelve el catálogo completo de productos activos. Recomendado cuando tienes pocos productos; para catálogos grandes usa la herramienta de búsqueda.',
+      'Devuelve el catálogo completo de productos activos incluyendo imágenes. Las imágenes de cada producto se envían vía /api/send-media. Recomendado cuando tienes pocos productos.',
     sortOrder: 6,
   },
 ];
