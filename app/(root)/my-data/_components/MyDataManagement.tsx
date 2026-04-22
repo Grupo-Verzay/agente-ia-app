@@ -121,14 +121,14 @@ export function MyDataManagement({ userId }: Props) {
               <p className="text-xs">Usa la pestaña <strong>Importar</strong> para cargar datos desde Google Sheets.</p>
             </div>
           ) : (
-            <ExternalClientDataTable columns={columns} data={records} />
+            <ExternalClientDataTable columns={columns} data={records} total={total} onCreateNew={handleCreateNew} />
           )}
         </CardContent>
       </Card>
 
       <ExternalClientDataFormDialog
         open={formOpen}
-        onOpenChange={setFormOpen}
+        onClose={() => { setFormOpen(false); setEditRecord(null); }}
         userId={userId}
         record={editRecord}
         onSuccess={handleFormSuccess}
