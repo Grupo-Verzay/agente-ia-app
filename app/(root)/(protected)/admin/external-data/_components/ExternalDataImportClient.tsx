@@ -200,7 +200,7 @@ export function ExternalDataImportClient({ clients }: Props) {
   const canImport = !!selectedUserId && !!url.trim() && !isLoading;
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-4">
       {/* ── Tarjeta principal ── */}
       <Card>
         <CardHeader className="pb-4">

@@ -27,12 +27,8 @@ export default async function ExternalDataPage() {
   return (
     <>
       <Header title="Datos Externos de Clientes" />
-        <Tabs defaultValue="management">
+        <Tabs defaultValue="tools">
           <TabsList className="mb-4">
-            <TabsTrigger value="management" className="gap-2">
-              <Database className="h-4 w-4" />
-              Gestión
-            </TabsTrigger>
             <TabsTrigger value="tools" className="gap-2">
               <Bot className="h-4 w-4" />
               Herramientas IA
@@ -41,11 +37,11 @@ export default async function ExternalDataPage() {
               <FileSpreadsheet className="h-4 w-4" />
               Importar
             </TabsTrigger>
+            <TabsTrigger value="management" className="gap-2">
+              <Database className="h-4 w-4" />
+              Gestión
+            </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="management">
-            <ExternalClientDataManagement clients={clients} />
-          </TabsContent>
 
           <TabsContent value="tools">
             <ExternalDataToolConfigManagement clients={clients} />
@@ -53,6 +49,10 @@ export default async function ExternalDataPage() {
 
           <TabsContent value="import">
             <ExternalDataImportClient clients={clients} />
+          </TabsContent>
+
+          <TabsContent value="management">
+            <ExternalClientDataManagement clients={clients} />
           </TabsContent>
         </Tabs>
     </>
