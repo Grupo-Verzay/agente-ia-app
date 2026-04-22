@@ -102,6 +102,97 @@ export async function deleteSeguimientosByInstanceName(userId: string): Promise<
   }
 }
 
+export type LegacySeguimientoItem = {
+  id: number;
+  remoteJid: string | null;
+  instancia: string | null;
+  mensaje: string | null;
+  generatedMessage: string | null;
+  tipo: string | null;
+  time: string | null;
+  followUpStatus: string;
+  followUpAttempt: number;
+  followUpMaxAttempts: number;
+  followUpGoal: string | null;
+  followUpMode: string;
+  errorReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function deleteSeguimientoById(id: number): Promise<SeguimientosResponse> {
+  try {
+    await db.seguimiento.delete({ where: { id } });
+    return { success: true, message: "Seguimiento eliminado correctamente." };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Error al eliminar el seguimiento.",
+    };
+  }
+}
+
+export async function deleteAllSeguimientosByRemoteJid(remoteJid: string): Promise<SeguimientosResponse> {
+  try {
+    const result = await db.seguimiento.deleteMany({ where: { remoteJid } });
+    return {
+      success: true,
+      message: result.count > 0
+        ? `Se eliminaron ${result.count} seguimiento(s).`
+        : "No había seguimientos para eliminar.",
+      data: { count: result.count },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Error al eliminar los seguimientos.",
+    };
+  }
+}
+
+export async function getSessionLegacySeguimientos(
+  remoteJid: string
+): Promise<{ success: boolean; message: string; data?: LegacySeguimientoItem[] }> {
+  try {
+    const seguimientos = await db.seguimiento.findMany({
+      where: { remoteJid },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        remoteJid: true,
+        instancia: true,
+        mensaje: true,
+        generatedMessage: true,
+        tipo: true,
+        time: true,
+        followUpStatus: true,
+        followUpAttempt: true,
+        followUpMaxAttempts: true,
+        followUpGoal: true,
+        followUpMode: true,
+        errorReason: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      success: true,
+      message: "Seguimientos obtenidos correctamente",
+      data: seguimientos.map((s) => ({
+        ...s,
+        createdAt: s.createdAt.toISOString(),
+        updatedAt: s.updatedAt.toISOString(),
+      })),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Error al obtener los seguimientos.",
+    };
+  }
+}
+
 /**
  * 2) Eliminar SOLO el/los recordatorio(s) que coincidan con:
  *    instanceName && userId && remoteJid

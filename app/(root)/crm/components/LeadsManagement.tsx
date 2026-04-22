@@ -28,6 +28,7 @@ import { formatFecha, getTipoLabel } from "../helpers";
 import { deleteRegistro } from "@/actions/registro-action";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { RegistroUpsertDialog } from './';
+import { LeadSeguimientosTab } from './LeadSeguimientosTab';
 
 /* ===== HELPERS ===== */
 
@@ -380,7 +381,7 @@ export const LeadsManagement = ({
 
                                     {/* Tabs de registros */}
                                     <Tabs defaultValue="RESUMEN" className="flex flex-col min-h-0">
-                                        <TabsList className="flex w-full flex-wrap gap-1 mb-2 overflow-x-auto md:grid md:grid-cols-7">
+                                        <TabsList className="flex w-full flex-wrap gap-1 mb-2 overflow-x-auto md:grid md:grid-cols-8">
                                             <TabsTrigger value="RESUMEN" className="px-2">
                                                 Resumen
                                             </TabsTrigger>
@@ -431,6 +432,9 @@ export const LeadsManagement = ({
                                                         ({countByTipo.RESERVA})
                                                     </span>
                                                 )}
+                                            </TabsTrigger>
+                                            <TabsTrigger value="SEGUIMIENTOS" className="px-2">
+                                                Seguimientos
                                             </TabsTrigger>
                                         </TabsList>
 
@@ -620,6 +624,18 @@ export const LeadsManagement = ({
                                                 onEdit={openEdit}
                                                 onDelete={askDelete}
 
+                                            />
+                                        </TabsContent>
+
+                                        <TabsContent
+                                            value="SEGUIMIENTOS"
+                                            className="flex-1 min-h-0 mt-0"
+                                        >
+                                            <LeadSeguimientosTab
+                                                sessionId={selectedSession.id}
+                                                userId={selectedSession.userId}
+                                                remoteJid={selectedSession.remoteJid}
+                                                instanceId={selectedSession.instanceId}
                                             />
                                         </TabsContent>
                                     </Tabs>

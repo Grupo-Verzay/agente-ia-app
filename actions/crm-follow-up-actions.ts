@@ -956,3 +956,76 @@ export async function updateFollowUpSummarySnapshot(
     };
   }
 }
+
+export type SessionFollowUpItem = {
+  id: string;
+  status: CrmFollowUpStatus;
+  leadStatusSnapshot: LeadStatus;
+  ruleKey: string;
+  scheduledFor: string | null;
+  sentAt: string | null;
+  cancelledAt: string | null;
+  attemptCount: number;
+  maxAttempts: number;
+  generatedMessage: string | null;
+  errorReason: string | null;
+  goalSnapshot: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function getSessionCrmFollowUps(
+  sessionId: number,
+  userId: string
+): Promise<{ success: boolean; message: string; data?: SessionFollowUpItem[] }> {
+  try {
+    await assertUserCanUseApp(userId);
+
+    const followUps = await db.crmFollowUp.findMany({
+      where: { sessionId, userId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        status: true,
+        leadStatusSnapshot: true,
+        ruleKey: true,
+        scheduledFor: true,
+        sentAt: true,
+        cancelledAt: true,
+        attemptCount: true,
+        maxAttempts: true,
+        generatedMessage: true,
+        errorReason: true,
+        goalSnapshot: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      success: true,
+      message: "Follow-ups obtenidos correctamente",
+      data: followUps.map((fu) => ({
+        id: fu.id,
+        status: fu.status as CrmFollowUpStatus,
+        leadStatusSnapshot: fu.leadStatusSnapshot as LeadStatus,
+        ruleKey: fu.ruleKey,
+        scheduledFor: fu.scheduledFor?.toISOString() ?? null,
+        sentAt: fu.sentAt?.toISOString() ?? null,
+        cancelledAt: fu.cancelledAt?.toISOString() ?? null,
+        attemptCount: fu.attemptCount,
+        maxAttempts: fu.maxAttempts,
+        generatedMessage: fu.generatedMessage,
+        errorReason: fu.errorReason,
+        goalSnapshot: fu.goalSnapshot,
+        createdAt: fu.createdAt.toISOString(),
+        updatedAt: fu.updatedAt.toISOString(),
+      })),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Error al obtener los seguimientos.",
+    };
+  }
+}

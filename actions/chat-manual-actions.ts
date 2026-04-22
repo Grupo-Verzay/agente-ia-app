@@ -279,13 +279,45 @@ export async function sendManualChatPayloadAction(
     };
   }
 
-  return sendOutgoingPayload({
+  const result = await sendOutgoingPayload({
     context,
     remoteJid,
     payload,
     source: "manual_chat_ui",
     historyType: "notification",
   });
+
+  if (result.success && payload.kind === "text") {
+    const user = await currentUser();
+    const delPhrase = (user?.delSeguimiento as string | null | undefined)?.trim();
+    if (delPhrase && payload.text.trim() === delPhrase && user?.id) {
+      await Promise.all([
+        // 1. Desactivar sesión
+        db.session.updateMany({
+          where: { userId: user.id, remoteJid },
+          data: { status: false },
+        }),
+        // 2. Detener agente
+        db.session.updateMany({
+          where: { userId: user.id, remoteJid },
+          data: { agentDisabled: true },
+        }),
+        // 3. Cancelar follow-ups IA (PENDING / PROCESSING → CANCELLED)
+        db.crmFollowUp.updateMany({
+          where: {
+            userId: user.id,
+            remoteJid,
+            status: { in: ["PENDING", "PROCESSING"] },
+          },
+          data: { status: "CANCELLED", cancelledAt: new Date() },
+        }),
+        // 4. Eliminar seguimientos legacy
+        db.seguimiento.deleteMany({ where: { remoteJid } }),
+      ]);
+    }
+  }
+
+  return result;
 }
 
 export async function sendManualWorkflowAction(
