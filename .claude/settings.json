@@ -33,7 +33,8 @@
       "Read(//e/MANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app/app/\\(root\\)/crm/dashboard/components/records-table/**)",
       "Bash(find /e/EMANUEL-DEV/Verzay/VERZAY/verzay-app-main/verzay-app/lib -name \"zod.ts\" -exec cat {} \\\\;)",
       "Bash(PRISMA_FORCE_COLOR=1 npx prisma db push)",
-      "Read(//e/EMANUEL-DEV/Verzay/IERZAY/backend-api/api-webhook/src/modules/ai-agent/**)"
+      "Read(//e/EMANUEL-DEV/Verzay/IERZAY/backend-api/api-webhook/src/modules/ai-agent/**)",
+      "Bash(npm run *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\home\\.claude",
