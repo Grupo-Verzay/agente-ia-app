@@ -12,6 +12,41 @@ import type {
   GoogleSheetImportOptions,
 } from '@/types/external-client-data';
 
+// ─── Search by field ──────────────────────────────────────────────────────────
+
+/**
+ * Busca registros de datos externos filtrando por un campo arbitrario del JSON.
+ * Soporta búsqueda exacta (default) o parcial (contains).
+ *
+ * @param userId     Dueño de los datos
+ * @param field      Nombre del campo en el JSON (ej: "CEDULA", "CORREO"). Case-sensitive.
+ * @param value      Valor a buscar
+ * @param exact      true = coincidencia exacta, false = contiene el texto (default: true)
+ */
+export async function searchExternalClientDataByField(
+  userId: string,
+  field: string,
+  value: string,
+  exact = true,
+): Promise<ExternalClientData[]> {
+  if (!userId || !field || !value) return [];
+
+  const jsonFilter = exact
+    ? { path: [field], equals: value }
+    : { path: [field], string_contains: value };
+
+  const records = await db.externalClientData.findMany({
+    where: {
+      userId,
+      data: jsonFilter,
+    },
+    orderBy: { updatedAt: 'desc' },
+    take: 20,
+  });
+
+  return records as ExternalClientData[];
+}
+
 // ─── Lookup ───────────────────────────────────────────────────────────────────
 
 /**

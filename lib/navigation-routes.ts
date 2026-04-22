@@ -43,4 +43,5 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/tools/tool-5" },
     // { route: "/with-out-route" },
     { route: "/schedule" },
+    { route: "/my-data" },
 ];
