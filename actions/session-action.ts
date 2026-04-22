@@ -119,6 +119,7 @@ function mapSessionRecord(session: SessionWithTagsRecord): AppSession {
 
 function mapChatContactSessionSummary(
   session: SessionWithTagsRecord,
+  pendingSeguimientos?: number,
 ): ChatContactSessionSummary {
   const mappedSession = mapSessionRecord(session);
 
@@ -131,6 +132,7 @@ function mapChatContactSessionSummary(
     tags: mappedSession.tags ?? [],
     leadStatus: mappedSession.leadStatus ?? null,
     flujos: mappedSession.flujos ?? null,
+    pendingSeguimientos: pendingSeguimientos ?? 0,
   };
 }
 
@@ -281,6 +283,20 @@ export async function getSessionsByUserId(
       },
     });
 
+    const remoteJids = sessions.map((s) => s.remoteJid).filter(Boolean) as string[];
+
+    const seguimientosCounts = remoteJids.length
+      ? await db.seguimiento.groupBy({
+          by: ['remoteJid'],
+          where: { remoteJid: { in: remoteJids }, followUpStatus: 'pending' },
+          _count: { id: true },
+        })
+      : [];
+
+    const seguimientosMap = new Map(
+      seguimientosCounts.map((s) => [s.remoteJid, s._count.id]),
+    );
+
     const mapped = sessions.map((s) => ({
       ...s,
       tags: s.sessionTags.map((st) => ({
@@ -290,6 +306,7 @@ export async function getSessionsByUserId(
         color: st.tag.color,
         order: (st.tag as any).order ?? 0,
       })),
+      pendingSeguimientos: seguimientosMap.get(s.remoteJid) ?? 0,
     }));
 
     return {
@@ -401,6 +418,20 @@ export async function getChatContactSessions(
       }
     }
 
+    const allRemoteJids = sessions.map((s) => s.remoteJid).filter(Boolean) as string[];
+
+    const seguimientosCounts = allRemoteJids.length
+      ? await db.seguimiento.groupBy({
+          by: ['remoteJid'],
+          where: { remoteJid: { in: allRemoteJids }, followUpStatus: 'pending' },
+          _count: { id: true },
+        })
+      : [];
+
+    const seguimientosMap = new Map(
+      seguimientosCounts.map((s) => [s.remoteJid, s._count.id]),
+    );
+
     const data: ChatContactSessionMap = {};
 
     for (const chat of chatsWithCandidates) {
@@ -434,7 +465,8 @@ export async function getChatContactSessions(
 
       if (!preferredSession) continue;
 
-      data[chat.chatRemoteJid] = mapChatContactSessionSummary(preferredSession);
+      const pendingSeguimientos = seguimientosMap.get(preferredSession.remoteJid) ?? 0;
+      data[chat.chatRemoteJid] = mapChatContactSessionSummary(preferredSession, pendingSeguimientos);
     }
 
     return {

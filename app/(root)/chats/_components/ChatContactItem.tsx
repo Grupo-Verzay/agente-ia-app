@@ -13,6 +13,7 @@ import {
 import { SessionTagsTooltip } from "../../tags/components";
 import { LeadStatusBadge } from "../../crm/dashboard/components/records-table/LeadStatusBadge";
 import { FlowListOrder } from "../../sessions/_components/FlowListOrder";
+import { SeguimientoBadge } from "../../sessions/_components/SeguimientoBadge";
 import { cn } from "@/lib/utils";
 import { getIconForMessageType } from "./chat-sidebar.utils";
 import type { SidebarContact } from "./chat-sidebar.types";
@@ -92,6 +93,9 @@ export function ChatContactItem({
               <LeadStatusBadge status={contact.chatSession?.leadStatus ?? null} />
               {contact.chatSession && (
                 <FlowListOrder raw={contact.chatSession.flujos ?? ""} />
+              )}
+              {contact.chatSession && (
+                <SeguimientoBadge count={contact.chatSession.pendingSeguimientos ?? 0} />
               )}
               {contact.chatSession && contact.chatSession.tags.length > 0 && (
                 <SessionTagsTooltip tags={contact.chatSession.tags} maxVisible={5} />

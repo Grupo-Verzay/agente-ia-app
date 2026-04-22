@@ -61,8 +61,9 @@ export type SessionCrmFollowUpSummary = {
 /* ===== SESSION (EXTENDIENDO PRISMA) ===== */
 
 export type Session = PrismaSession & {
-  tags?: SimpleTag[];       // opcional si no siempre los cargas
+  tags?: SimpleTag[];
   crmFollowUpSummary?: SessionCrmFollowUpSummary | null;
+  pendingSeguimientos?: number;
 };
 
 export type ChatContactDescriptor = {
@@ -82,6 +83,7 @@ export type ChatContactSessionSummary = {
   tags: SimpleTag[];
   leadStatus?: LeadStatus | null;
   flujos?: string | null;
+  pendingSeguimientos?: number;
 };
 
 export type ChatContactSessionMap = Record<string, ChatContactSessionSummary>;

@@ -34,6 +34,7 @@ import { SwitchAgentDisabled } from "./SwitchAgentDisabled";
 import { HeaderWithInfo } from "./HeaderWithInfo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { FlowListOrder } from "./FlowListOrder";
+import { SeguimientoBadge } from "./SeguimientoBadge";
 
 export const ActionsCell = ({ session, onDeleteSuccess }: { session: Session, onDeleteSuccess?: (deletedId: number) => void }) => {
   const [openDeleteCliente, setOpenDeleteCliente] = useState(false);
@@ -293,19 +294,14 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
         return <FlowListOrder raw={flows.toString()} />
       },
     },
-    // {
-    //   accessorKey: "seguimientos",
-    //   header: "Seguimientos",
-    //   cell: ({ row }) => {
-    //     const reminders = row.getValue("seguimientos") || "-";
-    //     const sizeReminders = Object.keys(reminders).length;
-    //     return (<Badge
-    //       className="bg-blue-500 text-white dark:bg-blue-600"
-    //     >
-    //       {sizeReminders}
-    //     </Badge>)
-    //   },
-    // },
+    {
+      accessorKey: "pendingSeguimientos",
+      header: "Seguimientos",
+      cell: ({ row }) => {
+        const count = (row.original.pendingSeguimientos ?? 0) as number;
+        return <SeguimientoBadge count={count} />;
+      },
+    },
     {
       id: "tags",
       header: "Etiquetas",

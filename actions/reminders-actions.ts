@@ -33,6 +33,19 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
             data: data as Prisma.RemindersCreateInput,
         })
 
+        await db.seguimiento.create({
+            data: {
+                idNodo: `reminder-${reminder.id}`,
+                serverurl: data.serverUrl ? (data.serverUrl.startsWith("https://") ? data.serverUrl : `https://${data.serverUrl}`) : "",
+                instancia: data.instanceName ?? "",
+                apikey: data.apikey ?? "",
+                remoteJid: data.remoteJid ?? "",
+                mensaje: data.description || data.title,
+                tipo: "text",
+                time: data.time ?? "",
+            },
+        })
+
         return {
             success: true,
             message: "Recordatorio creado exitosamente.",
