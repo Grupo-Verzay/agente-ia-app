@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Pencil, Plus, Loader2 } from "lucide-react";
+import { Pencil, Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { nanoid } from "nanoid";
 import { optimizeFile } from "../../workflow/[workflowId]/helpers";
@@ -185,8 +186,33 @@ export const ProductForm = ({
                             </div>
 
                             <div className="flex w-full flex-col gap-2">
+                                <Label>Stock</Label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    {...form.register("stock", { valueAsNumber: true })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex flex-row justify-between gap-2">
+                            <div className="flex w-full flex-col gap-2">
                                 <Label>Categoría</Label>
                                 <Input {...form.register("category")} placeholder="Categoría del producto" />
+                            </div>
+
+                            <div className="flex w-full flex-col gap-2 justify-end">
+                                <div className="flex items-center gap-2 h-10">
+                                    <Switch
+                                        id="isActive"
+                                        checked={form.watch("isActive")}
+                                        onCheckedChange={(v) => form.setValue("isActive", v)}
+                                    />
+                                    <Label htmlFor="isActive" className="cursor-pointer">
+                                        {form.watch("isActive") ? "Activo" : "Inactivo"}
+                                    </Label>
+                                </div>
                             </div>
                         </div>
 

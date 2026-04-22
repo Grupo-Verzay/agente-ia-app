@@ -80,6 +80,8 @@ const BUILTIN_TYPE_LABELS: Record<ExternalDataBuiltinToolType, string> = {
   listar_workflows: 'Listar flujos',
   consultar_datos_cliente: 'Consulta cliente',
   buscar_cliente_por_dato: 'Buscar por dato',
+  buscar_producto: 'Buscar producto',
+  listar_productos: 'Listar productos',
 };
 
 function ToolCard({

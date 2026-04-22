@@ -71,4 +71,26 @@ export const BUILTIN_TOOL_CATALOG: {
       'Permite al agente buscar por cualquier campo del registro externo. Útil cuando el cliente pregunta por datos de un tercero proporcionando su cédula u otro identificador.',
     sortOrder: 4,
   },
+  {
+    toolType: 'buscar_producto',
+    defaultKey: 'buscar_producto',
+    defaultDisplayName: 'Buscar producto',
+    defaultDescription:
+      'Busca un producto del catálogo por nombre, categoría o SKU. Úsala cuando el cliente pregunte por un producto específico, su precio, disponibilidad o características.',
+    isCritical: false,
+    helpText:
+      'Permite al agente consultar el catálogo de productos en tiempo real. El agente recibe nombre, precio, stock y categoría del producto encontrado.',
+    sortOrder: 5,
+  },
+  {
+    toolType: 'listar_productos',
+    defaultKey: 'listar_productos',
+    defaultDisplayName: 'Listar productos disponibles',
+    defaultDescription:
+      'Lista todos los productos activos del catálogo con nombre, precio, categoría y stock. Úsala cuando el cliente quiera ver qué productos están disponibles o pida el catálogo completo.',
+    isCritical: false,
+    helpText:
+      'Devuelve el catálogo completo de productos activos. Recomendado cuando tienes pocos productos; para catálogos grandes usa la herramienta de búsqueda.',
+    sortOrder: 6,
+  },
 ];

@@ -51,7 +51,9 @@ export type ExternalDataBuiltinToolType =
   | 'ejecutar_flujos'
   | 'listar_workflows'
   | 'consultar_datos_cliente'
-  | 'buscar_cliente_por_dato';
+  | 'buscar_cliente_por_dato'
+  | 'buscar_producto'
+  | 'listar_productos';
 
 export type ExternalDataQueryToolType = 'auto_inject' | 'search_by_field';
 

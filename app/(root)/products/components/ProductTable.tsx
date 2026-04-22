@@ -24,50 +24,44 @@ export const ProductTable = ({
     const columns = useMemo<ColumnDef<ProductType>[]>(() => [
         { header: "Nombre", accessorKey: "title" },
         {
-            header: "Detalles",
-            accessorKey: "description",
+            header: "SKU",
+            accessorKey: "sku",
             cell: ({ getValue }) => {
-                const value = getValue() as string | null;
-                if (!value) return "—";
-                const text = value.trim();
-                if (!text) return "—";
-                return text.length > 80 ? `${text.slice(0, 80)}…` : text;
+                const v = getValue() as string | null;
+                return v ? <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{v}</span> : "—";
             },
         },
-        // {
-        //     header: "SKU",
-        //     accessorKey: "sku",
-        //     cell: ({ getValue }) => getValue() || "—",
-        // },
         {
             header: "Precio",
             accessorKey: "price",
-            cell: ({ getValue }) =>
-                `$${getValue()}`,
+            cell: ({ getValue }) => `$${Number(getValue()).toLocaleString('es-CO')}`,
         },
-        // { header: "Stock", accessorKey: "stock" },
-        // {
-        //     header: "Estado",
-        //     accessorKey: "isActive",
-        //     cell: ({ getValue }) => (
-        //         <Badge variant={getValue() ? "default" : "secondary"}>
-        //             {getValue() ? "Activo" : "Inactivo"}
-        //         </Badge>
-        //     ),
-        // },
         {
-            header: "Categoría", // Nueva columna para la categoría
+            header: "Stock",
+            accessorKey: "stock",
+            cell: ({ getValue }) => {
+                const v = getValue() as number;
+                return (
+                    <Badge variant={v <= 0 ? "destructive" : v < 5 ? "outline" : "secondary"}>
+                        {v}
+                    </Badge>
+                );
+            },
+        },
+        {
+            header: "Estado",
+            accessorKey: "isActive",
+            cell: ({ getValue }) => (
+                <Badge variant={getValue() ? "default" : "secondary"}>
+                    {getValue() ? "Activo" : "Inactivo"}
+                </Badge>
+            ),
+        },
+        {
+            header: "Categoría",
             accessorKey: "category",
             cell: ({ getValue }) => getValue() || "—",
         },
-        // {
-        //     header: "Etiquetas", // Nueva columna para las etiquetas
-        //     accessorKey: "tags",
-        //     cell: ({ getValue }) => {
-        //         const tags = getValue() as string[]; // Hacemos un type assertion a string[]
-        //         return tags && tags.length > 0 ? tags.join(", ") : "—";
-        //     },
-        // },
         {
             header: "Imagen",
             cell: ({ row }) => (
@@ -78,7 +72,7 @@ export const ProductTable = ({
                             alt="Product"
                             width={64}
                             height={64}
-                            className="w-16 h-16 object-cover"
+                            className="w-16 h-16 object-cover rounded"
                         />
                     ) : (
                         "—"
@@ -169,12 +163,6 @@ export const ProductTable = ({
                     </table>
                 </div>
 
-                {/* Paginación simple */}
-                <div className="flex items-center justify-end gap-2 p-2">
-                    <span className="text-xs">
-                        Página {data.page} de {data.pages}
-                    </span>
-                </div>
             </CardContent>
         </Card>
     );
