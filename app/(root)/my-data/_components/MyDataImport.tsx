@@ -192,7 +192,7 @@ export function MyDataImport({ userId }: Props) {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              La hoja debe estar compartida como "cualquiera con el enlace puede ver".
+              La hoja debe estar compartida como &ldquo;cualquiera con el enlace puede ver&rdquo;.
             </p>
           </div>
 
