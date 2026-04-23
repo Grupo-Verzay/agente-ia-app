@@ -30,6 +30,7 @@ type ChatSidebarProps = {
   chatSessions: ChatContactSessionMap;
   onArchiveChat?: (remoteJid: string, archived: boolean) => void | Promise<void>;
   onDeleteChat?: (remoteJid: string) => void | Promise<void>;
+  onLeadStatusChange?: (remoteJid: string, status: import("@/types/session").LeadStatus | null) => void;
   onRestoreChat?: (remoteJid: string) => void | Promise<void>;
   onSelectRemoteJid?: (remoteJid: string) => void | Promise<void>;
   onTogglePin?: (remoteJid: string, isPinned: boolean) => void | Promise<void>;
@@ -43,6 +44,7 @@ export function ChatSidebar({
   chatSessions,
   onArchiveChat,
   onDeleteChat,
+  onLeadStatusChange,
   onRestoreChat,
   onSelectRemoteJid,
   onTogglePin,
@@ -263,6 +265,7 @@ export function ChatSidebar({
                 onTogglePin={(id, isPinned) => void onTogglePin?.(id, isPinned)}
                 onArchive={(id, isArchived) => void onArchiveChat?.(id, isArchived)}
                 onDeleteRequest={setDeleteTarget}
+                onLeadStatusChange={onLeadStatusChange}
               />
             ))
           ) : (

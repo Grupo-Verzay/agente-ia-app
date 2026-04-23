@@ -324,6 +324,17 @@ export function ChatsClient({
     [],
   );
 
+  const handleLeadStatusChange = useCallback(
+    (remoteJid: string, status: import("@/types/session").LeadStatus | null) => {
+      setChatSessions((previous) => {
+        const current = previous[remoteJid];
+        if (!current) return previous;
+        return { ...previous, [remoteJid]: { ...current, leadStatus: status } };
+      });
+    },
+    [],
+  );
+
   const handleSessionTagsChange = useCallback(
     (remoteJid: string, selectedIds: number[]) => {
       setChatSessions((previous) => {
@@ -718,6 +729,7 @@ export function ChatsClient({
           chatSessions={chatSessions}
           onArchiveChat={handleArchiveChat}
           onDeleteChat={handleDeleteChat}
+          onLeadStatusChange={handleLeadStatusChange}
           onRestoreChat={handleRestoreChat}
           onSelectRemoteJid={handleSelectFromSidebar}
           onTogglePin={handleToggleChatPin}

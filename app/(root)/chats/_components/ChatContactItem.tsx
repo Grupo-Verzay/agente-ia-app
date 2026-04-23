@@ -11,12 +11,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SessionTagsTooltip } from "../../tags/components";
-import { LeadStatusBadge } from "../../crm/dashboard/components/records-table/LeadStatusBadge";
 import { FlowListOrder } from "../../sessions/_components/FlowListOrder";
 import { SeguimientoBadge } from "../../sessions/_components/SeguimientoBadge";
+import { LeadStatusSelect } from "./LeadStatusSelect";
 import { cn } from "@/lib/utils";
 import { getIconForMessageType } from "./chat-sidebar.utils";
 import type { SidebarContact } from "./chat-sidebar.types";
+import type { LeadStatus } from "@/types/session";
 
 type ChatContactItemProps = {
   contact: SidebarContact;
@@ -24,6 +25,7 @@ type ChatContactItemProps = {
   onDeleteRequest: (contact: SidebarContact) => void;
   onSelect: (id: string, lastMessageId: string) => void;
   onTogglePin: (id: string, isPinned: boolean) => void;
+  onLeadStatusChange?: (remoteJid: string, status: LeadStatus | null) => void;
   selected: boolean;
 };
 
@@ -33,6 +35,7 @@ export function ChatContactItem({
   onDeleteRequest,
   onSelect,
   onTogglePin,
+  onLeadStatusChange,
   selected,
 }: ChatContactItemProps) {
   const IconComponent = getIconForMessageType(contact.messageType);
@@ -90,7 +93,15 @@ export function ChatContactItem({
             </div>
 
             <div className="mt-0.5 flex items-center gap-1">
-              <LeadStatusBadge status={contact.chatSession?.leadStatus ?? null} />
+              {contact.chatSession ? (
+                <span onClick={(e) => e.stopPropagation()}>
+                  <LeadStatusSelect
+                    sessionId={contact.chatSession.id}
+                    currentStatus={contact.chatSession.leadStatus ?? null}
+                    onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus)}
+                  />
+                </span>
+              ) : null}
               {contact.chatSession && (
                 <FlowListOrder raw={contact.chatSession.flujos ?? ""} />
               )}

@@ -7,7 +7,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LeadStatusBadge } from "../../crm/dashboard/components/records-table/LeadStatusBadge";
@@ -18,7 +17,7 @@ import type { LeadStatus } from "@/types/session";
 interface LeadStatusSelectProps {
   sessionId: number;
   currentStatus?: LeadStatus | null;
-  onUpdated?: () => void | Promise<void>;
+  onUpdated?: (newStatus: LeadStatus | null) => void | Promise<void>;
 }
 
 export function LeadStatusSelect({ sessionId, currentStatus, onUpdated }: LeadStatusSelectProps) {
@@ -30,7 +29,7 @@ export function LeadStatusSelect({ sessionId, currentStatus, onUpdated }: LeadSt
     try {
       const result = await updateSessionLeadStatus(sessionId, status);
       if (result.success) {
-        await onUpdated?.();
+        await onUpdated?.(status);
       } else {
         toast.error(result.message);
       }
@@ -60,10 +59,6 @@ export function LeadStatusSelect({ sessionId, currentStatus, onUpdated }: LeadSt
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => handleSelect(null)}>
-          <LeadStatusBadge status={null} />
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
