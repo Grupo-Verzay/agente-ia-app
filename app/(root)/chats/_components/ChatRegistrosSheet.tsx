@@ -39,7 +39,7 @@ const TIPO_LABELS: Record<TipoRegistro, string> = {
   PRODUCTO: "Productos",
 };
 
-const TAB_BASE = "text-[10.5px] px-1.5 py-1 rounded-md font-medium data-[state=active]:shadow-none";
+const TAB_BASE = "text-[11px] px-2 py-1 rounded-md font-medium data-[state=active]:shadow-none";
 
 const TAB_LABELS: Record<string, string> = {
   RESUMEN:      "Resumen",
@@ -200,18 +200,18 @@ export function ChatRegistrosSheet({
                       <button
                         type="button"
                         onClick={() => setActiveTab("FLUJOS")}
-                        className="rounded-lg border bg-background p-3 text-left hover:bg-accent transition-colors"
+                        className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
                       >
-                        <p className="text-xs text-muted-foreground">Flujos ejecutados</p>
-                        <p className="text-lg font-bold mt-0.5">{flujosEjecutados}</p>
+                        <span className="text-sm text-muted-foreground">Flujos ejecutados</span>
+                        <span className="text-sm font-bold">{flujosEjecutados}</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setActiveTab("SEGUIMIENTOS")}
-                        className="rounded-lg border bg-background p-3 text-left hover:bg-accent transition-colors"
+                        className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
                       >
-                        <p className="text-xs text-muted-foreground">Seguim. pendientes</p>
-                        <p className="text-lg font-bold mt-0.5">{seguimientosPendientes}</p>
+                        <span className="text-sm text-muted-foreground">Seguim. pendientes</span>
+                        <span className="text-sm font-bold">{seguimientosPendientes}</span>
                       </button>
                     </div>
 
