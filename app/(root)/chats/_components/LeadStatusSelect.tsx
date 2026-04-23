@@ -46,7 +46,7 @@ export function LeadStatusSelect({ sessionId, currentStatus, onUpdated }: LeadSt
         className="inline-flex h-7 items-center gap-0.5 cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50 focus:outline-none"
         aria-label="Cambiar estado del lead"
       >
-        <LeadStatusBadge status={currentStatus} />
+        <LeadStatusBadge status={currentStatus} showDot={false} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuGroup>

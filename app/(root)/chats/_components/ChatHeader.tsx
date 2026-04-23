@@ -137,11 +137,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               <Badge variant="outline" className={`${sessionStatusTone} text-xs py-0.5`}>
                 {session.status ? 'Activa' : 'Pausada'}
               </Badge>
-              <LeadStatusSelect
-                sessionId={session.id}
-                currentStatus={session.leadStatus}
-                onUpdated={onSessionRefresh}
-              />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               <ChatReminderDialog session={session as any} userId={userId} />
               {crmBadge}
@@ -202,11 +197,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         <div className="flex items-center gap-1.5">
           {session && (
             <>
-              <LeadStatusSelect
-                sessionId={session.id}
-                currentStatus={session.leadStatus}
-                onUpdated={onSessionRefresh}
-              />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               <ChatReminderDialog session={session as any} userId={userId} />
               {crmBadge}

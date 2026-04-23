@@ -31,7 +31,7 @@ import { CrmFollowUpItemActions } from "./CrmFollowUpItemActions";
 import { LeadStatusBadge } from "./records-table/LeadStatusBadge";
 
 const STATUS_LABELS = {
-  PENDING: "Pendiente",
+  PENDING: "Follows",
   PROCESSING: "Procesando",
   SENT: "Enviado",
   FAILED: "Fallido",

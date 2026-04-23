@@ -10,8 +10,10 @@ import {
 
 export function LeadStatusBadge({
   status,
+  showDot = true,
 }: {
   status?: LeadStatus | null;
+  showDot?: boolean;
 }) {
   if (!status) {
     return (
@@ -28,9 +30,11 @@ export function LeadStatusBadge({
         LEAD_STATUS_BADGE_CLASSNAMES[status],
       )}
     >
-      <span
-        className={cn("h-2 w-2 rounded-full", LEAD_STATUS_DOT_CLASSNAMES[status])}
-      />
+      {showDot && (
+        <span
+          className={cn("h-2 w-2 rounded-full", LEAD_STATUS_DOT_CLASSNAMES[status])}
+        />
+      )}
       {getLeadStatusLabel(status)}
     </span>
   );
