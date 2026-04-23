@@ -38,12 +38,12 @@ const CRM_STATUS_LABELS: Record<string, string> = {
 };
 
 const CRM_STATUS_CLASSES: Record<string, string> = {
-  PENDING: "border-amber-200 bg-amber-50 text-amber-700",
-  PROCESSING: "border-blue-200 bg-blue-50 text-blue-700",
-  SENT: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  FAILED: "border-rose-200 bg-rose-50 text-rose-700",
-  CANCELLED: "border-slate-200 bg-slate-100 text-slate-700",
-  SKIPPED: "border-violet-200 bg-violet-50 text-violet-700",
+  PENDING: "border-amber-300 bg-amber-100 text-amber-800",
+  PROCESSING: "border-blue-300 bg-blue-100 text-blue-800",
+  SENT: "border-emerald-300 bg-emerald-100 text-emerald-800",
+  FAILED: "border-rose-300 bg-rose-100 text-rose-800",
+  CANCELLED: "border-slate-300 bg-slate-200 text-slate-700",
+  SKIPPED: "border-violet-300 bg-violet-100 text-violet-800",
 };
 
 const LEGACY_STATUS_LABELS: Record<string, string> = {
@@ -55,11 +55,11 @@ const LEGACY_STATUS_LABELS: Record<string, string> = {
 };
 
 const LEGACY_STATUS_CLASSES: Record<string, string> = {
-  pending: "border-amber-200 bg-amber-50 text-amber-700",
-  sent: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  failed: "border-rose-200 bg-rose-50 text-rose-700",
-  cancelled: "border-slate-200 bg-slate-100 text-slate-700",
-  processing: "border-blue-200 bg-blue-50 text-blue-700",
+  pending: "border-amber-300 bg-amber-100 text-amber-800",
+  sent: "border-emerald-300 bg-emerald-100 text-emerald-800",
+  failed: "border-rose-300 bg-rose-100 text-rose-800",
+  cancelled: "border-slate-300 bg-slate-200 text-slate-700",
+  processing: "border-blue-300 bg-blue-100 text-blue-800",
 };
 
 function formatDate(value?: string | null) {
@@ -159,7 +159,7 @@ function LegacySeguimientoCard({
       )}
 
       {item.errorReason && (
-        <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5">
+        <div className="mt-2 rounded-md border border-rose-300 bg-rose-100 px-2 py-1.5">
           <p className="text-[11px] font-medium text-rose-700">Error</p>
           <p className="whitespace-pre-wrap text-xs text-rose-700">{item.errorReason}</p>
         </div>
@@ -220,7 +220,7 @@ function CrmFollowUpCard({
       )}
 
       {item.errorReason && (
-        <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5">
+        <div className="mt-2 rounded-md border border-rose-300 bg-rose-100 px-2 py-1.5">
           <p className="text-[11px] font-medium text-rose-700">Error</p>
           <p className="whitespace-pre-wrap text-xs text-rose-700">{item.errorReason}</p>
         </div>

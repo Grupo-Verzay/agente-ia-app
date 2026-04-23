@@ -68,7 +68,7 @@ export function ChatReminderDialog({ session, userId }: ChatReminderDialogProps)
         variant="outline"
         size="sm"
         onClick={handleOpen}
-        className="h-7 gap-1.5 text-xs px-2"
+        className="h-7 gap-1.5 text-xs px-2 border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200 hover:text-amber-900"
         title="Crear recordatorio para este lead"
       >
         <BellPlus className="h-3.5 w-3.5" />

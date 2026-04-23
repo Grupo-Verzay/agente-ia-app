@@ -48,8 +48,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 }) => {
   const initialSelectedTagIds = session?.tags?.map((t) => t?.id).filter(Boolean) ?? [];
   const sessionStatusTone = session?.status
-    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-    : 'border-amber-200 bg-amber-50 text-amber-700';
+    ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+    : 'border-amber-300 bg-amber-100 text-amber-800';
 
   const tagsCombobox = session && (
     <SessionTagsCombobox

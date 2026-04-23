@@ -89,7 +89,7 @@ export function ChatContactItem({
               </span>
             </div>
 
-            <div className="mt-0.5 flex gap-1">
+            <div className="mt-0.5 flex items-center gap-1">
               <LeadStatusBadge status={contact.chatSession?.leadStatus ?? null} />
               {contact.chatSession && (
                 <FlowListOrder raw={contact.chatSession.flujos ?? ""} />

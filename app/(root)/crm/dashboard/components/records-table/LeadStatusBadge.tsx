@@ -17,7 +17,7 @@ export function LeadStatusBadge({
 }) {
   if (!status) {
     return (
-      <span className="inline-flex rounded-full border border-dashed border-border px-2 py-1 text-xs text-muted-foreground">
+      <span className="inline-flex h-6 items-center rounded-full border border-dashed border-border px-2 text-xs text-muted-foreground">
         Sin clasificar
       </span>
     );
@@ -26,7 +26,7 @@ export function LeadStatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-medium",
+        "inline-flex h-6 items-center gap-1.5 rounded-full border px-2 text-xs font-medium",
         LEAD_STATUS_BADGE_CLASSNAMES[status],
       )}
     >

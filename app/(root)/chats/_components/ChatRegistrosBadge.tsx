@@ -71,12 +71,12 @@ export function ChatRegistrosBadge({
           >
             <Badge
               variant="outline"
-              className="h-7 gap-1.5 rounded-md px-2 text-xs font-medium border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 cursor-pointer"
+              className="h-7 gap-1.5 rounded-md px-2 text-xs font-medium border-teal-300 bg-teal-100 text-teal-800 hover:bg-teal-200 cursor-pointer"
             >
               <Plus className="h-3 w-3" />
               Registros
               {total > 0 && (
-                <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-slate-200 px-1 text-[10px] font-bold leading-none text-slate-700">
+                <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-teal-200 px-1 text-[10px] font-bold leading-none text-teal-900">
                   {total}
                 </span>
               )}

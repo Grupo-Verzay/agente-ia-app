@@ -20,11 +20,11 @@ export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
 };
 
 export const LEAD_STATUS_BADGE_CLASSNAMES: Record<LeadStatus, string> = {
-  FRIO: "border-blue-200 bg-blue-50 text-blue-700",
-  TIBIO: "border-amber-200 bg-amber-50 text-amber-800",
-  CALIENTE: "border-red-200 bg-red-50 text-red-700",
-  FINALIZADO: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  DESCARTADO: "border-zinc-200 bg-zinc-100 text-zinc-700",
+  FRIO: "border-blue-300 bg-blue-100 text-blue-800",
+  TIBIO: "border-amber-300 bg-amber-100 text-amber-800",
+  CALIENTE: "border-red-300 bg-red-100 text-red-800",
+  FINALIZADO: "border-emerald-300 bg-emerald-100 text-emerald-800",
+  DESCARTADO: "border-zinc-300 bg-zinc-200 text-zinc-700",
 };
 
 export const LEAD_STATUS_DOT_CLASSNAMES: Record<LeadStatus, string> = {

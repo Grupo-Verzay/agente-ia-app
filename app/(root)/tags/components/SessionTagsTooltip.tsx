@@ -26,7 +26,7 @@ export function SessionTagsTooltip({
         <TooltipTrigger asChild>
           <span
             className={cn(
-              "inline-flex h-8 items-center gap-1 rounded-md border border-border/60 bg-background/70 px-2 text-xs text-muted-foreground",
+              "inline-flex h-6 items-center gap-1 rounded-md border border-border/60 bg-background/70 px-2 text-xs text-muted-foreground",
               hasTags ? "hover:text-foreground" : "opacity-70",
               className,
             )}

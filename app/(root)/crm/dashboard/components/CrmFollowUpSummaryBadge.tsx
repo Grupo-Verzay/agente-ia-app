@@ -42,19 +42,19 @@ const STATUS_LABELS = {
 function getStatusClassName(status: SessionCrmFollowUpSummary["latestStatus"]) {
   switch (status) {
     case "PENDING":
-      return "border-amber-200 bg-amber-50 text-amber-700";
+      return "border-amber-300 bg-amber-100 text-amber-800";
     case "PROCESSING":
-      return "border-blue-200 bg-blue-50 text-blue-700";
+      return "border-blue-300 bg-blue-100 text-blue-800";
     case "SENT":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+      return "border-emerald-300 bg-emerald-100 text-emerald-800";
     case "FAILED":
-      return "border-rose-200 bg-rose-50 text-rose-700";
+      return "border-rose-300 bg-rose-100 text-rose-800";
     case "CANCELLED":
-      return "border-slate-200 bg-slate-100 text-slate-700";
+      return "border-slate-300 bg-slate-200 text-slate-700";
     case "SKIPPED":
-      return "border-violet-200 bg-violet-50 text-violet-700";
+      return "border-violet-300 bg-violet-100 text-violet-800";
     default:
-      return "border-slate-200 bg-slate-50 text-slate-600";
+      return "border-slate-300 bg-slate-100 text-slate-600";
   }
 }
 
@@ -90,9 +90,9 @@ export function CrmFollowUpSummaryBadge({
 
   if (!summary || summary.total === 0) {
     return (
-      <span className="text-xs text-muted-foreground">
+      <Badge variant="outline" className="h-7 gap-1.5 rounded-md px-2 text-xs font-medium border-slate-300 bg-slate-100 text-slate-600">
         Sin follow-up
-      </span>
+      </Badge>
     );
   }
 
@@ -113,19 +113,19 @@ export function CrmFollowUpSummaryBadge({
       </Badge>
 
       {summary.active > 0 && (
-        <Badge variant="outline" className="border-blue-200 text-blue-700">
+        <Badge variant="outline" className="border-blue-300 bg-blue-100 text-blue-800">
           Activos {summary.active}
         </Badge>
       )}
 
       {summary.sent > 0 && (
-        <Badge variant="outline" className="border-emerald-200 text-emerald-700">
+        <Badge variant="outline" className="border-emerald-300 bg-emerald-100 text-emerald-800">
           Enviados {summary.sent}
         </Badge>
       )}
 
       {summary.failed > 0 && (
-        <Badge variant="outline" className="border-rose-200 text-rose-700">
+        <Badge variant="outline" className="border-rose-300 bg-rose-100 text-rose-800">
           Fallidos {summary.failed}
         </Badge>
       )}
@@ -264,7 +264,7 @@ export function CrmFollowUpSummaryBadge({
                             </p>
 
                             {item.errorReason && (
-                              <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1">
+                              <div className="mt-2 rounded-md border border-rose-300 bg-rose-100 px-2 py-1">
                                 <p className="text-[11px] font-medium text-rose-700">Error</p>
                                 <p className="whitespace-pre-wrap text-xs text-rose-700">
                                   {item.errorReason}

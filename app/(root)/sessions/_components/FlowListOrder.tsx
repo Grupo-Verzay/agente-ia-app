@@ -46,7 +46,7 @@ export const FlowListOrder = ({ raw }: { raw: string }) => {
             <Tooltip>
                 <TooltipTrigger asChild>
                     <span className="inline-flex">
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                        <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-blue-300 bg-blue-100 px-2 text-xs font-medium text-blue-800 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-300">
                             <span className="h-2 w-2 rounded-full bg-blue-500 dark:bg-blue-400" />
                             {count}
                         </span>
