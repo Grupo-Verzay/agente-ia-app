@@ -236,11 +236,13 @@ export function LeadSeguimientosTab({
   userId,
   remoteJid,
   instanceId,
+  mode = "all",
 }: {
   sessionId: number;
   userId: string;
   remoteJid: string;
   instanceId: string | null;
+  mode?: "all" | "legacy" | "crm";
 }) {
   const [crmItems, setCrmItems] = useState<SessionFollowUpItem[]>([]);
   const [legacyItems, setLegacyItems] = useState<LegacySeguimientoItem[]>([]);
@@ -270,6 +272,9 @@ export function LeadSeguimientosTab({
 
   const canCancel = Boolean(instanceId) && activeCount > 0;
   const canReactivate = Boolean(instanceId) && reactivatableCount > 0;
+
+  const showLegacy = mode === "all" || mode === "legacy";
+  const showCrm = mode === "all" || mode === "crm";
 
   const handleBulkAction = async (action: "cancel" | "reactivate" | "deleteAllLegacy") => {
     const toastId = `seguimientos-bulk-${action}-${sessionId}`;
@@ -318,117 +323,120 @@ export function LeadSeguimientosTab({
     );
   }
 
-  const isEmpty = crmItems.length === 0 && legacyItems.length === 0;
+  const isEmpty =
+    (showLegacy ? legacyItems.length === 0 : true) &&
+    (showCrm ? crmItems.length === 0 : true);
 
-  if (isEmpty) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-2 py-10 text-center text-muted-foreground">
-        <p className="text-sm">Este lead no tiene seguimientos registrados.</p>
-      </div>
-    );
-  }
+  const hasLegacyActions = showLegacy && legacyItems.length > 0;
+  const hasCrmActions = showCrm && (canReactivate || canCancel);
+  const hasAnyBottomAction = hasLegacyActions || hasCrmActions;
+
+  const bottomActions = hasAnyBottomAction ? (
+    <div className="flex gap-2 border-t pt-3 mt-2">
+      {hasLegacyActions && (
+        <Button
+          variant="outline"
+          className="flex-1 text-sm text-destructive hover:text-destructive"
+          disabled={pendingAction !== null}
+          onClick={() => setConfirmAction("deleteAllLegacy")}
+        >
+          <Trash2 className="h-4 w-4" />
+          Eliminar flujos
+        </Button>
+      )}
+      {showCrm && canReactivate && (
+        <Button
+          variant="outline"
+          className="flex-1 text-sm"
+          disabled={pendingAction !== null}
+          onClick={() => setConfirmAction("reactivate")}
+        >
+          <RefreshCcw className="h-4 w-4 text-emerald-500" />
+          Reactivar todos
+        </Button>
+      )}
+      {showCrm && canCancel && (
+        <Button
+          variant="outline"
+          className="flex-1 text-sm"
+          disabled={pendingAction !== null}
+          onClick={() => setConfirmAction("cancel")}
+        >
+          <XCircle className="h-4 w-4 text-rose-500" />
+          Cancelar activos
+        </Button>
+      )}
+    </div>
+  ) : null;
 
   return (
     <>
-      <ScrollArea className="flex-1">
-        <div className="flex flex-col gap-4">
+      <div className="flex flex-col h-full">
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="flex flex-col gap-4 pb-2">
 
-          {/* ===== SECCIÓN: Seguimientos de Flujos (legacy) ===== */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-medium">Seguimientos de Flujos</p>
-              <Badge variant="outline" className="text-xs">
-                {legacyItems.length}
-              </Badge>
-              <span className="text-[11px] text-muted-foreground">
-                (pendientes: {legacyItems.filter((i) => i.followUpStatus === "pending").length})
-              </span>
-            </div>
-
-            {legacyItems.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Sin seguimientos de flujos.</p>
+            {isEmpty ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Este lead no tiene seguimientos registrados.
+              </p>
             ) : (
               <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="self-start text-xs text-destructive hover:text-destructive"
-                  disabled={pendingAction !== null}
-                  onClick={() => setConfirmAction("deleteAllLegacy")}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Eliminar todos
-                </Button>
-                <div className="flex flex-col gap-2">
-                  {legacyItems.map((item) => (
-                    <LegacySeguimientoCard key={item.id} item={item} onDeleted={loadAll} />
-                  ))}
-                </div>
+                {/* ===== Seguimientos de Flujos ===== */}
+                {showLegacy && (
+                  <div className="flex flex-col gap-2">
+                    {mode === "all" && (
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">Seguimientos de Flujos</p>
+                        <Badge variant="outline" className="text-xs">{legacyItems.length}</Badge>
+                        <span className="text-[11px] text-muted-foreground">
+                          (pendientes: {legacyItems.filter((i) => i.followUpStatus === "pending").length})
+                        </span>
+                      </div>
+                    )}
+                    {legacyItems.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Sin seguimientos de flujos.</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {legacyItems.map((item) => (
+                          <LegacySeguimientoCard key={item.id} item={item} onDeleted={loadAll} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {mode === "all" && showLegacy && showCrm && <Separator />}
+
+                {/* ===== Follow-ups IA (CRM) ===== */}
+                {showCrm && (
+                  <div className="flex flex-col gap-2">
+                    {mode === "all" && (
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">Follow-ups IA (CRM)</p>
+                        <Badge variant="outline" className="text-xs">{crmItems.length}</Badge>
+                        {activeCount > 0 && (
+                          <span className="text-[11px] text-muted-foreground">(activos: {activeCount})</span>
+                        )}
+                      </div>
+                    )}
+                    {crmItems.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Sin follow-ups de IA.</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {crmItems.map((item) => (
+                          <CrmFollowUpCard key={item.id} item={item} userId={userId} onUpdated={loadAll} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>
+        </ScrollArea>
 
-          <Separator />
-
-          {/* ===== SECCIÓN: Follow-ups IA (CRM) ===== */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-medium">Follow-ups IA (CRM)</p>
-              <Badge variant="outline" className="text-xs">
-                {crmItems.length}
-              </Badge>
-              {activeCount > 0 && (
-                <span className="text-[11px] text-muted-foreground">(activos: {activeCount})</span>
-              )}
-            </div>
-
-            {(canCancel || canReactivate) && (
-              <div className="flex gap-2">
-                {canReactivate && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs"
-                    disabled={pendingAction !== null}
-                    onClick={() => setConfirmAction("reactivate")}
-                  >
-                    <RefreshCcw className="h-3.5 w-3.5 text-emerald-500" />
-                    Reactivar todos
-                  </Button>
-                )}
-                {canCancel && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs"
-                    disabled={pendingAction !== null}
-                    onClick={() => setConfirmAction("cancel")}
-                  >
-                    <XCircle className="h-3.5 w-3.5 text-rose-500" />
-                    Cancelar activos
-                  </Button>
-                )}
-              </div>
-            )}
-
-            {crmItems.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Sin follow-ups de IA.</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {crmItems.map((item) => (
-                  <CrmFollowUpCard
-                    key={item.id}
-                    item={item}
-                    userId={userId}
-                    onUpdated={loadAll}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-        </div>
-      </ScrollArea>
+        {!isEmpty && bottomActions}
+      </div>
 
       <CrmConfirmActionDialog
         open={confirmAction !== null}

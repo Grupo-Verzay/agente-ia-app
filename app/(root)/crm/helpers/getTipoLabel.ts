@@ -14,6 +14,8 @@ export function getTipoLabel(tipo: TipoRegistro) {
             return "Pagos";
         case "RESERVA":
             return "Reservas";
+        case "PRODUCTO":
+            return "Productos";
         default:
             return tipo;
     }

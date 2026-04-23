@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ArrowRight, PencilLine, Pin } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,7 @@ import { SwitchStatus } from '../../sessions/_components';
 import { LeadStatusSelect } from './LeadStatusSelect';
 import { SintesisEditDialog } from './SintesisEditDialog';
 import { ChatReminderDialog } from './ChatReminderDialog';
+import { ChatRegistrosBadge } from './ChatRegistrosBadge';
 
 interface ChatHeaderProps {
   header: ChatHeaderData;
@@ -144,6 +145,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               <ChatReminderDialog session={session as any} userId={userId} />
               {crmBadge}
+              <ChatRegistrosBadge
+                sessionId={session.id}
+                sessionPushName={session.pushName}
+                whatsapp={displayedWhatsapp}
+                userId={session.userId}
+                remoteJid={session.remoteJid}
+                instanceId={session.instanceId}
+              />
             </div>
             {tagsCombobox}
             {session && (
@@ -201,6 +210,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               <ChatReminderDialog session={session as any} userId={userId} />
               {crmBadge}
+              <ChatRegistrosBadge
+                sessionId={session.id}
+                sessionPushName={session.pushName}
+                whatsapp={displayedWhatsapp}
+                userId={session.userId}
+                remoteJid={session.remoteJid}
+                instanceId={session.instanceId}
+              />
               {tagsCombobox}
             </>
           )}
@@ -213,6 +230,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           Sin sesión CRM sincronizada
         </div>
       )}
+
     </div>
   );
 };

@@ -78,6 +78,7 @@ export const CrmDashboard = ({
             RECLAMO: 0,
             PAGO: 0,
             RESERVA: 0,
+            PRODUCTO: 0,
         };
 
         for (const registro of registros) {

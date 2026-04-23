@@ -42,4 +42,11 @@ export const ESTADOS_POR_TIPO: Record<TipoRegistro, string[]> = {
         "Confirmado",
         "Cancelado",
     ],
+    PRODUCTO: [
+        "Cotizado",
+        "Pendiente",
+        "Confirmado",
+        "Entregado",
+        "Cancelado",
+    ],
 };

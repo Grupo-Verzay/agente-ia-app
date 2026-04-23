@@ -461,6 +461,18 @@ export async function updateRegistro(input: {
     }
 }
 
+export async function getRegistrosBySessionId(sessionId: number): Promise<ActionResult<import("@prisma/client").Registro[]>> {
+    try {
+        const registros = await db.registro.findMany({
+            where: { sessionId },
+            orderBy: { createdAt: "desc" },
+        });
+        return { success: true, data: registros };
+    } catch (e: any) {
+        return { success: false, message: e?.message ?? "No se pudieron cargar los registros" };
+    }
+}
+
 export async function deleteRegistro(id: number): Promise<ActionResult<true>> {
     try {
         await ensureAuthorizedRegistroById(id);
@@ -682,6 +694,7 @@ export async function getCrmDashboardStatsByUserId(userId: string) {
             RECLAMO: 0,
             PAGO: 0,
             RESERVA: 0,
+            PRODUCTO: 0,
         } satisfies Record<TipoRegistro, number>;
 
         for (const row of byTipo) {

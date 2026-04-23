@@ -12,6 +12,7 @@ export const CRM_TABS = [
     "RECLAMO",
     "PAGO",
     "RESERVA",
+    "PRODUCTO",
 ] as const;
 
 export const CRM_TAB_COLORS: Record<CrmDashboardTab, string> = {
@@ -22,6 +23,7 @@ export const CRM_TAB_COLORS: Record<CrmDashboardTab, string> = {
     RECLAMO: "#EF4444",
     PAGO: "#22C55E",
     RESERVA: "#0EA5E9",
+    PRODUCTO: "#A855F7",
 };
 
 export const CRM_FOLLOW_UP_FILTER_OPTIONS: Array<{

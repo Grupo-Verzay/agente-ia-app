@@ -215,6 +215,7 @@ export function RegistroUpsertDialog({
                                 <SelectItem value="RECLAMO">Reclamo</SelectItem>
                                 <SelectItem value="PAGO">Pago</SelectItem>
                                 <SelectItem value="RESERVA">Reserva</SelectItem>
+                                <SelectItem value="PRODUCTO">Producto</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

@@ -17,6 +17,7 @@ import {
     Handshake,
     Inbox,
     LayoutGrid,
+    Package,
     TriangleAlert,
     Wallet,
     X,
@@ -60,6 +61,7 @@ const CRM_TAB_ICONS = {
     RECLAMO: TriangleAlert,
     PAGO: Wallet,
     RESERVA: CalendarDays,
+    PRODUCTO: Package,
 } as const;
 
 function sanitizeFilters(filters: RegistrosFilters) {

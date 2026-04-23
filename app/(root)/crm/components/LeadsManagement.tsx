@@ -128,6 +128,7 @@ export const LeadsManagement = ({
             RECLAMO: 0,
             PAGO: 0,
             RESERVA: 0,
+            PRODUCTO: 0,
         };
         for (const r of registros as Registro[]) {
             const tipo = r.tipo as TipoRegistro;

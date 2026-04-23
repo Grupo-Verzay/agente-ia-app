@@ -48,6 +48,7 @@ const TIPO_LABELS: Record<TipoRegistro, string> = {
   RECLAMO: "Reclamos",
   PAGO: "Pagos",
   RESERVA: "Reservas",
+  PRODUCTO: "Productos",
 };
 
 export function CrmGlobalActionsMenu({
