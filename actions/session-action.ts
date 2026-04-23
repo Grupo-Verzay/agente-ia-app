@@ -120,6 +120,7 @@ function mapSessionRecord(session: SessionWithTagsRecord): AppSession {
 function mapChatContactSessionSummary(
   session: SessionWithTagsRecord,
   pendingSeguimientos?: number,
+  seguimientosTipos?: string[],
 ): ChatContactSessionSummary {
   const mappedSession = mapSessionRecord(session);
 
@@ -133,6 +134,7 @@ function mapChatContactSessionSummary(
     leadStatus: mappedSession.leadStatus ?? null,
     flujos: mappedSession.flujos ?? null,
     pendingSeguimientos: pendingSeguimientos ?? 0,
+    seguimientosTipos: seguimientosTipos ?? [],
   };
 }
 
@@ -285,17 +287,21 @@ export async function getSessionsByUserId(
 
     const remoteJids = sessions.map((s) => s.remoteJid).filter(Boolean) as string[];
 
-    const seguimientosCounts = remoteJids.length
-      ? await db.seguimiento.groupBy({
-          by: ['remoteJid'],
+    const seguimientosRaw = remoteJids.length
+      ? await db.seguimiento.findMany({
           where: { remoteJid: { in: remoteJids }, followUpStatus: 'pending' },
-          _count: { id: true },
+          select: { remoteJid: true, tipo: true },
         })
       : [];
 
-    const seguimientosMap = new Map(
-      seguimientosCounts.map((s) => [s.remoteJid, s._count.id]),
-    );
+    const seguimientosMap = new Map<string, { count: number; tipos: string[] }>();
+    for (const s of seguimientosRaw) {
+      if (!s.remoteJid) continue;
+      const entry = seguimientosMap.get(s.remoteJid) ?? { count: 0, tipos: [] };
+      entry.count++;
+      if (s.tipo && !entry.tipos.includes(s.tipo)) entry.tipos.push(s.tipo);
+      seguimientosMap.set(s.remoteJid, entry);
+    }
 
     const mapped = sessions.map((s) => ({
       ...s,
@@ -306,7 +312,8 @@ export async function getSessionsByUserId(
         color: st.tag.color,
         order: (st.tag as any).order ?? 0,
       })),
-      pendingSeguimientos: seguimientosMap.get(s.remoteJid) ?? 0,
+      pendingSeguimientos: seguimientosMap.get(s.remoteJid)?.count ?? 0,
+      seguimientosTipos: seguimientosMap.get(s.remoteJid)?.tipos ?? [],
     }));
 
     return {
@@ -420,17 +427,21 @@ export async function getChatContactSessions(
 
     const allRemoteJids = sessions.map((s) => s.remoteJid).filter(Boolean) as string[];
 
-    const seguimientosCounts = allRemoteJids.length
-      ? await db.seguimiento.groupBy({
-          by: ['remoteJid'],
+    const seguimientosRaw = allRemoteJids.length
+      ? await db.seguimiento.findMany({
           where: { remoteJid: { in: allRemoteJids }, followUpStatus: 'pending' },
-          _count: { id: true },
+          select: { remoteJid: true, tipo: true },
         })
       : [];
 
-    const seguimientosMap = new Map(
-      seguimientosCounts.map((s) => [s.remoteJid, s._count.id]),
-    );
+    const seguimientosMap = new Map<string, { count: number; tipos: string[] }>();
+    for (const s of seguimientosRaw) {
+      if (!s.remoteJid) continue;
+      const entry = seguimientosMap.get(s.remoteJid) ?? { count: 0, tipos: [] };
+      entry.count++;
+      if (s.tipo && !entry.tipos.includes(s.tipo)) entry.tipos.push(s.tipo);
+      seguimientosMap.set(s.remoteJid, entry);
+    }
 
     const data: ChatContactSessionMap = {};
 
@@ -465,8 +476,8 @@ export async function getChatContactSessions(
 
       if (!preferredSession) continue;
 
-      const pendingSeguimientos = seguimientosMap.get(preferredSession.remoteJid) ?? 0;
-      data[chat.chatRemoteJid] = mapChatContactSessionSummary(preferredSession, pendingSeguimientos);
+      const seg = seguimientosMap.get(preferredSession.remoteJid);
+      data[chat.chatRemoteJid] = mapChatContactSessionSummary(preferredSession, seg?.count ?? 0, seg?.tipos ?? []);
     }
 
     return {

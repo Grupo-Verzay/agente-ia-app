@@ -95,7 +95,10 @@ export function ChatContactItem({
                 <FlowListOrder raw={contact.chatSession.flujos ?? ""} />
               )}
               {contact.chatSession && (
-                <SeguimientoBadge count={contact.chatSession.pendingSeguimientos ?? 0} />
+                <SeguimientoBadge
+                  count={contact.chatSession.pendingSeguimientos ?? 0}
+                  tipos={contact.chatSession.seguimientosTipos}
+                />
               )}
               {contact.chatSession && contact.chatSession.tags.length > 0 && (
                 <SessionTagsTooltip tags={contact.chatSession.tags} maxVisible={5} />

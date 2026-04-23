@@ -84,6 +84,7 @@ export type ChatContactSessionSummary = {
   leadStatus?: LeadStatus | null;
   flujos?: string | null;
   pendingSeguimientos?: number;
+  seguimientosTipos?: string[];
 };
 
 export type ChatContactSessionMap = Record<string, ChatContactSessionSummary>;
