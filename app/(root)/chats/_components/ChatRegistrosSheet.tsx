@@ -39,7 +39,7 @@ const TIPO_LABELS: Record<TipoRegistro, string> = {
   PRODUCTO: "Productos",
 };
 
-const TAB_BASE = "text-xs px-2 py-1.5 rounded-md font-medium data-[state=active]:shadow-none";
+const TAB_BASE = "text-[10.5px] px-1.5 py-1 rounded-md font-medium data-[state=active]:shadow-none";
 
 const TAB_LABELS: Record<string, string> = {
   RESUMEN:      "Resumen",
@@ -54,15 +54,15 @@ const TAB_LABELS: Record<string, string> = {
 };
 
 const TAB_COLORS: Record<string, string> = {
-  RESUMEN:      "border border-slate-400 text-slate-700 data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:border-slate-700",
-  SOLICITUD:    "border border-blue-400  text-blue-600  data-[state=active]:bg-blue-500  data-[state=active]:text-white data-[state=active]:border-blue-500",
-  PEDIDO:       "border border-orange-400 text-orange-600 data-[state=active]:bg-orange-500 data-[state=active]:text-white data-[state=active]:border-orange-500",
-  RECLAMO:      "border border-red-400   text-red-600   data-[state=active]:bg-red-500   data-[state=active]:text-white data-[state=active]:border-red-500",
-  PAGO:         "border border-green-400 text-green-600 data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:border-green-500",
-  RESERVA:      "border border-teal-400  text-teal-600  data-[state=active]:bg-teal-500  data-[state=active]:text-white data-[state=active]:border-teal-500",
-  PRODUCTO:     "border border-purple-400 text-purple-600 data-[state=active]:bg-purple-500 data-[state=active]:text-white data-[state=active]:border-purple-500",
-  FLUJOS:       "border border-blue-500  text-blue-700  data-[state=active]:bg-blue-600  data-[state=active]:text-white data-[state=active]:border-blue-600",
-  SEGUIMIENTOS: "border border-amber-400 text-amber-600 data-[state=active]:bg-amber-500 data-[state=active]:text-white data-[state=active]:border-amber-500",
+  RESUMEN:      "bg-slate-700  text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-slate-700",
+  SOLICITUD:    "bg-blue-500   text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-blue-500",
+  PEDIDO:       "bg-orange-500 text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-orange-500",
+  RECLAMO:      "bg-red-500    text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-red-500",
+  PAGO:         "bg-green-500  text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-green-500",
+  RESERVA:      "bg-teal-500   text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-teal-500",
+  PRODUCTO:     "bg-purple-500 text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-purple-500",
+  FLUJOS:       "bg-blue-600   text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-blue-600",
+  SEGUIMIENTOS: "bg-amber-500  text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-amber-500",
 };
 
 export function ChatRegistrosSheet({
