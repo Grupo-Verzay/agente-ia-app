@@ -261,7 +261,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   );
 
   return (
-    <div className="flex flex-col h-[95%] md:h-full w-full min-w-[100px] bg-white dark:bg-gray-800 border-l border-r">
+    <div className="flex flex-col h-[95%] md:h-full w-full min-w-[100px] border-l border-r">
       <ChatHeader
         header={header}
         session={session}

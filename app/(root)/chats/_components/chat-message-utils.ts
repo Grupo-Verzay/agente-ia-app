@@ -102,9 +102,9 @@ export function resolveEvolutionMessageStatus(message: EvolutionMessage): string
 export function normalizeDeliveryState(status?: string): MessageDeliveryState {
   const s = status?.trim().toUpperCase();
 
-  if (!s || s === 'PENDING' || s === 'SENT' || s === 'SERVER_ACK') return 'sent';
+  if (!s || s === 'PENDING' || s === 'SENT') return 'sent';
 
-  if (s === 'DELIVERY_ACK' || s === 'DELIVERED' || s === 'DEVICE_ACK') return 'delivered';
+  if (s === 'SERVER_ACK' || s === 'DELIVERY_ACK' || s === 'DELIVERED' || s === 'DEVICE_ACK') return 'delivered';
 
   if (s === 'READ' || s === 'READ_ACK' || s === 'PLAYED' || s === 'PLAYED_ACK') return 'read';
 

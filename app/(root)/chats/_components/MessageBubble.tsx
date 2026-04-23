@@ -81,12 +81,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const showAvatar = !isUserMessage;
 
   const timeAndStatus = (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5">
       {timestamp && (
         <span
           className={cn(
-            'text-[0.6rem] mt-1 block',
-            isUserMessage ? 'text-gray-300' : 'text-gray-500 dark:text-gray-400/80',
+            'text-[0.6rem] leading-none',
+            isUserMessage ? 'text-gray-300' : 'text-gray-400 dark:text-gray-400/80',
           )}
           aria-label="Hora del mensaje"
         >
@@ -94,7 +94,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </span>
       )}
       {isUserMessage && (
-        <span className="text-[0.6rem] mt-1 block">
+        <span className="leading-none">
           <MessageStatusIndicator status={status} />
         </span>
       )}
@@ -174,14 +174,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </Avatar>
         </div>
       )}
-      <div className={cn('p-2 break-words relative inline-block max-w-[90%] sm:max-w-[70%]', bubbleClass)}>
+      <div className={cn('px-2 pt-2 pb-5 break-words relative inline-block max-w-[90%] sm:max-w-[70%]', bubbleClass)}>
         {media && <MediaRenderer media={media} />}
         {message && (
           <div className={cn(contentClass, 'pr-10')}>
             <ExpandableText message={message} isUserMessage={isUserMessage} />
           </div>
         )}
-        <div className="right-2 bottom-1 flex items-center gap-1">{timeAndStatus}</div>
+        <div className="absolute right-2 bottom-1">{timeAndStatus}</div>
       </div>
     </div>
   );
