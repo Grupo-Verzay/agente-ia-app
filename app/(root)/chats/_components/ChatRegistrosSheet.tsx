@@ -54,7 +54,7 @@ const TAB_LABELS: Record<string, string> = {
 };
 
 const TAB_COLORS: Record<string, string> = {
-  RESUMEN:      "bg-slate-700  text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-slate-700",
+  RESUMEN:      "bg-slate-700  text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-slate-700 data-[state=active]:text-white",
   SOLICITUD:    "bg-blue-500   text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-blue-500",
   PEDIDO:       "bg-orange-500 text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-orange-500",
   RECLAMO:      "bg-red-500    text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-red-500",
@@ -202,7 +202,7 @@ export function ChatRegistrosSheet({
                         onClick={() => setActiveTab("FLUJOS")}
                         className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
                       >
-                        <span className="text-sm text-muted-foreground">Flujos ejecutados</span>
+                        <span className="text-sm text-muted-foreground">Flujos enviados</span>
                         <span className="text-sm font-bold">{flujosEjecutados}</span>
                       </button>
                       <button
@@ -210,7 +210,7 @@ export function ChatRegistrosSheet({
                         onClick={() => setActiveTab("SEGUIMIENTOS")}
                         className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
                       >
-                        <span className="text-sm text-muted-foreground">Seguim. pendientes</span>
+                        <span className="text-sm text-muted-foreground">Seg. pendientes</span>
                         <span className="text-sm font-bold">{seguimientosPendientes}</span>
                       </button>
                     </div>
