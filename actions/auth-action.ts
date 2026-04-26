@@ -182,6 +182,36 @@ export async function selfChangePassword(input: {
   return { success: true, message: "Contraseña actualizada correctamente." };
 }
 
+export async function selfChangeEmail(input: { newEmail: string }) {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, message: "No autenticado" };
+
+  const userId = session.user.id;
+  const newEmail = (input.newEmail ?? "").trim().toLowerCase();
+
+  if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+    return { success: false, message: "El correo no es válido" };
+  }
+
+  const target = await db.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true },
+  });
+
+  if (!target) return { success: false, message: "Usuario no existe" };
+  if (target.email === newEmail) return { success: false, message: "El nuevo correo es igual al actual" };
+
+  const existing = await db.user.findUnique({ where: { email: newEmail } });
+  if (existing) return { success: false, message: "Ese correo ya está en uso" };
+
+  await db.user.update({
+    where: { id: userId },
+    data: { email: newEmail },
+  });
+
+  return { success: true, message: "Correo actualizado correctamente." };
+}
+
 export async function impersonateUser(targetUserId: string) {
   const session = await auth();
   if (!session?.user?.id) return { success: false, message: "No auth" };
