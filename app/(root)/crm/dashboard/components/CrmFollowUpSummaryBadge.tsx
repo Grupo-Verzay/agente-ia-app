@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCcw, XCircle } from "lucide-react";
+import { RefreshCcw, XCircle, Zap } from "lucide-react";
 
 import {
   cancelSessionCrmFollowUps,
@@ -90,8 +90,8 @@ export function CrmFollowUpSummaryBadge({
 
   if (!summary || summary.total === 0) {
     return (
-      <Badge variant="outline" className="h-7 gap-1.5 rounded-md px-2 text-xs font-medium border-slate-300 bg-slate-100 text-slate-600">
-        Sin follow-up
+      <Badge variant="outline" className="h-7 rounded-md px-2 text-xs font-medium border-slate-300 bg-slate-100 text-slate-600" title="Sin follow-up">
+        <Zap className="h-3.5 w-3.5" />
       </Badge>
     );
   }
@@ -178,12 +178,12 @@ export function CrmFollowUpSummaryBadge({
               <button type="button" className="inline-flex h-7 items-center focus:outline-none">
                 <Badge
                   variant="outline"
-                  className={`h-7 gap-1.5 rounded-md px-2 text-xs font-medium ${getStatusClassName(summary.latestStatus)}`}
+                  className={`h-7 gap-1 rounded-md px-2 text-xs font-medium ${getStatusClassName(summary.latestStatus)}`}
                 >
-                  {latestLabel}
-                  {summary.active > 0 && (
+                  <Zap className="h-3.5 w-3.5" />
+                  {summary.pending > 0 && (
                     <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-current/20 px-1 text-[10px] font-bold leading-none">
-                      {summary.active}
+                      {summary.pending}
                     </span>
                   )}
                 </Badge>

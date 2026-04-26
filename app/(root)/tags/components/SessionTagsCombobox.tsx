@@ -139,7 +139,7 @@ export function SessionTagsCombobox({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="h-7 justify-between px-2 text-xs"
+                    className="h-7 justify-between px-2 text-xs border-indigo-300 bg-indigo-100 text-indigo-800 hover:bg-indigo-200 hover:text-indigo-900"
                     disabled={isPending || allTags.length === 0}
                 >
                     <span className="flex items-center gap-1 truncate">
