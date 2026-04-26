@@ -328,24 +328,38 @@ export function UserBackupManager({
         </Alert>
 
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-          <Card className="border-border">
+          <Card className="border-border flex flex-col">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold">Exportar</CardTitle>
               <CardDescription className="text-xs">
-                Descarga un respaldo completo de {subjectLabel} en formato JSON.
+                Descarga un respaldo completo de {subjectLabel} en formato JSON con sesiones, CRM, workflows, finanzas, recordatorios y configuración asociada.
               </CardDescription>
             </CardHeader>
-            <CardContent>{exportSection}</CardContent>
+            <CardContent className="flex flex-col flex-1">
+              <Button
+                type="button"
+                className="w-full mt-auto"
+                onClick={handleExport}
+                disabled={isExportPending || isImportPending}
+              >
+                {isExportPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                Exportar respaldo
+              </Button>
+            </CardContent>
           </Card>
 
-          <Card className="border-border">
+          <Card className="border-border flex flex-col">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold">Restaurar backup</CardTitle>
               <CardDescription className="text-xs">
                 Importa un archivo de respaldo generado por Verzay.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="flex flex-col flex-1 gap-4">
               <div className="space-y-2">
                 <Label htmlFor={`backup-file-simple-${targetUserId}`}>Archivo de backup</Label>
                 <Input
@@ -377,7 +391,7 @@ export function UserBackupManager({
               <Button
                 type="button"
                 variant="destructive"
-                className="w-full"
+                className="w-full mt-auto"
                 onClick={handleImport}
                 disabled={!isReadyToImportSimple || isImportPending || isExportPending}
               >
