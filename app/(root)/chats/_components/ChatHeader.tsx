@@ -138,7 +138,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 {session.status ? 'Activa' : 'Pausada'}
               </Badge>
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
-              <ChatReminderDialog session={session as any} userId={userId} />
               {crmBadge}
               <ChatRegistrosBadge
                 sessionId={session.id}
@@ -149,7 +148,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 instanceId={session.instanceId}
               />
             </div>
-            {tagsCombobox}
+            <div className="flex items-center gap-1.5">
+              <ChatReminderDialog session={session as any} userId={userId} />
+              {tagsCombobox}
+            </div>
             {session && (
               <SwitchStatus
                 key={`${session.id}-${session.status ? 'on' : 'off'}`}
@@ -198,7 +200,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           {session && (
             <>
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
-              <ChatReminderDialog session={session as any} userId={userId} />
               {crmBadge}
               <ChatRegistrosBadge
                 sessionId={session.id}
@@ -208,6 +209,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 remoteJid={session.remoteJid}
                 instanceId={session.instanceId}
               />
+              <ChatReminderDialog session={session as any} userId={userId} />
               {tagsCombobox}
             </>
           )}
