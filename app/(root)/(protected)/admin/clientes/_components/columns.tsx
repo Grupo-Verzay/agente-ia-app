@@ -21,10 +21,10 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        className="text-sm"
+        className="text-sm px-1"
       >
         Estado
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
     cell: ({ row }) => <StatusCell userStatus={row.original.status} />,
@@ -35,10 +35,10 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        className="text-sm"
+        className="text-sm px-1"
       >
         Rol
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
   },
@@ -48,10 +48,10 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        className="text-sm"
+        className="text-sm px-1"
       >
         Nombre
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
   },
@@ -61,10 +61,10 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        className="text-sm"
+        className="text-sm px-1"
       >
         Empresa
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
   },
@@ -74,10 +74,10 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        className="text-sm"
+        className="text-sm px-1"
       >
         Correo
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
   },
@@ -87,10 +87,10 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        className="text-sm"
+        className="text-sm px-1"
       >
         Marca
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
     filterFn: resellerFilterFn, // Aquí se usa
@@ -105,10 +105,10 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        className="text-sm"
+        className="text-sm px-1"
       >
         QR
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
     cell: ({ row }) => <StatusCell qrStatus={row.original.qrStatus} />,
@@ -119,10 +119,10 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        className="text-sm"
+        className="text-sm px-1"
       >
         Agente
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
     cell: ({ row }) => <StatusCell isEvoEnabled={row.original.isEvoEnabled} />,
@@ -133,10 +133,10 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        className="text-sm"
+        className="text-sm px-1"
       >
         Sintetizador
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
     cell: ({ row }) => <StatusCell enabledSynthesizer={row.original.enabledSynthesizer} />,
@@ -147,10 +147,10 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        className="text-sm"
+        className="text-sm px-1"
       >
         Status
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
     cell: ({ row }) => <StatusCell enabledLeadStatusClassifier={row.original.enabledLeadStatusClassifier} />,
@@ -161,10 +161,10 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        className="text-sm"
+        className="text-sm px-1"
       >
         Follows
-        <ArrowUpDown className="ml-2 h-4 w-4" />
+        <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
     cell: ({ row }) => <StatusCell enabledCrmFollowUps={row.original.enabledCrmFollowUps} />,
