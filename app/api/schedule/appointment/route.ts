@@ -15,14 +15,25 @@ function isAuthorized(request: Request): boolean {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Resuelve serviceId: acepta UUID o nombre del servicio (case-insensitive).
- * El agente IA a veces pasa el nombre en lugar del ID.
+ * Resuelve serviceId: acepta UUID, nombre (case-insensitive) o índice numérico
+ * 1-based (cuando el agente IA pasa "1", "2"... desde el menú numerado).
  */
 async function resolveServiceId(userId: string, serviceId: string): Promise<string | null> {
   if (UUID_RE.test(serviceId)) {
     const svc = await db.service.findFirst({ where: { id: serviceId, userId }, select: { id: true } });
     return svc?.id ?? null;
   }
+
+  const idx = parseInt(serviceId, 10);
+  if (!isNaN(idx) && idx >= 1) {
+    const all = await db.service.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    return all[idx - 1]?.id ?? null;
+  }
+
   const svc = await db.service.findFirst({
     where: { userId, name: { equals: serviceId, mode: 'insensitive' } },
     select: { id: true },
