@@ -73,7 +73,12 @@ import {
   applyDefaultToolConfigsAllUsers,
   restoreToolConfigDefault,
 } from '@/actions/external-data-tool-config-actions';
-import { testScheduleApiForUser, type ScheduleApiTestResult } from '@/actions/schedule-test-actions';
+import {
+  testScheduleApiForUser,
+  testScheduleHttpApi,
+  type ScheduleApiTestResult,
+  type ScheduleHttpTestResult,
+} from '@/actions/schedule-test-actions';
 import type {
   ExternalDataBuiltinToolType,
   ExternalDataQueryToolType,
@@ -1074,6 +1079,8 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
   const [isSeedingAll, setIsSeedingAll] = useState(false);
   const [isTestingSchedule, setIsTestingSchedule] = useState(false);
   const [scheduleTestResult, setScheduleTestResult] = useState<ScheduleApiTestResult | null>(null);
+  const [isTestingHttp, setIsTestingHttp] = useState(false);
+  const [httpTestResult, setHttpTestResult] = useState<ScheduleHttpTestResult | null>(null);
 
   // Dialog state
   const [addBuiltinOpen, setAddBuiltinOpen] = useState(false);
@@ -1127,7 +1134,7 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
     }
   };
 
-  // ── Test agenda API ───────────────────────────────────────────────────────────
+  // ── Test agenda API (DB directo) ─────────────────────────────────────────────
   const handleTestSchedule = async () => {
     if (!selectedUserId) return;
     setIsTestingSchedule(true);
@@ -1135,6 +1142,16 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
     const result = await testScheduleApiForUser(selectedUserId);
     setScheduleTestResult(result);
     setIsTestingSchedule(false);
+  };
+
+  // ── Test agenda API vía HTTP (simula lo que hace NestJS) ──────────────────────
+  const handleTestHttp = async () => {
+    if (!selectedUserId) return;
+    setIsTestingHttp(true);
+    setHttpTestResult(null);
+    const result = await testScheduleHttpApi(selectedUserId);
+    setHttpTestResult(result);
+    setIsTestingHttp(false);
   };
 
   // ── Seed masivo todos los usuarios ────────────────────────────────────────────
@@ -1308,19 +1325,65 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
                   </Badge>
                 )}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleTestSchedule}
-                disabled={isTestingSchedule}
-                className="gap-2 w-full"
-              >
-                {isTestingSchedule
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <CalendarIcon className="h-4 w-4" />}
-                {isTestingSchedule ? 'Verificando...' : 'Probar conexión de Agenda'}
-              </Button>
+              <div className="flex gap-2 w-full">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTestSchedule}
+                  disabled={isTestingSchedule}
+                  className="gap-2 flex-1"
+                >
+                  {isTestingSchedule
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <CalendarIcon className="h-4 w-4" />}
+                  {isTestingSchedule ? 'Verificando...' : 'Probar BD'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTestHttp}
+                  disabled={isTestingHttp}
+                  className="gap-2 flex-1"
+                >
+                  {isTestingHttp
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <CalendarIcon className="h-4 w-4" />}
+                  {isTestingHttp ? 'Probando HTTP...' : 'Probar API HTTP'}
+                </Button>
+              </div>
             </>
+          )}
+
+          {httpTestResult && (
+            <div className={`rounded-lg border p-3 text-sm space-y-2 ${!httpTestResult.pingOk || httpTestResult.servicesStatus !== 200 ? 'border-red-200 bg-red-50 dark:bg-red-950/20' : 'border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20'}`}>
+              <div className="font-medium text-xs">Test HTTP (como NestJS):</div>
+              <div className="space-y-1 text-xs text-muted-foreground font-mono">
+                <div className="flex gap-2">
+                  <span className="w-36 shrink-0">Ping /api/schedule:</span>
+                  <span className={httpTestResult.pingOk ? 'text-emerald-600' : 'text-red-600'}>
+                    {httpTestResult.pingOk ? '✅ OK' : `❌ ${httpTestResult.pingError}`}
+                  </span>
+                </div>
+                {httpTestResult.pingOk && (
+                  <>
+                    <div className="flex gap-2">
+                      <span className="w-36 shrink-0">Sin auth:</span>
+                      <span className={httpTestResult.authStatus === 401 ? 'text-emerald-600' : 'text-amber-600'}>
+                        {httpTestResult.authStatus === 401 ? '✅ 401 (correcto)' : `⚠️ ${httpTestResult.authStatus} — ${httpTestResult.authBody?.slice(0, 60)}`}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="w-36 shrink-0">Con CRM Key:</span>
+                      <span className={httpTestResult.servicesStatus === 200 ? 'text-emerald-600' : 'text-red-600'}>
+                        {httpTestResult.servicesError
+                          ? `❌ Error: ${httpTestResult.servicesError}`
+                          : `${httpTestResult.servicesStatus === 200 ? '✅' : '❌'} ${httpTestResult.servicesStatus} — ${httpTestResult.servicesBody?.slice(0, 100)}`}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           )}
 
           {scheduleTestResult && (
