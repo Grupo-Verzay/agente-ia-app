@@ -412,10 +412,12 @@ export function BillingCrmClient({
                 cell: ({ row }) => {
                     const u = row.original;
                     return (
-                        <Switch
-                            checked={u.status}
-                            onCheckedChange={(checked) => handleToggleStatus(u.id, checked)}
-                        />
+                        <div className="flex justify-center">
+                            <Switch
+                                checked={u.status}
+                                onCheckedChange={(checked) => handleToggleStatus(u.id, checked)}
+                            />
+                        </div>
                     );
                 },
             },
@@ -485,7 +487,7 @@ export function BillingCrmClient({
                     const b = row.original.billing ?? null;
                     const dueDate = getDaysRemaining(b?.dueDate ?? null);
                     return (
-                        <div className="py-2">
+                        <div className="py-2 flex justify-center">
                             <DaysLeftCell dueDate={dueDate} />
                         </div>
                     );
@@ -562,7 +564,7 @@ export function BillingCrmClient({
                 cell: ({ row }) => {
                     const b = row.original.billing ?? null;
                     return (
-                        <div className="py-2">
+                        <div className="py-2 flex justify-center">
                             {StatusBadgePaid(b?.billingStatus ?? "UNPAID")}
                         </div>
                     );
@@ -579,7 +581,7 @@ export function BillingCrmClient({
                 cell: ({ row }) => {
                     const b = row.original.billing ?? null;
                     return (
-                        <div className="py-2">
+                        <div className="py-2 flex justify-center">
                             {StatusBadgeAccess(b?.accessStatus ?? "ACTIVE")}
                         </div>
                     );

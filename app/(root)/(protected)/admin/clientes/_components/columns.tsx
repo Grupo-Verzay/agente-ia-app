@@ -27,7 +27,7 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
         <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
-    cell: ({ row }) => <StatusCell userStatus={row.original.status} />,
+    cell: ({ row }) => <div className="flex justify-center"><StatusCell userStatus={row.original.status} /></div>,
   },
   {
     accessorKey: 'role',
@@ -111,7 +111,7 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
         <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
-    cell: ({ row }) => <StatusCell qrStatus={row.original.qrStatus} />,
+    cell: ({ row }) => <div className="flex justify-center"><StatusCell qrStatus={row.original.qrStatus} /></div>,
   },
   {
     accessorKey: 'isEvoEnabled',
@@ -125,7 +125,7 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
         <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
-    cell: ({ row }) => <StatusCell isEvoEnabled={row.original.isEvoEnabled} />,
+    cell: ({ row }) => <div className="flex justify-center"><StatusCell isEvoEnabled={row.original.isEvoEnabled} /></div>,
   },
   {
     accessorKey: 'enabledSynthesizer',
@@ -139,7 +139,7 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
         <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
-    cell: ({ row }) => <StatusCell enabledSynthesizer={row.original.enabledSynthesizer} />,
+    cell: ({ row }) => <div className="flex justify-center"><StatusCell enabledSynthesizer={row.original.enabledSynthesizer} /></div>,
   },
   {
     accessorKey: 'enabledLeadStatusClassifier',
@@ -153,7 +153,7 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
         <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
-    cell: ({ row }) => <StatusCell enabledLeadStatusClassifier={row.original.enabledLeadStatusClassifier} />,
+    cell: ({ row }) => <div className="flex justify-center"><StatusCell enabledLeadStatusClassifier={row.original.enabledLeadStatusClassifier} /></div>,
   },
   {
     accessorKey: 'enabledCrmFollowUps',
@@ -167,7 +167,7 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
         <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
-    cell: ({ row }) => <StatusCell enabledCrmFollowUps={row.original.enabledCrmFollowUps} />,
+    cell: ({ row }) => <div className="flex justify-center"><StatusCell enabledCrmFollowUps={row.original.enabledCrmFollowUps} /></div>,
   },
   // {
   //   accessorKey: 'messagePause',
