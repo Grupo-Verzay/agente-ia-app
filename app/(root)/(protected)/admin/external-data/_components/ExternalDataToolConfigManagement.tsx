@@ -7,6 +7,7 @@ import {
   Check,
   ChevronsUpDown,
   Edit2,
+  Calendar as CalendarIcon,
   Info,
   Loader2,
   Lock,
@@ -69,8 +70,10 @@ import {
   deleteToolConfig,
   toggleToolConfig,
   applyDefaultToolConfigs,
+  applyDefaultToolConfigsAllUsers,
   restoreToolConfigDefault,
 } from '@/actions/external-data-tool-config-actions';
+import { testScheduleApiForUser, type ScheduleApiTestResult } from '@/actions/schedule-test-actions';
 import type {
   ExternalDataBuiltinToolType,
   ExternalDataQueryToolType,
@@ -210,6 +213,9 @@ const BUILTIN_TYPE_LABELS: Record<ExternalDataBuiltinToolType, string> = {
   buscar_cliente_por_dato: 'Buscar por dato',
   buscar_producto: 'Buscar producto',
   listar_productos: 'Listar productos',
+  listar_servicios_agenda: 'Agenda: servicios',
+  consultar_slots_disponibles: 'Agenda: horarios',
+  crear_cita: 'Agenda: crear cita',
 };
 
 function ToolCard({
@@ -1065,6 +1071,9 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
   const [configs, setConfigs] = useState<ExternalDataToolConfig[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isApplyingDefaults, setIsApplyingDefaults] = useState(false);
+  const [isSeedingAll, setIsSeedingAll] = useState(false);
+  const [isTestingSchedule, setIsTestingSchedule] = useState(false);
+  const [scheduleTestResult, setScheduleTestResult] = useState<ScheduleApiTestResult | null>(null);
 
   // Dialog state
   const [addBuiltinOpen, setAddBuiltinOpen] = useState(false);
@@ -1088,8 +1097,11 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
   }, []);
 
   useEffect(() => {
-    if (selectedUserId) loadConfigs(selectedUserId);
-    else setConfigs([]);
+    if (selectedUserId) {
+      applyDefaultToolConfigs(selectedUserId).then(() => loadConfigs(selectedUserId));
+    } else {
+      setConfigs([]);
+    }
   }, [selectedUserId, loadConfigs]);
 
   // ── Apply defaults ────────────────────────────────────────────────────────────
@@ -1112,6 +1124,34 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
       }
     } finally {
       setIsApplyingDefaults(false);
+    }
+  };
+
+  // ── Test agenda API ───────────────────────────────────────────────────────────
+  const handleTestSchedule = async () => {
+    if (!selectedUserId) return;
+    setIsTestingSchedule(true);
+    setScheduleTestResult(null);
+    const result = await testScheduleApiForUser(selectedUserId);
+    setScheduleTestResult(result);
+    setIsTestingSchedule(false);
+  };
+
+  // ── Seed masivo todos los usuarios ────────────────────────────────────────────
+  const handleSeedAllUsers = async () => {
+    setIsSeedingAll(true);
+    try {
+      const result = await applyDefaultToolConfigsAllUsers();
+      if (result.success) {
+        toast.success(
+          `Completado: ${result.totalCreated} herramienta${result.totalCreated !== 1 ? 's' : ''} nueva${result.totalCreated !== 1 ? 's' : ''} en ${result.totalUsers} usuarios`,
+        );
+        if (selectedUserId) loadConfigs(selectedUserId);
+      } else {
+        toast.error(result.error ?? 'Error en seed masivo');
+      }
+    } finally {
+      setIsSeedingAll(false);
     }
   };
 
@@ -1251,21 +1291,79 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
           </div>
 
           {selectedUserId && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-              <span>userId:</span>
-              <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-mono">
-                {selectedUserId}
-              </code>
-              {selectedClient && (
-                <Badge variant="outline" className="text-xs ml-auto">
-                  {selectedClient.label}
-                </Badge>
-              )}
-              {!isLoading && (
-                <Badge variant="secondary" className="text-xs">
-                  {configs.length} herramienta{configs.length !== 1 ? 's' : ''}
-                </Badge>
-              )}
+            <>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                <span>userId:</span>
+                <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-mono">
+                  {selectedUserId}
+                </code>
+                {selectedClient && (
+                  <Badge variant="outline" className="text-xs ml-auto">
+                    {selectedClient.label}
+                  </Badge>
+                )}
+                {!isLoading && (
+                  <Badge variant="secondary" className="text-xs">
+                    {configs.length} herramienta{configs.length !== 1 ? 's' : ''}
+                  </Badge>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleTestSchedule}
+                disabled={isTestingSchedule}
+                className="gap-2 w-full"
+              >
+                {isTestingSchedule
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <CalendarIcon className="h-4 w-4" />}
+                {isTestingSchedule ? 'Verificando...' : 'Probar conexión de Agenda'}
+              </Button>
+            </>
+          )}
+
+          {scheduleTestResult && (
+            <div className={`rounded-lg border p-3 text-sm space-y-2 ${scheduleTestResult.error ? 'border-red-200 bg-red-50 dark:bg-red-950/20' : 'border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20'}`}>
+              <div className="font-medium flex items-center gap-2">
+                {scheduleTestResult.error
+                  ? <span className="text-red-600">❌ Problema detectado</span>
+                  : <span className="text-emerald-600">✅ Todo en orden</span>}
+              </div>
+              <div className="space-y-1 text-xs text-muted-foreground">
+                <div className="flex gap-2">
+                  <span className="font-medium w-32">userId correcto:</span>
+                  <code className="font-mono">{scheduleTestResult.userId}</code>
+                </div>
+                <div className="flex gap-2">
+                  <span className="font-medium w-32">CRM Key configurada:</span>
+                  <span className={scheduleTestResult.authOk ? 'text-emerald-600' : 'text-red-600'}>
+                    {scheduleTestResult.authOk ? '✅ Sí' : '❌ No — agregar CRM_FOLLOW_UP_RUNNER_KEY en .env'}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="font-medium w-32">Servicios en agenda:</span>
+                  <span className={scheduleTestResult.services.length > 0 ? 'text-emerald-600' : 'text-amber-600'}>
+                    {scheduleTestResult.services.length > 0
+                      ? `✅ ${scheduleTestResult.services.length} (${scheduleTestResult.services.map(s => s.name).join(', ')})`
+                      : '⚠️ Sin servicios — crear al menos uno en /schedule'}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="font-medium w-32">Disponibilidad hoy:</span>
+                  <span className={scheduleTestResult.slotsToday > 0 ? 'text-emerald-600' : 'text-amber-600'}>
+                    {scheduleTestResult.slotsToday > 0
+                      ? `✅ Configurada`
+                      : '⚠️ Sin horarios para hoy — revisar Disponibilidad en /schedule'}
+                  </span>
+                </div>
+                {scheduleTestResult.error && (
+                  <div className="flex gap-2 text-red-600">
+                    <span className="font-medium w-32">Error:</span>
+                    <span>{scheduleTestResult.error}</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </CardContent>
@@ -1316,21 +1414,21 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
                 El agente usa exactamente estas herramientas — sin hardcoding adicional.
               </div>
               <div className="flex items-center gap-2">
-                {/* <Button
+                <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleApplyDefaults}
-                  disabled={isApplyingDefaults}
+                  onClick={handleSeedAllUsers}
+                  disabled={isSeedingAll}
                   className="gap-2"
-                  title="Agrega las herramientas del sistema que no estén aún configuradas"
+                  title="Agrega las nuevas herramientas del sistema a todos los usuarios que no las tengan"
                 >
-                  {isApplyingDefaults ? (
+                  {isSeedingAll ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <Sparkles className="h-3.5 w-3.5" />
                   )}
-                  Agregar faltantes del sistema
-                </Button> */}
+                  Sincronizar todos
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"

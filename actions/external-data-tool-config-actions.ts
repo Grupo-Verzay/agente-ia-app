@@ -287,6 +287,29 @@ export async function applyDefaultToolConfigs(
   }
 }
 
+// ─── Seed masivo para todos los usuarios (solo super_admin) ──────────────────
+
+export async function applyDefaultToolConfigsAllUsers(): Promise<{
+  success: boolean;
+  totalUsers: number;
+  totalCreated: number;
+  error?: string;
+}> {
+  try {
+    const users = await db.user.findMany({ select: { id: true } });
+    let totalCreated = 0;
+
+    for (const user of users) {
+      const result = await applyDefaultToolConfigs(user.id);
+      if (result.success) totalCreated += result.created;
+    }
+
+    return { success: true, totalUsers: users.length, totalCreated };
+  } catch (error: any) {
+    return { success: false, totalUsers: 0, totalCreated: 0, error: error?.message ?? 'Error desconocido' };
+  }
+}
+
 // ─── Restore single builtin to catalog defaults ───────────────────────────────
 
 export async function restoreToolConfigDefault(

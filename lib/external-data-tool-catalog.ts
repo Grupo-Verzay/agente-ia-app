@@ -93,4 +93,37 @@ export const BUILTIN_TOOL_CATALOG: {
       'Devuelve el catálogo completo de productos activos incluyendo imágenes. Las imágenes de cada producto se envían vía /api/send-media. Recomendado cuando tienes pocos productos.',
     sortOrder: 6,
   },
+  {
+    toolType: 'listar_servicios_agenda',
+    defaultKey: 'listar_servicios_agenda',
+    defaultDisplayName: 'Listar servicios de agenda',
+    defaultDescription:
+      'Lista los servicios disponibles para agendar una cita. Úsala al inicio del flujo de agendamiento, cuando el cliente quiera reservar una cita o pregunte qué servicios se pueden agendar. Retorna id y nombre de cada servicio.',
+    isCritical: false,
+    helpText:
+      'Llama a GET /api/schedule/services?userId={userId}. Devuelve la lista de servicios configurados por el usuario para su agenda.',
+    sortOrder: 7,
+  },
+  {
+    toolType: 'consultar_slots_disponibles',
+    defaultKey: 'consultar_slots_disponibles',
+    defaultDisplayName: 'Consultar horarios disponibles',
+    defaultDescription:
+      'Consulta los horarios libres para una fecha específica. Úsala después de que el cliente haya elegido un servicio y proporcione una fecha. Requiere: fecha en formato YYYY-MM-DD. Retorna una lista de slots con startTime y endTime en UTC.',
+    isCritical: false,
+    helpText:
+      'Llama a GET /api/schedule/slots?userId={userId}&date={YYYY-MM-DD}. Usa la disponibilidad configurada del usuario y descuenta citas ya registradas.',
+    sortOrder: 8,
+  },
+  {
+    toolType: 'crear_cita',
+    defaultKey: 'crear_cita',
+    defaultDisplayName: 'Crear cita',
+    defaultDescription:
+      'Crea una cita en la agenda del usuario. Úsala únicamente después de confirmar con el cliente: servicio, fecha y hora. Los datos del cliente (nombre y teléfono) los obtienes del contexto de la conversación. Valida disponibilidad y evita solapamientos automáticamente.',
+    isCritical: false,
+    helpText:
+      'Llama a POST /api/schedule/appointment. Requiere: userId, serviceId, pushName, phone (remoteJid), instanceName, startTime (ISO UTC), endTime (ISO UTC), timezone.',
+    sortOrder: 9,
+  },
 ];

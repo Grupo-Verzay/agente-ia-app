@@ -82,6 +82,9 @@ const BUILTIN_TYPE_LABELS: Record<ExternalDataBuiltinToolType, string> = {
   buscar_cliente_por_dato: 'Buscar por dato',
   buscar_producto: 'Buscar producto',
   listar_productos: 'Listar productos',
+  listar_servicios_agenda: 'Agenda: servicios',
+  consultar_slots_disponibles: 'Agenda: horarios',
+  crear_cita: 'Agenda: crear cita',
 };
 
 function ToolCard({
@@ -617,7 +620,9 @@ export function MyToolsManagement({ userId }: Props) {
     finally { setIsLoading(false); }
   }, [userId]);
 
-  useEffect(() => { loadConfigs(); }, [loadConfigs]);
+  useEffect(() => {
+    applyDefaultToolConfigs(userId).then(() => loadConfigs());
+  }, [loadConfigs, userId]);
 
   const handleApplyDefaults = async () => {
     setIsApplyingDefaults(true);

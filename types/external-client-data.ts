@@ -53,7 +53,10 @@ export type ExternalDataBuiltinToolType =
   | 'consultar_datos_cliente'
   | 'buscar_cliente_por_dato'
   | 'buscar_producto'
-  | 'listar_productos';
+  | 'listar_productos'
+  | 'listar_servicios_agenda'
+  | 'consultar_slots_disponibles'
+  | 'crear_cita';
 
 export type ExternalDataQueryToolType = 'auto_inject' | 'search_by_field';
 
