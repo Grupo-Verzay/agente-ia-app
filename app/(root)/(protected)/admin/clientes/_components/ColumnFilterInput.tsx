@@ -10,7 +10,7 @@ interface Props<TData> {
 type FilterFields = 'email' | 'name' | 'company' | 'reseller'
 
 export function ColumnFilterInput<TData>({ table }: Props<TData>) {
-    const [selectedColumn, setSelectedColumn] = useState<FilterFields>('email')
+    const [selectedColumn, setSelectedColumn] = useState<FilterFields>('company')
     const [value, setValue] = useState<string>('')
 
     const handleFilter = (val: string, column: string) => {
@@ -36,9 +36,9 @@ export function ColumnFilterInput<TData>({ table }: Props<TData>) {
                     <SelectValue placeholder="Filtrar por..." />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="email">Correo</SelectItem>
-                    <SelectItem value="name">Nombre</SelectItem>
                     <SelectItem value="company">Empresa</SelectItem>
+                    <SelectItem value="name">Nombre</SelectItem>
+                    <SelectItem value="email">Correo</SelectItem>
                     <SelectItem value="reseller">Marca</SelectItem>
                 </SelectContent>
             </Select>

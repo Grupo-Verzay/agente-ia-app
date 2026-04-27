@@ -781,9 +781,9 @@ export function BillingCrmClient({
                                 <TableBody>
                                     {table.getRowModel().rows?.length ? (
                                         table.getRowModel().rows.map((row) => (
-                                            <TableRow key={row.id} className="h-10 border-border">
+                                            <TableRow key={row.id} className="border-border">
                                                 {row.getVisibleCells().map((cell) => (
-                                                    <TableCell key={cell.id} className="py-0 align-middle">
+                                                    <TableCell key={cell.id} className="py-2 align-middle">
                                                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                                     </TableCell>
                                                 ))}

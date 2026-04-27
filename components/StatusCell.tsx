@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { BotIcon, PowerIcon, QrCodeIcon, UserIcon } from "lucide-react"
+import { BotIcon, PowerIcon, QrCodeIcon, SparklesIcon, TrendingUpIcon, UserIcon } from "lucide-react"
 import { Button } from "./ui/button"
 
 interface StatusCellProps {
@@ -10,20 +10,24 @@ interface StatusCellProps {
   qrStatus?: boolean
   enabledSynthesizer?: boolean
   userStatus?: boolean
+  enabledLeadStatusClassifier?: boolean
+  enabledCrmFollowUps?: boolean
 }
 
-export const StatusCell = ({ qrStatus, isEvoEnabled, enabledSynthesizer, userStatus }: StatusCellProps) => {
+export const StatusCell = ({ qrStatus, isEvoEnabled, enabledSynthesizer, userStatus, enabledLeadStatusClassifier, enabledCrmFollowUps }: StatusCellProps) => {
   const qrColor = qrStatus ? "text-red-600" : "text-green-600"
   const evoColor = isEvoEnabled ? "text-green-600" : "text-red-600"
   const synthesizerColor = enabledSynthesizer ? "text-green-600" : "text-red-600"
-
   const userColor = userStatus ? "text-green-600" : "text-red-600"
+  const leadStatusColor = enabledLeadStatusClassifier ? "text-green-600" : "text-red-600"
+  const crmFollowUpsColor = enabledCrmFollowUps ? "text-green-600" : "text-red-600"
 
   const qrTooltip = qrStatus ? "QR desconectado" : "QR conectado"
   const evoTooltip = isEvoEnabled ? "Robot encendido" : "Robot apagado"
   const synthesizerTooltip = enabledSynthesizer ? "Encendido" : "Apagado"
-
   const userTooltip = userStatus ? "Usuario activo" : "Usuario inactivo"
+  const leadStatusTooltip = enabledLeadStatusClassifier ? "Lead status activo" : "Lead status inactivo"
+  const crmFollowUpsTooltip = enabledCrmFollowUps ? "Follow-ups IA activo" : "Follow-ups IA inactivo"
 
   return (
     <>
@@ -68,6 +72,28 @@ export const StatusCell = ({ qrStatus, isEvoEnabled, enabledSynthesizer, userSta
             </Button>
           </TooltipTrigger>
           <TooltipContent>{userTooltip}</TooltipContent>
+        </Tooltip>
+      )}
+
+      {enabledLeadStatusClassifier !== undefined && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant={"outline"}>
+              <TrendingUpIcon className={`${leadStatusColor} size-5`} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{leadStatusTooltip}</TooltipContent>
+        </Tooltip>
+      )}
+
+      {enabledCrmFollowUps !== undefined && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant={"outline"}>
+              <SparklesIcon className={`${crmFollowUpsColor} size-5`} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{crmFollowUpsTooltip}</TooltipContent>
         </Tooltip>
       )}
     </>

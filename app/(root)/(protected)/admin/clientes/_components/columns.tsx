@@ -6,7 +6,6 @@ import { DialogType } from './clients-manager'
 import { ClientInterface } from '@/lib/types'
 import { StatusCell } from '@/components/StatusCell'
 import { ArrowUpDown } from 'lucide-react'
-import { Badge } from "@/components/ui/badge"
 import { Button } from '@/components/ui/button'
 import { Row } from '@tanstack/react-table'
 
@@ -14,15 +13,6 @@ const resellerFilterFn = (row: Row<any>, columnId: string, filterValue: string) 
   const resellerName = row.original.reseller?.company?.toLowerCase() ?? ''
   return resellerName.includes(filterValue.toLowerCase())
 };
-
-const renderFeatureBadge = (enabled: boolean) => (
-  <Badge
-    variant="outline"
-    className={enabled ? "border-emerald-200 text-emerald-700" : "border-rose-200 text-rose-700"}
-  >
-    {enabled ? "Activo" : "Inactivo"}
-  </Badge>
-);
 
 export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogType, state: boolean) => void, currentUserRol: string): ColumnDef<ClientInterface>[] => [
   {
@@ -66,19 +56,6 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
     ),
   },
   {
-    accessorKey: 'email',
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        className="text-sm"
-      >
-        Correo
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
-    ),
-  },
-  {
     accessorKey: 'company',
     header: ({ column }) => (
       <Button
@@ -87,6 +64,19 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
         className="text-sm"
       >
         Empresa
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+  },
+  {
+    accessorKey: 'email',
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+        className="text-sm"
+      >
+        Correo
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
@@ -159,11 +149,11 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
         className="text-sm"
       >
-        Lead status
+        Status
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
-    cell: ({ row }) => renderFeatureBadge(row.original.enabledLeadStatusClassifier),
+    cell: ({ row }) => <StatusCell enabledLeadStatusClassifier={row.original.enabledLeadStatusClassifier} />,
   },
   {
     accessorKey: 'enabledCrmFollowUps',
@@ -173,11 +163,11 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
         className="text-sm"
       >
-        Follow-ups IA
+        Follows
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
-    cell: ({ row }) => renderFeatureBadge(row.original.enabledCrmFollowUps),
+    cell: ({ row }) => <StatusCell enabledCrmFollowUps={row.original.enabledCrmFollowUps} />,
   },
   // {
   //   accessorKey: 'messagePause',

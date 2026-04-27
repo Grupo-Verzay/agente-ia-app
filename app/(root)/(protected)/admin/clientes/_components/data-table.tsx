@@ -42,11 +42,29 @@ interface DataTableProps<TData, TValue> {
   setStatusFilter: (status: StatusKey | null) => void
 }
 
+const VISIBILITY_STORAGE_KEY = 'admin-clientes-column-visibility'
+
 export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCreateDialogUser, setStatusFilter }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
+    if (typeof window === 'undefined') return {}
+    try {
+      const saved = localStorage.getItem(VISIBILITY_STORAGE_KEY)
+      return saved ? JSON.parse(saved) : {}
+    } catch {
+      return {}
+    }
+  })
   const [rowSelection, setRowSelection] = useState({})
+
+  const handleColumnVisibilityChange = (updater: VisibilityState | ((prev: VisibilityState) => VisibilityState)) => {
+    setColumnVisibility((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      localStorage.setItem(VISIBILITY_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+  }
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: 8,
@@ -65,7 +83,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
+    onColumnVisibilityChange: handleColumnVisibilityChange,
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -151,7 +169,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
                   >
                     {headerGroup.headers.map((header) => {
                       return (
-                        <TableHead key={header.id} className="w-[150px] text-center">
+                        <TableHead key={header.id} className="text-left px-2">
                           {header.isPlaceholder
                             ? null
                             : flexRender(
@@ -171,7 +189,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
                       className="border-border"
                     >
                       {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id} className="text-center align-middle truncate overflow-hidden whitespace-nowrap">
+                        <TableCell key={cell.id} className="text-left align-middle truncate overflow-hidden whitespace-nowrap py-2">
                           {/* <TableCell key={cell.id}> */}
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </TableCell>
