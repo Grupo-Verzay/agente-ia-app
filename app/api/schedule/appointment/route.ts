@@ -34,11 +34,19 @@ async function resolveServiceId(userId: string, serviceId: string): Promise<stri
     return all[idx - 1]?.id ?? null;
   }
 
+  // Primero intenta coincidencia exacta insensible a mayúsculas
   const svc = await db.service.findFirst({
     where: { userId, name: { equals: serviceId, mode: 'insensitive' } },
-    select: { id: true },
+    select: { id: true, name: true },
   });
-  return svc?.id ?? null;
+  if (svc) return svc.id;
+
+  // Fallback: coincidencia insensible a mayúsculas Y acentos (ej: "Asesoria" → "Asesoría")
+  const normalize = (s: string) =>
+    s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const all = await db.service.findMany({ where: { userId }, select: { id: true, name: true } });
+  const match = all.find(s => normalize(s.name) === normalize(serviceId));
+  return match?.id ?? null;
 }
 
 function normalizeTimeToSeconds(timeStr: string): number {
