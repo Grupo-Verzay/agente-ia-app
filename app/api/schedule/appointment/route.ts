@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { fromZonedTime } from 'date-fns-tz';
 import { createAppointment } from '@/actions/appointments-actions';
 
 function isAuthorized(request: Request): boolean {
@@ -87,7 +88,20 @@ export async function POST(request: Request) {
     );
   }
 
-  console.log(`[schedule/appointment] Creando cita: userId=${userId} serviceId=${resolvedServiceId} (raw="${rawServiceId}") startTime=${startTime}`);
+  // El backend NestJS envía la hora local del usuario con sufijo Z (incorrecto como UTC).
+  // Interpretamos startTime/endTime como hora local en `timezone` y convertimos a UTC real.
+  let startUtc = startTime;
+  let endUtc = endTime;
+  try {
+    const localStart = startTime.replace(/Z$/, '').replace('T', ' ');
+    const localEnd = endTime.replace(/Z$/, '').replace('T', ' ');
+    startUtc = fromZonedTime(localStart, timezone).toISOString();
+    endUtc = fromZonedTime(localEnd, timezone).toISOString();
+  } catch {
+    // Si falla la conversión usamos el valor original
+  }
+
+  console.log(`[schedule/appointment] Creando cita: userId=${userId} serviceId=${resolvedServiceId} startLocal=${startTime} startUTC=${startUtc} tz=${timezone}`);
 
   const result = await createAppointment({
     userId,
@@ -95,8 +109,8 @@ export async function POST(request: Request) {
     pushName,
     phone,
     instanceName,
-    startTime,
-    endTime,
+    startTime: startUtc,
+    endTime: endUtc,
     timezone,
   });
 
