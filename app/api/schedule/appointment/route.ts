@@ -74,7 +74,12 @@ async function sendServiceNotification({
     ? await db.apiKey.findUnique({ where: { id: user.apiKeyId }, select: { url: true } })
     : null;
 
-  if (!service?.messageText || !apiKey?.url || !instance?.instanceId) return;
+  console.log(`[schedule/notification] service.messageText=${!!service?.messageText} apiKey.url=${!!apiKey?.url} instance.instanceId=${!!instance?.instanceId} user.apiKeyId=${user?.apiKeyId ?? 'null'}`);
+
+  if (!service?.messageText || !apiKey?.url || !instance?.instanceId) {
+    console.warn(`[schedule/notification] Abortando: faltan datos para notificar (messageText=${!!service?.messageText} apiKey=${!!apiKey?.url} instance=${!!instance?.instanceId})`);
+    return;
+  }
 
   // Formatear las variables del mensaje
   const startDate = new Date(startTime);
