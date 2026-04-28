@@ -41,11 +41,35 @@ async function resolveServiceId(userId: string, serviceId: string): Promise<stri
   return svc?.id ?? null;
 }
 
+function normalizeTimeToSeconds(timeStr: string): number {
+  const unitToSeconds: Record<string, number> = { seconds: 1, minutes: 60, hours: 3600, days: 86400 };
+  const [unit, valueStr] = timeStr.split('-');
+  const value = parseInt(valueStr);
+  if (!unit || isNaN(value) || !(unit in unitToSeconds)) return 0;
+  return value * unitToSeconds[unit];
+}
+
+function subtractSecondsFromTime(date: Date, seconds: number): string {
+  const newDate = new Date(date.getTime() - seconds * 1000);
+  return format(newDate, 'dd/MM/yyyy HH:mm');
+}
+
+function formatReminderMessage(template: string, pushName: string, startTime: string, timezone: string, durationMin: number): string {
+  let msg = template;
+  msg = msg.replace(/@client_name\b/gi, pushName);
+  const localTime = toZonedTime(new Date(startTime), timezone);
+  const dateLabel = format(localTime, 'dd/MM/yyyy', { locale: es });
+  const hourLabel = format(localTime, 'h:mm a', { locale: es });
+  msg = msg.replace(/@appointment_datetime\b/gi, `${dateLabel} ${hourLabel}.`);
+  msg = msg.replace(/@appointment_duration\b/gi, `${durationMin} min`);
+  return msg;
+}
+
 /**
- * Envía el mensaje automático del servicio al cliente (igual que el flujo público).
+ * Envía el mensaje de confirmación del servicio y crea los seguimientos programados.
  * Fire-and-forget: no bloquea la respuesta si falla.
  */
-async function sendServiceNotification({
+async function runPostAppointmentTasks({
   userId,
   instanceName,
   phone,
@@ -64,55 +88,95 @@ async function sendServiceNotification({
   timezone: string;
   serviceId: string;
 }) {
-  const [service, instance, user] = await Promise.all([
+  const [service, instance, user, reminders] = await Promise.all([
     db.service.findFirst({ where: { id: serviceId }, select: { messageText: true } }),
     db.instancia.findFirst({ where: { userId, instanceName }, select: { instanceId: true } }),
     db.user.findUnique({ where: { id: userId }, select: { meetingDuration: true, apiKeyId: true } }),
+    db.reminders.findMany({ where: { userId }, orderBy: { id: 'asc' } }),
   ]);
 
   const apiKey = user?.apiKeyId
     ? await db.apiKey.findUnique({ where: { id: user.apiKeyId }, select: { url: true } })
     : null;
 
-  console.log(`[schedule/notification] service.messageText=${!!service?.messageText} apiKey.url=${!!apiKey?.url} instance.instanceId=${!!instance?.instanceId} user.apiKeyId=${user?.apiKeyId ?? 'null'}`);
+  console.log(`[schedule/notification] messageText=${!!service?.messageText} apiKey=${!!apiKey?.url} instance=${!!instance?.instanceId} apiKeyId=${user?.apiKeyId ?? 'null'} reminders=${reminders.length}`);
 
-  if (!service?.messageText || !apiKey?.url || !instance?.instanceId) {
-    console.warn(`[schedule/notification] Abortando: faltan datos para notificar (messageText=${!!service?.messageText} apiKey=${!!apiKey?.url} instance=${!!instance?.instanceId})`);
+  if (!apiKey?.url || !instance?.instanceId) {
+    console.warn(`[schedule/notification] Sin apiKey o instancia — abortando tareas post-cita`);
     return;
   }
 
-  // Formatear las variables del mensaje
-  const startDate = new Date(startTime);
-  const localTime = toZonedTime(startDate, timezone);
-  const dateLabel = format(localTime, "dd/MM/yyyy", { locale: es });
-  const hourLabel = format(localTime, "h:mm a", { locale: es });
+  const slotDuration = user?.meetingDuration ?? 60;
+  const serverUrl = `https://${apiKey.url}`;
+  const instanceId = instance.instanceId;
 
-  let message = service.messageText;
-  message = message.replace(/@client_name\b/gi, pushName);
-  message = message.replace(/@appointment_datetime\b/gi, `${dateLabel} ${hourLabel}.`);
-  message = message.replace(/@appointment_duration\b/gi, `${user?.meetingDuration ?? 60} min`);
+  // 1. Enviar mensaje de confirmación del servicio al cliente
+  if (service?.messageText) {
+    let message = service.messageText;
+    message = formatReminderMessage(message, pushName, startTime, timezone, slotDuration);
 
-  await sendMessageWithHistoryAction({
-    instanceName,
-    url: apiKey.url,
-    apikey: instance.instanceId,
-    remoteJid: phone,
-    message,
-    historyType: 'notification',
-    additionalKwargs: {
-      source: 'ScheduleApiAgent',
-      recipient: 'client',
-      serviceId,
-    },
-  });
+    const result = await sendMessageWithHistoryAction({
+      instanceName,
+      url: apiKey.url,
+      apikey: instanceId,
+      remoteJid: phone,
+      message,
+      historyType: 'notification',
+      additionalKwargs: { source: 'ScheduleApiAgent', recipient: 'client', serviceId },
+    });
 
-  console.log(`[schedule/appointment] Mensaje de servicio enviado a ${phone}`);
+    if (result.success) {
+      console.log(`[schedule/notification] Mensaje de servicio enviado a ${phone}`);
+    } else {
+      console.warn(`[schedule/notification] No se pudo enviar mensaje de servicio: ${result.message}`);
+    }
+  } else {
+    console.log(`[schedule/notification] Servicio sin messageText — se omite mensaje de confirmación`);
+  }
+
+  // 2. Crear seguimientos programados (igual que el flujo público)
+  if (reminders.length === 0) {
+    console.log(`[schedule/notification] Sin recordatorios configurados para userId=${userId}`);
+    return;
+  }
+
+  const startLocal = toZonedTime(new Date(startTime), timezone);
+
+  const seguimientosCreados = await Promise.allSettled(
+    reminders.map(async (rem) => {
+      const normalizedSeconds = normalizeTimeToSeconds(rem.time ?? '');
+      if (!normalizedSeconds) return;
+
+      const seguimientoTime = subtractSecondsFromTime(startLocal, normalizedSeconds);
+      const mensaje = formatReminderMessage(rem.description ?? rem.title, pushName, startTime, timezone, slotDuration);
+
+      await db.seguimiento.create({
+        data: {
+          idNodo: '',
+          serverurl: serverUrl,
+          instancia: instanceName,
+          apikey: instanceId,
+          remoteJid: phone,
+          mensaje,
+          tipo: 'text',
+          time: seguimientoTime,
+        },
+      });
+
+      console.log(`[schedule/notification] Seguimiento creado para ${phone} en ${seguimientoTime}`);
+    })
+  );
+
+  const errors = seguimientosCreados.filter(r => r.status === 'rejected');
+  if (errors.length > 0) {
+    console.error(`[schedule/notification] ${errors.length} seguimiento(s) fallaron`);
+  }
 }
 
 /**
  * POST /api/schedule/appointment
  *
- * Crea una cita desde el agente IA y envía el mensaje automático del servicio.
+ * Crea una cita desde el agente IA, envía el mensaje del servicio y crea seguimientos.
  * serviceId puede ser UUID, nombre o índice numérico 1-based.
  */
 export async function POST(request: Request) {
@@ -162,8 +226,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.message }, { status: 400 });
   }
 
-  // Enviar mensaje automático del servicio (fire-and-forget, no bloquea la respuesta)
-  sendServiceNotification({
+  // Tareas post-creación: mensaje de confirmación + seguimientos (fire-and-forget)
+  runPostAppointmentTasks({
     userId,
     instanceName,
     phone,
@@ -172,7 +236,7 @@ export async function POST(request: Request) {
     endTime,
     timezone,
     serviceId: resolvedServiceId,
-  }).catch(err => console.error('[schedule/appointment] Error en notificación de servicio:', err));
+  }).catch(err => console.error('[schedule/appointment] Error en tareas post-cita:', err));
 
   return NextResponse.json(
     { success: true, message: result.message, appointment: result.data },
