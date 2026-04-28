@@ -216,6 +216,7 @@ function buildGoogleSheetsCsvUrl(sheetUrl: string): string | null {
 
 /**
  * Parser CSV robusto que maneja valores entre comillas con comas internas.
+ * No recorta el contenido de las celdas para preservar valores tal cual.
  */
 function parseCsvLine(line: string): string[] {
   const result: string[] = [];
@@ -232,35 +233,64 @@ function parseCsvLine(line: string): string[] {
         inQuotes = !inQuotes;
       }
     } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
+      result.push(current);
       current = '';
     } else {
       current += char;
     }
   }
-  result.push(current.trim());
+  result.push(current);
   return result;
 }
 
 function parseCsv(csvText: string): Record<string, string>[] {
-  const lines = csvText
+  // Elimina BOM UTF-8 que Google Sheets puede incluir al inicio del CSV
+  const cleanText = csvText.replace(/^﻿/, '');
+
+  const lines = cleanText
     .split('\n')
     .map((l) => l.replace(/\r$/, ''))
     .filter((l) => l.trim());
 
   if (lines.length < 2) return [];
 
-  const headers = parseCsvLine(lines[0]).map((h) => h.replace(/^"|"$/g, '').trim());
+  // Encabezados: trim solo para los nombres de columna
+  const headers = parseCsvLine(lines[0]).map((h) => h.trim());
 
   return lines
     .slice(1)
     .map((line) => {
       const values = parseCsvLine(line);
       return Object.fromEntries(
-        headers.map((h, i) => [h, (values[i] ?? '').replace(/^"|"$/g, '').trim()]),
+        headers.map((h, i) => [h, (values[i] ?? '').trim()]),
       );
     })
     .filter((row) => Object.values(row).some((v) => v !== ''));
+}
+
+/**
+ * Obtiene los encabezados y primeras filas de un Google Sheet para previsualización.
+ */
+export async function previewGoogleSheet(
+  sheetUrl: string,
+  maxRows = 5,
+): Promise<{ success: boolean; headers?: string[]; rows?: Record<string, string>[]; error?: string }> {
+  const csvUrl = buildGoogleSheetsCsvUrl(sheetUrl);
+  if (!csvUrl) return { success: false, error: 'URL de Google Sheets inválida' };
+
+  try {
+    const response = await fetch(csvUrl);
+    if (!response.ok) return { success: false, error: `Error HTTP ${response.status} — verifica que la hoja sea pública` };
+
+    const csvText = await response.text();
+    const rows = parseCsv(csvText);
+    if (!rows.length) return { success: false, error: 'La hoja no contiene datos o está vacía' };
+
+    const headers = Object.keys(rows[0]);
+    return { success: true, headers, rows: rows.slice(0, maxRows) };
+  } catch (err: any) {
+    return { success: false, error: err?.message ?? 'Error de red al acceder a la hoja' };
+  }
 }
 
 /**
