@@ -149,7 +149,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
         <>
             <FullCalendar plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                 initialView="timeGridDay"
-                timeZone={user.timezone ?? 'local'}
+                timeZone="local"
                 events={events}
                 headerToolbar={
                     isMobile
