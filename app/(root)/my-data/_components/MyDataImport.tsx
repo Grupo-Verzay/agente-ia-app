@@ -66,6 +66,7 @@ const LOG_TEXT_COLOR: Record<LogType, string> = {
 export function MyDataImport({ userId }: Props) {
   const [url, setUrl] = useState('');
   const [columnName, setColumnName] = useState('WHATSAPP');
+  const [catalogMode, setCatalogMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -95,6 +96,7 @@ export function MyDataImport({ userId }: Props) {
   const handleReset = () => {
     setUrl('');
     setColumnName('WHATSAPP');
+    setCatalogMode(false);
     setLogs([]);
     setResult(null);
     setPreviewHeaders([]);
@@ -154,6 +156,7 @@ export function MyDataImport({ userId }: Props) {
       const res = await importFromGoogleSheetUrl(userId, trimmedUrl, {
         remoteJidColumn: columnName.trim() || 'WHATSAPP',
         source: 'google_sheets',
+        catalogMode,
       });
 
       if (res.parseErrors?.length) {
@@ -228,6 +231,38 @@ export function MyDataImport({ userId }: Props) {
             </p>
           </div>
 
+          {/* Tipo de importación */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Tipo de datos</Label>
+            <Select
+              value={catalogMode ? 'catalog' : 'clients'}
+              onValueChange={(v) => {
+                setCatalogMode(v === 'catalog');
+                setColumnName(v === 'catalog' ? '' : 'WHATSAPP');
+                setPreviewHeaders([]);
+                setPreviewRows([]);
+              }}
+              disabled={isLoading}
+            >
+              <SelectTrigger className="max-w-72 text-xs h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="clients" className="text-xs">
+                  👤 Clientes — clave por número WhatsApp
+                </SelectItem>
+                <SelectItem value="catalog" className="text-xs">
+                  📋 Catálogo / Referencia — clave por cualquier campo
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {catalogMode
+                ? 'Todos los campos se guardan tal cual. El agente los busca por cualquier columna.'
+                : 'Los datos se asocian al cliente por su número de WhatsApp.'}
+            </p>
+          </div>
+
           <div className="flex gap-2">
             <Button
               variant="outline"
@@ -246,10 +281,12 @@ export function MyDataImport({ userId }: Props) {
           {previewHeaders.length > 0 && (
             <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Columna con el número WhatsApp</Label>
+                <Label className="text-xs">
+                  {catalogMode ? 'Columna clave (identificador único)' : 'Columna con el número WhatsApp'}
+                </Label>
                 <Select value={columnName} onValueChange={setColumnName} disabled={isLoading}>
                   <SelectTrigger className="max-w-64 text-xs h-8">
-                    <SelectValue placeholder="Selecciona la columna del teléfono" />
+                    <SelectValue placeholder={catalogMode ? 'Selecciona la columna clave' : 'Selecciona la columna del teléfono'} />
                   </SelectTrigger>
                   <SelectContent>
                     {previewHeaders.map((h) => (
@@ -258,7 +295,10 @@ export function MyDataImport({ userId }: Props) {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  {previewHeaders.length} columnas detectadas. Selecciona cuál contiene el número de WhatsApp.
+                  {previewHeaders.length} columnas detectadas.
+                  {catalogMode
+                    ? ' Selecciona el campo que identifica de forma única cada registro (ej: MEDIDA, SKU, CÓDIGO).'
+                    : ' Selecciona cuál contiene el número de WhatsApp.'}
                 </p>
               </div>
 

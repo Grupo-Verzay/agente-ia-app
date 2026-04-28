@@ -23,10 +23,16 @@ export interface ExternalClientDataImportResult {
 }
 
 export interface GoogleSheetImportOptions {
-  /** Nombre de la columna que contiene el número de WhatsApp. Por defecto: "WHATSAPP" */
+  /** Nombre de la columna que actúa como clave única. Por defecto: "WHATSAPP" */
   remoteJidColumn?: string;
   /** Etiqueta de origen para auditoría. Por defecto: "google_sheets" */
   source?: string;
+  /**
+   * Modo catálogo: usa la columna clave como identificador raw (sin normalización WhatsApp).
+   * Todos los campos incluida la clave se guardan en el JSON para búsqueda por campo.
+   * Usar para catálogos de productos, precios, referencias, etc.
+   */
+  catalogMode?: boolean;
 }
 
 export interface ExternalClientDataListResult {

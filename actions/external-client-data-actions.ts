@@ -105,6 +105,7 @@ export async function importExternalClientDataBulk(
   userId: string,
   rows: ExternalClientDataImportRow[],
   source = 'import',
+  skipNormalization = false,
 ): Promise<ExternalClientDataImportResult> {
   let created = 0;
   let updated = 0;
@@ -112,8 +113,9 @@ export async function importExternalClientDataBulk(
 
   for (const row of rows) {
     try {
-      const canonicalJid =
-        normalizeWhatsAppConversationJid(row.remoteJid) || row.remoteJid;
+      const canonicalJid = skipNormalization
+        ? row.remoteJid.trim()
+        : (normalizeWhatsAppConversationJid(row.remoteJid) || row.remoteJid);
       if (!canonicalJid) {
         errors++;
         continue;
@@ -315,7 +317,7 @@ export async function importFromGoogleSheetUrl(
   sheetUrl: string,
   options: GoogleSheetImportOptions = {},
 ): Promise<ExternalClientDataImportResult> {
-  const { remoteJidColumn = 'WHATSAPP', source = 'google_sheets' } = options;
+  const { remoteJidColumn = 'WHATSAPP', source = 'google_sheets', catalogMode = false } = options;
 
   const csvUrl = buildGoogleSheetsCsvUrl(sheetUrl);
   if (!csvUrl) {
@@ -366,7 +368,7 @@ export async function importFromGoogleSheetUrl(
     };
   }
 
-  // Construye las filas de importación: remoteJid + resto de columnas como data
+  // Construye las filas de importación: clave + resto de columnas como data
   const importRows: ExternalClientDataImportRow[] = rows
     .map((row) => {
       const remoteJid = row[jidColumnKey]?.trim();
@@ -374,8 +376,12 @@ export async function importFromGoogleSheetUrl(
 
       const data: ExternalClientDataRecord = {};
       for (const [key, value] of Object.entries(row)) {
-        if (key !== jidColumnKey && value !== '') {
-          data[key] = value;
+        if (value !== '') {
+          // En modo catálogo: incluye TODAS las columnas (incluida la clave) en el JSON
+          // En modo clientes: excluye la columna clave (el teléfono no se guarda en data)
+          if (catalogMode || key !== jidColumnKey) {
+            data[key] = value;
+          }
         }
       }
 
@@ -383,5 +389,5 @@ export async function importFromGoogleSheetUrl(
     })
     .filter((r): r is ExternalClientDataImportRow => r !== null);
 
-  return importExternalClientDataBulk(userId, importRows, source);
+  return importExternalClientDataBulk(userId, importRows, source, catalogMode);
 }
