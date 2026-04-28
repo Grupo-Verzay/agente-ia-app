@@ -280,7 +280,7 @@ export function TrainingBuilder({
   };
 
   const updateStepTitle = (stepId: string, title: string) => {
-    setSteps((prev) => prev.map((s) => (s.id === stepId ? { ...s, title } : s)));
+    setSteps((prev) => prev.map((s) => (s.id === stepId ? { ...s, title: title.toUpperCase() } : s)));
   };
 
   const updateStepMainMessage = (stepId: string, mainMessage: string) => {

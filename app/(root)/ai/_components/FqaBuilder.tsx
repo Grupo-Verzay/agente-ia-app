@@ -149,7 +149,7 @@ export function FqaBuilder({
         setItems((prev) => prev.filter((i) => i.id !== id));
 
     const updateTitle = (id: string, v: string) =>
-        setItems((prev) => prev.map((it) => (it.id === id ? { ...it, title: v } : it)));
+        setItems((prev) => prev.map((it) => (it.id === id ? { ...it, title: v.toUpperCase() } : it)));
 
     const updateMain = (id: string, v: string) =>
         setItems((prev) => prev.map((it) => (it.id === id ? { ...it, mainMessage: v } : it)));

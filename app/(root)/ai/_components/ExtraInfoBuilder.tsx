@@ -191,7 +191,7 @@ export function ExtraInfoBuilder({
         );
 
     const updateTitle = (id: string, v: string) =>
-        setItems((p) => p.map((x) => (x.id === id ? { ...x, title: v } : x)));
+        setItems((p) => p.map((x) => (x.id === id ? { ...x, title: v.toUpperCase() } : x)));
 
     const updateMain = (id: string, v: string) =>
         setItems((p) => p.map((x) => (x.id === id ? { ...x, mainMessage: v } : x)));
