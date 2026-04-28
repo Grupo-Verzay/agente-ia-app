@@ -62,12 +62,13 @@ function subtractSecondsFromTime(date: Date, seconds: number): string {
   return format(newDate, 'dd/MM/yyyy HH:mm');
 }
 
-function formatReminderMessage(template: string, pushName: string, startTime: string, timezone: string, durationMin: number): string {
+function formatReminderMessage(template: string, pushName: string, startTime: string, _timezone: string, durationMin: number): string {
   let msg = template;
   msg = msg.replace(/@client_name\b/gi, pushName);
-  const localTime = toZonedTime(new Date(startTime), timezone);
-  const dateLabel = format(localTime, 'dd/MM/yyyy', { locale: es });
-  const hourLabel = format(localTime, 'h:mm a', { locale: es });
+  // startTime está guardado como hora local etiquetada como UTC — NO convertir timezone
+  const naiveDate = new Date(startTime);
+  const dateLabel = format(naiveDate, 'dd/MM/yyyy', { locale: es });
+  const hourLabel = format(naiveDate, 'h:mm a', { locale: es });
   msg = msg.replace(/@appointment_datetime\b/gi, `${dateLabel} ${hourLabel}.`);
   msg = msg.replace(/@appointment_duration\b/gi, `${durationMin} min`);
   return msg;
@@ -153,9 +154,10 @@ async function runPostAppointmentTasks({
   }
 
   if (ownerPhones.length > 0) {
-    const localTime = toZonedTime(new Date(startTime), timezone);
-    const dateLabel = format(localTime, "d 'de' MMMM 'de' yyyy", { locale: es });
-    const hourLabel = format(localTime, 'hh:mm a', { locale: es });
+    // startTime guardado como hora local etiquetada como UTC — NO convertir timezone
+    const naiveDate = new Date(startTime);
+    const dateLabel = format(naiveDate, "d 'de' MMMM 'de' yyyy", { locale: es });
+    const hourLabel = format(naiveDate, 'hh:mm a', { locale: es });
     const serviceName = service?.name ?? 'Asesoría';
     const clientPhone = phone.replace(/@s\.whatsapp\.net$/, '');
 
@@ -197,7 +199,8 @@ async function runPostAppointmentTasks({
     return;
   }
 
-  const startLocal = toZonedTime(new Date(startTime), timezone);
+  // startTime guardado como hora local etiquetada como UTC — NO convertir timezone
+  const startLocal = new Date(startTime);
 
   const seguimientosCreados = await Promise.allSettled(
     reminders.map(async (rem) => {
