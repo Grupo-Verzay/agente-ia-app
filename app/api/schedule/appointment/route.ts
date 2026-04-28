@@ -96,11 +96,12 @@ async function runPostAppointmentTasks({
   timezone: string;
   serviceId: string;
 }) {
-  const [service, instance, user, reminders] = await Promise.all([
-    db.service.findFirst({ where: { id: serviceId }, select: { messageText: true } }),
+  const [service, instance, user, reminders, notificationContacts] = await Promise.all([
+    db.service.findFirst({ where: { id: serviceId }, select: { messageText: true, name: true } }),
     db.instancia.findFirst({ where: { userId, instanceName }, select: { instanceId: true } }),
-    db.user.findUnique({ where: { id: userId }, select: { meetingDuration: true, apiKeyId: true } }),
+    db.user.findUnique({ where: { id: userId }, select: { meetingDuration: true, apiKeyId: true, notificationNumber: true } }),
     db.reminders.findMany({ where: { userId }, orderBy: { id: 'asc' } }),
+    db.userNotificationContact.findMany({ where: { userId }, select: { phone: true } }).catch(() => []),
   ]);
 
   const apiKey = user?.apiKeyId
@@ -144,7 +145,53 @@ async function runPostAppointmentTasks({
     console.log(`[schedule/notification] Servicio sin messageText — se omite mensaje de confirmación`);
   }
 
-  // 2. Crear seguimientos programados (igual que el flujo público)
+  // 2. Notificar al asesor/dueño (igual que el flujo público)
+  const ownerPhones: string[] = [];
+  if (user?.notificationNumber) ownerPhones.push(user.notificationNumber);
+  for (const c of notificationContacts) {
+    if (!ownerPhones.includes(c.phone)) ownerPhones.push(c.phone);
+  }
+
+  if (ownerPhones.length > 0) {
+    const localTime = toZonedTime(new Date(startTime), timezone);
+    const dateLabel = format(localTime, "d 'de' MMMM 'de' yyyy", { locale: es });
+    const hourLabel = format(localTime, 'hh:mm a', { locale: es });
+    const serviceName = service?.name ?? 'Asesoría';
+    const clientPhone = phone.replace(/@s\.whatsapp\.net$/, '');
+
+    const ownerText =
+      `📅 *Tienes Nueva Cita*:\n\n` +
+      `👤 *Nombre:* ${pushName}\n` +
+      `📝 *Descripción ${serviceName}:* Para el día ${dateLabel} a las ${hourLabel}.\n\n` +
+      `📱 *WhatsApp del usuario:*\n\n` +
+      `👉 ${clientPhone}`;
+
+    await Promise.allSettled(
+      ownerPhones.map(async (ownerPhone) => {
+        const ownerJid = ownerPhone.includes('@s.whatsapp.net')
+          ? ownerPhone
+          : `${ownerPhone}@s.whatsapp.net`;
+        const result = await sendMessageWithHistoryAction({
+          instanceName,
+          url: sendTextUrl,
+          apikey: instanceId,
+          remoteJid: ownerJid,
+          message: ownerText,
+          historyType: 'notification',
+          additionalKwargs: { source: 'ScheduleApiAgent', recipient: 'owner', serviceId },
+        });
+        if (result.success) {
+          console.log(`[schedule/notification] Notificación al asesor enviada a ${ownerPhone}`);
+        } else {
+          console.warn(`[schedule/notification] No se pudo notificar al asesor en ${ownerPhone}: ${result.message}`);
+        }
+      }),
+    );
+  } else {
+    console.log(`[schedule/notification] Sin número de notificación configurado para userId=${userId}`);
+  }
+
+  // 3. Crear seguimientos programados (igual que el flujo público)
   if (reminders.length === 0) {
     console.log(`[schedule/notification] Sin recordatorios configurados para userId=${userId}`);
     return;
