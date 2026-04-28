@@ -107,7 +107,9 @@ async function runPostAppointmentTasks({
   }
 
   const slotDuration = user?.meetingDuration ?? 60;
-  const serverUrl = `https://${apiKey.url}`;
+  const rawUrl = apiKey.url.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  const serverUrl = `https://${rawUrl}`;
+  const sendTextUrl = `${serverUrl}/message/sendText/${instanceName}`;
   const instanceId = instance.instanceId;
 
   // 1. Enviar mensaje de confirmación del servicio al cliente
@@ -117,7 +119,7 @@ async function runPostAppointmentTasks({
 
     const result = await sendMessageWithHistoryAction({
       instanceName,
-      url: apiKey.url,
+      url: sendTextUrl,
       apikey: instanceId,
       remoteJid: phone,
       message,
