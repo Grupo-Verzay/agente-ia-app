@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { formatInTimeZone } from 'date-fns-tz';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { db } from '@/lib/db';
 import { createAppointment } from '@/actions/appointments-actions';
 import { sendMessageWithHistoryAction } from '@/actions/chat-history/send-message-with-history-action';
@@ -57,17 +57,25 @@ function normalizeTimeToSeconds(timeStr: string): number {
   return value * unitToSeconds[unit];
 }
 
-function subtractSecondsFromTime(date: Date, seconds: number): string {
-  const newDate = new Date(date.getTime() - seconds * 1000);
-  return formatInTimeZone(newDate, 'UTC', 'dd/MM/yyyy HH:mm');
+// Convierte hora naïve-UTC (LLM guarda hora local como si fuera UTC) a UTC real
+function naiveUtcToRealUtc(naiveIso: string, timezone: string): Date {
+  const d = new Date(naiveIso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const localStr = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:00`;
+  return fromZonedTime(localStr, timezone);
 }
 
-function formatReminderMessage(template: string, pushName: string, startTime: string, _timezone: string, durationMin: number): string {
+function subtractSecondsFromTime(date: Date, seconds: number): string {
+  const newDate = new Date(date.getTime() - seconds * 1000);
+  return format(newDate, 'dd/MM/yyyy HH:mm');
+}
+
+function formatReminderMessage(template: string, pushName: string, startTime: string, timezone: string, durationMin: number): string {
   let msg = template;
   msg = msg.replace(/@client_name\b/gi, pushName);
-  // startTime guardado como hora local etiquetada como UTC — formatear en UTC para conservar la hora naïve
-  const dateLabel = formatInTimeZone(new Date(startTime), 'UTC', 'dd/MM/yyyy', { locale: es });
-  const hourLabel = formatInTimeZone(new Date(startTime), 'UTC', 'h:mm a', { locale: es });
+  const startLocal = toZonedTime(naiveUtcToRealUtc(startTime, timezone), timezone);
+  const dateLabel = format(startLocal, 'dd/MM/yyyy', { locale: es });
+  const hourLabel = format(startLocal, 'h:mm a', { locale: es });
   msg = msg.replace(/@appointment_datetime\b/gi, `${dateLabel} ${hourLabel}.`);
   msg = msg.replace(/@appointment_duration\b/gi, `${durationMin} min`);
   return msg;
@@ -153,9 +161,9 @@ async function runPostAppointmentTasks({
   }
 
   if (ownerPhones.length > 0) {
-    // startTime guardado como hora local etiquetada como UTC — formatear en UTC para conservar la hora naïve
-    const dateLabel = formatInTimeZone(new Date(startTime), 'UTC', "d 'de' MMMM 'de' yyyy", { locale: es });
-    const hourLabel = formatInTimeZone(new Date(startTime), 'UTC', 'hh:mm a', { locale: es });
+    const ownerStartLocal = toZonedTime(naiveUtcToRealUtc(startTime, timezone), timezone);
+    const dateLabel = format(ownerStartLocal, "d 'de' MMMM 'de' yyyy", { locale: es });
+    const hourLabel = format(ownerStartLocal, 'hh:mm a', { locale: es });
     const serviceName = service?.name ?? 'Asesoría';
     const clientPhone = phone.replace(/@s\.whatsapp\.net$/, '');
 
@@ -197,8 +205,7 @@ async function runPostAppointmentTasks({
     return;
   }
 
-  // startTime guardado como hora local etiquetada como UTC — NO convertir timezone
-  const startLocal = new Date(startTime);
+  const startLocal = toZonedTime(naiveUtcToRealUtc(startTime, timezone), timezone);
 
   const seguimientosCreados = await Promise.allSettled(
     reminders.map(async (rem) => {
