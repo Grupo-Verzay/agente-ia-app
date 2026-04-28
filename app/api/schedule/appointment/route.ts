@@ -64,12 +64,15 @@ async function sendServiceNotification({
   timezone: string;
   serviceId: string;
 }) {
-  const [service, apiKey, instance, user] = await Promise.all([
+  const [service, instance, user] = await Promise.all([
     db.service.findFirst({ where: { id: serviceId }, select: { messageText: true } }),
-    db.apiKey.findFirst({ where: { userId }, select: { url: true } }),
     db.instancia.findFirst({ where: { userId, instanceName }, select: { instanceId: true } }),
-    db.user.findUnique({ where: { id: userId }, select: { meetingDuration: true } }),
+    db.user.findUnique({ where: { id: userId }, select: { meetingDuration: true, apiKeyId: true } }),
   ]);
+
+  const apiKey = user?.apiKeyId
+    ? await db.apiKey.findUnique({ where: { id: user.apiKeyId }, select: { url: true } })
+    : null;
 
   if (!service?.messageText || !apiKey?.url || !instance?.instanceId) return;
 
