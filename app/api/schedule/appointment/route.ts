@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { fromZonedTime, toZonedTime } from 'date-fns-tz';
+import { toZonedTime } from 'date-fns-tz';
 import { db } from '@/lib/db';
 import { createAppointment } from '@/actions/appointments-actions';
 import { sendMessageWithHistoryAction } from '@/actions/chat-history/send-message-with-history-action';
@@ -57,14 +57,6 @@ function normalizeTimeToSeconds(timeStr: string): number {
   return value * unitToSeconds[unit];
 }
 
-// Convierte hora naïve-UTC (LLM guarda hora local como si fuera UTC) a UTC real
-function naiveUtcToRealUtc(naiveIso: string, timezone: string): Date {
-  const d = new Date(naiveIso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const localStr = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:00`;
-  return fromZonedTime(localStr, timezone);
-}
-
 function subtractSecondsFromTime(date: Date, seconds: number): string {
   const newDate = new Date(date.getTime() - seconds * 1000);
   return format(newDate, 'dd/MM/yyyy HH:mm');
@@ -73,7 +65,7 @@ function subtractSecondsFromTime(date: Date, seconds: number): string {
 function formatReminderMessage(template: string, pushName: string, startTime: string, timezone: string, durationMin: number): string {
   let msg = template;
   msg = msg.replace(/@client_name\b/gi, pushName);
-  const startLocal = toZonedTime(naiveUtcToRealUtc(startTime, timezone), timezone);
+  const startLocal = toZonedTime(new Date(startTime), timezone);
   const dateLabel = format(startLocal, 'dd/MM/yyyy', { locale: es });
   const hourLabel = format(startLocal, 'h:mm a', { locale: es });
   msg = msg.replace(/@appointment_datetime\b/gi, `${dateLabel} ${hourLabel}.`);
@@ -161,7 +153,7 @@ async function runPostAppointmentTasks({
   }
 
   if (ownerPhones.length > 0) {
-    const ownerStartLocal = toZonedTime(naiveUtcToRealUtc(startTime, timezone), timezone);
+    const ownerStartLocal = toZonedTime(new Date(startTime), timezone);
     const dateLabel = format(ownerStartLocal, "d 'de' MMMM 'de' yyyy", { locale: es });
     const hourLabel = format(ownerStartLocal, 'hh:mm a', { locale: es });
     const serviceName = service?.name ?? 'Asesoría';
@@ -205,7 +197,7 @@ async function runPostAppointmentTasks({
     return;
   }
 
-  const startLocal = toZonedTime(naiveUtcToRealUtc(startTime, timezone), timezone);
+  const startLocal = toZonedTime(new Date(startTime), timezone);
 
   const seguimientosCreados = await Promise.allSettled(
     reminders.map(async (rem) => {
