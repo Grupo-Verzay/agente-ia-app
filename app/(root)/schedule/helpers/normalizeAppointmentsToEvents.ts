@@ -9,8 +9,8 @@ export function normalizeAppointmentsToEvents(appointments: AppointmentWithSessi
     return appointments.map((a) => ({
         id: a.id,
         title: `${a.session?.pushName || "Sin nombre"} - ${a.service?.name || "Sin servicio"}`,
-        start: a.startTime,
-        end: a.endTime,
+        start: a.startTime instanceof Date ? a.startTime.toISOString() : a.startTime,
+        end: a.endTime instanceof Date ? a.endTime.toISOString() : a.endTime,
         allDay: false,
 
         className:
