@@ -4,9 +4,8 @@ import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   CheckCircle2,
-  ChevronDown,
-  ChevronRight,
   ClipboardPaste,
+  Eye,
   FileSpreadsheet,
   Info,
   Loader2,
@@ -15,15 +14,10 @@ import {
   XCircle,
 } from 'lucide-react';
 
-import { importFromGoogleSheetUrl } from '@/actions/external-client-data-actions';
+import { importFromGoogleSheetUrl, previewGoogleSheet } from '@/actions/external-client-data-actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -93,10 +87,12 @@ export function ExternalDataImportClient({ clients }: Props) {
   const [selectedUserId, setSelectedUserId] = useState('');
   const [url, setUrl] = useState('');
   const [columnName, setColumnName] = useState('WHATSAPP');
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [previewHeaders, setPreviewHeaders] = useState<string[]>([]);
+  const [previewRows, setPreviewRows] = useState<Record<string, string>[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const selectedClient = clients.find((c) => c.id === selectedUserId);
@@ -126,7 +122,37 @@ export function ExternalDataImportClient({ clients }: Props) {
     setColumnName('WHATSAPP');
     setLogs([]);
     setResult(null);
-    setAdvancedOpen(false);
+    setPreviewHeaders([]);
+    setPreviewRows([]);
+  };
+
+  const handlePreview = async () => {
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) return toast.error('Ingresa la URL de Google Sheets');
+    if (!trimmedUrl.includes('docs.google.com/spreadsheets')) {
+      return toast.error('La URL no parece ser de Google Sheets');
+    }
+    setIsPreviewing(true);
+    setPreviewHeaders([]);
+    setPreviewRows([]);
+    try {
+      const res = await previewGoogleSheet(trimmedUrl, 5);
+      if (!res.success || !res.headers) {
+        toast.error(res.error ?? 'No se pudo leer la hoja');
+        return;
+      }
+      setPreviewHeaders(res.headers);
+      setPreviewRows(res.rows ?? []);
+      const waCol = res.headers.find((h) =>
+        ['whatsapp', 'telefono', 'teléfono', 'celular', 'movil', 'móvil', 'phone'].includes(h.toLowerCase())
+      );
+      if (waCol) setColumnName(waCol);
+      toast.success(`${res.headers.length} columnas detectadas`);
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Error al previsualizar');
+    } finally {
+      setIsPreviewing(false);
+    }
   };
 
   const handleImport = async () => {
@@ -273,39 +299,92 @@ export function ExternalDataImportClient({ clients }: Props) {
             </div>
           </div>
 
-          {/* Opciones avanzadas */}
-          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-            <CollapsibleTrigger asChild>
-              <button
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                disabled={isLoading}
-              >
-                {advancedOpen
-                  ? <ChevronDown className="h-3.5 w-3.5" />
-                  : <ChevronRight className="h-3.5 w-3.5" />}
-                Opciones avanzadas
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-3">
-              <div className="space-y-1.5 pl-0.5">
-                <Label htmlFor="col-name" className="text-xs">
-                  Nombre de la columna con el número WhatsApp
-                </Label>
-                <Input
-                  id="col-name"
-                  placeholder="WHATSAPP"
-                  value={columnName}
-                  onChange={(e) => setColumnName(e.target.value.toUpperCase())}
-                  disabled={isLoading}
-                  className="max-w-52 text-xs"
-                />
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePreview}
+              disabled={!url.trim() || isLoading || isPreviewing}
+              className="gap-2 text-xs"
+            >
+              {isPreviewing
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Eye className="h-3.5 w-3.5" />}
+              {isPreviewing ? 'Leyendo...' : 'Ver columnas del sheet'}
+            </Button>
+          </div>
+
+          {previewHeaders.length > 0 && (
+            <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Columna con el número WhatsApp</Label>
+                <Select value={columnName} onValueChange={setColumnName} disabled={isLoading}>
+                  <SelectTrigger className="max-w-64 text-xs h-8">
+                    <SelectValue placeholder="Selecciona la columna del teléfono" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {previewHeaders.map((h) => (
+                      <SelectItem key={h} value={h} className="text-xs">{h}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <p className="text-xs text-muted-foreground">
-                  Por defecto <code className="bg-muted px-1 rounded">WHATSAPP</code>.
-                  Cambia si tu hoja usa otro nombre de columna.
+                  {previewHeaders.length} columnas detectadas. Selecciona cuál contiene el número de WhatsApp.
                 </p>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
+
+              {previewRows.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground font-medium">
+                    Vista previa ({previewRows.length} fila{previewRows.length !== 1 ? 's' : ''}):
+                  </p>
+                  <ScrollArea className="max-h-40">
+                    <div className="overflow-x-auto">
+                      <table className="text-xs w-full">
+                        <thead>
+                          <tr className="border-b">
+                            {previewHeaders.map((h) => (
+                              <th key={h} className={`px-2 py-1 text-left font-medium whitespace-nowrap ${h === columnName ? 'text-primary' : 'text-muted-foreground'}`}>
+                                {h === columnName ? `📱 ${h}` : h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {previewRows.map((row, i) => (
+                            <tr key={i} className="border-b border-border/50">
+                              {previewHeaders.map((h) => (
+                                <td key={h} className="px-2 py-1 whitespace-nowrap max-w-32 truncate" title={row[h]}>
+                                  {row[h] || <span className="text-muted-foreground/40">—</span>}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+            </div>
+          )}
+
+          {previewHeaders.length === 0 && (
+            <div className="space-y-1.5">
+              <Label htmlFor="col-name" className="text-xs">Columna con el número WhatsApp</Label>
+              <Input
+                id="col-name"
+                placeholder="WHATSAPP"
+                value={columnName}
+                onChange={(e) => setColumnName(e.target.value)}
+                disabled={isLoading}
+                className="max-w-52 text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                Usa &ldquo;Ver columnas del sheet&rdquo; para detectarlas automáticamente.
+              </p>
+            </div>
+          )}
 
           <Separator />
 
