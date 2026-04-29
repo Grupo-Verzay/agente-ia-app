@@ -151,7 +151,7 @@ export const BusinessPromptBuilder = ({
                                     <Card className="bg-muted/20 border-muted/60">
                                         <CardContent className="py-3 px-4 space-y-2">
                                             <FormItem>
-                                                <FormLabel className="text-base font-bold">
+                                                <FormLabel className="text-sm font-semibold">
                                                     Nombre del Negocio<span className="text-destructive"> *</span>
                                                 </FormLabel>
                                                 <FormControl>
@@ -169,7 +169,7 @@ export const BusinessPromptBuilder = ({
                                     <Card className="bg-muted/20 border-muted/60">
                                         <CardContent className="py-3 px-4 space-y-2">
                                             <FormItem>
-                                                <FormLabel className="text-base font-bold">Sector / Rubro</FormLabel>
+                                                <FormLabel className="text-sm font-semibold">Sector / Rubro</FormLabel>
                                                 <FormControl>
                                                     <Input placeholder="Ej. Stickers y etiquetas" {...field}
                                                         onChange={field.onChange}
@@ -185,7 +185,7 @@ export const BusinessPromptBuilder = ({
                                     <Card className="bg-muted/20 border-muted/60">
                                         <CardContent className="py-3 px-4 space-y-2">
                                             <FormItem>
-                                                <FormLabel className="text-base font-bold">Ubicación / Dirección</FormLabel>
+                                                <FormLabel className="text-sm font-semibold">Ubicación / Dirección</FormLabel>
                                                 <FormControl>
                                                     <Input placeholder="Ej. Av. Siempre Viva 742, Quito" {...field}
                                                         onChange={field.onChange}
@@ -201,7 +201,7 @@ export const BusinessPromptBuilder = ({
                                     <Card className="bg-muted/20 border-muted/60">
                                         <CardContent className="py-3 px-4 space-y-2">
                                             <FormItem>
-                                                <FormLabel className="text-base font-bold">Horarios de Atención</FormLabel>
+                                                <FormLabel className="text-sm font-semibold">Horarios de Atención</FormLabel>
                                                 <FormControl>
                                                     <Input placeholder="Ej. Lun–Sáb 9:00 a 18:00" {...field}
                                                         onChange={field.onChange}
@@ -217,7 +217,7 @@ export const BusinessPromptBuilder = ({
                                     <Card className="bg-muted/20 border-muted/60">
                                         <CardContent className="py-3 px-4 space-y-2">
                                             <FormItem>
-                                                <FormLabel className="text-base font-bold">Número de Contacto</FormLabel>
+                                                <FormLabel className="text-sm font-semibold">Número de Contacto</FormLabel>
                                                 <FormControl>
                                                     <Input placeholder="Ej. +57 300 123 4567" {...field}
                                                         onChange={field.onChange}
@@ -233,7 +233,7 @@ export const BusinessPromptBuilder = ({
                                     <Card className="bg-muted/20 border-muted/60">
                                         <CardContent className="py-3 px-4 space-y-2">
                                             <FormItem>
-                                                <FormLabel className="text-base font-bold">Sitio web</FormLabel>
+                                                <FormLabel className="text-sm font-semibold">Sitio web</FormLabel>
                                                 <FormControl>
                                                     <Input type="url" placeholder="https://negocio.com" {...field}
                                                         onChange={field.onChange}
@@ -250,7 +250,7 @@ export const BusinessPromptBuilder = ({
                                         <Card className="bg-muted/20 border-muted/60">
                                             <CardContent className="py-3 px-4 space-y-2">
                                                 <FormItem>
-                                                    <FormLabel className="text-base font-bold">Correo electrónico</FormLabel>
+                                                    <FormLabel className="text-sm font-semibold">Correo electrónico</FormLabel>
                                                     <FormControl>
                                                         <Input type="email" placeholder="ventas@negocio.com" {...field}
                                                             onChange={field.onChange}
@@ -268,7 +268,7 @@ export const BusinessPromptBuilder = ({
                                         <Card className="bg-muted/20 border-muted/60">
                                             <CardContent className="py-3 px-4 space-y-2">
                                                 <FormItem>
-                                                    <FormLabel className="text-base font-bold">Facebook</FormLabel>
+                                                    <FormLabel className="text-sm font-semibold">Facebook</FormLabel>
                                                     <FormControl>
                                                         <Input type="url" placeholder="https://facebook.com/tu-negocio" {...field}
                                                             onChange={field.onChange}
@@ -286,7 +286,7 @@ export const BusinessPromptBuilder = ({
                                         <Card className="bg-muted/20 border-muted/60">
                                             <CardContent className="py-3 px-4 space-y-2">
                                                 <FormItem>
-                                                    <FormLabel className="text-base font-bold">Instagram</FormLabel>
+                                                    <FormLabel className="text-sm font-semibold">Instagram</FormLabel>
                                                     <FormControl>
                                                         <Input type="url" placeholder="https://instagram.com/tu_negocio" {...field}
                                                             onChange={field.onChange}
@@ -304,7 +304,7 @@ export const BusinessPromptBuilder = ({
                                         <Card className="bg-muted/20 border-muted/60">
                                             <CardContent className="py-3 px-4 space-y-2">
                                                 <FormItem>
-                                                    <FormLabel className="text-base font-bold">TikTok</FormLabel>
+                                                    <FormLabel className="text-sm font-semibold">TikTok</FormLabel>
                                                     <FormControl>
                                                         <Input type="url" placeholder="https://tiktok.com/@tu_negocio" {...field}
                                                             onChange={field.onChange}
@@ -322,7 +322,7 @@ export const BusinessPromptBuilder = ({
                                         <Card className="bg-muted/20 border-muted/60">
                                             <CardContent className="py-3 px-4 space-y-2">
                                                 <FormItem>
-                                                    <FormLabel className="text-base font-bold">YouTube</FormLabel>
+                                                    <FormLabel className="text-sm font-semibold">YouTube</FormLabel>
                                                     <FormControl>
                                                         <Input type="url" placeholder="https://youtube.com/@tu_negocio" {...field}
                                                             onChange={field.onChange}
@@ -342,7 +342,7 @@ export const BusinessPromptBuilder = ({
                                     <Card className="bg-muted/20 border-muted/60">
                                         <CardContent className="py-3 px-4 space-y-2">
                                             <FormItem>
-                                                <FormLabel className="text-base font-bold">Notas / Instrucciones extra</FormLabel>
+                                                <FormLabel className="text-sm font-semibold">Notas / Instrucciones extra</FormLabel>
                                                 <FormControl>
                                                     <Textarea className="min-h-[64px]"
                                                         placeholder="Aclaraciones, tono, restricciones..."
@@ -361,7 +361,7 @@ export const BusinessPromptBuilder = ({
 
                             {/* Selector de Campos Adicionales */}
                             <div className="flex flex-col gap-2">
-                                <span className="text-base font-bold">Campos adicionales</span>
+                                <span className="text-sm font-semibold">Campos adicionales</span>
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button variant="outline" role="combobox" className="justify-between">
