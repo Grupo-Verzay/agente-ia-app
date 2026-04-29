@@ -267,7 +267,7 @@ export const ProductBuilder = ({
                 ) : (
                     <div className="space-y-4">
                         {items.map((step, idx) => (
-                            <Card key={step.id} className="bg-muted/30 border-muted/60">
+                            <Card key={step.id} className="bg-muted/20 border-muted/60">
                                 <CardHeader className="py-3 flex-row items-center justify-between">
                                     <div className="flex items-center gap-2 flex-1 min-w-0">
                                         <CardTitle className="text-md shrink-0">{`Producto ${idx + 1}`}</CardTitle>
@@ -277,7 +277,7 @@ export const ProductBuilder = ({
                                             onChange={(e) =>
                                                 updateTitle(step.id, e.target.value)
                                             }
-                                            className="h-8 max-w-[240px]"
+                                            className="h-8 w-1/2"
                                             placeholder="Título del Producto"
                                         />
                                     </div>
@@ -313,8 +313,8 @@ export const ProductBuilder = ({
                                     </AlertDialog>
                                 </CardHeader>
 
-                                <CardContent className="space-y-3">
-                                    <div className="space-y-2">
+                                <CardContent className="space-y-3 px-0 pb-4">
+                                    <div className="px-6 space-y-2">
                                         <label className="text-sm font-medium">{`Descripción ${idx + 1
                                             }`}</label>
                                         <Textarea
@@ -328,14 +328,14 @@ export const ProductBuilder = ({
 
                                     <Separator />
 
-                                    <div className="rounded-lg border border-dashed border-muted/60 p-1">
+                                    <div className="space-y-2">
                                         {!step.elements || step.elements.length === 0 ? (
-                                            <div className="text-center text-sm text-muted-foreground">
+                                            <div className="px-6 text-center text-sm text-muted-foreground">
                                                 No hay elementos. Agrega funciones o textos con los
                                                 botones de arriba.
                                             </div>
                                         ) : (
-                                            <div className="space-y-3">
+                                            <div className="space-y-2">
                                                 {step.elements.map((el) => (
                                                     <ElementRenderer
                                                         key={el.id}
@@ -354,7 +354,7 @@ export const ProductBuilder = ({
                                         )}
                                     </div>
 
-                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                    <div className="px-6 flex items-center justify-between flex-wrap gap-2">
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm font-medium">
                                                 Elementos del producto

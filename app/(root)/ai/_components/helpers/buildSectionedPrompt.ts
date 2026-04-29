@@ -76,7 +76,7 @@ function formatElement(el: AnyEl, k: number, flowBehaviorText: string, cfg: Prom
 
     if (el.kind === "text") {
         const t = trimOrUndefined(el.text);
-        if (t) out.push(`- (${k}) **Regla/parámetro:** ${t}\n`);
+        if (t) out.push(`- (${k}) **REGLA/PARÁMETRO:** ${t}\n`);
         return out;
     }
 

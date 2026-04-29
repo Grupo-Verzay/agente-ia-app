@@ -44,7 +44,9 @@
       "Bash(node -e ' *)",
       "Bash(node scripts/check-titles.mjs)",
       "Bash(node scripts/show-all-titles.mjs)",
-      "Bash(node scripts/inspect-sections.mjs)"
+      "Bash(node scripts/inspect-sections.mjs)",
+      "Bash(git commit -m 'fix: lista de paises local como respaldo cuando la API externa falla *)",
+      "Bash(git commit -m 'fix: agregar flagcdn.com y wikimedia a dominios permitidos de Next.js Image *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\home\\.claude",

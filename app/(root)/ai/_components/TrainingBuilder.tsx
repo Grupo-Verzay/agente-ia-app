@@ -507,80 +507,86 @@ export function TrainingBuilder({
                         const isExpanded = expandedSteps.has(step.id) && !isDragging;
 
                         return (
-                          <Card className="bg-muted/10 border-muted/60 overflow-hidden">
+                          <Card className="bg-muted/20 border-muted/60 overflow-hidden">
                             {/* ---- Header siempre visible ---- */}
-                            <div className="flex items-center gap-1 px-3 py-2">
-                              {/* Drag handle */}
-                              <div
-                                className={[
-                                  "h-8 w-6 flex items-center justify-center rounded text-muted-foreground shrink-0",
-                                  lockWelcome
-                                    ? "opacity-30 cursor-not-allowed"
-                                    : "cursor-grab active:cursor-grabbing hover:text-foreground hover:bg-muted/50",
-                                ].join(" ")}
-                                title={lockWelcome ? "Paso fijo" : "Arrastrar paso"}
-                                {...(!lockWelcome ? dragHandleProps : {})}
-                              >
-                                <GripVertical className="h-4 w-4" />
+                            <div className="flex items-center justify-between gap-1 px-3 py-2">
+                              {/* Izquierda: drag + número + título */}
+                              <div className="flex items-center gap-1 min-w-0 flex-1">
+                                {/* Drag handle */}
+                                <div
+                                  className={[
+                                    "h-8 w-6 flex items-center justify-center rounded text-muted-foreground shrink-0",
+                                    lockWelcome
+                                      ? "opacity-30 cursor-not-allowed"
+                                      : "cursor-grab active:cursor-grabbing hover:text-foreground hover:bg-muted/50",
+                                  ].join(" ")}
+                                  title={lockWelcome ? "Paso fijo" : "Arrastrar paso"}
+                                  {...(!lockWelcome ? dragHandleProps : {})}
+                                >
+                                  <GripVertical className="h-4 w-4" />
+                                </div>
+
+                                {/* Número */}
+                                <span className="text-base font-bold shrink-0">
+                                  Paso {idx + 1}
+                                </span>
+
+                                {/* Título */}
+                                {isExpanded ? (
+                                  <Input
+                                    id={step.id}
+                                    value={step.title}
+                                    onChange={(e) => updateStepTitle(step.id, e.target.value)}
+                                    className="h-7 text-sm w-1/2"
+                                    placeholder="Título del paso"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="flex-1 text-left text-sm font-medium truncate hover:text-foreground transition-colors"
+                                    onClick={() => toggleStep(step.id)}
+                                  >
+                                    {step.title || (
+                                      <span className="text-muted-foreground italic">Sin título</span>
+                                    )}
+                                  </button>
+                                )}
+
+                                {/* Badge colapsado */}
+                                {!isExpanded && step.elements.length > 0 && (
+                                  <Badge variant="secondary" className="shrink-0 text-xs">
+                                    {step.elements.length} {step.elements.length === 1 ? "elemento" : "elementos"}
+                                  </Badge>
+                                )}
                               </div>
 
-                              {/* Número */}
-                              <span className="text-xs font-semibold text-muted-foreground w-12 shrink-0">
-                                Paso {idx + 1}
-                              </span>
-
-                              {/* Título (input solo cuando expandido, texto cuando colapsado) */}
-                              {isExpanded ? (
-                                <Input
-                                  id={step.id}
-                                  value={step.title}
-                                  onChange={(e) => updateStepTitle(step.id, e.target.value)}
-                                  className="h-7 text-sm flex-1 max-w-[50%]"
-                                  placeholder="Título del paso"
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                              ) : (
+                              {/* Derecha: chevron + eliminar */}
+                              <div className="flex items-center gap-1 shrink-0">
+                                {/* Chevron toggle */}
                                 <button
                                   type="button"
-                                  className="flex-1 text-left text-sm font-medium truncate hover:text-foreground transition-colors"
+                                  className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
                                   onClick={() => toggleStep(step.id)}
+                                  title={isExpanded ? "Colapsar" : "Expandir"}
                                 >
-                                  {step.title || (
-                                    <span className="text-muted-foreground italic">Sin título</span>
-                                  )}
+                                  <ChevronDown
+                                    className="h-4 w-4 transition-transform duration-200"
+                                    style={{ transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                                  />
                                 </button>
-                              )}
-
-                              {/* Resumen colapsado: badges de elementos */}
-                              {!isExpanded && step.elements.length > 0 && (
-                                <Badge variant="secondary" className="shrink-0 text-xs">
-                                  {step.elements.length} {step.elements.length === 1 ? "elemento" : "elementos"}
-                                </Badge>
-                              )}
-
-                              {/* Chevron toggle */}
-                              <button
-                                type="button"
-                                className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
-                                onClick={() => toggleStep(step.id)}
-                                title={isExpanded ? "Colapsar" : "Expandir"}
-                              >
-                                <ChevronDown
-                                  className="h-4 w-4 transition-transform duration-200"
-                                  style={{ transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
-                                />
-                              </button>
+                              </div>
 
                               {/* Eliminar */}
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <button
                                     type="button"
-                                    className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                                    className="h-9 w-9 flex items-center justify-center rounded bg-destructive text-white hover:bg-destructive/90 transition-colors shrink-0"
                                     title="Eliminar paso"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    <Trash2 className="h-3.5 w-3.5" />
+                                    <Trash2 className="h-4 w-4" />
                                   </button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
@@ -613,10 +619,8 @@ export function TrainingBuilder({
                               }}
                             >
                               <div className="overflow-hidden">
-                                <CardContent className="space-y-3 pt-0 pb-3">
-                                  <Separator className="mb-3" />
-
-                                  <div className="space-y-2">
+                                <CardContent className="space-y-3 pt-0 pb-3 px-0">
+                                  <div className="pl-10 pr-3 space-y-2">
                                     <label className="text-sm font-medium">
                                       {`Objetivo principal del paso ${idx + 1}`}
                                     </label>
@@ -631,7 +635,7 @@ export function TrainingBuilder({
 
                                   <Separator />
 
-                                  <div className="rounded-lg border border-dashed border-muted/60 p-1">
+                                  <div className="space-y-2">
                                     {step.elements.length === 0 ? (
                                       <div className="text-center text-sm text-muted-foreground py-2">
                                         No hay elementos en este paso. Agrega funciones o textos
@@ -676,7 +680,7 @@ export function TrainingBuilder({
                                     )}
                                   </div>
 
-                                  <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <div className="pl-10 pr-3 flex items-center justify-between flex-wrap gap-2">
                                     <div className="flex items-center gap-2">
                                       <span className="text-sm font-medium">Elementos del paso</span>
                                       <Badge variant="secondary">{idx + 1}</Badge>
