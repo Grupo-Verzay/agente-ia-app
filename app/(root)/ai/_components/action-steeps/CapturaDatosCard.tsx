@@ -58,7 +58,7 @@ export const CapturaDatosCard: FC<CapturaDatosCardProps> = ({
                         <SelectContent>
                             {SUBTYPE_OPTIONS.map((opt) => (
                                 <SelectItem key={opt} value={opt} className="text-xs">
-                                    {opt}
+                                    {opt.toUpperCase()}
                                 </SelectItem>
                             ))}
                         </SelectContent>

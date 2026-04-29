@@ -68,7 +68,7 @@ export const FunctionSelector = ({
     });
 
     const makeCaptura = (subtype?: CaptureFunctionIF["subtype"]): ElementItem => {
-        const st = subtype ?? "Pedidos";
+        const st = subtype ?? "Solicitudes";
         const base: ElementFunction = {
             id: nanoid(),
             kind: "function",
@@ -84,7 +84,7 @@ export const FunctionSelector = ({
     const makeConsulta = (
         subtype?: CaptureFunctionIF["subtype"]
     ): ElementItem => {
-        const st = subtype ?? "Pedidos";
+        const st = subtype ?? "Solicitudes";
         const base: ElementFunction = {
             id: nanoid(),
             kind: "function",
@@ -100,7 +100,7 @@ export const FunctionSelector = ({
     const makeActualizar = (
         subtype?: CaptureFunctionIF["subtype"]
     ): ElementItem => {
-        const st = subtype ?? "Pedidos";
+        const st = subtype ?? "Solicitudes";
         const base: ElementFunction = {
             id: nanoid(),
             kind: "function",
