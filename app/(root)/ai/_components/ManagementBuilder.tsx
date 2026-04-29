@@ -9,13 +9,44 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Workflow } from "@prisma/client";
 import { useManagementAutosave, AutosaveStatus } from "./hooks/useManagementAutosave";
 import ElementRenderer from "./action-steeps/ElementRenderer";
 import { FunctionSelector } from "./FunctionSelector";
 import { PromptFragment } from "./helpers/prompt-fragments";
-import { getUserAppointmentUrl } from "@/actions/userClientDataActions"; // 👈 NUEVO
-// import { ManagementPromptBuilder } from "./ManagementPromptBuilder";
+import { getUserAppointmentUrl } from "@/actions/userClientDataActions";
+import { GripVertical, ChevronDown, Trash2 } from "lucide-react";
+
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+import {
+    DndContext,
+    closestCenter,
+    PointerSensor,
+    KeyboardSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    SortableContext,
+    useSortable,
+    verticalListSortingStrategy,
+    arrayMove,
+    sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import type {
     ElementItem,
@@ -27,12 +58,10 @@ import type {
 } from "@/types/agentAi";
 import { buildSectionedPrompt, transformSubtype } from "./helpers";
 
-/* type-guard genérico para funciones (Gestión puede incluir varias) */
 function isPedidoFn(el: ElementItem): el is PedidoFunctionEl {
     return el.kind === "function";
 }
 
-/* Inferir label legible del primer elemento para titular el bloque */
 function getElementLabel(el?: ElementItem): string {
     if (!el) return "";
     const anyEl = el as any;
@@ -45,13 +74,50 @@ function getElementLabel(el?: ElementItem): string {
     );
 }
 
-/* Utils locales */
 function extractTitle(txt: string) {
     const firstLine = (txt || "").split(/\r?\n/).find(Boolean) || "";
     const h1 = firstLine.replace(/^#+\s*/, "").trim();
     if (h1) return h1.slice(0, 80);
     const short = txt.replace(/\s+/g, " ").trim().slice(0, 80);
     return short || "Bloque";
+}
+
+function getStepSubtypeLabel(step: ManagementItem): string {
+    const captura = (step.elements ?? []).find(
+        (el: any) => el.kind === "function" && el.fn === "captura_datos"
+    ) as any | undefined;
+    return captura?.subtype ?? step.title ?? "GESTIÓN";
+}
+
+function SortableStepCard({
+    id,
+    children,
+}: {
+    id: string;
+    children: (args: { dragHandleProps: any; isDragging: boolean }) => React.ReactNode;
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id, data: { type: "step" } });
+
+    const style: React.CSSProperties = {
+        transform: transform ? CSS.Transform.toString({ ...transform, x: 0 }) : undefined,
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        position: "relative",
+        zIndex: isDragging ? 999 : undefined,
+    };
+
+    return (
+        <div ref={setNodeRef} style={style}>
+            {children({ dragHandleProps: { ...attributes, ...listeners }, isDragging })}
+        </div>
+    );
 }
 
 export const ManagementBuilder = ({
@@ -67,42 +133,48 @@ export const ManagementBuilder = ({
     notificationNumber,
     registerSaveHandler
 }: ManagementBuilderProps) => {
-    // cada card = un "bloque" de gestión
     const [steps, setSteps] = useState<ManagementItem[]>(
         Array.isArray(initialItems) && initialItems.length > 0
             ? (initialItems as ManagementItem[])
             : []
     );
     const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
-    const [appointmentUrl, setAppointmentUrl] = useState<string>(""); // 👈 NUEVO
+    const [appointmentUrl, setAppointmentUrl] = useState<string>("");
 
-    // Obtener la URL de agenda una sola vez
+    const [expandedSteps, setExpandedSteps] = useState<Set<string>>(
+        () => new Set((Array.isArray(initialItems) ? initialItems : []).map((s: any) => s.id))
+    );
+
+    const toggleStep = useCallback((id: string) => {
+        setExpandedSteps((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    }, []);
+
+    const collapseAll = useCallback(() => setExpandedSteps(new Set()), []);
+    const expandAll = useCallback(
+        () => setExpandedSteps(new Set(steps.map((s) => s.id))),
+        [steps]
+    );
+
     useEffect(() => {
         let cancelled = false;
-
         const fetchUrl = async () => {
             try {
                 const url = await getUserAppointmentUrl();
-                if (!cancelled) {
-                    setAppointmentUrl(url || "");
-                }
-            } catch (error) {
-                console.error("[ManagementBuilder] Error obteniendo appointmentUrl:", error);
+                if (!cancelled) setAppointmentUrl(url || "");
+            } catch {
                 if (!cancelled) setAppointmentUrl("");
             }
         };
-
         fetchUrl();
-
-        return () => {
-            cancelled = true;
-        };
+        return () => { cancelled = true; };
     }, []);
 
-    // proxy que completa título y cierra picker tras elegir acción
-    const setStepsAuto: React.Dispatch<React.SetStateAction<ManagementItem[]>> = (
-        updater
-    ) => {
+    const setStepsAuto: React.Dispatch<React.SetStateAction<ManagementItem[]>> = (updater) => {
         setSteps((prev) => {
             const next =
                 typeof updater === "function"
@@ -129,7 +201,6 @@ export const ManagementBuilder = ({
         });
     };
 
-    // Conflicto: rehidratar desde servidor
     const stableOnConflict = useCallback(
         (serverState: any) => {
             const serverSteps = serverState?.sections?.management?.steps ?? [];
@@ -139,7 +210,6 @@ export const ManagementBuilder = ({
         [onConflict]
     );
 
-    // AUTOSAVE
     const { forceSave } = useManagementAutosave({
         promptId,
         version,
@@ -154,7 +224,6 @@ export const ManagementBuilder = ({
         registerSaveHandler?.(forceSave);
     }, [registerSaveHandler, forceSave]);
 
-    // Reset visual de "Cambios guardados"
     useEffect(() => {
         if (autosaveStatus === "saved") {
             const t = setTimeout(() => setAutosaveStatus("idle"), 1500);
@@ -162,7 +231,6 @@ export const ManagementBuilder = ({
         }
     }, [autosaveStatus]);
 
-    // PREVIEW markdown
     const managementPreview = useMemo(() => {
         return buildSectionedPrompt(steps as any, {
             mode: "management",
@@ -201,8 +269,7 @@ export const ManagementBuilder = ({
                     ? generoMap[subtype] ?? { articulo: "una", label: subtype }
                     : { articulo: "una", label: "gestión" };
 
-                const objetivo =
-                    (step.mainMessage ?? "").trim() || gestion;
+                const objetivo = (step.mainMessage ?? "").trim() || gestion;
 
                 return [
                     `### GESTIÓN ${_n} — ${etiqueta.toUpperCase()}`,
@@ -218,7 +285,6 @@ export const ManagementBuilder = ({
         });
     }, [steps, appointmentUrl]);
 
-    // SYNC con parent
     useEffect(() => {
         const first = steps[0];
         if (first && onChange) {
@@ -236,21 +302,21 @@ export const ManagementBuilder = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [managementPreview, steps]);
 
-    /* Crear bloque a partir de una acción seleccionada (sin step vacío) */
     const createStepFromElement = (el: ElementItem) => {
         const element: ElementItem = { ...el, id: el.id ?? nanoid() };
         const title = (getElementLabel(element) || "Bloque").toUpperCase();
+        const newId = nanoid();
         const newStep: ManagementItem = {
-            id: nanoid(),
+            id: newId,
             title,
             mainMessage: "",
             elements: [element],
             openPicker: false,
         };
         setStepsAuto((prev) => [...prev, newStep]);
+        setExpandedSteps((prev) => new Set(Array.from(prev).concat(newId)));
     };
 
-    /* Mutadores de STEP (bloque) */
     const addFragment = (snippet: PromptFragment) =>
         setSteps((prev) => [
             ...prev,
@@ -271,11 +337,8 @@ export const ManagementBuilder = ({
     const updateMain = (id: string, v: string) =>
         setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, mainMessage: v } : s)));
 
-    /* Mutadores de ELEMENTS (por step) */
-
     const removeElement = (stepId: string, elId: string) => {
         setSteps((prev) => {
-            // 0) localizar el step y el elemento objetivo
             const step = prev.find((s) => s.id === stepId);
             if (!step) return prev;
 
@@ -285,12 +348,10 @@ export const ManagementBuilder = ({
             const isFnElement =
                 (target as any)?.kind === "function" || typeof (target as any)?.fn === "string";
 
-            // 1) si el elemento a eliminar es la fn -> eliminar tarea el step
             if (isFnElement) {
                 return prev.filter((s) => s.id !== stepId);
             }
 
-            // 2) si no es fn -> quitar solo ese elemento y, si queda vacío, eliminar el step
             const next = prev.map((s) => {
                 if (s.id !== stepId) return s;
                 const elements = (s.elements ?? []).filter((e) => e.id !== elId);
@@ -370,11 +431,7 @@ export const ManagementBuilder = ({
         );
     };
 
-    const onSubtypeChange = (
-        stepId: string,
-        elementId: string,
-        subtype: DataSubtype
-    ) => {
+    const onSubtypeChange = (stepId: string, elementId: string, subtype: DataSubtype) => {
         setSteps((prev) =>
             prev.map((s) =>
                 s.id === stepId
@@ -389,18 +446,29 @@ export const ManagementBuilder = ({
         );
     };
 
-    const handleInsertFromPicker = ({ id, label, value }: PromptFragment) => {
-        addFragment({ id, label, value });
-    };
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
+
+    const stepIds = useMemo(() => steps.map((s) => s.id), [steps]);
+
+    const handleDragEnd = useCallback((event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+        setSteps((prev) => {
+            const oldIndex = prev.findIndex((s) => s.id === active.id);
+            const newIndex = prev.findIndex((s) => s.id === over.id);
+            if (oldIndex < 0 || newIndex < 0) return prev;
+            return arrayMove(prev, oldIndex, newIndex);
+        });
+    }, []);
 
     return (
         <Card className="border-muted/60">
             <CardHeader className="pb-2 flex items-center justify-between gap-2 flex-row">
-                <CardTitle className="text-base uppercase">Gestión</CardTitle>
                 <div className="flex items-center gap-2">
-                    {/* {typeof ManagementPromptBuilder !== "undefined" && (
-                        <ManagementPromptBuilder onInsert={handleInsertFromPicker} />
-                    )} */}
+                    <CardTitle className="text-base uppercase">Gestión</CardTitle>
                     {autosaveStatus !== "idle" && (
                         <span
                             className={
@@ -419,7 +487,18 @@ export const ManagementBuilder = ({
                             {autosaveStatus === "error" && "Error al guardar"}
                         </span>
                     )}
-                    {/* ⤵️ MODO RAÍZ: sin crear bloque vacío, abre lista y al elegir crea el bloque */}
+                </div>
+
+                <div className="flex items-center gap-2">
+                    {steps.length > 1 && (
+                        <button
+                            type="button"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors rounded"
+                            onClick={expandedSteps.size === 0 ? expandAll : collapseAll}
+                        >
+                            {expandedSteps.size === 0 ? "Expandir todo" : "Colapsar todo"}
+                        </button>
+                    )}
                     {steps.length < 1 && (
                         <FunctionSelector
                             notificationNumber={notificationNumber ?? ""}
@@ -435,70 +514,184 @@ export const ManagementBuilder = ({
             <CardContent className="space-y-3">
                 {steps.length === 0 ? (
                     <div className="text-center text-sm text-muted-foreground py-8">
-                        No has agregado bloques de gestión. Usa “Agregar acción” para comenzar.
+                        No has agregado bloques de gestión. Usa &quot;Agregar acción&quot; para comenzar.
                     </div>
                 ) : (
-                    <div className="space-y-4">
-                        {steps.map((step) => (
-                            <div key={step.id} className="space-y-3">
-                                {!step.elements || step.elements.length === 0 ? (
-                                    <div className="text-center text-sm text-muted-foreground">
-                                        No hay elementos. Usa &quot;Agregar acción&quot; para comenzar.
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {step.elements.map((el) => (
-                                            <ElementRenderer
-                                                key={el.id}
-                                                stepId={step.id}
-                                                el={el as any}
-                                                flows={flows}
-                                                removeElement={removeElement}
-                                                updateText={updateText}
-                                                setFlowOnElement={setFlowOnElement}
-                                                addPedidoField={addPedidoField}
-                                                removePedidoField={removePedidoField}
-                                                onSubtypeChange={(_sid, eid, subtype) =>
-                                                    onSubtypeChange(step.id, eid, subtype)
-                                                }
-                                                isManagement={true}
-                                                onAddRule={
-                                                    el.kind === "function"
-                                                        ? () => {
-                                                              setStepsAuto((prev) =>
-                                                                  prev.map((s) =>
-                                                                      s.id === step.id
-                                                                          ? {
-                                                                                ...s,
-                                                                                elements: [
-                                                                                    ...s.elements,
-                                                                                    {
-                                                                                        id: nanoid(),
-                                                                                        kind: "text" as const,
-                                                                                        text: "",
-                                                                                    },
-                                                                                ],
-                                                                            }
-                                                                          : s
-                                                                  )
-                                                              );
-                                                          }
-                                                        : undefined
-                                                }
-                                            />
-                                        ))}
-                                    </div>
-                                )}
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext items={stepIds} strategy={verticalListSortingStrategy}>
+                            <div className="space-y-4">
+                                {steps.map((step, idx) => (
+                                    <SortableStepCard key={step.id} id={step.id}>
+                                        {({ dragHandleProps, isDragging }) => {
+                                            const isExpanded = expandedSteps.has(step.id) && !isDragging;
+                                            const subtypeLabel = getStepSubtypeLabel(step);
+                                            const elementCount = (step.elements ?? []).length;
+
+                                            return (
+                                                <Card className="bg-muted/20 border-muted/60 overflow-hidden">
+                                                    {/* Fila de cabecera siempre visible */}
+                                                    <div className="flex items-center justify-between gap-1 px-3 py-3">
+                                                        <div className="flex items-center gap-1 min-w-0 flex-1">
+                                                            {/* Drag handle */}
+                                                            <div
+                                                                className="h-8 w-6 flex items-center justify-center rounded text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing hover:text-foreground hover:bg-muted/50"
+                                                                title="Arrastrar"
+                                                                {...dragHandleProps}
+                                                            >
+                                                                <GripVertical className="h-4 w-4" />
+                                                            </div>
+
+                                                            {/* Número */}
+                                                            <span className="text-sm font-semibold shrink-0">
+                                                                Gestión {idx + 1}
+                                                            </span>
+
+                                                            {/* Subtipo / título */}
+                                                            <button
+                                                                type="button"
+                                                                className="flex-1 text-left text-sm font-medium truncate hover:text-foreground transition-colors"
+                                                                onClick={() => toggleStep(step.id)}
+                                                            >
+                                                                {subtypeLabel ? (
+                                                                    <span>{subtypeLabel.toUpperCase()}</span>
+                                                                ) : (
+                                                                    <span className="text-muted-foreground italic">Sin tipo</span>
+                                                                )}
+                                                            </button>
+
+                                                            {/* Badge colapsado */}
+                                                            {!isExpanded && elementCount > 0 && (
+                                                                <Badge variant="secondary" className="shrink-0 text-xs">
+                                                                    {elementCount} {elementCount === 1 ? "elemento" : "elementos"}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Chevron + eliminar */}
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            <button
+                                                                type="button"
+                                                                className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                                                                onClick={() => toggleStep(step.id)}
+                                                                title={isExpanded ? "Colapsar" : "Expandir"}
+                                                            >
+                                                                <ChevronDown
+                                                                    className="h-4 w-4 transition-transform duration-200"
+                                                                    style={{ transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                                                                />
+                                                            </button>
+
+                                                            <AlertDialog>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="h-9 w-9 flex items-center justify-center rounded bg-destructive text-white hover:bg-destructive/90 transition-colors shrink-0"
+                                                                        title="Eliminar gestión"
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </button>
+                                                                </AlertDialogTrigger>
+                                                                <AlertDialogContent>
+                                                                    <AlertDialogHeader>
+                                                                        <AlertDialogTitle>Eliminar gestión</AlertDialogTitle>
+                                                                        <AlertDialogDescription>
+                                                                            ¿Seguro que quieres eliminar esta gestión? Esta acción no se puede deshacer.
+                                                                        </AlertDialogDescription>
+                                                                    </AlertDialogHeader>
+                                                                    <AlertDialogFooter>
+                                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                                        <AlertDialogAction
+                                                                            className="bg-red-600 hover:bg-red-700"
+                                                                            onClick={() => removeStep(step.id)}
+                                                                        >
+                                                                            Eliminar
+                                                                        </AlertDialogAction>
+                                                                    </AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Contenido colapsable */}
+                                                    <div
+                                                        style={{
+                                                            display: "grid",
+                                                            gridTemplateRows: isExpanded ? "1fr" : "0fr",
+                                                            transition: "grid-template-rows 200ms ease",
+                                                        }}
+                                                    >
+                                                        <div className="overflow-hidden">
+                                                            <CardContent className="space-y-3 pt-0 pb-3 px-3">
+                                                                {!step.elements || step.elements.length === 0 ? (
+                                                                    <div className="text-center text-sm text-muted-foreground py-4">
+                                                                        No hay elementos.
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="space-y-3">
+                                                                        {step.elements.map((el) => (
+                                                                            <ElementRenderer
+                                                                                key={el.id}
+                                                                                stepId={step.id}
+                                                                                el={el as any}
+                                                                                flows={flows}
+                                                                                removeElement={removeElement}
+                                                                                updateText={updateText}
+                                                                                setFlowOnElement={setFlowOnElement}
+                                                                                addPedidoField={addPedidoField}
+                                                                                removePedidoField={removePedidoField}
+                                                                                onSubtypeChange={(_sid, eid, subtype) =>
+                                                                                    onSubtypeChange(step.id, eid, subtype)
+                                                                                }
+                                                                                isManagement={true}
+                                                                                onAddRule={
+                                                                                    el.kind === "function"
+                                                                                        ? () => {
+                                                                                              setStepsAuto((prev) =>
+                                                                                                  prev.map((s) =>
+                                                                                                      s.id === step.id
+                                                                                                          ? {
+                                                                                                                ...s,
+                                                                                                                elements: [
+                                                                                                                    ...s.elements,
+                                                                                                                    {
+                                                                                                                        id: nanoid(),
+                                                                                                                        kind: "text" as const,
+                                                                                                                        text: "",
+                                                                                                                    },
+                                                                                                                ],
+                                                                                                            }
+                                                                                                          : s
+                                                                                                  )
+                                                                                              );
+                                                                                          }
+                                                                                        : undefined
+                                                                                }
+                                                                            />
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </CardContent>
+                                                        </div>
+                                                    </div>
+                                                </Card>
+                                            );
+                                        }}
+                                    </SortableStepCard>
+                                ))}
                             </div>
-                        ))}
-                    </div>
+                        </SortableContext>
+                    </DndContext>
                 )}
             </CardContent>
 
             {steps.length > 0 && (
                 <CardFooter className="pb-2 flex items-center justify-between gap-2 flex-row">
                     <CardTitle className="text-base uppercase">Gestión</CardTitle>
-
                     <FunctionSelector
                         notificationNumber={notificationNumber ?? ""}
                         isManagement={true}
