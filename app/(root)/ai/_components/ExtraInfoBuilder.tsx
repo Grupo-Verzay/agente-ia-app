@@ -433,7 +433,7 @@ export function ExtraInfoBuilder({
 
                                     <CardContent className="space-y-3 px-0 pb-4">
                                         <div className="px-6 space-y-2">
-                                            <label className="text-sm font-medium">{`Descripción ${idx + 1
+                                            <label className="text-sm font-semibold">{`Descripción ${idx + 1
                                                 }`}</label>
                                             <Textarea
                                                 value={step.mainMessage ?? ""}
@@ -474,7 +474,7 @@ export function ExtraInfoBuilder({
 
                                         <div className="px-6 flex items-center justify-between flex-wrap gap-2">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-sm font-medium">
+                                                <span className="text-sm font-semibold">
                                                     Elementos del extra adicional
                                                 </span>
                                                 <Badge variant="secondary">{idx + 1}</Badge>
