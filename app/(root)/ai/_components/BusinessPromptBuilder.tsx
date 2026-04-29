@@ -121,7 +121,7 @@ export const BusinessPromptBuilder = ({
         <div className="gap-2 flex flex-col">
             <Card className="border-muted/60">
                 <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Información del Negocio</CardTitle>
+                    <CardTitle className="text-base uppercase">Información del Negocio</CardTitle>
 
                     {/* Indicador de autosave */}
                     {autosaveStatus !== "idle" && (
