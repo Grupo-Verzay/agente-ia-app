@@ -315,8 +315,7 @@ export const ProductBuilder = ({
 
                                 <CardContent className="space-y-3 px-0 pb-4">
                                     <div className="px-6 space-y-2">
-                                        <label className="text-sm font-semibold">{`Descripción ${idx + 1
-                                            }`}</label>
+                                        <label className="text-sm font-semibold">{`Objetivo/respuesta principal del producto ${idx + 1}`}</label>
                                         <Textarea
                                             value={step.mainMessage ?? ""}
                                             onChange={(e) =>

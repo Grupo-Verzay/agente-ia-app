@@ -622,7 +622,7 @@ export function TrainingBuilder({
                                 <CardContent className="space-y-3 pt-0 pb-3 px-0">
                                   <div className="pl-10 pr-3 space-y-2">
                                     <label className="text-sm font-semibold">
-                                      {`Objetivo principal del paso ${idx + 1}`}
+                                      {`Objetivo/respuesta principal del paso ${idx + 1}`}
                                     </label>
                                     <Textarea
                                       value={step.mainMessage}

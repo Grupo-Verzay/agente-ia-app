@@ -337,8 +337,7 @@ export function FqaBuilder({
 
                                     <CardContent className="space-y-3 px-0 pb-4">
                                         <div className="px-6 space-y-2">
-                                            <label className="text-sm font-semibold">{`Respuesta ${idx + 1
-                                                }`}</label>
+                                            <label className="text-sm font-semibold">{`Objetivo/respuesta principal de la pregunta ${idx + 1}`}</label>
                                             <Textarea
                                                 value={step.mainMessage ?? ""}
                                                 onChange={(e) =>
