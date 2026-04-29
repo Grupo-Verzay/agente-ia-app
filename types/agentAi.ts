@@ -11,6 +11,7 @@ export type DataSubtype = (typeof SUBTYPE_OPTIONS)[number];
 export type CapturaDatosCardProps = PropsDataCapture & {
     /** Opcional: si lo pasas, actualiza el subtipo en el padre */
     onSubtypeChange: (subtype: DataSubtype) => void;
+    onAddRule?: () => void;
 };
 
 /* =========================

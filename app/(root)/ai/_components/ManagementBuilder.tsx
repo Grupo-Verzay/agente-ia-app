@@ -439,66 +439,57 @@ export const ManagementBuilder = ({
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        {steps.map((step, idx) => (
-                            <Card key={step.id} className="bg-muted/10 border-muted/60">
-                                <CardContent className="space-y-3">
-                                    {/* Objetivo / Mensaje principal */}
-                                    {/* <div className="space-y-2">
-                                        <label className="text-sm font-medium">{`Descripción ${idx + 1}`}</label>
-                                        <Textarea
-                                            value={step.mainMessage ?? ""}
-                                            onChange={(e) => updateMain(step.id, e.target.value)}
-                                            className="min-h-[32px]"
-                                        />
+                        {steps.map((step) => (
+                            <div key={step.id} className="space-y-3">
+                                {!step.elements || step.elements.length === 0 ? (
+                                    <div className="text-center text-sm text-muted-foreground">
+                                        No hay elementos. Usa "Agregar acción" para comenzar.
                                     </div>
-
-                                    <Separator /> */}
-
-                                    {/* Lista de elementos */}
-                                    <div className="rounded-lg border border-dashed border-muted/60 p-1">
-                                        {!step.elements || step.elements.length === 0 ? (
-                                            <div className="text-center text-sm text-muted-foreground">
-                                                No hay elementos. Agrega funciones o textos con los botones de arriba.
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-3">
-                                                {step.elements.map((el) => (
-                                                    <ElementRenderer
-                                                        key={el.id}
-                                                        stepId={step.id}
-                                                        el={el as any}
-                                                        flows={flows}
-                                                        removeElement={removeElement}
-                                                        updateText={updateText}
-                                                        setFlowOnElement={setFlowOnElement}
-                                                        addPedidoField={addPedidoField}
-                                                        removePedidoField={removePedidoField}
-                                                        onSubtypeChange={(_sid, eid, subtype) =>
-                                                            onSubtypeChange(step.id, eid, subtype)
-                                                        }
-                                                    />
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Header elementos */}
-                                    <div className="flex items-center justify-end flex-wrap gap-2">
-                                        <div className="flex gap-2">
-                                            <FunctionSelector
-                                                step={step as any}
-                                                setSteps={setStepsAuto as any}
-                                                notificationNumber={notificationNumber ?? ""}
+                                ) : (
+                                    <div className="space-y-3">
+                                        {step.elements.map((el) => (
+                                            <ElementRenderer
+                                                key={el.id}
+                                                stepId={step.id}
+                                                el={el as any}
+                                                flows={flows}
+                                                removeElement={removeElement}
+                                                updateText={updateText}
+                                                setFlowOnElement={setFlowOnElement}
+                                                addPedidoField={addPedidoField}
+                                                removePedidoField={removePedidoField}
+                                                onSubtypeChange={(_sid, eid, subtype) =>
+                                                    onSubtypeChange(step.id, eid, subtype)
+                                                }
                                                 isManagement={true}
-                                                showRule={true}
-                                                showAction={false}
+                                                onAddRule={
+                                                    el.kind === "function"
+                                                        ? () => {
+                                                              setStepsAuto((prev) =>
+                                                                  prev.map((s) =>
+                                                                      s.id === step.id
+                                                                          ? {
+                                                                                ...s,
+                                                                                elements: [
+                                                                                    ...s.elements,
+                                                                                    {
+                                                                                        id: nanoid(),
+                                                                                        kind: "text" as const,
+                                                                                        text: "",
+                                                                                    },
+                                                                                ],
+                                                                            }
+                                                                          : s
+                                                                  )
+                                                              );
+                                                          }
+                                                        : undefined
+                                                }
                                             />
-                                        </div>
+                                        ))}
                                     </div>
-
-
-                                </CardContent>
-                            </Card>
+                                )}
+                            </div>
                         ))}
                     </div>
                 )}

@@ -17,9 +17,7 @@ export const TextRuleCard: FC<PropsTextRule> = ({ el, onRemove, onChange, isMana
                     REGLA/PARÁMETRO
                 </CardTitle>
                 <Button variant="secondary" size="icon" onClick={onRemove} className="bg-gray-400 hover:bg-gray-500 text-white dark:bg-zinc-600 dark:hover:bg-zinc-500">
-                    {!isManagement &&
-                        <Trash2 className="h-4 w-4" />
-                    }
+                    <Trash2 className="h-4 w-4" />
                 </Button>
             </CardHeader>
             <CardContent>

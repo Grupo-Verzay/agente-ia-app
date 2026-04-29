@@ -23,7 +23,8 @@ export const CapturaDatosCard: FC<CapturaDatosCardProps> = ({
     onAddField,
     onRemoveField,
     onSubtypeChange,
-    isManagement
+    isManagement,
+    onAddRule,
 }) => {
     // Estado local para manejar el subtipo
     const [localSubtype, setLocalSubtype] = useState<DataSubtype>(el.subtype as DataSubtype);
@@ -84,6 +85,13 @@ export const CapturaDatosCard: FC<CapturaDatosCardProps> = ({
                         onAdd={onAddField}
                         onRemove={onRemoveField}
                     />
+                    {onAddRule && (
+                        <div className="flex justify-end mt-2">
+                            <Button type="button" variant="outline" onClick={onAddRule}>
+                                Agregar regla
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </CardContent>
         </Card>

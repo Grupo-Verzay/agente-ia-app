@@ -12,7 +12,7 @@ import {
     ConsultaDatosCard,
 } from "./";
 
-const ElementRenderer: FC<PropsActionSteeps> = ({
+const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     stepId,
     el,
     flows,
@@ -22,7 +22,8 @@ const ElementRenderer: FC<PropsActionSteeps> = ({
     addPedidoField,
     removePedidoField,
     onSubtypeChange,
-    isManagement
+    isManagement,
+    onAddRule,
 }) => {
     if (el.kind === "text") {
         return (
@@ -42,8 +43,9 @@ const ElementRenderer: FC<PropsActionSteeps> = ({
                 onRemove={() => removeElement(stepId, el.id)}
                 onAddField={(f) => addPedidoField(stepId, el.id, f)}
                 onRemoveField={(f) => removePedidoField(stepId, el.id, f)}
-                onSubtypeChange={(subtype: DataSubtype) => onSubtypeChange(stepId, el.id, subtype)} // Pasando stepId
+                onSubtypeChange={(subtype: DataSubtype) => onSubtypeChange(stepId, el.id, subtype)}
                 isManagement={isManagement}
+                onAddRule={onAddRule}
             />
         );
     }
