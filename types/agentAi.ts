@@ -895,8 +895,8 @@ export type PromptBuildConfig = {
     sectionLabel: (n: number, step: AnyStep) => string;
     /** Texto del bloque de elementos (recibe índice base 1) */
     elementsLabel: (n: number, step: AnyStep) => string;
-    /** Etiqueta del mensaje principal */
-    mainMessageLabel: string;
+    /** Etiqueta del mensaje principal (string estático o función que recibe índice base 1) */
+    mainMessageLabel: string | ((n: number) => string);
     /** Texto para la explicación de ejecutar_flujo */
     flowBehaviorText?: string;
     /** Separador entre bloques finales */

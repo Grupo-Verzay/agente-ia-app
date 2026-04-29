@@ -103,7 +103,7 @@ export function FqaBuilder({
                 "Aún no has agregado Preguntas. Usa “Agregar Pregunta” para comenzar.",
             sectionLabel: (n, step) => `### PREGUNTA ${n} — ${(step.title || "Sin título").toUpperCase()}`,
             elementsLabel: (n) => `#### ELEMENTOS DE LA PREGUNTA: ${n}`,
-            mainMessageLabel: "OBJETIVO/RESPUESTA PRINCIPAL DE LA PREGUNTA:",
+            mainMessageLabel: (n) => `OBJETIVO/RESPUESTA PRINCIPAL DE LA PREGUNTA ${n}:`,
             joinSeparator: "\n",
         });
     }, [items]);

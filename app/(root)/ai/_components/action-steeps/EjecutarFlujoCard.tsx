@@ -18,7 +18,7 @@ export const EjecutarFlujoCard: FC<PropsExecuteFlow> = ({ el, flows, onRemove, o
         <Card className="bg-muted/20 border-muted/60">
             <CardHeader className="py-3 flex-row items-center justify-between">
                 <CardTitle className="text-md uppercase">Ejecutar flujo</CardTitle>
-                <Button variant="destructive" size="icon" onClick={onRemove}>
+                <Button variant="secondary" size="icon" onClick={onRemove} className="bg-gray-400 hover:bg-gray-500 text-white dark:bg-zinc-600 dark:hover:bg-zinc-500">
                     {!isManagement &&
                         <Trash2 className="h-4 w-4" />
                     }

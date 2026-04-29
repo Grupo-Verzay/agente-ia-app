@@ -278,7 +278,12 @@ export function buildSectionedPrompt(items: AnyStep[], cfg: PromptBuildConfig): 
             const newSubtype = transformSubtype(captura?.subtype ?? "") ?? "gestión";
             blocks.push(`${getGestionWhenText(newSubtype)}\n`);
         } else {
-            if (main) blocks.push(`* **${cfg.mainMessageLabel}** \n${main}\n`);
+            if (main) {
+                const label = typeof cfg.mainMessageLabel === "function"
+                    ? cfg.mainMessageLabel(n)
+                    : cfg.mainMessageLabel;
+                blocks.push(`* **${label}**\n${main}\n`);
+            }
         }
 
         // Elementos

@@ -227,7 +227,7 @@ export function TrainingBuilder({
         "Aún no has agregado pasos de entrenamiento. Usa “Agregar paso” para comenzar.",
       sectionLabel: (n, step) => `### PASO ${n} — ${(step.title || "Sin título").toUpperCase()}`,
       elementsLabel: (n) => `#### ELEMENTOS DEL PASO: ${n}`,
-      mainMessageLabel: "OBJETIVO/RESPUESTA PRINCIPAL DEL PASO:",
+      mainMessageLabel: (n) => `OBJETIVO/RESPUESTA PRINCIPAL DEL PASO ${n}:`,
       joinSeparator: "\n",
     });
   }, [steps]);
