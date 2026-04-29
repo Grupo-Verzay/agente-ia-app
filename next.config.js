@@ -14,6 +14,14 @@ const nextConfig = {
         protocol: "https",
         hostname: "medias3.verzay.co",
       },
+      {
+        protocol: "https",
+        hostname: "flagcdn.com",
+      },
+      {
+        protocol: "https",
+        hostname: "upload.wikimedia.org",
+      },
     ],
   },
 
