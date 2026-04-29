@@ -1040,7 +1040,7 @@ export async function updateSessionLeadStatus(
   try {
     const session = await db.session.findUnique({
       where: { id: sessionId },
-      select: { userId: true },
+      select: { userId: true, remoteJid: true, agentDisabled: true, leadStatus: true },
     });
     if (!session?.userId) {
       return { success: false, message: 'Sesion no encontrada.' };
@@ -1048,14 +1048,40 @@ export async function updateSessionLeadStatus(
 
     await assertUserCanUseApp(session.userId);
 
+    const isDescartado = leadStatus === 'DESCARTADO';
+    const wasDescartado = session.leadStatus === 'DESCARTADO';
+
+    // Actualizar sesión: si pasa a DESCARTADO → deshabilitar agente; si sale de DESCARTADO → reactivar agente
     await db.session.update({
       where: { id: sessionId },
       data: {
         leadStatus: leadStatus ?? null,
         leadStatusSourceHash: null,
         leadStatusUpdatedAt: new Date(),
+        ...(isDescartado && { agentDisabled: true }),
+        ...(wasDescartado && !isDescartado && { agentDisabled: false }),
       },
     });
+
+    // Si se marca como DESCARTADO manualmente → cancelar todos los seguimientos pendientes
+    if (isDescartado) {
+      await db.crmFollowUp.updateMany({
+        where: { sessionId, status: 'PENDING' },
+        data: { status: 'CANCELLED', cancelledAt: new Date() },
+      });
+
+      if (session.remoteJid) {
+        await db.seguimiento.updateMany({
+          where: { remoteJid: session.remoteJid, followUpStatus: 'pending' },
+          data: { followUpStatus: 'cancelled' },
+        });
+      }
+
+      await db.sessionWorkflowState.updateMany({
+        where: { sessionId, intentionStatus: 'waiting' },
+        data: { intentionStatus: 'cancelled', currentNodeId: null },
+      });
+    }
 
     return { success: true, message: 'Estado del lead actualizado correctamente' };
   } catch (error) {
