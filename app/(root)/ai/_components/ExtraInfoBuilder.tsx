@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Trash2, Plus, PenSquare, X } from "lucide-react";
+import { Trash2, Plus, PenSquare, GripVertical, ChevronDown } from "lucide-react";
 
 import { useExtrasAutosave, AutosaveStatus } from "./hooks/useExtrasAutosave"; // 👈 actualizado
 import { FunctionSelector } from "./FunctionSelector";
@@ -36,6 +36,49 @@ import type {
 } from "@/types/agentAi";
 import type { Workflow } from "@prisma/client";
 import { buildSectionedPrompt } from "./helpers";
+
+import {
+    DndContext,
+    closestCenter,
+    PointerSensor,
+    KeyboardSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    SortableContext,
+    useSortable,
+    verticalListSortingStrategy,
+    arrayMove,
+    sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+function SortableItemCard({
+    id,
+    children,
+}: {
+    id: string;
+    children: (args: { dragHandleProps: any; isDragging: boolean }) => React.ReactNode;
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id,
+        data: { type: "item" },
+    });
+    const style: React.CSSProperties = {
+        transform: transform ? CSS.Transform.toString({ ...transform, x: 0 }) : undefined,
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        position: "relative",
+        zIndex: isDragging ? 999 : undefined,
+    };
+    return (
+        <div ref={setNodeRef} style={style}>
+            {children({ dragHandleProps: { ...attributes, ...listeners }, isDragging })}
+        </div>
+    );
+}
 
 /* ========= Firma por defecto ========= */
 const PROMPT_SIGNATURE_DEFAULT =
@@ -98,8 +141,23 @@ export function ExtraInfoBuilder({
         [signatureName]
     );
 
-    // 🔹 Estado de autosave
     const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
+
+    const [expandedItems, setExpandedItems] = useState<Set<string>>(
+        () => new Set((initialExtras?.items ?? []).map((s: any) => s.id))
+    );
+
+    const toggleItem = useCallback((id: string) => {
+        setExpandedItems((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    }, []);
+
+    const collapseAll = useCallback(() => setExpandedItems(new Set()), []);
+    const expandAll = useCallback(() => setExpandedItems(new Set(items.map((s) => s.id))), [items]);
 
     /* ====== AUTOSAVE (sections.extras.steps + firma*) ====== */
     const stableOnConflict = useCallback(
@@ -176,11 +234,32 @@ export function ExtraInfoBuilder({
     }, [prompt, items, firmaEnabled, firmaText, signatureName]);
 
     /* ====== Mutadores de ITEM (paso extra) ====== */
-    const addItem = () =>
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
+
+    const itemIds = useMemo(() => items.map((s) => s.id), [items]);
+
+    const handleDragEnd = useCallback((event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+        setItems((prev) => {
+            const oldIndex = prev.findIndex((s) => s.id === active.id);
+            const newIndex = prev.findIndex((s) => s.id === over.id);
+            if (oldIndex < 0 || newIndex < 0) return prev;
+            return arrayMove(prev, oldIndex, newIndex);
+        });
+    }, []);
+
+    const addItem = () => {
+        const newId = nanoid();
         setItems((p) => [
             ...p,
-            { id: nanoid(), title: "", mainMessage: "", elements: [], openPicker: true },
+            { id: newId, title: "", mainMessage: "", elements: [], openPicker: true },
         ]);
+        setExpandedItems((prev) => new Set(Array.from(prev).concat(newId)));
+    };
 
     const removeItem = (id: string) =>
         setItems((p) => p.filter((x) => x.id !== id));
@@ -306,8 +385,6 @@ export function ExtraInfoBuilder({
             <CardHeader className="pb-2 flex items-center justify-between gap-2 flex-row">
                 <div className="flex items-center gap-2">
                     <CardTitle className="text-base uppercase">Extras</CardTitle>
-
-                    {/* 🔹 Indicador autosave */}
                     {autosaveStatus !== "idle" && (
                         <span
                             className={
@@ -327,6 +404,15 @@ export function ExtraInfoBuilder({
                         </span>
                     )}
                 </div>
+                {items.length > 1 && (
+                    <button
+                        type="button"
+                        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors rounded"
+                        onClick={expandedItems.size === 0 ? expandAll : collapseAll}
+                    >
+                        {expandedItems.size === 0 ? "Expandir todo" : "Colapsar todo"}
+                    </button>
+                )}
             </CardHeader>
 
             <>
@@ -382,114 +468,156 @@ export function ExtraInfoBuilder({
                             No has creado ningún extra. Crea tu primer extra con Agregar extra.
                         </div>
                     ) : (
-                        <div className="space-y-4">
-                            {items.map((step, idx) => (
-                                <Card key={step.id} className="bg-muted/20 border-muted/60">
-                                    <CardHeader className="py-3 flex-row items-center justify-between">
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            <CardTitle className="text-sm font-semibold shrink-0">{`Extra ${idx + 1}`}</CardTitle>
-                                            <Input
-                                                id={step.id}
-                                                value={step.title ?? ""}
-                                                onChange={(e) =>
-                                                    updateTitle(step.id, e.target.value)
-                                                }
-                                                className="h-8 w-1/2"
-                                                placeholder="Título del extra"
-                                            />
-                                        </div>
+                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                            <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+                                <div className="space-y-4">
+                                    {items.map((step, idx) => (
+                                        <SortableItemCard key={step.id} id={step.id}>
+                                            {({ dragHandleProps, isDragging }) => {
+                                                const isExpanded = expandedItems.has(step.id) && !isDragging;
+                                                const elementCount = (step.elements ?? []).length;
 
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="destructive" size="icon">
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </AlertDialogTrigger>
+                                                return (
+                                                    <Card className="bg-muted/20 border-muted/60 overflow-hidden">
+                                                        <div className="flex items-center justify-between gap-1 px-3 py-3">
+                                                            <div className="flex items-center gap-1 min-w-0 flex-1">
+                                                                <div
+                                                                    className="h-8 w-6 flex items-center justify-center rounded text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing hover:text-foreground hover:bg-muted/50"
+                                                                    title="Arrastrar"
+                                                                    {...dragHandleProps}
+                                                                >
+                                                                    <GripVertical className="h-4 w-4" />
+                                                                </div>
+                                                                <span className="text-sm font-semibold shrink-0">
+                                                                    Extra {idx + 1}
+                                                                </span>
+                                                                {isExpanded ? (
+                                                                    <Input
+                                                                        value={step.title ?? ""}
+                                                                        onChange={(e) => updateTitle(step.id, e.target.value)}
+                                                                        className="h-7 text-sm w-1/2"
+                                                                        placeholder="Título del extra"
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                    />
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        className="flex-1 text-left text-sm font-medium truncate hover:text-foreground transition-colors"
+                                                                        onClick={() => toggleItem(step.id)}
+                                                                    >
+                                                                        {step.title || <span className="text-muted-foreground italic">Sin título</span>}
+                                                                    </button>
+                                                                )}
+                                                                {!isExpanded && elementCount > 0 && (
+                                                                    <Badge variant="secondary" className="shrink-0 text-xs">
+                                                                        {elementCount} {elementCount === 1 ? "elemento" : "elementos"}
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-1 shrink-0">
+                                                                <button
+                                                                    type="button"
+                                                                    className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                                                                    onClick={() => toggleItem(step.id)}
+                                                                    title={isExpanded ? "Colapsar" : "Expandir"}
+                                                                >
+                                                                    <ChevronDown
+                                                                        className="h-4 w-4 transition-transform duration-200"
+                                                                        style={{ transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                                                                    />
+                                                                </button>
+                                                                <AlertDialog>
+                                                                    <AlertDialogTrigger asChild>
+                                                                        <button
+                                                                            type="button"
+                                                                            className="h-9 w-9 flex items-center justify-center rounded bg-destructive text-white hover:bg-destructive/90 transition-colors shrink-0"
+                                                                            title="Eliminar extra"
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </button>
+                                                                    </AlertDialogTrigger>
+                                                                    <AlertDialogContent>
+                                                                        <AlertDialogHeader>
+                                                                            <AlertDialogTitle>Eliminar extra</AlertDialogTitle>
+                                                                            <AlertDialogDescription>
+                                                                                ¿Seguro que quieres eliminar esta información? Esta acción no se puede deshacer.
+                                                                            </AlertDialogDescription>
+                                                                        </AlertDialogHeader>
+                                                                        <AlertDialogFooter>
+                                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                                            <AlertDialogAction
+                                                                                className="bg-red-600 hover:bg-red-700"
+                                                                                onClick={() => removeItem(step.id)}
+                                                                            >
+                                                                                Eliminar
+                                                                            </AlertDialogAction>
+                                                                        </AlertDialogFooter>
+                                                                    </AlertDialogContent>
+                                                                </AlertDialog>
+                                                            </div>
+                                                        </div>
 
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>
-                                                        Eliminar extra
-                                                    </AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        ¿Seguro que quieres eliminar esta
-                                                        información?
-                                                        Esta acción no se puede deshacer.
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                    <AlertDialogAction
-                                                        className="bg-red-600 hover:bg-red-700"
-                                                        onClick={() => removeItem(step.id)}
-                                                    >
-                                                        Eliminar
-                                                    </AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                    </CardHeader>
-
-                                    <CardContent className="space-y-3 px-0 pb-4">
-                                        <div className="px-6 space-y-2">
-                                            <label className="text-sm font-semibold">{`Objetivo/respuesta principal del extra ${idx + 1}`}</label>
-                                            <Textarea
-                                                value={step.mainMessage ?? ""}
-                                                onChange={(e) =>
-                                                    updateMain(step.id, e.target.value)
-                                                }
-                                                className="min-h-[32px]"
-                                            />
-                                        </div>
-
-                                        <Separator />
-
-                                        <div className="space-y-2">
-                                            {!step.elements || step.elements.length === 0 ? (
-                                                <div className="px-6 text-center text-sm text-muted-foreground">
-                                                    No hay elementos. Agrega funciones o textos con
-                                                    los botones de arriba.
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-2">
-                                                    {step.elements.map((el) => (
-                                                        <ElementRenderer
-                                                            key={el.id}
-                                                            stepId={step.id}
-                                                            el={el as any}
-                                                            flows={flows}
-                                                            removeElement={removeElement}
-                                                            updateText={updateText}
-                                                            setFlowOnElement={setFlowOnElement}
-                                                            addPedidoField={addPedidoField}
-                                                            removePedidoField={removePedidoField}
-                                                            onSubtypeChange={onSubtypeChange}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="px-6 flex items-center justify-between flex-wrap gap-2">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-semibold">
-                                                    Elementos del extra adicional
-                                                </span>
-                                                <Badge variant="secondary">{idx + 1}</Badge>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <FunctionSelector
-                                                    step={step as any}
-                                                    setSteps={setItems as any}
-                                                    notificationNumber={notificationNumber ?? ""}
-                                                />
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
+                                                        <div
+                                                            style={{
+                                                                display: "grid",
+                                                                gridTemplateRows: isExpanded ? "1fr" : "0fr",
+                                                                transition: "grid-template-rows 200ms ease",
+                                                            }}
+                                                        >
+                                                            <div className="overflow-hidden">
+                                                                <CardContent className="space-y-3 px-0 pb-4 pt-0">
+                                                                    <div className="px-6 space-y-2">
+                                                                        <label className="text-sm font-semibold">{`Objetivo/respuesta principal del extra ${idx + 1}`}</label>
+                                                                        <Textarea
+                                                                            value={step.mainMessage ?? ""}
+                                                                            onChange={(e) => updateMain(step.id, e.target.value)}
+                                                                            className="min-h-[32px]"
+                                                                        />
+                                                                    </div>
+                                                                    <Separator />
+                                                                    <div className="space-y-2">
+                                                                        {!step.elements || step.elements.length === 0 ? (
+                                                                            <div className="px-6 text-center text-sm text-muted-foreground">
+                                                                                No hay elementos.
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="space-y-2">
+                                                                                {step.elements.map((el) => (
+                                                                                    <ElementRenderer
+                                                                                        key={el.id}
+                                                                                        stepId={step.id}
+                                                                                        el={el as any}
+                                                                                        flows={flows}
+                                                                                        removeElement={removeElement}
+                                                                                        updateText={updateText}
+                                                                                        setFlowOnElement={setFlowOnElement}
+                                                                                        addPedidoField={addPedidoField}
+                                                                                        removePedidoField={removePedidoField}
+                                                                                        onSubtypeChange={onSubtypeChange}
+                                                                                    />
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="px-6 flex items-center justify-end flex-wrap gap-2">
+                                                                        <FunctionSelector
+                                                                            step={step as any}
+                                                                            setSteps={setItems as any}
+                                                                            notificationNumber={notificationNumber ?? ""}
+                                                                        />
+                                                                    </div>
+                                                                </CardContent>
+                                                            </div>
+                                                        </div>
+                                                    </Card>
+                                                );
+                                            }}
+                                        </SortableItemCard>
+                                    ))}
+                                </div>
+                            </SortableContext>
+                        </DndContext>
                     )}
                 </CardContent>
             </>
