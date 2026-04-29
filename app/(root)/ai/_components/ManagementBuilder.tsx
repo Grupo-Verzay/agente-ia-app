@@ -443,7 +443,7 @@ export const ManagementBuilder = ({
                             <div key={step.id} className="space-y-3">
                                 {!step.elements || step.elements.length === 0 ? (
                                     <div className="text-center text-sm text-muted-foreground">
-                                        No hay elementos. Usa "Agregar acción" para comenzar.
+                                        No hay elementos. Usa &quot;Agregar acción&quot; para comenzar.
                                     </div>
                                 ) : (
                                     <div className="space-y-3">
