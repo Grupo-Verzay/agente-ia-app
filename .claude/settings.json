@@ -51,7 +51,8 @@
     "additionalDirectories": [
       "C:\\Users\\home\\.claude",
       "e:\\EMANUEL-DEV\\Verzay\\VERZAY\\backend-api\\api-webhook\\src\\modules\\webhook\\services\\orchestator",
-      "e:\\EMANUEL-DEV\\Verzay\\VERZAY\\backend-api\\api-webhook"
+      "e:\\EMANUEL-DEV\\Verzay\\VERZAY\\backend-api\\api-webhook",
+      "c:\\Proyectos\\Agente IA\\api-webhook\\src\\modules\\lead-funnel\\services"
     ]
   }
 }
