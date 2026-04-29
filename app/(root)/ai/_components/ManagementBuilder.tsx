@@ -205,14 +205,14 @@ export const ManagementBuilder = ({
                     (step.mainMessage ?? "").trim() || gestion;
 
                 return [
-                    `### Gestión ${_n} — ${etiqueta}`,
+                    `### GESTIÓN ${_n} — ${etiqueta.toUpperCase()}`,
                     `* **Objetivo principal de la gestión:** ${_n}`,
                     `Cuando un usuario desee realizar ${info.articulo} **${info.label}**\n`,
                 ].join("\n");
             },
 
-            elementsLabel: (_n) => `#### Elementos de la gestión ${_n}`,
-            mainMessageLabel: "Objetivo/respuesta principal de la gestión:",
+            elementsLabel: (_n) => `#### ELEMENTOS DE LA GESTIÓN ${_n}`,
+            mainMessageLabel: "OBJETIVO/RESPUESTA PRINCIPAL DE LA GESTIÓN:",
             joinSeparator: "\n",
             appointmentUrl,
         });

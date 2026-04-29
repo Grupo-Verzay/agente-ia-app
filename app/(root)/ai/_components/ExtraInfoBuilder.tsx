@@ -147,9 +147,9 @@ export function ExtraInfoBuilder({
         return buildSectionedPrompt(items as any, {
             emptyMessage:
                 "Aún no has agregado información extra. Usa Agregar extra para comenzar.",
-            sectionLabel: (n, step) => `### Extra ${n} — ${step.title || "Sin título"}`,
-            elementsLabel: (n) => `#### Elementos del extra: ${n}`,
-            mainMessageLabel: "Objetivo/respuesta principal del extra:",
+            sectionLabel: (n, step) => `### EXTRA ${n} — ${(step.title || "Sin título").toUpperCase()}`,
+            elementsLabel: (n) => `#### ELEMENTOS DEL EXTRA: ${n}`,
+            mainMessageLabel: "OBJETIVO/RESPUESTA PRINCIPAL DEL EXTRA:",
             joinSeparator: "\n",
             firma: { enabled: !!firmaEnabled, text: String(firmaText || "") },
         });

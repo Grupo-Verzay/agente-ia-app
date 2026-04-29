@@ -100,9 +100,9 @@ export const ProductBuilder = ({
     const prompt = useMemo(() => {
         return buildSectionedPrompt(items as any, {
             emptyMessage: "Aún no has agregado productos. Usa “Agregar producto” para comenzar.",
-            sectionLabel: (n, step) => `### Producto ${n} — ${step.title || "Sin título"}`,
-            elementsLabel: (n) => `#### Elementos del producto: ${n}`,
-            mainMessageLabel: "Objetivo/respuesta principal del producto:",
+            sectionLabel: (n, step) => `### PRODUCTO ${n} — ${(step.title || "Sin título").toUpperCase()}`,
+            elementsLabel: (n) => `#### ELEMENTOS DEL PRODUCTO: ${n}`,
+            mainMessageLabel: "OBJETIVO/RESPUESTA PRINCIPAL DEL PRODUCTO:",
             joinSeparator: "\n",
         });
     }, [items]);

@@ -225,9 +225,9 @@ export function TrainingBuilder({
     return buildSectionedPrompt(steps as any, {
       emptyMessage:
         "Aún no has agregado pasos de entrenamiento. Usa “Agregar paso” para comenzar.",
-      sectionLabel: (n, step) => `### Paso ${n} — ${step.title || "Sin título"}`,
-      elementsLabel: (n) => `#### Elementos del paso: ${n}`,
-      mainMessageLabel: "Objetivo/respuesta principal del paso:",
+      sectionLabel: (n, step) => `### PASO ${n} — ${(step.title || "Sin título").toUpperCase()}`,
+      elementsLabel: (n) => `#### ELEMENTOS DEL PASO: ${n}`,
+      mainMessageLabel: "OBJETIVO/RESPUESTA PRINCIPAL DEL PASO:",
       joinSeparator: "\n",
     });
   }, [steps]);

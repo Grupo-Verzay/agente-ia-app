@@ -101,9 +101,9 @@ export function FqaBuilder({
         return buildSectionedPrompt(items as any, {
             emptyMessage:
                 "Aún no has agregado Preguntas. Usa “Agregar Pregunta” para comenzar.",
-            sectionLabel: (n, step) => `### Pregunta ${n} — ${step.title || "Sin título"}`,
-            elementsLabel: (n) => `#### Elementos de la pregunta: ${n}`,
-            mainMessageLabel: "Objetivo/respuesta principal de la pregunta:",
+            sectionLabel: (n, step) => `### PREGUNTA ${n} — ${(step.title || "Sin título").toUpperCase()}`,
+            elementsLabel: (n) => `#### ELEMENTOS DE LA PREGUNTA: ${n}`,
+            mainMessageLabel: "OBJETIVO/RESPUESTA PRINCIPAL DE LA PREGUNTA:",
             joinSeparator: "\n",
         });
     }, [items]);

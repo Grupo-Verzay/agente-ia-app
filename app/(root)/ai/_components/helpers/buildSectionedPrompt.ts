@@ -96,14 +96,14 @@ function formatElement(el: AnyEl, k: number, flowBehaviorText: string, cfg: Prom
 
                         out.push(
                             [
-                                `#### Elementos de la gestión ${gestionName}`,
+                                `#### ELEMENTOS DE LA GESTIÓN ${gestionName}`,
                                 `**(${k}) Toma de cita**`,
                                 `- (${k}) 🗓 Puedes agendar tu cita en nuestro calendario.\n`,
                                 `👉 ${url}\n`,
-                                `* **Comportamiento obligatorio:** Tras enviar el link de la agenda, responde **únicamente** lo indicado en **Regla/parámetro**.`,
+                                `* **Comportamiento obligatorio:** Tras enviar el link de la agenda, responde **únicamente** lo indicado en **REGLA/PARÁMETRO**.`,
                                 ` Si **no hay una orden clara**, adapta una **respuesta contextual** para guiar al usuario al siguiente paso lógico de la conversación. **No añadas texto innecesario.**`,
                                 ``,
-                                ruleParam ? `- (${k}) **Regla/parámetro:** ${ruleParam}` : "",
+                                ruleParam ? `- (${k}) **REGLA/PARÁMETRO:** ${ruleParam}` : "",
                             ]
                                 .filter(Boolean)
                                 .join("\n")
@@ -145,7 +145,7 @@ function formatElement(el: AnyEl, k: number, flowBehaviorText: string, cfg: Prom
 
                     out.push(
                         [
-                            `#### Elementos de la gestión ${gestionName}`,
+                            `#### ELEMENTOS DE LA GESTIÓN ${gestionName}`,
                             `**(${k}) Toma de ${info.label}**`,
                             `- (${k}) Para procesar tu *${info.label}*, ${el.prompt ?? "por favor indicame los siguientes datos."}`,
                             `${datosBlock}`,
@@ -156,23 +156,23 @@ function formatElement(el: AnyEl, k: number, flowBehaviorText: string, cfg: Prom
                             `* **Comportamiento obligatorio:** Pasos de recolección y almacenamiento de datos`,
                             `Todos los datos del usuario deben ser **guardados en tu Memoria o Sistema** en tiempo real para no volver a pedirlos más adelante.`,
                             ``,
-                            `#### Paso 1: Plantilla de registro, actualización y confirmacion de datos completos.`,
+                            `#### PASO 1: Plantilla de registro, actualización y confirmacion de datos completos.`,
                             `* *Datos*: [Todos los datos suministrados por el usuario]`,
                             ``,
                             `¿Esta correcto para *tomar tu ${info.label}?*`,
                             ``,
-                            `#### Paso 2: Registro cuando tengas los datos completos.`,
+                            `#### PASO 2: Registro cuando tengas los datos completos.`,
                             `* **Campos a registrar (comunes):** en \`DETALLES\` *(string, una sola línea)* → **resumen unificado** con todos los datos recolectados del usuario *(nombre, documento, descripción de la ${info.label}, notas, etc.)* en formato \`Clave: Valor\` separado por \`, \`.`,
                             `* **Regla:** omite las claves vacías; solo incluye lo que exista.`,
                             `* **WhatsApp:** se toma automáticamente del número de teléfono (no solicitar).`,
                             `* **Fecha:** se toma automáticamente de la **zona horaria del sistema** (no solicitar).`,
                             `* Asegúrate de incluir todos los datos provistos por el usuario.`,
                             `* **Notificación**: tras registrar, ejecuta la **tool**: \`Notificacion Asesor\`.`,
-                            `* **Comportamiento obligatorio:** Tras ejecutar la tool, responde **únicamente** lo indicado en **Regla/parámetro**.`,
+                            `* **Comportamiento obligatorio:** Tras ejecutar la tool, responde **únicamente** lo indicado en **REGLA/PARÁMETRO**.`,
                             `Si **no hay una orden clara**, envía el siguiente **mensaje de confirmación** al usuario:`,
                             `> 📝 ¡He **registrado** tu ${info.label}! 👨🏻‍💻 El area encargada se pondrá en contacto a la brevedad posible. ⏰`,
                             ``,
-                            ruleParam ? `- (${k}) **Regla/parámetro:** ${ruleParam}` : "",
+                            ruleParam ? `- (${k}) **REGLA/PARÁMETRO:** ${ruleParam}` : "",
                         ]
                             .filter(Boolean)
                             .join("\n")
@@ -257,7 +257,7 @@ export function buildSectionedPrompt(items: AnyStep[], cfg: PromptBuildConfig): 
 
             const newSubtype = transformSubtype(captura?.subtype ?? "") ?? "gestión";
 
-            blocks.push(`\n### Gestión ${n} — ${getGestionTitle(newSubtype)}`);
+            blocks.push(`\n### GESTIÓN ${n} — ${getGestionTitle(newSubtype).toUpperCase()}`);
         } else {
             blocks.push(`\n${cfg.sectionLabel(n, step)}`);
         }
