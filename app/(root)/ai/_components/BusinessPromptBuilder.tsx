@@ -142,316 +142,226 @@ export const BusinessPromptBuilder = ({
 
                 <CardContent className="space-y-4">
                     <Form {...form}>
-                        <form
-                            className="space-y-4"
-                            onSubmit={(e) => e.preventDefault()}
-                        >
+                        <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+
                             {/* Campos Principales */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {/* Nombre */}
-                                <FormField
-                                    control={form.control}
-                                    name="nombre"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-base font-bold">
-                                                Nombre del Negocio
-                                                <span className="text-destructive"> *</span>
-                                            </FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    placeholder="Ej. Holi Print RD"
-                                                    {...field}
-                                                    onChange={field.onChange}
-                                                    onBlur={(e) => {
-                                                        field.onBlur();
-                                                        handleChange?.("nombre")(e);
-                                                    }}
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
-                                {/* Sector */}
-                                <FormField
-                                    control={form.control}
-                                    name="sector"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-base font-bold">Sector / Rubro</FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    placeholder="Ej. Stickers y etiquetas"
-                                                    {...field}
-                                                    onChange={field.onChange}
-                                                    onBlur={(e) => {
-                                                        field.onBlur();
-                                                        handleChange?.("sector")(e);
-                                                    }}
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                {/* Ubicación */}
-                                <FormField
-                                    control={form.control}
-                                    name="ubicacion"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-base font-bold">Ubicación / Dirección</FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    placeholder="Ej. Av. Siempre Viva 742, Quito"
-                                                    {...field}
-                                                    onChange={field.onChange}
-                                                    onBlur={(e) => {
-                                                        field.onBlur();
-                                                        handleChange?.("ubicacion")(e);
-                                                    }}
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                {/* Horarios */}
-                                <FormField
-                                    control={form.control}
-                                    name="horarios"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-base font-bold">Horarios de Atención</FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    placeholder="Ej. Lun–Sáb 9:00 a 18:00"
-                                                    {...field}
-                                                    onChange={field.onChange}
-                                                    onBlur={(e) => {
-                                                        field.onBlur();
-                                                        handleChange?.("horarios")(e);
-                                                    }}
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                {/* Teléfono */}
-                                <FormField
-                                    control={form.control}
-                                    name="telefono"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-base font-bold">Número de Contacto</FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    placeholder="Ej. +57 300 123 4567"
-                                                    {...field}
-                                                    onChange={field.onChange}
-                                                    onBlur={(e) => {
-                                                        field.onBlur();
-                                                        handleChange?.("telefono")(e);
-                                                    }}
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                {/* Sitio */}
-                                <FormField
-                                    control={form.control}
-                                    name="sitio"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-base font-bold">Sitio web</FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    type="url"
-                                                    placeholder="https://negocio.com"
-                                                    {...field}
-                                                    onChange={field.onChange}
-                                                    onBlur={(e) => {
-                                                        field.onBlur();
-                                                        handleChange?.("sitio")(e);
-                                                    }}
-                                                />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                {/* Campos dinámicos */}
-
-                                {shouldShow("email") && (
-                                    <FormField
-                                        control={form.control}
-                                        name="email"
-                                        render={({ field }) => (
+                                <FormField control={form.control} name="nombre" render={({ field }) => (
+                                    <Card className="bg-muted/20 border-muted/60">
+                                        <CardContent className="py-3 px-4 space-y-2">
                                             <FormItem>
-                                                <FormLabel className="text-base font-bold">Correo electrónico</FormLabel>
+                                                <FormLabel className="text-base font-bold">
+                                                    Nombre del Negocio<span className="text-destructive"> *</span>
+                                                </FormLabel>
                                                 <FormControl>
-                                                    <Input
-                                                        type="email"
-                                                        placeholder="ventas@negocio.com"
-                                                        {...field}
+                                                    <Input placeholder="Ej. Holi Print RD" {...field}
                                                         onChange={field.onChange}
-                                                        onBlur={(e) => {
-                                                            field.onBlur();
-                                                            handleChange?.("email")(e);
-                                                        }}
-                                                    />
+                                                        onBlur={(e) => { field.onBlur(); handleChange?.("nombre")(e); }} />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
-                                        )}
-                                    />
+                                        </CardContent>
+                                    </Card>
+                                )} />
+
+                                <FormField control={form.control} name="sector" render={({ field }) => (
+                                    <Card className="bg-muted/20 border-muted/60">
+                                        <CardContent className="py-3 px-4 space-y-2">
+                                            <FormItem>
+                                                <FormLabel className="text-base font-bold">Sector / Rubro</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="Ej. Stickers y etiquetas" {...field}
+                                                        onChange={field.onChange}
+                                                        onBlur={(e) => { field.onBlur(); handleChange?.("sector")(e); }} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        </CardContent>
+                                    </Card>
+                                )} />
+
+                                <FormField control={form.control} name="ubicacion" render={({ field }) => (
+                                    <Card className="bg-muted/20 border-muted/60">
+                                        <CardContent className="py-3 px-4 space-y-2">
+                                            <FormItem>
+                                                <FormLabel className="text-base font-bold">Ubicación / Dirección</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="Ej. Av. Siempre Viva 742, Quito" {...field}
+                                                        onChange={field.onChange}
+                                                        onBlur={(e) => { field.onBlur(); handleChange?.("ubicacion")(e); }} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        </CardContent>
+                                    </Card>
+                                )} />
+
+                                <FormField control={form.control} name="horarios" render={({ field }) => (
+                                    <Card className="bg-muted/20 border-muted/60">
+                                        <CardContent className="py-3 px-4 space-y-2">
+                                            <FormItem>
+                                                <FormLabel className="text-base font-bold">Horarios de Atención</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="Ej. Lun–Sáb 9:00 a 18:00" {...field}
+                                                        onChange={field.onChange}
+                                                        onBlur={(e) => { field.onBlur(); handleChange?.("horarios")(e); }} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        </CardContent>
+                                    </Card>
+                                )} />
+
+                                <FormField control={form.control} name="telefono" render={({ field }) => (
+                                    <Card className="bg-muted/20 border-muted/60">
+                                        <CardContent className="py-3 px-4 space-y-2">
+                                            <FormItem>
+                                                <FormLabel className="text-base font-bold">Número de Contacto</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="Ej. +57 300 123 4567" {...field}
+                                                        onChange={field.onChange}
+                                                        onBlur={(e) => { field.onBlur(); handleChange?.("telefono")(e); }} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        </CardContent>
+                                    </Card>
+                                )} />
+
+                                <FormField control={form.control} name="sitio" render={({ field }) => (
+                                    <Card className="bg-muted/20 border-muted/60">
+                                        <CardContent className="py-3 px-4 space-y-2">
+                                            <FormItem>
+                                                <FormLabel className="text-base font-bold">Sitio web</FormLabel>
+                                                <FormControl>
+                                                    <Input type="url" placeholder="https://negocio.com" {...field}
+                                                        onChange={field.onChange}
+                                                        onBlur={(e) => { field.onBlur(); handleChange?.("sitio")(e); }} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        </CardContent>
+                                    </Card>
+                                )} />
+
+                                {shouldShow("email") && (
+                                    <FormField control={form.control} name="email" render={({ field }) => (
+                                        <Card className="bg-muted/20 border-muted/60">
+                                            <CardContent className="py-3 px-4 space-y-2">
+                                                <FormItem>
+                                                    <FormLabel className="text-base font-bold">Correo electrónico</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="email" placeholder="ventas@negocio.com" {...field}
+                                                            onChange={field.onChange}
+                                                            onBlur={(e) => { field.onBlur(); handleChange?.("email")(e); }} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            </CardContent>
+                                        </Card>
+                                    )} />
                                 )}
 
                                 {shouldShow("facebook") && (
-                                    <FormField
-                                        control={form.control}
-                                        name="facebook"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-base font-bold">Facebook</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="url"
-                                                        placeholder="https://facebook.com/tu-negocio"
-                                                        {...field}
-                                                        onChange={field.onChange}
-                                                        onBlur={(e) => {
-                                                            field.onBlur();
-                                                            handleChange?.("facebook")(e);
-                                                        }}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                    <FormField control={form.control} name="facebook" render={({ field }) => (
+                                        <Card className="bg-muted/20 border-muted/60">
+                                            <CardContent className="py-3 px-4 space-y-2">
+                                                <FormItem>
+                                                    <FormLabel className="text-base font-bold">Facebook</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="url" placeholder="https://facebook.com/tu-negocio" {...field}
+                                                            onChange={field.onChange}
+                                                            onBlur={(e) => { field.onBlur(); handleChange?.("facebook")(e); }} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            </CardContent>
+                                        </Card>
+                                    )} />
                                 )}
 
                                 {shouldShow("instagram") && (
-                                    <FormField
-                                        control={form.control}
-                                        name="instagram"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-base font-bold">Instagram</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="url"
-                                                        placeholder="https://instagram.com/tu_negocio"
-                                                        {...field}
-                                                        onChange={field.onChange}
-                                                        onBlur={(e) => {
-                                                            field.onBlur();
-                                                            handleChange?.("instagram")(e);
-                                                        }}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                    <FormField control={form.control} name="instagram" render={({ field }) => (
+                                        <Card className="bg-muted/20 border-muted/60">
+                                            <CardContent className="py-3 px-4 space-y-2">
+                                                <FormItem>
+                                                    <FormLabel className="text-base font-bold">Instagram</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="url" placeholder="https://instagram.com/tu_negocio" {...field}
+                                                            onChange={field.onChange}
+                                                            onBlur={(e) => { field.onBlur(); handleChange?.("instagram")(e); }} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            </CardContent>
+                                        </Card>
+                                    )} />
                                 )}
 
                                 {shouldShow("tiktok") && (
-                                    <FormField
-                                        control={form.control}
-                                        name="tiktok"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-base font-bold">TikTok</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="url"
-                                                        placeholder="https://tiktok.com/@tu_negocio"
-                                                        {...field}
-                                                        onChange={field.onChange}
-                                                        onBlur={(e) => {
-                                                            field.onBlur();
-                                                            handleChange?.("tiktok")(e);
-                                                        }}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                    <FormField control={form.control} name="tiktok" render={({ field }) => (
+                                        <Card className="bg-muted/20 border-muted/60">
+                                            <CardContent className="py-3 px-4 space-y-2">
+                                                <FormItem>
+                                                    <FormLabel className="text-base font-bold">TikTok</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="url" placeholder="https://tiktok.com/@tu_negocio" {...field}
+                                                            onChange={field.onChange}
+                                                            onBlur={(e) => { field.onBlur(); handleChange?.("tiktok")(e); }} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            </CardContent>
+                                        </Card>
+                                    )} />
                                 )}
 
                                 {shouldShow("youtube") && (
-                                    <FormField
-                                        control={form.control}
-                                        name="youtube"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-base font-bold">YouTube</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="url"
-                                                        placeholder="https://youtube.com/@tu_negocio"
-                                                        {...field}
-                                                        onChange={field.onChange}
-                                                        onBlur={(e) => {
-                                                            field.onBlur();
-                                                            handleChange?.("youtube")(e);
-                                                        }}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                    <FormField control={form.control} name="youtube" render={({ field }) => (
+                                        <Card className="bg-muted/20 border-muted/60">
+                                            <CardContent className="py-3 px-4 space-y-2">
+                                                <FormItem>
+                                                    <FormLabel className="text-base font-bold">YouTube</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="url" placeholder="https://youtube.com/@tu_negocio" {...field}
+                                                            onChange={field.onChange}
+                                                            onBlur={(e) => { field.onBlur(); handleChange?.("youtube")(e); }} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            </CardContent>
+                                        </Card>
+                                    )} />
                                 )}
                             </div>
 
                             {/* Notas */}
                             {shouldShow("notas") && (
-                                <>
-                                    <Separator />
-                                    <FormField
-                                        control={form.control}
-                                        name="notas"
-                                        render={({ field }) => (
+                                <FormField control={form.control} name="notas" render={({ field }) => (
+                                    <Card className="bg-muted/20 border-muted/60">
+                                        <CardContent className="py-3 px-4 space-y-2">
                                             <FormItem>
                                                 <FormLabel className="text-base font-bold">Notas / Instrucciones extra</FormLabel>
                                                 <FormControl>
-                                                    <Textarea
-                                                        className="min-h-[64px]"
+                                                    <Textarea className="min-h-[64px]"
                                                         placeholder="Aclaraciones, tono, restricciones..."
                                                         {...field}
                                                         onChange={field.onChange}
-                                                        onBlur={(e) => {
-                                                            field.onBlur();
-                                                            handleChange?.("notas")(e);
-                                                        }}
-                                                    />
+                                                        onBlur={(e) => { field.onBlur(); handleChange?.("notas")(e); }} />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
-                                        )}
-                                    />
-                                </>
+                                        </CardContent>
+                                    </Card>
+                                )} />
                             )}
 
                             <Separator />
 
-                            {/* 🔽 Selector de Campos Adicionales */}
+                            {/* Selector de Campos Adicionales */}
                             <div className="flex flex-col gap-2">
-                                <FormLabel className="text-base font-bold">Campos adicionales</FormLabel>
+                                <span className="text-base font-bold">Campos adicionales</span>
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button variant="outline" role="combobox" className="justify-between">
@@ -472,12 +382,7 @@ export const BusinessPromptBuilder = ({
                                                                 onSelect={() => toggleField(field.value)}
                                                                 aria-selected={added}
                                                             >
-                                                                <Check
-                                                                    className={cn(
-                                                                        "mr-2 h-4 w-4",
-                                                                        added ? "opacity-100" : "opacity-0"
-                                                                    )}
-                                                                />
+                                                                <Check className={cn("mr-2 h-4 w-4", added ? "opacity-100" : "opacity-0")} />
                                                                 {field.label}
                                                             </CommandItem>
                                                         );
@@ -488,6 +393,7 @@ export const BusinessPromptBuilder = ({
                                     </PopoverContent>
                                 </Popover>
                             </div>
+
                         </form>
                     </Form>
                 </CardContent>
