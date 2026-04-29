@@ -527,7 +527,7 @@ export function TrainingBuilder({
                                 </div>
 
                                 {/* Número */}
-                                <span className="text-base font-bold shrink-0">
+                                <span className="text-sm font-semibold shrink-0">
                                   Paso {idx + 1}
                                 </span>
 

@@ -290,7 +290,7 @@ export function FqaBuilder({
                                 <Card key={step.id} className="bg-muted/20 border-muted/60">
                                     <CardHeader className="py-3 flex-row items-center justify-between">
                                         <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            <CardTitle className="text-md shrink-0">{`Pregunta ${idx + 1}`}</CardTitle>
+                                            <CardTitle className="text-sm font-semibold shrink-0">{`Pregunta ${idx + 1}`}</CardTitle>
                                             <Input
                                                 id={step.id}
                                                 value={step.title ?? ""}

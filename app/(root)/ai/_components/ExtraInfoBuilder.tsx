@@ -335,7 +335,7 @@ export function ExtraInfoBuilder({
                     <Card className="bg-muted/20 border-muted/60">
                         <CardHeader className="py-3 flex-row items-center justify-between">
                             <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <CardTitle className="text-md shrink-0">Firma</CardTitle>
+                                <CardTitle className="text-sm font-semibold shrink-0">Firma</CardTitle>
                                 {firmaEnabled && (
                                     <Input
                                         placeholder="Ej. Asistente Virtual"
@@ -387,7 +387,7 @@ export function ExtraInfoBuilder({
                                 <Card key={step.id} className="bg-muted/20 border-muted/60">
                                     <CardHeader className="py-3 flex-row items-center justify-between">
                                         <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            <CardTitle className="text-md shrink-0">{`Extra ${idx + 1}`}</CardTitle>
+                                            <CardTitle className="text-sm font-semibold shrink-0">{`Extra ${idx + 1}`}</CardTitle>
                                             <Input
                                                 id={step.id}
                                                 value={step.title ?? ""}
