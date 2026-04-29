@@ -109,12 +109,14 @@ function SortableItemCard({
 
 /* ========= Firma por defecto ========= */
 const PROMPT_SIGNATURE_DEFAULT =
-    "### Extra - FIRMA EN LAS RESPUESTAS\n" +
-    "Debes poner siempre la firma *“*@signature_name”* al inicio de cada mensaje o respuesta que le des al usuario, **nunca al final*. Esto permite mantener una identidad clara del agente y una conversación ordenada.\n\n" +
+    "### IDENTIDAD DEL AGENTE\n" +
+    "* **Nombre:** *“@signature_name”*.\n" +
+    "* **Firma obligatoria:** Cada mensaje debe iniciar con `*“@signature_name”*` — NUNCA al final.\n" +
+    "* **Siempre pon la firma:** *“@signature_name”* al inicio de cada mensaje o respuesta que le des al usuario. Esto permite mantener una identidad clara del agente y una conversación ordenada.\n\n" +
     "### Ejemplo de uso real:\n\n" +
-    "*Usuario:*\n" +
+    "**Usuario:**\n" +
     "¿Quien eres?\n\n" +
-    "*Respuesta del agente:*\n" +
+    "**Respuesta del agente:**\n" +
     "@signature_name\n" +
     "Soy un asistente virtual. ¿En qué puedo ayudarte hoy?";
 
