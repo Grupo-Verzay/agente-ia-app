@@ -25,6 +25,14 @@ export const PedidoFieldsEditor = ({
 }) => {
     const subtype = element.subtype.toLowerCase();
     const isAppointment = subtype === "citas";
+    const subtypeArticle: Record<string, string> = {
+        solicitudes: "tu solicitud",
+        pedidos: "tu pedido",
+        reclamos: "tu reclamo",
+        reservas: "tu reserva",
+        citas: "tu cita",
+    };
+    const emptyFieldsText = `Aún no hay campos agregados. Agrega los que necesites para completar ${subtypeArticle[subtype] ?? "tu gestión"}.`;
     const [input, setInput] = useState("");
     const [appointmentUrl, setAppointmentUrl] = useState<string>("");
     const [loadingUrl, setLoadingUrl] = useState(false);
@@ -127,7 +135,7 @@ export const PedidoFieldsEditor = ({
                                 ))}
                             </div>
                         ) : (
-                            <p className="text-xs text-muted-foreground">Aún no hay campos agregados.</p>
+                            <p className="text-xs text-muted-foreground">{emptyFieldsText}</p>
                         )
                     }
                 </>

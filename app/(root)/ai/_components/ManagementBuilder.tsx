@@ -89,6 +89,33 @@ function getStepSubtypeLabel(step: ManagementItem): string {
     return captura?.subtype ?? step.title ?? "GESTIÓN";
 }
 
+function SortableElementRow({
+    id,
+    stepId,
+    children,
+}: {
+    id: string;
+    stepId: string;
+    children: (args: { dragHandleProps: any; isDragging: boolean }) => React.ReactNode;
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id,
+        data: { type: "element", stepId },
+    });
+    const style: React.CSSProperties = {
+        transform: transform ? CSS.Transform.toString({ ...transform, x: 0 }) : undefined,
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        position: "relative",
+        zIndex: isDragging ? 999 : undefined,
+    };
+    return (
+        <div ref={setNodeRef} style={style}>
+            {children({ dragHandleProps: { ...attributes, ...listeners }, isDragging })}
+        </div>
+    );
+}
+
 function SortableStepCard({
     id,
     children,
@@ -455,7 +482,23 @@ export const ManagementBuilder = ({
 
     const handleDragEnd = useCallback((event: DragEndEvent) => {
         const { active, over } = event;
-        if (!over || active.id === over.id) return;
+        if (!over) return;
+        const activeType = active.data.current?.type;
+        if (activeType === "element") {
+            const activeStepId = active.data.current?.stepId as string | undefined;
+            const overStepId = over.data.current?.stepId as string | undefined;
+            if (!activeStepId || !overStepId || activeStepId !== overStepId) return;
+            if (active.id === over.id) return;
+            setSteps((prev) => prev.map((s) => {
+                if (s.id !== activeStepId) return s;
+                const oldIndex = s.elements.findIndex((e) => e.id === active.id);
+                const newIndex = s.elements.findIndex((e) => e.id === over.id);
+                if (oldIndex < 0 || newIndex < 0) return s;
+                return { ...s, elements: arrayMove(s.elements, oldIndex, newIndex) };
+            }));
+            return;
+        }
+        if (active.id === over.id) return;
         setSteps((prev) => {
             const oldIndex = prev.findIndex((s) => s.id === active.id);
             const newIndex = prev.findIndex((s) => s.id === over.id);
@@ -629,52 +672,77 @@ export const ManagementBuilder = ({
                                                             <CardContent className="space-y-3 pt-0 pb-3 px-3">
                                                                 {!step.elements || step.elements.length === 0 ? (
                                                                     <div className="text-center text-sm text-muted-foreground py-4">
-                                                                        No hay elementos.
+                                                                        No hay elementos en esta gestión. Agrega funciones o textos usando los botones de abajo.
                                                                     </div>
                                                                 ) : (
-                                                                    <div className="space-y-3">
-                                                                        {step.elements.map((el) => (
-                                                                            <ElementRenderer
-                                                                                key={el.id}
-                                                                                stepId={step.id}
-                                                                                el={el as any}
-                                                                                flows={flows}
-                                                                                removeElement={removeElement}
-                                                                                updateText={updateText}
-                                                                                setFlowOnElement={setFlowOnElement}
-                                                                                addPedidoField={addPedidoField}
-                                                                                removePedidoField={removePedidoField}
-                                                                                onSubtypeChange={(_sid, eid, subtype) =>
-                                                                                    onSubtypeChange(step.id, eid, subtype)
-                                                                                }
-                                                                                isManagement={true}
-                                                                                onAddRule={
-                                                                                    el.kind === "function"
-                                                                                        ? () => {
-                                                                                              setStepsAuto((prev) =>
-                                                                                                  prev.map((s) =>
-                                                                                                      s.id === step.id
-                                                                                                          ? {
-                                                                                                                ...s,
-                                                                                                                elements: [
-                                                                                                                    ...s.elements,
-                                                                                                                    {
-                                                                                                                        id: nanoid(),
-                                                                                                                        kind: "text" as const,
-                                                                                                                        text: "",
-                                                                                                                    },
-                                                                                                                ],
-                                                                                                            }
-                                                                                                          : s
-                                                                                                  )
-                                                                                              );
-                                                                                          }
-                                                                                        : undefined
-                                                                                }
-                                                                            />
-                                                                        ))}
-                                                                    </div>
+                                                                    <SortableContext
+                                                                        items={step.elements.map((e) => e.id)}
+                                                                        strategy={verticalListSortingStrategy}
+                                                                    >
+                                                                        <div className="space-y-3">
+                                                                            {step.elements.map((el) => (
+                                                                                <SortableElementRow key={el.id} id={el.id} stepId={step.id}>
+                                                                                    {({ dragHandleProps: elDragProps }) => (
+                                                                                        <div className="flex items-start gap-2">
+                                                                                            <div
+                                                                                                className="h-8 w-8 mt-2 flex items-center justify-center rounded text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing hover:text-foreground hover:bg-muted/50"
+                                                                                                title="Arrastrar elemento"
+                                                                                                {...elDragProps}
+                                                                                            >
+                                                                                                <GripVertical className="h-4 w-4" />
+                                                                                            </div>
+                                                                                            <div className="flex-1">
+                                                                                                <ElementRenderer
+                                                                                                    stepId={step.id}
+                                                                                                    el={el as any}
+                                                                                                    flows={flows}
+                                                                                                    removeElement={removeElement}
+                                                                                                    updateText={updateText}
+                                                                                                    setFlowOnElement={setFlowOnElement}
+                                                                                                    addPedidoField={addPedidoField}
+                                                                                                    removePedidoField={removePedidoField}
+                                                                                                    onSubtypeChange={(_sid, eid, subtype) =>
+                                                                                                        onSubtypeChange(step.id, eid, subtype)
+                                                                                                    }
+                                                                                                    isManagement={true}
+                                                                                                    onAddRule={
+                                                                                                        el.kind === "function"
+                                                                                                            ? () => {
+                                                                                                                  setStepsAuto((prev) =>
+                                                                                                                      prev.map((s) =>
+                                                                                                                          s.id === step.id
+                                                                                                                              ? {
+                                                                                                                                    ...s,
+                                                                                                                                    elements: [
+                                                                                                                                        ...s.elements,
+                                                                                                                                        {
+                                                                                                                                            id: nanoid(),
+                                                                                                                                            kind: "text" as const,
+                                                                                                                                            text: "",
+                                                                                                                                        },
+                                                                                                                                    ],
+                                                                                                                                }
+                                                                                                                              : s
+                                                                                                                      )
+                                                                                                                  );
+                                                                                                              }
+                                                                                                            : undefined
+                                                                                                    }
+                                                                                                />
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </SortableElementRow>
+                                                                            ))}
+                                                                        </div>
+                                                                    </SortableContext>
                                                                 )}
+                                                                <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-sm font-semibold">Elementos de la gestión</span>
+                                                                        <Badge variant="secondary">{idx + 1}</Badge>
+                                                                    </div>
+                                                                </div>
                                                             </CardContent>
                                                         </div>
                                                     </div>
