@@ -267,57 +267,50 @@ export const ProductBuilder = ({
                 ) : (
                     <div className="space-y-4">
                         {items.map((step, idx) => (
-                            <Card key={step.id} className="bg-muted/10 border-muted/60">
-                                <CardHeader className="py-3">
-                                    <div className="flex items-center gap-2">
-                                        <div className="grid w-1/2 items-center gap-3">
-                                            <Label htmlFor={step.id}>{`Producto ${idx + 1}`}</Label>
-                                            <Input
-                                                id={step.id}
-                                                value={step.title ?? ""}
-                                                onChange={(e) =>
-                                                    updateTitle(step.id, e.target.value)
-                                                }
-                                                className="h-8"
-                                                placeholder="Título del Producto"
-                                            />
-                                        </div>
-
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    title="Eliminar producto"
-                                                    className="ml-auto"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </AlertDialogTrigger>
-
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>
-                                                        Eliminar producto
-                                                    </AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        ¿Seguro que quieres eliminar este producto?
-                                                        Esta acción no se puede deshacer.
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                    <AlertDialogAction
-                                                        className="bg-red-600 hover:bg-red-700"
-                                                        onClick={() => removeProduct(step.id)}
-                                                    >
-                                                        Eliminar
-                                                    </AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
+                            <Card key={step.id} className="bg-muted/30 border-muted/60">
+                                <CardHeader className="py-3 flex-row items-center justify-between">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                        <CardTitle className="text-md shrink-0">{`Producto ${idx + 1}`}</CardTitle>
+                                        <Input
+                                            id={step.id}
+                                            value={step.title ?? ""}
+                                            onChange={(e) =>
+                                                updateTitle(step.id, e.target.value)
+                                            }
+                                            className="h-8 max-w-[240px]"
+                                            placeholder="Título del Producto"
+                                        />
                                     </div>
+
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="destructive" size="icon">
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>
+                                                    Eliminar producto
+                                                </AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    ¿Seguro que quieres eliminar este producto?
+                                                    Esta acción no se puede deshacer.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                    className="bg-red-600 hover:bg-red-700"
+                                                    onClick={() => removeProduct(step.id)}
+                                                >
+                                                    Eliminar
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 </CardHeader>
 
                                 <CardContent className="space-y-3">

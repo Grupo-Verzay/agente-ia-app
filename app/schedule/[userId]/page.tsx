@@ -33,8 +33,6 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
 
     const countries = await getCountryCodes();
 
-    if (countries.length === 0) return ('Error al obtener los paises.')
-
     return <SchedulePageClient
         user={user}
         reminders={reminders}
