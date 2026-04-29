@@ -154,7 +154,7 @@ export const BusinessPromptBuilder = ({
                                     name="nombre"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>
+                                            <FormLabel className="text-base font-bold">
                                                 Nombre del Negocio
                                                 <span className="text-destructive"> *</span>
                                             </FormLabel>
@@ -180,7 +180,7 @@ export const BusinessPromptBuilder = ({
                                     name="sector"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Sector / Rubro</FormLabel>
+                                            <FormLabel className="text-base font-bold">Sector / Rubro</FormLabel>
                                             <FormControl>
                                                 <Input
                                                     placeholder="Ej. Stickers y etiquetas"
@@ -203,7 +203,7 @@ export const BusinessPromptBuilder = ({
                                     name="ubicacion"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Ubicación / Dirección</FormLabel>
+                                            <FormLabel className="text-base font-bold">Ubicación / Dirección</FormLabel>
                                             <FormControl>
                                                 <Input
                                                     placeholder="Ej. Av. Siempre Viva 742, Quito"
@@ -226,7 +226,7 @@ export const BusinessPromptBuilder = ({
                                     name="horarios"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Horarios de Atención</FormLabel>
+                                            <FormLabel className="text-base font-bold">Horarios de Atención</FormLabel>
                                             <FormControl>
                                                 <Input
                                                     placeholder="Ej. Lun–Sáb 9:00 a 18:00"
@@ -249,7 +249,7 @@ export const BusinessPromptBuilder = ({
                                     name="telefono"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Número de Contacto</FormLabel>
+                                            <FormLabel className="text-base font-bold">Número de Contacto</FormLabel>
                                             <FormControl>
                                                 <Input
                                                     placeholder="Ej. +57 300 123 4567"
@@ -272,7 +272,7 @@ export const BusinessPromptBuilder = ({
                                     name="sitio"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Sitio web</FormLabel>
+                                            <FormLabel className="text-base font-bold">Sitio web</FormLabel>
                                             <FormControl>
                                                 <Input
                                                     type="url"
@@ -298,7 +298,7 @@ export const BusinessPromptBuilder = ({
                                         name="email"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Correo electrónico</FormLabel>
+                                                <FormLabel className="text-base font-bold">Correo electrónico</FormLabel>
                                                 <FormControl>
                                                     <Input
                                                         type="email"
@@ -323,7 +323,7 @@ export const BusinessPromptBuilder = ({
                                         name="facebook"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Facebook</FormLabel>
+                                                <FormLabel className="text-base font-bold">Facebook</FormLabel>
                                                 <FormControl>
                                                     <Input
                                                         type="url"
@@ -348,7 +348,7 @@ export const BusinessPromptBuilder = ({
                                         name="instagram"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Instagram</FormLabel>
+                                                <FormLabel className="text-base font-bold">Instagram</FormLabel>
                                                 <FormControl>
                                                     <Input
                                                         type="url"
@@ -373,7 +373,7 @@ export const BusinessPromptBuilder = ({
                                         name="tiktok"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>TikTok</FormLabel>
+                                                <FormLabel className="text-base font-bold">TikTok</FormLabel>
                                                 <FormControl>
                                                     <Input
                                                         type="url"
@@ -398,7 +398,7 @@ export const BusinessPromptBuilder = ({
                                         name="youtube"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>YouTube</FormLabel>
+                                                <FormLabel className="text-base font-bold">YouTube</FormLabel>
                                                 <FormControl>
                                                     <Input
                                                         type="url"
@@ -427,7 +427,7 @@ export const BusinessPromptBuilder = ({
                                         name="notas"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Notas / Instrucciones extra</FormLabel>
+                                                <FormLabel className="text-base font-bold">Notas / Instrucciones extra</FormLabel>
                                                 <FormControl>
                                                     <Textarea
                                                         className="min-h-[64px]"
@@ -451,7 +451,7 @@ export const BusinessPromptBuilder = ({
 
                             {/* 🔽 Selector de Campos Adicionales */}
                             <div className="flex flex-col gap-2">
-                                <FormLabel>Campos adicionales</FormLabel>
+                                <FormLabel className="text-base font-bold">Campos adicionales</FormLabel>
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button variant="outline" role="combobox" className="justify-between">
