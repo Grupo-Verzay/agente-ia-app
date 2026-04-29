@@ -65,7 +65,11 @@ export const CapturaDatosCard: FC<CapturaDatosCardProps> = ({
                     </Select>
                 </div>
 
-                {!isManagement && (
+                {isManagement ? (
+                    <Button variant="destructive" size="icon" onClick={onRemove}>
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                ) : (
                     <Button variant="secondary" size="icon" onClick={onRemove} className="bg-gray-400 hover:bg-gray-500 text-white dark:bg-zinc-600 dark:hover:bg-zinc-500">
                         <Trash2 className="h-4 w-4" />
                     </Button>
