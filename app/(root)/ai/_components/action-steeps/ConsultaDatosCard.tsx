@@ -62,11 +62,11 @@ export const ConsultaDatosCard: FC<PropsConsultaDatos> = ({
                     </Select>
                 </div>
 
-                <Button variant="secondary" size="icon" onClick={onRemove} className="bg-gray-400 hover:bg-gray-500 text-white dark:bg-zinc-600 dark:hover:bg-zinc-500">
-                    {!isManagement &&
+                {!isManagement && (
+                    <Button variant="secondary" size="icon" onClick={onRemove} className="bg-gray-400 hover:bg-gray-500 text-white dark:bg-zinc-600 dark:hover:bg-zinc-500">
                         <Trash2 className="h-4 w-4" />
-                    }
-                </Button>
+                    </Button>
+                )}
             </CardHeader>
 
             <CardContent className="p-0 m-0">

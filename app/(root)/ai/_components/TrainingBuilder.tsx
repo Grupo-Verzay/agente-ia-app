@@ -509,7 +509,7 @@ export function TrainingBuilder({
                         return (
                           <Card className="bg-muted/20 border-muted/60 overflow-hidden">
                             {/* ---- Header siempre visible ---- */}
-                            <div className="flex items-center justify-between gap-1 px-3 py-2">
+                            <div className="flex items-center justify-between gap-1 px-3 py-3">
                               {/* Izquierda: drag + número + título */}
                               <div className="flex items-center gap-1 min-w-0 flex-1">
                                 {/* Drag handle */}

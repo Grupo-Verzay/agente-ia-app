@@ -10,6 +10,19 @@ import {
     CardTitle,
 } from "@/components/ui/card";
 import { Workflow } from "@prisma/client";
+import { Button } from "@/components/ui/button";
+import { Trash2 } from "lucide-react";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useManagementAutosave, AutosaveStatus } from "./hooks/useManagementAutosave";
 import ElementRenderer from "./action-steeps/ElementRenderer";
 import { FunctionSelector } from "./FunctionSelector";
@@ -441,8 +454,8 @@ export const ManagementBuilder = ({
                     <div className="space-y-4">
                         {steps.map((step, idx) => (
                             <Card key={step.id} className="bg-muted/10 border-muted/60">
-                                <CardHeader className="py-3">
-                                    <div className="flex items-center gap-2">
+                                <CardHeader className="py-3 flex-row items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
                                         {/* <div className="grid w-full max-w-sm items-center gap-3">
                                             <Label htmlFor={step.id}>{`Gestión ${idx + 1}`}</Label>
                                             <Input
@@ -459,16 +472,32 @@ export const ManagementBuilder = ({
                                                 {step.elements?.length ?? 0}
                                             </Badge>
                                         </div> */}
-                                        {/* <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => removeStep(step.id)}
-                                            title="Eliminar bloque"
-                                            className="ml-auto"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button> */}
                                     </div>
+
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="destructive" size="icon">
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Eliminar gestión</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    ¿Seguro que quieres eliminar este bloque de gestión? Esta acción no se puede deshacer.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                    className="bg-red-600 hover:bg-red-700"
+                                                    onClick={() => removeStep(step.id)}
+                                                >
+                                                    Eliminar
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 </CardHeader>
 
                                 <CardContent className="space-y-3">
