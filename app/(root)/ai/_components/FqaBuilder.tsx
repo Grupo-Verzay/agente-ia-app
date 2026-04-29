@@ -249,7 +249,7 @@ export function FqaBuilder({
             <Card className="border-muted/60">
                 <CardHeader className="pb-2 flex items-center justify-between gap-2 flex-row">
                     <div className="flex items-center gap-2">
-                        <CardTitle className="text-base">Preguntas</CardTitle>
+                        <CardTitle className="text-base uppercase">Preguntas</CardTitle>
 
                         {/* 🔹 Indicador de autosave */}
                         {autosaveStatus !== "idle" && (
@@ -402,7 +402,7 @@ export function FqaBuilder({
 
                 {items.length > 0 && (
                     <CardFooter className="pb-2 flex items-center justify-between gap-2 flex-row">
-                        <CardTitle className="text-base">Preguntas</CardTitle>
+                        <CardTitle className="text-base uppercase">Preguntas</CardTitle>
 
                         <Button size="sm" onClick={addFaq} className="gap-2">
                             <Plus className="w-4 h-4" />

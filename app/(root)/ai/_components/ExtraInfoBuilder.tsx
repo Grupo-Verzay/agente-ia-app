@@ -305,7 +305,7 @@ export function ExtraInfoBuilder({
         <Card className="border-muted/60">
             <CardHeader className="pb-2 flex items-center justify-between gap-2 flex-row">
                 <div className="flex items-center gap-2">
-                    <CardTitle className="text-base">Extras</CardTitle>
+                    <CardTitle className="text-base uppercase">Extras</CardTitle>
 
                     {/* 🔹 Indicador autosave */}
                     {autosaveStatus !== "idle" && (
@@ -496,7 +496,7 @@ export function ExtraInfoBuilder({
             </>
             {items.length > 0 && (
                 <CardFooter className="pb-2 flex items-center justify-between gap-2 flex-row">
-                    <CardTitle className="text-base">Extras</CardTitle>
+                    <CardTitle className="text-base uppercase">Extras</CardTitle>
 
                     <Button size="sm" onClick={addItem} className="gap-2">
                         <Plus className="w-4 h-4" />

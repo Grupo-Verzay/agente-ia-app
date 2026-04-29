@@ -396,7 +396,7 @@ export const ManagementBuilder = ({
     return (
         <Card className="border-muted/60">
             <CardHeader className="pb-2 flex items-center justify-between gap-2 flex-row">
-                <CardTitle className="text-base">Gestión</CardTitle>
+                <CardTitle className="text-base uppercase">Gestión</CardTitle>
                 <div className="flex items-center gap-2">
                     {/* {typeof ManagementPromptBuilder !== "undefined" && (
                         <ManagementPromptBuilder onInsert={handleInsertFromPicker} />
@@ -536,7 +536,7 @@ export const ManagementBuilder = ({
 
             {steps.length > 0 && (
                 <CardFooter className="pb-2 flex items-center justify-between gap-2 flex-row">
-                    <CardTitle className="text-base">Gestión</CardTitle>
+                    <CardTitle className="text-base uppercase">Gestión</CardTitle>
 
                     <FunctionSelector
                         notificationNumber={notificationNumber ?? ""}

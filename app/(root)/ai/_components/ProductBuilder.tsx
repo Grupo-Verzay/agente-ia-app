@@ -229,7 +229,7 @@ export const ProductBuilder = ({
         <Card className="border-muted/60">
             <CardHeader className="pb-2 flex items-center justify-between gap-2 flex-row">
                 <div className="flex items-center gap-2">
-                    <CardTitle className="text-base">Productos</CardTitle>
+                    <CardTitle className="text-base uppercase">Productos</CardTitle>
 
                     {/* 🔹 Indicador de autosave */}
                     {autosaveStatus !== "idle" && (
@@ -377,7 +377,7 @@ export const ProductBuilder = ({
             </CardContent>
             {items.length > 0 && (
                 <CardFooter className="pb-2 flex items-center justify-between gap-2 flex-row">
-                    <CardTitle className="text-base">Productos</CardTitle>
+                    <CardTitle className="text-base uppercase">Productos</CardTitle>
 
                     <Button size="sm" onClick={addProduct} className="gap-2">
                         <Plus className="w-4 h-4" />
