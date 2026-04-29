@@ -115,7 +115,7 @@ export const ManagementBuilder = ({
                     const label = getElementLabel(s.elements[0]);
                     if (label) {
                         changed = true;
-                        return { ...s, title: String(label), openPicker: false };
+                        return { ...s, title: String(label).toUpperCase(), openPicker: false };
                     }
                 }
                 if (s.openPicker && (s.elements?.length ?? 0) > 0) {
@@ -239,7 +239,7 @@ export const ManagementBuilder = ({
     /* Crear bloque a partir de una acción seleccionada (sin step vacío) */
     const createStepFromElement = (el: ElementItem) => {
         const element: ElementItem = { ...el, id: el.id ?? nanoid() };
-        const title = getElementLabel(element) || "Bloque";
+        const title = (getElementLabel(element) || "Bloque").toUpperCase();
         const newStep: ManagementItem = {
             id: nanoid(),
             title,
@@ -256,7 +256,7 @@ export const ManagementBuilder = ({
             ...prev,
             {
                 id: nanoid(),
-                title: extractTitle(snippet.label),
+                title: extractTitle(snippet.label).toUpperCase(),
                 mainMessage: snippet.value,
                 elements: [{ id: nanoid(), kind: "text", text: snippet.value } as ElementItem],
             },
@@ -266,7 +266,7 @@ export const ManagementBuilder = ({
         setSteps((prev) => prev.filter((s) => s.id !== id));
 
     const updateTitle = (id: string, v: string) =>
-        setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, title: v } : s)));
+        setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, title: v.toUpperCase() } : s)));
 
     const updateMain = (id: string, v: string) =>
         setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, mainMessage: v } : s)));
