@@ -535,7 +535,7 @@ export function TrainingBuilder({
                                   id={step.id}
                                   value={step.title}
                                   onChange={(e) => updateStepTitle(step.id, e.target.value)}
-                                  className="h-7 text-sm flex-1"
+                                  className="h-7 text-sm w-1/2"
                                   placeholder="Título del paso"
                                   onClick={(e) => e.stopPropagation()}
                                 />

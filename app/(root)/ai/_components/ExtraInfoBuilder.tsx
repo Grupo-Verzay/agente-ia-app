@@ -385,7 +385,7 @@ export function ExtraInfoBuilder({
                                 <Card key={step.id} className="bg-muted/10 border-muted/60">
                                     <CardHeader className="py-3">
                                         <div className="flex items-center gap-2">
-                                            <div className="grid w_full max-w-sm items-center gap-3">
+                                            <div className="grid w-1/2 items-center gap-3">
                                                 <Label htmlFor={step.id}>{`Extra ${idx + 1}`}</Label>
                                                 <Input
                                                     id={step.id}
