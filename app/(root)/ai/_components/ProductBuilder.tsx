@@ -101,7 +101,7 @@ export const ProductBuilder = ({
         return buildSectionedPrompt(items as any, {
             emptyMessage: "Aún no has agregado productos. Usa “Agregar producto” para comenzar.",
             sectionLabel: (n, step) => `### PRODUCTO ${n} — ${(step.title || "Sin título").toUpperCase()}`,
-            elementsLabel: (n) => `#### ELEMENTOS DEL PRODUCTO: ${n}`,
+            elementsLabel: (n) => `#### ELEMENTOS DEL PRODUCTO ${n}:`,
             mainMessageLabel: (n) => `OBJETIVO/RESPUESTA PRINCIPAL DEL PRODUCTO ${n}:`,
             joinSeparator: "\n",
         });
