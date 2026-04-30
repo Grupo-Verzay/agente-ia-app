@@ -5,7 +5,6 @@ import useSWR from "swr";
 import { getSessionTagStatsByUserId } from "@/actions/registro-action";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
-    FunnelChart,
     RelationBarChart,
     TagDonutChart,
 } from "../helpers/TagCharts";
@@ -68,22 +67,9 @@ export function TagStatsCard({ userId }: { userId: string }) {
     }
 
     return (
-        <div className="space-y-6">
-            {/* Arriba: Funnel + Donut */}
-            <div className="grid gap-6 lg:grid-cols-2">
-                <div className="w-full">
-                    <RelationBarChart stats={stats} />
-
-                </div>
-                <div className="w-full">
-                    <FunnelChart stats={stats} />
-                </div>
-            </div>
-
-            {/* Abajo: barra de relación a todo el ancho */}
-            <div className="w-full">
-                <TagDonutChart stats={stats} />
-            </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+            <RelationBarChart stats={stats} />
+            <TagDonutChart stats={stats} />
         </div>
     );
 }

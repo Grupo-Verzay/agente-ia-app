@@ -1,9 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, type RefObject } from "react";
-import { Activity, BarChart3, CheckCheck, Clock3, Settings2 } from "lucide-react";
-
+import { useMemo, useState, type RefObject } from "react";
+import {
+    Activity,
+    BarChart3,
+    CheckCheck,
+    Clock3,
+    Settings2,
+    LayoutList,
+    TrendingUp,
+} from "lucide-react";
 import type { RegistrosFilters } from "@/actions/registro-action";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,6 +19,7 @@ import { MetricCard } from "./MetricCard";
 import { CrmGlobalActionsMenu } from "./CrmGlobalActionsMenu";
 import type { DashboardStats } from "./MainDashboard";
 import { CrmRecordsSection } from "./records-table/CrmRecordsSection";
+import { AnalyticsView } from "./AnalyticsView";
 
 const CRM_METRIC_COLORS = {
     totalRegistros: "#3B82F6",
@@ -55,6 +63,8 @@ export const CrmDashboard = ({
     sentinelRef: RefObject<HTMLDivElement>;
     onScrollRootReady: (el: HTMLDivElement | null) => void;
 }) => {
+    const [viewMode, setViewMode] = useState<"registros" | "analiticas">("registros");
+
     const totalRegistros = stats?.totalRegistros ?? registros.length;
 
     const leadsConMovimientosFallback = useMemo(() => {
@@ -91,6 +101,7 @@ export const CrmDashboard = ({
     return (
         <TooltipProvider delayDuration={120}>
             <div className="flex h-full min-w-0 flex-col gap-2">
+                {/* Header */}
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-muted/20 px-4 py-3">
                     <div className="space-y-1">
                         <p className="text-sm font-semibold">Reglas IA del CRM</p>
@@ -116,6 +127,7 @@ export const CrmDashboard = ({
                     </div>
                 </div>
 
+                {/* Metric Cards */}
                 <div className="flex flex-wrap gap-3">
                     <div className="flex-1">
                         <MetricCard
@@ -158,87 +170,60 @@ export const CrmDashboard = ({
                     </div>
                 </div>
 
-                <CrmRecordsSection
-                    activeTab={activeTab}
-                    registros={registros}
-                    totalRegistros={totalRegistros}
-                    countsByTipo={countsByTipo}
-                    filters={filters}
-                    onActiveTabChange={onActiveTabChange}
-                    onFiltersChange={onFiltersChange}
-                    onChangeEstado={onChangeEstado}
-                    onChangeDetalle={onChangeDetalle}
-                    onFollowUpChanged={onFollowUpChanged}
-                    onRecordsChanged={onRecordsChanged}
-                    isUpdatingRegistros={isUpdatingRegistros}
-                    userId={userId}
-                    hasMore={hasMore}
-                    isLoadingMore={isLoadingMore}
-                    sentinelRef={sentinelRef}
-                    onScrollRootReady={onScrollRootReady}
-                />
+                {/* View toggle */}
+                <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 w-fit">
+                    <button
+                        type="button"
+                        onClick={() => setViewMode("registros")}
+                        className={[
+                            "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                            viewMode === "registros"
+                                ? "bg-background shadow-sm text-foreground"
+                                : "text-muted-foreground hover:text-foreground",
+                        ].join(" ")}
+                    >
+                        <LayoutList className="h-3.5 w-3.5" />
+                        Registros
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setViewMode("analiticas")}
+                        className={[
+                            "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                            viewMode === "analiticas"
+                                ? "bg-background shadow-sm text-foreground"
+                                : "text-muted-foreground hover:text-foreground",
+                        ].join(" ")}
+                    >
+                        <TrendingUp className="h-3.5 w-3.5" />
+                        Analíticas
+                    </button>
+                </div>
 
-                {/* <div className="grid gap-4 lg:grid-cols-2">
-                    <Card className="border-border">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-base">Registros por tipo</CardTitle>
-                            <CardDescription>
-                                Distribución general por módulo del CRM.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="h-[200px] md:h-[230px]">
-                            {totalRegistros === 0 ? (
-                                <div className="flex h-full items-center justify-center text-muted-foreground">
-                                    Aún no hay registros para mostrar en el gráfico.
-                                </div>
-                            ) : (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={chartDataByTipo}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                        <XAxis dataKey="tipo" tick={{ fontSize: 11 }} />
-                                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                                        <Tooltip
-                                            cursor={{ opacity: 0.1 }}
-                                            contentStyle={{ fontSize: 11 }}
-                                        />
-                                        <Bar dataKey="cantidad" fill="hsl(var(--primary))" />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-border">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-base">Actividad últimos 7 días</CardTitle>
-                            <CardDescription className="text-xs">
-                                Cantidad de registros creados por día.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="h-[200px] md:h-[230px]">
-                            {totalRegistros === 0 ? (
-                                <div className="flex h-full items-center justify-center text-muted-foreground">
-                                    Aún no hay registros para mostrar en el gráfico.
-                                </div>
-                            ) : (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={chartDataByDay}>
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
-                                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                                        <Tooltip
-                                            cursor={{ opacity: 0.1 }}
-                                            contentStyle={{ fontSize: 11 }}
-                                        />
-                                        <Line type="monotone" dataKey="cantidad" dot={{ r: 3 }} />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div> */}
-
-                {/* <TagStatsCard userId={userId} /> */}
+                {/* Content */}
+                {viewMode === "registros" ? (
+                    <CrmRecordsSection
+                        activeTab={activeTab}
+                        registros={registros}
+                        totalRegistros={totalRegistros}
+                        countsByTipo={countsByTipo}
+                        filters={filters}
+                        onActiveTabChange={onActiveTabChange}
+                        onFiltersChange={onFiltersChange}
+                        onChangeEstado={onChangeEstado}
+                        onChangeDetalle={onChangeDetalle}
+                        onFollowUpChanged={onFollowUpChanged}
+                        onRecordsChanged={onRecordsChanged}
+                        isUpdatingRegistros={isUpdatingRegistros}
+                        userId={userId}
+                        hasMore={hasMore}
+                        isLoadingMore={isLoadingMore}
+                        sentinelRef={sentinelRef}
+                        onScrollRootReady={onScrollRootReady}
+                    />
+                ) : (
+                    <AnalyticsView userId={userId} stats={stats} />
+                )}
             </div>
         </TooltipProvider>
     );
