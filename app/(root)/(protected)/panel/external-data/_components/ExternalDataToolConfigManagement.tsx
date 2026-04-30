@@ -17,19 +17,12 @@ import {
   Search,
   Sparkles,
   Trash2,
-  User,
   Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -162,8 +155,8 @@ function ClientSelector({
           role="combobox"
           aria-expanded={open}
           className={cn(
-            'w-full justify-between font-normal',
-            !selectedUserId && 'border-amber-500/50 text-muted-foreground',
+            'max-w-sm justify-between font-normal',
+            !selectedUserId && 'text-muted-foreground',
           )}
         >
           {selectedUserId
@@ -171,11 +164,11 @@ function ClientSelector({
                 const c = clients.find((c) => c.id === selectedUserId);
                 return c ? `${c.label} — ${c.email}` : 'Cliente seleccionado';
               })()
-            : 'Busca y selecciona un cliente...'}
+            : 'Selecciona un cliente...'}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+      <PopoverContent className="w-80 p-0" align="start">
         <Command>
           <CommandInput placeholder="Buscar cliente por nombre o email..." />
           <CommandList>
@@ -1265,36 +1258,18 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
   const hasNoConfigs = configs.length === 0 && !isLoading && !!selectedUserId;
 
   return (
-    <div className="space-y-4">
-      {/* ── Header card ── */}
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">Herramientas IA por cliente</CardTitle>
-          </div>
-          <CardDescription>
-            Define qué herramientas tiene disponibles el agente IA para cada cliente.
-            Las herramientas del sistema tienen lógica fija en el backend; las dinámicas
-            son consultas configurables sobre los datos externos cargados.
-          </CardDescription>
-        </CardHeader>
+    <div className="flex flex-col gap-2">
+      {/* ── Toolbar sticky ── */}
+      <div className="sticky top-0 z-1">
+        <div className="flex items-center gap-2">
+          <ClientSelector
+            clients={clients}
+            selectedUserId={selectedUserId}
+            onChange={setSelectedUserId}
+          />
 
-        <CardContent className="space-y-3">
-          <div className="flex items-end gap-3">
-            <div className="flex-1 space-y-1.5">
-              <Label className="flex items-center gap-1.5 text-sm">
-                <User className="h-3.5 w-3.5" />
-                Cliente
-              </Label>
-              <ClientSelector
-                clients={clients}
-                selectedUserId={selectedUserId}
-                onChange={setSelectedUserId}
-              />
-            </div>
-
-            {selectedUserId && (
+          {selectedUserId && (
+            <>
               <Button
                 variant="outline"
                 size="icon"
@@ -1304,38 +1279,17 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
               >
                 <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
               </Button>
-            )}
-          </div>
-
-          {selectedUserId && (
-            <>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                <span>userId:</span>
-                <code className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-mono">
-                  {selectedUserId}
-                </code>
-                {selectedClient && (
-                  <Badge variant="outline" className="text-xs ml-auto">
-                    {selectedClient.label}
-                  </Badge>
-                )}
-                {!isLoading && (
-                  <Badge variant="secondary" className="text-xs">
-                    {configs.length} herramienta{configs.length !== 1 ? 's' : ''}
-                  </Badge>
-                )}
-              </div>
-              <div className="flex gap-2 w-full">
+              <div className="ml-auto flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleTestSchedule}
                   disabled={isTestingSchedule}
-                  className="gap-2 flex-1"
+                  className="gap-2"
                 >
                   {isTestingSchedule
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <CalendarIcon className="h-4 w-4" />}
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <CalendarIcon className="h-3.5 w-3.5" />}
                   {isTestingSchedule ? 'Verificando...' : 'Probar BD'}
                 </Button>
                 <Button
@@ -1343,94 +1297,89 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
                   size="sm"
                   onClick={handleTestHttp}
                   disabled={isTestingHttp}
-                  className="gap-2 flex-1"
+                  className="gap-2"
                 >
                   {isTestingHttp
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <CalendarIcon className="h-4 w-4" />}
-                  {isTestingHttp ? 'Probando HTTP...' : 'Probar API HTTP'}
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <CalendarIcon className="h-3.5 w-3.5" />}
+                  {isTestingHttp ? 'Probando...' : 'Probar HTTP'}
                 </Button>
               </div>
             </>
           )}
+        </div>
+      </div>
 
-          {httpTestResult && (
-            <div className={`rounded-lg border p-3 text-sm space-y-2 ${!httpTestResult.pingOk || httpTestResult.servicesStatus !== 200 ? 'border-red-200 bg-red-50 dark:bg-red-950/20' : 'border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20'}`}>
-              <div className="font-medium text-xs">Test HTTP (como NestJS):</div>
-              <div className="space-y-1 text-xs text-muted-foreground font-mono">
+      {/* ── Resultados de prueba ── */}
+      {httpTestResult && (
+        <div className={`rounded-lg border p-3 text-sm space-y-2 ${!httpTestResult.pingOk || httpTestResult.servicesStatus !== 200 ? 'border-red-200 bg-red-50 dark:bg-red-950/20' : 'border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20'}`}>
+          <div className="font-medium text-xs">Test HTTP (como NestJS):</div>
+          <div className="space-y-1 text-xs text-muted-foreground font-mono">
+            <div className="flex gap-2">
+              <span className="w-36 shrink-0">Ping /api/schedule:</span>
+              <span className={httpTestResult.pingOk ? 'text-emerald-600' : 'text-red-600'}>
+                {httpTestResult.pingOk ? '✅ OK' : `❌ ${httpTestResult.pingError}`}
+              </span>
+            </div>
+            {httpTestResult.pingOk && (
+              <>
                 <div className="flex gap-2">
-                  <span className="w-36 shrink-0">Ping /api/schedule:</span>
-                  <span className={httpTestResult.pingOk ? 'text-emerald-600' : 'text-red-600'}>
-                    {httpTestResult.pingOk ? '✅ OK' : `❌ ${httpTestResult.pingError}`}
+                  <span className="w-36 shrink-0">Sin auth:</span>
+                  <span className={httpTestResult.authStatus === 401 ? 'text-emerald-600' : 'text-amber-600'}>
+                    {httpTestResult.authStatus === 401 ? '✅ 401 (correcto)' : `⚠️ ${httpTestResult.authStatus} — ${httpTestResult.authBody?.slice(0, 60)}`}
                   </span>
                 </div>
-                {httpTestResult.pingOk && (
-                  <>
-                    <div className="flex gap-2">
-                      <span className="w-36 shrink-0">Sin auth:</span>
-                      <span className={httpTestResult.authStatus === 401 ? 'text-emerald-600' : 'text-amber-600'}>
-                        {httpTestResult.authStatus === 401 ? '✅ 401 (correcto)' : `⚠️ ${httpTestResult.authStatus} — ${httpTestResult.authBody?.slice(0, 60)}`}
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="w-36 shrink-0">Con CRM Key:</span>
-                      <span className={httpTestResult.servicesStatus === 200 ? 'text-emerald-600' : 'text-red-600'}>
-                        {httpTestResult.servicesError
-                          ? `❌ Error: ${httpTestResult.servicesError}`
-                          : `${httpTestResult.servicesStatus === 200 ? '✅' : '❌'} ${httpTestResult.servicesStatus} — ${httpTestResult.servicesBody?.slice(0, 100)}`}
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
+                <div className="flex gap-2">
+                  <span className="w-36 shrink-0">Con CRM Key:</span>
+                  <span className={httpTestResult.servicesStatus === 200 ? 'text-emerald-600' : 'text-red-600'}>
+                    {httpTestResult.servicesError
+                      ? `❌ Error: ${httpTestResult.servicesError}`
+                      : `${httpTestResult.servicesStatus === 200 ? '✅' : '❌'} ${httpTestResult.servicesStatus} — ${httpTestResult.servicesBody?.slice(0, 100)}`}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
-          {scheduleTestResult && (
-            <div className={`rounded-lg border p-3 text-sm space-y-2 ${scheduleTestResult.error ? 'border-red-200 bg-red-50 dark:bg-red-950/20' : 'border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20'}`}>
-              <div className="font-medium flex items-center gap-2">
-                {scheduleTestResult.error
-                  ? <span className="text-red-600">❌ Problema detectado</span>
-                  : <span className="text-emerald-600">✅ Todo en orden</span>}
-              </div>
-              <div className="space-y-1 text-xs text-muted-foreground">
-                <div className="flex gap-2">
-                  <span className="font-medium w-32">userId correcto:</span>
-                  <code className="font-mono">{scheduleTestResult.userId}</code>
-                </div>
-                <div className="flex gap-2">
-                  <span className="font-medium w-32">CRM Key configurada:</span>
-                  <span className={scheduleTestResult.authOk ? 'text-emerald-600' : 'text-red-600'}>
-                    {scheduleTestResult.authOk ? '✅ Sí' : '❌ No — agregar CRM_FOLLOW_UP_RUNNER_KEY en .env'}
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="font-medium w-32">Servicios en agenda:</span>
-                  <span className={scheduleTestResult.services.length > 0 ? 'text-emerald-600' : 'text-amber-600'}>
-                    {scheduleTestResult.services.length > 0
-                      ? `✅ ${scheduleTestResult.services.length} (${scheduleTestResult.services.map(s => s.name).join(', ')})`
-                      : '⚠️ Sin servicios — crear al menos uno en /schedule'}
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="font-medium w-32">Disponibilidad hoy:</span>
-                  <span className={scheduleTestResult.slotsToday > 0 ? 'text-emerald-600' : 'text-amber-600'}>
-                    {scheduleTestResult.slotsToday > 0
-                      ? `✅ Configurada`
-                      : '⚠️ Sin horarios para hoy — revisar Disponibilidad en /schedule'}
-                  </span>
-                </div>
-                {scheduleTestResult.error && (
-                  <div className="flex gap-2 text-red-600">
-                    <span className="font-medium w-32">Error:</span>
-                    <span>{scheduleTestResult.error}</span>
-                  </div>
-                )}
-              </div>
+      {scheduleTestResult && (
+        <div className={`rounded-lg border p-3 text-sm space-y-2 ${scheduleTestResult.error ? 'border-red-200 bg-red-50 dark:bg-red-950/20' : 'border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20'}`}>
+          <div className="font-medium flex items-center gap-2">
+            {scheduleTestResult.error
+              ? <span className="text-red-600">❌ Problema detectado</span>
+              : <span className="text-emerald-600">✅ Todo en orden</span>}
+          </div>
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <div className="flex gap-2">
+              <span className="font-medium w-32">CRM Key:</span>
+              <span className={scheduleTestResult.authOk ? 'text-emerald-600' : 'text-red-600'}>
+                {scheduleTestResult.authOk ? '✅ Configurada' : '❌ Falta CRM_FOLLOW_UP_RUNNER_KEY en .env'}
+              </span>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <div className="flex gap-2">
+              <span className="font-medium w-32">Servicios:</span>
+              <span className={scheduleTestResult.services.length > 0 ? 'text-emerald-600' : 'text-amber-600'}>
+                {scheduleTestResult.services.length > 0
+                  ? `✅ ${scheduleTestResult.services.length} (${scheduleTestResult.services.map(s => s.name).join(', ')})`
+                  : '⚠️ Sin servicios — crear en /schedule'}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <span className="font-medium w-32">Disponibilidad hoy:</span>
+              <span className={scheduleTestResult.slotsToday > 0 ? 'text-emerald-600' : 'text-amber-600'}>
+                {scheduleTestResult.slotsToday > 0 ? '✅ Configurada' : '⚠️ Sin horarios — revisar /schedule'}
+              </span>
+            </div>
+            {scheduleTestResult.error && (
+              <div className="flex gap-2 text-red-600">
+                <span className="font-medium w-32">Error:</span>
+                <span>{scheduleTestResult.error}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Content area ── */}
       {!selectedUserId ? (

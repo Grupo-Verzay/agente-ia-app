@@ -1,5 +1,4 @@
 import AccessDenied from '@/app/AccessDenied';
-import Header from '@/components/shared/header';
 import { getClientsForSelector } from '@/actions/userClientDataActions';
 import { currentUser } from '@/lib/auth';
 import { isAdminLike, isAdminOrReseller } from '@/lib/rbac';
@@ -25,10 +24,10 @@ export default async function ExternalDataPage() {
   const clients = resClients?.data ?? [];
 
   return (
-    <>
-      <Header title="Datos Externos de Clientes" />
-        <Tabs defaultValue="tools">
-          <TabsList className="mb-4">
+    <div className="flex flex-col h-full gap-2">
+      <Tabs defaultValue="tools" className="flex flex-col h-full gap-2">
+        <div className="sticky top-0 z-1">
+          <TabsList>
             <TabsTrigger value="tools" className="gap-2">
               <Bot className="h-4 w-4" />
               Herramientas IA
@@ -42,19 +41,22 @@ export default async function ExternalDataPage() {
               Gestión
             </TabsTrigger>
           </TabsList>
+        </div>
 
-          <TabsContent value="tools">
+        <div className="flex-1 overflow-y-auto">
+          <TabsContent value="tools" className="mt-0">
             <ExternalDataToolConfigManagement clients={clients} />
           </TabsContent>
 
-          <TabsContent value="import">
+          <TabsContent value="import" className="mt-0">
             <ExternalDataImportClient clients={clients} />
           </TabsContent>
 
-          <TabsContent value="management">
+          <TabsContent value="management" className="mt-0">
             <ExternalClientDataManagement clients={clients} />
           </TabsContent>
-        </Tabs>
-    </>
+        </div>
+      </Tabs>
+    </div>
   );
 }

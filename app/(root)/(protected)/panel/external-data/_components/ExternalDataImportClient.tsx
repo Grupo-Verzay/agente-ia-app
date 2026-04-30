@@ -3,21 +3,22 @@
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  Check,
   CheckCircle2,
+  ChevronsUpDown,
   ClipboardPaste,
   Eye,
   FileSpreadsheet,
   Info,
   Loader2,
   RotateCcw,
-  User,
   XCircle,
 } from 'lucide-react';
 
 import { importFromGoogleSheetUrl, previewGoogleSheet } from '@/actions/external-client-data-actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -29,6 +30,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 import type { ExternalClientDataImportResult } from '@/types/external-client-data';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -85,6 +96,7 @@ const LOG_TEXT_COLOR: Record<LogType, string> = {
 
 export function ExternalDataImportClient({ clients }: Props) {
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [comboOpen, setComboOpen] = useState(false);
   const [url, setUrl] = useState('');
   const [columnName, setColumnName] = useState('WHATSAPP');
   const [catalogMode, setCatalogMode] = useState(false);
@@ -229,54 +241,60 @@ export function ExternalDataImportClient({ clients }: Props) {
   const canImport = !!selectedUserId && !!url.trim() && !isLoading;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-2">
+      {/* ── Toolbar sticky ── */}
+      <div className="sticky top-0 z-1">
+        <Popover open={comboOpen} onOpenChange={setComboOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={comboOpen}
+              disabled={isLoading}
+              className={cn(
+                'max-w-sm justify-between font-normal',
+                !selectedUserId && 'text-muted-foreground'
+              )}
+            >
+              {selectedUserId
+                ? (() => {
+                    const c = clients.find((c) => c.id === selectedUserId);
+                    return c ? `${c.label} — ${c.email}` : 'Cliente seleccionado';
+                  })()
+                : 'Selecciona un cliente...'}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Buscar cliente por nombre o email..." />
+              <CommandList>
+                <CommandEmpty>No se encontró ningún cliente.</CommandEmpty>
+                <CommandGroup>
+                  {clients.map((c) => (
+                    <CommandItem
+                      key={c.id}
+                      value={`${c.label} ${c.email}`}
+                      onSelect={() => {
+                        setSelectedUserId(c.id);
+                        setComboOpen(false);
+                      }}
+                    >
+                      <Check className={cn('mr-2 h-4 w-4', selectedUserId === c.id ? 'opacity-100' : 'opacity-0')} />
+                      <span className="font-medium">{c.label}</span>
+                      <span className="ml-2 text-muted-foreground text-xs">{c.email}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      </div>
+
       {/* ── Tarjeta principal ── */}
       <Card>
-        <CardHeader className="pb-4">
-          <div className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">Importar datos externos</CardTitle>
-          </div>
-          <CardDescription>
-            Sincroniza información de clientes (cédula, correo, servicio, monto, etc.)
-            desde Google Sheets. Los datos se guardan bajo el cliente seleccionado y
-            el agente IA los usará automáticamente en cada conversación.
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          {/* Selector de cliente */}
-          <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5">
-              <User className="h-3.5 w-3.5" />
-              Cliente destino
-            </Label>
-            <Select
-              value={selectedUserId}
-              onValueChange={setSelectedUserId}
-              disabled={isLoading}
-            >
-              <SelectTrigger className={!selectedUserId ? 'border-amber-500/50' : ''}>
-                <SelectValue placeholder="Selecciona el cliente al que pertenecen los datos..." />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    <span className="font-medium">{c.label}</span>
-                    <span className="ml-2 text-muted-foreground text-xs">{c.email}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedUserId && (
-              <p className="text-xs text-muted-foreground">
-                Los datos se guardarán bajo el userId:{' '}
-                <code className="bg-muted px-1 rounded text-[10px]">{selectedUserId}</code>
-              </p>
-            )}
-          </div>
-
-          <Separator />
+        <CardContent className="space-y-4 pt-4">
 
           {/* URL */}
           <div className="space-y-1.5">
