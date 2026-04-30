@@ -59,7 +59,7 @@ export const CRM_DEFAULT_COLUMN_VISIBILITY: Record<CrmTableColumnId, boolean> = 
     detalle: true,
     leadStatus: true,
     crmFollowUp: true,
-    estado: true,
+    estado: false,
     actions: true,
 };
 

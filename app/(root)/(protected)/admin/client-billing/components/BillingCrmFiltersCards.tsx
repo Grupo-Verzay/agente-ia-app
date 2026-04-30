@@ -23,6 +23,7 @@ function StatCard({
     onClick,
     activeClassName,
     valueClassName,
+    bgClassName,
 }: {
     title: string;
     value: number;
@@ -31,24 +32,20 @@ function StatCard({
     onClick?: () => void;
     activeClassName?: string;
     valueClassName?: string;
+    bgClassName?: string;
 }) {
     return (
         <Card
             onClick={onClick}
             className={cn(
-                "cursor-pointer select-none border-border bg-background/40 backdrop-blur",
-                "hover:bg-background/60 transition-colors",
-                "rounded-xl px-5 py-4 flex items-center justify-between gap-3",
-                active && (activeClassName ?? "ring-1 ring-primary")
+                "cursor-pointer select-none backdrop-blur transition-colors hover:opacity-90",
+                "rounded-xl px-3 py-3 flex items-center gap-3",
+                active ? (activeClassName ?? "ring-2 ring-primary") : (bgClassName ?? "border-border bg-background/40")
             )}
         >
-            <div className="flex items-center gap-3">
-                <div className="text-muted-foreground">{icon}</div>
-                <div className="leading-tight">
-                    <div className="text-xs text-muted-foreground">{title}</div>
-                    <div className={cn("text-lg font-semibold", valueClassName)}>{value}</div>
-                </div>
-            </div>
+            <div className="text-muted-foreground shrink-0">{icon}</div>
+            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{title}</span>
+            <div className={cn("shrink-0 text-lg font-semibold", valueClassName)}>{value}</div>
         </Card>
     );
 }
@@ -116,6 +113,8 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
                 icon={<Database className="h-4 w-4" />}
                 active={!anyQuickFilterActive}
                 onClick={clearAllQuickFilters}
+                bgClassName="bg-blue-50/60 border-blue-200"
+                valueClassName="text-blue-600"
             />
 
             <StatCard
@@ -124,8 +123,9 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
                 icon={<CircleCheck className="h-4 w-4" />}
                 active={paidFilter === "PAID"}
                 onClick={() => setExclusiveFilter("paid", "PAID")}
-                valueClassName="text-emerald-400"
+                valueClassName="text-emerald-600"
                 activeClassName="ring-1 ring-emerald-500/60"
+                bgClassName="bg-emerald-50/60 border-emerald-200"
             />
 
             <StatCard
@@ -134,8 +134,9 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
                 icon={<CircleX className="h-4 w-4" />}
                 active={paidFilter === "UNPAID"}
                 onClick={() => setExclusiveFilter("paid", "UNPAID")}
-                valueClassName="text-red-400"
+                valueClassName="text-red-600"
                 activeClassName="ring-1 ring-red-500/60"
+                bgClassName="bg-red-50/60 border-red-200"
             />
 
             <StatCard
@@ -144,8 +145,9 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
                 icon={<UserCheck className="h-4 w-4" />}
                 active={accessFilter === "ACTIVE"}
                 onClick={() => setExclusiveFilter("access", "ACTIVE")}
-                valueClassName="text-emerald-400"
+                valueClassName="text-emerald-600"
                 activeClassName="ring-1 ring-emerald-500/60"
+                bgClassName="bg-emerald-50/60 border-emerald-200"
             />
 
             <StatCard
@@ -154,8 +156,9 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
                 icon={<UserX className="h-4 w-4" />}
                 active={dueFilter === "SOON"}
                 onClick={() => setExclusiveFilter("due", "SOON")}
-                valueClassName={dueSoonCount > 0 ? "text-yellow-300" : undefined}
+                valueClassName={dueSoonCount > 0 ? "text-yellow-600" : "text-muted-foreground"}
                 activeClassName="ring-1 ring-yellow-500/60"
+                bgClassName="bg-yellow-50/60 border-yellow-200"
             />
         </div>
     );

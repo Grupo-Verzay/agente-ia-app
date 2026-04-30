@@ -35,6 +35,7 @@ import { HeaderWithInfo } from "./HeaderWithInfo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { FlowListOrder } from "./FlowListOrder";
 import { SeguimientoBadge } from "./SeguimientoBadge";
+import { EditableNameCell } from "./EditableNameCell";
 
 export const ActionsCell = ({ session, onDeleteSuccess }: { session: Session, onDeleteSuccess?: (deletedId: number) => void }) => {
   const [openDeleteCliente, setOpenDeleteCliente] = useState(false);
@@ -224,82 +225,99 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
     {
       accessorKey: "pushName",
       header: "Nombre",
-      cell: ({ row }) => {
-        const name = (row.getValue("pushName") as string) || "Sin nombre";
-
-        return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div
-                  className="max-w-[150px] truncate"
-                >
-                  {name}
-                </div>
-              </TooltipTrigger>
-
-              <TooltipContent className="max-w-[420px] break-words">
-                {name}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      },
+      cell: ({ row }) => (
+        <EditableNameCell session={row.original} onUpdated={mutateSessions} />
+      ),
     },
     {
       accessorKey: "status",
-      header: () => (
-        <HeaderWithInfo
-          title="Sesión"
-          info="Controla si el chat está activo/inactivo para automatizaciones de conversación (pausas, antiflood, reactivaciones, etc.)."
-        />
+      header: ({ column }) => (
+        <div className="flex items-center gap-1">
+          <HeaderWithInfo
+            title="Sesión"
+            info="Controla si el chat está activo/inactivo para automatizaciones de conversación (pausas, antiflood, reactivaciones, etc.)."
+          />
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+            <ArrowUpDown className="h-3 w-3" />
+          </Button>
+        </div>
       ),
       cell: ({ row }) => {
         const status = row.getValue("status") as boolean;
         const sessionId = row.original.id;
-        return <SwitchStatus checked={status} sessionId={sessionId} mutateSessions={mutateSessions} />;
+        return (
+          <div className="flex justify-center">
+            <SwitchStatus checked={status} sessionId={sessionId} mutateSessions={mutateSessions} />
+          </div>
+        );
       },
     },
     {
       accessorKey: "agentDisabled",
-      header: () => (
-        <HeaderWithInfo
-          title="Agente"
-          info="Apaga o enciende el agente IA para este cliente. Si está OFF, el sistema guarda historial, pero no ejecuta IA ni workflows."
-        />
+      header: ({ column }) => (
+        <div className="flex items-center gap-1">
+          <HeaderWithInfo
+            title="Agente"
+            info="Apaga o enciende el agente IA para este cliente. Si está OFF, el sistema guarda historial, pero no ejecuta IA ni workflows."
+          />
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+            <ArrowUpDown className="h-3 w-3" />
+          </Button>
+        </div>
       ),
       cell: ({ row }) => {
         const session = row.original;
         return (
-          <SwitchAgentDisabled
-            agentDisabled={!!session.agentDisabled}
-            userId={session.userId}
-            sessionId={session.id}
-            mutateSessions={mutateSessions}
-          />
+          <div className="flex justify-center">
+            <SwitchAgentDisabled
+              agentDisabled={!!session.agentDisabled}
+              userId={session.userId}
+              sessionId={session.id}
+              mutateSessions={mutateSessions}
+            />
+          </div>
         );
       },
     },
     {
       accessorKey: "createdAt",
-      header: "Creado",
-      cell: ({ row }) => new Date(row.getValue("createdAt")).toLocaleDateString(),
+      header: ({ column }) => (
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="px-1 text-sm">
+          Creado <ArrowUpDown className="ml-0.5 h-3 w-3" />
+        </Button>
+      ),
+      cell: ({ row }) => new Date(row.getValue("createdAt")).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" }),
     },
     {
       accessorKey: "flujos",
-      header: "Flujos",
+      header: ({ column }) => (
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="px-1 text-sm">
+          Flujos <ArrowUpDown className="ml-0.5 h-3 w-3" />
+        </Button>
+      ),
       cell: ({ row }) => {
         const flows = row.getValue("flujos") || "-";
-
-        return <FlowListOrder raw={flows.toString()} />
+        return (
+          <div className="flex justify-center">
+            <FlowListOrder raw={flows.toString()} />
+          </div>
+        );
       },
     },
     {
       accessorKey: "pendingSeguimientos",
-      header: "Seguimientos",
+      header: ({ column }) => (
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="px-1 text-sm">
+          Seguimientos <ArrowUpDown className="ml-0.5 h-3 w-3" />
+        </Button>
+      ),
       cell: ({ row }) => {
         const count = (row.original.pendingSeguimientos ?? 0) as number;
-        return <SeguimientoBadge count={count} />;
+        return (
+          <div className="flex justify-center">
+            <SeguimientoBadge count={count} />
+          </div>
+        );
       },
     },
     {
@@ -310,21 +328,24 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
         const initialSelectedTagIds = (session.tags ?? []).map((t) => t.id);
 
         return (
-          <SessionTagsCombobox
-            userId={session.userId}
-            sessionId={session.id}
-            allTags={allTags}
-            initialSelectedIds={initialSelectedTagIds}
-          />
+          <div className="flex justify-center">
+            <SessionTagsCombobox
+              userId={session.userId}
+              sessionId={session.id}
+              allTags={allTags}
+              initialSelectedIds={initialSelectedTagIds}
+            />
+          </div>
         );
       },
     },
-
     {
       accessorKey: "acciones",
       header: "Acciones",
       cell: ({ row }) => (
-        <ActionsCell session={row.original} onDeleteSuccess={onDeleteSuccess} />
+        <div className="flex justify-center">
+          <ActionsCell session={row.original} onDeleteSuccess={onDeleteSuccess} />
+        </div>
       ),
     },
   ];

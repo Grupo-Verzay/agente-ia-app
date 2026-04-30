@@ -18,6 +18,7 @@ import { CRM_TAB_COLORS } from "./constants";
 import { CrmRecordDetailCell } from "./CrmRecordDetailCell";
 import { CrmRecordActionsCell } from "./CrmRecordActionsCell";
 import { CrmRecordStatusCell } from "./CrmRecordStatusCell";
+import { CrmRecordNameCell } from "./CrmRecordNameCell";
 import { LeadStatusBadge } from "./LeadStatusBadge";
 
 function SortableHeader({
@@ -89,25 +90,12 @@ export function createCrmRecordColumns({
             accessorFn: (row) => getDisplayNombreFromRegistro(row),
             enableHiding: false,
             header: ({ column }) => <SortableHeader column={column} label="Nombre" />,
-            cell: ({ row }) => {
-                const nombre = getDisplayNombreFromRegistro(row.original);
-                const sessionName = row.original.session.pushName;
-                const showSessionName =
-                    !!sessionName &&
-                    sessionName.trim() !== "" &&
-                    sessionName.trim() !== nombre.trim();
-
-                return (
-                    <div className="max-w-[150px] truncate">
-                        <p className="font-medium">{nombre}</p>
-                        {showSessionName ? (
-                            <p className="text-xs text-muted-foreground">
-                                Sesión: {sessionName}
-                            </p>
-                        ) : null}
-                    </div>
-                );
-            },
+            cell: ({ row }) => (
+                <CrmRecordNameCell
+                    registro={row.original}
+                    onUpdated={onRecordsChanged}
+                />
+            ),
         },
         {
             id: "tipo",
@@ -118,17 +106,19 @@ export function createCrmRecordColumns({
                 const tipoColor = CRM_TAB_COLORS[tipo];
 
                 return (
-                    <span
-                        className="inline-flex rounded-full border px-2 py-1 text-xs font-medium text-white"
-                        style={
-                            {
-                                backgroundColor: tipoColor,
-                                borderColor: tipoColor,
-                            } as CSSProperties
-                        }
-                    >
-                        {getTipoLabel(tipo)}
-                    </span>
+                    <div className="flex justify-center">
+                        <span
+                            className="inline-flex rounded-full border px-2 py-1 text-xs font-medium text-white"
+                            style={
+                                {
+                                    backgroundColor: tipoColor,
+                                    borderColor: tipoColor,
+                                } as CSSProperties
+                            }
+                        >
+                            {getTipoLabel(tipo)}
+                        </span>
+                    </div>
                 );
             },
         },
@@ -164,7 +154,7 @@ export function createCrmRecordColumns({
             accessorFn: (row) => row.session.leadStatus ?? "",
             header: ({ column }) => <SortableHeader column={column} label="Lead" />,
             cell: ({ row }) => (
-                <div className="min-w-[120px]">
+                <div className="flex justify-center">
                     <LeadStatusBadge status={row.original.session.leadStatus ?? null} />
                 </div>
             ),
@@ -179,7 +169,7 @@ export function createCrmRecordColumns({
                 <SortableHeader column={column} label="Follow-up" />
             ),
             cell: ({ row }) => (
-                <div className="min-w-[240px]">
+                <div className="flex justify-center">
                     <CrmFollowUpSummaryBadge
                         summary={row.original.session.crmFollowUpSummary}
                         userId={userId}
@@ -190,18 +180,20 @@ export function createCrmRecordColumns({
                 </div>
             ),
         },
-        {
-            id: "estado",
-            accessorFn: (row) => row.estado ?? "",
-            header: ({ column }) => <SortableHeader column={column} label="Estado" />,
-            cell: ({ row }) => (
-                <CrmRecordStatusCell
-                    registro={row.original}
-                    disabled={isUpdatingRegistros}
-                    onChangeEstado={onChangeEstado}
-                />
-            ),
-        },
+        // {
+        //     id: "estado",
+        //     accessorFn: (row) => row.estado ?? "",
+        //     header: ({ column }) => <SortableHeader column={column} label="Estado" />,
+        //     cell: ({ row }) => (
+        //         <div className="flex justify-center">
+        //             <CrmRecordStatusCell
+        //                 registro={row.original}
+        //                 disabled={isUpdatingRegistros}
+        //                 onChangeEstado={onChangeEstado}
+        //             />
+        //         </div>
+        //     ),
+        // },
         {
             id: "actions",
             enableSorting: false,
@@ -211,7 +203,7 @@ export function createCrmRecordColumns({
                 </span>
             ),
             cell: ({ row }) => (
-                <div className="flex justify-end">
+                <div className="flex justify-center">
                     <CrmRecordActionsCell
                         registro={row.original}
                         onUpdated={onRecordsChanged}

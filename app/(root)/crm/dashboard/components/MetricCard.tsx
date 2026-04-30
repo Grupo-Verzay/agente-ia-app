@@ -49,44 +49,39 @@ export const MetricCard = ({
 
     return (
         <Card className="border-2 bg-background/60 shadow-sm" style={cardStyle}>
-            <CardContent className="flex flex-col gap-2 p-3">
-                <div className="flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                        <span
-                            className="text-[11px] font-medium tracking-[0.02em] text-muted-foreground"
-                            style={labelStyle}
-                        >
-                            {label}
-                        </span>
-                        {helper ? (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        type="button"
-                                        className="inline-flex h-4 w-4 items-center justify-center rounded-sm text-muted-foreground transition-opacity hover:opacity-100"
-                                        style={helperButtonStyle}
-                                        aria-label={`Informacion sobre ${label}`}
-                                    >
-                                        <CircleHelp className="h-3.5 w-3.5" />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent
-                                    side="top"
-                                    className="max-w-56 text-xs"
-                                >
-                                    {helper}
-                                </TooltipContent>
-                            </Tooltip>
-                        ) : null}
-                    </div>
-                    <div
-                        className="flex h-8 w-8 items-center justify-center rounded-full border-2 text-muted-foreground"
-                        style={iconStyle}
-                    >
-                        {icon}
-                    </div>
+            <CardContent className="flex items-center gap-2 px-3 py-3">
+                <div
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-muted-foreground"
+                    style={iconStyle}
+                >
+                    {icon}
                 </div>
-                <div className="text-xl font-semibold leading-none" style={valueStyle}>
+                <div className="flex min-w-0 flex-1 items-center gap-1">
+                    <span
+                        className="truncate text-xs font-medium text-muted-foreground"
+                        style={labelStyle}
+                    >
+                        {label}
+                    </span>
+                    {helper ? (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    type="button"
+                                    className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-opacity hover:opacity-100"
+                                    style={helperButtonStyle}
+                                    aria-label={`Informacion sobre ${label}`}
+                                >
+                                    <CircleHelp className="h-3 w-3" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-56 text-xs">
+                                {helper}
+                            </TooltipContent>
+                        </Tooltip>
+                    ) : null}
+                </div>
+                <div className="shrink-0 text-lg font-bold leading-none" style={valueStyle}>
                     {value}
                 </div>
             </CardContent>

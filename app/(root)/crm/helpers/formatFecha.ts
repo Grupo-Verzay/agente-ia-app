@@ -2,7 +2,7 @@
 export function formatFecha(fecha: Date | string) {
     if (!fecha || fecha === "") return "-";
     try {
-        return fecha.toLocaleString("es-CO", {
+        return new Date(fecha).toLocaleString("es-CO", {
             dateStyle: "short",
             timeStyle: "short",
         });

@@ -55,7 +55,7 @@ export function CrmRecordsDataTable({
                         className="h-[420px] min-w-0 overflow-auto rounded-xl border border-border/70 bg-background lg:h-[540px]"
                     >
                         <div className="min-w-max">
-                            <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
+                            <table className="w-max border-separate border-spacing-0 text-sm">
                                 <TableHeader>
                                     {table.getHeaderGroups().map((headerGroup) => (
                                         <TableRow
@@ -65,7 +65,7 @@ export function CrmRecordsDataTable({
                                             {headerGroup.headers.map((header) => (
                                                 <TableHead
                                                     key={header.id}
-                                                    className="sticky top-0 z-20 whitespace-nowrap border-b border-border/70 bg-background/95 shadow-[0_1px_0_0_hsl(var(--border)/0.7)] backdrop-blur supports-[backdrop-filter]:bg-background/85"
+                                                    className="sticky top-0 z-20 h-9 whitespace-nowrap border-b border-border/70 bg-background/95 px-3 shadow-[0_1px_0_0_hsl(var(--border)/0.7)] backdrop-blur supports-[backdrop-filter]:bg-background/85"
                                                 >
                                                     {header.isPlaceholder
                                                         ? null
@@ -89,7 +89,7 @@ export function CrmRecordsDataTable({
                                                 {row.getVisibleCells().map((cell) => (
                                                     <TableCell
                                                         key={cell.id}
-                                                        className="align-top py-3"
+                                                        className="align-middle py-2"
                                                     >
                                                         {flexRender(
                                                             cell.column.columnDef.cell,

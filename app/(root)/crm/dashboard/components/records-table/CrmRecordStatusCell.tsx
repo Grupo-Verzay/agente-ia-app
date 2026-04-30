@@ -26,26 +26,24 @@ export function CrmRecordStatusCell({
             : undefined;
 
     return (
-        <div className="flex justify-end">
-            <Select
-                value={currentValue}
-                onValueChange={(value) => {
-                    if (value === registro.estado) return;
-                    onChangeEstado?.(registro.id, value);
-                }}
-                disabled={disabled || !onChangeEstado}
-            >
-                <SelectTrigger className="h-8 w-[170px] justify-between">
-                    <SelectValue placeholder="Seleccionar estado" />
-                </SelectTrigger>
-                <SelectContent>
-                    {estadoOptions.map((estado) => (
-                        <SelectItem key={estado} value={estado}>
-                            {estado}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-        </div>
+        <Select
+            value={currentValue}
+            onValueChange={(value) => {
+                if (value === registro.estado) return;
+                onChangeEstado?.(registro.id, value);
+            }}
+            disabled={disabled || !onChangeEstado}
+        >
+            <SelectTrigger className="h-7 w-[120px] text-xs">
+                <SelectValue placeholder="Estado" />
+            </SelectTrigger>
+            <SelectContent>
+                {estadoOptions.map((estado) => (
+                    <SelectItem key={estado} value={estado}>
+                        {estado}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
     );
 }

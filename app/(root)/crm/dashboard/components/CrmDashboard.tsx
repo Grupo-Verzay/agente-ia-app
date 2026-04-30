@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, type RefObject } from "react";
 import useSWR from "swr";
 import {
@@ -75,6 +75,7 @@ export const CrmDashboard = ({
     sentinelRef: RefObject<HTMLDivElement>;
     onScrollRootReady: (el: HTMLDivElement | null) => void;
 }) => {
+    const router = useRouter();
     const [viewMode, setViewMode] = useState<"registros" | "analiticas">("registros");
     const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
 
@@ -143,32 +144,6 @@ export const CrmDashboard = ({
     return (
         <TooltipProvider delayDuration={120}>
             <div className="flex h-full min-w-0 flex-col gap-2">
-                {/* Header */}
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-muted/20 px-4 py-3">
-                    <div className="space-y-1">
-                        <p className="text-sm font-semibold">Reglas IA del CRM</p>
-                        <p className="text-sm text-muted-foreground">
-                            Gestiona en una vista dedicada los follow-ups, la
-                            clasificacion de lead y el sintetizador del CRM.
-                        </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Button asChild>
-                            <Link href="/crm/rules">
-                                <Settings2 className="h-4 w-4" />
-                                Reglas
-                            </Link>
-                        </Button>
-
-                        <CrmGlobalActionsMenu
-                            userId={userId}
-                            stats={stats}
-                            onDataChanged={onRecordsChanged}
-                        />
-                    </div>
-                </div>
-
                 {/* Metric Cards */}
                 <div className="flex flex-wrap gap-3">
                     {viewMode === "registros" ? (
@@ -252,7 +227,7 @@ export const CrmDashboard = ({
                     )}
                 </div>
 
-                {/* View toggle + period selector */}
+                {/* View toggle + period selector + actions */}
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
                         <button
@@ -299,6 +274,19 @@ export const CrmDashboard = ({
                                 {p.label}
                             </button>
                         ))}
+                    </div>
+
+                    <div className="ml-auto flex items-center gap-2">
+                        <span className="text-sm font-medium">Reglas IA del CRM</span>
+                        <Button onClick={() => router.push("/crm/rules")}>
+                            <Settings2 className="h-4 w-4" />
+                            Reglas
+                        </Button>
+                        <CrmGlobalActionsMenu
+                            userId={userId}
+                            stats={stats}
+                            onDataChanged={onRecordsChanged}
+                        />
                     </div>
                 </div>
 

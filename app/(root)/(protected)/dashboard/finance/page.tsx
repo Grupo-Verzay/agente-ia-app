@@ -160,27 +160,15 @@ export default async function FinanceHomePage() {
         {/* Ventas */}
         <Link href="/dashboard/finance/sales" className="block">
           <Card className="border-border transition hover:bg-muted/40">
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border bg-muted/40">
-                    <TrendingUp className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="space-y-0.5">
-                    <CardTitle className="text-sm">Ventas del mes</CardTitle>
-                    <p className="text-xs text-muted-foreground">Ver ventas</p>
-                  </div>
-                </div>
-
-                <Badge variant="outline" className="h-7 px-2 text-[11px]">
-                  {preferredCode}
-                </Badge>
+            <CardContent className="flex items-center gap-3 px-3 py-3">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 bg-muted/40">
+                <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
-            </CardHeader>
-
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold tracking-tight">{formatPreferred(salesCombined)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Click para abrir Ventas</p>
+              <span className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">Ventas del mes</span>
+              <div className="shrink-0 flex items-center gap-1.5">
+                <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{preferredCode}</Badge>
+                <span className="text-lg font-semibold tracking-tight">{formatPreferred(salesCombined)}</span>
+              </div>
             </CardContent>
           </Card>
         </Link>
@@ -188,27 +176,15 @@ export default async function FinanceHomePage() {
         {/* Gastos */}
         <Link href="/dashboard/finance/expenses" className="block">
           <Card className="border-border transition hover:bg-muted/40">
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border bg-muted/40">
-                    <TrendingDown className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="space-y-0.5">
-                    <CardTitle className="text-sm">Gastos del mes</CardTitle>
-                    <p className="text-xs text-muted-foreground">Ver gastos</p>
-                  </div>
-                </div>
-
-                <Badge variant="outline" className="h-7 px-2 text-[11px]">
-                  {preferredCode}
-                </Badge>
+            <CardContent className="flex items-center gap-3 px-3 py-3">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 bg-muted/40">
+                <TrendingDown className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
-            </CardHeader>
-
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold tracking-tight">{formatPreferred(expensesCombined)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Click para abrir Gastos</p>
+              <span className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">Gastos del mes</span>
+              <div className="shrink-0 flex items-center gap-1.5">
+                <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{preferredCode}</Badge>
+                <span className="text-lg font-semibold tracking-tight">{formatPreferred(expensesCombined)}</span>
+              </div>
             </CardContent>
           </Card>
         </Link>
@@ -216,27 +192,15 @@ export default async function FinanceHomePage() {
         {/* Neto */}
         <Link href="/dashboard/finance/accounts" className="block">
           <Card className="border-border transition hover:bg-muted/40">
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border bg-muted/40">
-                    <Wallet className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="space-y-0.5">
-                    <CardTitle className="text-sm">Estado de cuentas</CardTitle>
-                    <p className="text-xs text-muted-foreground">Ventas - Gastos</p>
-                  </div>
-                </div>
-
-                <Badge variant="outline" className="h-7 px-2 text-[11px]">
-                  {preferredCode}
-                </Badge>
+            <CardContent className="flex items-center gap-3 px-3 py-3">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 bg-muted/40">
+                <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
-            </CardHeader>
-
-            <CardContent className="pt-0">
-              <p className="text-2xl font-semibold tracking-tight">{formatPreferred(netCombined)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Click para abrir Cuentas</p>
+              <span className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">Estado de cuentas</span>
+              <div className="shrink-0 flex items-center gap-1.5">
+                <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{preferredCode}</Badge>
+                <span className="text-lg font-semibold tracking-tight">{formatPreferred(netCombined)}</span>
+              </div>
             </CardContent>
           </Card>
         </Link>
