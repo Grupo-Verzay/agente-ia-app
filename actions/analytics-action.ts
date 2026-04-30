@@ -158,7 +158,45 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
             ingresos: Math.round(weekRevenue[i] * 100) / 100,
         }));
 
-        /* ── 8) Actividad diaria — sesiones nuevas por día ── */
+        /* ── 8b) Gastos por categoría ── */
+        const expensesRaw = await db.financeTransaction.findMany({
+            where: {
+                userId,
+                type: "EXPENSE" as any,
+                status: { not: "DELETED" as any },
+                ...(dateFilter ? { occurredAt: dateFilter } : {}),
+            },
+            select: { amount: true, categoryId: true },
+        });
+        const totalExpenses = expensesRaw.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);
+
+        const expCategoryIds = [...new Set(expensesRaw.map((e) => e.categoryId).filter(Boolean))] as string[];
+        const expCategories = expCategoryIds.length
+            ? await db.financeCategory.findMany({
+                  where: { id: { in: expCategoryIds } },
+                  select: { id: true, name: true, color: true },
+              })
+            : [];
+        const catMeta = Object.fromEntries(expCategories.map((c) => [c.id, { name: c.name, color: c.color }]));
+        const expByCatMap: Record<string, { name: string; amount: number; color: string }> = {};
+        for (const exp of expensesRaw) {
+            const cid = exp.categoryId ?? "__none__";
+            const meta = catMeta[cid] ?? { name: "Sin categoría", color: null };
+            if (!expByCatMap[cid]) expByCatMap[cid] = { name: meta.name, amount: 0, color: meta.color ?? "#6B7280" };
+            expByCatMap[cid].amount += Number(exp.amount ?? 0);
+        }
+        const expensesByCategory = Object.values(expByCatMap)
+            .sort((a, b) => b.amount - a.amount)
+            .slice(0, 8)
+            .map((c) => ({ ...c, amount: Math.round(c.amount * 100) / 100 }));
+
+        /* ── 8c) Créditos IA ── */
+        const iaCreditRaw = await db.iaCredit.findUnique({
+            where: { userId },
+            select: { total: true, used: true, renewalDate: true },
+        });
+
+        /* ── 9) Actividad diaria — sesiones nuevas por día ── */
         const activityDays = period === "7d" ? 7 : period === "90d" ? 90 : 30;
         const activityStart = new Date();
         activityStart.setDate(activityStart.getDate() - (activityDays - 1));
@@ -227,6 +265,18 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
                     totalRevenue: Math.round(totalRevenue * 100) / 100,
                     byWeek: salesByWeek,
                 },
+                expenses: {
+                    total: Math.round(totalExpenses * 100) / 100,
+                    byCategory: expensesByCategory,
+                },
+                iaCredit: iaCreditRaw
+                    ? {
+                          total: iaCreditRaw.total,
+                          used: iaCreditRaw.used,
+                          available: Math.max(0, iaCreditRaw.total - iaCreditRaw.used),
+                          renewalDate: iaCreditRaw.renewalDate?.toISOString() ?? null,
+                      }
+                    : null,
                 activityByDay,
             },
         };

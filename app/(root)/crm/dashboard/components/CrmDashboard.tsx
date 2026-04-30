@@ -76,7 +76,7 @@ export const CrmDashboard = ({
     onScrollRootReady: (el: HTMLDivElement | null) => void;
 }) => {
     const router = useRouter();
-    const [viewMode, setViewMode] = useState<"registros" | "analiticas">("registros");
+    const [viewMode, setViewMode] = useState<"registros" | "analiticas">("analiticas");
     const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
 
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -232,19 +232,6 @@ export const CrmDashboard = ({
                     <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
                         <button
                             type="button"
-                            onClick={() => setViewMode("registros")}
-                            className={[
-                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                                viewMode === "registros"
-                                    ? "bg-background shadow-sm text-foreground"
-                                    : "text-muted-foreground hover:text-foreground",
-                            ].join(" ")}
-                        >
-                            <LayoutList className="h-3.5 w-3.5" />
-                            Registros
-                        </button>
-                        <button
-                            type="button"
                             onClick={() => setViewMode("analiticas")}
                             className={[
                                 "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
@@ -255,6 +242,19 @@ export const CrmDashboard = ({
                         >
                             <TrendingUp className="h-3.5 w-3.5" />
                             Analíticas
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode("registros")}
+                            className={[
+                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                viewMode === "registros"
+                                    ? "bg-background shadow-sm text-foreground"
+                                    : "text-muted-foreground hover:text-foreground",
+                            ].join(" ")}
+                        >
+                            <LayoutList className="h-3.5 w-3.5" />
+                            Registros
                         </button>
                     </div>
 

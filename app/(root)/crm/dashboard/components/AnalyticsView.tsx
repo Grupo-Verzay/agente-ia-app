@@ -36,8 +36,9 @@ const ANALYTICS_SECTIONS = {
     sesiones:   "Sesiones",
     flujos:     "Flujos",
     etiquetas:  "Etiquetas y madurez",
-    ventas:     "Ventas",
+    ventas:     "Ventas y gastos",
     productos:  "Productos",
+    sistema:    "Créditos IA",
 } as const;
 
 type SectionKey = keyof typeof ANALYTICS_SECTIONS;
@@ -141,7 +142,7 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
 
     const [visibleSections, setVisibleSections] = useState<Record<SectionKey, boolean>>({
         actividad: true, leads: true, citas: true, sesiones: true,
-        flujos: true, etiquetas: true, ventas: true, productos: true,
+        flujos: true, etiquetas: true, ventas: true, productos: true, sistema: true,
     });
 
     const toggleSection = (key: SectionKey) =>
@@ -480,6 +481,7 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                     </CardContent>
                 </Card>
             </div>
+
             </>)}
 
             {/* ═══ ③ LEADS Y SEGUIMIENTOS ═══ */}
@@ -685,34 +687,100 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
             <TagStatsCard userId={userId} />
             </>)}
 
-            {/* ═══ ⑧ VENTAS — ancho completo · condicional ═══ */}
-            {visibleSections.ventas && a && a.sales.total > 0 && (
+            {/* ═══ ⑧ VENTAS Y GASTOS ═══ */}
+            {visibleSections.ventas && a && (a.sales.total > 0 || a.expenses.total > 0) && (
                 <>
-                    <SectionLabel>Ventas</SectionLabel>
-                    <Card className="border-border">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-base">Ventas en el período</CardTitle>
-                            <CardDescription>
-                                <span className="font-semibold text-foreground">{a.sales.total}</span> ventas ·{" "}
-                                <span className="font-semibold text-foreground">
-                                    ${a.sales.totalRevenue.toLocaleString("es-ES", { minimumFractionDigits: 2 })}
-                                </span>{" "}
-                                en ingresos
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="h-[240px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={a.sales.byWeek} margin={{ top: 8, right: 24, bottom: 8, left: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
-                                    <XAxis dataKey="semana" tick={{ fontSize: 11 }} />
-                                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                                    <Tooltip />
-                                    <Line type="monotone" dataKey="ventas"   stroke="#22C55E" strokeWidth={2} dot={{ r: 3 }} name="Ventas" />
-                                    <Line type="monotone" dataKey="ingresos" stroke="#8B5CF6" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="4 2" name="Ingresos" />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </CardContent>
-                    </Card>
+                    <SectionLabel>Ventas y gastos</SectionLabel>
+
+                    {/* Resumen financiero + Gastos por categoría */}
+                    <div className="grid gap-4 lg:grid-cols-2">
+                        <Card className="border-border bg-muted/10">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-base text-muted-foreground">Resumen financiero</CardTitle>
+                                <CardDescription>Comparativo del período seleccionado.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <KpiList items={[
+                                    {
+                                        label: "Ingresos (ventas)",
+                                        value: a.sales.totalRevenue > 0
+                                            ? `$${a.sales.totalRevenue.toLocaleString("es-ES", { minimumFractionDigits: 2 })}`
+                                            : "—",
+                                        color: "#22C55E",
+                                    },
+                                    {
+                                        label: "Gastos",
+                                        value: a.expenses.total > 0
+                                            ? `$${a.expenses.total.toLocaleString("es-ES", { minimumFractionDigits: 2 })}`
+                                            : "—",
+                                        color: "#EF4444",
+                                    },
+                                    {
+                                        label: "Balance neto",
+                                        value: (() => {
+                                            const net = a.sales.totalRevenue - a.expenses.total;
+                                            return `${net >= 0 ? "+" : ""}$${Math.abs(net).toLocaleString("es-ES", { minimumFractionDigits: 2 })}`;
+                                        })(),
+                                        color: a.sales.totalRevenue >= a.expenses.total ? "#22C55E" : "#EF4444",
+                                    },
+                                    { label: "Total ventas", value: a.sales.total, color: "#8B5CF6" },
+                                ]} />
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-border">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-base">Gastos por categoría</CardTitle>
+                                <CardDescription>Top categorías del período.</CardDescription>
+                            </CardHeader>
+                            <CardContent className={CHART_H}>
+                                {a.expenses.byCategory.length === 0
+                                    ? <EmptyState text="No hay gastos registrados en este período." />
+                                    : (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={a.expenses.byCategory} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
+                                                <XAxis type="number" tick={{ fontSize: 11 }} />
+                                                <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={90} />
+                                                <Tooltip formatter={(v) => [`$${Number(v).toLocaleString("es-ES", { minimumFractionDigits: 2 })}`, "Gastos"]} />
+                                                <Bar dataKey="amount" radius={[0, 6, 6, 0]}>
+                                                    {a.expenses.byCategory.map((e, i) => (
+                                                        <Cell key={i} fill={e.color} />
+                                                    ))}
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    )}
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Ventas por semana */}
+                    {a.sales.total > 0 && (
+                        <Card className="border-border">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-base">Ventas en el período</CardTitle>
+                                <CardDescription>
+                                    <span className="font-semibold text-foreground">{a.sales.total}</span> ventas ·{" "}
+                                    <span className="font-semibold text-foreground">
+                                        ${a.sales.totalRevenue.toLocaleString("es-ES", { minimumFractionDigits: 2 })}
+                                    </span>{" "}
+                                    en ingresos
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="h-[240px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={a.sales.byWeek} margin={{ top: 8, right: 24, bottom: 8, left: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
+                                        <XAxis dataKey="semana" tick={{ fontSize: 11 }} />
+                                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                                        <Tooltip />
+                                        <Line type="monotone" dataKey="ventas"   stroke="#22C55E" strokeWidth={2} dot={{ r: 3 }} name="Ventas" />
+                                        <Line type="monotone" dataKey="ingresos" stroke="#8B5CF6" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="4 2" name="Ingresos" />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+                    )}
                 </>
             )}
 
@@ -787,6 +855,62 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                                     )}
                             </CardContent>
                         </Card>
+                    </div>
+                </>
+            )}
+
+            {/* ═══ ⑩ CRÉDITOS IA ═══ */}
+            {visibleSections.sistema && (
+                <>
+                    <SectionLabel>Créditos IA</SectionLabel>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                        <Card className="border-border bg-muted/10">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-base text-muted-foreground">Uso de créditos</CardTitle>
+                                {a?.iaCredit?.renewalDate && (
+                                    <CardDescription>
+                                        Renovación:{" "}
+                                        {new Date(a.iaCredit.renewalDate).toLocaleDateString("es-CO", { dateStyle: "medium" })}
+                                    </CardDescription>
+                                )}
+                            </CardHeader>
+                            <CardContent>
+                                {loading ? (
+                                    <p className="text-xs text-muted-foreground">Cargando...</p>
+                                ) : !a?.iaCredit ? (
+                                    <p className="text-xs text-muted-foreground">Sin créditos configurados.</p>
+                                ) : (
+                                    <KpiList items={[
+                                        { label: "Créditos totales",     value: a.iaCredit.total.toLocaleString(),     color: "#3B82F6" },
+                                        { label: "Créditos usados",      value: a.iaCredit.used.toLocaleString(),      color: "#F97316" },
+                                        { label: "Créditos disponibles", value: a.iaCredit.available.toLocaleString(), color: "#22C55E" },
+                                        {
+                                            label: "% de uso",
+                                            value: a.iaCredit.total > 0
+                                                ? `${Math.round((a.iaCredit.used / a.iaCredit.total) * 100)}%`
+                                                : "—",
+                                            color: a.iaCredit.total > 0 && a.iaCredit.used / a.iaCredit.total > 0.8
+                                                ? "#EF4444"
+                                                : "#22C55E",
+                                        },
+                                    ]} />
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {a?.iaCredit && a.iaCredit.total > 0 && (
+                            <Card className="border-border">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-base">Distribución de créditos</CardTitle>
+                                </CardHeader>
+                                <CardContent className={CHART_H}>
+                                    <DonutChart data={[
+                                        { name: "Usados",      value: a.iaCredit.used,      color: "#F97316" },
+                                        { name: "Disponibles", value: a.iaCredit.available, color: "#22C55E" },
+                                    ].filter((d) => d.value > 0)} />
+                                </CardContent>
+                            </Card>
+                        )}
                     </div>
                 </>
             )}

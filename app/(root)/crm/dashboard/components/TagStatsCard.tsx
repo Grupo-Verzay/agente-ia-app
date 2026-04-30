@@ -66,9 +66,12 @@ export function TagStatsCard({ userId }: { userId: string }) {
         );
     }
 
+    const RELATION_NAMES = ["Lead", "Prospecto", "Cliente"];
+    const hasRelationData = stats.some((t) => RELATION_NAMES.includes(t.name) && t.count > 0);
+
     return (
-        <div className="grid gap-4 lg:grid-cols-2">
-            <RelationBarChart stats={stats} />
+        <div className={hasRelationData ? "grid gap-4 lg:grid-cols-2" : ""}>
+            {hasRelationData && <RelationBarChart stats={stats} />}
             <TagDonutChart stats={stats} />
         </div>
     );
