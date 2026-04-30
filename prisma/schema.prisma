@@ -1119,6 +1119,7 @@ enum TypePromptAi {
   ACTIONS
   DATA_CAPTURE
   DATA_QUERY
+  ANALYZER
 }
 
 enum BillingStatus {

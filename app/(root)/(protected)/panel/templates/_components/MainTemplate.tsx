@@ -146,7 +146,7 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
 
             {/* Actions */}
             <div className="flex items-center gap-2">
-                <div className="relative flex-1">
+                <div className="relative max-w-sm">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Buscar plantilla..."
@@ -156,7 +156,7 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                     />
                 </div>
                 {(userRole === 'admin' || userRole === 'super_admin') && (
-                    <Button onClick={() => handleOpenModal()}>Crear plantilla</Button>
+                    <Button onClick={() => handleOpenModal()}>Nuevo</Button>
                 )}
             </div>
 

@@ -118,10 +118,12 @@ export const getColumns = (
         },
         {
             id: "actions",
+            header: () => <div className="text-center">Acciones</div>,
             enableHiding: false,
             cell: ({ row }) => {
                 const apiKey = row.original;
                 return (
+                    <div className="flex justify-center">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
@@ -151,6 +153,7 @@ export const getColumns = (
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    </div>
                 )
             },
         },

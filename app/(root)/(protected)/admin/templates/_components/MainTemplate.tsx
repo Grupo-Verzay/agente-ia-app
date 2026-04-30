@@ -122,7 +122,7 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
-                    {(userRole === 'admin' || userRole === 'super_admin') && <Button onClick={() => handleOpenModal()}>Crear plantilla</Button>}
+                    {(userRole === 'admin' || userRole === 'super_admin') && <Button onClick={() => handleOpenModal()}>Nuevo</Button>}
                 </div>
             </div>
 

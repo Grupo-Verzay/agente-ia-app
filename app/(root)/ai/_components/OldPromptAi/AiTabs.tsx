@@ -8,10 +8,6 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { TYPE_AI_LABELS } from '@/schema/ai'
 
-const EXTRA_TAB_LABELS = {
-    ANALYZER: "Analizador",
-} as const
-
 export const allowed = ["TRAINING", "FAQs", "ANALYZER"] as const
 type AllowedTab = typeof allowed[number]
 
@@ -19,12 +15,12 @@ type PromptByTab = Partial<Record<string, string>>
 
 export const AiTabs = ({
     onTabChange,
-    promptsByTab, 
+    promptsByTab,
 }: {
     onTabChange?: (tab: string) => void
     promptsByTab: PromptByTab
 }) => {
-    const tabLabels = { ...TYPE_AI_LABELS, ...EXTRA_TAB_LABELS }
+    const tabLabels = TYPE_AI_LABELS
     const firstAllowed = Object.entries(tabLabels).find(([key]) => allowed.includes(key as AllowedTab))?.[0] ?? allowed[0]
     const [activeTab, setActiveTab] = useState<string>(firstAllowed)
     const scrollRef = useRef<HTMLDivElement>(null)

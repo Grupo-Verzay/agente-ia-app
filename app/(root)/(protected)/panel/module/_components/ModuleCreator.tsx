@@ -18,7 +18,7 @@ export function ModuleCreator({ onSave, openModule = false, setOpenModule }: {
     return (
         <>
             <Button onClick={() => setOpenModule(true)}>
-                Crear módulo
+                Nuevo
             </Button>
             <AnimatePresence>
                 {openModule && (

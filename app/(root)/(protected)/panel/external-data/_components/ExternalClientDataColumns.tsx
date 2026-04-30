@@ -7,6 +7,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -111,10 +112,12 @@ export function buildExternalClientDataColumns(
     },
     {
       id: 'actions',
+      header: () => <div className="text-center">Acciones</div>,
       enableHiding: false,
       cell: ({ row }) => {
         const record = row.original;
         return (
+          <div className="flex justify-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
@@ -123,11 +126,12 @@ export function buildExternalClientDataColumns(
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => actions.onEdit(record)}>
                 <Pencil className="mr-2 h-4 w-4" />
                 Editar
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => actions.onDelete(record)}
                 className="text-destructive focus:text-destructive"
@@ -137,6 +141,7 @@ export function buildExternalClientDataColumns(
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         );
       },
     },

@@ -127,7 +127,7 @@ export const MainModule = () => {
 
             {/* Actions */}
             <div className="flex items-center gap-2">
-                <div className="relative flex-1">
+                <div className="relative max-w-sm">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Buscar módulo..."
@@ -137,7 +137,7 @@ export const MainModule = () => {
                     />
                 </div>
                 <Button onClick={() => handleOpenModal()}>
-                    Crear módulo
+                    Nuevo
                 </Button>
             </div>
 

@@ -6,11 +6,9 @@ import { agregarApi, editarApiKey, eliminarApiKey } from "@/actions/api-action";
 import { DialogApiKeyType } from "../connection-types";
 import { ApiKey, User } from "@prisma/client";
 import { getColumns, DataGrid, CreateDialog, EditDialog, DeleteDialog } from "./";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { MetricCard } from "@/components/custom/MetricCard";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { PlusCircle, Link2, KeyRound } from "lucide-react";
+import { Link2, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
@@ -102,23 +100,14 @@ export const MainConnection = ({ searchParams, user, apiKeys }: Props) => {
                     </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center justify-end">
-                    <Button
-                        onClick={() => handleDialogAction('null', 'create')}
-                        className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                    >
-                        <PlusCircle className="h-4 w-4" />
-                        Crear conexión
-                    </Button>
-                </div>
-
                 {/* Table */}
-                <Card className="flex-1 min-h-0 border border-border/60 shadow-sm">
-                    <CardContent className="p-0 h-full">
-                        <DataGrid<ApiKey, unknown> columns={columns} data={apiKeys} />
-                    </CardContent>
-                </Card>
+                <div className="flex-1 min-h-0">
+                    <DataGrid<ApiKey, unknown>
+                        columns={columns}
+                        data={apiKeys}
+                        onCreateClick={() => handleDialogAction('null', 'create')}
+                    />
+                </div>
 
                 <CreateDialog
                     handleCreate={handleCreate}

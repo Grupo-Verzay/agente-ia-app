@@ -116,7 +116,7 @@ export const PromptDialog = ({ open, setOpen, defaultValues, userId }: PromptDia
                                     </SelectTrigger>
                                     <SelectContent>
                                         {Object.values(TypePromptAi)
-                                            .filter((cat) => cat === "TRAINING" || cat === "FAQs")
+                                            .filter((cat) => cat === "TRAINING" || cat === "FAQs" || cat === "ANALYZER")
                                             .map((cat) => (
                                                 <SelectItem key={cat} value={cat}>
                                                     {TYPE_AI_LABELS[cat]}

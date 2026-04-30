@@ -713,7 +713,7 @@ export function BillingCrmClient({
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="outline" className="ml-auto">
                                             <Ellipsis className="h-4 w-4 md:hidden" />
-                                            <span className="hidden md:inline">Filtrar</span>
+                                            <span className="hidden md:inline">Columnas</span>
                                             <ChevronDown className="ml-2 h-4 w-4 hidden md:inline" />
                                         </Button>
                                     </DropdownMenuTrigger>

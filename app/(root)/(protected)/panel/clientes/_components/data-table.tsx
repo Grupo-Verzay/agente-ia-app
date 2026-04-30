@@ -28,9 +28,12 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ChevronDown, Ellipsis, Plus, PlusCircle } from 'lucide-react'
+import { ChevronDown, Ellipsis } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { ClientInterface } from '@/lib/types'
 
@@ -105,17 +108,13 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
               {/* button-create-client */}
               {(currentUserRol === 'admin' || currentUserRol === 'super_admin') &&
 
-                <Button onClick={openCreateDialogUser} className="m-0 flex items-center gap-2">
-                  {/* Icono + para móviles */}
-                  <Plus className="h-4 w-4 md:hidden" />
-
-                  {/* Texto para pantallas mayores a md */}
-                  <span className="hidden md:inline">Nuevo</span>
+                <Button onClick={openCreateDialogUser}>
+                  Nuevo
                 </Button>
               }
             </div>
 
-            <div className="flex flex-1 items-center">
+            <div className="ml-auto flex items-center gap-1">
               <ClientStatusPanel
                 users={data as ClientInterface[]}
                 onFilterChange={setStatusFilter}
@@ -123,14 +122,9 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="ml-auto">
-                    {/* Icono para móviles */}
+                  <Button variant="outline">
                     <Ellipsis className="h-4 w-4 md:hidden" />
-
-                    {/* Texto para pantallas medianas en adelante */}
                     <span className="hidden md:inline">Columnas</span>
-
-                    {/* Icono Chevron solo para pantallas grandes */}
                     <ChevronDown className="ml-2 h-4 w-4 hidden md:inline" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -138,18 +132,38 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
                   {table
                     .getAllColumns()
                     .filter((column) => column.getCanHide())
-                    .map((column) => {
-                      return (
-                        <DropdownMenuCheckboxItem
-                          key={column.id}
-                          className="capitalize"
-                          checked={column.getIsVisible()}
-                          onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                        >
-                          {column.id}
-                        </DropdownMenuCheckboxItem>
-                      )
-                    })}
+                    .map((column) => (
+                      <DropdownMenuCheckboxItem
+                        key={column.id}
+                        className="capitalize"
+                        checked={column.getIsVisible()}
+                        onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                      >
+                        {column.id}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <Ellipsis className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => {
+                    const rows = table.getFilteredRowModel().rows;
+                    const csv = rows.map(r => Object.values(r.original as object).join(',')).join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a'); a.href = url; a.download = 'clientes.csv'; a.click();
+                    URL.revokeObjectURL(url);
+                  }}>
+                    Exportar CSV
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

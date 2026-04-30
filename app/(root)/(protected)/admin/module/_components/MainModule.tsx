@@ -100,7 +100,7 @@ export const MainModule = () => {
                         />
                     </div>
                     <Button onClick={() => handleOpenModal()}>
-                        Crear módulo
+                        Nuevo
                     </Button>
                 </div>
             </div>

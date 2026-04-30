@@ -4,10 +4,8 @@ import { useState } from "react";
 import { FormPromptAiProps, PromptAiFormValues } from "@/schema/ai";
 import { SystemMessage, TypePromptAi } from "@prisma/client";
 import { useDebounce } from "@/hooks/useDebounce";
-import Header from "@/components/shared/header";
 import { Input } from "@/components/ui/input";
 import { AiTabs, MessageTabs, PromptDialog } from "./";
-import { PaymentReceiptPromptBuilder } from "../PaymentReceiptPromptBuilder";
 import { GenericDeleteDialog } from "@/components/shared/GenericDeleteDialog";
 import { deletePromptAi, deletePromptAiByUserId } from "@/actions/ai-actions";
 import {
@@ -19,10 +17,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Ellipsis } from "lucide-react";
-import { AGENT_PROMPT_IDS } from "@/lib/agent-prompt-ids";
-
-const PAYMENT_RECEIPT_TAB = "ANALYZER";
+import { MoreVertical, Plus } from "lucide-react";
 
 export function formatPromptByType(promptAi: any[], type: string) {
     const filtered = (promptAi ?? []).filter((m) => m.typePrompt === type);
@@ -56,18 +51,16 @@ export const MainAi = ({ promptAi, userId, paymentReceiptPrompt }: FormPromptAiP
 
     const trainingPromptFormatted = formatPromptByType(promptAi ?? [], "TRAINING");
     const faqsPromptFormatted = formatPromptByType(promptAi ?? [], "FAQs");
-    const paymentReceiptPromptFormatted = paymentReceiptPrompt?.promptText?.trim() ?? "";
+    const analyzerPromptFormatted = formatPromptByType(promptAi ?? [], "ANALYZER");
 
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
     const openCreateDialog = () => {
-        if (activeTab === PAYMENT_RECEIPT_TAB) return;
-
         setEditingData({
             title: "",
             message: "",
             userId,
-            typePrompt: "TRAINING",
+            typePrompt: activeTab as TypePromptAi,
         });
         setDialogOpen(true);
     };
@@ -117,42 +110,26 @@ export const MainAi = ({ promptAi, userId, paymentReceiptPrompt }: FormPromptAiP
     return (
         <div className="flex flex-col h-full">
             <div className="sticky top-0 z-1 mb-4">
-                <div className="flex justify-between items-center pb-2">
-                    <Header title={"Entrena tu IA"} />
-
-                    <button
-                        onClick={openCreateDialog}
-                        disabled={activeTab === PAYMENT_RECEIPT_TAB}
-                        className="bg-primary text-white px-4 py-2 rounded-md disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                        Crear
-                    </button>
-                </div>
-
-                {activeTab !== PAYMENT_RECEIPT_TAB && (
-                    <Input
-                        placeholder="Buscar mensaje por titulo..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="max-w-sm mb-2"
-                    />
-                )}
-
-                <div className="flex flex-1 ">
+                <div className="flex flex-1 items-center">
                     <AiTabs
                         onTabChange={onTabChange}
                         promptsByTab={{
                             TRAINING: trainingPromptFormatted,
                             FAQs: faqsPromptFormatted,
-                            ANALYZER: paymentReceiptPromptFormatted,
+                            ANALYZER: analyzerPromptFormatted,
                         }}
                     />
 
-                    {activeTab !== PAYMENT_RECEIPT_TAB && (
+                    <div className="ml-auto flex items-center gap-2">
+                        <Button
+                            onClick={openCreateDialog}
+                        >
+                            Nuevo
+                        </Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost">
-                                    <Ellipsis />
+                                <Button variant="outline">
+                                    <MoreVertical />
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -163,33 +140,21 @@ export const MainAi = ({ promptAi, userId, paymentReceiptPrompt }: FormPromptAiP
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                    )}
+                    </div>
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto">
-                {activeTab === PAYMENT_RECEIPT_TAB ? (
-                    <PaymentReceiptPromptBuilder
-                        userId={userId}
-                        agentId={AGENT_PROMPT_IDS.paymentReceiptAnalyzer}
-                        title="Analizador de comprobantes"
-                        description="Administra el prompt especializado para analizar comprobantes de pago."
-                        initialPromptText={paymentReceiptPrompt?.promptText ?? ""}
-                        initialExists={!!paymentReceiptPrompt}
-                        showInlineSaveButton
-                    />
-                ) : (
-                    <MessageTabs
-                        messages={filteredMessages}
-                        debouncedSearchTerm={debouncedSearchTerm}
-                        highlightMatch={highlightMatch}
-                        truncateMessage={truncateMessage}
-                        openEditDialog={openEditDialog}
-                        activeTab={activeTab}
-                        setDeleteDialogOpen={setDeleteDialogOpen}
-                        setDataDelete={setDataDelete}
-                    />
-                )}
+                <MessageTabs
+                    messages={filteredMessages}
+                    debouncedSearchTerm={debouncedSearchTerm}
+                    highlightMatch={highlightMatch}
+                    truncateMessage={truncateMessage}
+                    openEditDialog={openEditDialog}
+                    activeTab={activeTab}
+                    setDeleteDialogOpen={setDeleteDialogOpen}
+                    setDataDelete={setDataDelete}
+                />
             </div>
 
             <PromptDialog

@@ -589,13 +589,13 @@ export function BillingCrmClient({
             },
             {
                 id: "actions",
-                header: () => <div className="text-right">Acciones</div>,
+                header: () => <div className="text-center">Acciones</div>,
                 enableSorting: false,
                 enableHiding: false,
                 cell: ({ row }) => {
                     const u = row.original;
                     return (
-                        <div className="py-2 flex justify-end">
+                        <div className="py-2 flex justify-center">
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -705,25 +705,24 @@ export function BillingCrmClient({
                                     value={globalFilter}
                                     onChange={(e) => setGlobalFilter(e.target.value)}
                                     placeholder="Buscar por nombre, email, empresa, plan…"
-                                    className="h-9"
+                                    className="h-9 max-w-sm"
                                 />
 
-                                {/* Filtros columnas */}
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="ml-auto">
-                                            <Ellipsis className="h-4 w-4 md:hidden" />
-                                            <span className="hidden md:inline">Filtrar</span>
-                                            <ChevronDown className="ml-2 h-4 w-4 hidden md:inline" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
+                                <div className="ml-auto flex items-center gap-1">
+                                    {/* Filtros columnas */}
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="outline">
+                                                <span className="hidden md:inline">Columnas</span>
+                                                <ChevronDown className="h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
 
-                                    <DropdownMenuContent align="end">
-                                        {table
-                                            .getAllColumns()
-                                            .filter((column) => column.getCanHide())
-                                            .map((column) => {
-                                                return (
+                                        <DropdownMenuContent align="end">
+                                            {table
+                                                .getAllColumns()
+                                                .filter((column) => column.getCanHide())
+                                                .map((column) => (
                                                     <DropdownMenuCheckboxItem
                                                         key={column.id}
                                                         checked={column.getIsVisible()}
@@ -731,28 +730,27 @@ export function BillingCrmClient({
                                                     >
                                                         {COLUMNS_LABELS[column.id] || column.id}
                                                     </DropdownMenuCheckboxItem>
-                                                );
-                                            })}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                                ))}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
 
-                                {/* Table actions */}
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="ml-auto">
-                                            <Ellipsis />
-                                        </Button>
-                                    </DropdownMenuTrigger>
+                                    {/* Table actions */}
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="outline" size="icon">
+                                                <Ellipsis className="h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
 
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                        <DropdownMenuSeparator />
-
-                                        <DropdownMenuItem onClick={() => exportExcelAllFiltered(table)}>
-                                            Exportar Excel
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem onClick={() => exportExcelAllFiltered(table)}>
+                                                Exportar Excel
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
                             </div>
                         </div>
                     </div>

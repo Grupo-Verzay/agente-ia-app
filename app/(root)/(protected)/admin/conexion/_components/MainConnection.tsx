@@ -98,8 +98,7 @@ export const MainConnection = ({ searchParams, user, apiKeys }: Props) => {
                     variant="default"
                     className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all"
                 >
-                    Crear
-                    <PlusCircle />
+                    Nuevo
                 </Button>
             </div>
             <DataGrid<ApiKey, unknown> columns={columns} data={apiKeys} />

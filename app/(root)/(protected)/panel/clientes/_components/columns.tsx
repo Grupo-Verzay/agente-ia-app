@@ -222,13 +222,16 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
   // },
   {
     id: 'acciones',
+    header: () => <div className="text-center">Acciones</div>,
     enableHiding: false,
     cell: ({ row }) => (
-      <UserActionsMenu
-        currentUserRol={currentUserRol}
-        user={row.original}
-        openDialogGetUserId={openDialogGetUserId}
-      />
+      <div className="flex justify-center">
+        <UserActionsMenu
+          currentUserRol={currentUserRol}
+          user={row.original}
+          openDialogGetUserId={openDialogGetUserId}
+        />
+      </div>
     )
   }
 ]

@@ -32,7 +32,7 @@ export function ColumnFilterInput<TData>({ table }: Props<TData>) {
                     handleFilter('', val)
                 }}
             >
-                <SelectTrigger className="sm:max-w-[180px]">
+                <SelectTrigger className="w-[120px]">
                     <SelectValue placeholder="Filtrar por..." />
                 </SelectTrigger>
                 <SelectContent>
