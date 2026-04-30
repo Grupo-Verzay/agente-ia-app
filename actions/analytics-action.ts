@@ -170,7 +170,7 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
         });
         const totalExpenses = expensesRaw.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);
 
-        const expCategoryIds = [...new Set(expensesRaw.map((e) => e.categoryId).filter(Boolean))] as string[];
+        const expCategoryIds = Array.from(new Set(expensesRaw.map((e) => e.categoryId).filter(Boolean))) as string[];
         const expCategories = expCategoryIds.length
             ? await db.financeCategory.findMany({
                   where: { id: { in: expCategoryIds } },
