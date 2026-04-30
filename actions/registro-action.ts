@@ -665,25 +665,47 @@ export async function getRegistrosByUserId(
     }
 }
 
-export async function getCrmDashboardStatsByUserId(userId: string) {
+export async function getCrmDashboardStatsByUserId(
+    userId: string,
+    dateFilter?: { fechaDesde?: string; fechaHasta?: string }
+) {
     try {
         await assertUserCanUseApp(userId);
 
+        const fechaDesde = dateFilter?.fechaDesde
+            ? new Date(`${dateFilter.fechaDesde}T00:00:00.000`)
+            : undefined;
+        const fechaHasta = dateFilter?.fechaHasta
+            ? new Date(`${dateFilter.fechaHasta}T23:59:59.999`)
+            : undefined;
+        const fechaWhere =
+            fechaDesde || fechaHasta
+                ? {
+                    ...(fechaDesde ? { gte: fechaDesde } : {}),
+                    ...(fechaHasta ? { lte: fechaHasta } : {}),
+                }
+                : undefined;
+
+        const registroWhere = {
+            session: { userId },
+            ...(fechaWhere ? { fecha: fechaWhere } : {}),
+        };
+
         // 1) total registros
         const totalRegistros = await db.registro.count({
-            where: { session: { userId } },
+            where: registroWhere,
         });
 
         // 2) leads con movimientos (distinct sessionId)
         const leadsConMovimientos = await db.registro.groupBy({
             by: ["sessionId"],
-            where: { session: { userId } },
+            where: registroWhere,
         });
 
         // 3) conteo por tipo
         const byTipo = await db.registro.groupBy({
             by: ["tipo"],
-            where: { session: { userId } },
+            where: registroWhere,
             _count: { _all: true },
         });
 

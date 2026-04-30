@@ -22,17 +22,17 @@ export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
 export const LEAD_STATUS_BADGE_CLASSNAMES: Record<LeadStatus, string> = {
   FRIO: "border-blue-300 bg-blue-100 text-blue-800",
   TIBIO: "border-amber-300 bg-amber-100 text-amber-800",
-  CALIENTE: "border-red-300 bg-red-100 text-red-800",
+  CALIENTE: "border-orange-400 bg-orange-200 text-orange-900",
   FINALIZADO: "border-emerald-300 bg-emerald-100 text-emerald-800",
-  DESCARTADO: "border-zinc-300 bg-zinc-200 text-zinc-700",
+  DESCARTADO: "border-red-300 bg-red-100 text-red-800",
 };
 
 export const LEAD_STATUS_DOT_CLASSNAMES: Record<LeadStatus, string> = {
   FRIO: "bg-blue-500",
   TIBIO: "bg-amber-500",
-  CALIENTE: "bg-red-500",
+  CALIENTE: "bg-orange-500",
   FINALIZADO: "bg-emerald-500",
-  DESCARTADO: "bg-zinc-500",
+  DESCARTADO: "bg-red-500",
 };
 
 export function getLeadStatusLabel(status?: LeadStatus | null) {

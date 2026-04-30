@@ -33,4 +33,5 @@ export type CrmRecordsSectionProps = {
     isLoadingMore?: boolean;
     sentinelRef: RefObject<HTMLDivElement>;
     onScrollRootReady: (el: HTMLDivElement | null) => void;
+    hideDateBadge?: boolean;
 };

@@ -88,6 +88,7 @@ export function CrmRecordsSection({
     isLoadingMore,
     sentinelRef,
     onScrollRootReady,
+    hideDateBadge = false,
 }: CrmRecordsSectionProps) {
     const router = useRouter();
     const [sorting, setSorting] = useState<SortingState>([
@@ -237,7 +238,7 @@ export function CrmRecordsSection({
         if (filters.estado) count += 1;
         if (filters.leadStatus) count += 1;
         if (filters.crmFollowUpStatus) count += 1;
-        if (filters.fechaDesde || filters.fechaHasta) count += 1;
+        if (!hideDateBadge && (filters.fechaDesde || filters.fechaHasta)) count += 1;
         if (filters.leadOnly) count += 1;
         return count;
     }, [
@@ -248,6 +249,7 @@ export function CrmRecordsSection({
         filters.leadStatus,
         filters.leadOnly,
         filters.query,
+        hideDateBadge,
     ]);
 
     const activeFilterBadges = useMemo(() => {
@@ -301,7 +303,7 @@ export function CrmRecordsSection({
             });
         }
 
-        if (filters.fechaDesde || filters.fechaHasta) {
+        if (!hideDateBadge && (filters.fechaDesde || filters.fechaHasta)) {
             badges.push({
                 key: "fechas",
                 label: `Fecha: ${filters.fechaDesde ?? "Inicio"} - ${filters.fechaHasta ?? "Hoy"}`,
@@ -336,8 +338,8 @@ export function CrmRecordsSection({
 
     return (
         <>
-        <Card className="min-w-0 border-border/70">
-            <CardHeader className="space-y-4">
+        <Card className="min-w-0 border-0 bg-transparent shadow-none">
+            <CardHeader className="space-y-2 p-0">
                 <Tabs
                     value={activeTab}
                     onValueChange={(value) => {
@@ -426,7 +428,7 @@ export function CrmRecordsSection({
                 ) : null}
             </CardHeader>
 
-            <CardContent className="pt-0">
+            <CardContent className="p-0 pt-2">
                 <CrmRecordsDataTable
                     table={table}
                     activeTab={activeTab}

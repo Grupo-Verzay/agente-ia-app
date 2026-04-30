@@ -3,11 +3,25 @@
 import { db } from "@/lib/db";
 import { assertUserCanUseApp } from "@/actions/billing/helpers/app-access-guard";
 
-export async function getAnalyticsDataByUserId(userId: string) {
+export type AnalyticsPeriod = "7d" | "30d" | "90d" | "all";
+
+function getPeriodStart(period: AnalyticsPeriod): Date | null {
+    if (period === "all") return null;
+    const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
+    const d = new Date();
+    d.setDate(d.getDate() - (days - 1));
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+export async function getAnalyticsDataByUserId(userId: string, period: AnalyticsPeriod = "30d") {
     try {
         await assertUserCanUseApp(userId);
 
-        /* ── 1) Lead status distribution ── */
+        const periodStart = getPeriodStart(period);
+        const dateFilter = periodStart ? { gte: periodStart } : undefined;
+
+        /* ── 1) Lead status distribution (estado actual, sin filtro de fecha) ── */
         const leadStatusGroups = await db.session.groupBy({
             by: ["leadStatus"],
             where: { userId, leadStatus: { not: null } },
@@ -20,7 +34,7 @@ export async function getAnalyticsDataByUserId(userId: string) {
             }
         }
 
-        /* ── 2) Workflows por status ── */
+        /* ── 2) Workflows por status (estado actual) ── */
         const workflowGroups = await db.workflow.groupBy({
             by: ["status"],
             where: { userId },
@@ -30,7 +44,7 @@ export async function getAnalyticsDataByUserId(userId: string) {
         for (const row of workflowGroups) workflowCounts[row.status] = row._count._all;
         const totalWorkflows = Object.values(workflowCounts).reduce((a, b) => a + b, 0);
 
-        /* ── 3) Flujos ejecutados (SessionWorkflowState por workflow) ── */
+        /* ── 3) Flujos ejecutados ── */
         const workflowExecutions = await db.sessionWorkflowState.groupBy({
             by: ["workflowId"],
             where: { workflow: { userId } },
@@ -56,6 +70,9 @@ export async function getAnalyticsDataByUserId(userId: string) {
         const totalSessions = await db.session.count({ where: { userId } });
         const activeSessions = await db.session.count({ where: { userId, status: true } });
         const agentActiveSessions = await db.session.count({ where: { userId, agentDisabled: false } });
+        const newSessions = dateFilter
+            ? await db.session.count({ where: { userId, createdAt: dateFilter } })
+            : totalSessions;
 
         /* ── 5) Productos ── */
         const totalProducts = await db.product.count({ where: { userId } });
@@ -77,15 +94,11 @@ export async function getAnalyticsDataByUserId(userId: string) {
         /* ── 6) Citas por estado ── */
         const appointmentGroups = await db.appointment.groupBy({
             by: ["status"],
-            where: { userId },
+            where: { userId, ...(dateFilter ? { createdAt: dateFilter } : {}) },
             _count: { _all: true },
         });
         const appointmentCounts = {
-            PENDIENTE: 0,
-            CONFIRMADA: 0,
-            CANCELADA: 0,
-            ATENDIDA: 0,
-            NO_ASISTIDA: 0,
+            PENDIENTE: 0, CONFIRMADA: 0, CANCELADA: 0, ATENDIDA: 0, NO_ASISTIDA: 0,
         };
         for (const row of appointmentGroups) {
             if (row.status in appointmentCounts) {
@@ -94,7 +107,6 @@ export async function getAnalyticsDataByUserId(userId: string) {
         }
         const totalAppointments = Object.values(appointmentCounts).reduce((a, b) => a + b, 0);
 
-        /* Citas próximas (próximas 7 días) */
         const now = new Date();
         const in7Days = new Date(now);
         in7Days.setDate(in7Days.getDate() + 7);
@@ -106,9 +118,14 @@ export async function getAnalyticsDataByUserId(userId: string) {
             },
         });
 
-        /* ── 7) Ventas (FinanceTransaction) ── */
+        /* ── 7) Ventas ── */
         const salesRaw = await db.financeTransaction.findMany({
-            where: { userId, type: "SALE", status: { not: "DELETED" } },
+            where: {
+                userId,
+                type: "SALE",
+                status: { not: "DELETED" },
+                ...(dateFilter ? { occurredAt: dateFilter } : {}),
+            },
             select: { amount: true, occurredAt: true, createdAt: true },
             orderBy: { occurredAt: "asc" },
         });
@@ -116,38 +133,69 @@ export async function getAnalyticsDataByUserId(userId: string) {
         const totalSales = salesRaw.length;
         const totalRevenue = salesRaw.reduce((sum, s) => sum + Number(s.amount ?? 0), 0);
 
-        /* Ventas últimos 30 días (por semana) */
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
-
-        const weekLabels = ["Sem 1", "Sem 2", "Sem 3", "Sem 4"];
+        const periodDays = period === "7d" ? 7 : period === "90d" ? 90 : 30;
+        const bucketStart = periodStart ?? (() => {
+            const d = new Date();
+            d.setDate(d.getDate() - 29);
+            return d;
+        })();
+        const bucketDays = Math.ceil(periodDays / 4);
         const weekSales = [0, 0, 0, 0];
         const weekRevenue = [0, 0, 0, 0];
 
         for (const sale of salesRaw) {
             const date = sale.occurredAt ?? sale.createdAt;
-            if (!date || date < thirtyDaysAgo) continue;
-            const diffDays = Math.floor((date.getTime() - thirtyDaysAgo.getTime()) / 86400000);
-            const weekIdx = Math.min(Math.floor(diffDays / 7), 3);
-            weekSales[weekIdx]++;
-            weekRevenue[weekIdx] += Number(sale.amount ?? 0);
+            if (!date || date < bucketStart) continue;
+            const diff = Math.floor((date.getTime() - bucketStart.getTime()) / 86400000);
+            const idx = Math.min(Math.floor(diff / bucketDays), 3);
+            weekSales[idx]++;
+            weekRevenue[idx] += Number(sale.amount ?? 0);
         }
 
-        const salesByWeek = weekLabels.map((label, i) => ({
+        const salesByWeek = ["Sem 1", "Sem 2", "Sem 3", "Sem 4"].map((label, i) => ({
             semana: label,
             ventas: weekSales[i],
             ingresos: Math.round(weekRevenue[i] * 100) / 100,
         }));
 
+        /* ── 8) Actividad diaria — sesiones nuevas por día ── */
+        const activityDays = period === "7d" ? 7 : period === "90d" ? 90 : 30;
+        const activityStart = new Date();
+        activityStart.setDate(activityStart.getDate() - (activityDays - 1));
+        activityStart.setHours(0, 0, 0, 0);
+
+        const recentSessions = await db.session.findMany({
+            where: { userId, createdAt: { gte: activityStart } },
+            select: { createdAt: true },
+        });
+
+        const dayMap: Record<string, number> = {};
+        for (let i = 0; i < activityDays; i++) {
+            const d = new Date(activityStart);
+            d.setDate(d.getDate() + i);
+            dayMap[d.toISOString().slice(0, 10)] = 0;
+        }
+        for (const s of recentSessions) {
+            const key = s.createdAt.toISOString().slice(0, 10);
+            if (key in dayMap) dayMap[key]++;
+        }
+
+        const activityByDay = Object.entries(dayMap).map(([date, count]) => ({
+            fecha: date.slice(5), // MM-DD
+            nuevas: count,
+        }));
+
         return {
             success: true as const,
             data: {
+                period,
                 leadStatusCounts,
                 workflowCounts,
                 totalWorkflows,
                 topFlows,
                 sessions: {
                     total: totalSessions,
+                    new: newSessions,
                     active: activeSessions,
                     inactive: totalSessions - activeSessions,
                     agentActive: agentActiveSessions,
@@ -179,6 +227,7 @@ export async function getAnalyticsDataByUserId(userId: string) {
                     totalRevenue: Math.round(totalRevenue * 100) / 100,
                     byWeek: salesByWeek,
                 },
+                activityByDay,
             },
         };
     } catch (error) {

@@ -105,9 +105,12 @@ export const MainDashboard = ({
   }, []);
 
   const refreshStats = useCallback(async () => {
-    const res = await getCrmDashboardStatsByUserId(userId);
+    const res = await getCrmDashboardStatsByUserId(userId, {
+      fechaDesde: filters.fechaDesde,
+      fechaHasta: filters.fechaHasta,
+    });
     if (res.success) setStats(res.data);
-  }, [userId]);
+  }, [userId, filters.fechaDesde, filters.fechaHasta]);
 
 
   // libera lock al terminar
