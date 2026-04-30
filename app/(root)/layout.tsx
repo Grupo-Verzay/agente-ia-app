@@ -11,6 +11,7 @@ import { buildBillingServiceAccessState } from "@/actions/billing/helpers/servic
 import AppInitializer from "@/components/custom/AppInitializer";
 import AppSkeleton from "@/components/custom/AppSkeleton";
 import { Breadcrumbs } from "@/components/custom";
+import { PanelAwareTabNav } from "@/components/custom/PanelAwareTabNav";
 import BillingLockScreen from "@/components/shared/BillingLockScreen";
 
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
@@ -68,6 +69,15 @@ export default async function RootGroupLayout({
     const loading = !user || modules.length === 0;
     if (loading) return <AppSkeleton />;
 
+    const panelModule = await db.module.findFirst({
+        where: { route: { in: ["/panel", "/admin"] } },
+        include: { moduleItems: { orderBy: { createdAt: "asc" } } },
+    });
+    const panelTabs = (panelModule?.moduleItems ?? []).map((item) => ({
+        url: item.url.replace("/admin/", "/panel/"),
+        title: item.title,
+    }));
+
     return (
         <>
             <AppInitializer onReseller={onReseller} modules={modules} user={user} />
@@ -76,6 +86,7 @@ export default async function RootGroupLayout({
                 <SidebarInset className="h-screen flex flex-col">
                     <Breadcrumbs />
                     <main className={`flex-1 overflow-auto p-4 ${themeClass}`}>
+                        <PanelAwareTabNav tabs={panelTabs} excludePanelRoutes />
                         {children}
                     </main>
                     <ChatWidget />

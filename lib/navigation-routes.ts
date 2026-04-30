@@ -5,6 +5,19 @@ export interface NavigationRoutesInterface {
 export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: '/canva' },
     { route: '/multiagente' },
+    // Panel (admin section)
+    { route: '/panel' },
+    { route: '/panel/module' },
+    { route: '/panel/conexion' },
+    { route: '/panel/clientes' },
+    { route: '/panel/reseller' },
+    { route: '/panel/templates' },
+    { route: '/panel/client-billing' },
+    { route: '/panel/external-data' },
+    { route: '/panel/password' },
+    { route: '/panel/register-links' },
+    { route: '/panel/credits' },
+    // Legacy admin routes (kept for backward compat)
     { route: '/admin/module' },
     { route: '/admin/conexion' },
     { route: '/admin/clientes' },

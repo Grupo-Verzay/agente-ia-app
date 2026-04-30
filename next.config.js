@@ -25,6 +25,16 @@ const nextConfig = {
     ],
   },
 
+  async redirects() {
+    return [
+      {
+        source: "/admin/:path*",
+        destination: "/panel/:path*",
+        permanent: false,
+      },
+    ];
+  },
+
   async headers() {
     return [
       {
