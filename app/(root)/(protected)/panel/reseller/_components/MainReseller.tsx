@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { User } from "@prisma/client"
 import { getClientsByReseller, assignClientToReseller, removeClientFromReseller } from "@/actions/reseller-action"
@@ -23,12 +23,6 @@ interface Props {
 }
 
 type Client = User
-
-const SectionHeader = ({ title }: { title: string }) => (
-    <div className="flex items-center justify-between">
-        <Label className="text-base font-semibold">{title}</Label>
-    </div>
-);
 
 export const MainReseller = ({ searchParams, user, resellers, defaultResellerId }: Props) => {
     const router = useRouter()
@@ -122,69 +116,76 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
                 </div>
             </div>
 
-            {/* Contenido */}
-            <Card className="border-border shadow-sm">
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Asignación por revendedor</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-6">
-                    <div className="grid gap-2">
-                        <Label>Selecciona un revendedor</Label>
-                        <Select onValueChange={handleResellerChange} defaultValue={selectedReseller}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Selecciona..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {resellers.map(r => (
-                                    <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+            {/* Toolbar: selector de revendedor */}
+            <div className="sticky top-0 z-1">
+                <Select onValueChange={handleResellerChange} defaultValue={selectedReseller}>
+                    <SelectTrigger className="max-w-sm">
+                        <SelectValue placeholder="Selecciona un revendedor..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {resellers.map(r => (
+                            <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
 
-                    <div className="flex flex-wrap gap-2">
-                        <div className="flex flex-col flex-1 gap-2">
-                            <SectionHeader title="Clientes asignados" />
-                            <Input
-                                placeholder="Buscar cliente..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                            <ScrollArea className="h-60 border-border rounded-lg p-2">
-                                {filteredAssignedClients.map(client => (
-                                    <div key={client.id} className="flex justify-between items-center p-2 hover:bg-muted rounded">
-                                        <span>{client.name}</span>
-                                        <Button size="sm" variant="destructive" onClick={() => removeClient(client)}>Eliminar</Button>
-                                    </div>
-                                ))}
-                                {filteredAssignedClients.length === 0 && (
-                                    <p className="text-sm text-muted-foreground text-center mt-2">No hay clientes asignados</p>
-                                )}
-                            </ScrollArea>
-                        </div>
-
-                        <div className="flex flex-col flex-1 gap-2">
-                            <SectionHeader title="Clientes sin asignar" />
-                            <Input
-                                placeholder="Buscar cliente..."
-                                value={searchUnassigned}
-                                onChange={(e) => setSearchUnassigned(e.target.value)}
-                            />
-                            <ScrollArea className="h-60 border-border rounded-lg p-2">
-                                {filteredUnassignedClients.map(client => (
-                                    <div key={client.id} className="flex justify-between items-center p-2 hover:bg-muted rounded">
-                                        <span>{client.name}</span>
-                                        <Button size="sm" onClick={() => assignClient(client)}>Asignar</Button>
-                                    </div>
-                                ))}
-                                {filteredUnassignedClients.length === 0 && (
-                                    <p className="text-sm text-muted-foreground text-center mt-2">No hay clientes pendientes</p>
-                                )}
-                            </ScrollArea>
-                        </div>
+            {/* Dos paneles */}
+            <div className="flex flex-1 gap-2 min-h-0">
+                {/* Clientes asignados */}
+                <Card className="flex-1 border-border flex flex-col overflow-hidden">
+                    <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                        <span className="font-semibold text-sm">Clientes asignados</span>
+                        <Badge variant="secondary">{assignedClients.length}</Badge>
                     </div>
-                </CardContent>
-            </Card>
+                    <div className="px-4 pb-2">
+                        <Input
+                            placeholder="Buscar cliente..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    <ScrollArea className="flex-1">
+                        {filteredAssignedClients.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-8">No hay clientes asignados</p>
+                        ) : (
+                            filteredAssignedClients.map(client => (
+                                <div key={client.id} className="flex justify-between items-center px-4 py-2 border-b border-border hover:bg-muted/50 transition-colors">
+                                    <span className="text-sm">{client.name}</span>
+                                    <Button size="sm" variant="destructive" onClick={() => removeClient(client)}>Eliminar</Button>
+                                </div>
+                            ))
+                        )}
+                    </ScrollArea>
+                </Card>
+
+                {/* Clientes sin asignar */}
+                <Card className="flex-1 border-border flex flex-col overflow-hidden">
+                    <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                        <span className="font-semibold text-sm">Clientes sin asignar</span>
+                        <Badge variant="secondary">{unassignedClients.length}</Badge>
+                    </div>
+                    <div className="px-4 pb-2">
+                        <Input
+                            placeholder="Buscar cliente..."
+                            value={searchUnassigned}
+                            onChange={(e) => setSearchUnassigned(e.target.value)}
+                        />
+                    </div>
+                    <ScrollArea className="flex-1">
+                        {filteredUnassignedClients.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-8">No hay clientes pendientes</p>
+                        ) : (
+                            filteredUnassignedClients.map(client => (
+                                <div key={client.id} className="flex justify-between items-center px-4 py-2 border-b border-border hover:bg-muted/50 transition-colors">
+                                    <span className="text-sm">{client.name}</span>
+                                    <Button size="sm" onClick={() => assignClient(client)}>Asignar</Button>
+                                </div>
+                            ))
+                        )}
+                    </ScrollArea>
+                </Card>
+            </div>
         </div>
         </TooltipProvider>
     )
