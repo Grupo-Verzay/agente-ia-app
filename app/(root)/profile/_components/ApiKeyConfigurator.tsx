@@ -67,9 +67,7 @@ type FormValues = z.infer<typeof FormSchema>;
 // ====== Utils ======
 function maskKey(key?: string) {
     if (!key) return "";
-    const visible = 4;
-    if (key.length <= visible) return "*".repeat(Math.max(4, key.length));
-    return `${"*".repeat(Math.max(4, key.length - visible))}${key.slice(-visible)}`;
+    return `${"*".repeat(24)}${key.slice(-4)}`;
 }
 
 export function ApiKeyConfigurator({
@@ -230,51 +228,27 @@ export function ApiKeyConfigurator({
     const previewProviderLabel =
         providers.find((p) => p.id === previewProviderId)?.name || "Proveedor";
 
-    // Resumen de todas las keys configuradas
-    const configuredSummary = providers
-        .map((p) => {
-            const cfg = settings?.configs.find((c) => c.providerId === p.id);
-            const isDefault = p.id === settings?.defaults.defaultProviderId;
-            return {
-                name: p.name,
-                key: cfg?.apiKey || "",
-                isDefault,
-            };
-        })
-        .filter(Boolean);
-
     return (
         <div className="space-y-2">
             <Label className="text-muted-foreground">{label}</Label>
 
-            {/* Preview de providers configurados */}
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
-                    <div className="relative cursor-pointer">
-                        <div className={cn(
-                            "flex flex-col gap-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm",
-                            (disabled || loading) && "cursor-not-allowed opacity-60"
-                        )}>
-                            {loading ? (
-                                <span className="text-muted-foreground text-xs">Cargando...</span>
-                            ) : configuredSummary.length === 0 ? (
-                                <span className="text-muted-foreground text-xs">No configurada</span>
-                            ) : (
-                                configuredSummary.map((s) => (
-                                    <div key={s.name} className="flex items-center gap-2">
-                                        <span className="capitalize font-medium w-16 text-xs">{s.name}</span>
-                                        <span className="font-mono text-xs text-muted-foreground flex-1">
-                                            {s.key ? maskKey(s.key) : <span className="italic">sin configurar</span>}
-                                        </span>
-                                        {s.isDefault && (
-                                            <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
-                                                activo
-                                            </span>
-                                        )}
-                                    </div>
-                                ))
+                    <div className="relative">
+                        <Input
+                            readOnly
+                            disabled={disabled || loading}
+                            value={
+                                previewApiKey
+                                    ? `${previewProviderLabel}: ${maskKey(previewApiKey)}`
+                                    : `${previewProviderLabel}: No configurada`
+                            }
+                            placeholder="No configurada"
+                            className={cn(
+                                "pr-28 cursor-pointer bg-muted/40 border-border",
+                                (disabled || loading) && "cursor-not-allowed opacity-60"
                             )}
-                        </div>
+                        />
                         <Button
                             type="button"
                             variant="secondary"
