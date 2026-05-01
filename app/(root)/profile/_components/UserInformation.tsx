@@ -433,6 +433,9 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                                     </CardHeader>
                                     <CardContent className="flex flex-col flex-1 gap-4">
                                         <ApiKeyConfigurator userId={userId} onSaved={() => { }} />
+                                        <p className="text-sm text-muted-foreground">
+                                            Obtén tu API key en el portal de tu proveedor. Para: OpenAI - Google
+                                        </p>
                                     </CardContent>
                                 </Card>
 

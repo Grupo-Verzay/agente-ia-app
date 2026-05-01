@@ -30,7 +30,6 @@ import {
     CommandEmpty,
     CommandList,
 } from "@/components/ui/command";
-import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { ChevronsUpDown, Check } from "lucide-react";
 
@@ -59,8 +58,6 @@ const FormSchema = z.object({
         .string({ required_error: "Ingresa tu API key" })
         .min(8, "La API key es demasiado corta"),
     temperature: z.number().min(0).max(0.5).default(0.2),
-    makeDefaultProvider: z.boolean().optional(),
-    makeDefaultModel: z.boolean().optional(),
 });
 
 type FormValues = z.infer<typeof FormSchema>;
@@ -94,8 +91,6 @@ export function ApiKeyConfigurator({
             modelId: "",
             apiKey: "",
             temperature: 0.2,
-            makeDefaultProvider: true,
-            makeDefaultModel: true,
         },
         mode: "onSubmit",
     });
@@ -175,7 +170,7 @@ export function ApiKeyConfigurator({
                 apiKey: data.apiKey,
                 isActive: true,
                 temperature: data.temperature ?? 0,
-                makeDefaultProvider: !!data.makeDefaultProvider,
+                makeDefaultProvider: true,
             });
 
             if (!up.success) {
@@ -187,8 +182,8 @@ export function ApiKeyConfigurator({
             // 2) Defaults (provider/model)
             const setDef = await setUserDefaults({
                 userId,
-                providerId: data.makeDefaultProvider ? data.providerId : undefined,
-                modelId: data.makeDefaultModel ? data.modelId : undefined,
+                providerId: data.providerId,
+                modelId: data.modelId,
             });
 
             if (!setDef.success) {
@@ -413,10 +408,11 @@ export function ApiKeyConfigurator({
                                     {form.formState.errors.apiKey.message}
                                 </p>
                             )}
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-base text-muted-foreground mt-3">
                                 {providers.find(p => p.id === form.watch("providerId"))?.name === "google"
-                                    ? "Obtén tu key en Google AI Studio (aistudio.google.com)"
-                                    : "Obtén tu key en platform.openai.com"}
+                                    ? <>Obtén tu key en 👉{" "}<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="underline cursor-pointer hover:text-foreground transition-colors">aistudio.google.com/apikey</a></>
+                                    : <>Obtén tu key en 👉{" "}<a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline cursor-pointer hover:text-foreground transition-colors">platform.openai.com/api-keys</a></>
+                                }
                             </p>
                         </div>
 
@@ -425,9 +421,9 @@ export function ApiKeyConfigurator({
                             <Label>Temperatura del agente</Label>
                             <div className="grid grid-cols-3 gap-2">
                                 {([
-                                    { value: 0,   label: "Preciso",    desc: "Respuestas exactas y consistentes" },
-                                    { value: 0.2, label: "Balanceado", desc: "Natural sin perder el hilo" },
-                                    { value: 0.5, label: "Creativo",   desc: "Más variado y conversacional" },
+                                    { value: 0,   label: "Preciso",    activeClass: "border-blue-500 bg-blue-500/10 text-blue-500",    hoverClass: "hover:border-blue-400 hover:text-blue-400"    },
+                                    { value: 0.2, label: "Balanceado", activeClass: "border-green-500 bg-green-500/10 text-green-500", hoverClass: "hover:border-green-400 hover:text-green-400" },
+                                    { value: 0.5, label: "Creativo",   activeClass: "border-amber-500 bg-amber-500/10 text-amber-500", hoverClass: "hover:border-amber-400 hover:text-amber-400" },
                                 ] as const).map((opt) => {
                                     const active = form.watch("temperature") === opt.value;
                                     return (
@@ -437,61 +433,23 @@ export function ApiKeyConfigurator({
                                             disabled={loading}
                                             onClick={() => form.setValue("temperature", opt.value, { shouldDirty: true })}
                                             className={cn(
-                                                "flex flex-col items-center gap-1 rounded-lg border px-3 py-2 text-sm transition-colors",
+                                                "rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
                                                 active
-                                                    ? "border-primary bg-primary/10 text-primary font-medium"
-                                                    : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                                                    ? opt.activeClass
+                                                    : `border-border bg-background text-muted-foreground ${opt.hoverClass}`
                                             )}
                                         >
-                                            <span className="font-semibold">{opt.label}</span>
-                                            <span className="text-xs text-center leading-tight opacity-70">{opt.desc}</span>
+                                            {opt.label}
                                         </button>
                                     );
                                 })}
                             </div>
                         </div>
 
-                        {/* Opciones por defecto */}
-                        <div className="grid gap-2">
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="makeDefaultProvider"
-                                    checked={!!form.watch("makeDefaultProvider")}
-                                    onCheckedChange={(v) =>
-                                        form.setValue("makeDefaultProvider", Boolean(v), {
-                                            shouldDirty: true,
-                                            shouldValidate: true,
-                                        })
-                                    }
-                                    disabled={loading}
-                                />
-                                <Label htmlFor="makeDefaultProvider" className="cursor-pointer">
-                                    Usar este proveedor como <b>por defecto</b>
-                                </Label>
-                            </div>
-
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="makeDefaultModel"
-                                    checked={!!form.watch("makeDefaultModel")}
-                                    onCheckedChange={(v) =>
-                                        form.setValue("makeDefaultModel", Boolean(v), {
-                                            shouldDirty: true,
-                                            shouldValidate: true,
-                                        })
-                                    }
-                                    disabled={loading}
-                                />
-                                <Label htmlFor="makeDefaultModel" className="cursor-pointer">
-                                    Usar este modelo como <b>por defecto</b>
-                                </Label>
-                            </div>
-                        </div>
-
                         <DialogFooter className="mt-2">
                             <Button
                                 type="button"
-                                variant="ghost"
+                                variant="outline"
                                 onClick={() => setOpen(false)}
                                 disabled={loading}
                             >
