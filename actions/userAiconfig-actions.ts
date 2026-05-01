@@ -348,11 +348,12 @@ export type UpsertUserAiConfigInput = {
   providerId: string;
   apiKey: string;
   isActive?: boolean;            // default true
+  temperature?: number;          // 0–2, default 0
   makeDefaultProvider?: boolean; // opcional: fija defaultProviderId y limpia model si no coincide
 };
 
 export async function upsertUserAiConfig(input: UpsertUserAiConfigInput): Promise<ActionResult<UserAiConfigDTO>> {
-  const { userId, providerId, apiKey, isActive = true, makeDefaultProvider } = input;
+  const { userId, providerId, apiKey, isActive = true, temperature = 0, makeDefaultProvider } = input;
 
   try {
     await ensureUser(userId);
@@ -360,8 +361,8 @@ export async function upsertUserAiConfig(input: UpsertUserAiConfigInput): Promis
 
     const cfg = await db.userAiConfig.upsert({
       where: { userId_providerId: { userId, providerId } },
-      update: { apiKey, isActive },
-      create: { userId, providerId, apiKey, isActive },
+      update: { apiKey, isActive, temperature },
+      create: { userId, providerId, apiKey, isActive, temperature },
       include: { provider: { select: { id: true, name: true } } },
     });
 

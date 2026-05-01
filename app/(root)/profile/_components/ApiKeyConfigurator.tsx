@@ -58,6 +58,7 @@ const FormSchema = z.object({
     apiKey: z
         .string({ required_error: "Ingresa tu API key" })
         .min(8, "La API key es demasiado corta"),
+    temperature: z.number().min(0).max(1).default(0),
     makeDefaultProvider: z.boolean().optional(),
     makeDefaultModel: z.boolean().optional(),
 });
@@ -92,6 +93,7 @@ export function ApiKeyConfigurator({
             providerId: "",
             modelId: "",
             apiKey: "",
+            temperature: 0,
             makeDefaultProvider: true,
             makeDefaultModel: true,
         },
@@ -124,10 +126,11 @@ export function ApiKeyConfigurator({
             form.setValue("providerId", defProvId);
             form.setValue("modelId", defModelId);
 
-            // Prefill apiKey si ya había config para ese provider
+            // Prefill apiKey y temperature si ya había config para ese provider
             const existingCfg = dataFormatted.configs.find((c) => c.providerId === defProvId);
             if (existingCfg) {
                 form.setValue("apiKey", existingCfg.apiKey);
+                form.setValue("temperature", (existingCfg as any).temperature ?? 0);
             }
 
                     setPreviewProviderId(defProvId);
@@ -154,6 +157,7 @@ export function ApiKeyConfigurator({
 
         const cfg = settings.configs.find((c) => c.providerId === currentProviderId);
         form.setValue("apiKey", cfg?.apiKey || "");
+        form.setValue("temperature", (cfg as any)?.temperature ?? 0);
 
         // actualiza preview (fuera del diálogo)
         setPreviewProviderId(currentProviderId);
@@ -170,6 +174,7 @@ export function ApiKeyConfigurator({
                 providerId: data.providerId,
                 apiKey: data.apiKey,
                 isActive: true,
+                temperature: data.temperature ?? 0,
                 makeDefaultProvider: !!data.makeDefaultProvider,
             });
 
@@ -413,6 +418,35 @@ export function ApiKeyConfigurator({
                                     ? "Obtén tu key en Google AI Studio (aistudio.google.com)"
                                     : "Obtén tu key en platform.openai.com"}
                             </p>
+                        </div>
+
+                        {/* Temperatura */}
+                        <div className="grid gap-2">
+                            <div className="flex items-center justify-between">
+                                <Label>Temperatura</Label>
+                                <span className="text-sm font-medium tabular-nums w-8 text-right">
+                                    {(form.watch("temperature") ?? 0).toFixed(1)}
+                                </span>
+                            </div>
+                            <input
+                                type="range"
+                                min={0}
+                                max={1}
+                                step={0.1}
+                                value={form.watch("temperature") ?? 0}
+                                onChange={(e) =>
+                                    form.setValue("temperature", parseFloat(e.target.value), {
+                                        shouldDirty: true,
+                                    })
+                                }
+                                disabled={loading}
+                                className="w-full accent-primary"
+                            />
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                                <span>0 — Preciso</span>
+                                <span>0.5 — Balanceado</span>
+                                <span>1.0 — Creativo</span>
+                            </div>
                         </div>
 
                         {/* Opciones por defecto */}

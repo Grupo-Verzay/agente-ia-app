@@ -50,13 +50,15 @@
       "Bash(npx next *)",
       "Bash(gh run *)",
       "Bash(2>&1)",
-      "Bash(grep -E \"\\\\.\\(ts|tsx|js|jsx\\)$\")"
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js|jsx\\)$\")",
+      "Read(//c/Proyectos/Agente IA/**)"
     ],
     "additionalDirectories": [
       "C:\\Users\\home\\.claude",
       "e:\\EMANUEL-DEV\\Verzay\\VERZAY\\backend-api\\api-webhook\\src\\modules\\webhook\\services\\orchestator",
       "e:\\EMANUEL-DEV\\Verzay\\VERZAY\\backend-api\\api-webhook",
-      "c:\\Proyectos\\Agente IA\\api-webhook\\src\\modules\\lead-funnel\\services"
+      "c:\\Proyectos\\Agente IA\\api-webhook\\src\\modules\\lead-funnel\\services",
+      "c:\\Proyectos\\Agente IA\\api-webhook\\src\\database\\prisma"
     ]
   }
 }
