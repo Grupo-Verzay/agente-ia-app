@@ -72,6 +72,7 @@ export type ExternalDataToolType = ExternalDataBuiltinToolType | ExternalDataQue
 export const CRITICAL_TOOL_TYPES: ExternalDataBuiltinToolType[] = [
   'notificacion_asesor',
   'ejecutar_flujos',
+  'listar_workflows',
 ];
 
 export interface ExternalDataToolConfig {

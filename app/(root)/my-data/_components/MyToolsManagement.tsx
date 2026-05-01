@@ -680,8 +680,8 @@ export function MyToolsManagement({ userId }: Props) {
     else { toast.error(result.error ?? 'Error al eliminar'); throw new Error(result.error); }
   };
 
-  const builtinConfigs = configs.filter((c) => c.toolCategory === 'builtin');
-  const dataQueryConfigs = configs.filter((c) => c.toolCategory === 'data_query');
+  const builtinConfigs = configs.filter((c) => c.toolCategory === 'builtin' && c.isEnabled);
+  const dataQueryConfigs = configs.filter((c) => c.toolCategory === 'data_query' && c.isEnabled);
   const existingBuiltinTypes = new Set(builtinConfigs.map((c) => c.toolType));
   const hasNoConfigs = configs.length === 0 && !isLoading;
 

@@ -272,7 +272,7 @@ export async function applyDefaultToolConfigs(
           toolType: entry.toolType,
           searchField: null,
           promptTemplate: null,
-          isEnabled: true,
+          isEnabled: entry.sortOrder <= 2,
           isDefault: true,
           sortOrder: entry.sortOrder,
         },

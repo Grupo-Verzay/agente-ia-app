@@ -13,13 +13,17 @@ import {
     Building2,
     Camera,
     Clock,
+    Database,
+    FileSpreadsheet,
     Globe,
     HardDrive,
     Loader2,
+    Lock,
     MessageSquare,
     Palette,
     Settings2,
     ShieldCheck,
+    Sparkles,
     Timer,
     Wifi,
     Zap,
@@ -42,6 +46,13 @@ import { SafeImage } from "@/components/custom/SafeImage";
 import { TimezoneCombobox } from "@/components/shared/TimezoneCombobox";
 import { Button } from "@/components/ui/button";
 import { UserBackupManager } from "@/components/backup/UserBackupManager";
+import dynamic from "next/dynamic";
+import type { Plan } from "@prisma/client";
+import { PLAN_LABELS } from "@/types/plans";
+
+const MyDataManagement = dynamic(() => import("../../my-data/_components/MyDataManagement").then(m => ({ default: m.MyDataManagement })), { ssr: false });
+const MyDataImport = dynamic(() => import("../../my-data/_components/MyDataImport").then(m => ({ default: m.MyDataImport })), { ssr: false });
+const MyToolsManagement = dynamic(() => import("../../my-data/_components/MyToolsManagement").then(m => ({ default: m.MyToolsManagement })), { ssr: false });
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 const clientSchema = z.object({
@@ -249,22 +260,28 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
     };
 
     const [activeTab, setActiveTab] = useState('conexion');
+    const [showMoreTabs, setShowMoreTabs] = useState(false);
 
     if (!user) return null;
 
     const isMuted = user.muteAgentResponses ?? false;
     const isReseller = user.role === Role.reseller;
 
-    // Tab definitions — reseller tab appears only for resellers
-    const tabs = [
+    const primaryTabs = [
         { value: 'conexion', label: 'Conexión', icon: Wifi },
         { value: 'integraciones', label: 'Integraciones', icon: Zap },
         { value: 'preferencias', label: 'Preferencias', icon: Settings2 },
+    ];
+
+    const secondaryTabs = [
         { value: 'comportamiento', label: 'Comportamiento', icon: Timer },
+        { value: 'herramientas', label: 'Herramientas', icon: Database },
         { value: 'seguridad', label: 'Seguridad', icon: ShieldCheck },
         { value: 'respaldo', label: 'Respaldo', icon: HardDrive },
         ...(isReseller ? [{ value: 'apariencia', label: 'Apariencia', icon: Palette }] : []),
     ];
+
+    const tabs = [...primaryTabs, ...secondaryTabs];
 
     return (
         <div className="flex flex-col h-full gap-0">
@@ -647,6 +664,70 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                                 subjectLabel={user.company ?? user.name ?? "tu cuenta"}
                                 twoColumns
                             />
+                        </TabPanel>
+                    </TabsContent>
+
+                    {/* ── Tab: Herramientas ────────────────────── */}
+                    <TabsContent value="herramientas" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
+                        <TabPanel>
+                            {!(['intermedio', 'avanzado', 'enterprise', 'personalizado', 'unico'] as Plan[]).includes((user as any).plan) ? (
+                                <div className="flex flex-col items-center justify-center min-h-[50vh] px-4">
+                                    <Card className="w-full max-w-md border-dashed">
+                                        <CardHeader className="items-center text-center pb-3">
+                                            <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mb-3">
+                                                <Lock className="h-7 w-7 text-muted-foreground" />
+                                            </div>
+                                            <CardTitle className="text-xl">Funcionalidad no disponible</CardTitle>
+                                            <CardDescription className="text-sm">
+                                                Tu plan actual no incluye la gestión de datos externos.
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="flex flex-col items-center gap-4 text-center">
+                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                <span>Plan actual:</span>
+                                                <Badge variant="outline">{PLAN_LABELS[(user as any).plan as Plan]}</Badge>
+                                            </div>
+                                            <p className="text-sm text-muted-foreground">
+                                                Disponible desde el plan <strong>Intermedio</strong>. Contacta a tu administrador para actualizar tu plan.
+                                            </p>
+                                            <div className="flex flex-wrap justify-center gap-1.5 pt-1">
+                                                {(['intermedio', 'avanzado', 'enterprise', 'personalizado', 'unico'] as Plan[]).map((plan) => (
+                                                    <Badge key={plan} className="text-xs bg-primary/10 text-primary border-primary/20">
+                                                        <Sparkles className="h-2.5 w-2.5 mr-1" />
+                                                        {PLAN_LABELS[plan]}
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                            ) : (
+                                <Tabs defaultValue="tools">
+                                    <TabsList className="mb-4">
+                                        <TabsTrigger value="tools" className="gap-2">
+                                            <Bot className="h-4 w-4" />
+                                            Herramientas IA
+                                        </TabsTrigger>
+                                        <TabsTrigger value="import" className="gap-2">
+                                            <FileSpreadsheet className="h-4 w-4" />
+                                            Importar
+                                        </TabsTrigger>
+                                        <TabsTrigger value="management" className="gap-2">
+                                            <Database className="h-4 w-4" />
+                                            Gestión
+                                        </TabsTrigger>
+                                    </TabsList>
+                                    <TabsContent value="tools">
+                                        <MyToolsManagement userId={userId} />
+                                    </TabsContent>
+                                    <TabsContent value="import">
+                                        <MyDataImport userId={userId} />
+                                    </TabsContent>
+                                    <TabsContent value="management">
+                                        <MyDataManagement userId={userId} />
+                                    </TabsContent>
+                                </Tabs>
+                            )}
                         </TabPanel>
                     </TabsContent>
 
