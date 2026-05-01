@@ -1,16 +1,14 @@
 import type { UserAiSettingsDTO } from "@/actions/userAiconfig-actions";
 
-/**
- * Mantiene SOLO el provider cuyo name sea "openai"
- * - Filtra providers
- * - Filtra configs asociadas
- * - Ajusta defaults a openai y un modelo válido
- */
-export function keepOnlyOpenAIProvider(data: UserAiSettingsDTO): UserAiSettingsDTO {
-    const openaiProvider = data.providers.find((p) => p.name === "openai");
+/** Filtra a los proveedores soportados en la UI: openai y google */
+const SUPPORTED_PROVIDERS = ["openai", "google"];
 
-    // Si no existe openai, devuelve estructura válida vacía
-    if (!openaiProvider) {
+export function keepSupportedProviders(data: UserAiSettingsDTO): UserAiSettingsDTO {
+    const providers = data.providers.filter((p) =>
+        SUPPORTED_PROVIDERS.includes(p.name.toLowerCase())
+    );
+
+    if (providers.length === 0) {
         return {
             providers: [],
             configs: [],
@@ -23,32 +21,32 @@ export function keepOnlyOpenAIProvider(data: UserAiSettingsDTO): UserAiSettingsD
         };
     }
 
-    const providers: UserAiSettingsDTO["providers"] = [openaiProvider];
+    const providerIds = new Set(providers.map((p) => p.id));
+    const configs = data.configs.filter((c) => providerIds.has(c.providerId));
 
-    const configs: UserAiSettingsDTO["configs"] = data.configs.filter(
-        (c) => c.providerId === openaiProvider.id
-    );
+    // Mantener defaults si son válidos dentro de los providers soportados
+    const defaultProvider = providers.find(
+        (p) => p.id === data.defaults.defaultProviderId
+    ) ?? providers[0];
 
-    // Asegurar que el default model sea válido dentro de openai
-    const modelFromDefaults = openaiProvider.models.find(
-        (m) => m.id === data.defaults.defaultAiModelId
-    );
-
-    const fallbackModel = openaiProvider.models[0] ?? null;
-    const selectedModel = modelFromDefaults ?? fallbackModel;
-
-    const defaults: UserAiSettingsDTO["defaults"] = {
-        defaultProviderId: openaiProvider.id,
-        defaultAiModelId: selectedModel?.id ?? null,
-        defaultProvider: { id: openaiProvider.id, name: openaiProvider.name },
-        defaultModel: selectedModel
-            ? { id: selectedModel.id, name: selectedModel.name, providerId: selectedModel.providerId }
-            : null,
-    };
+    const defaultModel =
+        defaultProvider.models.find((m) => m.id === data.defaults.defaultAiModelId) ??
+        defaultProvider.models[0] ??
+        null;
 
     return {
         providers,
         configs,
-        defaults,
+        defaults: {
+            defaultProviderId: defaultProvider.id,
+            defaultAiModelId: defaultModel?.id ?? null,
+            defaultProvider: { id: defaultProvider.id, name: defaultProvider.name },
+            defaultModel: defaultModel
+                ? { id: defaultModel.id, name: defaultModel.name, providerId: defaultModel.providerId }
+                : null,
+        },
     };
 }
+
+/** @deprecated use keepSupportedProviders */
+export const keepOnlyOpenAIProvider = keepSupportedProviders;

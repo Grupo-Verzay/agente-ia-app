@@ -37,7 +37,7 @@ import { ChevronsUpDown, Check } from "lucide-react";
 // Server actions del CRUD (usa la ruta donde lo pegaste)
 import { upsertUserAiConfig, setUserDefaults, getUserAiSettings } from "@/actions/userAiconfig-actions";
 import { useEffect, useState } from "react";
-import { keepOnlyOpenAIProvider } from "../helpers/keepOnlyOpenAIProvider";
+import { keepSupportedProviders } from "../helpers/keepOnlyOpenAIProvider";
 
 type ApiKeyConfiguratorProps = {
     userId: string;
@@ -113,7 +113,7 @@ export function ApiKeyConfigurator({
             }
 
             const data = res.data;
-            const dataFormatted = keepOnlyOpenAIProvider(data)
+            const dataFormatted = keepSupportedProviders(data)
             setSettings(dataFormatted);
 
             // Defaults del usuario
@@ -132,8 +132,7 @@ export function ApiKeyConfigurator({
                 form.setValue("apiKey", existingCfg.apiKey);
             }
 
-            // Preview inicial (el input arriba que muestra **key)
-            setPreviewProviderId(defProvId);
+                    setPreviewProviderId(defProvId);
             setPreviewApiKey(existingCfg?.apiKey || "");
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -203,7 +202,7 @@ export function ApiKeyConfigurator({
             // refresca settings locales
             const ref = await getUserAiSettings(userId);
             if (ref?.success && ref.data) {
-                const filtered = keepOnlyOpenAIProvider(ref.data);
+                const filtered = keepSupportedProviders(ref.data);
                 setSettings(filtered);
 
                 const cfg = filtered.configs.find((c: any) => c.providerId === data.providerId);
@@ -231,28 +230,51 @@ export function ApiKeyConfigurator({
     const previewProviderLabel =
         providers.find((p) => p.id === previewProviderId)?.name || "Proveedor";
 
+    // Resumen de todas las keys configuradas
+    const configuredSummary = providers
+        .map((p) => {
+            const cfg = settings?.configs.find((c) => c.providerId === p.id);
+            const isDefault = p.id === settings?.defaults.defaultProviderId;
+            return {
+                name: p.name,
+                key: cfg?.apiKey || "",
+                isDefault,
+            };
+        })
+        .filter(Boolean);
+
     return (
         <div className="space-y-2">
             <Label className="text-muted-foreground">{label}</Label>
 
-            {/* Input de previsualización (no editable) */}
+            {/* Preview de providers configurados */}
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
-                    <div className="relative">
-                        <Input
-                            readOnly
-                            disabled={disabled || loading}
-                            value={
-                                previewApiKey
-                                    ? `${previewProviderLabel}: ${maskKey(previewApiKey)}`
-                                    : `${previewProviderLabel}: No configurada`
-                            }
-                            placeholder="No configurada"
-                            className={cn(
-                                "pr-28 cursor-pointer bg-muted/40 border-border",
-                                (disabled || loading) && "cursor-not-allowed opacity-60"
+                    <div className="relative cursor-pointer">
+                        <div className={cn(
+                            "flex flex-col gap-1 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm",
+                            (disabled || loading) && "cursor-not-allowed opacity-60"
+                        )}>
+                            {loading ? (
+                                <span className="text-muted-foreground text-xs">Cargando...</span>
+                            ) : configuredSummary.length === 0 ? (
+                                <span className="text-muted-foreground text-xs">No configurada</span>
+                            ) : (
+                                configuredSummary.map((s) => (
+                                    <div key={s.name} className="flex items-center gap-2">
+                                        <span className="capitalize font-medium w-16 text-xs">{s.name}</span>
+                                        <span className="font-mono text-xs text-muted-foreground flex-1">
+                                            {s.key ? maskKey(s.key) : <span className="italic">sin configurar</span>}
+                                        </span>
+                                        {s.isDefault && (
+                                            <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                                                activo
+                                            </span>
+                                        )}
+                                    </div>
+                                ))
                             )}
-                        />
+                        </div>
                         <Button
                             type="button"
                             variant="secondary"
@@ -398,7 +420,11 @@ export function ApiKeyConfigurator({
                             <Label>API key</Label>
                             <Input
                                 type="password"
-                                placeholder="sk-********************************"
+                                placeholder={
+                                    providers.find(p => p.id === form.watch("providerId"))?.name === "google"
+                                        ? "AIza****************************"
+                                        : "sk-****************************"
+                                }
                                 {...form.register("apiKey")}
                                 className="bg-background border-border"
                                 disabled={loading}
@@ -409,7 +435,9 @@ export function ApiKeyConfigurator({
                                 </p>
                             )}
                             <p className="text-xs text-muted-foreground">
-                                Seguridad: se guarda por proveedor en <code>UserAiConfig</code>.
+                                {providers.find(p => p.id === form.watch("providerId"))?.name === "google"
+                                    ? "Obtén tu key en Google AI Studio (aistudio.google.com)"
+                                    : "Obtén tu key en platform.openai.com"}
                             </p>
                         </div>
 

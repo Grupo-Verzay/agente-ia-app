@@ -19,7 +19,7 @@ const DEFAULT_API_KEY_ID = "0c3a9266-4eb1-4a19-824e-844dcfe7a485";
 const DEFAULT_WEBHOOK_URL = "https://backend.ia-app.com/webhook";
 const DEFAULT_API_URL = process.env.SECRET_API_KEY;
 const DEFAULT_DEL_SEGUIMIENTO = "Estamos para servirle.";
-const DEFAULT_IA_CREDITS = 1000;
+const DEFAULT_IA_CREDITS = 10000;
 const TRIAL_DAYS = 3;
 
 const DEFAULT_TAGS = [
