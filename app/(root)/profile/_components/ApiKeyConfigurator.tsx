@@ -58,7 +58,7 @@ const FormSchema = z.object({
     apiKey: z
         .string({ required_error: "Ingresa tu API key" })
         .min(8, "La API key es demasiado corta"),
-    temperature: z.number().min(0).max(1).default(0),
+    temperature: z.number().min(0).max(0.5).default(0.2),
     makeDefaultProvider: z.boolean().optional(),
     makeDefaultModel: z.boolean().optional(),
 });
@@ -93,7 +93,7 @@ export function ApiKeyConfigurator({
             providerId: "",
             modelId: "",
             apiKey: "",
-            temperature: 0,
+            temperature: 0.2,
             makeDefaultProvider: true,
             makeDefaultModel: true,
         },
@@ -422,30 +422,32 @@ export function ApiKeyConfigurator({
 
                         {/* Temperatura */}
                         <div className="grid gap-2">
-                            <div className="flex items-center justify-between">
-                                <Label>Temperatura</Label>
-                                <span className="text-sm font-medium tabular-nums w-8 text-right">
-                                    {(form.watch("temperature") ?? 0).toFixed(1)}
-                                </span>
-                            </div>
-                            <input
-                                type="range"
-                                min={0}
-                                max={1}
-                                step={0.1}
-                                value={form.watch("temperature") ?? 0}
-                                onChange={(e) =>
-                                    form.setValue("temperature", parseFloat(e.target.value), {
-                                        shouldDirty: true,
-                                    })
-                                }
-                                disabled={loading}
-                                className="w-full accent-primary"
-                            />
-                            <div className="flex justify-between text-xs text-muted-foreground">
-                                <span>0 — Preciso</span>
-                                <span>0.5 — Balanceado</span>
-                                <span>1.0 — Creativo</span>
+                            <Label>Temperatura del agente</Label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {([
+                                    { value: 0,   label: "Preciso",    desc: "Respuestas exactas y consistentes" },
+                                    { value: 0.2, label: "Balanceado", desc: "Natural sin perder el hilo" },
+                                    { value: 0.5, label: "Creativo",   desc: "Más variado y conversacional" },
+                                ] as const).map((opt) => {
+                                    const active = form.watch("temperature") === opt.value;
+                                    return (
+                                        <button
+                                            key={opt.value}
+                                            type="button"
+                                            disabled={loading}
+                                            onClick={() => form.setValue("temperature", opt.value, { shouldDirty: true })}
+                                            className={cn(
+                                                "flex flex-col items-center gap-1 rounded-lg border px-3 py-2 text-sm transition-colors",
+                                                active
+                                                    ? "border-primary bg-primary/10 text-primary font-medium"
+                                                    : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                                            )}
+                                        >
+                                            <span className="font-semibold">{opt.label}</span>
+                                            <span className="text-xs text-center leading-tight opacity-70">{opt.desc}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 

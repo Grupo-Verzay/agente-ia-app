@@ -955,7 +955,7 @@ model UserAiConfig {
   providerId  String
   apiKey      String
   isActive    Boolean    @default(true)
-  temperature Float      @default(0)
+  temperature Float      @default(0.2)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   provider    AiProvider @relation(fields: [providerId], references: [id])
