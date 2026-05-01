@@ -48,6 +48,12 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/profile" },
     { route: "/templates" },
     { route: "/evo" },
+    { route: "/evo?slot=1" },
+    { route: "/evo?slot=2" },
+    { route: "/evo?slot=3" },
+    { route: "/evo?slot=4" },
+    { route: "/evo?slot=5" },
+    { route: "/panel/evo" },
     //TOOLS
     { route: "/tools/tool-1" },
     { route: "/tools/tool-2" },

@@ -13,7 +13,7 @@ import {
     updateClientData
 } from '@/actions/userClientDataActions';
 import { autoConfigureUserAi } from '@/actions/userAiconfig-actions';
-import { CreateDialog, DeleteDialog, ToolsDialog, EditDialog, ClientStatusPanel, StatusKey, UserBackupDialog } from './';
+import { CreateDialog, DeleteDialog, ToolsDialog, EvoDialog, EditDialog, ClientStatusPanel, StatusKey, UserBackupDialog } from './';
 import { ApiKey } from '@prisma/client';
 import { UserFormValues } from '@/schema/user';
 import { Country } from '@/components/custom/CountryCodeSelect';
@@ -24,7 +24,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Users, Wifi, WifiOff, Zap } from 'lucide-react';
 
 
-export type DialogType = 'editar' | 'tools' | 'delete' | 'backup'
+export type DialogType = 'editar' | 'tools' | 'evo' | 'delete' | 'backup'
 
 interface Props {
     users: ClientInterface[],
@@ -39,6 +39,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [openCreateDialog, setOpenCreateDialog] = useState(false);
     const [openToolsDialog, setOpenToolsDialog] = useState(false);
+    const [openEvoDialog, setOpenEvoDialog] = useState(false);
     const [openEditDialog, setOpenEditDialog] = useState(false);
     const [openBackupDialog, setOpenBackupDialog] = useState(false);
     const [user, setCurrentUser] = useState<ClientInterface>();
@@ -170,6 +171,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         setCurrentUser(currentUser);
 
         if (dialog === 'tools') return setOpenToolsDialog(state);
+        if (dialog === 'evo') return setOpenEvoDialog(state);
         if (dialog === 'delete') return setOpenDeleteDialog(state);
         if (dialog === 'editar') return setOpenEditDialog(state);
         if (dialog === 'backup') return setOpenBackupDialog(state);
@@ -283,6 +285,14 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                 <ToolsDialog
                     openToolsDialog={openToolsDialog}
                     setOpenToolsDialog={setOpenToolsDialog}
+                    user={user}
+                />
+            )}
+            {/* EVO */}
+            {user && (
+                <EvoDialog
+                    openEvoDialog={openEvoDialog}
+                    setOpenEvoDialog={setOpenEvoDialog}
                     user={user}
                 />
             )}

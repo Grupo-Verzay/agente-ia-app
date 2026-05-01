@@ -73,6 +73,13 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
                             Herramientas
                         </DropdownMenuItem>
                     }
+                    {(currentUserRol === 'admin' || currentUserRol === 'super_admin') &&
+                        <DropdownMenuItem
+                            onClick={() => openDialogGetUserId(user.id, 'evo', true)}
+                        >
+                            EVO URLs
+                        </DropdownMenuItem>
+                    }
                     <DropdownMenuItem
                         onClick={() => openDialogGetUserId(user.id, 'backup', true)}
                     >
