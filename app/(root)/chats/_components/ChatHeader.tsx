@@ -16,6 +16,7 @@ import { LeadStatusSelect } from './LeadStatusSelect';
 import { SintesisEditDialog } from './SintesisEditDialog';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
+import { LeadContextSheet } from './LeadContextSheet';
 
 interface ChatHeaderProps {
   header: ChatHeaderData;
@@ -137,6 +138,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               <Badge variant="outline" className={`${sessionStatusTone} text-xs py-0.5`}>
                 {session.status ? 'Activa' : 'Pausada'}
               </Badge>
+              <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               <ChatRegistrosBadge
                 sessionId={session.id}
@@ -199,6 +201,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         <div className="flex items-center gap-1.5">
           {session && (
             <>
+              <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               <ChatRegistrosBadge
                 sessionId={session.id}

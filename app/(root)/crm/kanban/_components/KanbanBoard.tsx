@@ -392,11 +392,9 @@ export function KanbanBoard({ selectedScoreRanges = new Set() }: { selectedScore
         if (selectedScoreRanges.size > 0) {
             result = result.filter((c) => {
                 if (c.leadScore === null) return false;
-                for (const key of selectedScoreRanges) {
-                    const range = SCORE_RANGES.find((r) => r.key === key);
-                    if (range && c.leadScore >= range.min && c.leadScore <= range.max) return true;
-                }
-                return false;
+                return SCORE_RANGES.some(
+                    (r) => selectedScoreRanges.has(r.key) && c.leadScore! >= r.min && c.leadScore! <= r.max
+                );
             });
         }
         return result;
