@@ -387,8 +387,8 @@ export const ReminderForm = ({
                                     <li>❌ Evita listas frías o contactos que no te conocen</li>
                                     <li>❌ No envíes el mismo mensaje idéntico a muchos contactos</li>
                                 </ul>
-                                <p className="text-xs text-muted-foreground">
-                                    Al confirmar, aceptas que el uso de esta función es bajo tu propia responsabilidad.
+                                <p className="text-sm font-semibold text-foreground">
+                                    Al Continuar, aceptas que el uso de esta función es bajo tu propia responsabilidad.
                                 </p>
                             </div>
                         </AlertDialogDescription>
