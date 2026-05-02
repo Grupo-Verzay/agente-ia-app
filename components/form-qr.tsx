@@ -137,7 +137,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorComponentProps> = ({ userId }) =>
                                 : ""
                         }`}
                     onClick={() => setIsModalOpen(true)}
-                    variant={isApiDisconnected ? "destructive" : isWhatsappConnected ? "default" : "secondary"}
+                    variant={isApiDisconnected ? "destructive" : isWhatsappConnected ? "save" : "secondary"}
                 >
                     <QrCode className="mr-2 h-4 w-4" />
                     {isApiDisconnected ? "API desconectada" : isWhatsappConnected ? "Conectado" : "Conectar"}

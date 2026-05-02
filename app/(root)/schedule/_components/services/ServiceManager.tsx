@@ -208,7 +208,7 @@ function ServiceFormDialog({
                             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={submitting}>
                                 Cancelar
                             </Button>
-                            <Button type="submit" disabled={submitting}>
+                            <Button variant="save" type="submit" disabled={submitting}>
                                 {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                                 Guardar
                             </Button>

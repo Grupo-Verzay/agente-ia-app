@@ -54,7 +54,7 @@ export const CreateDialog = ({
           </div>
 
           <DialogFooter className="pt-6">
-            <Button type="submit">Guardar</Button>
+            <Button variant="save" type="submit">Guardar</Button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -311,7 +311,7 @@ function AddBuiltinDialog({
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep('catalog')} disabled={isSaving}>Volver</Button>
-              <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+              <Button variant="save" onClick={handleSave} disabled={isSaving} className="gap-2">
                 {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                 Agregar herramienta
               </Button>
@@ -398,7 +398,7 @@ function EditBuiltinDialog({ open, cfg, onClose, onSave, onRestore }: {
         )}
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isBusy}>Cancelar</Button>
-          <Button onClick={async () => { if (!cfg || !validate()) return; setIsSaving(true); try { await onSave(cfg.toolKey, form); onClose(); } finally { setIsSaving(false); } }}
+          <Button variant="save" onClick={async () => { if (!cfg || !validate()) return; setIsSaving(true); try { await onSave(cfg.toolKey, form); onClose(); } finally { setIsSaving(false); } }}
             disabled={isBusy} className="gap-2">
             {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
             Guardar cambios
@@ -549,7 +549,7 @@ function DataQueryDialog({ open, editingConfig, onClose, onSave }: {
             setIsSaving(true);
             try { await onSave({ ...form, toolKey: '' }, editingConfig?.toolKey); onClose(); }
             finally { setIsSaving(false); }
-          }} disabled={isSaving} className="gap-2">
+          }} disabled={isSaving} className="gap-2" variant="save">
             {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
             {isEditing ? 'Guardar cambios' : 'Crear herramienta'}
           </Button>
@@ -706,8 +706,7 @@ export function MyToolsManagement({ userId }: Props) {
             </div>
           </div>
           <CardDescription>
-            Define qué herramientas tiene disponibles tu agente IA.
-            Las herramientas del sistema tienen lógica fija; las dinámicas son consultas configurables sobre tus datos cargados.
+            Define las herramientas disponibles para tu agente IA. Utiliza las necesarias para optimizar su desempeño.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -741,7 +740,7 @@ export function MyToolsManagement({ userId }: Props) {
                 <Button variant="outline" size="sm" onClick={() => setAddBuiltinOpen(true)} className="gap-2">
                   <Lock className="h-3.5 w-3.5" />Herramienta del sistema
                 </Button>
-                <Button size="sm" onClick={() => { setEditDataQueryCfg(null); setDataQueryOpen(true); }} className="gap-2">
+                <Button variant="primary" size="sm" onClick={() => { setEditDataQueryCfg(null); setDataQueryOpen(true); }} className="gap-2">
                   <Search className="h-3.5 w-3.5" />Nueva consulta dinámica
                 </Button>
               </div>

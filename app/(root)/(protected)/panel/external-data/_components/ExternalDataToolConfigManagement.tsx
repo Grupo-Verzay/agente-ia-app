@@ -531,7 +531,7 @@ function AddBuiltinDialog({
               <Button variant="outline" onClick={() => setStep('catalog')} disabled={isSaving}>
                 Volver al catálogo
               </Button>
-              <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+              <Button variant="save" onClick={handleSave} disabled={isSaving} className="gap-2">
                 {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                 Agregar herramienta
               </Button>
@@ -704,7 +704,7 @@ function EditBuiltinDialog({
           <Button variant="outline" onClick={onClose} disabled={isBusy}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={isBusy} className="gap-2">
+          <Button variant="save" onClick={handleSave} disabled={isBusy} className="gap-2">
             {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
             Guardar cambios
           </Button>
@@ -985,7 +985,7 @@ function DataQueryDialog({
           <Button variant="outline" onClick={onClose} disabled={isSaving}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+          <Button variant="save" onClick={handleSave} disabled={isSaving} className="gap-2">
             {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
             {isEditing ? 'Guardar cambios' : 'Crear herramienta'}
           </Button>

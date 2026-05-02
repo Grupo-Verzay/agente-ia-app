@@ -13,6 +13,7 @@ import {
     Building2,
     Camera,
     Clock,
+    CreditCard,
     Database,
     FileSpreadsheet,
     Globe,
@@ -20,6 +21,7 @@ import {
     Loader2,
     Lock,
     MessageSquare,
+    Monitor,
     Palette,
     Settings2,
     ShieldCheck,
@@ -49,6 +51,8 @@ import { UserBackupManager } from "@/components/backup/UserBackupManager";
 import dynamic from "next/dynamic";
 import type { Plan } from "@prisma/client";
 import { PLAN_LABELS } from "@/types/plans";
+import { PlanBillingCard } from "./PlanBillingCard";
+import { SesionesCard } from "./SesionesCard";
 
 const MyDataManagement = dynamic(() => import("../../my-data/_components/MyDataManagement").then(m => ({ default: m.MyDataManagement })), { ssr: false });
 const MyDataImport = dynamic(() => import("../../my-data/_components/MyDataImport").then(m => ({ default: m.MyDataImport })), { ssr: false });
@@ -124,8 +128,8 @@ const TabPanel = ({ children }: { children: React.ReactNode }) => (
 );
 
 // ── Section title inside a tab ────────────────────────────────────────────────
-const SectionTitle = ({ children }: { children: React.ReactNode }) => (
-    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{children}</p>
+const SectionTitle = ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <p className={`text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 ${className ?? ''}`}>{children}</p>
 );
 
 // ── Micro label inside a card (replaces external SectionTitle) ────────────────
@@ -276,6 +280,7 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
     const secondaryTabs = [
         { value: 'comportamiento', label: 'Comportamiento', icon: Timer },
         { value: 'herramientas', label: 'Herramientas', icon: Database },
+        { value: 'cuenta', label: 'Cuenta', icon: CreditCard },
         { value: 'seguridad', label: 'Seguridad', icon: ShieldCheck },
         { value: 'respaldo', label: 'Respaldo', icon: HardDrive },
         ...(isReseller ? [{ value: 'apariencia', label: 'Apariencia', icon: Palette }] : []),
@@ -670,64 +675,41 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                     {/* ── Tab: Herramientas ────────────────────── */}
                     <TabsContent value="herramientas" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
-                            {!(['intermedio', 'avanzado', 'enterprise', 'personalizado', 'unico'] as Plan[]).includes((user as any).plan) ? (
-                                <div className="flex flex-col items-center justify-center min-h-[50vh] px-4">
-                                    <Card className="w-full max-w-md border-dashed">
-                                        <CardHeader className="items-center text-center pb-3">
-                                            <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mb-3">
-                                                <Lock className="h-7 w-7 text-muted-foreground" />
-                                            </div>
-                                            <CardTitle className="text-xl">Funcionalidad no disponible</CardTitle>
-                                            <CardDescription className="text-sm">
-                                                Tu plan actual no incluye la gestión de datos externos.
-                                            </CardDescription>
-                                        </CardHeader>
-                                        <CardContent className="flex flex-col items-center gap-4 text-center">
-                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                <span>Plan actual:</span>
-                                                <Badge variant="outline">{PLAN_LABELS[(user as any).plan as Plan]}</Badge>
-                                            </div>
-                                            <p className="text-sm text-muted-foreground">
-                                                Disponible desde el plan <strong>Intermedio</strong>. Contacta a tu administrador para actualizar tu plan.
-                                            </p>
-                                            <div className="flex flex-wrap justify-center gap-1.5 pt-1">
-                                                {(['intermedio', 'avanzado', 'enterprise', 'personalizado', 'unico'] as Plan[]).map((plan) => (
-                                                    <Badge key={plan} className="text-xs bg-primary/10 text-primary border-primary/20">
-                                                        <Sparkles className="h-2.5 w-2.5 mr-1" />
-                                                        {PLAN_LABELS[plan]}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </div>
-                            ) : (
-                                <Tabs defaultValue="tools">
-                                    <TabsList className="mb-4">
-                                        <TabsTrigger value="tools" className="gap-2">
-                                            <Bot className="h-4 w-4" />
-                                            Herramientas IA
-                                        </TabsTrigger>
-                                        <TabsTrigger value="import" className="gap-2">
-                                            <FileSpreadsheet className="h-4 w-4" />
-                                            Importar
-                                        </TabsTrigger>
-                                        <TabsTrigger value="management" className="gap-2">
-                                            <Database className="h-4 w-4" />
-                                            Gestión
-                                        </TabsTrigger>
-                                    </TabsList>
-                                    <TabsContent value="tools">
-                                        <MyToolsManagement userId={userId} />
-                                    </TabsContent>
-                                    <TabsContent value="import">
-                                        <MyDataImport userId={userId} />
-                                    </TabsContent>
-                                    <TabsContent value="management">
-                                        <MyDataManagement userId={userId} />
-                                    </TabsContent>
-                                </Tabs>
-                            )}
+                            <Tabs defaultValue="tools">
+                                <TabsList className="w-full h-auto bg-transparent p-0 rounded-none border-b border-border justify-start gap-0 mb-4">
+                                    <TabsTrigger value="tools" className="flex items-center gap-1.5 px-3 py-2 h-auto text-sm font-medium rounded-none border-b-2 border-transparent -mb-px text-muted-foreground bg-transparent shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors">
+                                        <Bot className="h-4 w-4" />
+                                        Herramientas IA
+                                    </TabsTrigger>
+                                    <TabsTrigger value="import" className="flex items-center gap-1.5 px-3 py-2 h-auto text-sm font-medium rounded-none border-b-2 border-transparent -mb-px text-muted-foreground bg-transparent shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors">
+                                        <FileSpreadsheet className="h-4 w-4" />
+                                        Importar
+                                    </TabsTrigger>
+                                    <TabsTrigger value="management" className="flex items-center gap-1.5 px-3 py-2 h-auto text-sm font-medium rounded-none border-b-2 border-transparent -mb-px text-muted-foreground bg-transparent shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors">
+                                        <Database className="h-4 w-4" />
+                                        Gestión
+                                    </TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="tools">
+                                    <MyToolsManagement userId={userId} />
+                                </TabsContent>
+                                <TabsContent value="import">
+                                    <MyDataImport userId={userId} />
+                                </TabsContent>
+                                <TabsContent value="management">
+                                    <MyDataManagement userId={userId} />
+                                </TabsContent>
+                            </Tabs>
+                        </TabPanel>
+                    </TabsContent>
+
+                    {/* ── Tab: Cuenta (Plan + Sesiones) ────────── */}
+                    <TabsContent value="cuenta" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
+                        <TabPanel>
+                            <SectionTitle>Plan y facturación</SectionTitle>
+                            <PlanBillingCard userPlan={(user as any).plan as Plan} />
+                            <SectionTitle className="mt-6">Sesiones activas</SectionTitle>
+                            <SesionesCard userName={user.name ?? user.email ?? ''} userEmail={user.email ?? ''} />
                         </TabPanel>
                     </TabsContent>
 

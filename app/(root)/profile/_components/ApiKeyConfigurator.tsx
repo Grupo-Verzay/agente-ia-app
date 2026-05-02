@@ -455,7 +455,7 @@ export function ApiKeyConfigurator({
                             >
                                 Cancelar
                             </Button>
-                            <Button type="submit" disabled={loading}>
+                            <Button variant="save" type="submit" disabled={loading}>
                                 {loading ? "Guardando..." : "Guardar"}
                             </Button>
                         </DialogFooter>

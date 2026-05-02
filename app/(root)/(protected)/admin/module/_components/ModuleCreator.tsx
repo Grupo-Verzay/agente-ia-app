@@ -52,7 +52,7 @@ export function ModuleCreator({ onSave, openModule = false, setOpenModule }: {
                                     </ScrollArea>
                                 </CardContent>
                                 <CardFooter>
-                                    <Button form="module-form" type="submit" className="w-full">Guardar módulo</Button>
+                                    <Button variant="save" form="module-form" type="submit" className="w-full">Guardar módulo</Button>
                                 </CardFooter>
                             </Card>
                         </motion.div>

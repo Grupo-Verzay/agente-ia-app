@@ -194,7 +194,7 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                     </ScrollArea>
 
                     <DialogFooter className="px-6 pb-4">
-                        <Button form="prompt-form" type="submit" className="w-full">
+                        <Button variant="save" form="prompt-form" type="submit" className="w-full">
                             {editTemplate ? 'Guardar cambios' : 'Crear plantilla'}
                         </Button>
                     </DialogFooter>

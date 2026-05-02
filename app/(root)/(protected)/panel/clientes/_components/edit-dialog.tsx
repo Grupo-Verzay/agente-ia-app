@@ -364,7 +364,7 @@ export const EditDialog = ({
           </div>
 
           <DialogFooter className="pt-4">
-            <Button type="submit">Guardar</Button>
+            <Button variant="save" type="submit">Guardar</Button>
           </DialogFooter>
         </form>
       </DialogContent>

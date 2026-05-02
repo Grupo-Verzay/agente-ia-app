@@ -841,7 +841,7 @@ export default function MainFinanceAccounts({
               >
                 Cancelar
               </Button>
-              <Button onClick={onSave} size="sm" disabled={isPending} className="h-9">
+              <Button variant="save" onClick={onSave} size="sm" disabled={isPending} className="h-9">
                 {editing ? 'Guardar cambios' : 'Crear cuenta'}
               </Button>
             </div>

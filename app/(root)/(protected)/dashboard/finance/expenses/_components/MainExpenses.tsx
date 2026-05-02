@@ -758,7 +758,7 @@ export default function MainExpenses({
                       <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={isPending} className="h-9">
                         Cancelar
                       </Button>
-                      <Button onClick={onSave} size="sm" disabled={isPending || uploading} className="h-9">
+                      <Button variant="save" onClick={onSave} size="sm" disabled={isPending || uploading} className="h-9">
                         {editing ? 'Guardar cambios' : 'Guardar gasto'}
                       </Button>
                     </div>

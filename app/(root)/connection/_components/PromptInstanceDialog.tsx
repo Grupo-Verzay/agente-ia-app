@@ -262,7 +262,7 @@ export const PromptInstanceDialog = ({
               </Tabs>
 
               <DialogFooter className="mt-4">
-                <Button type="submit" disabled={mutation.isPending} className="text-lg px-6 py-3">
+                <Button variant="save" type="submit" disabled={mutation.isPending} className="text-lg px-6 py-3">
                   {mutation.isPending ? "Guardando..." : "Guardar"}
                 </Button>
               </DialogFooter>

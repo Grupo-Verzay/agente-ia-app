@@ -1054,7 +1054,7 @@ export function BillingCrmClient({
                                         >
                                             Cancelar
                                         </Button>
-                                        <Button onClick={saveEdit} disabled={!canSave}>
+                                        <Button variant="save" onClick={saveEdit} disabled={!canSave}>
                                             Guardar
                                         </Button>
                                     </DialogFooter>

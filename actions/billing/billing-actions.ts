@@ -155,6 +155,41 @@ export async function getUserBillingByUserId(
     }
 }
 
+export async function getOwnBillingAction(): Promise<ResponseFormat<any>> {
+    try {
+        const me = await currentUser();
+        if (!me?.id) return { success: false, message: "No autorizado." };
+
+        const billing = await db.userBilling.findUnique({
+            where: { userId: me.id },
+        });
+
+        if (!billing) return { success: true, message: "Sin billing.", data: null };
+
+        return {
+            success: true,
+            message: "Billing encontrado.",
+            data: {
+                ...billing,
+                price: billing.price ? billing.price.toString() : null,
+                dueDate: billing.dueDate ? billing.dueDate.toISOString() : null,
+                serviceStartAt: billing.serviceStartAt ? billing.serviceStartAt.toISOString() : null,
+                serviceEndsAt: billing.serviceEndsAt ? billing.serviceEndsAt.toISOString() : null,
+                serviceEndAt: billing.serviceEndAt ? billing.serviceEndAt.toISOString() : null,
+                suspendedAt: billing.suspendedAt ? billing.suspendedAt.toISOString() : null,
+                lastPaymentAt: billing.lastPaymentAt ? billing.lastPaymentAt.toISOString() : null,
+                lastReminderAt: billing.lastReminderAt ? billing.lastReminderAt.toISOString() : null,
+                lastReminderDueDate: billing.lastReminderDueDate ? billing.lastReminderDueDate.toISOString() : null,
+                createdAt: billing.createdAt ? billing.createdAt.toISOString() : null,
+                updatedAt: billing.updatedAt ? billing.updatedAt.toISOString() : null,
+            },
+        };
+    } catch (error: any) {
+        console.error("[getOwnBillingAction]", error);
+        return { success: false, message: error?.message ?? "Error obteniendo billing." };
+    }
+}
+
 export async function upsertUserBillingConfig(
     input: BillingUpsertInput
 ): Promise<ResponseFormat<any>> {

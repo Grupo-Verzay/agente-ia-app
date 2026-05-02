@@ -193,7 +193,7 @@ export function ExternalClientDataFormDialog({
           <Button variant="outline" onClick={handleClose} disabled={isSaving}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+          <Button variant="save" onClick={handleSave} disabled={isSaving} className="gap-2">
             {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
             {isEditing ? 'Guardar cambios' : 'Crear registro'}
           </Button>

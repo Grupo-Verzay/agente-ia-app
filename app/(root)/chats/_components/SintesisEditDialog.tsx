@@ -132,7 +132,7 @@ export function SintesisEditDialog({ sessionId, onUpdated }: SintesisEditDialogP
                 Cancelar
               </Button>
               {hasFollowUp ? (
-                <Button onClick={handleSave} disabled={isSaving || !synthesis.trim()}>
+                <Button variant="save" onClick={handleSave} disabled={isSaving || !synthesis.trim()}>
                   {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Guardar
                 </Button>

@@ -186,7 +186,7 @@ export const MainModule = () => {
                                     </ScrollArea>
                                 </CardContent>
                                 <CardFooter>
-                                    <Button form="module-form" type="submit" className="w-full">
+                                    <Button variant="save" form="module-form" type="submit" className="w-full">
                                         {editModule ? "Guardar cambios" : "Crear módulo"}
                                     </Button>
                                 </CardFooter>

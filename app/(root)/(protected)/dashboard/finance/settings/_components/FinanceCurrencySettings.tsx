@@ -77,6 +77,7 @@ export default function FinanceCurrencySettings({
       </div>
 
       <Button
+        variant="save"
         onClick={onSave}
         disabled={isPending || code === currentCode}
         className="h-9 bg-blue-600 hover:bg-blue-700 text-white"

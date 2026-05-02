@@ -105,7 +105,7 @@ export const RenameInstanceDialog = ({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={mutation.isPending}>
+            <Button variant="save" type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? 'Guardando...' : 'Guardar'}
             </Button>
           </DialogFooter>

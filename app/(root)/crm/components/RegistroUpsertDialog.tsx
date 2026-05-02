@@ -287,7 +287,7 @@ export function RegistroUpsertDialog({
                     <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                         Cancelar
                     </Button>
-                    <Button onClick={onSubmit} disabled={saving}>
+                    <Button variant="save" onClick={onSubmit} disabled={saving}>
                         {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                         Guardar
                     </Button>

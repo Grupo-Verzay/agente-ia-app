@@ -234,7 +234,7 @@ export const ProductForm = ({
                             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
                                 Cancelar
                             </Button>
-                            <Button type="submit" disabled={isPending}>
+                            <Button variant="save" type="submit" disabled={isPending}>
                                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 {product?.id ? "Guardar cambios" : "Guardar"}
                             </Button>
