@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { toZonedTime } from "date-fns-tz";
 import { format, isBefore, startOfDay } from "date-fns";
 
@@ -47,6 +47,7 @@ export const DateHourComponent = ({
   }, [slots, timezone]);
 
   const canContinue = Boolean(selectedDate && selectedSlot);
+  const slotsRef = useRef<HTMLDivElement>(null);
 
   return (
     <Card className="border-muted/50">
@@ -70,8 +71,14 @@ export const DateHourComponent = ({
                 setSelectedDateYmd(ymd);
                 if (ymd) {
                   getAvailableSlots(user.id as string, ymd, slotDuration, serverTimeZone).then((res) => {
-                    if (res.success) setSlots(res.data || []);
-                    else toast.error(res.message);
+                    if (res.success) {
+                      setSlots(res.data || []);
+                      setTimeout(() => {
+                        slotsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }, 150);
+                    } else {
+                      toast.error(res.message);
+                    }
                   });
                 } else {
                   setSlots([]);
@@ -83,7 +90,7 @@ export const DateHourComponent = ({
           </div>
 
           {/* Columna derecha: slots */}
-          <div className="flex-1 min-w-0 flex flex-col gap-4">
+          <div ref={slotsRef} className="flex-1 min-w-0 flex flex-col gap-4">
             <div className="space-y-3">
               <div className="text-sm font-medium text-muted-foreground">{formatDateLabel(selectedDate)}</div>
 
