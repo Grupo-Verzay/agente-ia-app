@@ -393,12 +393,12 @@ export const ReminderForm = ({
                             </div>
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className="flex-row justify-between sm:flex-row">
+                    <div className="flex justify-between items-center mt-4">
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                         <AlertDialogAction onClick={handleConfirmCampaign} className="bg-red-600 hover:bg-red-700 text-white">
                             Continuar
                         </AlertDialogAction>
-                    </AlertDialogFooter>
+                    </div>
                 </AlertDialogContent>
             </AlertDialog>
         </>
