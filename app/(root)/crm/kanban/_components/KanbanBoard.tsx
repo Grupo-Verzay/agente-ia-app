@@ -218,14 +218,14 @@ function KanbanColumn({
                 </Badge>
             </div>
 
-            {/* Cards area */}
+            {/* Cards area — altura fija ~5 cards, scroll vertical interno */}
             <div
                 ref={setNodeRef}
                 className={cn(
-                    'p-2 space-y-2 transition-colors overflow-y-auto flex-1',
+                    'p-2 space-y-2 transition-colors overflow-y-auto',
                     isOver && 'ring-2 ring-inset ring-primary/30 bg-primary/5',
                 )}
-                style={{ height: 'calc(100vh - 260px)', minHeight: '120px' }}
+                style={{ height: '350px' }}
             >
                 {cards.map((card) => (
                     <DraggableCard key={card.id} card={card} />
@@ -345,9 +345,9 @@ export function KanbanBoard() {
     }
 
     return (
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3 min-w-0 w-full">
             {/* Fila 1: Pills de estado + botón actualizar */}
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                 {COLUMNS.map((col) => {
                     const count = filteredCards.filter((c) => columnIdForStatus(c.leadStatus) === col.id).length;
                     if (col.id === 'SIN_CLASIFICAR' && count === 0) return null;
@@ -444,8 +444,8 @@ export function KanbanBoard() {
 
             {/* Board */}
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-                <div className="overflow-x-auto overflow-y-hidden pb-1">
-                    <div className="flex gap-3 min-w-max">
+                <div className="w-full overflow-x-auto pb-1">
+                    <div className="flex gap-3 w-max">
                         {COLUMNS.map((col) => (
                             <KanbanColumn key={col.id} col={col} cards={columnCards(col)} />
                         ))}
