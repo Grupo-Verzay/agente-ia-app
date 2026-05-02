@@ -30,15 +30,16 @@ import type { DashboardStats } from "./MainDashboard";
 import type { TipoRegistro } from "@/types/session";
 
 const ANALYTICS_SECTIONS = {
-    actividad:  "Actividad",
-    leads:      "Leads y seguimientos",
-    citas:      "Citas",
-    sesiones:   "Sesiones",
-    flujos:     "Flujos",
-    etiquetas:  "Etiquetas y madurez",
-    ventas:     "Ventas y gastos",
-    productos:  "Productos",
-    sistema:    "Créditos IA",
+    actividad:    "Actividad",
+    rendimiento:  "Rendimiento del Agente IA",
+    leads:        "Leads y seguimientos",
+    citas:        "Citas",
+    sesiones:     "Sesiones",
+    flujos:       "Flujos",
+    etiquetas:    "Etiquetas y madurez",
+    ventas:       "Ventas y gastos",
+    productos:    "Productos",
+    sistema:      "Créditos IA",
 } as const;
 
 type SectionKey = keyof typeof ANALYTICS_SECTIONS;
@@ -141,7 +142,7 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
     const loading = isLoading;
 
     const [visibleSections, setVisibleSections] = useState<Record<SectionKey, boolean>>({
-        actividad: true, leads: true, citas: true, sesiones: true,
+        actividad: true, rendimiento: true, leads: true, citas: true, sesiones: true,
         flujos: true, etiquetas: true, ventas: true, productos: true, sistema: true,
     });
 
@@ -199,6 +200,15 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
             .filter((d) => d.value > 0)
             .filter((d) => leadFilter === "__all__" || d.key === leadFilter)
         : [];
+
+    /* rendimiento conversacional */
+    const fuData = a?.followUps ? [
+        { name: "Enviados",   value: a.followUps.counts.SENT,       color: "#22C55E" },
+        { name: "Cancelados", value: a.followUps.counts.CANCELLED,  color: "#6B7280" },
+        { name: "Pendientes", value: a.followUps.counts.PENDING,     color: "#F59E0B" },
+        { name: "Fallidos",   value: a.followUps.counts.FAILED,      color: "#EF4444" },
+        { name: "Ignorados",  value: a.followUps.counts.SKIPPED,     color: "#94A3B8" },
+    ].filter((d) => d.value > 0) : [];
 
     /* embudo de conversión */
     const funnelData = a
@@ -482,6 +492,65 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                 </Card>
             </div>
 
+            </>)}
+
+            {/* ═══ ② RENDIMIENTO DEL AGENTE IA ═══ */}
+            {visibleSections.rendimiento && (<>
+            <SectionLabel>Rendimiento del Agente IA</SectionLabel>
+            <div className="grid gap-4 lg:grid-cols-2">
+                <Card className="border-border bg-muted/10">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-base text-muted-foreground">Tasas de conversión</CardTitle>
+                        <CardDescription>Métricas clave del pipeline de leads.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <KpiList items={[
+                            {
+                                label: "Tasa de conversión",
+                                value: loading ? "…" : `${a?.conversions?.conversionRate ?? 0}%`,
+                                color: (a?.conversions?.conversionRate ?? 0) >= 10 ? "#22C55E" : "#F59E0B",
+                            },
+                            {
+                                label: "Leads calientes",
+                                value: loading ? "…" : `${a?.conversions?.hotRate ?? 0}%`,
+                                color: "#F97316",
+                            },
+                            {
+                                label: "Tasa de descarte",
+                                value: loading ? "…" : `${a?.conversions?.discardRate ?? 0}%`,
+                                color: (a?.conversions?.discardRate ?? 0) > 20 ? "#EF4444" : "#6B7280",
+                            },
+                            {
+                                label: "Follow-ups enviados",
+                                value: loading ? "…" : `${a?.followUps?.sentRate ?? 0}%`,
+                                color: "#3B82F6",
+                            },
+                            {
+                                label: "Escalados a humano",
+                                value: loading ? "…" : `${a?.conversions?.escalationRate ?? 0}%  (${a?.sessions?.escalated ?? 0} sesiones)`,
+                                color: "#8B5CF6",
+                            },
+                            {
+                                label: "Agente IA activo",
+                                value: loading ? "…" : `${a ? Math.round((a.sessions.agentActive / (a.sessions.total || 1)) * 100) : 0}%`,
+                                color: "#14B8A6",
+                            },
+                        ]} />
+                    </CardContent>
+                </Card>
+
+                <Card className="border-border">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Efectividad de follow-ups</CardTitle>
+                        <CardDescription>Distribución de resultados de los seguimientos automáticos.</CardDescription>
+                    </CardHeader>
+                    <CardContent className={CHART_H}>
+                        {loading ? <EmptyState text="Cargando..." /> : fuData.length === 0
+                            ? <EmptyState text="Aún no hay follow-ups registrados." />
+                            : <DonutChart data={fuData} />}
+                    </CardContent>
+                </Card>
+            </div>
             </>)}
 
             {/* ═══ ③ LEADS Y SEGUIMIENTOS ═══ */}

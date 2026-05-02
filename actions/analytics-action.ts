@@ -70,9 +70,25 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
         const totalSessions = await db.session.count({ where: { userId } });
         const activeSessions = await db.session.count({ where: { userId, status: true } });
         const agentActiveSessions = await db.session.count({ where: { userId, agentDisabled: false } });
+        const escalatedSessions = await db.session.count({ where: { userId, agentDisabled: true } });
         const newSessions = dateFilter
             ? await db.session.count({ where: { userId, createdAt: dateFilter } })
             : totalSessions;
+
+        /* ── 4b) CrmFollowUp por status (histórico total) ── */
+        const followUpGroups = await db.crmFollowUp.groupBy({
+            by: ["status"],
+            where: { userId },
+            _count: { _all: true },
+        });
+        const fuCounts = { PENDING: 0, PROCESSING: 0, SENT: 0, FAILED: 0, CANCELLED: 0, SKIPPED: 0 };
+        for (const row of followUpGroups) {
+            if (row.status in fuCounts) fuCounts[row.status as keyof typeof fuCounts] = row._count._all;
+        }
+        const fuTotal = Object.values(fuCounts).reduce((a, b) => a + b, 0);
+
+        /* ── 4c) Tasas de conversión del pipeline ── */
+        const totalClassifiedLeads = Object.values(leadStatusCounts).reduce((a, b) => a + b, 0);
 
         /* ── 5) Productos ── */
         const totalProducts = await db.product.count({ where: { userId } });
@@ -238,6 +254,20 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
                     inactive: totalSessions - activeSessions,
                     agentActive: agentActiveSessions,
                     agentInactive: totalSessions - agentActiveSessions,
+                    escalated: escalatedSessions,
+                },
+                followUps: {
+                    total: fuTotal,
+                    counts: fuCounts,
+                    sentRate: fuTotal > 0 ? Math.round((fuCounts.SENT / fuTotal) * 100) : 0,
+                    cancelledRate: fuTotal > 0 ? Math.round((fuCounts.CANCELLED / fuTotal) * 100) : 0,
+                },
+                conversions: {
+                    totalLeads: totalClassifiedLeads,
+                    conversionRate: totalClassifiedLeads > 0 ? Math.round((leadStatusCounts.FINALIZADO / totalClassifiedLeads) * 100) : 0,
+                    hotRate: totalClassifiedLeads > 0 ? Math.round((leadStatusCounts.CALIENTE / totalClassifiedLeads) * 100) : 0,
+                    discardRate: totalClassifiedLeads > 0 ? Math.round((leadStatusCounts.DESCARTADO / totalClassifiedLeads) * 100) : 0,
+                    escalationRate: totalSessions > 0 ? Math.round((escalatedSessions / totalSessions) * 100) : 0,
                 },
                 products: {
                     total: totalProducts,

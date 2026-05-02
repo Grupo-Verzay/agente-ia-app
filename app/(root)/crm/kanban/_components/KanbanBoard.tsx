@@ -345,7 +345,7 @@ export function KanbanBoard() {
     }
 
     return (
-        <div className="flex flex-col gap-3 min-w-0 w-full">
+        <div className="flex flex-col gap-3 min-w-0 w-full overflow-x-hidden">
             {/* Búsqueda + etiquetas + contador + actualizar */}
             <div className="flex flex-wrap items-center gap-2">
                 {/* Buscador */}
@@ -424,7 +424,7 @@ export function KanbanBoard() {
 
             {/* Board */}
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-                <div className="w-full overflow-x-auto pb-1">
+                <div className="min-w-0 w-full overflow-x-auto pb-1">
                     <div className="flex gap-3 w-max">
                         {COLUMNS.map((col) => (
                             <KanbanColumn key={col.id} col={col} cards={columnCards(col)} />

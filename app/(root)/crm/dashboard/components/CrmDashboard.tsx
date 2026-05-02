@@ -147,7 +147,7 @@ export const CrmDashboard = ({
 
     return (
         <TooltipProvider delayDuration={120}>
-            <div className="flex h-full min-w-0 flex-col gap-2">
+            <div className="flex h-full min-w-0 w-full flex-col gap-2">
                 {/* Metric Cards */}
                 <div className="flex flex-wrap gap-3">
                     {viewMode === "registros" ? (

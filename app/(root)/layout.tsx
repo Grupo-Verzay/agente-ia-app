@@ -85,7 +85,7 @@ export default async function RootGroupLayout({
                 <AppSidebar user={user} />
                 <SidebarInset className="h-screen flex flex-col">
                     <Breadcrumbs />
-                    <main className={`flex-1 overflow-auto p-4 ${themeClass}`}>
+                    <main className={`flex-1 overflow-y-auto overflow-x-hidden p-4 ${themeClass}`}>
                         <PanelAwareTabNav tabs={panelTabs} excludePanelRoutes />
                         {children}
                     </main>
