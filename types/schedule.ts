@@ -33,9 +33,9 @@ export type GetAvailableSlotsFn = (
 export interface DateHourInterface {
     // estado/acciones
     setSelectedDate: (date?: Date) => void;
-    setSelectedSlot: (slot: string | null) => void;        // `${start}|${end}`
-    setSelectedDateYmd: (ymd: string) => void;             // "yyyy-MM-dd"
-    setStep: (step: number) => void;                        // o (step: 0|1|2|3)
+    setSelectedSlot: (slot: string | null) => void;
+    setSelectedDateYmd: (ymd: string) => void;
+    setStep: (step: number) => void;
     setSlots: (slots: Slot[]) => void;
 
     // datos entrantes
@@ -46,13 +46,17 @@ export interface DateHourInterface {
     timezone: string;
     serverTimeZone: string;
     slotDuration: number;
-    // mínimos del usuario (solo usas user.id)
     user: UserWithApiKeys;
 
-    // validaciones para avanzar (usadas en canContinueStep2)
+    // datos del cliente (fusionados desde ScheduleForm)
     phone: string;
     areaCode: string;
     nameClient: string;
+    setNameClient: (name: string) => void;
+    setAreaCode: (code: string) => void;
+    setPhone: (phone: string) => void;
+    countries?: Country[];
+    onContinue: () => void;
 }
 
 

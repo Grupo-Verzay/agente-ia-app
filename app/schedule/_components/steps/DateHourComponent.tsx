@@ -5,6 +5,9 @@ import { format, isBefore, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CountryCodeSelect } from "@/components/custom/CountryCodeSelect";
 import { toast } from "sonner";
 import { formatDateLabel } from "../../helpers";
 import { DateHourInterface } from "@/types/schedule";
@@ -27,6 +30,11 @@ export const DateHourComponent = ({
   phone,
   areaCode,
   nameClient,
+  setNameClient,
+  setAreaCode,
+  setPhone,
+  countries,
+  onContinue,
 }: DateHourInterface) => {
 
   const groupedSlots = useMemo(() => {
@@ -49,7 +57,7 @@ export const DateHourComponent = ({
     };
   }, [slots, timezone]);
 
-  const canContinueStep1 = Boolean(selectedDate && selectedSlot);
+  const canContinue = Boolean(selectedDate && selectedSlot && nameClient.trim() && phone.trim() && areaCode);
 
 
   return (
@@ -60,7 +68,7 @@ export const DateHourComponent = ({
           Los horarios se muestran en tu zona horaria: <span className="font-medium">{timezone}</span>.
         </p>
       </CardHeader>
-      <CardContent className="grid lg:grid-cols-2 gap-6">
+      <CardContent className="flex flex-col gap-4">
         <div className="rounded-2xl border p-2">
           <Calendar
             mode="single"
@@ -146,11 +154,41 @@ export const DateHourComponent = ({
             </div>
           </div>
 
+          <div className="border-t pt-4 mt-2 space-y-4">
+            <p className="text-sm font-semibold">Tus datos</p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Nombre completo</Label>
+                <Input placeholder="Tu nombre" value={nameClient} onChange={(e) => setNameClient(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>País</Label>
+                {countries && (
+                  <CountryCodeSelect
+                    countries={countries}
+                    defaultValue={areaCode}
+                    onChange={(code) => setAreaCode(code)}
+                  />
+                )}
+              </div>
+              <div className="sm:col-span-2 space-y-2">
+                <Label>WhatsApp</Label>
+                <Input
+                  placeholder="Número"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  inputMode="tel"
+                />
+                <p className="text-xs text-muted-foreground">Usaremos este número para confirmar tu cita por WhatsApp.</p>
+              </div>
+            </div>
+          </div>
+
           <div className="flex justify-between gap-2 pt-2">
             <Button variant="outline" onClick={() => setStep(0)}>
               Atrás
             </Button>
-            <Button disabled={!canContinueStep1} onClick={() => setStep(2)}>
+            <Button disabled={!canContinue} onClick={onContinue}>
               Continuar
             </Button>
           </div>
