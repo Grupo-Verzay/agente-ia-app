@@ -80,6 +80,8 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
             });
         } else {
             // Campaña — un Seguimiento por lead con delay escalonado y variables
+            const minDelay = Math.max(5, data.campaignMinDelay ?? 20);
+            const maxDelay = Math.max(minDelay, data.campaignMaxDelay ?? 60);
             let cumulativeDelay = 0;
 
             for (let i = 0; i < jids.length; i++) {
@@ -87,7 +89,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                 const name  = names[i] ?? '';
                 const phone = jid.replace(/@.*/, '');
 
-                if (i > 0) cumulativeDelay += randomBetween(20, 60);
+                if (i > 0) cumulativeDelay += randomBetween(minDelay, maxDelay);
 
                 await db.seguimiento.create({
                     data: {

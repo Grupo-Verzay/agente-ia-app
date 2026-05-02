@@ -47,7 +47,10 @@ export const reminderSchema = z.object({
 
     apikey: z.string().optional(),
 
-    isSchedule: z.boolean().optional()
+    isSchedule: z.boolean().optional(),
+
+    campaignMinDelay: z.coerce.number().min(5).max(600).optional(),
+    campaignMaxDelay: z.coerce.number().min(5).max(600).optional(),
 })
 
 export type formValuesReminderSchema = z.infer<typeof reminderSchema>
