@@ -16,10 +16,11 @@ import {
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, User, Bell, Tag, Clock, X, Search } from 'lucide-react';
+import { Loader2, RefreshCw, User, Bell, Tag, Clock, X, Search, Sparkles, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getKanbanSessionsAction, type KanbanCard } from '@/actions/crm-kanban-actions';
 import { updateSessionLeadStatus } from '@/actions/session-action';
+import { scoreLeadBySessionId, scoreAllLeadsByUserId } from '@/actions/lead-score-action';
 import type { LeadStatus } from '@prisma/client';
 
 // ─── Column config ────────────────────────────────────────────────────────────
@@ -84,6 +85,16 @@ const COLUMNS: {
     },
 ];
 
+// ─── Score ranges (para el filtro local) ─────────────────────────────────────
+
+const SCORE_RANGES = [
+    { key: 'bajo',     min: 0,  max: 25  },
+    { key: 'medio',    min: 26, max: 50  },
+    { key: 'moderado', min: 51, max: 75  },
+    { key: 'alto',     min: 76, max: 90  },
+    { key: 'listo',    min: 91, max: 100 },
+] as const;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtPhone(remoteJid: string) {
@@ -104,9 +115,35 @@ function columnIdForStatus(status: LeadStatus | null): ColumnId {
     return status ?? 'SIN_CLASIFICAR';
 }
 
+// ─── Score badge ─────────────────────────────────────────────────────────────
+
+function ScoreBadge({ score }: { score: number }) {
+    const color = score >= 76 ? '#22C55E' : score >= 51 ? '#F59E0B' : score >= 26 ? '#F97316' : '#EF4444';
+    return (
+        <div
+            className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold text-white"
+            style={{ backgroundColor: color }}
+            title={`Lead Score: ${score}/100`}
+        >
+            <TrendingUp className="h-2.5 w-2.5" />
+            {score}
+        </div>
+    );
+}
+
 // ─── Draggable Card ───────────────────────────────────────────────────────────
 
-function KanbanCardItem({ card, isDragging = false }: { card: KanbanCard; isDragging?: boolean }) {
+function KanbanCardItem({
+    card,
+    isDragging = false,
+    onScore,
+    scoring = false,
+}: {
+    card: KanbanCard;
+    isDragging?: boolean;
+    onScore?: (id: number) => void;
+    scoring?: boolean;
+}) {
     const ago = timeAgo(card.leadStatusUpdatedAt);
     return (
         <div className={cn(
@@ -122,7 +159,7 @@ function KanbanCardItem({ card, isDragging = false }: { card: KanbanCard; isDrag
                         <p className="text-sm font-medium truncate leading-tight">{card.pushName}</p>
                         <Link
                             href={`/chats?jid=${encodeURIComponent(card.remoteJid)}`}
-                            className="text-[11px] text-primary hover:underline truncate block"
+                            className="text-[11px] text-primary hover:underline block"
                             onClick={(e) => e.stopPropagation()}
                         >
                             {fmtPhone(card.remoteJid)}
@@ -130,6 +167,9 @@ function KanbanCardItem({ card, isDragging = false }: { card: KanbanCard; isDrag
                     </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                    {card.leadScore !== null && card.leadScore !== undefined && (
+                        <ScoreBadge score={card.leadScore} />
+                    )}
                     {card.pendingFollowUps > 0 && (
                         <div className="flex items-center gap-0.5 text-[10px] text-amber-600 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded px-1 py-0.5">
                             <Bell className="h-2.5 w-2.5" />
@@ -142,8 +182,25 @@ function KanbanCardItem({ card, isDragging = false }: { card: KanbanCard; isDrag
                             {ago}
                         </div>
                     )}
+                    {onScore && (
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onScore(card.id); }}
+                            disabled={scoring}
+                            className="flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40"
+                            title={card.leadScore !== null ? "Re-puntuar lead" : "Puntuar lead con IA"}
+                        >
+                            {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {card.leadScoreReason && card.leadScore !== null && (
+                <p className="text-[10px] text-muted-foreground/70 italic line-clamp-1">
+                    {card.leadScoreReason}
+                </p>
+            )}
 
             {card.leadStatusReason && (
                 <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
@@ -177,7 +234,11 @@ function KanbanCardItem({ card, isDragging = false }: { card: KanbanCard; isDrag
 
 // ─── Draggable wrapper ────────────────────────────────────────────────────────
 
-function DraggableCard({ card }: { card: KanbanCard }) {
+function DraggableCard({ card, onScore, scoring }: {
+    card: KanbanCard;
+    onScore?: (id: number) => void;
+    scoring?: boolean;
+}) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: card.id,
         data: { card },
@@ -189,7 +250,7 @@ function DraggableCard({ card }: { card: KanbanCard }) {
 
     return (
         <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing">
-            <KanbanCardItem card={card} isDragging={isDragging} />
+            <KanbanCardItem card={card} isDragging={isDragging} onScore={onScore} scoring={scoring} />
         </div>
     );
 }
@@ -199,9 +260,13 @@ function DraggableCard({ card }: { card: KanbanCard }) {
 function KanbanColumn({
     col,
     cards,
+    onScore,
+    scoringIds,
 }: {
     col: (typeof COLUMNS)[number];
     cards: KanbanCard[];
+    onScore?: (id: number) => void;
+    scoringIds?: Set<number>;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: col.id });
 
@@ -228,7 +293,7 @@ function KanbanColumn({
                 style={{ height: '350px' }}
             >
                 {cards.map((card) => (
-                    <DraggableCard key={card.id} card={card} />
+                    <DraggableCard key={card.id} card={card} onScore={onScore} scoring={scoringIds?.has(card.id)} />
                 ))}
                 {cards.length === 0 && (
                     <div className="flex items-center justify-center h-20 text-xs text-muted-foreground/40">
@@ -242,12 +307,14 @@ function KanbanColumn({
 
 // ─── Main Board ───────────────────────────────────────────────────────────────
 
-export function KanbanBoard() {
+export function KanbanBoard({ selectedScoreRanges = new Set() }: { selectedScoreRanges?: Set<string> }) {
     const [cards, setCards] = useState<KanbanCard[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeCard, setActiveCard] = useState<KanbanCard | null>(null);
     const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
     const [searchQuery, setSearchQuery] = useState('');
+    const [scoringIds, setScoringIds] = useState<Set<number>>(new Set());
+    const [scoringAll, setScoringAll] = useState(false);
     const pendingRef = useRef(false);
 
     const sensors = useSensors(
@@ -263,6 +330,32 @@ export function KanbanBoard() {
     }, []);
 
     useEffect(() => { loadCards(); }, [loadCards]);
+
+    const handleScore = useCallback(async (id: number) => {
+        setScoringIds((prev) => new Set(prev).add(id));
+        const res = await scoreLeadBySessionId(id);
+        if (res.success && res.score !== undefined) {
+            setCards((prev) => prev.map((c) =>
+                c.id === id ? { ...c, leadScore: res.score!, leadScoreReason: res.reason ?? null, leadScoredAt: new Date().toISOString() } : c
+            ));
+            toast.success(`Lead puntuado: ${res.score}/100`);
+        } else {
+            toast.error(res.message ?? 'Error al puntuar el lead');
+        }
+        setScoringIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    }, []);
+
+    const handleScoreAll = useCallback(async () => {
+        setScoringAll(true);
+        const res = await scoreAllLeadsByUserId();
+        if (res.success) {
+            toast.success(`${res.scored ?? 0} leads puntuados`);
+            await loadCards();
+        } else {
+            toast.error(res.message ?? 'Error en puntuación masiva');
+        }
+        setScoringAll(false);
+    }, [loadCards]);
 
     // Etiquetas únicas extraídas de todos los cards
     const allTags = useMemo(() => {
@@ -283,7 +376,7 @@ export function KanbanBoard() {
         });
     };
 
-    // Cards filtrados por etiquetas y búsqueda
+    // Cards filtrados por etiquetas, búsqueda y score
     const filteredCards = useMemo(() => {
         let result = cards;
         if (selectedTagIds.size > 0) {
@@ -296,8 +389,18 @@ export function KanbanBoard() {
                 c.remoteJid.toLowerCase().includes(q)
             );
         }
+        if (selectedScoreRanges.size > 0) {
+            result = result.filter((c) => {
+                if (c.leadScore === null) return false;
+                for (const key of selectedScoreRanges) {
+                    const range = SCORE_RANGES.find((r) => r.key === key);
+                    if (range && c.leadScore >= range.min && c.leadScore <= range.max) return true;
+                }
+                return false;
+            });
+        }
         return result;
-    }, [cards, selectedTagIds, searchQuery]);
+    }, [cards, selectedTagIds, searchQuery, selectedScoreRanges]);
 
     const handleDragStart = (e: DragStartEvent) => {
         const card = filteredCards.find((c) => c.id === e.active.id);
@@ -409,12 +512,23 @@ export function KanbanBoard() {
                     </div>
                 )}
 
-                {/* Contador + Actualizar */}
+                {/* Contador + Actualizar + Puntuar leads */}
                 <div className="flex items-center gap-2 shrink-0 ml-auto">
                     <span className="text-sm text-muted-foreground">
                         <span className="font-medium text-foreground">{filteredCards.length}</span>
-                        {(selectedTagIds.size > 0 || searchQuery) ? <span> de {cards.length} contactos</span> : <span> contactos</span>}
+                        {(selectedTagIds.size > 0 || searchQuery || selectedScoreRanges.size > 0) ? <span> de {cards.length} contactos</span> : <span> contactos</span>}
+
                     </span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleScoreAll}
+                        disabled={scoringAll}
+                        className="gap-1.5 shrink-0"
+                    >
+                        {scoringAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                        Puntuar leads
+                    </Button>
                     <Button variant="outline" size="sm" onClick={loadCards} className="gap-1.5 shrink-0">
                         <RefreshCw className="h-3.5 w-3.5" />
                         Actualizar
@@ -427,7 +541,7 @@ export function KanbanBoard() {
                 <div className="min-w-0 w-full overflow-x-auto pb-1">
                     <div className="flex gap-3 w-max">
                         {COLUMNS.map((col) => (
-                            <KanbanColumn key={col.id} col={col} cards={columnCards(col)} />
+                            <KanbanColumn key={col.id} col={col} cards={columnCards(col)} onScore={handleScore} scoringIds={scoringIds} />
                         ))}
                     </div>
                 </div>

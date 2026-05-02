@@ -13,6 +13,9 @@ export type KanbanCard = {
     leadStatusUpdatedAt: string | null;
     tags: { id: number; name: string; color: string | null; slug: string }[];
     pendingFollowUps: number;
+    leadScore: number | null;
+    leadScoreReason: string | null;
+    leadScoredAt: string | null;
 };
 
 export async function getKanbanSessionsAction(): Promise<{
@@ -52,6 +55,9 @@ export async function getKanbanSessionsAction(): Promise<{
                 slug: st.tag.slug,
             })),
             pendingFollowUps: s.crmFollowUps.length,
+            leadScore: (s as any).leadScore ?? null,
+            leadScoreReason: (s as any).leadScoreReason ?? null,
+            leadScoredAt: (s as any).leadScoredAt?.toISOString() ?? null,
         }));
 
         return { success: true, data: cards };

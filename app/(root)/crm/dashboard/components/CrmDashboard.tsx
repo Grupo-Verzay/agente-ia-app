@@ -15,6 +15,7 @@ import {
     Users,
     Wallet,
     Kanban,
+    X,
 } from "lucide-react";
 import type { RegistrosFilters } from "@/actions/registro-action";
 import { getAnalyticsDataByUserId, type AnalyticsPeriod } from "@/actions/analytics-action";
@@ -34,6 +35,15 @@ const ANALYTICS_PERIODS: { label: string; value: AnalyticsPeriod }[] = [
     { label: "90 días", value: "90d" },
     { label: "Todo", value: "all" },
 ];
+
+export const SCORE_RANGES = [
+    { key: "bajo",     label: "Bajo",     range: "0–25",   color: "#EF4444" },
+    { key: "medio",    label: "Medio",    range: "26–50",  color: "#F97316" },
+    { key: "moderado", label: "Moderado", range: "51–75",  color: "#F59E0B" },
+    { key: "alto",     label: "Alto",     range: "76–90",  color: "#22C55E" },
+    { key: "listo",    label: "Listo",    range: "91–100", color: "#16A34A" },
+] as const;
+export type ScoreRangeKey = typeof SCORE_RANGES[number]["key"];
 
 const CRM_METRIC_COLORS = {
     totalRegistros: "#3B82F6",
@@ -82,6 +92,15 @@ export const CrmDashboard = ({
     const router = useRouter();
     const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban">(initialView ?? "analiticas");
     const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
+    const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreRangeKey>>(new Set());
+
+    const toggleScoreRange = (key: ScoreRangeKey) => {
+        setSelectedScoreRanges((prev) => {
+            const next = new Set(prev);
+            next.has(key) ? next.delete(key) : next.add(key);
+            return next;
+        });
+    };
 
     const pad = (n: number) => String(n).padStart(2, "0");
     const toDateStr = (d: Date) =>
@@ -334,6 +353,41 @@ export const CrmDashboard = ({
                         </div>
                     )}
 
+                    {viewMode === "kanban" && (
+                        <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground flex items-center gap-1 shrink-0">
+                            <TrendingUp className="h-3.5 w-3.5" />
+                            Puntuación:
+                        </span>
+                        <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
+                            {SCORE_RANGES.map((range) => {
+                                const active = selectedScoreRanges.has(range.key);
+                                return (
+                                    <button
+                                        key={range.key}
+                                        type="button"
+                                        title={`Score ${range.range}`}
+                                        onClick={() => toggleScoreRange(range.key)}
+                                        className="rounded-md px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-1 whitespace-nowrap"
+                                        style={{
+                                            color: active ? range.color : undefined,
+                                            backgroundColor: active ? range.color + "18" : undefined,
+                                            boxShadow: active ? `inset 0 0 0 1px ${range.color}60` : undefined,
+                                        }}
+                                    >
+                                        <span
+                                            className="inline-block w-2 h-2 rounded-full shrink-0"
+                                            style={{ backgroundColor: range.color }}
+                                        />
+                                        {range.label}
+                                        {active && <X className="h-2.5 w-2.5 ml-0.5 opacity-60" />}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        </div>
+                    )}
+
                     <div className="ml-auto flex items-center gap-2">
                         <Button onClick={() => router.push("/crm/rules")}>
                             <Settings2 className="h-4 w-4" />
@@ -349,7 +403,7 @@ export const CrmDashboard = ({
 
                 {/* Content */}
                 {viewMode === "kanban" ? (
-                    <KanbanBoard />
+                    <KanbanBoard selectedScoreRanges={selectedScoreRanges} />
                 ) : viewMode === "registros" ? (
                     <CrmRecordsSection
                         activeTab={activeTab}
