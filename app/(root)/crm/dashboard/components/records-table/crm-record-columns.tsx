@@ -78,9 +78,6 @@ export function createCrmRecordColumns({
                         onClick={() => onNavigateToChat?.(row.original.session.remoteJid)}
                     >
                         <p className="font-medium">{whatsapp}</p>
-                        <p className="text-xs text-muted-foreground">
-                            {row.original.session.instanceId}
-                        </p>
                     </div>
                 );
             },

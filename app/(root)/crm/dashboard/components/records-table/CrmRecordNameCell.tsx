@@ -22,11 +22,6 @@ export function CrmRecordNameCell({
 
     const name = getDisplayNombreFromRegistro(registro);
     const phone = registro.session.remoteJid?.split("@")[0];
-    const sessionName = registro.session.pushName;
-    const showSessionName =
-        !!sessionName &&
-        sessionName.trim() !== "" &&
-        sessionName.trim() !== name.trim();
 
     const handleOpen = () => {
         setDraft(registro.session.pushName || registro.nombre || "");
@@ -67,11 +62,6 @@ export function CrmRecordNameCell({
                     <PencilLine className="h-3.5 w-3.5" />
                 </button>
             </div>
-            {showSessionName ? (
-                <p className="text-xs text-muted-foreground">
-                    Sesión: {sessionName}
-                </p>
-            ) : null}
             <ContactEditDialog
                 open={open}
                 onOpenChange={setOpen}
