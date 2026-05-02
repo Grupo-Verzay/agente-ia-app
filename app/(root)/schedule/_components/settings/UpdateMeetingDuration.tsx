@@ -99,7 +99,7 @@ export const UpdateMeetingDuration = ({
                         <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                         Duración de la reunión
                     </label>
-                    <div className="flex items-stretch w-fit rounded-md border border-input shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-3 w-full">
                         <Input
                             id="duration"
                             type="number"
@@ -108,13 +108,13 @@ export const UpdateMeetingDuration = ({
                             min="1"
                             max="480"
                             placeholder="60"
-                            className="w-24 border-0 rounded-none text-center text-base font-semibold focus-visible:ring-0 focus-visible:ring-offset-0"
+                            className="w-24 text-center text-lg font-bold shrink-0"
                         />
-                        <span className="flex items-center px-4 bg-muted/60 text-sm font-medium text-muted-foreground border-l border-input">
+                        <p className="flex-1 text-xs text-muted-foreground text-center">Elige entre 1 y 480</p>
+                        <span className="inline-flex items-end h-10 px-3 pb-2 rounded-md border border-input bg-background text-sm font-bold text-muted-foreground shrink-0">
                             minutos
                         </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">Entre 1 y 480 minutos por sesión</p>
                 </div>
 
                 <div className="space-y-1.5">

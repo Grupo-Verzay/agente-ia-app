@@ -271,8 +271,8 @@ function ServiceListItem({ service, onEdited, onDeleted }: {
                 <CardContent className="p-3">
                     <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold leading-tight truncate">{service.name}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{service.messageText}</p>
+                            <p className="font-semibold text-base text-primary leading-tight truncate">{service.name}</p>
+                            <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{service.messageText}</p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                             <ServiceFormDialog
@@ -394,7 +394,11 @@ function useServices(userId: string) {
         setServices((prev) => prev.filter((s) => s.id !== id));
     };
 
-    return { services, loading, error, reload: load, upsertLocal, removeLocal };
+    const reorderLocal = (reordered: Service[]) => {
+        setServices(reordered);
+    };
+
+    return { services, loading, error, reload: load, upsertLocal, removeLocal, reorderLocal };
 }
 
 // ------------------------------------------------------
@@ -413,7 +417,7 @@ function ServiceToolbar({
 }) {
     return (
         <div className="flex items-center gap-2">
-            <div className="relative w-64 shrink-0">
+            <div className="relative w-72 shrink-0">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                     value={query}
@@ -474,7 +478,7 @@ function LoadingState() {
 // Componente principal: CRUD + Filtrado + Drag-and-drop
 // ------------------------------------------------------
 export default function ServiceManager({ userId }: { userId: string }) {
-    const { services, loading, error, reload, upsertLocal, removeLocal } = useServices(userId);
+    const { services, loading, error, reload, upsertLocal, removeLocal, reorderLocal } = useServices(userId);
     const [query, setQuery] = React.useState("");
     const debouncedQuery = useDebounce(query, 250);
     const sensors = useSensors(useSensor(PointerSensor));
@@ -496,8 +500,7 @@ export default function ServiceManager({ userId }: { userId: string }) {
         if (oldIndex < 0 || newIndex < 0) return;
 
         const reordered = arrayMove(services, oldIndex, newIndex);
-        // optimistic update via upsertLocal for each reordered item
-        reordered.forEach((s, i) => upsertLocal({ ...s, order: i }));
+        reorderLocal(reordered);
 
         const toastId = toast.loading("Guardando orden...");
         try {
