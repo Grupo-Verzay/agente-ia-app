@@ -270,6 +270,7 @@ model Reminders {
   updatedAt    DateTime    @updatedAt
   pushName     String?
   isSchedule   Boolean?    @default(false)
+  order        Int         @default(0)
 }
 
 model Service {
@@ -278,6 +279,7 @@ model Service {
   name         String
   description  String?
   messageText  String
+  order        Int           @default(0)
   createdAt    DateTime      @default(now())
   appointments Appointment[]
   user         User          @relation(fields: [userId], references: [id])
@@ -1030,6 +1032,21 @@ model crm_follow_ups_archive {
   @@index([sessionId, status])
   @@index([status, scheduled_for])
   @@index([userId, status])
+}
+
+model IntentTrigger {
+  id         String   @id @default(cuid())
+  userId     String
+  name       String
+  mode       String   @default("keywords")
+  condition  String
+  workflowId String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, isActive])
 }
 
 enum LeadStatus {

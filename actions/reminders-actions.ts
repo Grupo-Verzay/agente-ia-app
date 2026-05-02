@@ -136,7 +136,7 @@ export async function getRemindersByUserId(userId: string): Promise<ReminderResp
     try {
         const reminders = await db.reminders.findMany({
             where: { userId },
-            orderBy: { id: "asc" },
+            orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
         })
 
         return {
@@ -220,6 +220,18 @@ export async function updateReminder(id: string, formData: formValuesReminderSch
             success: false,
             message: "Error al actualizar el recordatorio.",
         }
+    }
+}
+
+/**
+ * Actualiza el campo order de un recordatorio
+ */
+export async function updateReminderOrder(reminderId: string, order: number): Promise<{ success: boolean }> {
+    try {
+        await db.reminders.update({ where: { id: reminderId }, data: { order } });
+        return { success: true };
+    } catch {
+        return { success: false };
     }
 }
 

@@ -120,13 +120,25 @@ export async function getServicesByUser(userId: string): Promise<ListServicesRes
     try {
         const services = await db.service.findMany({
             where: { userId },
-            orderBy: { createdAt: 'desc' },
+            orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
         })
 
         return { success: true, message: 'Petición realizada con ', data: services }
     } catch (error) {
         console.error('Error al obtener servicios:', error)
         return { success: false, message: 'Error al obtener servicios' }
+    }
+}
+
+/**
+ * Actualiza el campo order de un servicio
+ */
+export async function updateServiceOrder(serviceId: string, order: number): Promise<{ success: boolean }> {
+    try {
+        await db.service.update({ where: { id: serviceId }, data: { order } });
+        return { success: true };
+    } catch {
+        return { success: false };
     }
 }
 

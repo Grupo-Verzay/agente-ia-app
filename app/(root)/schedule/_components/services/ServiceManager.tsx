@@ -43,13 +43,29 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 
-import { Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, GripVertical } from "lucide-react";
+import {
+    DndContext,
+    closestCenter,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    SortableContext,
+    arrayMove,
+    verticalListSortingStrategy,
+    useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import {
     createService,
     deleteService,
     getServicesByUser,
     updateService,
+    updateServiceOrder,
 } from "@/actions/service-action";
 
 //  Types (Prisma)
@@ -241,7 +257,7 @@ function ServiceListItem({ service, onEdited, onDeleted }: {
             } else {
                 toast.error(res.message);
             }
-        } catch (e) {
+        } catch {
             toast.error("No se pudo eliminar");
         } finally {
             setDeleting(false);
@@ -251,47 +267,39 @@ function ServiceListItem({ service, onEdited, onDeleted }: {
 
     return (
         <>
-            <Card className="border-border w-full p-2">
-                <CardHeader className="p-0">
-                    <div className="flex items-start justify-between gap-2">
-                        <div className="space-y-1">
-                            <CardTitle className="text-base leading-tight">
-                                {service.name}
-                            </CardTitle>
-                            <Badge variant="secondary" className="font-normal max-w-max">ID: {service.id.slice(0, 8)}…</Badge>
+            <Card className="border-border w-full">
+                <CardContent className="p-3">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold leading-tight truncate">{service.name}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{service.messageText}</p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 shrink-0">
                             <ServiceFormDialog
                                 userId={service.userId}
                                 mode="edit"
                                 initialData={service}
                                 onSaved={(s) => onEdited(s)}
                                 trigger={
-                                    <Button variant="outline" size="icon" title="Editar">
-                                        <Pencil className="h-4 w-4" />
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" title="Editar">
+                                        <Pencil className="h-3.5 w-3.5" />
                                     </Button>
                                 }
                             />
-
                             <Button
-                                variant="destructive"
+                                variant="ghost"
                                 size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                                 title="Eliminar"
                                 onClick={() => setConfirmOpen(true)}
                             >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                         </div>
                     </div>
-                </CardHeader>
-
-                <CardContent className="text-sm p-0 text-muted-foreground">
-                    {service.messageText}
                 </CardContent>
-
             </Card>
 
-            {/* Confirmación de borrado */}
             <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
@@ -311,7 +319,38 @@ function ServiceListItem({ service, onEdited, onDeleted }: {
                 </AlertDialogContent>
             </AlertDialog>
         </>
+    );
+}
 
+// ------------------------------------------------------
+// Sortable wrapper para el item
+// ------------------------------------------------------
+function SortableServiceItem({ service, onEdited, onDeleted }: {
+    service: Service;
+    onEdited: (srv: Service) => void;
+    onDeleted: (id: string) => void;
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: service.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <div ref={setNodeRef} style={style} className="flex items-center gap-2">
+            <div
+                className="cursor-grab p-1.5 text-muted-foreground hover:bg-muted rounded shrink-0"
+                {...attributes}
+                {...listeners}
+            >
+                <GripVertical className="h-4 w-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+                <ServiceListItem service={service} onEdited={onEdited} onDeleted={onDeleted} />
+            </div>
+        </div>
     );
 }
 
@@ -432,12 +471,13 @@ function LoadingState() {
 }
 
 // ------------------------------------------------------
-// Componente principal: CRUD + Filtrado
+// Componente principal: CRUD + Filtrado + Drag-and-drop
 // ------------------------------------------------------
 export default function ServiceManager({ userId }: { userId: string }) {
     const { services, loading, error, reload, upsertLocal, removeLocal } = useServices(userId);
     const [query, setQuery] = React.useState("");
     const debouncedQuery = useDebounce(query, 250);
+    const sensors = useSensors(useSensor(PointerSensor));
 
     const filtered = React.useMemo(() => {
         const q = debouncedQuery.trim().toLowerCase();
@@ -446,6 +486,27 @@ export default function ServiceManager({ userId }: { userId: string }) {
             s.name.toLowerCase().includes(q) || s.messageText.toLowerCase().includes(q)
         );
     }, [services, debouncedQuery]);
+
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        const oldIndex = services.findIndex((s) => s.id === active.id);
+        const newIndex = services.findIndex((s) => s.id === over.id);
+        if (oldIndex < 0 || newIndex < 0) return;
+
+        const reordered = arrayMove(services, oldIndex, newIndex);
+        // optimistic update via upsertLocal for each reordered item
+        reordered.forEach((s, i) => upsertLocal({ ...s, order: i }));
+
+        const toastId = toast.loading("Guardando orden...");
+        try {
+            await Promise.all(reordered.map((s, i) => updateServiceOrder(s.id, i)));
+            toast.success("Orden guardado", { id: toastId });
+        } catch {
+            toast.error("Error al guardar el orden", { id: toastId });
+        }
+    };
 
     return (
         <div className="space-y-4">
@@ -488,16 +549,20 @@ export default function ServiceManager({ userId }: { userId: string }) {
             )}
 
             {!loading && !error && services.length > 0 && (
-                <div className="flex flex-col gap-2">
-                    {filtered.map((service) => (
-                        <ServiceListItem
-                            key={service.id}
-                            service={service}
-                            onEdited={(s) => upsertLocal(s)}
-                            onDeleted={(id) => removeLocal(id)}
-                        />
-                    ))}
-                </div>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={filtered.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                        <div className="flex flex-col gap-2">
+                            {filtered.map((service) => (
+                                <SortableServiceItem
+                                    key={service.id}
+                                    service={service}
+                                    onEdited={(s) => upsertLocal(s)}
+                                    onDeleted={(id) => removeLocal(id)}
+                                />
+                            ))}
+                        </div>
+                    </SortableContext>
+                </DndContext>
             )}
         </div>
     );

@@ -3,8 +3,9 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Header from '@/components/shared/header';
 import { ReminderListClient, ReminderSkeleton, ReminderModal } from './';
+import { SortableReminderList } from './SortableReminderList';
 import { Button } from '@/components/ui/button';
-import { ArrowDownUp, PlusIcon, Search, X } from 'lucide-react';
+import { ArrowDownUp, PlusIcon, Search } from 'lucide-react';
 import { MainReminderInterface } from '@/schema/reminder';
 import { Input } from '@/components/ui/input';
 import { closeDialog, openCreateDialog, useReminderDialogStore } from '@/stores';
@@ -21,15 +22,25 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
     setCampaignPage(isCampaignPage);
   }, [isCampaignPage, setCampaignPage]);
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(“”);
   const [sortAsc, setSortAsc] = useState(true);
+
+  // Schedule view: sorted by DB order (drag-and-drop), filtered by search
+  const scheduleReminders = useMemo(() => {
+    return reminders
+      .filter((r) => r.isSchedule === true)
+      .filter((r) => {
+        if (!search) return true;
+        const text = `${r.title} ${r.description ?? “”} ${r.pushName ?? “”} ${r.remoteJid ?? “”}`.toLowerCase();
+        return text.includes(search.toLowerCase());
+      });
+  }, [reminders, search]);
 
   const filteredReminders = useMemo(() => {
     const getSeconds = (time: string | null) => {
       if (!time) return 0;
-
       try {
-        const [, secondsStr] = convertToSeconds(time).split("-");
+        const [, secondsStr] = convertToSeconds(time).split(“-”);
         return Number(secondsStr) || 0;
       } catch {
         return 0;
@@ -39,14 +50,11 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
     const sorted = [...reminders].sort((a, b) => {
       const aSec = getSeconds(a.time);
       const bSec = getSeconds(b.time);
-
-      // sortAsc = true => mayor a menor (más “lejos” primero: days > hours > minutes)
-      // sortAsc = false => menor a mayor
       return sortAsc ? bSec - aSec : aSec - bSec;
     });
 
     return sorted.filter((r) => {
-      const fullText = `${r.title} ${r.description ?? ""} ${r.pushName} ${r.remoteJid}`.toLowerCase();
+      const fullText = `${r.title} ${r.description ?? “”} ${r.pushName} ${r.remoteJid}`.toLowerCase();
       return fullText.includes(search.toLowerCase());
     });
   }, [reminders, search, sortAsc]);
@@ -85,14 +93,16 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
               />
             </div>
 
-            <Button
-              variant="ghost"
-              onClick={() => setSortAsc(!sortAsc)}
-              title={sortAsc ? "Ordenar descendente" : "Ordenar ascendente"}
-              className="flex items-center gap-2"
-            >
-              <ArrowDownUp className="h-4 w-4" />
-            </Button>
+            {!isScheduleView && (
+              <Button
+                variant="ghost"
+                onClick={() => setSortAsc(!sortAsc)}
+                title={sortAsc ? "Ordenar descendente" : "Ordenar ascendente"}
+                className="flex items-center gap-2"
+              >
+                <ArrowDownUp className="h-4 w-4" />
+              </Button>
+            )}
 
             {isScheduleView && (
               <Button size="sm" onClick={handleCreateReminder} className="ml-auto">
@@ -106,16 +116,22 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
 
       {/* Scroll interno para el content */}
       <div className="flex-1 overflow-y-auto">
-
-        <div className={isScheduleView ? 'flex gap-2 flex-col' : 'grid grid-cols-1 gap-2 p-2 md:grid-cols-2 xl:grid-cols-3'}>
-          <Suspense fallback={<ReminderSkeleton />}>
-            <ReminderListClient
-              filteredReminders={filteredReminders}
-              workflows={workflows}
-              isScheduleView={isSchedule}
-            />
-          </Suspense>
-        </div>
+        {isScheduleView ? (
+          <SortableReminderList
+            reminders={scheduleReminders}
+            workflows={workflows as any}
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-2 p-2 md:grid-cols-2 xl:grid-cols-3">
+            <Suspense fallback={<ReminderSkeleton />}>
+              <ReminderListClient
+                filteredReminders={filteredReminders}
+                workflows={workflows}
+                isScheduleView={isSchedule}
+              />
+            </Suspense>
+          </div>
+        )}
       </div>
 
       <ReminderModal
