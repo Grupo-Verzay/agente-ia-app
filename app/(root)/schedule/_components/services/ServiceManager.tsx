@@ -373,21 +373,18 @@ function ServiceToolbar({
     total: number;
 }) {
     return (
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
             <div className="relative w-64 shrink-0">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Buscar por nombre o mensaje…"
-                    className="pl-8"
+                    className="pl-8 w-full"
                 />
             </div>
-
-            <div className="flex items-center gap-2">
-                <Badge variant="outline" className="hidden sm:inline-flex">{total} servicios</Badge>
-                {onCreate}
-            </div>
+            <Badge variant="outline" className="hidden sm:inline-flex shrink-0">{total} servicios</Badge>
+            {onCreate}
         </div>
     );
 }
@@ -464,8 +461,9 @@ export default function ServiceManager({ userId }: { userId: string }) {
                         mode="create"
                         onSaved={(s) => upsertLocal(s)}
                         trigger={
-                            <Button size="sm">
-                                <Plus className="h-4 w-4 mr-2" /> Nuevo servicio
+                            <Button size="sm" className="shrink-0">
+                                <Plus className="h-4 w-4 sm:mr-2" />
+                                <span className="hidden sm:inline">Nuevo</span>
                             </Button>
                         }
                     />

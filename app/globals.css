@@ -114,6 +114,38 @@
   background-color: transparent !important;
 }
 
+/* ─── Scrollbar global – aplica a toda la plataforma ──────────────────────── */
+* {
+  scrollbar-width: 8px;          /* Firefox (acepta thin | auto | none, no px) */
+  scrollbar-color: hsl(var(--muted-foreground) / 0.5) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.5);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.8);
+}
+
+/* Clase helper para ocultar el scrollbar visualmente sin perder la funcionalidad */
+.scrollbar-hidden {
+  scrollbar-width: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes shimmer {
   0% {
     transform: translateX(-60%);

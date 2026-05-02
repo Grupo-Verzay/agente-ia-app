@@ -257,3 +257,45 @@ export async function deleteAppointment(id: string): Promise<AppointmentOperatio
         };
     }
 }
+
+// Tipo para el Kanban de agenda
+export type AgendaKanbanCard = {
+    id: string;
+    status: AppointmentStatus;
+    startTime: string;
+    endTime: string;
+    pushName: string | null;
+    remoteJid: string;
+    serviceName: string | null;
+};
+
+// Obtener citas para el Kanban
+export async function getAppointmentsForKanban(userId: string): Promise<{
+    success: boolean;
+    data?: AgendaKanbanCard[];
+    message?: string;
+}> {
+    try {
+        const list = await db.appointment.findMany({
+            where: { userId },
+            include: { session: { select: { pushName: true, remoteJid: true } }, service: { select: { name: true } } },
+            orderBy: { startTime: 'asc' },
+        });
+
+        return {
+            success: true,
+            data: list.map((a) => ({
+                id: a.id,
+                status: a.status,
+                startTime: a.startTime.toISOString(),
+                endTime: a.endTime.toISOString(),
+                pushName: a.session.pushName,
+                remoteJid: a.session.remoteJid,
+                serviceName: a.service?.name ?? null,
+            })),
+        };
+    } catch (error) {
+        console.error('Error al obtener citas para kanban:', error);
+        return { success: false, message: 'Error al cargar el tablero.' };
+    }
+}

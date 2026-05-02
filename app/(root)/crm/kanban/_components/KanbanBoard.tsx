@@ -489,7 +489,7 @@ export function KanbanBoard({
                 </div>
 
                 {allTags.length > 0 && (
-                    <div className="flex items-center gap-1.5 overflow-x-auto flex-1 min-w-0 pb-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #e2e8f0' }}>
+                    <div className="flex items-center gap-1.5 overflow-x-auto flex-1 min-w-0 pb-1">
                         <Tag className="h-4 w-4 text-amber-500 shrink-0" />
                         {allTags.map((tag) => {
                             const active = selectedTagIds.has(tag.id);

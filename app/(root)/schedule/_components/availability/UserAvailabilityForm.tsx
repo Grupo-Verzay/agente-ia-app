@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Trash2, PlusCircle, Ban, Copy } from "lucide-react";
+import { Trash2, PlusCircle, Copy } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
 import { ScheduleAvailabilitySkeleton } from "./ScheduleAvailabilitySkeleton";
@@ -113,24 +113,20 @@ export const UserAvailabilityForm = ({ userId }: { userId: string }) => {
 
     if (loading) return <ScheduleAvailabilitySkeleton />;
 
+    const displayOrder = [1, 2, 3, 4, 5, 6, 0];
+
     return (
         <div className="space-y-4">
-            {Array.from({ length: 7 }).map((_, i) => {
+            {displayOrder.map((i) => {
                 const list = entriesByDay[i] ?? [];
                 const empty = list.length === 0;
                 return (
-                    <div key={i} className="flex items-start gap-3">
-                        <div className="w-24 flex items-center gap-2">
-                            <span className="font-medium">{dayLabels[i]}</span>
+                    <div key={i} className="flex items-start sm:items-center gap-1 py-1">
+                        <div className="shrink-0 flex items-center gap-0.5">
+                            <span className="font-medium text-sm sm:text-base">{dayLabels[i]}</span>
 
-                            {/* ➕ agregar siempre, aunque existan periodos */}
                             <Button variant="ghost" size="icon" onClick={() => handleAdd(i)} title="Añadir otro periodo">
                                 <PlusCircle className="w-4 h-4" />
-                            </Button>
-
-                            {/* 🛇 limpiar el día */}
-                            <Button variant="ghost" size="icon" onClick={() => handleBanDay(i)} title="Marcar no disponible">
-                                <Ban className="w-4 h-4" />
                             </Button>
                         </div>
 
@@ -138,21 +134,21 @@ export const UserAvailabilityForm = ({ userId }: { userId: string }) => {
                             {empty ? (
                                 <span className="text-muted-foreground">No disponible</span>
                             ) : (
-                                <div className="flex flex-col gap-2">
+                                <div className="flex flex-row flex-wrap gap-2">
                                     {list.map((entry) => (
-                                        <Card key={entry.id} className="flex items-center justify-between gap-2 border-none p-2">
-                                            <div className="flex items-center gap-2">
+                                        <Card key={entry.id} className="flex-1 min-w-full sm:min-w-[240px] flex items-center justify-between gap-2 border-none shadow-none px-2 py-1">
+                                            <div className="flex items-center gap-2 flex-1">
                                                 <Select value={entry.startTime} onValueChange={(val) => handleUpdate(entry.id, "startTime", val)}>
-                                                    <SelectTrigger className="w-24"><SelectValue placeholder="Inicio" /></SelectTrigger>
+                                                    <SelectTrigger className="flex-1 min-w-[80px]"><SelectValue placeholder="Inicio" /></SelectTrigger>
                                                     <SelectContent className="border-border">
                                                         {hours.map((h) => (
                                                             <SelectItem key={h} value={h}>{h}</SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
-                                                <span>–</span>
+                                                <span className="text-muted-foreground shrink-0">–</span>
                                                 <Select value={entry.endTime} onValueChange={(val) => handleUpdate(entry.id, "endTime", val)}>
-                                                    <SelectTrigger className="w-24"><SelectValue placeholder="Fin" /></SelectTrigger>
+                                                    <SelectTrigger className="flex-1 min-w-[80px]"><SelectValue placeholder="Fin" /></SelectTrigger>
                                                     <SelectContent className="border-border">
                                                         {hours.map((h) => (
                                                             <SelectItem key={h} value={h}>{h}</SelectItem>
@@ -161,7 +157,7 @@ export const UserAvailabilityForm = ({ userId }: { userId: string }) => {
                                                 </Select>
                                             </div>
 
-                                            <div className="flex items-center gap-1">
+                                            <div className="flex items-center gap-1 shrink-0">
                                                 <Button variant="secondary" size="icon" onClick={() => handleDuplicate(entry)} title="Duplicar periodo">
                                                     <Copy className="w-4 h-4" />
                                                 </Button>

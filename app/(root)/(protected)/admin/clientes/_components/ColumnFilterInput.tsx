@@ -22,7 +22,7 @@ export function ColumnFilterInput<TData>({ table }: Props<TData>) {
     }
 
     return (
-        <div className="flex flex-col sm:flex-row gap-2 w-full">
+        <div className="flex flex-row gap-2 shrink-0">
             {/* Select */}
             <Select
                 value={selectedColumn}
@@ -52,7 +52,7 @@ export function ColumnFilterInput<TData>({ table }: Props<TData>) {
                     setValue(val)
                     handleFilter(val, selectedColumn)
                 }}
-                className="flex-1"
+                className="w-64 shrink-0"
             />
         </div>
     )

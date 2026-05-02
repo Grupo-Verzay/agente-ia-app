@@ -162,7 +162,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                         : { today: "Hoy", timeGridDay: "Día", timeGridWeek: "Semana", dayGridMonth: "Mes" }
                 }
                 editable={true}
-                height="auto"
+                height="calc(100vh - 175px)"
                 allDaySlot={false}
                 slotMinTime="07:00:00"
                 slotMaxTime="19:00:00"
