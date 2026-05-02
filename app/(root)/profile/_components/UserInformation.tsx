@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
-import { getClientDataByUserId, updateClientDataByField, updateAbrirPhrase } from "@/actions/userClientDataActions";
+import { getClientDataByUserId, updateClientDataByField, updateAbrirPhrase, updateUserVoiceSettings } from "@/actions/userClientDataActions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { z } from 'zod';
@@ -21,6 +21,7 @@ import {
     Loader2,
     Lock,
     MessageSquare,
+    Mic,
     Monitor,
     Palette,
     Settings2,
@@ -270,6 +271,17 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
 
     const isMuted = user.muteAgentResponses ?? false;
     const isReseller = user.role === Role.reseller;
+    const [voiceEnabled, setVoiceEnabled] = useState<boolean>(!!(user as any).enableVoiceResponses);
+    const [voiceId, setVoiceId] = useState<string>((user as any).voiceId ?? 'nova');
+    const [savingVoice, setSavingVoice] = useState(false);
+
+    const handleVoiceSave = async (enabled: boolean, voice: string) => {
+        setSavingVoice(true);
+        const res = await updateUserVoiceSettings(userId, enabled, voice);
+        if (res.success) toast.success(res.message);
+        else toast.error(res.message);
+        setSavingVoice(false);
+    };
 
     const primaryTabs = [
         { value: 'conexion', label: 'Conexión', icon: Wifi },
@@ -593,6 +605,46 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                                     </CardContent>
                                 </Card>
                             </div>
+
+                            <SectionTitle>Respuestas de voz</SectionTitle>
+                            <Card className="border-border">
+                                <CardHeader className="pb-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                            <Mic className="w-4 h-4 text-primary" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <CardTitle className="text-sm font-semibold">Notas de voz del agente</CardTitle>
+                                            <CardDescription className="text-xs">El agente responderá con audios nativos de WhatsApp en lugar de texto</CardDescription>
+                                        </div>
+                                        {savingVoice && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                                        <Switch
+                                            checked={voiceEnabled}
+                                            onCheckedChange={(v) => {
+                                                setVoiceEnabled(v);
+                                                handleVoiceSave(v, voiceId);
+                                            }}
+                                        />
+                                    </div>
+                                </CardHeader>
+                                {voiceEnabled && (
+                                    <CardContent className="space-y-3">
+                                        <Label className="text-xs text-muted-foreground">Voz del agente</Label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const).map((v) => (
+                                                <button
+                                                    key={v}
+                                                    onClick={() => { setVoiceId(v); handleVoiceSave(voiceEnabled, v); }}
+                                                    className={`px-3 py-2 rounded-md border text-sm font-medium capitalize transition-colors ${voiceId === v ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                                                >
+                                                    {v}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">Usa OpenAI TTS. Requiere créditos de API.</p>
+                                    </CardContent>
+                                )}
+                            </Card>
 
                             <SectionTitle>Frases automáticas</SectionTitle>
                             <div className="grid gap-4 sm:grid-cols-2">

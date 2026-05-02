@@ -29,6 +29,7 @@ const BOOLEAN_FIELDS = [
   'enabledSynthesizer',
   'enabledLeadStatusClassifier',
   'enabledCrmFollowUps',
+  'enableVoiceResponses',
   'status',
 ] as const;
 
@@ -708,8 +709,31 @@ export async function deleteUser(id: string) {
 }
 
 export async function getUserAppointmentUrl() {
-  const user = await currentUser(); // lee de sesión/cache, no del cliente
-
-
+  const user = await currentUser();
   return `https://agente.ia-app.com/schedule/${user.id}`
+}
+
+export async function updateUserVoiceSettings(
+  userId: string,
+  enableVoiceResponses: boolean,
+  voiceId: string,
+): Promise<ClientResponse> {
+  try {
+    await ensureSelfOrAdmin(userId);
+
+    const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+    if (!validVoices.includes(voiceId)) {
+      return { success: false, message: 'Voz no válida.' };
+    }
+
+    await db.user.update({
+      where: { id: userId },
+      data: { enableVoiceResponses, voiceId },
+    });
+
+    return { success: true, message: 'Configuración de voz actualizada.' };
+  } catch (error) {
+    console.error('[UPDATE_VOICE_SETTINGS]', error);
+    return { success: false, message: 'Error al actualizar la configuración de voz.' };
+  }
 }

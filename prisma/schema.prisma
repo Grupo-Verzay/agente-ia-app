@@ -438,6 +438,8 @@ model User {
   status                             Boolean                      @default(true)
   enabledCrmFollowUps                Boolean                      @default(false)
   enabledLeadStatusClassifier        Boolean                      @default(false)
+  enableVoiceResponses               Boolean                      @default(false)
+  voiceId                            String                       @default("nova")
   accounts                           Account[]
   agentPrompts                       AgentPrompt[]
   publishedAgentPromptRevisions      AgentPromptRevision[]
