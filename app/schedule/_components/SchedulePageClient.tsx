@@ -32,7 +32,6 @@ import {
     formatServiceMessage,
     normalizeTimeToSeconds,
     normalizeToE164,
-    subtractSecondsFromTime,
     toRemoteJid,
 } from "../helpers";
 import { CalendarIcon, Clock, ScrollText } from "lucide-react";
@@ -154,7 +153,10 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                 if (!rem.normalizedSeconds) return;
 
                 const startLocal = toZonedTime(new Date(startTime), SERVER_TIME_ZONE);
-                const seguimientoTime = subtractSecondsFromTime(startLocal, rem.normalizedSeconds);
+                // Calcular segundos desde ahora hasta que debe dispararse el recordatorio
+                const reminderTargetMs = startLocal.getTime() - rem.normalizedSeconds * 1000;
+                const delayFromNowSeconds = Math.max(0, Math.round((reminderTargetMs - Date.now()) / 1000));
+
                 const dataSeguimiento: SeguimientoInput = {
                     idNodo: "",
                     serverurl: `https://${user.apiKey?.url}`,
@@ -169,7 +171,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                         slotDuration,
                     }),
                     tipo: "text",
-                    time: seguimientoTime,
+                    time: String(delayFromNowSeconds),
                     name_file: undefined,
                     consecutivo: undefined,
                     media: undefined,
