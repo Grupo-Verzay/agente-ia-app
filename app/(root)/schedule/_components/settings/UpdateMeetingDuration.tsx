@@ -99,7 +99,7 @@ export const UpdateMeetingDuration = ({
                         <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                         Duración de la reunión
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between gap-2">
                         <Input
                             id="duration"
                             type="number"
