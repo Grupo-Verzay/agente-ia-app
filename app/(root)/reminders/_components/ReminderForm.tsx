@@ -175,6 +175,14 @@ export const ReminderForm = ({
                 {errors.title && <p className="text-sm text-red-500">{errors.title.message}</p>}
 
                 <Textarea placeholder="Descripción" {...register("description")} />
+                {isCampaignPage && (
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        Variables:{' '}
+                        {['{{nombre}}', '{{telefono}}', '{{fecha}}'].map(v => (
+                            <code key={v} className="mx-0.5 rounded bg-muted px-1 py-0.5 font-mono text-[10px]">{v}</code>
+                        ))}
+                    </p>
+                )}
 
                 {!isSchedule ? (
                     <DateTimePicker

@@ -5,6 +5,29 @@ import { z } from "zod"
 import { formValuesReminderSchema, reminderSchema } from "@/schema/reminder"
 import { Prisma } from "@prisma/client"
 
+// ─── Helpers de campaña ───────────────────────────────────────────────────────
+
+function randomBetween(min: number, max: number): number {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function addSecondsToTime(timeStr: string, extraSeconds: number): string {
+    if (!timeStr || extraSeconds === 0) return timeStr;
+    const d = new Date(timeStr);
+    if (!isNaN(d.getTime())) {
+        return new Date(d.getTime() + extraSeconds * 1000).toISOString();
+    }
+    return timeStr;
+}
+
+function applyVariables(message: string, name: string, phone: string): string {
+    const today = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
+    return message
+        .replace(/\{\{nombre\}\}/gi, name || phone)
+        .replace(/\{\{telefono\}\}/gi, phone)
+        .replace(/\{\{fecha\}\}/gi, today);
+}
+
 export interface ReminderResponse {
     success: boolean
     message: string
@@ -33,22 +56,59 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
             data: data as Prisma.RemindersCreateInput,
         })
 
-        await db.seguimiento.create({
-            data: {
-                idNodo: `reminder-${reminder.id}`,
-                serverurl: data.serverUrl ? (data.serverUrl.startsWith("https://") ? data.serverUrl : `https://${data.serverUrl}`) : "",
-                instancia: data.instanceName ?? "",
-                apikey: data.apikey ?? "",
-                remoteJid: data.remoteJid ?? "",
-                mensaje: data.description || data.title,
-                tipo: "text",
-                time: data.time ?? "",
-            },
-        })
+        const serverurl = data.serverUrl
+            ? (data.serverUrl.startsWith("https://") ? data.serverUrl : `https://${data.serverUrl}`)
+            : "";
+
+        const jids   = (data.remoteJid ?? '').split(',').map(s => s.trim()).filter(Boolean);
+        const names  = (data.pushName  ?? '').split(',').map(s => s.trim());
+        const baseMsg = data.description || data.title;
+
+        if (jids.length <= 1) {
+            // Recordatorio normal — un solo destinatario
+            await db.seguimiento.create({
+                data: {
+                    idNodo:    `reminder-${reminder.id}`,
+                    serverurl,
+                    instancia: data.instanceName ?? "",
+                    apikey:    data.apikey ?? "",
+                    remoteJid: data.remoteJid ?? "",
+                    mensaje:   baseMsg,
+                    tipo:      "text",
+                    time:      data.time ?? "",
+                },
+            });
+        } else {
+            // Campaña — un Seguimiento por lead con delay escalonado y variables
+            let cumulativeDelay = 0;
+
+            for (let i = 0; i < jids.length; i++) {
+                const jid   = jids[i];
+                const name  = names[i] ?? '';
+                const phone = jid.replace(/@.*/, '');
+
+                if (i > 0) cumulativeDelay += randomBetween(20, 60);
+
+                await db.seguimiento.create({
+                    data: {
+                        idNodo:    `reminder-${reminder.id}-${i + 1}`,
+                        serverurl,
+                        instancia: data.instanceName ?? "",
+                        apikey:    data.apikey ?? "",
+                        remoteJid: jid,
+                        mensaje:   applyVariables(baseMsg, name, phone),
+                        tipo:      "text",
+                        time:      addSecondsToTime(data.time ?? '', cumulativeDelay),
+                    },
+                });
+            }
+        }
 
         return {
             success: true,
-            message: "Recordatorio creado exitosamente.",
+            message: jids.length > 1
+                ? `Campaña creada: ${jids.length} mensajes programados.`
+                : "Recordatorio creado exitosamente.",
             data: reminder,
         }
     } catch (error) {
