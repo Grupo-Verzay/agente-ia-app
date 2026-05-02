@@ -1,7 +1,7 @@
 // components/forms/ReminderForm.tsx
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { useMutation } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
@@ -42,6 +42,22 @@ export const ReminderForm = ({
     const [createLead, setCreateLead] = useState(false);
     const [countScheduleReminders, setCountScheduleReminders] = useState(0);
     const [segmentKey, setSegmentKey] = useState(0);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const insertVariable = (variable: string) => {
+        const el = textareaRef.current;
+        if (!el) return;
+        const start = el.selectionStart ?? 0;
+        const end   = el.selectionEnd   ?? 0;
+        const current = el.value;
+        const next = current.slice(0, start) + variable + current.slice(end);
+        setValue("description", next, { shouldValidate: true });
+        // Restore cursor after inserted text
+        requestAnimationFrame(() => {
+            el.focus();
+            el.setSelectionRange(start + variable.length, start + variable.length);
+        });
+    };
 
     const reminderForm = useForm<formValuesReminderSchema>({
         resolver: zodResolver(reminderSchema),
@@ -176,14 +192,30 @@ export const ReminderForm = ({
                 <Input placeholder="Título" {...register("title")} />
                 {errors.title && <p className="text-sm text-red-500">{errors.title.message}</p>}
 
-                <Textarea placeholder="Descripción" {...register("description")} />
+                {(() => {
+                    const { ref: rhfRef, ...descRest } = register("description");
+                    return (
+                        <Textarea
+                            placeholder="Descripción"
+                            {...descRest}
+                            ref={(el) => { rhfRef(el); (textareaRef as any).current = el; }}
+                        />
+                    );
+                })()}
                 {isCampaignPage && (
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        Variables:{' '}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[11px] text-muted-foreground">Variables:</span>
                         {['{{nombre}}', '{{telefono}}', '{{fecha}}'].map(v => (
-                            <code key={v} className="mx-0.5 rounded bg-muted px-1 py-0.5 font-mono text-[10px]">{v}</code>
+                            <button
+                                key={v}
+                                type="button"
+                                onClick={() => insertVariable(v)}
+                                className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
+                            >
+                                {v}
+                            </button>
                         ))}
-                    </p>
+                    </div>
                 )}
 
                 {!isSchedule ? (
@@ -261,9 +293,6 @@ export const ReminderForm = ({
                                             />
                                         </div>
                                     </div>
-                                    <p className="text-[10px] text-muted-foreground/70">
-                                        Se aplica un tiempo aleatorio entre estos valores entre cada mensaje enviado.
-                                    </p>
                                 </div>
 
                                 <SelectMultipleComboBox
