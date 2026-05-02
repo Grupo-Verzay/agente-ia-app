@@ -41,7 +41,7 @@ async function collectMetrics(userId: string, from: Date, to: Date): Promise<Wee
             where: { userId },
             select: { id: true, pushName: true, remoteJid: true, leadStatus: true },
         }),
-        db.$queryRaw<{ id: string; lead_score: number | null }[]>`
+        db.$queryRaw<{ id: number; lead_score: number | null }[]>`
             SELECT id, lead_score FROM "Session" WHERE "userId" = ${userId}
         `,
         db.session.count({ where: { userId, createdAt: { gte: from, lte: to } } }),
@@ -313,7 +313,7 @@ export async function generateWeeklyReportForUser(userId: string): Promise<{
         }
     }
 
-    return { success: true, reportId, sent, whatsappError };
+    return { success: true, reportId, sent, message: whatsappError };
 }
 
 // ─── Cron: all users ──────────────────────────────────────────────────────────
@@ -408,7 +408,7 @@ export async function generateMyWeeklyReport(): Promise<{
         if (!user?.id) return { success: false, message: "No autorizado." };
 
         const res = await generateWeeklyReportForUser(user.id);
-        return { success: res.success, reportId: res.reportId, sent: res.sent, message: res.whatsappError };
+        return { success: res.success, reportId: res.reportId, sent: res.sent, message: res.message };
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error("[generateMyWeeklyReport]", err);

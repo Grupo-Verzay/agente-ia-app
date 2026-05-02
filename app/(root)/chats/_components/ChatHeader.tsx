@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowRight, PencilLine, Pin } from 'lucide-react';
+import { ArrowRight, PencilLine, Pin, Phone, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { ChatSessionActions } from './ChatSessionActions';
 import { initialFromName } from './chat-message-utils';
 import type { ChatHeader as ChatHeaderData } from './chat-message-types';
@@ -17,6 +18,7 @@ import { SintesisEditDialog } from './SintesisEditDialog';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
 import { LeadContextSheet } from './LeadContextSheet';
+import { makeWhatsAppCall } from '@/actions/whatsapp-call-action';
 
 interface ChatHeaderProps {
   header: ChatHeaderData;
@@ -47,7 +49,20 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onSessionMutate,
   onSessionRefresh,
 }) => {
+  const [calling, setCalling] = useState(false);
   const initialSelectedTagIds = session?.tags?.map((t) => t?.id).filter(Boolean) ?? [];
+
+  const handleCall = async () => {
+    if (!session?.id) return;
+    setCalling(true);
+    const res = await makeWhatsAppCall(session.id);
+    if (res.success) {
+      toast.success('Llamada enviada por WhatsApp');
+    } else {
+      toast.error(res.message ?? 'Error al realizar la llamada');
+    }
+    setCalling(false);
+  };
   const sessionStatusTone = session?.status
     ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
     : 'border-amber-300 bg-amber-100 text-amber-800';
@@ -118,16 +133,29 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
           <div className="flex items-center gap-1 flex-shrink-0">
             {session && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full hover:bg-muted"
-                onClick={onOpenContactEditor}
-                title="Editar"
-              >
-                <PencilLine className="h-4 w-4" />
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full hover:bg-muted text-green-600 hover:text-green-700"
+                  onClick={handleCall}
+                  disabled={calling}
+                  title="Llamar por WhatsApp"
+                >
+                  {calling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full hover:bg-muted"
+                  onClick={onOpenContactEditor}
+                  title="Editar"
+                >
+                  <PencilLine className="h-4 w-4" />
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -201,6 +229,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         <div className="flex items-center gap-1.5">
           {session && (
             <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full hover:bg-muted text-green-600 hover:text-green-700"
+                onClick={handleCall}
+                disabled={calling}
+                title="Llamar por WhatsApp"
+              >
+                {calling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
+              </Button>
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               <ChatRegistrosBadge
