@@ -181,7 +181,7 @@ export const ReminderForm = ({
 
     return (
         <>
-            <form onSubmit={handleSubmit(onSubmit, onError)} className="flex flex-col gap-4 pr-2 overflow-y-auto max-h-[80vh]">
+            <form onSubmit={handleSubmit(onSubmit, onError)} className="flex flex-col gap-2 pr-2 overflow-y-auto max-h-[80vh]">
                 {/* Campos ocultos */}
                 <>
                     {["userId", "remoteJid", "instanceName", "pushName", "workflowId", "apikey", "serverUrl"].map((name) => (
@@ -189,14 +189,16 @@ export const ReminderForm = ({
                     ))}
                 </>
 
-                <Input placeholder="Título" {...register("title")} />
-                {errors.title && <p className="text-sm text-red-500">{errors.title.message}</p>}
+                <Input placeholder="Título" className="h-8 text-sm" {...register("title")} />
+                {errors.title && <p className="text-xs text-red-500">{errors.title.message}</p>}
 
                 {(() => {
                     const { ref: rhfRef, ...descRest } = register("description");
                     return (
                         <Textarea
                             placeholder="Descripción"
+                            rows={2}
+                            className="min-h-0 resize-none text-sm"
                             {...descRest}
                             ref={(el) => { rhfRef(el); (textareaRef as any).current = el; }}
                         />
@@ -232,37 +234,35 @@ export const ReminderForm = ({
                     />
                 )}
 
-                {errors.time && <p className="text-sm text-red-500">{errors.time.message}</p>}
+                {errors.time && <p className="text-xs text-red-500">{errors.time.message}</p>}
 
                 {!isSchedule &&
-                    <div>
-                        <Controller
-                            control={control}
-                            name="repeatType"
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Seleccionar" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {repeatTypes.map((rt) => (
-                                            <SelectItem key={rt.value} value={rt.value}>
-                                                {rt.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
-                    </div>
+                    <Controller
+                        control={control}
+                        name="repeatType"
+                        render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value}>
+                                <SelectTrigger className="h-8 text-sm">
+                                    <SelectValue placeholder="Seleccionar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {repeatTypes.map((rt) => (
+                                        <SelectItem key={rt.value} value={rt.value}>
+                                            {rt.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
+                    />
                 }
 
                 {!isSchedule &&
                     <>
-                        <Input type="number" placeholder="Cada cuántos (días/meses...)" {...register("repeatEvery")} />
+                        <Input type="number" placeholder="Cada cuántos (días/meses...)" className="h-8 text-sm" {...register("repeatEvery")} />
 
                         {leads && (isCampaignPage ?
-                            <div className="space-y-2">
+                            <div className="space-y-1.5">
                                 <CampaignSegmentPanel
                                     leads={leads}
                                     onApply={handleSegmentApply}
@@ -329,7 +329,7 @@ export const ReminderForm = ({
                     </>
                 }
 
-                <Button type="submit" disabled={mutation.isPending} className="w-full">
+                <Button type="submit" disabled={mutation.isPending} className="w-full h-8 text-sm">
                     {mutation.isPending ? "Guardando..." : isEdit ? `Actualizar ${modalTitle}` : `Crear ${modalTitle}`}
                 </Button>
             </form>
