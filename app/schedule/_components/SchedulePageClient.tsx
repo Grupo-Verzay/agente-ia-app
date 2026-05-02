@@ -324,7 +324,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
     return (
         <>
             <div className="w-full px-4 py-6 overflow-y-auto">
-                <div className="mx-auto w-full max-w-lg space-y-3">
+                <div className={`mx-auto w-full space-y-3 ${step === 1 ? "max-w-2xl" : "max-w-lg"}`}>
                     <Card className="border-muted/50">
                         <CardContent className="p-4">
                             <div className="flex items-center gap-1">

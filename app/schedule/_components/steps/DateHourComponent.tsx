@@ -48,7 +48,6 @@ export const DateHourComponent = ({
 
   const canContinue = Boolean(selectedDate && selectedSlot);
 
-
   return (
     <Card className="border-muted/50">
       <CardHeader className="pb-2">
@@ -57,37 +56,37 @@ export const DateHourComponent = ({
           Los horarios se muestran en tu zona horaria: <span className="font-medium">{timezone}</span>.
         </p>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="rounded-2xl border p-2">
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={(d) => {
-              setSelectedDate(d || undefined);
-              setSelectedSlot(null);
-              const ymd = d ? format(d, "yyyy-MM-dd") : "";
-              setSelectedDateYmd(ymd);
-              if (ymd) {
-                getAvailableSlots(user.id as string, ymd, slotDuration, serverTimeZone).then((res) => {
-                  if (res.success) setSlots(res.data || []);
-                  else toast.error(res.message);
-                });
-              } else {
-                setSlots([]);
-              }
-            }}
-            className="rounded-md"
-            disabled={(date) => isBefore(startOfDay(date), startOfDay(new Date()))}
-          />
+      <CardContent className="p-4">
+        <div className="flex flex-col sm:flex-row gap-4 items-start">
+          {/* Columna izquierda: calendario */}
+          <div className="rounded-2xl border p-2 shrink-0">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(d) => {
+                setSelectedDate(d || undefined);
+                setSelectedSlot(null);
+                const ymd = d ? format(d, "yyyy-MM-dd") : "";
+                setSelectedDateYmd(ymd);
+                if (ymd) {
+                  getAvailableSlots(user.id as string, ymd, slotDuration, serverTimeZone).then((res) => {
+                    if (res.success) setSlots(res.data || []);
+                    else toast.error(res.message);
+                  });
+                } else {
+                  setSlots([]);
+                }
+              }}
+              className="rounded-md"
+              disabled={(date) => isBefore(startOfDay(date), startOfDay(new Date()))}
+            />
+          </div>
 
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <div className="text-xs font-medium mb-2 text-muted-foreground">{formatDateLabel(selectedDate)}</div>
-
-            {/* Chips agrupados */}
+          {/* Columna derecha: slots */}
+          <div className="flex-1 min-w-0 flex flex-col gap-4">
             <div className="space-y-3">
+              <div className="text-sm font-medium text-muted-foreground">{formatDateLabel(selectedDate)}</div>
+
               {groupedSlots.morning.length > 0 && (
                 <div>
                   <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">Mañana</div>
@@ -139,17 +138,22 @@ export const DateHourComponent = ({
                   </div>
                 </div>
               )}
-              {slots.length === 0 && <div className="text-sm text-muted-foreground">Selecciona una fecha para ver horarios.</div>}
+              {!selectedDate && (
+                <div className="text-sm text-muted-foreground">Selecciona una fecha para ver horarios.</div>
+              )}
+              {selectedDate && slots.length === 0 && (
+                <div className="text-sm text-muted-foreground">No hay horarios disponibles para este día.</div>
+              )}
             </div>
-          </div>
 
-          <div className="flex justify-between gap-2 pt-2">
-            <Button variant="outline" onClick={() => setStep(0)}>
-              Atrás
-            </Button>
-            <Button disabled={!canContinue} onClick={() => setStep(2)}>
-              Continuar
-            </Button>
+            <div className="flex justify-between gap-2 pt-2">
+              <Button variant="outline" onClick={() => setStep(0)}>
+                Atrás
+              </Button>
+              <Button disabled={!canContinue} onClick={() => setStep(2)}>
+                Continuar
+              </Button>
+            </div>
           </div>
         </div>
       </CardContent>
