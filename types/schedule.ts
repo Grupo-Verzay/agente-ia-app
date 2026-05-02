@@ -70,7 +70,8 @@ export interface ScheduleFormInterface {
     setNameClient: (name: string) => void;
     setAreaCode: (code: string) => void;
     setPhone: (phone: string) => void;
-    setStep: (step: number) => void; // o 0|1|2|3 si quieres más estricto
+    setStep: (step: number) => void;
+    onContinue: () => void;
 }
 
 export interface SummaryComponentInterface {

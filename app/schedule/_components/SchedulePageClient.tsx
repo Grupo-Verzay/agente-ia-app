@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -35,9 +35,9 @@ import {
     subtractSecondsFromTime,
     toRemoteJid,
 } from "../helpers";
-import { CalendarIcon, CheckCircle2, Clock, ScrollText } from "lucide-react";
+import { CalendarIcon, Clock, ScrollText } from "lucide-react";
 import { es } from "date-fns/locale";
-import { DateHourComponent, ScheduleForm, ServiceComponent, SummaryComponent } from "./steps";
+import { DateHourComponent, ScheduleForm, ServiceComponent } from "./steps";
 import { SummaryItem } from "./";
 
 export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInterface) => {
@@ -46,7 +46,6 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
         { label: "Servicio", icon: <Clock className="h-4 w-4" /> },
         { label: "Fecha y hora", icon: <CalendarIcon className="h-4 w-4" /> },
         { label: "Tus datos", icon: <ScrollText className="h-4 w-4" /> },
-        { label: "Revisi\u00f3n", icon: <CheckCircle2 className="h-4 w-4" /> },
     ];
 
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -324,106 +323,92 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
 
     return (
         <>
-            <div className="w-full min-h-[100vh] p-4 overflow-auto">
-                <div className="flex justify-center max-h-[86vh] w-full overflow-auto">
-                    <div className="space-y-2 w-full md:max-w-[700px]">
-                        <Card className="border-muted/50">
-                            <CardContent className="p-4 sm:p-6">
-                                <div className="flex flex-wrap justify-between gap-2">
-                                    {stepLabel.map((s, i) => (
-                                        <div key={i} className="flex items-center gap-2">
-                                            <div
-                                                className={`h-8 w-8 rounded-full grid place-items-center text-sm shadow ${i <= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-                                            >
-                                                {s.icon}
-                                            </div>
-                                            <span className={`hidden sm:block text-sm ${i === step ? "font-semibold" : "text-muted-foreground"}`}>
-                                                {s.label}
-                                            </span>
+            <div className="w-full px-4 py-6 overflow-y-auto">
+                <div className="mx-auto w-full max-w-lg space-y-3">
+                    <Card className="border-muted/50">
+                        <CardContent className="p-4">
+                            <div className="flex items-center justify-between gap-2">
+                                {stepLabel.map((s, i) => (
+                                    <div key={i} className="flex items-center gap-2 flex-1">
+                                        <div
+                                            className={`h-8 w-8 shrink-0 rounded-full grid place-items-center text-sm shadow ${i <= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+                                        >
+                                            {s.icon}
                                         </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="border-muted/50">
-                            <CardContent className="flex items-center gap-3 p-4">
-                                <Image
-                                    src={user.image ?? "/assets/image/logo_app.png"}
-                                    alt="IA Agent Logo"
-                                    width={56}
-                                    height={56}
-                                    className="rounded-full border border-border shadow object-cover"
-                                />
-                                <div className="flex-1">
-                                    <div className="text-sm text-muted-foreground">
-                                        Agendar con <span className="font-semibold">{user.company || "nuestro asesor"}</span>
+                                        <span className={`hidden sm:block text-sm truncate ${i === step ? "font-semibold" : "text-muted-foreground"}`}>
+                                            {s.label}
+                                        </span>
+                                        {i < stepLabel.length - 1 && (
+                                            <div className="hidden sm:block flex-1 h-px bg-border mx-1" />
+                                        )}
                                     </div>
-                                    <div className="text-xs text-muted-foreground">Duraci\u00f3n: {slotDuration} min</div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-muted/50">
+                        <CardContent className="flex items-center gap-3 p-4">
+                            <Image
+                                src={user.image ?? "/assets/image/logo_app.png"}
+                                alt="IA Agent Logo"
+                                width={48}
+                                height={48}
+                                className="rounded-full border border-border shadow object-cover shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                                <div className="text-sm text-muted-foreground">
+                                    Agendar con <span className="font-semibold">{user.company || "nuestro asesor"}</span>
                                 </div>
-                            </CardContent>
-                        </Card>
+                                <div className="text-xs text-muted-foreground">Duración: {slotDuration} min</div>
+                            </div>
+                        </CardContent>
+                    </Card>
 
-                        {step === 0 && (
-                            <ServiceComponent
-                                selectedService={selectedService}
-                                setStep={setStep}
-                                setSelectedService={setSelectedService}
-                                user={user}
-                            />
-                        )}
+                    {step === 0 && (
+                        <ServiceComponent
+                            selectedService={selectedService}
+                            setStep={setStep}
+                            setSelectedService={setSelectedService}
+                            user={user}
+                        />
+                    )}
 
-                        {step === 1 && (
-                            <DateHourComponent
-                                setSelectedDate={setSelectedDate}
-                                setSelectedSlot={setSelectedSlot}
-                                setSelectedDateYmd={setSelectedDateYmd}
-                                setStep={setStep}
-                                selectedService={selectedService}
-                                selectedSlot={selectedSlot}
-                                setSlots={setSlots}
-                                timezone={timezone}
-                                serverTimeZone={SERVER_TIME_ZONE}
-                                slots={slots}
-                                selectedDate={selectedDate}
-                                slotDuration={slotDuration}
-                                user={user}
-                                phone={phone}
-                                areaCode={areaCode}
-                                nameClient={nameClient}
-                            />
-                        )}
+                    {step === 1 && (
+                        <DateHourComponent
+                            setSelectedDate={setSelectedDate}
+                            setSelectedSlot={setSelectedSlot}
+                            setSelectedDateYmd={setSelectedDateYmd}
+                            setStep={setStep}
+                            selectedService={selectedService}
+                            selectedSlot={selectedSlot}
+                            setSlots={setSlots}
+                            timezone={timezone}
+                            serverTimeZone={SERVER_TIME_ZONE}
+                            slots={slots}
+                            selectedDate={selectedDate}
+                            slotDuration={slotDuration}
+                            user={user}
+                            phone={phone}
+                            areaCode={areaCode}
+                            nameClient={nameClient}
+                        />
+                    )}
 
-                        {step === 2 && (
-                            <ScheduleForm
-                                nameClient={nameClient}
-                                countries={countries}
-                                areaCode={areaCode}
-                                phone={phone}
-                                canContinueStep2={canContinueStep2}
-                                setNameClient={setNameClient}
-                                setAreaCode={setAreaCode}
-                                setPhone={setPhone}
-                                setStep={setStep}
-                            />
-                        )}
-
-                        {step === 3 && (
-                            <SummaryComponent
-                                user={user}
-                                timezone={timezone}
-                                nameClient={nameClient}
-                                areaCode={areaCode}
-                                phone={phone}
-                                loading={loading}
-                                selectedService={selectedService}
-                                selectedSlot={selectedSlot}
-                                selectedDate={selectedDate}
-                                setStep={setStep}
-                                setOpenDialog={setOpenDialog}
-                            />
-                        )}
-                    </div>
+                    {step === 2 && (
+                        <ScheduleForm
+                            nameClient={nameClient}
+                            countries={countries}
+                            areaCode={areaCode}
+                            phone={phone}
+                            canContinueStep2={canContinueStep2}
+                            setNameClient={setNameClient}
+                            setAreaCode={setAreaCode}
+                            setPhone={setPhone}
+                            setStep={setStep}
+                            onContinue={() => setOpenDialog(true)}
+                        />
+                    )}
                 </div>
             </div>
 
@@ -433,7 +418,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                         <AlertDialogHeader>
                             <AlertDialogTitle>Confirmar cita</AlertDialogTitle>
                             <AlertDialogDescription>
-                                Est\u00e1s a punto de agendar una cita con los siguientes datos:
+                                Estás a punto de agendar una cita con los siguientes datos:
                                 <Card className="border-none mt-2 ">
                                     <CardContent className="space-y-4 p-0 m-0">
                                         <SummaryItem label="Servicio" value={user.services.find((s) => s.id === selectedService)?.name ?? "-"} />

@@ -15,6 +15,7 @@ export const ScheduleForm = ({
     setAreaCode,
     setPhone,
     setStep,
+    onContinue,
 }: ScheduleFormInterface) => {
     return (
         <Card className="border-muted/50">
@@ -55,8 +56,8 @@ export const ScheduleForm = ({
                     <Button variant="outline" onClick={() => setStep(1)}>
                         Atrás
                     </Button>
-                    <Button disabled={!canContinueStep2} onClick={() => setStep(3)}>
-                        Revisar
+                    <Button disabled={!canContinueStep2} onClick={onContinue}>
+                        Continuar
                     </Button>
                 </div>
             </CardContent>
