@@ -91,18 +91,18 @@ export const DateHourComponent = ({
 
           {/* Columna derecha: slots */}
           <div ref={slotsRef} className="flex-1 min-w-0 flex flex-col gap-4">
-            <div className="space-y-3">
+            <div className="rounded-2xl border p-3 space-y-3">
               <div className="text-sm font-medium text-muted-foreground">{formatDateLabel(selectedDate)}</div>
 
               {groupedSlots.morning.length > 0 && (
                 <div>
                   <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">Mañana</div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     {groupedSlots.morning.map((s) => (
                       <Button
                         key={s.startTime}
                         variant={selectedSlot?.startsWith(s.startTime) ? "default" : "outline"}
-                        className="rounded-xl"
+                        className="rounded-xl text-xs px-1"
                         onClick={() => setSelectedSlot(`${s.startTime}|${s.endTime}`)}
                       >
                         {s.label}
@@ -114,12 +114,12 @@ export const DateHourComponent = ({
               {groupedSlots.afternoon.length > 0 && (
                 <div>
                   <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">Tarde</div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     {groupedSlots.afternoon.map((s) => (
                       <Button
                         key={s.startTime}
                         variant={selectedSlot?.startsWith(s.startTime) ? "default" : "outline"}
-                        className="rounded-xl"
+                        className="rounded-xl text-xs px-1"
                         onClick={() => setSelectedSlot(`${s.startTime}|${s.endTime}`)}
                       >
                         {s.label}
@@ -131,12 +131,12 @@ export const DateHourComponent = ({
               {groupedSlots.evening.length > 0 && (
                 <div>
                   <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">Noche</div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     {groupedSlots.evening.map((s) => (
                       <Button
                         key={s.startTime}
                         variant={selectedSlot?.startsWith(s.startTime) ? "default" : "outline"}
-                        className="rounded-xl"
+                        className="rounded-xl text-xs px-1"
                         onClick={() => setSelectedSlot(`${s.startTime}|${s.endTime}`)}
                       >
                         {s.label}
