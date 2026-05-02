@@ -64,21 +64,17 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
       {/* Header fijo */}
       <div className={`sticky -top-4 z-1 mb-2 ${themeClass}`}>
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-4">
-          <div className="flex justify-between items-center">
-            {!isScheduleView && (
+          {!isScheduleView && (
+            <div className="flex justify-between items-center">
               <Header title={isCampaignPage ? 'Campañas' : 'Recordatorios'} />
-            )}
-            <Button
-              size="sm"
-              onClick={handleCreateReminder}
-              className={isScheduleView ? 'ml-auto' : ''}
-            >
-              <PlusIcon className="h-4 w-4 mr-2" />
-              Nuevo
-            </Button>
-          </div>
+              <Button size="sm" onClick={handleCreateReminder}>
+                <PlusIcon className="h-4 w-4 mr-2" />
+                Nuevo
+              </Button>
+            </div>
+          )}
 
-          <div className="flex flex-row gap-2 items-center justify-start">
+          <div className="flex flex-row gap-2 items-center">
             <div className="relative w-64 shrink-0">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -96,10 +92,14 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
               className="flex items-center gap-2"
             >
               <ArrowDownUp className="h-4 w-4" />
-              {/* <span className="hidden md:inline">
-                {sortAsc ? "Más recientes primero" : "Más antiguos primero"}
-              </span> */}
             </Button>
+
+            {isScheduleView && (
+              <Button size="sm" onClick={handleCreateReminder} className="ml-auto">
+                <PlusIcon className="h-4 w-4 mr-2" />
+                Nuevo
+              </Button>
+            )}
           </div>
         </div>
       </div>
