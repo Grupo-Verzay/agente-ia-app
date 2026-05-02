@@ -24,14 +24,6 @@ export const DateHourComponent = ({
   selectedDate,
   slotDuration,
   user,
-  phone,
-  areaCode,
-  nameClient,
-  setNameClient,
-  setAreaCode,
-  setPhone,
-  countries,
-  onContinue,
 }: DateHourInterface) => {
 
   const groupedSlots = useMemo(() => {

@@ -48,10 +48,6 @@ export interface DateHourInterface {
     slotDuration: number;
     user: UserWithApiKeys;
 
-    // solo para validaciones internas (no se muestran en este paso)
-    phone: string;
-    areaCode: string;
-    nameClient: string;
 }
 
 

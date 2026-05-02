@@ -389,9 +389,6 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                             selectedDate={selectedDate}
                             slotDuration={slotDuration}
                             user={user}
-                            phone={phone}
-                            areaCode={areaCode}
-                            nameClient={nameClient}
                         />
                     )}
 
