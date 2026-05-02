@@ -44,32 +44,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'listar_workflows',
     defaultDisplayName: 'Listar flujos disponibles',
     defaultDescription: 'Devuelve todos los flujos disponibles para este usuario.',
-    isCritical: false,
+    isCritical: true,
     helpText:
       'Permite al agente conocer qué flujos automáticos están disponibles antes de ejecutarlos.',
     sortOrder: 2,
-  },
-  {
-    toolType: 'consultar_datos_cliente',
-    defaultKey: 'consultar_datos_cliente',
-    defaultDisplayName: 'Consultar datos del cliente',
-    defaultDescription:
-      'Consulta el perfil externo del cliente actual: cédula, correo, servicio contratado, monto, sector, convenio u otros campos configurados. Úsala cuando el cliente pregunte por su información de cuenta, servicio o datos personales registrados.',
-    isCritical: false,
-    helpText:
-      'Busca en datos externos el registro asociado al número de WhatsApp del cliente que está escribiendo. Requiere que el cliente tenga datos cargados.',
-    sortOrder: 3,
-  },
-  {
-    toolType: 'buscar_cliente_por_dato',
-    defaultKey: 'buscar_cliente_por_dato',
-    defaultDisplayName: 'Buscar cliente por dato',
-    defaultDescription:
-      'Busca la información de un cliente a partir de un dato conocido (cédula, RIF, correo, etc.). Solo consulta datos del usuario actual, nunca información de otros clientes.',
-    isCritical: false,
-    helpText:
-      'Permite al agente buscar por cualquier campo del registro externo. Útil cuando el cliente pregunta por datos de un tercero proporcionando su cédula u otro identificador.',
-    sortOrder: 4,
   },
   {
     toolType: 'buscar_producto',
@@ -77,10 +55,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultDisplayName: 'Buscar producto',
     defaultDescription:
       'Busca un producto del catálogo por nombre, categoría o SKU. Úsala cuando el cliente pregunte por un producto específico, su precio, disponibilidad o características. El resultado incluye nombre, precio, stock, categoría, descripción e imágenes del producto (campo images[]). Si el producto tiene imágenes, el sistema las enviará automáticamente al cliente.',
-    isCritical: false,
+    isCritical: true,
     helpText:
       'Permite al agente consultar el catálogo de productos en tiempo real. Retorna nombre, precio, stock, categoría y URLs de imágenes. Las imágenes se envían vía /api/send-media.',
-    sortOrder: 5,
+    sortOrder: 3,
   },
   {
     toolType: 'listar_productos',
@@ -88,10 +66,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultDisplayName: 'Listar productos disponibles',
     defaultDescription:
       'Lista todos los productos activos del catálogo con nombre, precio, categoría, stock e imágenes. Úsala cuando el cliente quiera ver qué productos están disponibles o pida el catálogo completo. Cada producto incluye un campo images[] con URLs de sus imágenes, que el sistema enviará al cliente automáticamente.',
-    isCritical: false,
+    isCritical: true,
     helpText:
       'Devuelve el catálogo completo de productos activos incluyendo imágenes. Las imágenes de cada producto se envían vía /api/send-media. Recomendado cuando tienes pocos productos.',
-    sortOrder: 6,
+    sortOrder: 4,
   },
   {
     toolType: 'listar_servicios_agenda',
@@ -102,7 +80,7 @@ export const BUILTIN_TOOL_CATALOG: {
     isCritical: false,
     helpText:
       'Llama a GET /api/schedule/services?userId={userId}. Devuelve la lista de servicios configurados por el usuario para su agenda.',
-    sortOrder: 7,
+    sortOrder: 5,
   },
   {
     toolType: 'consultar_slots_disponibles',
@@ -113,7 +91,7 @@ export const BUILTIN_TOOL_CATALOG: {
     isCritical: false,
     helpText:
       'Llama a GET /api/schedule/slots?userId={userId}&date={YYYY-MM-DD}. Usa la disponibilidad configurada del usuario y descuenta citas ya registradas.',
-    sortOrder: 8,
+    sortOrder: 6,
   },
   {
     toolType: 'crear_cita',
@@ -124,6 +102,28 @@ export const BUILTIN_TOOL_CATALOG: {
     isCritical: false,
     helpText:
       'Llama a POST /api/schedule/appointment. Requiere: userId, serviceId, pushName, phone (remoteJid), instanceName, startTime (ISO UTC), endTime (ISO UTC), timezone.',
+    sortOrder: 7,
+  },
+  {
+    toolType: 'consultar_datos_cliente',
+    defaultKey: 'consultar_datos_cliente',
+    defaultDisplayName: 'Consultar datos del cliente',
+    defaultDescription:
+      'Consulta el perfil externo del cliente actual: cédula, correo, servicio contratado, monto, sector, convenio u otros campos configurados. Úsala cuando el cliente pregunte por su información de cuenta, servicio o datos personales registrados.',
+    isCritical: false,
+    helpText:
+      'Busca en datos externos el registro asociado al número de WhatsApp del cliente que está escribiendo. Requiere que el cliente tenga datos cargados.',
+    sortOrder: 8,
+  },
+  {
+    toolType: 'buscar_cliente_por_dato',
+    defaultKey: 'buscar_cliente_por_dato',
+    defaultDisplayName: 'Buscar cliente por dato',
+    defaultDescription:
+      'Busca la información de un cliente a partir de un dato conocido (cédula, RIF, correo, etc.). Solo consulta datos del usuario actual, nunca información de otros clientes.',
+    isCritical: false,
+    helpText:
+      'Permite al agente buscar por cualquier campo del registro externo. Útil cuando el cliente pregunta por datos de un tercero proporcionando su cédula u otro identificador.',
     sortOrder: 9,
   },
 ];

@@ -675,31 +675,7 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                     {/* ── Tab: Herramientas ────────────────────── */}
                     <TabsContent value="herramientas" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
-                            <Tabs defaultValue="tools">
-                                <TabsList className="w-full h-auto bg-transparent p-0 rounded-none border-b border-border justify-start gap-0 mb-4">
-                                    <TabsTrigger value="tools" className="flex items-center gap-1.5 px-3 py-2 h-auto text-sm font-medium rounded-none border-b-2 border-transparent -mb-px text-muted-foreground bg-transparent shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors">
-                                        <Bot className="h-4 w-4" />
-                                        Herramientas IA
-                                    </TabsTrigger>
-                                    <TabsTrigger value="import" className="flex items-center gap-1.5 px-3 py-2 h-auto text-sm font-medium rounded-none border-b-2 border-transparent -mb-px text-muted-foreground bg-transparent shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors">
-                                        <FileSpreadsheet className="h-4 w-4" />
-                                        Importar
-                                    </TabsTrigger>
-                                    <TabsTrigger value="management" className="flex items-center gap-1.5 px-3 py-2 h-auto text-sm font-medium rounded-none border-b-2 border-transparent -mb-px text-muted-foreground bg-transparent shadow-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none hover:text-foreground transition-colors">
-                                        <Database className="h-4 w-4" />
-                                        Gestión
-                                    </TabsTrigger>
-                                </TabsList>
-                                <TabsContent value="tools">
-                                    <MyToolsManagement userId={userId} />
-                                </TabsContent>
-                                <TabsContent value="import">
-                                    <MyDataImport userId={userId} />
-                                </TabsContent>
-                                <TabsContent value="management">
-                                    <MyDataManagement userId={userId} />
-                                </TabsContent>
-                            </Tabs>
+                            <MyToolsManagement userId={userId} />
                         </TabPanel>
                     </TabsContent>
 

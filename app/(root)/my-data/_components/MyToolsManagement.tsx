@@ -97,70 +97,42 @@ function ToolCard({
 }) {
   const isBuiltin = cfg.toolCategory === 'builtin';
   const isCritical = CRITICAL_TOOL_TYPES.includes(cfg.toolType as ExternalDataBuiltinToolType);
+  const catalogEntry = isBuiltin ? BUILTIN_TOOL_CATALOG.find(e => e.toolType === cfg.toolType) : null;
+  const friendlyDescription = catalogEntry?.helpText ?? cfg.toolDescription;
 
   return (
-    <Card className={cn('transition-opacity', !cfg.isEnabled && 'opacity-55')}>
-      <CardContent className="pt-4 pb-4">
-        <div className="flex items-start gap-4">
-          <div className="mt-0.5 flex-shrink-0 rounded-md bg-primary/10 p-2">
-            {isBuiltin ? <Sparkles className="h-4 w-4 text-primary" />
-              : cfg.toolType === 'auto_inject' ? <Zap className="h-4 w-4 text-amber-500" />
-              : <Search className="h-4 w-4 text-primary" />}
+    <Card className={cn('transition-all border-border', !cfg.isEnabled && 'opacity-50')}>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-4">
+          <div className="flex-shrink-0 rounded-xl bg-primary/10 p-2.5">
+            {isBuiltin ? <Sparkles className="h-5 w-5 text-primary" />
+              : cfg.toolType === 'auto_inject' ? <Zap className="h-5 w-5 text-amber-500" />
+              : <Search className="h-5 w-5 text-primary" />}
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-sm">{cfg.displayName}</span>
-              <Badge variant="outline" className="text-[10px] font-mono">{cfg.toolKey}</Badge>
-              {isBuiltin && (
-                <Badge variant="secondary" className="text-[10px] gap-1">
-                  <Lock className="h-2.5 w-2.5" />
-                  {BUILTIN_TYPE_LABELS[cfg.toolType as ExternalDataBuiltinToolType] ?? cfg.toolType}
-                </Badge>
-              )}
-              {!isBuiltin && cfg.toolType === 'auto_inject' && (
-                <Badge className="text-[10px] bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-400">
-                  system prompt
-                </Badge>
-              )}
-              {!isBuiltin && cfg.toolType === 'search_by_field' && (
-                <Badge variant="outline" className="text-[10px]">búsqueda por campo</Badge>
-              )}
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-sm">{cfg.displayName}</span>
               {isCritical && (
-                <Badge variant="destructive" className="text-[10px] opacity-70">crítica</Badge>
+                <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/40 bg-amber-500/10">
+                  esencial
+                </Badge>
               )}
             </div>
-
-            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{cfg.toolDescription}</p>
-
+            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{friendlyDescription}</p>
             {!isBuiltin && cfg.toolType === 'search_by_field' && cfg.searchField && (
-              <p className="text-xs mt-1">
-                <span className="text-muted-foreground">Campo: </span>
-                <code className="bg-muted px-1.5 py-0.5 rounded text-[10px]">{cfg.searchField}</code>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Campo: <code className="bg-muted px-1 py-0.5 rounded text-[10px]">{cfg.searchField}</code>
               </p>
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            {isCritical && !cfg.isEnabled && (
-              <span title="Herramienta crítica desactivada">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-              </span>
-            )}
+          <div className="flex items-center flex-shrink-0">
             <Switch
               checked={cfg.isEnabled}
               onCheckedChange={(v) => onToggle(cfg, v)}
               title={cfg.isEnabled ? 'Deshabilitar' : 'Habilitar'}
             />
-            <Button variant="ghost" size="icon" onClick={onEdit} title="Editar">
-              <Edit2 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost" size="icon" onClick={onDelete} title="Eliminar"
-              className="text-destructive hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
           </div>
         </div>
       </CardContent>
@@ -680,9 +652,18 @@ export function MyToolsManagement({ userId }: Props) {
     else { toast.error(result.error ?? 'Error al eliminar'); throw new Error(result.error); }
   };
 
-  const builtinConfigs = configs.filter((c) => c.toolCategory === 'builtin' && c.isEnabled);
-  const dataQueryConfigs = configs.filter((c) => c.toolCategory === 'data_query' && c.isEnabled);
+  const builtinConfigs = configs
+    .filter((c) => c.toolCategory === 'builtin')
+    .sort((a, b) => {
+      const oa = BUILTIN_TOOL_CATALOG.find(e => e.toolType === a.toolType)?.sortOrder ?? 99;
+      const ob = BUILTIN_TOOL_CATALOG.find(e => e.toolType === b.toolType)?.sortOrder ?? 99;
+      return oa - ob;
+    });
+  const dataQueryConfigs = configs
+    .filter((c) => c.toolCategory === 'data_query')
+    .sort((a, b) => a.displayName.localeCompare(b.displayName, 'es'));
   const existingBuiltinTypes = new Set(builtinConfigs.map((c) => c.toolType));
+  const enabledCount = configs.filter((c) => c.isEnabled).length;
   const hasNoConfigs = configs.length === 0 && !isLoading;
 
   return (
@@ -698,9 +679,9 @@ export function MyToolsManagement({ userId }: Props) {
               <Button variant="outline" size="icon" onClick={loadConfigs} disabled={isLoading} title="Recargar">
                 <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
               </Button>
-              {!isLoading && configs.length > 0 && (
+              {!isLoading && enabledCount > 0 && (
                 <Badge variant="secondary" className="text-xs">
-                  {configs.length} herramienta{configs.length !== 1 ? 's' : ''}
+                  {enabledCount} activa{enabledCount !== 1 ? 's' : ''}
                 </Badge>
               )}
             </div>
@@ -717,7 +698,7 @@ export function MyToolsManagement({ userId }: Props) {
         </div>
       ) : (
         <div className="space-y-5">
-          {hasNoConfigs ? (
+          {hasNoConfigs && (
             <Alert className="border-amber-500/50 bg-amber-500/5">
               <AlertTriangle className="h-4 w-4 text-amber-500" />
               <AlertDescription className="space-y-3">
@@ -730,47 +711,25 @@ export function MyToolsManagement({ userId }: Props) {
                 </Button>
               </AlertDescription>
             </Alert>
-          ) : (
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Check className="h-3.5 w-3.5 text-green-500" />
-                El agente usa exactamente estas herramientas — sin configuración adicional.
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setAddBuiltinOpen(true)} className="gap-2">
-                  <Lock className="h-3.5 w-3.5" />Herramienta del sistema
-                </Button>
-                <Button variant="primary" size="sm" onClick={() => { setEditDataQueryCfg(null); setDataQueryOpen(true); }} className="gap-2">
-                  <Search className="h-3.5 w-3.5" />Nueva consulta dinámica
-                </Button>
-              </div>
-            </div>
           )}
 
           {builtinConfigs.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <Lock className="h-3 w-3" />Herramientas del sistema
-                <Separator className="flex-1" />
-                <span className="normal-case font-normal">Implementación fija · solo nombre y descripción editables</span>
-              </div>
-              <div className="space-y-2">
-                {builtinConfigs.map((cfg) => (
-                  <ToolCard key={cfg.id} cfg={cfg} onToggle={handleToggle}
-                    onEdit={() => setEditBuiltinCfg(cfg)} onDelete={() => setDeleteCfg(cfg)} />
-                ))}
-              </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {builtinConfigs.map((cfg) => (
+                <ToolCard key={cfg.id} cfg={cfg} onToggle={handleToggle}
+                  onEdit={() => setEditBuiltinCfg(cfg)} onDelete={() => setDeleteCfg(cfg)} />
+              ))}
             </div>
           )}
 
           {dataQueryConfigs.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <Search className="h-3 w-3" />Herramientas de consulta dinámica
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Search className="h-3 w-3" />
+                <span>Consultas dinámicas</span>
                 <Separator className="flex-1" />
-                <span className="normal-case font-normal">Configuración 100% personalizable</span>
               </div>
-              <div className="space-y-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {dataQueryConfigs.map((cfg) => (
                   <ToolCard key={cfg.id} cfg={cfg} onToggle={handleToggle}
                     onEdit={() => { setEditDataQueryCfg(cfg); setDataQueryOpen(true); }}
@@ -780,20 +739,6 @@ export function MyToolsManagement({ userId }: Props) {
             </div>
           )}
 
-          {configs.length > 0 && dataQueryConfigs.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-8 gap-3 text-muted-foreground border border-dashed rounded-lg">
-              <Search className="h-8 w-8 opacity-15" />
-              <div className="text-center space-y-1">
-                <p className="text-sm font-medium">Sin herramientas de consulta dinámica</p>
-                <p className="text-xs max-w-sm">
-                  Créalas para que el agente pueda buscar datos por campos específicos (cédula, correo, contrato, etc.)
-                </p>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => { setEditDataQueryCfg(null); setDataQueryOpen(true); }} className="gap-2">
-                <Plus className="h-4 w-4" />Nueva consulta dinámica
-              </Button>
-            </div>
-          )}
         </div>
       )}
 
