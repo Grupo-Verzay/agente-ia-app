@@ -9,6 +9,7 @@ import {
     CalendarClock,
     CheckCheck,
     Clock3,
+    FileText,
     Settings2,
     LayoutList,
     TrendingUp,
@@ -28,6 +29,7 @@ import type { DashboardStats } from "./MainDashboard";
 import { CrmRecordsSection } from "./records-table/CrmRecordsSection";
 import { AnalyticsView } from "./AnalyticsView";
 import { KanbanBoard } from "../../kanban/_components/KanbanBoard";
+import { WeeklyReportsView, type ReportStats } from "./WeeklyReportsView";
 
 const ANALYTICS_PERIODS: { label: string; value: AnalyticsPeriod }[] = [
     { label: "7 días", value: "7d" },
@@ -87,12 +89,13 @@ export const CrmDashboard = ({
     isLoadingMore?: boolean;
     sentinelRef: RefObject<HTMLDivElement>;
     onScrollRootReady: (el: HTMLDivElement | null) => void;
-    initialView?: "registros" | "analiticas" | "kanban";
+    initialView?: "registros" | "analiticas" | "kanban" | "reportes";
 }) => {
     const router = useRouter();
-    const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban">(initialView ?? "analiticas");
+    const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban" | "reportes">(initialView ?? "analiticas");
     const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
     const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreRangeKey>>(new Set());
+    const [reportStats, setReportStats] = useState<ReportStats>({ total: 0, sent: 0, avgLeads: 0, avgConversions: 0 });
 
     const toggleScoreRange = (key: ScoreRangeKey) => {
         setSelectedScoreRanges((prev) => {
@@ -126,7 +129,9 @@ export const CrmDashboard = ({
     };
 
     const { data: analyticsData, isLoading: analyticsLoading } = useSWR(
-        viewMode !== "registros" ? ["crm-analytics", userId, viewMode === "kanban" ? "all" : period] : null,
+        viewMode !== "registros" && viewMode !== "reportes"
+            ? ["crm-analytics", userId, viewMode === "kanban" ? "all" : period]
+            : null,
         ([, uid, p]) => getAnalyticsDataByUserId(uid, p as AnalyticsPeriod)
     );
     const a = analyticsData?.success ? analyticsData.data : null;
@@ -169,7 +174,22 @@ export const CrmDashboard = ({
             <div className="flex h-full min-w-0 w-full flex-col gap-2">
                 {/* Metric Cards */}
                 <div className="flex flex-wrap gap-3">
-                    {viewMode === "registros" ? (
+                    {viewMode === "reportes" ? (
+                        <>
+                            <div className="flex-1">
+                                <MetricCard icon={<FileText className="h-4 w-4" />} label="Total reportes" value={reportStats.total} helper="Últimos 12 guardados" color="#3B82F6" />
+                            </div>
+                            <div className="flex-1">
+                                <MetricCard icon={<Activity className="h-4 w-4" />} label="Enviados por WhatsApp" value={reportStats.sent} helper={`De ${reportStats.total} generados`} color="#22C55E" />
+                            </div>
+                            <div className="flex-1">
+                                <MetricCard icon={<Users className="h-4 w-4" />} label="Leads promedio" value={reportStats.avgLeads} helper="Promedio de leads por semana" color="#8B5CF6" />
+                            </div>
+                            <div className="flex-1">
+                                <MetricCard icon={<CheckCheck className="h-4 w-4" />} label="Finalizados promedio" value={reportStats.avgConversions} helper="Conversiones promedio por semana" color="#F59E0B" />
+                            </div>
+                        </>
+                    ) : viewMode === "registros" ? (
                         <>
                             <div className="flex-1">
                                 <MetricCard
@@ -331,9 +351,22 @@ export const CrmDashboard = ({
                             <Kanban className="h-3.5 w-3.5" />
                             Kanban
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode("reportes")}
+                            className={[
+                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                viewMode === "reportes"
+                                    ? "bg-background shadow-sm text-foreground"
+                                    : "text-muted-foreground hover:text-foreground",
+                            ].join(" ")}
+                        >
+                            <FileText className="h-3.5 w-3.5" />
+                            Reportes
+                        </button>
                     </div>
 
-                    {viewMode !== "kanban" && (
+                    {viewMode !== "kanban" && viewMode !== "reportes" && (
                         <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
                             {ANALYTICS_PERIODS.map((p) => (
                                 <button
@@ -402,7 +435,9 @@ export const CrmDashboard = ({
                 </div>
 
                 {/* Content */}
-                {viewMode === "kanban" ? (
+                {viewMode === "reportes" ? (
+                    <WeeklyReportsView onStatsLoaded={setReportStats} />
+                ) : viewMode === "kanban" ? (
                     <KanbanBoard selectedScoreRanges={selectedScoreRanges} />
                 ) : viewMode === "registros" ? (
                     <CrmRecordsSection

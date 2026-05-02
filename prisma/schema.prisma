@@ -458,6 +458,7 @@ model User {
   userModules                        UserModule[]
   crmFollowUpRules                   CrmFollowUpRule[]
   crmFollowUps                       CrmFollowUp[]
+  weeklyReports                      WeeklyReport[]
   externalClientData                 ExternalClientData[]
   externalDataToolConfigs            ExternalDataToolConfig[]
   financeAccounts                    FinanceAccount[]
@@ -966,6 +967,21 @@ model UserAiConfig {
 
   @@unique([userId, providerId])
   @@map("user_ai_configs")
+}
+
+model WeeklyReport {
+  id          String    @id @default(cuid())
+  userId      String
+  periodStart DateTime  @map("period_start")
+  periodEnd   DateTime  @map("period_end")
+  summary     String
+  metrics     Json
+  sentAt      DateTime? @map("sent_at")
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("weekly_reports")
 }
 
 model UserModule {
