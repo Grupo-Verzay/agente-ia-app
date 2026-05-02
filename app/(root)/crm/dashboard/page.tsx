@@ -1,13 +1,18 @@
-// app/(dashboard)/crm/dashboard/page.tsx
 import { currentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { MainDashboard } from "./components/MainDashboard";
 
-const CrmDashboardPage = async () => {
+const CrmDashboardPage = async ({ searchParams }: { searchParams: { view?: string } }) => {
     const user = await currentUser();
     if (!user) redirect("/login");
 
-    return <MainDashboard userId={user.id} />;
+    const view = searchParams.view;
+    const initialView =
+        view === "kanban" ? "kanban" :
+        view === "registros" ? "registros" :
+        undefined;
+
+    return <MainDashboard userId={user.id} initialView={initialView} />;
 };
 
 export default CrmDashboardPage;

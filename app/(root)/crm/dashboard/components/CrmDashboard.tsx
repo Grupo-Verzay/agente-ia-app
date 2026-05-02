@@ -59,6 +59,7 @@ export const CrmDashboard = ({
     isLoadingMore,
     sentinelRef,
     onScrollRootReady,
+    initialView,
 }: {
     stats: DashboardStats | null;
     registros: RegistroWithSession[];
@@ -76,9 +77,10 @@ export const CrmDashboard = ({
     isLoadingMore?: boolean;
     sentinelRef: RefObject<HTMLDivElement>;
     onScrollRootReady: (el: HTMLDivElement | null) => void;
+    initialView?: "registros" | "analiticas" | "kanban";
 }) => {
     const router = useRouter();
-    const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban">("analiticas");
+    const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban">(initialView ?? "analiticas");
     const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
 
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -333,10 +335,9 @@ export const CrmDashboard = ({
                     )}
 
                     <div className="ml-auto flex items-center gap-2">
-                        <span className="text-sm font-medium">Reglas IA del CRM</span>
                         <Button onClick={() => router.push("/crm/rules")}>
                             <Settings2 className="h-4 w-4" />
-                            Reglas
+                            Reglas IA CRM
                         </Button>
                         <CrmGlobalActionsMenu
                             userId={userId}

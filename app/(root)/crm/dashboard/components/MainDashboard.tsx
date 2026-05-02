@@ -21,6 +21,7 @@ import { ESTADOS_POR_TIPO } from "@/types/registro";
 
 export type MainDashboardProps = {
   userId: string;
+  initialView?: "registros" | "analiticas" | "kanban";
 };
 export type DashboardStats = {
   totalRegistros: number;
@@ -51,6 +52,7 @@ type CrmPageKeyPayload = {
 
 export const MainDashboard = ({
   userId,
+  initialView,
 }: MainDashboardProps) => {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"TODOS" | TipoRegistro>("TODOS");
@@ -252,6 +254,7 @@ export const MainDashboard = ({
       <CrmDashboard
         stats={stats}
         userId={userId}
+        initialView={initialView}
         activeTab={activeTab}
         onActiveTabChange={handleTabChange}
         filters={filters}

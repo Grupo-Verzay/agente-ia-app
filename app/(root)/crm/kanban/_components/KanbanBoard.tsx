@@ -346,33 +346,7 @@ export function KanbanBoard() {
 
     return (
         <div className="flex flex-col gap-3 min-w-0 w-full">
-            {/* Fila 1: Pills de estado + botón actualizar */}
-            <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                {COLUMNS.map((col) => {
-                    const count = filteredCards.filter((c) => columnIdForStatus(c.leadStatus) === col.id).length;
-                    if (col.id === 'SIN_CLASIFICAR' && count === 0) return null;
-                    return (
-                        <span
-                            key={col.id}
-                            className="inline-flex items-center gap-1.5 rounded-full border-2 px-2.5 py-0.5 text-xs font-semibold"
-                            style={{
-                                borderColor: col.borderColor + '80',
-                                color: col.borderColor,
-                                backgroundColor: col.borderColor + '15',
-                            }}
-                        >
-                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: col.borderColor }} />
-                            {col.label} ({count})
-                        </span>
-                    );
-                })}
-                <Button variant="outline" size="sm" onClick={loadCards} className="gap-1.5 ml-auto shrink-0">
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    Actualizar
-                </Button>
-            </div>
-
-            {/* Fila 2: Búsqueda + etiquetas + contador */}
+            {/* Búsqueda + etiquetas + contador + actualizar */}
             <div className="flex flex-wrap items-center gap-2">
                 {/* Buscador */}
                 <div className="relative min-w-[200px] flex-1 max-w-xs">
@@ -435,10 +409,16 @@ export function KanbanBoard() {
                     </div>
                 )}
 
-                {/* Contador */}
-                <div className="flex items-center gap-1 text-sm text-muted-foreground shrink-0 ml-auto">
-                    <span className="font-medium text-foreground">{filteredCards.length}</span>
-                    {(selectedTagIds.size > 0 || searchQuery) ? <span>de {cards.length} contactos</span> : <span>contactos</span>}
+                {/* Contador + Actualizar */}
+                <div className="flex items-center gap-2 shrink-0 ml-auto">
+                    <span className="text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">{filteredCards.length}</span>
+                        {(selectedTagIds.size > 0 || searchQuery) ? <span> de {cards.length} contactos</span> : <span> contactos</span>}
+                    </span>
+                    <Button variant="outline" size="sm" onClick={loadCards} className="gap-1.5 shrink-0">
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Actualizar
+                    </Button>
                 </div>
             </div>
 
