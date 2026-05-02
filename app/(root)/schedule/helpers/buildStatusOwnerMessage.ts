@@ -67,12 +67,28 @@ Puedes reagendar nuevamente aquí:
     }
 
 
+    if (newStatus === "CONFIRMADA") {
+        return `📅 *CITA CONFIRMADA* ✅
+
+👤 *${clientName}*, agradecemos su agendamiento.
+
+Estaremos en *contacto* para atenderte en la hora pactada.🤝`;
+    }
+
+    if (newStatus === "CANCELADA") {
+        return `📅 *CITA CANCELADA* ❌
+
+👤 *${clientName}*, no es posible poder atenderte.
+
+Te pedimos *disculpas* y sería en una próxima ocasión.`;
+    }
+
     const text = `📅 *${meta.title.toUpperCase()}* ${meta.emoji}
 
 👤 *Nombre:* ${clientName}
 📝 *Servicio:* ${serviceName}
 📅 *Fecha:* ${dateLabel}
-⌚ *Hora:* ${timeLabel} 
+⌚ *Hora:* ${timeLabel}
 🌐 *Zona horaria:* (${appointment.timezone.split("/")[1]})
 ${reasonBlock}`;
 
