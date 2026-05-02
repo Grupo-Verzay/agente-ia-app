@@ -180,6 +180,53 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
 }
 
 //Actualizar estado de cita
+export async function sendAppointmentStatusNotification(
+    appointmentId: string,
+    status: AppointmentStatus,
+): Promise<void> {
+    try {
+        const appt = await db.appointment.findUnique({
+            where: { id: appointmentId },
+            include: {
+                session: true,
+                service: true,
+                user: {
+                    select: {
+                        apiKey: { select: { url: true, key: true } },
+                        instancias: { take: 1, select: { instanceName: true } },
+                    },
+                },
+            },
+        });
+        if (!appt) return;
+
+        const apiKeyUrl = (appt as any).user?.apiKey?.url;
+        const apiKeyValue = (appt as any).user?.apiKey?.key;
+        const instanceName = (appt as any).user?.instancias?.[0]?.instanceName;
+        const remoteJid = appt.session.remoteJid;
+        if (!apiKeyUrl || !apiKeyValue || !instanceName) return;
+
+        const { buildStatusOwnerMessage } = await import('@/app/(root)/schedule/helpers/buildStatusOwnerMessage');
+        const { sendMessageWithHistoryAction } = await import('@/actions/chat-history/send-message-with-history-action');
+
+        const message = buildStatusOwnerMessage({
+            appointment: appt as any,
+            newStatus: status,
+            userId: appt.userId,
+        });
+
+        await sendMessageWithHistoryAction({
+            instanceName,
+            url: `https://${apiKeyUrl}/message/sendText/${instanceName}`,
+            apikey: apiKeyValue,
+            remoteJid,
+            message,
+            historyType: 'notification',
+            additionalKwargs: { source: 'AgendaStatusChange', appointmentId, nextStatus: status },
+        });
+    } catch { /* silent */ }
+}
+
 export async function updateAppointmentStatus(
     id: string,
     status: AppointmentStatus

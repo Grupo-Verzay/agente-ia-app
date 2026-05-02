@@ -7,8 +7,10 @@ import { toast } from "sonner";
 import { useMutation } from "@tanstack/react-query";
 import { updateUserMeetingDuration } from "@/actions/userClientDataActions";
 import { useRouter } from "next/navigation";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Clock, Link2, Settings2 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
-// Componente para actualizar la duración y la URL de la reunión
 export const UpdateMeetingDuration = ({
     userId,
     meetingDuration,
@@ -26,15 +28,12 @@ export const UpdateMeetingDuration = ({
     const mutation = useMutation({
         mutationFn: async (payload: { duration: number; url: string }) => {
             const res = await updateUserMeetingDuration(userId, payload.duration, payload.url);
-
-            // Importante: si tu server action retorna success:false, lo tratamos como error
             if (!res.success) throw new Error(res.message);
-
             router.refresh();
             return res;
         },
         onSuccess: (res) => {
-            toast.success(res.message || "Configuración de reunión actualizada correctamente");
+            toast.success(res.message || "Configuración actualizada correctamente");
             setLoading(false);
         },
         onError: (error: any) => {
@@ -53,25 +52,14 @@ export const UpdateMeetingDuration = ({
 
     const validateMeetingUrl = (value: string) => {
         const v = value.trim();
-        if (!v) return ""; // si la dejan vacía, no falla (ajústalo si quieres que sea obligatoria)
-
-        // Aceptar URLs sin protocolo agregando https:// para validar
+        if (!v) return "";
         const normalized = /^https?:\/\//i.test(v) ? v : `https://${v}`;
-
         try {
             new URL(normalized);
             return "";
         } catch {
             return "La URL de la reunión no es válida.";
         }
-    };
-
-    const handleChangeDuration = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setDuration(parseInt(e.target.value));
-    };
-
-    const handleChangeUrl = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setUrl(e.target.value);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -88,46 +76,70 @@ export const UpdateMeetingDuration = ({
     };
 
     return (
-        <div className="max-w-md mx-auto p-4">
-            <h2 className="text-xl font-semibold text-center">Actualizar Reunión</h2>
+        <div className="max-w-xl mx-auto py-2">
+            <Card className="border shadow-sm">
+                <CardHeader className="pb-3">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                            <Settings2 className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                            <CardTitle className="text-base">Configuración de Reunión</CardTitle>
+                            <CardDescription className="text-xs mt-0.5">
+                                Ajusta la duración y el enlace de tus reuniones virtuales
+                            </CardDescription>
+                        </div>
+                    </div>
+                </CardHeader>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                    <label htmlFor="duration" className="block text-sm font-medium text-gray-700">
-                        Duración (minutos)
-                    </label>
-                    <Input
-                        id="duration"
-                        type="number"
-                        value={duration}
-                        onChange={handleChangeDuration}
-                        min="1"
-                        max="480"
-                        placeholder="Ingrese la duración en minutos"
-                        className="mt-1"
-                    />
-                </div>
+                <Separator />
 
-                <div>
-                    <label htmlFor="meetingUrl" className="block text-sm font-medium text-gray-700">
-                        URL de la reunión (Zoom / Meet / Skype)
-                    </label>
-                    <Input
-                        id="meetingUrl"
-                        type="text"
-                        value={url}
-                        onChange={handleChangeUrl}
-                        placeholder="Ej: https://meet.google.com/xxx-xxxx-xxx"
-                        className="mt-1"
-                    />
-                </div>
+                <CardContent className="pt-5">
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <div className="space-y-1.5">
+                            <label htmlFor="duration" className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                                Duración de la reunión
+                            </label>
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    id="duration"
+                                    type="number"
+                                    value={duration}
+                                    onChange={(e) => setDuration(parseInt(e.target.value))}
+                                    min="1"
+                                    max="480"
+                                    placeholder="60"
+                                    className="max-w-[120px]"
+                                />
+                                <span className="text-sm text-muted-foreground">minutos</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">Entre 1 y 480 minutos por sesión</p>
+                        </div>
 
-                <div className="flex justify-center">
-                    <Button type="submit" disabled={loading} className="w-full">
-                        {loading ? "Actualizando..." : "Actualizar"}
-                    </Button>
-                </div>
-            </form>
+                        <div className="space-y-1.5">
+                            <label htmlFor="meetingUrl" className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                                <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                Enlace de reunión virtual
+                            </label>
+                            <Input
+                                id="meetingUrl"
+                                type="text"
+                                value={url}
+                                onChange={(e) => setUrl(e.target.value)}
+                                placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                            />
+                            <p className="text-xs text-muted-foreground">Zoom, Google Meet, Skype u otra plataforma de videoconferencia</p>
+                        </div>
+
+                        <div className="pt-1">
+                            <Button type="submit" disabled={loading} size="sm">
+                                {loading ? "Guardando..." : "Guardar cambios"}
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
         </div>
     );
 };

@@ -65,12 +65,16 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
       <div className={`sticky -top-4 z-1 mb-2 ${themeClass}`}>
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-4">
           <div className="flex justify-between items-center">
-            <Header
-              title={isCampaignPage ? 'Campañas' : 'Recordatorios'}
-            />
-            <Button onClick={handleCreateReminder}>
+            {!isScheduleView && (
+              <Header title={isCampaignPage ? 'Campañas' : 'Recordatorios'} />
+            )}
+            <Button
+              size="sm"
+              onClick={handleCreateReminder}
+              className={isScheduleView ? 'ml-auto' : ''}
+            >
               <PlusIcon className="h-4 w-4 mr-2" />
-              Crear
+              Nuevo
             </Button>
           </div>
 

@@ -24,6 +24,7 @@ import { AppointmentStatus } from '@prisma/client';
 import {
     getAppointmentsForKanban,
     updateAppointmentStatus,
+    sendAppointmentStatusNotification,
     type AgendaKanbanCard,
 } from '@/actions/appointments-actions';
 
@@ -217,6 +218,7 @@ export function AgendaKanban({ userId }: { userId: string }) {
         pendingRef.current = true;
         try {
             await updateAppointmentStatus(card.id, newStatus);
+            void sendAppointmentStatusNotification(card.id, newStatus).catch(() => undefined);
         } catch {
             setCards((prev) => prev.map((c) => c.id === card.id ? { ...c, status: card.status } : c));
             toast.error('No se pudo actualizar el estado de la cita');

@@ -383,8 +383,10 @@ function ServiceToolbar({
                     className="pl-8 w-full"
                 />
             </div>
-            <Badge variant="outline" className="hidden sm:inline-flex shrink-0">{total} servicios</Badge>
-            {onCreate}
+            <div className="ml-auto flex items-center gap-2">
+                <Badge variant="outline" className="hidden sm:inline-flex shrink-0">{total} servicios</Badge>
+                {onCreate}
+            </div>
         </div>
     );
 }
@@ -447,10 +449,6 @@ export default function ServiceManager({ userId }: { userId: string }) {
 
     return (
         <div className="space-y-4">
-            <Header
-                title="Servicios"
-            />
-
             <ServiceToolbar
                 query={query}
                 setQuery={setQuery}
