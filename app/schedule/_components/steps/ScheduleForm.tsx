@@ -53,7 +53,7 @@ export const ScheduleForm = ({
                 </div>
 
                 <div className="flex justify-between gap-2 pt-2">
-                    <Button variant="outline" onClick={() => setStep(1)}>
+                    <Button variant="outline" onClick={() => setStep(2)}>
                         Atrás
                     </Button>
                     <Button disabled={!canContinueStep2} onClick={onContinue}>

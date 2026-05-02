@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -34,16 +34,17 @@ import {
     normalizeToE164,
     toRemoteJid,
 } from "../helpers";
-import { CalendarIcon, Clock, ScrollText } from "lucide-react";
+import { CalendarIcon, Clock, List, ScrollText } from "lucide-react";
 import { es } from "date-fns/locale";
-import { DateHourComponent, ScheduleForm, ServiceComponent } from "./steps";
+import { DateComponent, HourComponent, ScheduleForm, ServiceComponent } from "./steps";
 import { SummaryItem } from "./";
 
 export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInterface) => {
     const [step, setStep] = useState(0);
     const stepLabel = [
-        { label: "Servicio", icon: <Clock className="h-4 w-4" /> },
-        { label: "Fecha y hora", icon: <CalendarIcon className="h-4 w-4" /> },
+        { label: "Servicio", icon: <List className="h-4 w-4" /> },
+        { label: "Fecha", icon: <CalendarIcon className="h-4 w-4" /> },
+        { label: "Hora", icon: <Clock className="h-4 w-4" /> },
         { label: "Tus datos", icon: <ScrollText className="h-4 w-4" /> },
     ];
 
@@ -56,6 +57,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
     const [selectedDate, setSelectedDate] = useState<Date | undefined>();
     const [selectedDateYmd, setSelectedDateYmd] = useState<string>("");
     const [slots, setSlots] = useState<{ startTime: string; endTime: string }[]>([]);
+    const [loadingSlots, setLoadingSlots] = useState(false);
     const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
 
     const [nameClient, setNameClient] = useState("");
@@ -63,7 +65,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
     const [phone, setPhone] = useState("");
     const [loading, setLoading] = useState(false);
     const [openDialog, setOpenDialog] = useState(false);
-    const canContinueStep2 = Boolean(nameClient.trim() && phone.trim() && areaCode && selectedService);
+    const canContinueStep3 = Boolean(nameClient.trim() && phone.trim() && areaCode && selectedService);
 
     const mutationSeguimiento = useMutation({
         mutationFn: async (data: SeguimientoInput) => await createSeguimiento(data),
@@ -77,11 +79,12 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
 
     useEffect(() => {
         if (!user.id || !selectedDateYmd) return;
-
+        setLoadingSlots(true);
         (async () => {
             const res = await getAvailableSlots(user.id as string, selectedDateYmd, slotDuration, SERVER_TIME_ZONE);
             if (res.success) setSlots(res.data || []);
             else toast.error(res.message);
+            setLoadingSlots(false);
         })();
     }, [user.id, selectedDateYmd, slotDuration]);
 
@@ -93,20 +96,19 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
             return false;
         }
 
-        if (!reminders) {
-            toast.error("Faltan recordatorios configurados.");
-            return false;
+        if (!reminders || reminders.length === 0) {
+            console.warn("[SchedulePageClient] No hay recordatorios de agenda configurados (isSchedule=true). La cita se agendará sin recordatorios.");
         }
 
         if (!user.id || !instanceName || !primaryInstance) {
-            toast.error("No se pudo identificar la sesi\u00f3n para esta cita.");
+            toast.error("No se pudo identificar la sesión para esta cita.");
             return false;
         }
 
         const [startTime, endTime] = selectedSlot.split("|");
         const e164 = normalizeToE164(areaCode, phone);
         if (!e164) {
-            toast.error("N\u00famero de WhatsApp inv\u00e1lido. Verifica el pa\u00eds y el n\u00famero.");
+            toast.error("Número de WhatsApp inválido. Verifica el país y el número.");
             return false;
         }
 
@@ -123,7 +125,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
             });
 
             if (!sessionRes.success || !sessionRes.data?.id) {
-                toast.error(sessionRes.message || "No se pudo sincronizar la sesi\u00f3n.");
+                toast.error(sessionRes.message || "No se pudo sincronizar la sesión.");
                 return false;
             }
 
@@ -153,7 +155,6 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                 if (!rem.normalizedSeconds) return;
 
                 const startLocal = toZonedTime(new Date(startTime), SERVER_TIME_ZONE);
-                // Calcular segundos desde ahora hasta que debe dispararse el recordatorio
                 const reminderTargetMs = startLocal.getTime() - rem.normalizedSeconds * 1000;
                 const delayFromNowSeconds = Math.max(0, Math.round((reminderTargetMs - Date.now()) / 1000));
 
@@ -184,7 +185,6 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                 const apikey = primaryInstance.instanceId;
                 const url = `https://${urlevo}/message/sendText/${instanceName}`;
 
-                // Collect all notification numbers (primary + additional contacts)
                 const allPhones: string[] = [];
                 if (user.notificationNumber) allPhones.push(user.notificationNumber);
                 try {
@@ -194,18 +194,18 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                             if (!allPhones.includes(c.phone)) allPhones.push(c.phone);
                         }
                     }
-                } catch { /* non-critical, proceed with primary only */ }
+                } catch { /* non-critical */ }
 
                 if (allPhones.length > 0) {
                     const startLocal = toZonedTime(new Date(startTime), SERVER_TIME_ZONE);
                     const dateLabel = format(selectedDate!, "d 'de' MMMM 'de' yyyy", { locale: es });
                     const hourLabel = format(startLocal, "hh:mm a");
-                    const serviceName = user.services.find((s) => s.id === selectedService)?.name ?? "Asesor\u00eda";
+                    const serviceName = user.services.find((s) => s.id === selectedService)?.name ?? "Asesoría";
 
                     const ownerText = `📅 *Tienes Nueva Cita*:
 
 👤 *Nombre:* ${normalizedClientName}
-📝 *Descripci\u00f3n ${serviceName}:* Para el d\u00eda ${dateLabel} a las ${hourLabel}.
+📝 *Descripción ${serviceName}:* Para el día ${dateLabel} a las ${hourLabel}.
 
 📱 *WhatsApp del usuario:*
 
@@ -246,7 +246,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
             return true;
         } catch (err) {
             console.error("Error en agendamiento:", err);
-            toast.error("Ocurri\u00f3 un error al intentar agendar la cita.");
+            toast.error("Ocurrió un error al intentar agendar la cita.");
             return false;
         } finally {
             setLoading(false);
@@ -254,7 +254,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
     };
 
     const scheduleAndNotify = async () => {
-        if (!user.apiKey || !primaryInstance) return toast.info("Campos incompletos o vac\u00edos");
+        if (!user.apiKey || !primaryInstance) return toast.info("Campos incompletos o vacíos");
         if (!selectedService) return toast.info("Debes seleccionar un servicio");
 
         const normalizedClientName = nameClient.trim();
@@ -272,7 +272,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
 
         const e164 = normalizeToE164(areaCode, phone);
         if (!e164) {
-            toast.error("N\u00famero de WhatsApp inv\u00e1lido. Verifica el pa\u00eds y el n\u00famero.");
+            toast.error("Número de WhatsApp inválido. Verifica el país y el número.");
             return;
         }
 
@@ -280,9 +280,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
 
         try {
             const appointmentCreated = await handleConfirmAppointment();
-            if (!appointmentCreated) {
-                return;
-            }
+            if (!appointmentCreated) return;
 
             const result = await sendMessageWithHistoryAction({
                 instanceName,
@@ -300,12 +298,12 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
 
             if (result.success) toast.success(result.message);
             else {
-                toast.info("No se envi\u00f3 el mensaje de notificaci\u00f3n");
-                console.error(`Error SchedulePageClient line: 232 ${result.message}`);
+                toast.info("No se envió el mensaje de notificación");
+                console.error(`Error SchedulePageClient: ${result.message}`);
             }
         } catch (error) {
-            console.error("Error en notificaci\u00f3n:", error);
-            toast.error("Ocurri\u00f3 un error al intentar notificar la cita.");
+            console.error("Error en notificación:", error);
+            toast.error("Ocurrió un error al intentar notificar la cita.");
         }
     };
 
@@ -326,7 +324,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
     return (
         <>
             <div className="w-full px-4 py-6 overflow-y-auto">
-                <div className={`mx-auto w-full space-y-3 ${step === 1 ? "max-w-2xl" : "max-w-lg"}`}>
+                <div className="mx-auto w-full max-w-lg space-y-3">
                     <Card className="border-muted/50">
                         <CardContent className="p-4">
                             <div className="flex items-center gap-1">
@@ -343,7 +341,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                                             </span>
                                         </div>
                                         {i < stepLabel.length - 1 && (
-                                            <div className="flex-1 h-px bg-border mx-1 min-w-[12px]" />
+                                            <div className="flex-1 h-px bg-border mx-1 min-w-[8px]" />
                                         )}
                                     </div>
                                 ))}
@@ -379,30 +377,34 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                     )}
 
                     {step === 1 && (
-                        <DateHourComponent
-                            setSelectedDate={setSelectedDate}
-                            setSelectedSlot={setSelectedSlot}
-                            setSelectedDateYmd={setSelectedDateYmd}
-                            setStep={setStep}
-                            selectedService={selectedService}
-                            selectedSlot={selectedSlot}
-                            setSlots={setSlots}
-                            timezone={timezone}
-                            serverTimeZone={SERVER_TIME_ZONE}
-                            slots={slots}
+                        <DateComponent
                             selectedDate={selectedDate}
-                            slotDuration={slotDuration}
-                            user={user}
+                            setSelectedDate={setSelectedDate}
+                            setSelectedDateYmd={setSelectedDateYmd}
+                            setSelectedSlot={setSelectedSlot}
+                            setStep={setStep}
                         />
                     )}
 
                     {step === 2 && (
+                        <HourComponent
+                            slots={slots}
+                            loadingSlots={loadingSlots}
+                            selectedDate={selectedDate}
+                            selectedSlot={selectedSlot}
+                            setSelectedSlot={setSelectedSlot}
+                            setStep={setStep}
+                            timezone={timezone}
+                        />
+                    )}
+
+                    {step === 3 && (
                         <ScheduleForm
                             nameClient={nameClient}
                             countries={countries}
                             areaCode={areaCode}
                             phone={phone}
-                            canContinueStep2={canContinueStep2}
+                            canContinueStep2={canContinueStep3}
                             setNameClient={setNameClient}
                             setAreaCode={setAreaCode}
                             setPhone={setPhone}
@@ -451,4 +453,3 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
         </>
     );
 };
-
