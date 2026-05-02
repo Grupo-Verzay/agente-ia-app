@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Header from '@/components/shared/header';
@@ -22,7 +22,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
     setCampaignPage(isCampaignPage);
   }, [isCampaignPage, setCampaignPage]);
 
-  const [search, setSearch] = useState(“”);
+  const [search, setSearch] = useState("");
   const [sortAsc, setSortAsc] = useState(true);
 
   // Schedule view: sorted by DB order (drag-and-drop), filtered by search
@@ -31,7 +31,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
       .filter((r) => r.isSchedule === true)
       .filter((r) => {
         if (!search) return true;
-        const text = `${r.title} ${r.description ?? “”} ${r.pushName ?? “”} ${r.remoteJid ?? “”}`.toLowerCase();
+        const text = `${r.title} ${r.description ?? ""} ${r.pushName ?? ""} ${r.remoteJid ?? ""}`.toLowerCase();
         return text.includes(search.toLowerCase());
       });
   }, [reminders, search]);
@@ -40,7 +40,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
     const getSeconds = (time: string | null) => {
       if (!time) return 0;
       try {
-        const [, secondsStr] = convertToSeconds(time).split(“-”);
+        const [, secondsStr] = convertToSeconds(time).split("-");
         return Number(secondsStr) || 0;
       } catch {
         return 0;
@@ -54,7 +54,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
     });
 
     return sorted.filter((r) => {
-      const fullText = `${r.title} ${r.description ?? “”} ${r.pushName} ${r.remoteJid}`.toLowerCase();
+      const fullText = `${r.title} ${r.description ?? ""} ${r.pushName} ${r.remoteJid}`.toLowerCase();
       return fullText.includes(search.toLowerCase());
     });
   }, [reminders, search, sortAsc]);
