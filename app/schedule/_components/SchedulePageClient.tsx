@@ -146,7 +146,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                 return false;
             }
 
-            const secondsReminders = reminders.map((rem) => ({
+            const secondsReminders = (reminders ?? []).map((rem) => ({
                 ...rem,
                 normalizedSeconds: isNaN(normalizeTimeToSeconds(rem?.time ?? "")) ? 0 : normalizeTimeToSeconds(rem?.time ?? ""),
             }));
