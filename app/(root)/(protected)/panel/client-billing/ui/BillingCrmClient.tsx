@@ -705,7 +705,7 @@ export function BillingCrmClient({
                                     value={globalFilter}
                                     onChange={(e) => setGlobalFilter(e.target.value)}
                                     placeholder="Buscar por nombre, email, empresa, plan…"
-                                    className="h-9 max-w-sm"
+                                    className="h-9 w-64 shrink-0"
                                 />
 
                                 <div className="ml-auto flex items-center gap-1">

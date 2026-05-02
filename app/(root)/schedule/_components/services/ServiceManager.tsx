@@ -374,7 +374,7 @@ function ServiceToolbar({
 }) {
     return (
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="relative w-full sm:w-80">
+            <div className="relative w-64 shrink-0">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                     value={query}

@@ -16,7 +16,7 @@ import {
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, User, Bell, Tag, Clock, X, Search, Sparkles, TrendingUp } from 'lucide-react';
+import { Loader2, RefreshCw, User, Users, Bell, Tag, Clock, X, Search, Sparkles, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getKanbanSessionsAction, type KanbanCard } from '@/actions/crm-kanban-actions';
 import { updateSessionLeadStatus } from '@/actions/session-action';
@@ -272,25 +272,24 @@ function KanbanColumn({
 
     return (
         <div
-            className="flex flex-col min-w-[260px] w-[260px] shrink-0 rounded-xl border-2 overflow-hidden shadow-sm"
+            className="flex flex-col min-w-[260px] w-[260px] shrink-0 rounded-xl border-2 overflow-hidden shadow-sm h-full"
             style={{ borderColor: col.borderColor + '52', backgroundColor: col.borderColor + '0A' }}
         >
             {/* Header */}
-            <div className={cn('px-3 py-2 flex items-center justify-between', col.headerClass)}>
+            <div className={cn('px-3 py-2 flex items-center justify-between shrink-0', col.headerClass)}>
                 <span className="text-white text-sm font-semibold">{col.label}</span>
                 <Badge className="bg-white/20 text-white border-0 text-xs font-medium">
                     {cards.length}
                 </Badge>
             </div>
 
-            {/* Cards area — altura fija ~5 cards, scroll vertical interno */}
+            {/* Cards area — crece con el alto disponible */}
             <div
                 ref={setNodeRef}
                 className={cn(
-                    'p-2 space-y-2 transition-colors overflow-y-auto',
+                    'flex-1 min-h-0 p-2 space-y-2 transition-colors overflow-y-auto',
                     isOver && 'ring-2 ring-inset ring-primary/30 bg-primary/5',
                 )}
-                style={{ height: '350px' }}
             >
                 {cards.map((card) => (
                     <DraggableCard key={card.id} card={card} onScore={onScore} scoring={scoringIds?.has(card.id)} />
@@ -307,7 +306,15 @@ function KanbanColumn({
 
 // ─── Main Board ───────────────────────────────────────────────────────────────
 
-export function KanbanBoard({ selectedScoreRanges = new Set() }: { selectedScoreRanges?: Set<string> }) {
+export function KanbanBoard({
+    selectedScoreRanges = new Set(),
+    onToggleScoreRange,
+    onScoreCountsChange,
+}: {
+    selectedScoreRanges?: Set<string>;
+    onToggleScoreRange?: (key: string) => void;
+    onScoreCountsChange?: (counts: Record<string, number>) => void;
+}) {
     const [cards, setCards] = useState<KanbanCard[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeCard, setActiveCard] = useState<KanbanCard | null>(null);
@@ -324,10 +331,22 @@ export function KanbanBoard({ selectedScoreRanges = new Set() }: { selectedScore
     const loadCards = useCallback(async () => {
         setLoading(true);
         const res = await getKanbanSessionsAction();
-        if (res.success && res.data) setCards(res.data);
-        else toast.error(res.message ?? 'Error al cargar el tablero');
+        if (res.success && res.data) {
+            setCards(res.data);
+            if (onScoreCountsChange) {
+                const counts: Record<string, number> = {};
+                for (const range of SCORE_RANGES) {
+                    counts[range.key] = res.data.filter(
+                        (c) => c.leadScore !== null && c.leadScore !== undefined && c.leadScore >= range.min && c.leadScore <= range.max
+                    ).length;
+                }
+                onScoreCountsChange(counts);
+            }
+        } else {
+            toast.error(res.message ?? 'Error al cargar el tablero');
+        }
         setLoading(false);
-    }, []);
+    }, [onScoreCountsChange]);
 
     useEffect(() => { loadCards(); }, [loadCards]);
 
@@ -446,15 +465,14 @@ export function KanbanBoard({ selectedScoreRanges = new Set() }: { selectedScore
     }
 
     return (
-        <div className="flex flex-col gap-3 min-w-0 w-full">
-            {/* Búsqueda + etiquetas + contador + actualizar */}
-            <div className="flex flex-wrap items-center gap-2">
-                {/* Buscador */}
-                <div className="relative min-w-[200px] flex-1 max-w-xs">
+        <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0 rounded-xl border-2 border-border/70 bg-card/50 p-4 shadow-md">
+            {/* Toolbar: Búsqueda + etiquetas + contador + botones */}
+            <div className="flex items-center gap-2 min-w-0">
+                <div className="relative w-64 shrink-0">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                     <input
                         type="text"
-                        placeholder="Buscar por nombre o teléfono…"
+                        placeholder="Buscar…"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-8 pr-7 py-1.5 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -470,12 +488,9 @@ export function KanbanBoard({ selectedScoreRanges = new Set() }: { selectedScore
                     )}
                 </div>
 
-                {/* Filtro por etiquetas */}
                 {allTags.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
-                        <span className="text-sm font-semibold text-foreground flex items-center gap-1 shrink-0">
-                            <Tag className="h-3.5 w-3.5" /> Etiquetas:
-                        </span>
+                    <div className="flex items-center gap-1.5 overflow-x-auto flex-1 min-w-0 pb-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #e2e8f0' }}>
+                        <Tag className="h-4 w-4 text-amber-500 shrink-0" />
                         {allTags.map((tag) => {
                             const active = selectedTagIds.has(tag.id);
                             return (
@@ -484,12 +499,11 @@ export function KanbanBoard({ selectedScoreRanges = new Set() }: { selectedScore
                                     type="button"
                                     onClick={() => toggleTag(tag.id)}
                                     className={cn(
-                                        'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-all',
-                                        active ? 'shadow-sm' : 'opacity-60 hover:opacity-90',
+                                        'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-all shrink-0 text-foreground',
+                                        active ? 'shadow-sm' : 'opacity-70 hover:opacity-100',
                                     )}
                                     style={tag.color ? {
                                         borderColor: active ? tag.color : tag.color + '60',
-                                        color: tag.color,
                                         backgroundColor: active ? tag.color + '25' : tag.color + '10',
                                     } : undefined}
                                 >
@@ -502,7 +516,7 @@ export function KanbanBoard({ selectedScoreRanges = new Set() }: { selectedScore
                             <button
                                 type="button"
                                 onClick={() => setSelectedTagIds(new Set())}
-                                className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                                className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 shrink-0"
                             >
                                 Limpiar
                             </button>
@@ -510,34 +524,34 @@ export function KanbanBoard({ selectedScoreRanges = new Set() }: { selectedScore
                     </div>
                 )}
 
-                {/* Contador + Actualizar + Puntuar leads */}
                 <div className="flex items-center gap-2 shrink-0 ml-auto">
-                    <span className="text-sm text-muted-foreground">
-                        <span className="font-medium text-foreground">{filteredCards.length}</span>
-                        {(selectedTagIds.size > 0 || searchQuery || selectedScoreRanges.size > 0) ? <span> de {cards.length} contactos</span> : <span> contactos</span>}
-
+                    <span className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
+                        <Users className="h-3.5 w-3.5" />
+                        <span className="font-medium text-foreground">
+                            {(selectedTagIds.size > 0 || searchQuery || selectedScoreRanges.size > 0)
+                                ? `${filteredCards.length}/${cards.length}`
+                                : filteredCards.length}
+                        </span>
                     </span>
+                    <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={loadCards} title="Actualizar">
+                        <RefreshCw className="h-3.5 w-3.5" />
+                    </Button>
                     <Button
-                        variant="outline"
                         size="sm"
                         onClick={handleScoreAll}
                         disabled={scoringAll}
-                        className="gap-1.5 shrink-0"
+                        className="gap-1.5 shrink-0 bg-violet-600 hover:bg-violet-700 text-white border-0"
                     >
                         {scoringAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                         Puntuar leads
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={loadCards} className="gap-1.5 shrink-0">
-                        <RefreshCw className="h-3.5 w-3.5" />
-                        Actualizar
                     </Button>
                 </div>
             </div>
 
             {/* Board */}
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-                <div className="overflow-x-auto pb-1 -mx-1 px-1">
-                    <div className="flex gap-3" style={{ width: 'max-content' }}>
+                <div className="overflow-x-auto w-full flex-1 min-h-0 pb-3">
+                    <div className="flex gap-3 h-full" style={{ width: 'max-content', minWidth: '100%' }}>
                         {COLUMNS.map((col) => (
                             <KanbanColumn key={col.id} col={col} cards={columnCards(col)} onScore={handleScore} scoringIds={scoringIds} />
                         ))}

@@ -76,7 +76,7 @@ export function ExternalClientDataTable({
     <div className="space-y-3">
       {/* ── Toolbar ── */}
       <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-sm">
+        <div className="relative w-64 shrink-0">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             placeholder="Buscar por remoteJid..."

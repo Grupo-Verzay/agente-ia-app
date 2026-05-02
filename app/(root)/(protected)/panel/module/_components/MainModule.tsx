@@ -127,7 +127,7 @@ export const MainModule = () => {
 
             {/* Actions */}
             <div className="flex items-center gap-2">
-                <div className="relative max-w-sm">
+                <div className="relative w-64 shrink-0">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Buscar módulo..."

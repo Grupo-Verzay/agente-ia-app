@@ -40,7 +40,7 @@ export const MainProducts = ({ userId, data, initialFilter = '' }: MainProductsP
     return (
         <div className="p-4 space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="relative w-full sm:max-w-md">
+                <div className="relative w-64 shrink-0">
                     <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Buscar producto..."

@@ -96,7 +96,7 @@ export const DataGrid = <TData, TValue>({
                         onChange={(event) =>
                             table.getColumn("url")?.setFilterValue(event.target.value)
                         }
-                        className="max-w-sm"
+                        className="w-64 shrink-0"
                     />
                     {onCreateClick && (
                         <Button onClick={onCreateClick}>

@@ -75,13 +75,13 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
           </div>
 
           <div className="flex flex-row gap-2 items-center justify-start">
-            <div className="relative w-full sm:w-80">
+            <div className="relative w-64 shrink-0">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar por título, número o nombre..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full md:max-w-sm pl-8"
+                className="w-full pl-8"
               />
             </div>
 

@@ -192,7 +192,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
             placeholder="Buscar por nombre o número..."
             value={search}
             onChange={handleSearchChange}
-            className="w-full sm:max-w-sm text-xs"
+            className="w-64 shrink-0 text-xs"
           />
           <BulkActionsDropdown
             userId={userId}

@@ -89,8 +89,8 @@ export const MainModule = () => {
     return (
         <div className="flex flex-col h-full">
             <div className="sticky top-0 z-1 mb-6">
-                <div className="flex justify-between items-center gap-2">
-                    <div className="relative flex-1">
+                <div className="flex items-center gap-2">
+                    <div className="relative w-64 shrink-0">
                         <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             placeholder="Buscar módulo..."
@@ -99,7 +99,7 @@ export const MainModule = () => {
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
-                    <Button onClick={() => handleOpenModal()}>
+                    <Button onClick={() => handleOpenModal()} className="ml-auto">
                         Nuevo
                     </Button>
                 </div>

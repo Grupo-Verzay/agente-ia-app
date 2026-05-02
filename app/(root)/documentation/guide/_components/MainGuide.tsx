@@ -132,7 +132,7 @@ export function MainGuide({ user }: MainGuideProps) {
         {/* Header y Filtro */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between overflow-hidden">
           <div className="flex flex-1 gap-2 items-center">
-            <div className="relative flex-1">
+            <div className="relative w-64 shrink-0">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar guía..."

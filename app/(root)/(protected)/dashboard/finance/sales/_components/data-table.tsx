@@ -79,7 +79,7 @@ export function DataTable<TData, TValue>({
             value={(searchColumn?.getFilterValue() as string) ?? ''}
             onChange={(event) => searchColumn?.setFilterValue(event.target.value)}
             placeholder={searchPlaceholder}
-            className="h-8 w-[260px] text-sm"
+            className="h-8 w-64 shrink-0 text-sm"
           />
         </div>
 

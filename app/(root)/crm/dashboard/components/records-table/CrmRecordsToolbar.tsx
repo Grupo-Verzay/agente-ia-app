@@ -53,7 +53,7 @@ export function CrmRecordsToolbar({
         <div className="space-y-3">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-                    <div className="relative w-full sm:max-w-sm">
+                    <div className="relative w-64 shrink-0">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={searchValue}

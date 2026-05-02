@@ -95,6 +95,7 @@ export const CrmDashboard = ({
     const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban" | "reportes">(initialView ?? "analiticas");
     const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
     const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreRangeKey>>(new Set());
+    const [scoreCounts, setScoreCounts] = useState<Record<string, number>>({});
     const [reportStats, setReportStats] = useState<ReportStats>({ total: 0, sent: 0, avgLeads: 0, avgConversions: 0 });
 
     const toggleScoreRange = (key: ScoreRangeKey) => {
@@ -386,59 +387,71 @@ export const CrmDashboard = ({
                         </div>
                     )}
 
+
                     {viewMode === "kanban" && (
                         <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-foreground flex items-center gap-1 shrink-0">
-                            <TrendingUp className="h-3.5 w-3.5" />
-                            Puntuación:
-                        </span>
-                        <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
-                            {SCORE_RANGES.map((range) => {
-                                const active = selectedScoreRanges.has(range.key);
-                                return (
-                                    <button
-                                        key={range.key}
-                                        type="button"
-                                        title={`Score ${range.range}`}
-                                        onClick={() => toggleScoreRange(range.key)}
-                                        className="rounded-md px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-1 whitespace-nowrap"
-                                        style={{
-                                            color: active ? range.color : undefined,
-                                            backgroundColor: active ? range.color + "18" : undefined,
-                                            boxShadow: active ? `inset 0 0 0 1px ${range.color}60` : undefined,
-                                        }}
-                                    >
-                                        <span
-                                            className="inline-block w-2 h-2 rounded-full shrink-0"
-                                            style={{ backgroundColor: range.color }}
-                                        />
-                                        {range.label}
-                                        {active && <X className="h-2.5 w-2.5 ml-0.5 opacity-60" />}
-                                    </button>
-                                );
-                            })}
-                        </div>
+                            <TrendingUp className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                            <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
+                                {SCORE_RANGES.map((range) => {
+                                    const active = selectedScoreRanges.has(range.key);
+                                    const count = scoreCounts[range.key] ?? 0;
+                                    return (
+                                        <button
+                                            key={range.key}
+                                            type="button"
+                                            title={`Score ${range.range}`}
+                                            onClick={() => toggleScoreRange(range.key)}
+                                            className="rounded-md px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-1 whitespace-nowrap"
+                                            style={{
+                                                color: active ? range.color : undefined,
+                                                backgroundColor: active ? range.color + "18" : undefined,
+                                                boxShadow: active ? `inset 0 0 0 1px ${range.color}60` : undefined,
+                                            }}
+                                        >
+                                            <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: range.color }} />
+                                            {range.label}
+                                            {count > 0 && (
+                                                <span
+                                                    className="ml-1 text-[10px] font-bold px-1 py-0 rounded-full text-white"
+                                                    style={{ backgroundColor: range.color }}
+                                                >
+                                                    {count}
+                                                </span>
+                                            )}
+                                            {active && <X className="h-2.5 w-2.5 ml-0.5 opacity-60" />}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
 
-                    <div className="ml-auto flex items-center gap-2">
-                        <Button onClick={() => router.push("/crm/rules")}>
-                            <Settings2 className="h-4 w-4" />
-                            Reglas IA CRM
-                        </Button>
-                        <CrmGlobalActionsMenu
-                            userId={userId}
-                            stats={stats}
-                            onDataChanged={onRecordsChanged}
-                        />
-                    </div>
+                    {viewMode === "registros" && (
+                        <div className="ml-auto flex items-center gap-2">
+                            <Button onClick={() => router.push("/crm/rules")}>
+                                <Settings2 className="h-4 w-4" />
+                                Reglas IA CRM
+                            </Button>
+                            <CrmGlobalActionsMenu
+                                userId={userId}
+                                stats={stats}
+                                onDataChanged={onRecordsChanged}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Content */}
                 {viewMode === "reportes" ? (
                     <WeeklyReportsView onStatsLoaded={setReportStats} />
                 ) : viewMode === "kanban" ? (
-                    <KanbanBoard selectedScoreRanges={selectedScoreRanges} />
+                    <div className="flex-1 min-h-0 flex flex-col">
+                        <KanbanBoard
+                            selectedScoreRanges={selectedScoreRanges}
+                            onToggleScoreRange={toggleScoreRange}
+                            onScoreCountsChange={setScoreCounts}
+                        />
+                    </div>
                 ) : viewMode === "registros" ? (
                     <CrmRecordsSection
                         activeTab={activeTab}
