@@ -19,7 +19,7 @@ import { useReminderDialogStore } from "@/stores"
 import { LeadCreateForm } from "../../sessions/_components"
 import { Card } from "@/components/ui/card"
 
-import { SelectMultipleComboBox } from "../../campaigns/_components"
+import { SelectMultipleComboBox, CampaignSegmentPanel } from "../../campaigns/_components"
 
 import { Reminders } from '@prisma/client';
 import { TimeInput } from "@/components/shared/TimeInput"
@@ -41,6 +41,7 @@ export const ReminderForm = ({
     const { selectedReminderId: reminderId, isCampaignPage } = useReminderDialogStore();
     const [createLead, setCreateLead] = useState(false);
     const [countScheduleReminders, setCountScheduleReminders] = useState(0);
+    const [segmentKey, setSegmentKey] = useState(0);
 
     const reminderForm = useForm<formValuesReminderSchema>({
         resolver: zodResolver(reminderSchema),
@@ -98,6 +99,17 @@ export const ReminderForm = ({
         ? initialData.remoteJid.split(',')
         : [];
 
+    // IDs de sesión (para SelectMultipleComboBox que filtra por id.toString())
+    const [campaignInitialIds, setCampaignInitialIds] = useState<string[]>(() =>
+        (leads ?? []).filter(l => initialLeadsJids.includes(l.remoteJid)).map(l => l.id.toString())
+    );
+
+    const handleSegmentApply = (matching: Session[]) => {
+        setValue("remoteJid", matching.map(l => l.remoteJid).join(','), { shouldValidate: true });
+        setValue("pushName", matching.map(l => l.pushName).join(','), { shouldValidate: true });
+        setCampaignInitialIds(matching.map(l => l.id.toString()));
+        setSegmentKey(k => k + 1);
+    };
 
     const initialWorkflowId = initialData?.workflowId;
 
@@ -208,14 +220,23 @@ export const ReminderForm = ({
                         <Input type="number" placeholder="Cada cuántos (días/meses...)" {...register("repeatEvery")} />
 
                         {leads && (isCampaignPage ?
-                            <SelectMultipleComboBox
-                                leads={leads}
-                                onSelect={(leads) => {
-
-                                }}
-                                onLeadCreated={() => setCreateLead(true)}
-                                initialValue={initialLeadsJids}
-                            />
+                            <div className="space-y-2">
+                                <CampaignSegmentPanel
+                                    leads={leads}
+                                    onApply={handleSegmentApply}
+                                />
+                                <SelectMultipleComboBox
+                                    key={segmentKey}
+                                    leads={leads}
+                                    onSelect={(selected) => {
+                                        setValue("remoteJid", selected.map(l => l.remoteJid).join(','), { shouldValidate: true });
+                                        setValue("pushName", selected.map(l => l.pushName).join(','), { shouldValidate: true });
+                                        setCampaignInitialIds(selected.map(l => l.id.toString()));
+                                    }}
+                                    onLeadCreated={() => setCreateLead(true)}
+                                    initialValue={campaignInitialIds}
+                                />
+                            </div>
                             :
                             <SelectComboBox
                                 leads={leads}

@@ -224,10 +224,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 size="icon"
                 className="h-8 w-8 rounded-full hover:bg-muted text-green-600 hover:text-green-700"
                 onClick={handleCall}
-                disabled={calling}
                 title="Llamar por WhatsApp"
               >
-                {calling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
+                <Phone className="h-4 w-4" />
               </Button>
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
