@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
     DndContext,
     DragEndEvent,
@@ -15,7 +16,7 @@ import {
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, User, Bell, Tag, Clock } from 'lucide-react';
+import { Loader2, RefreshCw, User, Bell, Tag, Clock, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getKanbanSessionsAction, type KanbanCard } from '@/actions/crm-kanban-actions';
 import { updateSessionLeadStatus } from '@/actions/session-action';
@@ -119,7 +120,13 @@ function KanbanCardItem({ card, isDragging = false }: { card: KanbanCard; isDrag
                     </div>
                     <div className="min-w-0">
                         <p className="text-sm font-medium truncate leading-tight">{card.pushName}</p>
-                        <p className="text-[11px] text-muted-foreground truncate">{fmtPhone(card.remoteJid)}</p>
+                        <Link
+                            href={`/chats?jid=${encodeURIComponent(card.remoteJid)}`}
+                            className="text-[11px] text-primary hover:underline truncate block"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {fmtPhone(card.remoteJid)}
+                        </Link>
                     </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -202,22 +209,22 @@ function KanbanColumn({
         <div className="flex flex-col min-w-[260px] w-[260px] shrink-0">
             {/* Header */}
             <div className={cn('rounded-t-lg px-3 py-2 flex items-center justify-between', col.headerClass)}>
-                <div className="flex items-center gap-2">
-                    <span className="text-white text-sm font-semibold">{col.label}</span>
-                </div>
+                <span className="text-white text-sm font-semibold">{col.label}</span>
                 <Badge className="bg-white/20 text-white border-0 text-xs font-medium">
                     {cards.length}
                 </Badge>
             </div>
 
-            {/* Cards area */}
+            {/* Cards area — altura fija + scroll vertical interno */}
             <div
                 ref={setNodeRef}
                 className={cn(
-                    'flex-1 rounded-b-lg border-x border-b p-2 space-y-2 min-h-[120px] transition-colors',
+                    'rounded-b-lg border-x border-b p-2 space-y-2 transition-colors',
+                    'overflow-y-auto',
                     col.bgClass,
                     isOver && 'ring-2 ring-inset ring-primary/40',
                 )}
+                style={{ height: 'calc(100vh - 260px)', minHeight: '120px' }}
             >
                 {cards.map((card) => (
                     <DraggableCard key={card.id} card={card} />
@@ -238,6 +245,7 @@ export function KanbanBoard() {
     const [cards, setCards] = useState<KanbanCard[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeCard, setActiveCard] = useState<KanbanCard | null>(null);
+    const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
     const pendingRef = useRef(false);
 
     const sensors = useSensors(
@@ -254,8 +262,33 @@ export function KanbanBoard() {
 
     useEffect(() => { loadCards(); }, [loadCards]);
 
+    // Etiquetas únicas extraídas de todos los cards
+    const allTags = useMemo(() => {
+        const map = new Map<number, { id: number; name: string; color: string | null }>();
+        for (const card of cards) {
+            for (const tag of card.tags) {
+                if (!map.has(tag.id)) map.set(tag.id, tag);
+            }
+        }
+        return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    }, [cards]);
+
+    const toggleTag = (id: number) => {
+        setSelectedTagIds((prev) => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    // Cards filtrados por etiquetas seleccionadas
+    const filteredCards = useMemo(() => {
+        if (selectedTagIds.size === 0) return cards;
+        return cards.filter((c) => c.tags.some((t) => selectedTagIds.has(t.id)));
+    }, [cards, selectedTagIds]);
+
     const handleDragStart = (e: DragStartEvent) => {
-        const card = cards.find((c) => c.id === e.active.id);
+        const card = filteredCards.find((c) => c.id === e.active.id);
         setActiveCard(card ?? null);
     };
 
@@ -281,7 +314,6 @@ export function KanbanBoard() {
         try {
             await updateSessionLeadStatus(card.id, newStatus);
         } catch {
-            // Revert on error
             setCards((prev) => prev.map((c) => c.id === card.id ? { ...c, leadStatus: card.leadStatus, leadStatusUpdatedAt: card.leadStatusUpdatedAt } : c));
             toast.error('No se pudo actualizar el estado del contacto');
         } finally {
@@ -290,7 +322,7 @@ export function KanbanBoard() {
     };
 
     const columnCards = (col: (typeof COLUMNS)[number]) =>
-        cards.filter((c) => columnIdForStatus(c.leadStatus) === col.id);
+        filteredCards.filter((c) => columnIdForStatus(c.leadStatus) === col.id);
 
     if (loading) {
         return (
@@ -301,11 +333,16 @@ export function KanbanBoard() {
     }
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-3">
             {/* Toolbar */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span className="font-medium text-foreground">{cards.length}</span> contactos en total
+                    <span className="font-medium text-foreground">{filteredCards.length}</span>
+                    {selectedTagIds.size > 0 ? (
+                        <span>de {cards.length} contactos</span>
+                    ) : (
+                        <span>contactos en total</span>
+                    )}
                 </div>
                 <Button variant="outline" size="sm" onClick={loadCards} className="gap-2">
                     <RefreshCw className="h-3.5 w-3.5" />
@@ -313,12 +350,56 @@ export function KanbanBoard() {
                 </Button>
             </div>
 
+            {/* Filtro por etiquetas */}
+            {allTags.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Tag className="h-3 w-3" /> Filtrar:
+                    </span>
+                    {allTags.map((tag) => {
+                        const active = selectedTagIds.has(tag.id);
+                        return (
+                            <button
+                                key={tag.id}
+                                type="button"
+                                onClick={() => toggleTag(tag.id)}
+                                className={cn(
+                                    'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-all',
+                                    active
+                                        ? 'shadow-sm'
+                                        : 'opacity-60 hover:opacity-90',
+                                )}
+                                style={tag.color ? {
+                                    borderColor: active ? tag.color : tag.color + '60',
+                                    color: tag.color,
+                                    backgroundColor: active ? tag.color + '25' : tag.color + '10',
+                                } : undefined}
+                            >
+                                {tag.name}
+                                {active && <X className="h-2.5 w-2.5 ml-0.5" />}
+                            </button>
+                        );
+                    })}
+                    {selectedTagIds.size > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => setSelectedTagIds(new Set())}
+                            className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 ml-1"
+                        >
+                            Limpiar filtros
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Board */}
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-                <div className="flex gap-3 overflow-x-auto pb-4">
-                    {COLUMNS.map((col) => (
-                        <KanbanColumn key={col.id} col={col} cards={columnCards(col)} />
-                    ))}
+                <div className="overflow-x-auto overflow-y-hidden pb-1">
+                    <div className="flex gap-3 min-w-max">
+                        {COLUMNS.map((col) => (
+                            <KanbanColumn key={col.id} col={col} cards={columnCards(col)} />
+                        ))}
+                    </div>
                 </div>
 
                 {/* Drag overlay */}

@@ -14,6 +14,7 @@ import {
     TrendingUp,
     Users,
     Wallet,
+    Kanban,
 } from "lucide-react";
 import type { RegistrosFilters } from "@/actions/registro-action";
 import { getAnalyticsDataByUserId, type AnalyticsPeriod } from "@/actions/analytics-action";
@@ -25,6 +26,7 @@ import { CrmGlobalActionsMenu } from "./CrmGlobalActionsMenu";
 import type { DashboardStats } from "./MainDashboard";
 import { CrmRecordsSection } from "./records-table/CrmRecordsSection";
 import { AnalyticsView } from "./AnalyticsView";
+import { KanbanBoard } from "../../kanban/_components/KanbanBoard";
 
 const ANALYTICS_PERIODS: { label: string; value: AnalyticsPeriod }[] = [
     { label: "7 días", value: "7d" },
@@ -76,7 +78,7 @@ export const CrmDashboard = ({
     onScrollRootReady: (el: HTMLDivElement | null) => void;
 }) => {
     const router = useRouter();
-    const [viewMode, setViewMode] = useState<"registros" | "analiticas">("analiticas");
+    const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban">("analiticas");
     const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
 
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -256,6 +258,19 @@ export const CrmDashboard = ({
                             <LayoutList className="h-3.5 w-3.5" />
                             Registros
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode("kanban")}
+                            className={[
+                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                viewMode === "kanban"
+                                    ? "bg-background shadow-sm text-foreground"
+                                    : "text-muted-foreground hover:text-foreground",
+                            ].join(" ")}
+                        >
+                            <Kanban className="h-3.5 w-3.5" />
+                            Kanban
+                        </button>
                     </div>
 
                     <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
@@ -291,7 +306,9 @@ export const CrmDashboard = ({
                 </div>
 
                 {/* Content */}
-                {viewMode === "registros" ? (
+                {viewMode === "kanban" ? (
+                    <KanbanBoard />
+                ) : viewMode === "registros" ? (
                     <CrmRecordsSection
                         activeTab={activeTab}
                         registros={registros}

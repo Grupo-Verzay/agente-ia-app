@@ -214,6 +214,10 @@ const BUILTIN_TYPE_LABELS: Record<ExternalDataBuiltinToolType, string> = {
   listar_servicios_agenda: 'Agenda: servicios',
   consultar_slots_disponibles: 'Agenda: horarios',
   crear_cita: 'Agenda: crear cita',
+  etiquetar_contacto: 'Etiquetar contacto',
+  registrar_nota_seguimiento: 'Nota seguimiento',
+  crear_recordatorio: 'Crear recordatorio',
+  buscar_plantilla: 'Buscar plantilla',
 };
 
 function ToolCard({
