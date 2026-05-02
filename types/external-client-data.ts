@@ -56,13 +56,17 @@ export type ExternalDataBuiltinToolType =
   | 'notificacion_asesor'
   | 'ejecutar_flujos'
   | 'listar_workflows'
-  | 'consultar_datos_cliente'
-  | 'buscar_cliente_por_dato'
   | 'buscar_producto'
   | 'listar_productos'
   | 'listar_servicios_agenda'
   | 'consultar_slots_disponibles'
-  | 'crear_cita';
+  | 'crear_cita'
+  | 'consultar_datos_cliente'
+  | 'buscar_cliente_por_dato'
+  | 'etiquetar_contacto'
+  | 'registrar_nota_seguimiento'
+  | 'crear_recordatorio'
+  | 'buscar_plantilla';
 
 export type ExternalDataQueryToolType = 'auto_inject' | 'search_by_field';
 

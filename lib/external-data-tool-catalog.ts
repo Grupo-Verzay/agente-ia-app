@@ -126,4 +126,48 @@ export const BUILTIN_TOOL_CATALOG: {
       'Permite al agente buscar por cualquier campo del registro externo. Útil cuando el cliente pregunta por datos de un tercero proporcionando su cédula u otro identificador.',
     sortOrder: 9,
   },
+  {
+    toolType: 'etiquetar_contacto',
+    defaultKey: 'etiquetar_contacto',
+    defaultDisplayName: 'Etiquetar contacto',
+    defaultDescription:
+      'Aplica una etiqueta al contacto actual según el contexto de la conversación. Úsala cuando identifiques el estado o interés del cliente: "interesado", "cliente activo", "soporte pendiente", "no interesado", etc.',
+    isCritical: false,
+    helpText:
+      'Crea y asigna etiquetas al contacto automáticamente. Si la etiqueta no existe, se crea. Útil para segmentar contactos desde la conversación.',
+    sortOrder: 10,
+  },
+  {
+    toolType: 'registrar_nota_seguimiento',
+    defaultKey: 'registrar_nota_seguimiento',
+    defaultDisplayName: 'Registrar nota de seguimiento',
+    defaultDescription:
+      'Guarda una nota de seguimiento sobre el contacto actual. Úsala para registrar información relevante de la conversación: acuerdos, compromisos, estado del cliente o cualquier detalle importante para el equipo.',
+    isCritical: false,
+    helpText:
+      'Agrega una nota con marca de tiempo al historial de seguimientos del contacto. Las notas quedan visibles en el panel CRM para el equipo.',
+    sortOrder: 11,
+  },
+  {
+    toolType: 'crear_recordatorio',
+    defaultKey: 'crear_recordatorio',
+    defaultDisplayName: 'Crear recordatorio',
+    defaultDescription:
+      'Programa un recordatorio para hacer seguimiento a este contacto en una fecha y hora específicas. Úsala cuando el cliente pida que lo contacten más tarde o cuando sea necesario retomar la conversación.',
+    isCritical: false,
+    helpText:
+      'Crea un recordatorio vinculado al contacto y a la instancia de WhatsApp. Se puede usar para agendar seguimientos automáticos.',
+    sortOrder: 12,
+  },
+  {
+    toolType: 'buscar_plantilla',
+    defaultKey: 'buscar_plantilla',
+    defaultDisplayName: 'Buscar plantilla de mensaje',
+    defaultDescription:
+      'Busca en el catálogo de plantillas de mensajes predefinidas por nombre, categoría o descripción. Úsala cuando necesites encontrar un texto o respuesta estándar para una situación común.',
+    isCritical: false,
+    helpText:
+      'Permite al agente encontrar plantillas de mensajes configuradas en el sistema. Útil para mantener consistencia en las respuestas frecuentes.',
+    sortOrder: 13,
+  },
 ];
