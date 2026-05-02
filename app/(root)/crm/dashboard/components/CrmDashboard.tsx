@@ -448,7 +448,7 @@ export const CrmDashboard = ({
                     <div className="flex-1 min-h-0 flex flex-col">
                         <KanbanBoard
                             selectedScoreRanges={selectedScoreRanges}
-                            onToggleScoreRange={toggleScoreRange}
+                            onToggleScoreRange={(key) => toggleScoreRange(key as ScoreRangeKey)}
                             onScoreCountsChange={setScoreCounts}
                         />
                     </div>
