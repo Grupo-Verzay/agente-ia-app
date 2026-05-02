@@ -388,7 +388,7 @@ export const CrmDashboard = ({
 
                     {viewMode === "kanban" && (
                         <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground flex items-center gap-1 shrink-0">
+                        <span className="text-sm font-semibold text-foreground flex items-center gap-1 shrink-0">
                             <TrendingUp className="h-3.5 w-3.5" />
                             Puntuación:
                         </span>

@@ -446,7 +446,7 @@ export function KanbanBoard({ selectedScoreRanges = new Set() }: { selectedScore
     }
 
     return (
-        <div className="flex flex-col gap-3 min-w-0 w-full overflow-x-hidden">
+        <div className="flex flex-col gap-3 min-w-0 w-full">
             {/* Búsqueda + etiquetas + contador + actualizar */}
             <div className="flex flex-wrap items-center gap-2">
                 {/* Buscador */}
@@ -473,8 +473,8 @@ export function KanbanBoard({ selectedScoreRanges = new Set() }: { selectedScore
                 {/* Filtro por etiquetas */}
                 {allTags.length > 0 && (
                     <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
-                            <Tag className="h-3 w-3" /> Etiquetas:
+                        <span className="text-sm font-semibold text-foreground flex items-center gap-1 shrink-0">
+                            <Tag className="h-3.5 w-3.5" /> Etiquetas:
                         </span>
                         {allTags.map((tag) => {
                             const active = selectedTagIds.has(tag.id);
@@ -536,8 +536,8 @@ export function KanbanBoard({ selectedScoreRanges = new Set() }: { selectedScore
 
             {/* Board */}
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-                <div className="min-w-0 w-full overflow-x-auto pb-1">
-                    <div className="flex gap-3 w-max">
+                <div className="overflow-x-auto pb-1 -mx-1 px-1">
+                    <div className="flex gap-3" style={{ width: 'max-content' }}>
                         {COLUMNS.map((col) => (
                             <KanbanColumn key={col.id} col={col} cards={columnCards(col)} onScore={handleScore} scoringIds={scoringIds} />
                         ))}
