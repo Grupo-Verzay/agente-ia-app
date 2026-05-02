@@ -269,28 +269,27 @@ export const ReminderForm = ({
                                 />
 
                                 {/* Pausa entre envíos */}
-                                <div className="rounded-lg border border-border bg-muted/10 px-3 py-2.5 space-y-2">
-                                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                                        Pausa entre envíos
-                                    </p>
+                                <div className="rounded-lg border border-border bg-muted/10 px-3 py-2">
                                     <div className="flex items-center gap-2">
-                                        <div className="flex-1 space-y-1">
-                                            <label className="text-[10px] text-muted-foreground">Mínimo (seg)</label>
+                                        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide shrink-0">
+                                            Pausa entre envíos
+                                        </p>
+                                        <div className="flex items-center gap-1.5 flex-1">
+                                            <span className="text-[10px] text-muted-foreground shrink-0">mín</span>
                                             <Input
                                                 type="number"
                                                 min={5} max={600}
-                                                className="h-7 text-xs"
+                                                className="h-7 text-xs w-16"
                                                 {...register("campaignMinDelay")}
                                             />
-                                        </div>
-                                        <div className="flex-1 space-y-1">
-                                            <label className="text-[10px] text-muted-foreground">Máximo (seg)</label>
+                                            <span className="text-[10px] text-muted-foreground shrink-0">máx</span>
                                             <Input
                                                 type="number"
                                                 min={5} max={600}
-                                                className="h-7 text-xs"
+                                                className="h-7 text-xs w-16"
                                                 {...register("campaignMaxDelay")}
                                             />
+                                            <span className="text-[10px] text-muted-foreground shrink-0">seg</span>
                                         </div>
                                     </div>
                                 </div>
