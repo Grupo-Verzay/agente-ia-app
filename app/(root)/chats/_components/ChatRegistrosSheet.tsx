@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import type { Registro, TipoRegistro } from "@prisma/client";
 
 import { getRegistrosBySessionId, deleteRegistro } from "@/actions/registro-action";
 import { getSessionLegacySeguimientos } from "@/actions/seguimientos-actions";
 import { getSessionCrmFollowUps } from "@/actions/crm-follow-up-actions";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -39,7 +39,16 @@ const TIPO_LABELS: Record<TipoRegistro, string> = {
   PRODUCTO: "Productos",
 };
 
-const TAB_BASE = "text-[11px] px-2 py-1 rounded-md font-medium data-[state=active]:shadow-none";
+const NUEVO_TIPO_LABEL: Partial<Record<string, string>> = {
+  SOLICITUD: "Nueva Solicitud",
+  PEDIDO:    "Nuevo Pedido",
+  RECLAMO:   "Nuevo Reclamo",
+  PAGO:      "Nuevo Pago",
+  RESERVA:   "Nueva Reserva",
+  PRODUCTO:  "Nuevo Producto",
+};
+
+const TAB_BASE = "text-xs px-2.5 py-1.5 rounded-md font-medium data-[state=active]:shadow-none";
 
 const TAB_LABELS: Record<string, string> = {
   RESUMEN:      "Resumen",
@@ -157,26 +166,35 @@ export function ChatRegistrosSheet({
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl flex flex-col p-0">
-          <SheetHeader className="px-4 pt-4 pb-2 border-b">
-            <div className="flex items-center justify-between">
-              <SheetTitle className="text-base">
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="w-full max-w-3xl h-[85vh] flex flex-col p-0 gap-0 [&>button]:hidden">
+          <DialogHeader className="px-4 pt-3 pb-3 border-b shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <DialogTitle className="text-base font-semibold">
                 Registros — {sessionPushName ?? whatsapp}
-              </SheetTitle>
-              <Button size="sm" className="h-8" onClick={() => openCreate("SOLICITUD")}>
-                <Plus className="h-4 w-4 mr-1" />
-                Nuevo
-              </Button>
+              </DialogTitle>
+              <div className="flex items-center gap-2 shrink-0">
+                {NUEVO_TIPO_LABEL[activeTab] && (
+                  <Button size="sm" className="h-8 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => openCreate(activeTab as TipoRegistro)}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    {NUEVO_TIPO_LABEL[activeTab]}
+                  </Button>
+                )}
+                <DialogClose asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md border border-border text-foreground hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950 dark:hover:border-red-800 dark:hover:text-red-400">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </DialogClose>
+              </div>
             </div>
-          </SheetHeader>
+          </DialogHeader>
 
           {loading ? (
             <div className="flex flex-col gap-2 p-4">
               {[1, 2, 3].map((n) => <Skeleton key={n} className="h-16 w-full rounded-md" />)}
             </div>
           ) : (
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 px-4 pt-3">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 px-4 pt-3 pb-3">
               <TabsList className="flex gap-1 mb-3 h-auto bg-transparent p-0 w-full justify-between">
                 {(["RESUMEN", ...TIPOS, "FLUJOS", "SEGUIMIENTOS"] as string[]).map((key) => (
                   <TabsTrigger
@@ -195,7 +213,7 @@ export function ChatRegistrosSheet({
                   <div className="flex flex-col gap-3 pb-4">
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                       {TIPOS.map((tipo) => (
-                        <ResumeCard key={tipo} label={TIPO_LABELS[tipo]} value={countByTipo[tipo]} />
+                        <ResumeCard key={tipo} label={TIPO_LABELS[tipo]} value={countByTipo[tipo]} onClick={() => setActiveTab(tipo)} />
                       ))}
                       <button
                         type="button"
@@ -283,8 +301,8 @@ export function ChatRegistrosSheet({
               </TabsContent>
             </Tabs>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       <RegistroUpsertDialog
         open={upsertOpen}

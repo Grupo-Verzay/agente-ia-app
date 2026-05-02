@@ -66,6 +66,16 @@ function EstadoSelect({
     );
 }
 
+const NUEVO_TIPO_LABEL: Record<TipoRegistro, string> = {
+    REPORTE:   "Nuevo Reporte",
+    SOLICITUD: "Nueva Solicitud",
+    PEDIDO:    "Nuevo Pedido",
+    RECLAMO:   "Nuevo Reclamo",
+    PAGO:      "Nuevo Pago",
+    RESERVA:   "Nueva Reserva",
+    PRODUCTO:  "Nuevo Producto",
+};
+
 export const RegistrosTable = ({
     tipo,
     registros,
@@ -84,20 +94,11 @@ export const RegistrosTable = ({
     onStateChange?: () => void;
 }) => {
     return (
-        <div className="flex flex-col gap-2 h-[260px] sm:h-[300px] md:h-[320px]">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-col gap-2 h-full">
+            <div className="flex items-center gap-2">
                 <p className="font-medium">
                     {getTipoLabel(tipo)} ({registros.length})
                 </p>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2"
-                    onClick={() => onNew(tipo)}
-                >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Nuevo {getTipoLabel(tipo).slice(0, -1)}
-                </Button>
             </div>
 
             <ScrollArea className="flex-1 rounded-md border">
@@ -105,10 +106,10 @@ export const RegistrosTable = ({
                     <Table>
                         <TableHeader>
                             <TableRow className="hover:bg-transparent">
-                                <TableHead className="h-8 py-1.5">Fecha</TableHead>
+                                <TableHead className="h-8 py-1.5 w-32">Fecha</TableHead>
                                 <TableHead className="h-8 py-1.5">Detalles</TableHead>
-                                <TableHead className="h-8 py-1.5">Estado</TableHead>
-                                <TableHead className="h-8 py-1.5 text-right">Acciones</TableHead>
+                                <TableHead className="h-8 py-1.5 w-[140px] text-center">Estado</TableHead>
+                                <TableHead className="h-8 py-1.5 w-16 text-center">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
 
@@ -136,17 +137,19 @@ export const RegistrosTable = ({
                                         </span>
                                     </TableCell>
 
-                                    <TableCell className="py-1.5 align-middle">
-                                        <EstadoSelect
-                                            registro={r}
-                                            onUpdated={() => onStateChange?.()}
-                                        />
+                                    <TableCell className="py-1.5 align-middle text-center">
+                                        <div className="flex justify-center">
+                                            <EstadoSelect
+                                                registro={r}
+                                                onUpdated={() => onStateChange?.()}
+                                            />
+                                        </div>
                                     </TableCell>
 
-                                    <TableCell className="py-1.5 align-middle text-right">
+                                    <TableCell className="py-1.5 align-middle text-center">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                                <Button variant="ghost" size="icon" className="h-7 w-7 mx-auto flex">
                                                     <MoreHorizontal className="h-4 w-4" />
                                                 </Button>
                                             </DropdownMenuTrigger>

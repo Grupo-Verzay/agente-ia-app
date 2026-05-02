@@ -489,13 +489,128 @@ export async function deleteRegistro(id: number): Promise<ActionResult<true>> {
     }
 }
 
+const TIPO_REGISTRO_LABEL: Record<TipoRegistro, string> = {
+    SOLICITUD: "solicitud",
+    PEDIDO:    "pedido",
+    RESERVA:   "reserva",
+    RECLAMO:   "reclamo",
+    PAGO:      "pago",
+    PRODUCTO:  "producto",
+    REPORTE:   "reporte",
+};
+
+const TIPO_REGISTRO_EMOJI: Record<TipoRegistro, string> = {
+    SOLICITUD: "📋",
+    PEDIDO:    "📦",
+    RESERVA:   "📅",
+    RECLAMO:   "⚠️",
+    PAGO:      "💳",
+    PRODUCTO:  "🛍️",
+    REPORTE:   "📊",
+};
+
+const ESTADO_MESSAGES: Record<string, (nombre: string, tipo: string, firma: string) => string> = {
+    "Pendiente":    (n, t, f) => `🕐 Hola *${n}*\n\nHemos recibido tu *${t}* y en este momento se encuentra *pendiente de revisión* por nuestro equipo.\n\nPronto te enviaremos una actualización. Si tienes alguna consulta adicional, estamos aquí para ayudarte.\n\nEnviado por *${f}*`,
+    "Procesando":   (n, t, f) => `⚙️ Hola *${n}*\n\nHemos recibido tu *${t}* y nuestro equipo ya está *trabajando en ello*.\n\nTe notificaremos en cuanto tengamos novedades. Gracias por tu paciencia.\n\nEnviado por *${f}*`,
+    "Confirmado":   (n, t, f) => `✅ Hola *${n}*\n\nNos complace informarte que tu *${t}* ha sido *confirmado exitosamente*.\n\nQuedamos a tu disposición para cualquier consulta. ¡Gracias por confiar en nosotros!\n\nEnviado por *${f}*`,
+    "Confirmada":   (n, t, f) => `✅ Hola *${n}*\n\nNos complace informarte que tu *${t}* ha sido *confirmada exitosamente*.\n\nQuedamos a tu disposición para cualquier consulta. ¡Gracias por confiar en nosotros!\n\nEnviado por *${f}*`,
+    "Rechazado":    (n, t, f) => `❌ Hola *${n}*\n\nLamentablemente, tu *${t}* no pudo ser *procesado* en esta oportunidad.\n\nSi deseas más información o explorar otras alternativas, no dudes en comunicarte con nosotros. Estamos para ayudarte.\n\nEnviado por *${f}*`,
+    "Rechazada":    (n, t, f) => `❌ Hola *${n}*\n\nLamentablemente, tu *${t}* no pudo ser *procesada* en esta oportunidad.\n\nSi deseas más información o explorar otras alternativas, no dudes en comunicarte con nosotros. Estamos para ayudarte.\n\nEnviado por *${f}*`,
+    "Despachado":   (n, _, f) => `🚚 Hola *${n}*\n\n¡Buenas noticias! Tu *PEDIDO* 📦 ha sido *despachado* y ya está *en camino* hacia ti.\n\nPronto lo tendrás en tus manos. Si necesitas información adicional sobre el envío, estamos disponibles para ayudarte.\n\nEnviado por *${f}*`,
+    "En tránsito":  (n, _, f) => `📍 Hola *${n}*\n\nTu *PEDIDO* 📦 se encuentra *en tránsito* avanzando hacia su destino.\n\nEstamos monitoreando el envío para asegurarnos de que llegue en perfectas condiciones. ¡Ya falta poco!\n\nEnviado por *${f}*`,
+    "Entregado":    (n, _, f) => `📦 Hola *${n}*\n\n¡Tu *PEDIDO* 📦 ha sido *entregado exitosamente*! 🎉\n\nEsperamos que estés satisfecho con tu compra. Si tienes algún comentario o necesitas asistencia, con gusto te atendemos.\n\nEnviado por *${f}*`,
+    "Solucionado":  (n, _, f) => `✅ Hola *${n}*\n\nNos complace informarte que tu *RECLAMO* ⚠️ ha sido *revisado y solucionado* por nuestro equipo.\n\nLamentamos los inconvenientes ocasionados. Tu satisfacción es nuestra prioridad y estamos aquí para cualquier consulta adicional.\n\nEnviado por *${f}*`,
+    "Cotizado":     (n, _, f) => `💰 Hola *${n}*\n\nTu *PRODUCTO* 🛍️ ha sido *cotizado* y los detalles están listos para ti.\n\nPróximamente recibirás la información completa. Si tienes preguntas sobre la cotización, no dudes en consultarnos.\n\nEnviado por *${f}*`,
+    "Habilitado":   (n, _, f) => `✅ Hola *${n}*\n\nTu *REPORTE* 📊 ha sido *habilitado exitosamente* y ya se encuentra disponible.\n\nSi necesitas asistencia o tienes alguna consulta, estamos a tu disposición.\n\nEnviado por *${f}*`,
+    "Inhabilitado": (n, _, f) => `⛔ Hola *${n}*\n\nTu *REPORTE* 📊 ha sido *inhabilitado temporalmente*.\n\nSi consideras que esto es un error o necesitas más información, comunícate con nosotros y con gusto te atendemos.\n\nEnviado por *${f}*`,
+};
+
+async function sendRegistroEstadoNotification({
+    remoteJid,
+    pushName,
+    tipo,
+    nuevoEstado,
+    company,
+    apiKeyUrl,
+    apiKeyValue,
+    instanceName,
+}: {
+    remoteJid: string;
+    pushName: string;
+    tipo: TipoRegistro;
+    nuevoEstado: string;
+    company: string;
+    apiKeyUrl?: string | null;
+    apiKeyValue?: string | null;
+    instanceName?: string;
+}) {
+    if (!remoteJid || !apiKeyUrl || !apiKeyValue || !instanceName) return;
+
+    const messageFn = ESTADO_MESSAGES[nuevoEstado];
+    if (!messageFn) return;
+
+    const nombre = pushName || "Cliente";
+    const tipoLabel = `${TIPO_REGISTRO_LABEL[tipo].toUpperCase()} ${TIPO_REGISTRO_EMOJI[tipo]}`;
+    const message = messageFn(nombre, tipoLabel, company);
+
+    const { sendMessageWithHistoryAction } = await import("@/actions/chat-history/send-message-with-history-action");
+
+    await sendMessageWithHistoryAction({
+        instanceName,
+        remoteJid,
+        message,
+        url: `https://${apiKeyUrl}/message/sendText/${encodeURIComponent(instanceName)}`,
+        apikey: apiKeyValue,
+        historyType: "notification",
+        additionalKwargs: { source: "RegistroEstadoChange", tipo, nuevoEstado },
+    });
+}
+
 export async function updateRegistroEstado(registroId: number, nuevoEstado: string) {
     try {
-        await ensureAuthorizedRegistroById(registroId);
+        const registro = await db.registro.findUnique({
+            where: { id: registroId },
+            select: {
+                tipo: true,
+                session: {
+                    select: {
+                        userId: true,
+                        remoteJid: true,
+                        pushName: true,
+                        user: {
+                            select: {
+                                company: true,
+                                apiKey: { select: { url: true, key: true } },
+                                instancias: { select: { instanceName: true }, take: 1 },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!registro?.session?.userId) {
+            return { success: false, message: "Registro no encontrado." };
+        }
+
+        await assertUserCanUseApp(registro.session.userId);
+
         await db.registro.update({
             where: { id: registroId },
             data: { estado: nuevoEstado },
         });
+
+        // Notificación WhatsApp al contacto (no bloquea, falla silenciosamente)
+        void sendRegistroEstadoNotification({
+            remoteJid: registro.session.remoteJid,
+            pushName: registro.session.pushName,
+            tipo: registro.tipo,
+            nuevoEstado,
+            company: registro.session.user?.company || "Nuestro equipo",
+            apiKeyUrl: registro.session.user?.apiKey?.url,
+            apiKeyValue: registro.session.user?.apiKey?.key,
+            instanceName: registro.session.user?.instancias[0]?.instanceName,
+        }).catch(() => undefined);
 
         return {
             success: true,

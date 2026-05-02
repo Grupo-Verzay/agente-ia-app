@@ -1033,6 +1033,47 @@ export async function toggleAgentDisabled(userId: string, sessionId: number, age
   }
 }
 
+const LEAD_STATUS_NOTIFICATION_MESSAGES: Partial<Record<LeadStatus, (name: string) => string>> = {
+  FRIO:       (name) => `👋 Hola *${name}*, gracias por contactarnos. Estamos revisando tu consulta y pronto nos comunicaremos contigo.`,
+  TIBIO:      (name) => `👋 Hola *${name}*, queremos mantenernos en contacto y ayudarte. ¿Tienes alguna pregunta sobre nuestros servicios?`,
+  CALIENTE:   (name) => `🔥 Hola *${name}*, tu solicitud ha captado nuestra atención. ¿Podemos conversar hoy sobre cómo podemos ayudarte?`,
+  FINALIZADO: (name) => `✅ Hola *${name}*, ha sido un placer atenderte. Gracias por confiar en nosotros. ¡Hasta la próxima!`,
+};
+
+async function sendLeadStatusNotification({
+  remoteJid,
+  pushName,
+  newStatus,
+  apiKeyUrl,
+  apiKeyValue,
+  instanceName,
+}: {
+  remoteJid: string;
+  pushName: string;
+  newStatus: LeadStatus | null;
+  apiKeyUrl?: string | null;
+  apiKeyValue?: string | null;
+  instanceName?: string;
+}) {
+  if (!newStatus || newStatus === 'DESCARTADO') return;
+  if (!remoteJid || !apiKeyUrl || !apiKeyValue || !instanceName) return;
+
+  const messageFn = LEAD_STATUS_NOTIFICATION_MESSAGES[newStatus];
+  if (!messageFn) return;
+
+  const { sendMessageWithHistoryAction } = await import('@/actions/chat-history/send-message-with-history-action');
+
+  await sendMessageWithHistoryAction({
+    instanceName,
+    remoteJid,
+    message: messageFn(pushName || 'Cliente'),
+    url: `https://${apiKeyUrl}/message/sendText/${encodeURIComponent(instanceName)}`,
+    apikey: apiKeyValue,
+    historyType: 'notification',
+    additionalKwargs: { source: 'LeadStatusChange', newStatus },
+  });
+}
+
 export async function updateSessionLeadStatus(
   sessionId: number,
   leadStatus: LeadStatus | null
@@ -1040,7 +1081,19 @@ export async function updateSessionLeadStatus(
   try {
     const session = await db.session.findUnique({
       where: { id: sessionId },
-      select: { userId: true, remoteJid: true, agentDisabled: true, leadStatus: true },
+      select: {
+        userId: true,
+        remoteJid: true,
+        pushName: true,
+        agentDisabled: true,
+        leadStatus: true,
+        user: {
+          select: {
+            apiKey: { select: { url: true, key: true } },
+            instancias: { select: { instanceName: true }, take: 1 },
+          },
+        },
+      },
     });
     if (!session?.userId) {
       return { success: false, message: 'Sesion no encontrada.' };
@@ -1082,6 +1135,16 @@ export async function updateSessionLeadStatus(
         data: { intentionStatus: 'cancelled', currentNodeId: null },
       });
     }
+
+    // Enviar notificación WhatsApp al contacto (no bloquea, falla silenciosamente)
+    void sendLeadStatusNotification({
+      remoteJid: session.remoteJid,
+      pushName: session.pushName,
+      newStatus: leadStatus,
+      apiKeyUrl: session.user?.apiKey?.url,
+      apiKeyValue: session.user?.apiKey?.key,
+      instanceName: session.user?.instancias[0]?.instanceName,
+    }).catch(() => undefined);
 
     return { success: true, message: 'Estado del lead actualizado correctamente' };
   } catch (error) {

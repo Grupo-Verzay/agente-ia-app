@@ -180,20 +180,20 @@ export function createCrmRecordColumns({
                 </div>
             ),
         },
-        // {
-        //     id: "estado",
-        //     accessorFn: (row) => row.estado ?? "",
-        //     header: ({ column }) => <SortableHeader column={column} label="Estado" />,
-        //     cell: ({ row }) => (
-        //         <div className="flex justify-center">
-        //             <CrmRecordStatusCell
-        //                 registro={row.original}
-        //                 disabled={isUpdatingRegistros}
-        //                 onChangeEstado={onChangeEstado}
-        //             />
-        //         </div>
-        //     ),
-        // },
+        {
+            id: "estado",
+            accessorFn: (row) => row.estado ?? "",
+            header: ({ column }) => <SortableHeader column={column} label="Estado" />,
+            cell: ({ row }) => (
+                <div className="flex justify-center">
+                    <CrmRecordStatusCell
+                        registro={row.original}
+                        disabled={isUpdatingRegistros}
+                        onChangeEstado={onChangeEstado}
+                    />
+                </div>
+            ),
+        },
         {
             id: "actions",
             enableSorting: false,
