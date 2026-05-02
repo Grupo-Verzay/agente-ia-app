@@ -327,19 +327,21 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                 <div className="mx-auto w-full max-w-lg space-y-3">
                     <Card className="border-muted/50">
                         <CardContent className="p-4">
-                            <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1">
                                 {stepLabel.map((s, i) => (
-                                    <div key={i} className="flex items-center gap-2 flex-1">
-                                        <div
-                                            className={`h-8 w-8 shrink-0 rounded-full grid place-items-center text-sm shadow ${i <= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-                                        >
-                                            {s.icon}
+                                    <div key={i} className="contents">
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <div
+                                                className={`h-8 w-8 shrink-0 rounded-full grid place-items-center text-sm shadow ${i <= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+                                            >
+                                                {s.icon}
+                                            </div>
+                                            <span className={`hidden sm:block text-sm whitespace-nowrap ${i === step ? "font-semibold" : "text-muted-foreground"}`}>
+                                                {s.label}
+                                            </span>
                                         </div>
-                                        <span className={`hidden sm:block text-sm truncate ${i === step ? "font-semibold" : "text-muted-foreground"}`}>
-                                            {s.label}
-                                        </span>
                                         {i < stepLabel.length - 1 && (
-                                            <div className="hidden sm:block flex-1 h-px bg-border mx-1" />
+                                            <div className="flex-1 h-px bg-border mx-1 min-w-[12px]" />
                                         )}
                                     </div>
                                 ))}
