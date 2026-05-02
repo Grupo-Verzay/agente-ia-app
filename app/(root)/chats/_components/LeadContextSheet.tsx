@@ -93,20 +93,16 @@ export function LeadContextSheet({ session, onScoreUpdated }: LeadContextSheetPr
                 <Button
                     type="button"
                     variant="outline"
-                    size="sm"
-                    className="gap-1.5 h-8 text-xs"
-                    title="Ver contexto del lead"
+                    size="icon"
+                    className="h-7 w-7"
+                    title={localScore !== null ? `Score: ${localScore}/100` : 'Ver contexto del lead'}
                 >
-                    <Brain className="h-3.5 w-3.5" />
                     {localScore !== null ? (
-                        <span
-                            className="font-bold"
-                            style={{ color: scoreColor(localScore) }}
-                        >
+                        <span className="text-[10px] font-bold leading-none" style={{ color: scoreColor(localScore) }}>
                             {localScore}
                         </span>
                     ) : (
-                        'Contexto'
+                        <Brain className="h-3.5 w-3.5" />
                     )}
                 </Button>
             </SheetTrigger>

@@ -89,13 +89,12 @@ export function SintesisEditDialog({ sessionId, onUpdated }: SintesisEditDialogP
     <>
       <Button
         variant="outline"
-        size="sm"
+        size="icon"
         onClick={handleOpen}
-        className="h-7 gap-1.5 text-xs px-2 border-indigo-300 bg-indigo-100 text-indigo-800 hover:bg-indigo-200 hover:text-indigo-900"
+        className="h-7 w-7 border-indigo-300 bg-indigo-100 text-indigo-800 hover:bg-indigo-200 hover:text-indigo-900"
         title="Ver/editar síntesis del lead"
       >
         <FileText className="h-3.5 w-3.5" />
-        Síntesis
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>

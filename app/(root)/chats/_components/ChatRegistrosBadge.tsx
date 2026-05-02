@@ -67,20 +67,15 @@ export function ChatRegistrosBadge({
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-7 items-center focus:outline-none"
+            title="Registros del lead"
+            className="relative inline-flex h-7 w-7 items-center justify-center rounded-md border border-teal-300 bg-teal-100 text-teal-800 hover:bg-teal-200 focus:outline-none transition-colors"
           >
-            <Badge
-              variant="outline"
-              className="h-7 gap-1.5 rounded-md px-2 text-xs font-medium border-teal-300 bg-teal-100 text-teal-800 hover:bg-teal-200 cursor-pointer"
-            >
-              <Plus className="h-3 w-3" />
-              Registros
-              {total > 0 && (
-                <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-teal-200 px-1 text-[10px] font-bold leading-none text-teal-900">
-                  {total}
-                </span>
-              )}
-            </Badge>
+            <Plus className="h-3.5 w-3.5" />
+            {total > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-teal-600 px-1 text-[9px] font-bold leading-none text-white">
+                {total}
+              </span>
+            )}
           </button>
         </PopoverTrigger>
 
