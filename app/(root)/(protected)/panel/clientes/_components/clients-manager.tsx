@@ -103,8 +103,10 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
             aiModelId: null,
             defaultAiModelId: null,
             defaultProviderId: null,
-            tokenVersion: 0
-        });
+            tokenVersion: 0,
+            enableVoiceResponses: false,
+            voiceId: 'nova',
+        } as any);
 
         if (result.success) {
             if (result.data?.id && apiUrl) {

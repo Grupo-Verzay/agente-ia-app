@@ -266,14 +266,14 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
 
     const [activeTab, setActiveTab] = useState('conexion');
     const [showMoreTabs, setShowMoreTabs] = useState(false);
+    const [voiceEnabled, setVoiceEnabled] = useState<boolean>(!!(user as any)?.enableVoiceResponses);
+    const [voiceId, setVoiceId] = useState<string>((user as any)?.voiceId ?? 'nova');
+    const [savingVoice, setSavingVoice] = useState(false);
 
     if (!user) return null;
 
     const isMuted = user.muteAgentResponses ?? false;
     const isReseller = user.role === Role.reseller;
-    const [voiceEnabled, setVoiceEnabled] = useState<boolean>(!!(user as any).enableVoiceResponses);
-    const [voiceId, setVoiceId] = useState<string>((user as any).voiceId ?? 'nova');
-    const [savingVoice, setSavingVoice] = useState(false);
 
     const handleVoiceSave = async (enabled: boolean, voice: string) => {
         setSavingVoice(true);
