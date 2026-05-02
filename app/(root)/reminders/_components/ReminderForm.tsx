@@ -13,6 +13,16 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { DateTimePicker, SelectComboBox, SelectWorkflowBox } from "@/components/custom"
 import { createReminder, getRemindersByUserId, updateReminder } from "@/actions/reminders-actions"
 import { useReminderDialogStore } from "@/stores"
@@ -42,6 +52,8 @@ export const ReminderForm = ({
     const [createLead, setCreateLead] = useState(false);
     const [countScheduleReminders, setCountScheduleReminders] = useState(0);
     const [segmentKey, setSegmentKey] = useState(0);
+    const [showCampaignWarning, setShowCampaignWarning] = useState(false);
+    const pendingPayload = useRef<formValuesReminderSchema | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const insertVariable = (variable: string) => {
@@ -165,8 +177,19 @@ export const ReminderForm = ({
 
     const onSubmit = (payload: formValuesReminderSchema) => {
         if (countScheduleReminders >= 10) return toast.info('No se pueden crear más de 10 recordatorios en el módulo de agendamiento.');
+        // Campañas: mostrar advertencia antes de confirmar
+        if (isCampaignPage && !isEdit) {
+            pendingPayload.current = payload;
+            setShowCampaignWarning(true);
+            return;
+        }
         mutation.mutate(payload);
-    }
+    };
+
+    const handleConfirmCampaign = () => {
+        if (pendingPayload.current) mutation.mutate(pendingPayload.current);
+        setShowCampaignWarning(false);
+    };
 
     const onError = (errors: typeof reminderForm.formState.errors) => {
         const messages = Object.values(errors).map(err => err?.message).filter(Boolean)
@@ -344,6 +367,40 @@ export const ReminderForm = ({
                     />
                 </Card>
             )}
+
+            {/* Advertencia de campaña */}
+            <AlertDialog open={showCampaignWarning} onOpenChange={setShowCampaignWarning}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                            ⚠️ Riesgo de bloqueo en WhatsApp
+                        </AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                            <div className="space-y-3 text-sm text-foreground/80">
+                                <p>
+                                    El envío masivo de mensajes puede violar los <strong>Términos de Servicio de WhatsApp</strong> y provocar la <strong>suspensión o baneo permanente</strong> de tu número.
+                                </p>
+                                <ul className="space-y-1.5 text-xs list-none">
+                                    <li>✅ Envía solo a contactos que te han escrito antes</li>
+                                    <li>✅ Usa el delay entre mensajes para no parecer un bot</li>
+                                    <li>✅ Personaliza cada mensaje con las variables disponibles</li>
+                                    <li>❌ Evita listas frías o contactos que no te conocen</li>
+                                    <li>❌ No envíes el mismo mensaje idéntico a muchos contactos</li>
+                                </ul>
+                                <p className="text-xs text-muted-foreground">
+                                    Al confirmar, aceptas que el uso de esta función es bajo tu propia responsabilidad.
+                                </p>
+                            </div>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmCampaign}>
+                            Entiendo los riesgos, programar campaña
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }
