@@ -35,9 +35,9 @@ import {
     subtractSecondsFromTime,
     toRemoteJid,
 } from "../helpers";
-import { CalendarIcon, Clock } from "lucide-react";
+import { CalendarIcon, Clock, ScrollText } from "lucide-react";
 import { es } from "date-fns/locale";
-import { DateHourComponent, ServiceComponent } from "./steps";
+import { DateHourComponent, ScheduleForm, ServiceComponent } from "./steps";
 import { SummaryItem } from "./";
 
 export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInterface) => {
@@ -45,6 +45,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
     const stepLabel = [
         { label: "Servicio", icon: <Clock className="h-4 w-4" /> },
         { label: "Fecha y hora", icon: <CalendarIcon className="h-4 w-4" /> },
+        { label: "Tus datos", icon: <ScrollText className="h-4 w-4" /> },
     ];
 
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -391,10 +392,20 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                             phone={phone}
                             areaCode={areaCode}
                             nameClient={nameClient}
+                        />
+                    )}
+
+                    {step === 2 && (
+                        <ScheduleForm
+                            nameClient={nameClient}
+                            countries={countries}
+                            areaCode={areaCode}
+                            phone={phone}
+                            canContinueStep2={canContinueStep2}
                             setNameClient={setNameClient}
                             setAreaCode={setAreaCode}
                             setPhone={setPhone}
-                            countries={countries}
+                            setStep={setStep}
                             onContinue={() => setOpenDialog(true)}
                         />
                     )}

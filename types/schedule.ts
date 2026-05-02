@@ -48,15 +48,10 @@ export interface DateHourInterface {
     slotDuration: number;
     user: UserWithApiKeys;
 
-    // datos del cliente (fusionados desde ScheduleForm)
+    // solo para validaciones internas (no se muestran en este paso)
     phone: string;
     areaCode: string;
     nameClient: string;
-    setNameClient: (name: string) => void;
-    setAreaCode: (code: string) => void;
-    setPhone: (phone: string) => void;
-    countries?: Country[];
-    onContinue: () => void;
 }
 
 
