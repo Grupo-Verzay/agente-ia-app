@@ -93,7 +93,7 @@ export const UpdateMeetingDuration = ({
                 </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5 max-w-md">
+            <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-1.5">
                     <label htmlFor="duration" className="flex items-center gap-1.5 text-sm font-medium text-foreground">
                         <Clock className="h-3.5 w-3.5 text-muted-foreground" />
