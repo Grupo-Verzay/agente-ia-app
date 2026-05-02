@@ -16,7 +16,7 @@ import {
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, User, Bell, Tag, Clock, X } from 'lucide-react';
+import { Loader2, RefreshCw, User, Bell, Tag, Clock, X, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getKanbanSessionsAction, type KanbanCard } from '@/actions/crm-kanban-actions';
 import { updateSessionLeadStatus } from '@/actions/session-action';
@@ -31,7 +31,7 @@ const COLUMNS: {
     label: string;
     status: LeadStatus | null;
     headerClass: string;
-    bgClass: string;
+    borderColor: string;
     dotClass: string;
 }[] = [
     {
@@ -39,7 +39,7 @@ const COLUMNS: {
         label: 'Sin clasificar',
         status: null,
         headerClass: 'bg-slate-500',
-        bgClass: 'bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-700',
+        borderColor: '#64748B',
         dotClass: 'bg-slate-400',
     },
     {
@@ -47,7 +47,7 @@ const COLUMNS: {
         label: 'Frío',
         status: 'FRIO',
         headerClass: 'bg-blue-500',
-        bgClass: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800',
+        borderColor: '#3B82F6',
         dotClass: 'bg-blue-500',
     },
     {
@@ -55,7 +55,7 @@ const COLUMNS: {
         label: 'Tibio',
         status: 'TIBIO',
         headerClass: 'bg-amber-500',
-        bgClass: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800',
+        borderColor: '#F59E0B',
         dotClass: 'bg-amber-500',
     },
     {
@@ -63,7 +63,7 @@ const COLUMNS: {
         label: 'Caliente',
         status: 'CALIENTE',
         headerClass: 'bg-red-500',
-        bgClass: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800',
+        borderColor: '#EF4444',
         dotClass: 'bg-red-500',
     },
     {
@@ -71,7 +71,7 @@ const COLUMNS: {
         label: 'Finalizado',
         status: 'FINALIZADO',
         headerClass: 'bg-green-600',
-        bgClass: 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800',
+        borderColor: '#16A34A',
         dotClass: 'bg-green-500',
     },
     {
@@ -79,7 +79,7 @@ const COLUMNS: {
         label: 'Descartado',
         status: 'DESCARTADO',
         headerClass: 'bg-gray-500',
-        bgClass: 'bg-gray-50 dark:bg-gray-900/30 border-gray-200 dark:border-gray-700',
+        borderColor: '#6B7280',
         dotClass: 'bg-gray-400',
     },
 ];
@@ -206,23 +206,24 @@ function KanbanColumn({
     const { setNodeRef, isOver } = useDroppable({ id: col.id });
 
     return (
-        <div className="flex flex-col min-w-[260px] w-[260px] shrink-0">
+        <div
+            className="flex flex-col min-w-[260px] w-[260px] shrink-0 rounded-xl border-2 overflow-hidden shadow-sm"
+            style={{ borderColor: col.borderColor + '52', backgroundColor: col.borderColor + '0A' }}
+        >
             {/* Header */}
-            <div className={cn('rounded-t-lg px-3 py-2 flex items-center justify-between', col.headerClass)}>
+            <div className={cn('px-3 py-2 flex items-center justify-between', col.headerClass)}>
                 <span className="text-white text-sm font-semibold">{col.label}</span>
                 <Badge className="bg-white/20 text-white border-0 text-xs font-medium">
                     {cards.length}
                 </Badge>
             </div>
 
-            {/* Cards area — altura fija + scroll vertical interno */}
+            {/* Cards area */}
             <div
                 ref={setNodeRef}
                 className={cn(
-                    'rounded-b-lg border-x border-b p-2 space-y-2 transition-colors',
-                    'overflow-y-auto',
-                    col.bgClass,
-                    isOver && 'ring-2 ring-inset ring-primary/40',
+                    'p-2 space-y-2 transition-colors overflow-y-auto flex-1',
+                    isOver && 'ring-2 ring-inset ring-primary/30 bg-primary/5',
                 )}
                 style={{ height: 'calc(100vh - 260px)', minHeight: '120px' }}
             >
@@ -230,7 +231,7 @@ function KanbanColumn({
                     <DraggableCard key={card.id} card={card} />
                 ))}
                 {cards.length === 0 && (
-                    <div className="flex items-center justify-center h-20 text-xs text-muted-foreground/50">
+                    <div className="flex items-center justify-center h-20 text-xs text-muted-foreground/40">
                         Sin contactos
                     </div>
                 )}
@@ -246,6 +247,7 @@ export function KanbanBoard() {
     const [loading, setLoading] = useState(true);
     const [activeCard, setActiveCard] = useState<KanbanCard | null>(null);
     const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
+    const [searchQuery, setSearchQuery] = useState('');
     const pendingRef = useRef(false);
 
     const sensors = useSensors(
@@ -281,11 +283,21 @@ export function KanbanBoard() {
         });
     };
 
-    // Cards filtrados por etiquetas seleccionadas
+    // Cards filtrados por etiquetas y búsqueda
     const filteredCards = useMemo(() => {
-        if (selectedTagIds.size === 0) return cards;
-        return cards.filter((c) => c.tags.some((t) => selectedTagIds.has(t.id)));
-    }, [cards, selectedTagIds]);
+        let result = cards;
+        if (selectedTagIds.size > 0) {
+            result = result.filter((c) => c.tags.some((t) => selectedTagIds.has(t.id)));
+        }
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase().trim();
+            result = result.filter((c) =>
+                (c.pushName ?? '').toLowerCase().includes(q) ||
+                c.remoteJid.toLowerCase().includes(q)
+            );
+        }
+        return result;
+    }, [cards, selectedTagIds, searchQuery]);
 
     const handleDragStart = (e: DragStartEvent) => {
         const card = filteredCards.find((c) => c.id === e.active.id);
@@ -334,63 +346,101 @@ export function KanbanBoard() {
 
     return (
         <div className="space-y-3">
-            {/* Toolbar */}
-            <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span className="font-medium text-foreground">{filteredCards.length}</span>
-                    {selectedTagIds.size > 0 ? (
-                        <span>de {cards.length} contactos</span>
-                    ) : (
-                        <span>contactos en total</span>
-                    )}
-                </div>
-                <Button variant="outline" size="sm" onClick={loadCards} className="gap-2">
+            {/* Fila 1: Pills de estado + botón actualizar */}
+            <div className="flex flex-wrap items-center gap-1.5">
+                {COLUMNS.map((col) => {
+                    const count = filteredCards.filter((c) => columnIdForStatus(c.leadStatus) === col.id).length;
+                    if (col.id === 'SIN_CLASIFICAR' && count === 0) return null;
+                    return (
+                        <span
+                            key={col.id}
+                            className="inline-flex items-center gap-1.5 rounded-full border-2 px-2.5 py-0.5 text-xs font-semibold"
+                            style={{
+                                borderColor: col.borderColor + '80',
+                                color: col.borderColor,
+                                backgroundColor: col.borderColor + '15',
+                            }}
+                        >
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: col.borderColor }} />
+                            {col.label} ({count})
+                        </span>
+                    );
+                })}
+                <Button variant="outline" size="sm" onClick={loadCards} className="gap-1.5 ml-auto shrink-0">
                     <RefreshCw className="h-3.5 w-3.5" />
                     Actualizar
                 </Button>
             </div>
 
-            {/* Filtro por etiquetas */}
-            {allTags.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Tag className="h-3 w-3" /> Filtrar:
-                    </span>
-                    {allTags.map((tag) => {
-                        const active = selectedTagIds.has(tag.id);
-                        return (
-                            <button
-                                key={tag.id}
-                                type="button"
-                                onClick={() => toggleTag(tag.id)}
-                                className={cn(
-                                    'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-all',
-                                    active
-                                        ? 'shadow-sm'
-                                        : 'opacity-60 hover:opacity-90',
-                                )}
-                                style={tag.color ? {
-                                    borderColor: active ? tag.color : tag.color + '60',
-                                    color: tag.color,
-                                    backgroundColor: active ? tag.color + '25' : tag.color + '10',
-                                } : undefined}
-                            >
-                                {tag.name}
-                                {active && <X className="h-2.5 w-2.5 ml-0.5" />}
-                            </button>
-                        );
-                    })}
-                    {selectedTagIds.size > 0 && (
+            {/* Fila 2: Búsqueda + etiquetas + contador */}
+            <div className="flex flex-wrap items-center gap-2">
+                {/* Buscador */}
+                <div className="relative min-w-[200px] flex-1 max-w-xs">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                    <input
+                        type="text"
+                        placeholder="Buscar por nombre o teléfono…"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-8 pr-7 py-1.5 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    {searchQuery && (
                         <button
                             type="button"
-                            onClick={() => setSelectedTagIds(new Set())}
-                            className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 ml-1"
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         >
-                            Limpiar filtros
+                            <X className="h-3 w-3" />
                         </button>
                     )}
                 </div>
-            )}
+
+                {/* Filtro por etiquetas */}
+                {allTags.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+                        <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
+                            <Tag className="h-3 w-3" /> Etiquetas:
+                        </span>
+                        {allTags.map((tag) => {
+                            const active = selectedTagIds.has(tag.id);
+                            return (
+                                <button
+                                    key={tag.id}
+                                    type="button"
+                                    onClick={() => toggleTag(tag.id)}
+                                    className={cn(
+                                        'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-all',
+                                        active ? 'shadow-sm' : 'opacity-60 hover:opacity-90',
+                                    )}
+                                    style={tag.color ? {
+                                        borderColor: active ? tag.color : tag.color + '60',
+                                        color: tag.color,
+                                        backgroundColor: active ? tag.color + '25' : tag.color + '10',
+                                    } : undefined}
+                                >
+                                    {tag.name}
+                                    {active && <X className="h-2.5 w-2.5 ml-0.5" />}
+                                </button>
+                            );
+                        })}
+                        {selectedTagIds.size > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => setSelectedTagIds(new Set())}
+                                className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                            >
+                                Limpiar
+                            </button>
+                        )}
+                    </div>
+                )}
+
+                {/* Contador */}
+                <div className="flex items-center gap-1 text-sm text-muted-foreground shrink-0 ml-auto">
+                    <span className="font-medium text-foreground">{filteredCards.length}</span>
+                    {(selectedTagIds.size > 0 || searchQuery) ? <span>de {cards.length} contactos</span> : <span>contactos</span>}
+                </div>
+            </div>
 
             {/* Board */}
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>

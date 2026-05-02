@@ -105,7 +105,7 @@ export const CrmDashboard = ({
     };
 
     const { data: analyticsData, isLoading: analyticsLoading } = useSWR(
-        viewMode === "analiticas" ? ["crm-analytics", userId, period] : null,
+        viewMode !== "registros" ? ["crm-analytics", userId, viewMode === "kanban" ? "all" : period] : null,
         ([, uid, p]) => getAnalyticsDataByUserId(uid, p as AnalyticsPeriod)
     );
     const a = analyticsData?.success ? analyticsData.data : null;
@@ -184,6 +184,45 @@ export const CrmDashboard = ({
                                     value={stats?.crmFollowUps.sent ?? 0}
                                     helper="Contactos trabajados por estado"
                                     color={CRM_METRIC_COLORS.crmFollowUpsEnviados}
+                                />
+                            </div>
+                        </>
+                    ) : viewMode === "kanban" ? (
+                        <>
+                            <div className="flex-1">
+                                <MetricCard
+                                    icon={<Users className="h-4 w-4" />}
+                                    label="Frío"
+                                    value={analyticsLoading ? "…" : (a?.leadStatusCounts.FRIO ?? 0)}
+                                    helper="Leads en etapa fría"
+                                    color="#3B82F6"
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <MetricCard
+                                    icon={<Activity className="h-4 w-4" />}
+                                    label="Tibio"
+                                    value={analyticsLoading ? "…" : (a?.leadStatusCounts.TIBIO ?? 0)}
+                                    helper="Leads en etapa tibia"
+                                    color="#F59E0B"
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <MetricCard
+                                    icon={<TrendingUp className="h-4 w-4" />}
+                                    label="Caliente"
+                                    value={analyticsLoading ? "…" : (a?.leadStatusCounts.CALIENTE ?? 0)}
+                                    helper="Leads en etapa caliente"
+                                    color="#EF4444"
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <MetricCard
+                                    icon={<CheckCheck className="h-4 w-4" />}
+                                    label="Finalizado"
+                                    value={analyticsLoading ? "…" : (a?.leadStatusCounts.FINALIZADO ?? 0)}
+                                    helper={`${a?.leadStatusCounts.DESCARTADO ?? 0} descartados`}
+                                    color="#22C55E"
                                 />
                             </div>
                         </>
@@ -273,23 +312,25 @@ export const CrmDashboard = ({
                         </button>
                     </div>
 
-                    <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
-                        {ANALYTICS_PERIODS.map((p) => (
-                            <button
-                                key={p.value}
-                                type="button"
-                                onClick={() => applyPeriod(p.value)}
-                                className={[
-                                    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                                    period === p.value
-                                        ? "bg-background shadow-sm text-foreground"
-                                        : "text-muted-foreground hover:text-foreground",
-                                ].join(" ")}
-                            >
-                                {p.label}
-                            </button>
-                        ))}
-                    </div>
+                    {viewMode !== "kanban" && (
+                        <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
+                            {ANALYTICS_PERIODS.map((p) => (
+                                <button
+                                    key={p.value}
+                                    type="button"
+                                    onClick={() => applyPeriod(p.value)}
+                                    className={[
+                                        "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                        period === p.value
+                                            ? "bg-background shadow-sm text-foreground"
+                                            : "text-muted-foreground hover:text-foreground",
+                                    ].join(" ")}
+                                >
+                                    {p.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
 
                     <div className="ml-auto flex items-center gap-2">
                         <span className="text-sm font-medium">Reglas IA del CRM</span>
