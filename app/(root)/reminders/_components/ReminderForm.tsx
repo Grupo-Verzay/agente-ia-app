@@ -395,8 +395,8 @@ export const ReminderForm = ({
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleConfirmCampaign}>
-                            Entiendo los riesgos, programar campaña
+                        <AlertDialogAction onClick={handleConfirmCampaign} className="bg-red-600 hover:bg-red-700 text-white">
+                            Continuar
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
