@@ -63,6 +63,7 @@ export const MainDashboard = ({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingMoreRef = useRef(false);
   const ioRef = useRef<IntersectionObserver | null>(null);
+  const hasLoadedOnce = useRef(false);
 
   const getKey = (pageIndex: number, previousPageData: RegistroWithSession[] | null) => {
     if (previousPageData && previousPageData.length < PAGE_SIZE) return null;
@@ -227,7 +228,9 @@ export const MainDashboard = ({
     await handleRecordsChanged();
   }, [handleRecordsChanged]);
 
-  if (isLoading && size === 1) {
+  if (!isLoading && data) hasLoadedOnce.current = true;
+
+  if (isLoading && size === 1 && !hasLoadedOnce.current) {
     return (
       <LoadingProgress
         fullscreen

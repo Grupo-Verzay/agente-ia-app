@@ -47,12 +47,12 @@ export function CrmRecordsDataTable({
     const visibleColumnCount = table.getVisibleFlatColumns().length;
 
     return (
-        <div className="flex h-full min-w-0 flex-col gap-2">
-            <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex h-full flex-col gap-2">
+            <div className="flex-1 overflow-x-auto">
                 <div className="grid grid-cols-1 gap-4">
                     <div
                         ref={scrollContainerRef}
-                        className="h-[420px] min-w-0 overflow-auto rounded-xl border border-border/70 bg-background lg:h-[540px]"
+                        className="h-[420px] overflow-auto rounded-xl border border-border/70 bg-background lg:h-[540px]"
                     >
                         <div className="min-w-max">
                             <table className="w-max border-separate border-spacing-0 text-sm">

@@ -9,6 +9,7 @@ import { getSessionLegacySeguimientos } from "@/actions/seguimientos-actions";
 import { getSessionCrmFollowUps } from "@/actions/crm-follow-up-actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -174,12 +175,28 @@ export function ChatRegistrosSheet({
                 Registros — {sessionPushName ?? whatsapp}
               </DialogTitle>
               <div className="flex items-center gap-2 shrink-0">
-                {NUEVO_TIPO_LABEL[activeTab] && (
+                {activeTab === "RESUMEN" ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
+                        <Plus className="h-4 w-4 mr-1" />
+                        Nuevo Registro
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {TIPOS.map((tipo) => (
+                        <DropdownMenuItem key={tipo} onClick={() => openCreate(tipo)}>
+                          {NUEVO_TIPO_LABEL[tipo]}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : NUEVO_TIPO_LABEL[activeTab] ? (
                   <Button size="sm" className="h-8 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => openCreate(activeTab as TipoRegistro)}>
                     <Plus className="h-4 w-4 mr-1" />
                     {NUEVO_TIPO_LABEL[activeTab]}
                   </Button>
-                )}
+                ) : null}
                 <DialogClose asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md border border-border text-foreground hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950 dark:hover:border-red-800 dark:hover:text-red-400">
                     <X className="h-4 w-4" />
