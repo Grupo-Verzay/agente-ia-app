@@ -728,7 +728,7 @@ export async function updateUserVoiceSettings(
 
     await db.user.update({
       where: { id: userId },
-      data: { enableVoiceResponses, voiceId },
+      data: { enableVoiceResponses, voiceId } as any,
     });
 
     return { success: true, message: 'Configuración de voz actualizada.' };
