@@ -326,43 +326,38 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
             <div className="w-full px-4 py-6 overflow-y-auto">
                 <div className="mx-auto w-full max-w-lg space-y-3">
                     <Card className="border-muted/50">
-                        <CardContent className="p-4">
+                        <CardContent className="p-3 space-y-2">
+                            <div className="flex items-center gap-2">
+                                <Image
+                                    src={user.image ?? "/assets/image/logo_app.png"}
+                                    alt="IA Agent Logo"
+                                    width={28}
+                                    height={28}
+                                    className="rounded-full border border-border object-cover shrink-0"
+                                />
+                                <span className="text-xs text-muted-foreground leading-none">
+                                    Agendar con <span className="font-semibold text-foreground">{user.company || "nuestro asesor"}</span>
+                                    <span className="ml-1">· {slotDuration} min</span>
+                                </span>
+                            </div>
                             <div className="flex items-center gap-1">
                                 {stepLabel.map((s, i) => (
                                     <div key={i} className="contents">
-                                        <div className="flex items-center gap-2 shrink-0">
+                                        <div className="flex items-center gap-1.5 shrink-0">
                                             <div
-                                                className={`h-8 w-8 shrink-0 rounded-full grid place-items-center text-sm shadow ${i <= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+                                                className={`h-7 w-7 shrink-0 rounded-full grid place-items-center shadow ${i <= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
                                             >
                                                 {s.icon}
                                             </div>
-                                            <span className={`hidden sm:block text-sm whitespace-nowrap ${i === step ? "font-semibold" : "text-muted-foreground"}`}>
+                                            <span className={`hidden sm:block text-xs whitespace-nowrap ${i === step ? "font-semibold" : "text-muted-foreground"}`}>
                                                 {s.label}
                                             </span>
                                         </div>
                                         {i < stepLabel.length - 1 && (
-                                            <div className="flex-1 h-px bg-border mx-1 min-w-[8px]" />
+                                            <div className="flex-1 h-px bg-border mx-1 min-w-[6px]" />
                                         )}
                                     </div>
                                 ))}
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-muted/50">
-                        <CardContent className="flex items-center gap-3 p-4">
-                            <Image
-                                src={user.image ?? "/assets/image/logo_app.png"}
-                                alt="IA Agent Logo"
-                                width={48}
-                                height={48}
-                                className="rounded-full border border-border shadow object-cover shrink-0"
-                            />
-                            <div className="flex-1 min-w-0">
-                                <div className="text-sm text-muted-foreground">
-                                    Agendar con <span className="font-semibold">{user.company || "nuestro asesor"}</span>
-                                </div>
-                                <div className="text-xs text-muted-foreground">Duración: {slotDuration} min</div>
                             </div>
                         </CardContent>
                     </Card>

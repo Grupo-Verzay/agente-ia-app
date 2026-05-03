@@ -149,6 +149,9 @@ export function ApiKeyConfigurator({
         if (!existsModel) {
             form.setValue("modelId", "");
         }
+        if (modelsForProvider.length === 1) {
+            form.setValue("modelId", modelsForProvider[0].id, { shouldValidate: true, shouldDirty: true });
+        }
 
         const cfg = settings.configs.find((c) => c.providerId === currentProviderId);
         form.setValue("apiKey", cfg?.apiKey || "");
@@ -331,6 +334,11 @@ export function ApiKeyConfigurator({
                         {/* Model */}
                         <div className="grid gap-2">
                             <Label>Modelo</Label>
+                            {modelsForProvider.length === 1 ? (
+                                <div className="flex items-center h-9 px-3 rounded-md border border-input bg-muted/50 text-sm text-muted-foreground">
+                                    {modelsForProvider[0].name}
+                                </div>
+                            ) : (
                             <Popover open={modelOpen} onOpenChange={setModelOpen}>
                                 <PopoverTrigger asChild>
                                     <Button
@@ -382,6 +390,7 @@ export function ApiKeyConfigurator({
                                     </Command>
                                 </PopoverContent>
                             </Popover>
+                            )}
                             {form.formState.errors.modelId && (
                                 <p className="text-xs text-destructive">
                                     {form.formState.errors.modelId.message}
