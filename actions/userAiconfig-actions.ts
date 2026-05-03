@@ -72,6 +72,7 @@ function isUniqueError(e: any, fields?: string[]) {
 ============================ */
 
 const ALLOWED_MODELS = ['gpt-4o-mini', 'gemini-2.5-flash'];
+const MODEL_DISPLAY: Record<string, string> = { 'gemini-2.5-flash': 'gemini-2.0-flash' };
 
 /** Proveedores con sus modelos */
 export async function listAiProvidersWithModels(): Promise<ActionResult<ProviderWithModels[]>> {
@@ -80,7 +81,11 @@ export async function listAiProvidersWithModels(): Promise<ActionResult<Provider
     include: { models: { where: { name: { in: ALLOWED_MODELS } } } },
     orderBy: { name: 'asc' },
   });
-  return { success: true, message: 'ok', data: providers };
+  const remapped = providers.map(p => ({
+    ...p,
+    models: p.models.map(m => ({ ...m, name: MODEL_DISPLAY[m.name] ?? m.name })),
+  }));
+  return { success: true, message: 'ok', data: remapped };
 }
 
 /** Un proveedor por id (con modelos) */
