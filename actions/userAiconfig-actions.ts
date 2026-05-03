@@ -71,11 +71,13 @@ function isUniqueError(e: any, fields?: string[]) {
    LECTURAS (para tu UI)
 ============================ */
 
+const ALLOWED_MODELS = ['gpt-4o-mini', 'gemini-2.5-flash'];
+
 /** Proveedores con sus modelos */
 export async function listAiProvidersWithModels(): Promise<ActionResult<ProviderWithModels[]>> {
   noStore();
   const providers = await db.aiProvider.findMany({
-    include: { models: true },
+    include: { models: { where: { name: { in: ALLOWED_MODELS } } } },
     orderBy: { name: 'asc' },
   });
   return { success: true, message: 'ok', data: providers };

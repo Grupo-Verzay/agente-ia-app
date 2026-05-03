@@ -22,7 +22,6 @@ export const DateComponent = ({
         <Card className="border-muted/50">
             <CardHeader className="pb-2">
                 <CardTitle className="text-lg">Elige una fecha</CardTitle>
-                <p className="text-sm text-muted-foreground">Selecciona el día para tu cita.</p>
             </CardHeader>
             <CardContent className="p-4 flex flex-col gap-4">
                 <div className="rounded-2xl border p-3 w-full">

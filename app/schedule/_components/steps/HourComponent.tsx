@@ -48,8 +48,10 @@ export const HourComponent = ({
     return (
         <Card className="border-muted/50">
             <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Elige un horario</CardTitle>
-                <p className="text-sm text-muted-foreground">{formatDateLabel(selectedDate)}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <CardTitle className="text-lg">Elige un horario</CardTitle>
+                    <span className="text-sm text-muted-foreground">{formatDateLabel(selectedDate)}</span>
+                </div>
             </CardHeader>
             <CardContent className="p-4 flex flex-col gap-4">
                 <div className="rounded-2xl border p-3 space-y-3 min-h-[120px]">
