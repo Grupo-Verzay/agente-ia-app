@@ -24,8 +24,8 @@ export const DateComponent = ({
                 <CardTitle className="text-lg">Elige una fecha</CardTitle>
                 <p className="text-sm text-muted-foreground">Selecciona el día para tu cita.</p>
             </CardHeader>
-            <CardContent className="p-4 flex flex-col items-center gap-4">
-                <div className="rounded-2xl border p-2">
+            <CardContent className="p-4 flex flex-col gap-4">
+                <div className="rounded-2xl border p-3 w-full flex justify-center">
                     <Calendar
                         mode="single"
                         selected={selectedDate}
@@ -35,11 +35,11 @@ export const DateComponent = ({
                             setSelectedDateYmd(d ? format(d, "yyyy-MM-dd") : "");
                             if (d) setStep(2);
                         }}
-                        className="rounded-md"
+                        className="w-full"
                         disabled={(date) => isBefore(startOfDay(date), startOfDay(new Date()))}
                     />
                 </div>
-                <div className="flex justify-between gap-2 w-full pt-2">
+                <div className="flex justify-between gap-2 w-full">
                     <Button variant="outline" onClick={() => setStep(0)}>
                         Atrás
                     </Button>
