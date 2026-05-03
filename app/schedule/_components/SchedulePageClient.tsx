@@ -340,6 +340,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                                     <span className="ml-1">· {slotDuration} min</span>
                                 </span>
                             </div>
+                            <div className="h-px bg-border" />
                             <div className="flex items-center gap-1">
                                 {stepLabel.map((s, i) => (
                                     <div key={i} className="contents">
