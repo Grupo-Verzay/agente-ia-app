@@ -219,9 +219,12 @@ export function ApiKeyConfigurator({
         }
     };
 
+    const fmtProvider = (name: string) =>
+        ({ openai: 'OpenIA', google: 'Google' } as Record<string, string>)[name.toLowerCase()] ?? name;
+
     // Etiquetas
     const providerLabel =
-        providers.find((p) => p.id === form.getValues("providerId"))?.name ||
+        fmtProvider(providers.find((p) => p.id === form.getValues("providerId"))?.name ?? "") ||
         "Selecciona un proveedor";
     const modelLabel =
         modelsForProvider.find((m) => m.id === form.getValues("modelId"))?.name ||
@@ -229,7 +232,7 @@ export function ApiKeyConfigurator({
 
     // Preview label (fuera del diálogo)
     const previewProviderLabel =
-        providers.find((p) => p.id === previewProviderId)?.name || "Proveedor";
+        fmtProvider(providers.find((p) => p.id === previewProviderId)?.name ?? "") || "Proveedor";
 
     return (
         <div className="space-y-2">
@@ -316,7 +319,7 @@ export function ApiKeyConfigurator({
                                                                     : "opacity-0"
                                                             )}
                                                         />
-                                                        {prov.name}
+                                                        {fmtProvider(prov.name)}
                                                     </CommandItem>
                                                 ))}
                                             </CommandGroup>
