@@ -702,20 +702,6 @@ export function MyToolsManagement({ userId }: Props) {
         </div>
       ) : (
         <div className="space-y-5">
-          {hasNoConfigs && (
-            <Alert className="border-amber-500/50 bg-amber-500/5">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              <AlertDescription className="space-y-3">
-                <p className="text-sm">
-                  No tienes herramientas configuradas. Aplica la configuración base del sistema para empezar.
-                </p>
-                <Button onClick={handleApplyDefaults} disabled={isApplyingDefaults} size="sm" className="gap-2">
-                  {isApplyingDefaults ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  Aplicar herramientas del sistema por defecto
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
 
           {builtinConfigs.length > 0 && (
             <div className="grid gap-3 sm:grid-cols-2">
