@@ -67,12 +67,20 @@ Puedes reagendar nuevamente aquí:
     }
 
 
+    if (newStatus === "PENDIENTE") {
+        return `📅 *CITA PENDIENTE* 🕒
+
+👤 *${clientName}*, agradecemos su agendamiento.
+
+Si es *aceptada* recibirás la confirmación por este medio.`;
+    }
+
     if (newStatus === "CONFIRMADA") {
         return `📅 *CITA CONFIRMADA* ✅
 
 👤 *${clientName}*, agradecemos su agendamiento.
 
-Estaremos en *contacto* para atenderte en la hora pactada.🤝`;
+Estaremos en *contacto* para atenderte en la hora pactada.`;
     }
 
     if (newStatus === "CANCELADA") {
