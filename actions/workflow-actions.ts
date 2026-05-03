@@ -37,14 +37,12 @@ export const getWorkFlowByUser = async (userId?: string): Promise<GetWorkFlowRes
 
     try {
         const workflows = await db.workflow.findMany({
-            where: {
-                userId,
-            },
-            orderBy: [
-                { order: "asc" },
-                { createdAt: "asc" },
-            ],
-        });
+            where: { userId },
+            orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+        }).catch(() => db.workflow.findMany({
+            where: { userId },
+            orderBy: [{ createdAt: "asc" }],
+        }));
 
         return { success: true, data: workflows };
     } catch (error) {
