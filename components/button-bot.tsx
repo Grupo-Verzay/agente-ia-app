@@ -194,7 +194,7 @@ const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
         <Button
           onClick={toggleEnable}
           disabled={loading || !instanceData || serviceLocked}
-          className="bg-green-600 hover:bg-green-700 w-full"
+          className="w-full"
           variant="default"
         >
           {loading ? (
