@@ -65,7 +65,7 @@ type FormValues = z.infer<typeof FormSchema>;
 // ====== Utils ======
 function maskKey(key?: string) {
     if (!key) return "";
-    return `${"*".repeat(24)}${key.slice(-4)}`;
+    return "*".repeat(24);
 }
 
 export function ApiKeyConfigurator({

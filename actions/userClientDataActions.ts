@@ -317,7 +317,7 @@ export const updateClientData = async (userId: string, formData: FormData) => {
 
     assignNonBooleanFields(formData, dataToUpdate);
 
-    delete dataToUpdate.password;
+    if (!formData.has('password')) delete dataToUpdate.password;
 
     if (Object.keys(dataToUpdate).length === 0) {
       return { success: false, message: "No se encontraron campos válidos para actualizar." };

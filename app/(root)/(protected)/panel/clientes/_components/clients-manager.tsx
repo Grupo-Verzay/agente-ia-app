@@ -13,6 +13,8 @@ import {
     updateClientData
 } from '@/actions/userClientDataActions';
 import { autoConfigureUserAi } from '@/actions/userAiconfig-actions';
+import { createIaCreditForUser, rechargeIaCredit } from '@/actions/actions-ia-credits';
+import { onCreditsToTokens } from '@/utils/onTokensToCredits';
 import { CreateDialog, DeleteDialog, ToolsDialog, EvoDialog, EditDialog, ClientStatusPanel, StatusKey, UserBackupDialog } from './';
 import { ApiKey } from '@prisma/client';
 import { UserFormValues } from '@/schema/user';
@@ -141,6 +143,33 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
             }
         }
         formData.delete('openMsg');
+
+        // === Rehash de contraseña si cambió ===
+        const newPass = formData.get('passPlainTxt') as string;
+        const currentUser = users.find(u => u.id === userId);
+        if (newPass?.trim() && newPass !== currentUser?.passPlainTxt) {
+            const hashed = await bcrypt.hash(newPass, LENGTH_PASSWORD_HASH);
+            formData.set('password', hashed);
+        }
+
+        // === Actualización de créditos ===
+        const creditTotalRaw = formData.get('creditTotal');
+        const creditUsedRaw = formData.get('creditUsed');
+        const creditHasRecord = formData.get('creditHasRecord') === 'true';
+        formData.delete('creditTotal');
+        formData.delete('creditUsed');
+        formData.delete('creditHasRecord');
+
+        if (creditTotalRaw !== null) {
+            const total = parseInt(creditTotalRaw as string) || 0;
+            const used = parseInt(creditUsedRaw as string) || 0;
+            const creditRes = creditHasRecord
+                ? await rechargeIaCredit(userId, total, new Date(), onCreditsToTokens(used))
+                : await createIaCreditForUser(userId, total, new Date(), onCreditsToTokens(used));
+            if (!creditRes.success) {
+                console.error('Error al guardar créditos:', creditRes.message);
+            }
+        }
 
         // === Actualización del cliente ===
         const result = await updateClientData(userId, formData)

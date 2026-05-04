@@ -13,8 +13,8 @@ import {
 import { DialogType } from './clients-manager'
 import { ClientInterface } from '@/lib/types'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
-import { impersonateUser, loginAction } from '@/actions/auth-action'
+import { useTransition } from 'react'
+import { impersonateUser } from '@/actions/auth-action'
 import { toast } from 'sonner'
 
 interface propsActionsMenu {
@@ -61,23 +61,11 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
                     >
                         Editar
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                        onClick={() => router.push(`/admin/password?userId=${user.id}`)}
-                    >
-                        Contraseña
-                    </DropdownMenuItem>
                     {(currentUserRol === 'admin' || currentUserRol === 'super_admin') &&
                         <DropdownMenuItem
                             onClick={() => openDialogGetUserId(user.id, 'tools', true,)}
                         >
-                            Herramientas
-                        </DropdownMenuItem>
-                    }
-                    {(currentUserRol === 'admin' || currentUserRol === 'super_admin') &&
-                        <DropdownMenuItem
-                            onClick={() => openDialogGetUserId(user.id, 'evo', true)}
-                        >
-                            EVO URLs
+                            Tools
                         </DropdownMenuItem>
                     }
                     <DropdownMenuItem
@@ -86,12 +74,7 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
                         Backup
                     </DropdownMenuItem>
 
-                    <DropdownMenuItem
-                        onClick={() => router.push(`/admin/credits?userId=${user.id}`)}
-                    >
-                        Créditos
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
+<DropdownMenuItem
                         onClick={() => handleUserDashboard()}
                     >
                         Ingresar

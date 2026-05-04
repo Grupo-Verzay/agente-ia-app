@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle
@@ -21,13 +20,13 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { VolumeX, Volume2, BrainCircuit } from 'lucide-react'
 import { PLAN_LABELS, PLANS } from "@/types/plans"
 import { TimezoneCombobox } from "@/components/shared/TimezoneCombobox"
 import { useEffect, useState } from "react"
 import { Switch } from "@/components/ui/switch"
 import { ApiKeyConfigurator } from "@/app/(root)/profile/_components/ApiKeyConfigurator"
+import { getIaCreditByUser } from "@/actions/actions-ia-credits"
+import { onTokensToCredits } from "@/utils/onTokensToCredits"
 
 interface Props {
   openEditDialog: boolean
@@ -63,6 +62,29 @@ export const EditDialog = ({
     user.enabledCrmFollowUps ?? false
   );
   const [userStatus, setUserStatus] = useState<boolean>(user.status ?? false);
+  const [enMute, setEnMute] = useState<boolean>(user.muteAgentResponses ?? false);
+  const [enFacebook, setEnFacebook] = useState<boolean>(user.onFacebook ?? false);
+  const [creditTotal, setCreditTotal] = useState(0);
+  const [creditUsed, setCreditUsed] = useState(0);
+  const [creditHasRecord, setCreditHasRecord] = useState(false);
+  const [creditLoading, setCreditLoading] = useState(false);
+
+  useEffect(() => {
+    if (!openEditDialog || currentUserRol === 'reseller') return;
+    setCreditLoading(true);
+    getIaCreditByUser(user.id).then(res => {
+      if (res.success && res.data?.length) {
+        setCreditTotal(res.data[0].total);
+        setCreditUsed(onTokensToCredits(res.data[0].used));
+        setCreditHasRecord(true);
+      } else {
+        setCreditTotal(0);
+        setCreditUsed(0);
+        setCreditHasRecord(false);
+      }
+      setCreditLoading(false);
+    });
+  }, [user.id, openEditDialog, currentUserRol]);
 
   useEffect(() => {
     setTz(user.timezone ?? "");
@@ -70,6 +92,8 @@ export const EditDialog = ({
     setEnLeadStatus(user.enabledLeadStatusClassifier ?? false);
     setEnCrmFollowUps(user.enabledCrmFollowUps ?? false);
     setUserStatus(user.status ?? false);
+    setEnMute(user.muteAgentResponses ?? false);
+    setEnFacebook(user.onFacebook ?? false);
   }, [
     user.id,
     openEditDialog,
@@ -78,59 +102,34 @@ export const EditDialog = ({
     user.enabledLeadStatusClassifier,
     user.enabledCrmFollowUps,
     user.status,
+    user.muteAgentResponses,
+    user.onFacebook,
   ]);
 
   let fields = [
-    {
-      id: "status",
-      label: "Estado",
-      defaultValue: user.status ?? false,
-      readOnly: false,
-    },
-    {
-      id: "muteAgentResponses",
-      label: "Silenciar agente",
-      defaultValue: user.muteAgentResponses,
-      readOnly: false,
-    },
-    {
-      id: "enabledSynthesizer",
-      label: "Activar sintetizador",
-      defaultValue: user.enabledSynthesizer ?? false,
-      readOnly: false,
-    },
-    {
-      id: "enabledLeadStatusClassifier",
-      label: "Clasificar lead por estado",
-      defaultValue: user.enabledLeadStatusClassifier ?? false,
-      readOnly: false,
-    },
-    {
-      id: "enabledCrmFollowUps",
-      label: "Follow-ups inteligentes",
-      defaultValue: user.enabledCrmFollowUps ?? false,
-      readOnly: false,
-    },
-
-    { id: "name", label: "Nombre", defaultValue: user.name, readOnly: false },
-    { id: "email", label: "Email", defaultValue: user.email, readOnly: false },
-    { id: "passPlainTxt", label: "Contraseña", defaultValue: user.passPlainTxt, readOnly: true },
-    { id: "role", label: "Rol", defaultValue: user.role, readOnly: false },
-    { id: "plan", label: "Plan", defaultValue: user.plan, readOnly: false },
-    { id: "webhookUrl", label: "Webhook URL", defaultValue: user.webhookUrl, readOnly: false },
-    { id: "company", label: "Empresa", defaultValue: user.company, readOnly: false },
-    // { id: "notificationNumber", label: "Teléfono Notificación", defaultValue: user.notificationNumber, readOnly: false },
-    { id: "timezone", label: "Zona horaria", defaultValue: user.timezone, readOnly: false },
-    // { id: "openMsg", label: "Frase de reactivación", defaultValue: openMsg, readOnly: false },
-    // { id: "mapsUrl", label: "Maps URL", defaultValue: user.mapsUrl, readOnly: false },
-    // { id: "lat", label: "Latitud", defaultValue: user.lat, readOnly: false },
-    // { id: "lng", label: "Longitud", defaultValue: user.lng, readOnly: false },
-    { id: "apiKeyId", label: "Evo - API Key", defaultValue: user.apiKeyId, readOnly: false },
+    // Switches
+    { id: "status",                    label: "Estado",        defaultValue: user.status ?? false,                    readOnly: false },
+    { id: "enabledSynthesizer",        label: "Sintetizador",  defaultValue: user.enabledSynthesizer ?? false,        readOnly: false },
+    { id: "enabledLeadStatusClassifier", label: "Clasificacion", defaultValue: user.enabledLeadStatusClassifier ?? false, readOnly: false },
+    { id: "enabledCrmFollowUps",       label: "Follow ups",    defaultValue: user.enabledCrmFollowUps ?? false,       readOnly: false },
+    // Campos regulares — en el orden pedido
+    { id: "name",        label: "Nombre",       defaultValue: user.name,          readOnly: false },
+    { id: "company",     label: "Empresa",      defaultValue: user.company,       readOnly: false },
+    { id: "email",       label: "Correo",       defaultValue: user.email,         readOnly: false },
+    { id: "passPlainTxt",label: "Contraseña",   defaultValue: user.passPlainTxt,  readOnly: false },
+    { id: "role",        label: "Rol",          defaultValue: user.role,          readOnly: false },
+    { id: "plan",        label: "Plan",         defaultValue: user.plan,          readOnly: false },
+    { id: "creditTotal", label: "Créditos +",   defaultValue: null,               readOnly: false },
+    { id: "creditUsed",  label: "Créditos -",   defaultValue: null,               readOnly: false },
+    { id: "webhookUrl",  label: "Webhook",      defaultValue: user.webhookUrl,    readOnly: false },
+    { id: "apiKeyId",    label: "Evo Api",      defaultValue: user.apiKeyId,      readOnly: false },
+    { id: "apiKeyIa",    label: "Api Key IA",   defaultValue: null,               readOnly: false },
+    { id: "timezone",    label: "Zona horaria", defaultValue: user.timezone,      readOnly: false },
   ];
 
   /* Ocultar/mostrar fields para reseller */
   if (currentUserRol === 'reseller') {
-    const idsToRemove = ["apiKeyId", "webhookUrl"]
+    const idsToRemove = ["apiKeyId", "webhookUrl", "creditTotal", "creditUsed", "apiKeyIa"]
     fields = fields.filter(field => !idsToRemove.includes(field.id))
 
     const idsReadOnly = ["name", "email", "role", "plan"]
@@ -144,14 +143,15 @@ export const EditDialog = ({
   const handleRenderField = (
     id: string,
     defaultValue: string | number | boolean | null | undefined,
-    readOnly?: boolean
+    readOnly?: boolean,
+    label?: string
   ) => {
     switch (id) {
       case 'apiKeyId':
         return (
           <Select name={id} defaultValue={defaultValue?.toString() ?? ""} disabled={readOnly}>
-            <SelectTrigger className="col-span-3">
-              <SelectValue placeholder="Selecciona una API Key" />
+            <SelectTrigger>
+              <SelectValue placeholder={label ?? "Selecciona una API Key"} />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -168,8 +168,8 @@ export const EditDialog = ({
       case 'role':
         return (
           <Select name={id} defaultValue={defaultValue?.toString() ?? ""} disabled={readOnly}>
-            <SelectTrigger className="col-span-3">
-              <SelectValue placeholder="Selecciona un rol" />
+            <SelectTrigger>
+              <SelectValue placeholder={label ?? "Selecciona un rol"} />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -185,8 +185,8 @@ export const EditDialog = ({
       case 'plan':
         return (
           <Select name={id} defaultValue={defaultValue?.toString() ?? ""} disabled={readOnly}>
-            <SelectTrigger className="col-span-3">
-              <SelectValue placeholder="Selecciona un rol" />
+            <SelectTrigger>
+              <SelectValue placeholder={label ?? "Selecciona un plan"} />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -199,37 +199,20 @@ export const EditDialog = ({
             </SelectContent>
           </Select>
         )
-      case 'muteAgentResponses':
+      case 'muteAgentResponses': {
+        const checked = enMute;
         return (
-          <Select name={id} defaultValue={defaultValue ? 'true' : 'false'} disabled={readOnly}>
-            <SelectTrigger className="col-span-3">
-              <SelectValue
-                placeholder="Silenciar respuestas"
-                className="flex gap-2 items-center"
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="true">
-                  <div className="flex items-center gap-2">
-                    <VolumeX className="w-4 h-4 text-destructive" />
-                    <span>Activado</span>
-                    <Badge variant="destructive" className="ml-auto">Silenciado</Badge>
-                  </div>
-                </SelectItem>
-                <SelectItem value="false">
-                  <div className="flex items-center gap-2">
-                    <Volume2 className="w-4 h-4 text-green-500 dark:text-green-400" />
-                    <span>Desactivado</span>
-                    <Badge variant="outline" className="ml-auto text-green-600 border-green-600 dark:text-green-400 dark:border-green-400">
-                      Responde
-                    </Badge>
-                  </div>
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <div className="col-span-3 flex items-center gap-3">
+            <input type="hidden" name="muteAgentResponses" value={checked ? "true" : "false"} />
+            <Switch
+              id="muteAgentResponses"
+              checked={checked}
+              onCheckedChange={(state: boolean) => { setEnMute(state) }}
+              disabled={readOnly}
+            />
+          </div>
         )
+      }
       case 'enabledSynthesizer': {
         const checked = enSi;
         return (
@@ -301,16 +284,35 @@ export const EditDialog = ({
               id="timezone"
               name="timezone"
               defaultValue={defaultValue?.toString() ?? ""}
-              className="col-span-3"
+              placeholder={label}
               readOnly
               disabled
             />
           );
         }
         return (
-          <div className="col-span-3">
+          <div>
             <TimezoneCombobox value={tz} onChange={setTz} />
             <input type="hidden" name="timezone" value={tz} />
+          </div>
+        );
+
+      case 'creditTotal':
+        if (creditLoading) return <span className="text-sm text-muted-foreground">Cargando...</span>;
+        return (
+          <Input id="creditTotal" name="creditTotal" type="number" value={creditTotal}
+            onChange={(e) => setCreditTotal(parseInt(e.target.value) || 0)} placeholder={label} />
+        );
+      case 'creditUsed':
+        if (creditLoading) return <span className="text-sm text-muted-foreground">Cargando...</span>;
+        return (
+          <Input id="creditUsed" name="creditUsed" type="number" value={creditUsed}
+            onChange={(e) => setCreditUsed(parseInt(e.target.value) || 0)} placeholder={label} />
+        );
+      case 'apiKeyIa':
+        return (
+          <div>
+            <ApiKeyConfigurator userId={user.id} label="" />
           </div>
         );
 
@@ -320,13 +322,30 @@ export const EditDialog = ({
             id={id}
             name={id}
             defaultValue={defaultValue?.toString() ?? ""}
-            className="col-span-3"
+            placeholder={label}
             readOnly={readOnly}
             disabled={readOnly}
           />
         )
     }
   }
+
+  const switchFieldIds = ['status', 'muteAgentResponses', 'enabledSynthesizer', 'enabledLeadStatusClassifier', 'enabledCrmFollowUps', 'onFacebook'];
+
+  const getSwitchState = (id: string) => {
+    const map: Record<string, { checked: boolean; onChange: (v: boolean) => void }> = {
+      status: { checked: userStatus, onChange: setUserStatus },
+      muteAgentResponses: { checked: enMute, onChange: setEnMute },
+      enabledSynthesizer: { checked: enSi, onChange: setEnSi },
+      enabledLeadStatusClassifier: { checked: enLeadStatus, onChange: setEnLeadStatus },
+      enabledCrmFollowUps: { checked: enCrmFollowUps, onChange: setEnCrmFollowUps },
+      onFacebook: { checked: enFacebook, onChange: setEnFacebook },
+    };
+    return map[id] ?? { checked: false, onChange: () => {} };
+  };
+
+  const switchFields = fields.filter(f => switchFieldIds.includes(f.id));
+  const regularFields = fields.filter(f => !switchFieldIds.includes(f.id));
 
   const showAiConfig = currentUserRol !== 'reseller';
 
@@ -335,31 +354,64 @@ export const EditDialog = ({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Editar cliente</DialogTitle>
-          <DialogDescription>
-            Realiza cambios del cliente aquí. Guarda los cambios cuando termines.
-          </DialogDescription>
         </DialogHeader>
 
-        {/* Sección API Key IA — gestiona su propio guardado */}
-        {showAiConfig && (
-          <div className="rounded-lg border bg-muted/30 px-4 py-3 flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <BrainCircuit className="h-4 w-4 text-primary" />
-              Configuración IA
-            </div>
-            <ApiKeyConfigurator userId={user.id} label="" />
-          </div>
-        )}
 
         <form action={(formData) => handleEdit(user.id, formData)}>
-          <div className="overflow-auto max-h-80 pr-2">
+          <div className="overflow-auto max-h-[28rem] pr-2">
             <div className="grid gap-4 py-4">
-              {fields.map(({ id, label, defaultValue, readOnly }) => (
-                <div className="grid grid-cols-4 items-center gap-4" key={id}>
-                  <Label htmlFor={id} className="text-right">{label}</Label>
-                  {handleRenderField(id, defaultValue, readOnly)}
-                </div>
-              ))}
+              {/* Switches en grid 2 columnas */}
+              <div className="grid grid-cols-2 gap-2">
+                {switchFields.map(({ id, label, readOnly }) => {
+                  const { checked, onChange } = getSwitchState(id);
+                  return (
+                    <div key={id} className="flex items-center justify-between gap-2 pr-4">
+                      <Label htmlFor={id} className="text-xs font-semibold text-foreground">{label}</Label>
+                      <input type="hidden" name={id} value={checked ? "true" : "false"} />
+                      <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={readOnly} />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Campos regulares */}
+              <input type="hidden" name="creditHasRecord" value={creditHasRecord ? "true" : "false"} />
+              {(() => {
+                const pairs: Record<string, string> = {
+                  name: 'company',
+                  email: 'passPlainTxt',
+                  role: 'plan',
+                  creditTotal: 'creditUsed',
+                };
+                const secondOfPair = new Set(Object.values(pairs));
+                return regularFields.map(({ id, label, defaultValue, readOnly }) => {
+                  if (secondOfPair.has(id)) return null;
+                  if (id in pairs) {
+                    const pairedId = pairs[id];
+                    const pairedField = regularFields.find(f => f.id === pairedId);
+                    return (
+                      <div key={id} className="grid grid-cols-2 gap-2">
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor={id} className="text-xs font-semibold text-foreground">{label}</Label>
+                          {handleRenderField(id, defaultValue, readOnly, label)}
+                        </div>
+                        {pairedField && (
+                          <div className="flex flex-col gap-1">
+                            <Label htmlFor={pairedId} className="text-xs font-semibold text-foreground">{pairedField.label}</Label>
+                            {handleRenderField(pairedId, pairedField.defaultValue, pairedField.readOnly, pairedField.label)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={id} className="flex flex-col gap-1">
+                      <Label htmlFor={id} className="text-xs font-semibold text-foreground">{label}</Label>
+                      {handleRenderField(id, defaultValue, readOnly, label)}
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
 

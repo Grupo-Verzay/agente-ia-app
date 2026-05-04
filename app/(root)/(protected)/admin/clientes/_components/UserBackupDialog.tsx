@@ -34,6 +34,7 @@ export function UserBackupDialog({
         <UserBackupManager
           targetUserId={user.id}
           subjectLabel={label}
+          twoColumns
           onImported={() => setOpenBackupDialog(false)}
         />
       </DialogContent>
