@@ -39,7 +39,7 @@ import { es } from "date-fns/locale";
 import { DateComponent, HourComponent, ScheduleForm, ServiceComponent } from "./steps";
 import { SummaryItem } from "./";
 
-export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInterface) => {
+export const SchedulePageClient = ({ user, reminders, countries, instancePhone }: ScheduleInterface) => {
     const [step, setStep] = useState(0);
     const stepLabel = [
         { label: "Servicio", icon: <List className="h-4 w-4" /> },
@@ -254,17 +254,14 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
     };
 
     const buildWhatsAppRedirectUrl = () => {
-        if (!user.notificationNumber || !selectedSlot || !selectedDate) return null;
-        const businessPhone = user.notificationNumber
-            .replace(/@s\.whatsapp\.net$/, "")
-            .replace(/^\+/, "")
-            .replace(/\s/g, "");
+        const businessPhone = instancePhone ?? user.notificationNumber?.replace(/@s\.whatsapp\.net$/, "").replace(/^\+/, "").replace(/\s/g, "");
+        if (!businessPhone || !selectedSlot || !selectedDate) return null;
         const [startTime] = selectedSlot.split("|");
         const startLocal = toZonedTime(new Date(startTime), timezone);
         const serviceName = user.services.find((s) => s.id === selectedService)?.name ?? "la cita";
         const dateLabel = format(selectedDate, "d 'de' MMMM 'de' yyyy", { locale: es });
         const hourLabel = format(startLocal, "hh:mm a");
-        const waText = `Hola, acabo de agendar una cita:\n\n📋 *Servicio:* ${serviceName}\n📅 *Fecha:* ${dateLabel}\n⏰ *Hora:* ${hourLabel}\n👤 *Nombre:* ${nameClient.trim()}`;
+        const waText = `Hola, acabo de agendar una cita:\n\n\u{1F4CB} *Servicio:* ${serviceName}\n\u{1F4C5} *Fecha:* ${dateLabel}\n\u{23F0} *Hora:* ${hourLabel}\n\u{1F464} *Nombre:* ${nameClient.trim()}`;
         return `https://wa.me/${businessPhone}?text=${encodeURIComponent(waText)}`;
     };
 
@@ -297,22 +294,25 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
             const appointmentCreated = await handleConfirmAppointment();
             if (!appointmentCreated) return;
 
-            // Enviar confirmación al cliente con 30s de delay para que primero
-            // llegue el mensaje del cliente (iniciado desde el redirect a WhatsApp)
-            // y así el negocio pueda responder sin riesgo de bloqueo.
-            mutationSeguimiento.mutate({
-                idNodo: "",
-                serverurl: `https://${urlevo}`,
-                instancia: instanceName,
-                apikey,
-                remoteJid,
-                mensaje: text,
-                tipo: "text",
-                time: "60",
-                name_file: undefined,
-                consecutivo: undefined,
-                media: undefined,
-            });
+            // Awaitar el seguimiento antes de redirigir para evitar que la
+            // navegación cancele el request antes de que se envíe al backend.
+            try {
+                await mutationSeguimiento.mutateAsync({
+                    idNodo: "",
+                    serverurl: `https://${urlevo}`,
+                    instancia: instanceName,
+                    apikey,
+                    remoteJid,
+                    mensaje: text,
+                    tipo: "text",
+                    time: "60",
+                    name_file: undefined,
+                    consecutivo: undefined,
+                    media: undefined,
+                });
+            } catch {
+                // No bloquear el redirect si el seguimiento falla
+            }
 
             const waUrl = buildWhatsAppRedirectUrl();
             if (waUrl) window.location.href = waUrl;
@@ -462,7 +462,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                         <AlertDialogFooter>
                             <AlertDialogCancel>Cancelar</AlertDialogCancel>
                             <AlertDialogAction onClick={scheduleAndNotify} disabled={loading}>
-                                {loading ? "Agendando..." : "Confirmar y abrir WhatsApp"}
+                                {loading ? "Agendando..." : "Confirmar por WhatsApp"}
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>

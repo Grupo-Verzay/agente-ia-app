@@ -14,7 +14,8 @@ export interface UserWithApiKeys extends UserWithService {
 };
 
 export interface ScheduleInterface {
-    user: UserWithApiKeys // Array de registros Pausar
+    user: UserWithApiKeys
     reminders?: Reminders[]
     countries?: Country[]
+    instancePhone?: string | null
 };

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Reminders } from "@prisma/client";
 import { getRemindersByUserId } from "@/actions/reminders-actions";
 import { getCountryCodes } from "@/actions/get-country-action";
+import { fetchInstanceAction } from "@/actions/fetch-intance-action";
 import { SchedulePageClient } from "../_components/SchedulePageClient";
 
 function hasReminder(result: { data?: Reminders[] }): result is { data: Reminders[] } {
@@ -33,10 +34,23 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
 
     const countries = await getCountryCodes();
 
+    let instancePhone: string | null = null;
+    const primaryInstance = user.instancias?.[0];
+    if (user.apiKey && primaryInstance) {
+        const instanceRes = await fetchInstanceAction({
+            evoUrl: user.apiKey.url,
+            evoApiKey: primaryInstance.instanceId,
+            instanceName: primaryInstance.instanceName,
+        });
+        const ownerJid = instanceRes.data?.[0]?.ownerJid;
+        if (ownerJid) instancePhone = ownerJid.split("@")[0];
+    }
+
     return <SchedulePageClient
         user={user}
         reminders={reminders}
         countries={countries}
+        instancePhone={instancePhone}
     />
 
 };
