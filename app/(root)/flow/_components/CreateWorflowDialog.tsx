@@ -232,7 +232,7 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                                 </span>
                               ))}
                               {keywords.length === 0 && (
-                                <p className="text-xs text-muted-foreground italic">'precio', 'cotización', 'tengo una duda'...</p>
+                                <p className="text-xs text-muted-foreground italic">&apos;precio&apos;, &apos;cotización&apos;, &apos;tengo una duda&apos;...</p>
                               )}
                             </div>
                           </div>
