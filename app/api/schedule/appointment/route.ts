@@ -121,26 +121,25 @@ async function runPostAppointmentTasks({
   const sendTextUrl = `${serverUrl}/message/sendText/${instanceName}`;
   const instanceId = instance.instanceId;
 
-  // 1. Confirmación del servicio al cliente (envío directo)
-  const rawConfirmText = service?.messageText?.trim() ||
-    `✅ *¡Cita confirmada!*\n\nHola @client_name, tu cita ha sido registrada para el @appointment_datetime.\n\n¡Te esperamos!`;
-
-  const confirmMessage = formatReminderMessage(rawConfirmText, pushName, startTime, timezone, slotDuration);
-
-  const confirmResult = await sendMessageWithHistoryAction({
-    instanceName,
-    url: sendTextUrl,
-    apikey: instanceId,
-    remoteJid: phone,
-    message: confirmMessage,
-    historyType: 'notification',
-    additionalKwargs: { source: 'ScheduleApiAgent', recipient: 'client', serviceId },
-  });
-
-  if (confirmResult.success) {
-    console.log(`[schedule/notification] Confirmación enviada al cliente ${phone}`);
-  } else {
-    console.warn(`[schedule/notification] No se pudo enviar confirmación al cliente ${phone}: ${confirmResult.message}`);
+  // 1. Confirmación del servicio al cliente via seguimiento (mismo mecanismo que confirm-appointment)
+  if (service?.messageText) {
+    const confirmMessage = formatReminderMessage(service.messageText, pushName, startTime, timezone, slotDuration);
+    db.seguimiento.create({
+      data: {
+        idNodo: '',
+        serverurl: serverUrl,
+        instancia: instanceName,
+        apikey: instanceId,
+        remoteJid: phone,
+        mensaje: confirmMessage,
+        tipo: 'text',
+        time: '10',
+      },
+    }).then(() => {
+      console.log(`[schedule/notification] Seguimiento de confirmación creado para ${phone}`);
+    }).catch(err => {
+      console.error(`[schedule/notification] Error creando seguimiento de confirmación: ${err}`);
+    });
   }
 
   // 2. Notificar al asesor/dueño (igual que el flujo público)
