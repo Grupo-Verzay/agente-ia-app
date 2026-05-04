@@ -105,10 +105,25 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
     [mutate, flowType, matchType, keywords, isPro, triggerCondition]
   );
 
-  const typeOptions: { value: FlowType; label: string; desc: string }[] = [
-    { value: "IA", label: "IA", desc: "Disparador por intención" },
-    { value: "Flujo", label: "Flujo", desc: "Sin trigger automático" },
-    { value: "Chatbot", label: "Chatbot", desc: "Palabras clave" },
+  const typeOptions: { value: FlowType; label: string; desc: string; detail: string }[] = [
+    {
+      value: "IA",
+      label: "IA",
+      desc: "Disparador por intención",
+      detail: "El agente detecta automáticamente la intención del cliente y lanza este flujo. Ideal para: enviar catálogos, cotizaciones o activar procesos cuando el usuario muestra interés.",
+    },
+    {
+      value: "Flujo",
+      label: "Flujo",
+      desc: "Sin trigger automático",
+      detail: "Se ejecuta manualmente o desde otro flujo. Úsalo para secuencias de seguimiento, mensajes programados o flujos que el agente llama por nombre.",
+    },
+    {
+      value: "Chatbot",
+      label: "Chatbot",
+      desc: "Palabras clave",
+      detail: "Se activa cuando el cliente escribe una palabra o frase específica (ej: 'precio', 'agendar'). El agente NO interviene; responde el flujo directamente.",
+    },
   ];
 
   return (
@@ -159,6 +174,9 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                     </button>
                   ))}
                 </div>
+                <p className="text-[11px] text-muted-foreground bg-muted/50 rounded-md px-3 py-2 leading-relaxed">
+                  {typeOptions.find(o => o.value === flowType)?.detail}
+                </p>
               </div>
 
               {/* SECCIÓN CONDICIONAL SEGÚN TIPO */}
