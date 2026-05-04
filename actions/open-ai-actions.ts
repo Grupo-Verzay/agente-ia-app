@@ -17,7 +17,7 @@ export class OpenAiClient implements AiClient {
                 { role: "system", content: args.system },
                 ...args.messages,
             ],
-            temperature: 0.2,
+            temperature: 0,
         });
 
         const content = res.choices?.[0]?.message?.content ?? "";
@@ -43,7 +43,7 @@ export class GoogleAiClient implements AiClient {
             model: args.model,
             contents,
             config: {
-                temperature: 0.2,
+                temperature: 0,
                 systemInstruction: args.system,
             },
         });

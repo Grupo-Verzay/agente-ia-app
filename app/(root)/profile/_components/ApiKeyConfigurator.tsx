@@ -57,7 +57,7 @@ const FormSchema = z.object({
     apiKey: z
         .string({ required_error: "Ingresa tu API key" })
         .min(8, "La API key es demasiado corta"),
-    temperature: z.number().min(0).max(0.5).default(0.2),
+    temperature: z.number().min(0).max(0.5).default(0),
 });
 
 type FormValues = z.infer<typeof FormSchema>;
@@ -90,7 +90,7 @@ export function ApiKeyConfigurator({
             providerId: "",
             modelId: "",
             apiKey: "",
-            temperature: 0.2,
+            temperature: 0,
         },
         mode: "onSubmit",
     });
