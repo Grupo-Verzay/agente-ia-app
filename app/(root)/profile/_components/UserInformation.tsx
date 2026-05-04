@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
-import { getClientDataByUserId, updateClientDataByField, updateAbrirPhrase, updateUserVoiceSettings } from "@/actions/userClientDataActions";
+import { getClientDataByUserId, updateClientDataByField, updateAbrirPhrase, updateUserVoiceSettings, getElevenLabsVoices } from "@/actions/userClientDataActions";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -285,6 +285,11 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
     const [voiceId, setVoiceId] = useState<string>((user as any)?.voiceId ?? 'nova');
     const [voiceModel, setVoiceModel] = useState<string>((user as any)?.voiceModel ?? 'gpt-4o-mini-tts');
     const [voiceInstructions, setVoiceInstructions] = useState<string>((user as any)?.voiceInstructions ?? '');
+    const [ttsProvider, setTtsProvider] = useState<string>((user as any)?.ttsProvider ?? 'openai');
+    const [elApiKey, setElApiKey] = useState<string>((user as any)?.elevenLabsApiKey ?? '');
+    const [elVoiceId, setElVoiceId] = useState<string>((user as any)?.elevenLabsVoiceId ?? '');
+    const [elVoices, setElVoices] = useState<{ voice_id: string; name: string; category: string }[]>([]);
+    const [loadingElVoices, setLoadingElVoices] = useState(false);
     const [savingVoice, setSavingVoice] = useState(false);
 
     if (!user) return null;
@@ -297,6 +302,9 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
         voice: string,
         model?: string,
         instructions?: string,
+        provider?: string,
+        apiKey?: string,
+        elId?: string,
     ) => {
         setSavingVoice(true);
         const res = await updateUserVoiceSettings(
@@ -305,10 +313,25 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
             voice,
             model ?? voiceModel,
             instructions ?? voiceInstructions,
+            provider ?? ttsProvider,
+            apiKey ?? elApiKey,
+            elId ?? elVoiceId,
         );
         if (res.success) toast.success(res.message);
         else toast.error(res.message);
         setSavingVoice(false);
+    };
+
+    const handleLoadElVoices = async () => {
+        if (!elApiKey.trim()) { toast.error('Ingresa el API key de ElevenLabs primero.'); return; }
+        setLoadingElVoices(true);
+        const res = await getElevenLabsVoices(elApiKey.trim());
+        if (res.success && res.data) {
+            setElVoices(res.data);
+        } else {
+            toast.error(res.message);
+        }
+        setLoadingElVoices(false);
     };
 
     const primaryTabs = [
@@ -691,51 +714,126 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                                 </CardHeader>
                                 {voiceEnabled && (
                                     <CardContent className="space-y-4">
+                                        {/* Selector de proveedor */}
                                         <div className="space-y-2">
-                                            <Label className="text-xs text-muted-foreground">MODELO TTS</Label>
-                                            <div className="grid grid-cols-3 gap-2">
+                                            <Label className="text-xs text-muted-foreground">PROVEEDOR DE VOZ</Label>
+                                            <div className="grid grid-cols-2 gap-2">
                                                 {([
-                                                    { id: 'gpt-4o-mini-tts', label: 'GPT-4o Mini', desc: 'Más natural' },
-                                                    { id: 'tts-1-hd', label: 'TTS-1 HD', desc: 'Alta calidad' },
-                                                    { id: 'tts-1', label: 'TTS-1', desc: 'Estándar' },
-                                                ] as const).map((m) => (
+                                                    { id: 'openai', label: 'OpenAI TTS', desc: 'GPT-4o Mini / HD' },
+                                                    { id: 'elevenlabs', label: 'ElevenLabs', desc: 'Clonación de voz' },
+                                                ] as const).map((p) => (
                                                     <button
-                                                        key={m.id}
-                                                        onClick={() => { setVoiceModel(m.id); handleVoiceSave(voiceEnabled, voiceId, m.id, voiceInstructions); }}
-                                                        className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors text-left ${voiceModel === m.id ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                                                        key={p.id}
+                                                        onClick={() => { setTtsProvider(p.id); handleVoiceSave(voiceEnabled, voiceId, voiceModel, voiceInstructions, p.id, elApiKey, elVoiceId); }}
+                                                        className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors text-left ${ttsProvider === p.id ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
                                                     >
-                                                        <div>{m.label}</div>
-                                                        <div className={`text-[10px] mt-0.5 ${voiceModel === m.id ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{m.desc}</div>
+                                                        <div>{p.label}</div>
+                                                        <div className={`text-[10px] mt-0.5 ${ttsProvider === p.id ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{p.desc}</div>
                                                     </button>
                                                 ))}
                                             </div>
                                         </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-xs text-muted-foreground">VOZ</Label>
-                                            <div className="grid grid-cols-3 gap-2">
-                                                {(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const).map((v) => (
-                                                    <button
-                                                        key={v}
-                                                        onClick={() => { setVoiceId(v); handleVoiceSave(voiceEnabled, v, voiceModel, voiceInstructions); }}
-                                                        className={`px-3 py-2 rounded-md border text-sm font-medium capitalize transition-colors ${voiceId === v ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
-                                                    >
-                                                        {v}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-xs text-muted-foreground">INSTRUCCIONES DE VOZ</Label>
-                                            <Textarea
-                                                placeholder="Ej: Habla de forma amable y cálida, como un asesor de servicio al cliente. Usa frases cortas y naturales."
-                                                value={voiceInstructions}
-                                                onChange={(e) => setVoiceInstructions(e.target.value)}
-                                                onBlur={() => handleVoiceSave(voiceEnabled, voiceId, voiceModel, voiceInstructions)}
-                                                rows={3}
-                                                className="text-xs resize-none"
-                                            />
-                                            <p className="text-xs text-muted-foreground">Solo aplica con el modelo GPT-4o Mini. Define el tono y estilo del audio.</p>
-                                        </div>
+
+                                        {/* Configuración OpenAI */}
+                                        {ttsProvider === 'openai' && (
+                                            <>
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs text-muted-foreground">MODELO TTS</Label>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        {([
+                                                            { id: 'gpt-4o-mini-tts', label: 'GPT-4o Mini', desc: 'Más natural' },
+                                                            { id: 'tts-1-hd', label: 'TTS-1 HD', desc: 'Alta calidad' },
+                                                            { id: 'tts-1', label: 'TTS-1', desc: 'Estándar' },
+                                                        ] as const).map((m) => (
+                                                            <button
+                                                                key={m.id}
+                                                                onClick={() => { setVoiceModel(m.id); handleVoiceSave(voiceEnabled, voiceId, m.id, voiceInstructions, ttsProvider, elApiKey, elVoiceId); }}
+                                                                className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors text-left ${voiceModel === m.id ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                                                            >
+                                                                <div>{m.label}</div>
+                                                                <div className={`text-[10px] mt-0.5 ${voiceModel === m.id ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{m.desc}</div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs text-muted-foreground">VOZ</Label>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        {(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const).map((v) => (
+                                                            <button
+                                                                key={v}
+                                                                onClick={() => { setVoiceId(v); handleVoiceSave(voiceEnabled, v, voiceModel, voiceInstructions, ttsProvider, elApiKey, elVoiceId); }}
+                                                                className={`px-3 py-2 rounded-md border text-sm font-medium capitalize transition-colors ${voiceId === v ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                                                            >
+                                                                {v}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs text-muted-foreground">INSTRUCCIONES DE VOZ</Label>
+                                                    <Textarea
+                                                        placeholder="Ej: Habla de forma amable y cálida, como un asesor de servicio al cliente. Usa frases cortas y naturales."
+                                                        value={voiceInstructions}
+                                                        onChange={(e) => setVoiceInstructions(e.target.value)}
+                                                        onBlur={() => handleVoiceSave(voiceEnabled, voiceId, voiceModel, voiceInstructions, ttsProvider, elApiKey, elVoiceId)}
+                                                        rows={3}
+                                                        className="text-xs resize-none"
+                                                    />
+                                                    <p className="text-xs text-muted-foreground">Solo aplica con GPT-4o Mini. Define el tono y estilo del audio.</p>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {/* Configuración ElevenLabs */}
+                                        {ttsProvider === 'elevenlabs' && (
+                                            <>
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs text-muted-foreground">API KEY DE ELEVENLABS</Label>
+                                                    <div className="flex gap-2">
+                                                        <Input
+                                                            type="password"
+                                                            placeholder="sk_..."
+                                                            value={elApiKey}
+                                                            onChange={(e) => setElApiKey(e.target.value)}
+                                                            onBlur={() => handleVoiceSave(voiceEnabled, voiceId, voiceModel, voiceInstructions, ttsProvider, elApiKey, elVoiceId)}
+                                                            className="text-xs h-8 flex-1"
+                                                        />
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={handleLoadElVoices}
+                                                            disabled={loadingElVoices || !elApiKey.trim()}
+                                                            className="text-xs h-8 shrink-0"
+                                                        >
+                                                            {loadingElVoices ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Cargar voces'}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                                {elVoices.length > 0 && (
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs text-muted-foreground">SELECCIONA UNA VOZ</Label>
+                                                        <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                                                            {elVoices.map((v) => (
+                                                                <button
+                                                                    key={v.voice_id}
+                                                                    onClick={() => { setElVoiceId(v.voice_id); handleVoiceSave(voiceEnabled, voiceId, voiceModel, voiceInstructions, ttsProvider, elApiKey, v.voice_id); }}
+                                                                    className={`w-full px-3 py-2 rounded-md border text-xs font-medium transition-colors text-left flex items-center justify-between ${elVoiceId === v.voice_id ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                                                                >
+                                                                    <span>{v.name}</span>
+                                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${elVoiceId === v.voice_id ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                                                                        {v.category === 'cloned' ? '🎤 clonada' : v.category}
+                                                                    </span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {elVoiceId && elVoices.length === 0 && (
+                                                    <p className="text-xs text-muted-foreground">Voz guardada. Haz clic en &quot;Cargar voces&quot; para ver y cambiar.</p>
+                                                )}
+                                            </>
+                                        )}
                                     </CardContent>
                                 )}
                             </Card>

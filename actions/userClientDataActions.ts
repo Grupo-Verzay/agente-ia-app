@@ -719,6 +719,9 @@ export async function updateUserVoiceSettings(
   voiceId: string,
   voiceModel?: string,
   voiceInstructions?: string,
+  ttsProvider?: string,
+  elevenLabsApiKey?: string,
+  elevenLabsVoiceId?: string,
 ): Promise<ClientResponse> {
   try {
     await ensureSelfOrAdmin(userId);
@@ -740,6 +743,9 @@ export async function updateUserVoiceSettings(
         voiceId,
         ...(voiceModel ? { voiceModel } : {}),
         ...(voiceInstructions !== undefined ? { voiceInstructions } : {}),
+        ...(ttsProvider ? { ttsProvider } : {}),
+        ...(elevenLabsApiKey !== undefined ? { elevenLabsApiKey } : {}),
+        ...(elevenLabsVoiceId !== undefined ? { elevenLabsVoiceId } : {}),
       } as any,
     });
 
@@ -747,5 +753,32 @@ export async function updateUserVoiceSettings(
   } catch (error) {
     console.error('[UPDATE_VOICE_SETTINGS]', error);
     return { success: false, message: 'Error al actualizar la configuración de voz.' };
+  }
+}
+
+export async function getElevenLabsVoices(
+  apiKey: string,
+): Promise<ClientResponse<{ voice_id: string; name: string; category: string }[]>> {
+  try {
+    const res = await fetch('https://api.elevenlabs.io/v1/voices', {
+      headers: { 'xi-api-key': apiKey },
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      return { success: false, message: `Error ElevenLabs: ${res.status} ${res.statusText}` };
+    }
+
+    const data = await res.json();
+    const voices = (data.voices ?? []).map((v: any) => ({
+      voice_id: v.voice_id,
+      name: v.name,
+      category: v.category ?? 'premade',
+    }));
+
+    return { success: true, message: 'Voces cargadas.', data: voices };
+  } catch (error) {
+    console.error('[GET_ELEVENLABS_VOICES]', error);
+    return { success: false, message: 'No se pudo conectar con ElevenLabs. Verifica el API key.' };
   }
 }
