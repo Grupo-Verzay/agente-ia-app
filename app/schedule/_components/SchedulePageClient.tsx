@@ -405,7 +405,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                             setAreaCode={setAreaCode}
                             setPhone={setPhone}
                             setStep={setStep}
-                            onContinue={() => setOpenDialog(true)}
+                            onContinue={scheduleAndNotify}
                         />
                     )}
                 </div>

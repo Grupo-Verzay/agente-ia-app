@@ -57,7 +57,7 @@ export const ScheduleForm = ({
                         Atrás
                     </Button>
                     <Button disabled={!canContinueStep2} onClick={onContinue}>
-                        Continuar
+                        Confirmar
                     </Button>
                 </div>
             </CardContent>
