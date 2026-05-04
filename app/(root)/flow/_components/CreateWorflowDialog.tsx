@@ -157,6 +157,9 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
               {/* 2. TIPO: IA | Flujo | Chatbot */}
               <div className="space-y-2">
                 <FormLabel>Tipo</FormLabel>
+                <p className="text-[11px] text-muted-foreground">
+                  Define cómo se activa el flujo: por intención detectada por IA, manualmente desde el agente, o por palabras clave exactas.
+                </p>
                 <div className="grid grid-cols-3 gap-2">
                   {typeOptions.map(opt => (
                     <button
@@ -174,9 +177,6 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                     </button>
                   ))}
                 </div>
-                <p className="text-[11px] text-muted-foreground bg-muted/50 rounded-md px-3 py-2 leading-relaxed">
-                  {typeOptions.find(o => o.value === flowType)?.detail}
-                </p>
               </div>
 
               {/* SECCIÓN CONDICIONAL SEGÚN TIPO */}
