@@ -121,28 +121,28 @@ async function runPostAppointmentTasks({
   const sendTextUrl = `${serverUrl}/message/sendText/${instanceName}`;
   const instanceId = instance.instanceId;
 
-  // 1. Enviar mensaje de confirmación del servicio al cliente
+  // 1. Confirmación del servicio al cliente via seguimiento
+  // Se usa el mismo patrón del flujo público: el follow-up runner la envía ~10s después,
+  // evitando que llegue antes que la respuesta del agente IA.
   if (service?.messageText) {
-    let message = service.messageText;
-    message = formatReminderMessage(message, pushName, startTime, timezone, slotDuration);
+    const message = formatReminderMessage(service.messageText, pushName, startTime, timezone, slotDuration);
 
-    const result = await sendMessageWithHistoryAction({
-      instanceName,
-      url: sendTextUrl,
-      apikey: instanceId,
-      remoteJid: phone,
-      message,
-      historyType: 'notification',
-      additionalKwargs: { source: 'ScheduleApiAgent', recipient: 'client', serviceId },
+    await db.seguimiento.create({
+      data: {
+        idNodo: '',
+        serverurl: serverUrl,
+        instancia: instanceName,
+        apikey: instanceId,
+        remoteJid: phone,
+        mensaje: message,
+        tipo: 'text',
+        time: '10',
+      },
     });
 
-    if (result.success) {
-      console.log(`[schedule/notification] Mensaje de servicio enviado a ${phone}`);
-    } else {
-      console.warn(`[schedule/notification] No se pudo enviar mensaje de servicio: ${result.message}`);
-    }
+    console.log(`[schedule/notification] Seguimiento de confirmación creado para ${phone}`);
   } else {
-    console.log(`[schedule/notification] Servicio sin messageText — se omite mensaje de confirmación`);
+    console.log(`[schedule/notification] Servicio sin messageText — se omite confirmación`);
   }
 
   // 2. Notificar al asesor/dueño (igual que el flujo público)
