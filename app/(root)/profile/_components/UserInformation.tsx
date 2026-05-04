@@ -289,6 +289,7 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
     const [elApiKey, setElApiKey] = useState<string>((user as any)?.elevenLabsApiKey ?? '');
     const [elVoiceId, setElVoiceId] = useState<string>((user as any)?.elevenLabsVoiceId ?? '');
     const [elVoices, setElVoices] = useState<{ voice_id: string; name: string; category: string }[]>([]);
+    const [elVoiceSearch, setElVoiceSearch] = useState('');
     const [loadingElVoices, setLoadingElVoices] = useState(false);
     const [savingVoice, setSavingVoice] = useState(false);
 
@@ -813,8 +814,14 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                                                 {elVoices.length > 0 && (
                                                     <div className="space-y-2">
                                                         <Label className="text-xs text-muted-foreground">SELECCIONA UNA VOZ</Label>
+                                                        <Input
+                                                            placeholder="Buscar voz..."
+                                                            value={elVoiceSearch}
+                                                            onChange={(e) => setElVoiceSearch(e.target.value)}
+                                                            className="text-xs h-8"
+                                                        />
                                                         <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
-                                                            {elVoices.map((v) => (
+                                                            {elVoices.filter(v => v.name.toLowerCase().includes(elVoiceSearch.toLowerCase())).map((v) => (
                                                                 <button
                                                                     key={v.voice_id}
                                                                     onClick={() => { setElVoiceId(v.voice_id); handleVoiceSave(voiceEnabled, voiceId, voiceModel, voiceInstructions, ttsProvider, elApiKey, v.voice_id); }}

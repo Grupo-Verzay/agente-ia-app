@@ -760,12 +760,19 @@ export async function getElevenLabsVoices(
   apiKey: string,
 ): Promise<ClientResponse<{ voice_id: string; name: string; category: string }[]>> {
   try {
+    const trimmedKey = apiKey.trim();
+    console.log('[ElevenLabs] key length:', trimmedKey.length, '| prefix:', trimmedKey.substring(0, 8));
+
     const res = await fetch('https://api.elevenlabs.io/v1/voices', {
-      headers: { 'xi-api-key': apiKey },
+      headers: { 'xi-api-key': trimmedKey },
       cache: 'no-store',
     });
 
+    console.log('[ElevenLabs] status:', res.status);
+
     if (!res.ok) {
+      const body = await res.text();
+      console.log('[ElevenLabs] error body:', body);
       const msg = res.status === 401
         ? 'API key inválido o expirado. Cópialo desde elevenlabs.io → Profile → API Key.'
         : `Error ElevenLabs: ${res.status} ${res.statusText}`;
