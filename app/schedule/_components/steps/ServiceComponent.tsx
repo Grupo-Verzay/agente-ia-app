@@ -28,7 +28,10 @@ export const ServiceComponent = ({
                     </SelectContent>
                 </Select>
 
-                <div className="flex justify-end">
+                <div className="flex justify-between">
+                    <Button variant="outline" onClick={() => window.history.back()}>
+                        Cancelar
+                    </Button>
                     <Button onClick={() => setStep(1)} disabled={!selectedService}>
                         Continuar
                     </Button>

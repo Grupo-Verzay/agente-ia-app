@@ -56,7 +56,7 @@ export const ScheduleForm = ({
                     <Button variant="outline" onClick={() => setStep(2)}>
                         Atrás
                     </Button>
-                    <Button disabled={!canContinueStep2} onClick={onContinue}>
+                    <Button disabled={!canContinueStep2} onClick={onContinue} className="bg-green-600 hover:bg-green-700 text-white">
                         Confirmar
                     </Button>
                 </div>
