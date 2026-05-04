@@ -267,7 +267,7 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
 
     const DEFAULT_MAPS_URL = 'https://maps.google.com/?q=0,0';
     const [mapsEnabled, setMapsEnabled] = useState<boolean>(
-        !!((user.mapsUrl as string)) && (user.mapsUrl as string) !== DEFAULT_MAPS_URL
+        !!(user?.mapsUrl as string) && (user?.mapsUrl as string) !== DEFAULT_MAPS_URL
     );
 
     const handleMapsToggle = async (enabled: boolean) => {
