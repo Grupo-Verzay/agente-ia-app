@@ -1,52 +1,30 @@
 
 import { Button } from "@/components/ui/button"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuGroup,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuShortcut,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { EditIcon, MoreHorizontal, Trash2Icon } from "lucide-react"
+import { Pencil, Trash2 } from "lucide-react"
 import { openEditDialog, openDeleteDialog } from '@/stores';
 import { Reminders } from "@prisma/client";
 
 export const ReminderActions = ({ reminder }: { reminder: Reminders }) => {
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="ghost">
-                    <span className="sr-only">Abrir menú</span>
-                    <MoreHorizontal className="h-4 w-4" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                    <DropdownMenuItem
-                        // className="text-blue-600"
-                        onClick={() => openEditDialog(reminder.id, reminder)}
-                    >
-                        Editar
-                        <DropdownMenuShortcut>
-                            <EditIcon />
-                        </DropdownMenuShortcut>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                        // className="text-red-600"
-                        onClick={() => openDeleteDialog(reminder.id)}
-                    >
-                        Eliminar
-                        <DropdownMenuShortcut>
-                            <Trash2Icon />
-                        </DropdownMenuShortcut>
-                    </DropdownMenuItem>
-                </DropdownMenuGroup>
-            </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-1 shrink-0">
+            <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="Editar"
+                onClick={() => openEditDialog(reminder.id, reminder)}
+            >
+                <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                title="Eliminar"
+                onClick={() => openDeleteDialog(reminder.id)}
+            >
+                <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+        </div>
     )
 }

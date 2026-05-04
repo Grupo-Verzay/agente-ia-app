@@ -12,23 +12,23 @@ export const ReminderList = ({ reminder, workflow }: ReminderListInterface) => {
 
     return (
         <Card key={reminder.id} className="border-border w-full">
-            <CardContent className="p-2">
-                <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-base text-primary">
-                        {reminder.title}
-                    </h3>
+            <CardContent className="p-3">
+                <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-base text-primary leading-tight truncate">
+                            {reminder.title}
+                        </h3>
+                        {reminder.description && (
+                            <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
+                                {reminder.description}
+                            </p>
+                        )}
+                        <div className="flex items-center gap-2 text-sm mt-0.5">
+                            <CalendarDaysIcon className="h-4 w-4 text-muted-foreground" />
+                            {reminder.time}
+                        </div>
+                    </div>
                     <ReminderActions reminder={reminder} />
-                </div>
-
-                {reminder.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                        {reminder.description}
-                    </p>
-                )}
-
-                <div className="flex items-center gap-2 text-sm">
-                    <CalendarDaysIcon className="h-4 w-4 text-muted-foreground" />
-                    {reminder.time}
                 </div>
 
                 {/* <div className="flex items-center gap-2 text-sm">

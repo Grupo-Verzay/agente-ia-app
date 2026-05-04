@@ -65,6 +65,7 @@ export interface ReminderInterface {
     initialData?: formValuesReminderSchema | null;
     isSchedule?: boolean
     onSuccess?: () => void,
+    onCancel?: () => void,
     dateSchedule?: string,
     instanceId?: string,
     forceCreate?: boolean,

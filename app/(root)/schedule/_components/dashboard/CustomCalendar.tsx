@@ -7,7 +7,7 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import { toast } from "sonner";
 
-import { getAppointmentsByUser, updateAppointmentStatus } from "@/actions/appointments-actions";
+import { getAppointmentsByUser, updateAppointmentStatus, deleteAppointment } from "@/actions/appointments-actions";
 import { AppointmentStatus, User } from "@prisma/client";
 import { AppointmentWithSession, buildStatusOwnerMessage, normalizeAppointmentsToEvents } from "../../helpers";
 
@@ -62,6 +62,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
     const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
     const [newStatus, setNewStatus] = useState<AppointmentStatus>("CONFIRMADA");
     const [openCancelAlert, setOpenCancelAlert] = useState(false);
+    const [openDeleteAlert, setOpenDeleteAlert] = useState(false);
 
     const loadAppointments = useCallback(async () => {
         const res = await getAppointmentsByUser(user.id);
@@ -195,17 +196,20 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
             >
                 <AlertDialogContent className="border-border">
                     <Tabs defaultValue="details">
-                        <div className="flex justify-between flex-row w-full">
+                        <div className="flex justify-between flex-row w-full items-center">
                             <TabsList>
                                 <TabsTrigger value="details">Detalles</TabsTrigger>
-                                <TabsTrigger value="status">Estado</TabsTrigger>
                             </TabsList>
-                            <Button variant={"ghost"} onClick={() => setOpenDialog(false)}><XCircleIcon /></Button>
+                            <div className="flex items-center gap-1">
+                                <TabsList>
+                                    <TabsTrigger value="status">Estado</TabsTrigger>
+                                </TabsList>
+                                <Button variant={"ghost"} onClick={() => setOpenDialog(false)}><XCircleIcon /></Button>
+                            </div>
                         </div>
                         <TabsContent value="status">
-                            <Card className="border-border">
+                            <Card className="border-border min-h-[10rem]">
                                 <CardHeader>
-                                    {/* <CardTitle>Estado</CardTitle> */}
                                     <CardDescription>
                                         Estás por modificar el estado de la cita:
                                         <span className="text-muted-foreground">
@@ -230,24 +234,23 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                         </SelectContent>
                                     </Select>
                                 </CardContent>
-                                <CardFooter className="flex gap-2 flex-row">
-                                    <Button variant={'outline'}>Cancelar</Button>
-
-                                    <Button
-                                        onClick={() => {
-                                            if (!selectedEventId) return;
-                                            if (newStatus === "CANCELADA") {
-                                                setOpenCancelAlert(true);
-                                                return;
-                                            }
-                                            handleStatusChange(selectedEventId, newStatus);
-                                            setOpenDialog(false);
-                                        }}
-                                    >
-                                        Actualizar
-                                    </Button>
-                                </CardFooter>
                             </Card>
+                            <div className="flex justify-between pt-4">
+                                <Button variant="outline" onClick={() => setOpenDialog(false)}>Cancelar</Button>
+                                <Button
+                                    onClick={() => {
+                                        if (!selectedEventId) return;
+                                        if (newStatus === "CANCELADA") {
+                                            setOpenCancelAlert(true);
+                                            return;
+                                        }
+                                        handleStatusChange(selectedEventId, newStatus);
+                                        setOpenDialog(false);
+                                    }}
+                                >
+                                    Actualizar
+                                </Button>
+                            </div>
                         </TabsContent>
                         {/* Pestaña de Detalles */}
                         <TabsContent value="details">
@@ -311,11 +314,49 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                     </CardContent>
                                 }
                             </Card>
+                            <div className="flex justify-between pt-4">
+                                <Button variant="outline" onClick={() => setOpenDialog(false)}>Cancelar</Button>
+                                <Button variant="destructive" onClick={() => setOpenDeleteAlert(true)}>Eliminar</Button>
+                            </div>
                         </TabsContent>
 
                     </Tabs>
                 </AlertDialogContent>
             </AlertDialog >
+
+            <AlertDialog open={openDeleteAlert} onOpenChange={setOpenDeleteAlert}>
+                <AlertDialogContent className="border-border">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Eliminar cita</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            ¿Estás seguro de que quieres eliminar la cita de{" "}
+                            <strong>{selectedAppointment?.session?.pushName || "este cliente"}</strong>?
+                            Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2">
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={async () => {
+                                if (!selectedEventId) return;
+                                toast.loading("Eliminando cita...", { id: toastId });
+                                const res = await deleteAppointment(selectedEventId);
+                                if (res.success) {
+                                    toast.success("Cita eliminada", { id: toastId });
+                                    setOpenDeleteAlert(false);
+                                    setOpenDialog(false);
+                                    await loadAppointments();
+                                } else {
+                                    toast.error(res.message || "Error al eliminar", { id: toastId });
+                                }
+                            }}
+                        >
+                            Sí, eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <AlertDialog open={openCancelAlert} onOpenChange={setOpenCancelAlert}>
                 <AlertDialogContent className="border-border">

@@ -4,6 +4,7 @@
 import { AnimatePresence, motion } from "framer-motion"
 import { useReminderDialogStore, closeDialog } from "@/stores"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import { Suspense } from "react"
@@ -50,11 +51,11 @@ export const ReminderModal = ({ user, apiKey, leads, workflows, instancia, isSch
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.95 }}
                         transition={{ duration: 0.2 }}
-                        className="w-full max-w-md p-2"
+                        className="w-full max-w-[33rem] p-2"
                     >
                         <Card className="relative shadow-2xl border-border rounded-md bg-background">
-                            <CardHeader className="flex items-center justify-between flex-row">
-                                <CardTitle>
+                            <CardHeader className="flex items-center justify-between flex-row pb-2">
+                                <CardTitle className="text-lg font-semibold leading-none tracking-tight">
                                     {openDialog === 'edit' ? `Editar ${modalTitle}` : `Crear ${modalTitle}`}
                                 </CardTitle>
                                 <Button
@@ -65,7 +66,8 @@ export const ReminderModal = ({ user, apiKey, leads, workflows, instancia, isSch
                                     <X className="w-5 h-5" />
                                 </Button>
                             </CardHeader>
-                            <CardContent className="space-y-4">
+                            <CardContent className="py-0 px-6">
+                                <ScrollArea className="max-h-[34rem] overflow-y-auto">
                                 <Suspense fallback={<CreateReminderSkeleton />}>
                                     <ReminderForm
                                         instanceNameReminder={instancia.instanceName}
@@ -76,9 +78,11 @@ export const ReminderModal = ({ user, apiKey, leads, workflows, instancia, isSch
                                         workflows={workflows}
                                         initialData={transformedReminder}
                                         onSuccess={() => closeDialog()}
+                                        onCancel={() => closeDialog()}
                                         isSchedule={isSchedule}
                                     />
                                 </Suspense>
+                                </ScrollArea>
                             </CardContent>
                         </Card>
                     </motion.div>

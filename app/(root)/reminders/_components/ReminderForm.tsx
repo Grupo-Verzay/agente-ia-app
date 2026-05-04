@@ -43,6 +43,7 @@ export const ReminderForm = ({
     workflows,
     instanceNameReminder,
     onSuccess,
+    onCancel,
     initialData,
     isSchedule,
     forceCreate,
@@ -204,7 +205,7 @@ export const ReminderForm = ({
 
     return (
         <>
-            <form onSubmit={handleSubmit(onSubmit, onError)} className="flex flex-col gap-2 pr-2 overflow-y-auto max-h-[80vh]">
+            <form onSubmit={handleSubmit(onSubmit, onError)} className="flex flex-col gap-2 pr-2 min-h-[21rem]">
                 {/* Campos ocultos */}
                 <>
                     {["userId", "remoteJid", "instanceName", "pushName", "workflowId", "apikey", "serverUrl"].map((name) => (
@@ -352,9 +353,14 @@ export const ReminderForm = ({
                     </>
                 }
 
-                <Button type="submit" disabled={mutation.isPending} className="w-full h-8 text-sm">
-                    {mutation.isPending ? "Guardando..." : isEdit ? `Actualizar ${modalTitle}` : `Crear ${modalTitle}`}
-                </Button>
+                <div className="flex justify-between gap-2 pt-1 mt-auto">
+                    <Button type="button" variant="outline" className="h-8 text-sm" onClick={onCancel}>
+                        Cancelar
+                    </Button>
+                    <Button type="submit" disabled={mutation.isPending} className="h-8 text-sm">
+                        {mutation.isPending ? "Guardando..." : isEdit ? `Actualizar ${modalTitle}` : `Crear ${modalTitle}`}
+                    </Button>
+                </div>
             </form>
 
             {createLead && (
