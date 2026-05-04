@@ -766,7 +766,10 @@ export async function getElevenLabsVoices(
     });
 
     if (!res.ok) {
-      return { success: false, message: `Error ElevenLabs: ${res.status} ${res.statusText}` };
+      const msg = res.status === 401
+        ? 'API key inválido o expirado. Cópialo desde elevenlabs.io → Profile → API Key.'
+        : `Error ElevenLabs: ${res.status} ${res.statusText}`;
+      return { success: false, message: msg };
     }
 
     const data = await res.json();
