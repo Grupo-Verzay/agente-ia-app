@@ -31,10 +31,11 @@ interface Props {
     apikeys: ApiKey[],
     availableApikeys: ApiKey[],
     currentUserRol: string,
-    countries: Country[]
+    countries: Country[],
+    initialSearch?: string,
 };
 
-export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRol, countries }: Props) => {
+export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRol, countries, initialSearch }: Props) => {
     const router = useRouter();
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [openCreateDialog, setOpenCreateDialog] = useState(false);
@@ -248,6 +249,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                 currentUserRol={currentUserRol}
                 openCreateDialogUser={openCreateDialogUser}
                 setStatusFilter={setStatusFilter}
+                initialSearch={initialSearch}
             />
 
 

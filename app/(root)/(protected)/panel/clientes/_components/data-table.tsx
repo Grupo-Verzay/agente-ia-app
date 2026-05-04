@@ -43,11 +43,12 @@ interface DataTableProps<TData, TValue> {
   currentUserRol: string
   openCreateDialogUser: () => void
   setStatusFilter: (status: StatusKey | null) => void
+  initialSearch?: string
 }
 
 const VISIBILITY_STORAGE_KEY = 'admin-clientes-column-visibility'
 
-export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCreateDialogUser, setStatusFilter }: DataTableProps<TData, TValue>) {
+export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCreateDialogUser, setStatusFilter, initialSearch }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -103,7 +104,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
           <div className="flex flex-row flex-1 gap-2">
 
             <div className="flex flex-col sm:flex-row items-centerem gap-2 flex-1">
-              <ColumnFilterInput table={table} />
+              <ColumnFilterInput table={table} initialValue={initialSearch} initialColumn={initialSearch ? "email" : undefined} />
 
               {/* button-create-client */}
               {(currentUserRol === 'admin' || currentUserRol === 'super_admin') &&

@@ -5,7 +5,7 @@ import AccessDenied from "@/app/AccessDenied";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function ClientesPage() {
+export default async function ClientesPage({ searchParams }: { searchParams?: { search?: string } }) {
   const res = await getClientsPageData();
 
   if (!res.success) {
@@ -22,6 +22,7 @@ export default async function ClientesPage() {
       availableApikeys={availableApikeys}
       currentUserRol={currentUserRol}
       countries={countries}
+      initialSearch={searchParams?.search}
     />
   );
 }

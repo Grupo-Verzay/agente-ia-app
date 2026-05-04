@@ -253,6 +253,21 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
         }
     };
 
+    const buildWhatsAppRedirectUrl = () => {
+        if (!user.notificationNumber || !selectedSlot || !selectedDate) return null;
+        const businessPhone = user.notificationNumber
+            .replace(/@s\.whatsapp\.net$/, "")
+            .replace(/^\+/, "")
+            .replace(/\s/g, "");
+        const [startTime] = selectedSlot.split("|");
+        const startLocal = toZonedTime(new Date(startTime), timezone);
+        const serviceName = user.services.find((s) => s.id === selectedService)?.name ?? "la cita";
+        const dateLabel = format(selectedDate, "d 'de' MMMM 'de' yyyy", { locale: es });
+        const hourLabel = format(startLocal, "hh:mm a");
+        const waText = `Hola, acabo de agendar una cita:\n\n📋 *Servicio:* ${serviceName}\n📅 *Fecha:* ${dateLabel}\n⏰ *Hora:* ${hourLabel}\n👤 *Nombre:* ${nameClient.trim()}`;
+        return `https://wa.me/${businessPhone}?text=${encodeURIComponent(waText)}`;
+    };
+
     const scheduleAndNotify = async () => {
         if (!user.apiKey || !primaryInstance) return toast.info("Campos incompletos o vacíos");
         if (!selectedService) return toast.info("Debes seleccionar un servicio");
@@ -282,25 +297,25 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
             const appointmentCreated = await handleConfirmAppointment();
             if (!appointmentCreated) return;
 
-            const result = await sendMessageWithHistoryAction({
-                instanceName,
-                url,
+            // Enviar confirmación al cliente con 30s de delay para que primero
+            // llegue el mensaje del cliente (iniciado desde el redirect a WhatsApp)
+            // y así el negocio pueda responder sin riesgo de bloqueo.
+            mutationSeguimiento.mutate({
+                idNodo: "",
+                serverurl: `https://${urlevo}`,
+                instancia: instanceName,
                 apikey,
                 remoteJid,
-                message: text,
-                historyType: "notification",
-                additionalKwargs: {
-                    source: "SchedulePageClient",
-                    recipient: "client",
-                    serviceId: selectedService,
-                },
+                mensaje: text,
+                tipo: "text",
+                time: "60",
+                name_file: undefined,
+                consecutivo: undefined,
+                media: undefined,
             });
 
-            if (result.success) toast.success(result.message);
-            else {
-                toast.info("No se envió el mensaje de notificación");
-                console.error(`Error SchedulePageClient: ${result.message}`);
-            }
+            const waUrl = buildWhatsAppRedirectUrl();
+            if (waUrl) window.location.href = waUrl;
         } catch (error) {
             console.error("Error en notificación:", error);
             toast.error("Ocurrió un error al intentar notificar la cita.");
@@ -416,8 +431,9 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                     <AlertDialogContent className="border-border">
                         <AlertDialogHeader>
                             <AlertDialogTitle>Confirmar cita</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                Estás a punto de agendar una cita con los siguientes datos:
+                            <AlertDialogDescription asChild>
+                                <div>
+                                <p className="mb-2">Estás a punto de agendar una cita con los siguientes datos:</p>
                                 <Card className="border-none mt-2 ">
                                     <CardContent className="space-y-4 p-0 m-0">
                                         <SummaryItem label="Servicio" value={user.services.find((s) => s.id === selectedService)?.name ?? "-"} />
@@ -435,12 +451,18 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                                         <SummaryItem label="Zona horaria" value={timezone} />
                                     </CardContent>
                                 </Card>
+                                {user.notificationNumber && (
+                                    <p className="mt-3 text-xs text-muted-foreground">
+                                        Al confirmar serás redirigido a WhatsApp para enviar un mensaje de confirmación.
+                                    </p>
+                                )}
+                                </div>
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                             <AlertDialogCancel>Cancelar</AlertDialogCancel>
                             <AlertDialogAction onClick={scheduleAndNotify} disabled={loading}>
-                                {loading ? "Agendando..." : "Confirmar"}
+                                {loading ? "Agendando..." : "Confirmar y abrir WhatsApp"}
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
