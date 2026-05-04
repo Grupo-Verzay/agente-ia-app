@@ -55,7 +55,9 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 
-import { ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis, ExternalLink, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { deleteUser } from "@/actions/userClientDataActions";
 
 import {
     activateUserService,
@@ -96,8 +98,11 @@ export function BillingCrmClient({
 }: {
     initial: ResponseFormat<ClientRow[]>;
 }) {
+    const router = useRouter();
     const [data, setData] = useState<ClientRow[]>(initial.data ?? []);
     const [dialog, setDialog] = useState<EditDialogState>(emptyDialog);
+    const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; userId: string; name: string }>({ open: false, userId: "", name: "" });
+    const [deleting, setDeleting] = useState(false);
 
     // DataTable state (shadcn style)
     const [globalFilter, setGlobalFilter] = useState("");
@@ -237,6 +242,20 @@ export function BillingCrmClient({
         }
         toast.success(res.message);
     }, []);
+
+    const handleDeleteUser = useCallback(async () => {
+        if (!deleteConfirm.userId) return;
+        setDeleting(true);
+        const res = await deleteUser(deleteConfirm.userId);
+        setDeleting(false);
+        if (!res.success) {
+            toast.error(res.message ?? "Error al eliminar el cliente.");
+            return;
+        }
+        setData((prev) => prev.filter((u) => u.id !== deleteConfirm.userId));
+        setDeleteConfirm({ open: false, userId: "", name: "" });
+        toast.success("Cliente eliminado correctamente.");
+    }, [deleteConfirm]);
 
     const openEdit = useCallback(async (u: ClientRow) => {
         setDialog((s) => ({ ...s, open: true, user: u, loading: true }));
@@ -589,13 +608,13 @@ export function BillingCrmClient({
             },
             {
                 id: "actions",
-                header: () => <div className="text-center">Acciones</div>,
+                header: () => <div className="text-right">Acciones</div>,
                 enableSorting: false,
                 enableHiding: false,
                 cell: ({ row }) => {
                     const u = row.original;
                     return (
-                        <div className="py-2 flex justify-center">
+                        <div className="py-2 flex justify-end">
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -608,6 +627,11 @@ export function BillingCrmClient({
 
                                     <DropdownMenuItem onClick={() => openEdit(u)}>
                                         Editar pagos
+                                    </DropdownMenuItem>
+
+                                    <DropdownMenuItem onClick={() => router.push(`/panel/clientes?search=${encodeURIComponent(u.email ?? "")}`)}>
+                                        <ExternalLink className="mr-2 h-3.5 w-3.5" />
+                                        Ver en Clientes
                                     </DropdownMenuItem>
 
                                     <DropdownMenuSeparator />
@@ -629,6 +653,16 @@ export function BillingCrmClient({
                                     <DropdownMenuItem onClick={() => handleActivate(u.id)}>
                                         Activar servicio
                                     </DropdownMenuItem>
+
+                                    <DropdownMenuSeparator />
+
+                                    <DropdownMenuItem
+                                        className="text-destructive focus:text-destructive"
+                                        onClick={() => setDeleteConfirm({ open: true, userId: u.id, name: u.company ?? u.email ?? u.id })}
+                                    >
+                                        <Trash2 className="mr-2 h-3.5 w-3.5" />
+                                        Eliminar cliente
+                                    </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         </div>
@@ -636,7 +670,7 @@ export function BillingCrmClient({
                 },
             },
         ];
-    }, [openEdit, handleMarkPaid, handleMarkUnpaid, handleSuspend, handleActivate, handleToggleStatus]);
+    }, [openEdit, handleMarkPaid, handleMarkUnpaid, handleSuspend, handleActivate, handleToggleStatus, router, setDeleteConfirm]);
 
     const globalFilterFn = React.useCallback(
         (row: any, _columnId: string, filterValue: string) => {
@@ -705,24 +739,25 @@ export function BillingCrmClient({
                                     value={globalFilter}
                                     onChange={(e) => setGlobalFilter(e.target.value)}
                                     placeholder="Buscar por nombre, email, empresa, plan…"
-                                    className="h-9 w-64 shrink-0"
+                                    className="h-9"
                                 />
 
-                                <div className="ml-auto flex items-center gap-1">
-                                    {/* Filtros columnas */}
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="outline">
-                                                <span className="hidden md:inline">Columnas</span>
-                                                <ChevronDown className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
+                                {/* Filtros columnas */}
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="ml-auto">
+                                            <Ellipsis className="h-4 w-4 md:hidden" />
+                                            <span className="hidden md:inline">Columnas</span>
+                                            <ChevronDown className="ml-2 h-4 w-4 hidden md:inline" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
 
-                                        <DropdownMenuContent align="end">
-                                            {table
-                                                .getAllColumns()
-                                                .filter((column) => column.getCanHide())
-                                                .map((column) => (
+                                    <DropdownMenuContent align="end">
+                                        {table
+                                            .getAllColumns()
+                                            .filter((column) => column.getCanHide())
+                                            .map((column) => {
+                                                return (
                                                     <DropdownMenuCheckboxItem
                                                         key={column.id}
                                                         checked={column.getIsVisible()}
@@ -730,27 +765,28 @@ export function BillingCrmClient({
                                                     >
                                                         {COLUMNS_LABELS[column.id] || column.id}
                                                     </DropdownMenuCheckboxItem>
-                                                ))}
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                                );
+                                            })}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
 
-                                    {/* Table actions */}
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="outline" size="icon">
-                                                <Ellipsis className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
+                                {/* Table actions */}
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="ml-auto">
+                                            <Ellipsis />
+                                        </Button>
+                                    </DropdownMenuTrigger>
 
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem onClick={() => exportExcelAllFiltered(table)}>
-                                                Exportar Excel
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+
+                                        <DropdownMenuItem onClick={() => exportExcelAllFiltered(table)}>
+                                            Exportar Excel
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
                         </div>
                     </div>
@@ -1062,6 +1098,25 @@ export function BillingCrmClient({
                     </Card>
                 </div>
             </div>
+
+            <Dialog open={deleteConfirm.open} onOpenChange={(open) => !deleting && setDeleteConfirm((s) => ({ ...s, open }))}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>¿Eliminar cliente?</DialogTitle>
+                        <DialogDescription>
+                            Esta acción eliminará permanentemente a <span className="font-semibold">{deleteConfirm.name}</span> y todos sus datos (sesiones, flujos, citas, recordatorios). No se puede deshacer.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteConfirm({ open: false, userId: "", name: "" })} disabled={deleting}>
+                            Cancelar
+                        </Button>
+                        <Button variant="destructive" onClick={handleDeleteUser} disabled={deleting}>
+                            {deleting ? "Eliminando..." : "Eliminar"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
