@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { getClientDataByUserId, updateClientDataByField, updateAbrirPhrase, updateUserVoiceSettings } from "@/actions/userClientDataActions";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { z } from 'zod';
 import {
@@ -282,6 +283,8 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
     const [showMoreTabs, setShowMoreTabs] = useState(false);
     const [voiceEnabled, setVoiceEnabled] = useState<boolean>(!!(user as any)?.enableVoiceResponses);
     const [voiceId, setVoiceId] = useState<string>((user as any)?.voiceId ?? 'nova');
+    const [voiceModel, setVoiceModel] = useState<string>((user as any)?.voiceModel ?? 'gpt-4o-mini-tts');
+    const [voiceInstructions, setVoiceInstructions] = useState<string>((user as any)?.voiceInstructions ?? '');
     const [savingVoice, setSavingVoice] = useState(false);
 
     if (!user) return null;
@@ -289,9 +292,20 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
     const isMuted = user.muteAgentResponses ?? false;
     const isReseller = user.role === Role.reseller;
 
-    const handleVoiceSave = async (enabled: boolean, voice: string) => {
+    const handleVoiceSave = async (
+        enabled: boolean,
+        voice: string,
+        model?: string,
+        instructions?: string,
+    ) => {
         setSavingVoice(true);
-        const res = await updateUserVoiceSettings(userId, enabled, voice);
+        const res = await updateUserVoiceSettings(
+            userId,
+            enabled,
+            voice,
+            model ?? voiceModel,
+            instructions ?? voiceInstructions,
+        );
         if (res.success) toast.success(res.message);
         else toast.error(res.message);
         setSavingVoice(false);
@@ -676,20 +690,52 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                                     </div>
                                 </CardHeader>
                                 {voiceEnabled && (
-                                    <CardContent className="space-y-3">
-                                        <Label className="text-xs text-muted-foreground">Voz del agente</Label>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const).map((v) => (
-                                                <button
-                                                    key={v}
-                                                    onClick={() => { setVoiceId(v); handleVoiceSave(voiceEnabled, v); }}
-                                                    className={`px-3 py-2 rounded-md border text-sm font-medium capitalize transition-colors ${voiceId === v ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
-                                                >
-                                                    {v}
-                                                </button>
-                                            ))}
+                                    <CardContent className="space-y-4">
+                                        <div className="space-y-2">
+                                            <Label className="text-xs text-muted-foreground">MODELO TTS</Label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {([
+                                                    { id: 'gpt-4o-mini-tts', label: 'GPT-4o Mini', desc: 'Más natural' },
+                                                    { id: 'tts-1-hd', label: 'TTS-1 HD', desc: 'Alta calidad' },
+                                                    { id: 'tts-1', label: 'TTS-1', desc: 'Estándar' },
+                                                ] as const).map((m) => (
+                                                    <button
+                                                        key={m.id}
+                                                        onClick={() => { setVoiceModel(m.id); handleVoiceSave(voiceEnabled, voiceId, m.id, voiceInstructions); }}
+                                                        className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors text-left ${voiceModel === m.id ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                                                    >
+                                                        <div>{m.label}</div>
+                                                        <div className={`text-[10px] mt-0.5 ${voiceModel === m.id ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{m.desc}</div>
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <p className="text-xs text-muted-foreground">Usa OpenAI TTS. Requiere créditos de API.</p>
+                                        <div className="space-y-2">
+                                            <Label className="text-xs text-muted-foreground">VOZ</Label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const).map((v) => (
+                                                    <button
+                                                        key={v}
+                                                        onClick={() => { setVoiceId(v); handleVoiceSave(voiceEnabled, v, voiceModel, voiceInstructions); }}
+                                                        className={`px-3 py-2 rounded-md border text-sm font-medium capitalize transition-colors ${voiceId === v ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                                                    >
+                                                        {v}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-xs text-muted-foreground">INSTRUCCIONES DE VOZ</Label>
+                                            <Textarea
+                                                placeholder="Ej: Habla de forma amable y cálida, como un asesor de servicio al cliente. Usa frases cortas y naturales."
+                                                value={voiceInstructions}
+                                                onChange={(e) => setVoiceInstructions(e.target.value)}
+                                                onBlur={() => handleVoiceSave(voiceEnabled, voiceId, voiceModel, voiceInstructions)}
+                                                rows={3}
+                                                className="text-xs resize-none"
+                                            />
+                                            <p className="text-xs text-muted-foreground">Solo aplica con el modelo GPT-4o Mini. Define el tono y estilo del audio.</p>
+                                        </div>
                                     </CardContent>
                                 )}
                             </Card>

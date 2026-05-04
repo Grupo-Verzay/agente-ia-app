@@ -717,6 +717,8 @@ export async function updateUserVoiceSettings(
   userId: string,
   enableVoiceResponses: boolean,
   voiceId: string,
+  voiceModel?: string,
+  voiceInstructions?: string,
 ): Promise<ClientResponse> {
   try {
     await ensureSelfOrAdmin(userId);
@@ -726,9 +728,19 @@ export async function updateUserVoiceSettings(
       return { success: false, message: 'Voz no válida.' };
     }
 
+    const validModels = ['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts'];
+    if (voiceModel && !validModels.includes(voiceModel)) {
+      return { success: false, message: 'Modelo de voz no válido.' };
+    }
+
     await db.user.update({
       where: { id: userId },
-      data: { enableVoiceResponses, voiceId } as any,
+      data: {
+        enableVoiceResponses,
+        voiceId,
+        ...(voiceModel ? { voiceModel } : {}),
+        ...(voiceInstructions !== undefined ? { voiceInstructions } : {}),
+      } as any,
     });
 
     return { success: true, message: 'Configuración de voz actualizada.' };
