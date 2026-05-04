@@ -363,7 +363,8 @@ export const EditDialog = ({
             </div>
           </div>
 
-          <DialogFooter className="pt-4">
+          <DialogFooter className="pt-4 flex-row justify-between sm:justify-between">
+            <Button variant="outline" type="button" onClick={() => setOpenEditDialog(false)}>Cancelar</Button>
             <Button variant="save" type="submit">Guardar</Button>
           </DialogFooter>
         </form>
