@@ -2,10 +2,12 @@ import React, { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import Header from '@/components/shared/header';
 import { Skeleton } from '@/components/ui/skeleton';
+import CreateWorflowDialog from '../flow/_components/CreateWorflowDialog';
 
 import { currentUser } from '@/lib/auth';
-import CreateWorflowDialog from '../flow/_components/CreateWorflowDialog';
 import { UserWorkflows } from '../flow/_components';
+import { getIntentTriggersByUser } from '@/actions/intent-trigger-actions';
+import { IntentTrigger } from '@prisma/client';
 
 function UserWorkFlowSkeleton() {
   return (
@@ -24,20 +26,18 @@ const WorkflowPage = async () => {
     redirect('/login');
   };
 
+  const triggersRes = await getIntentTriggersByUser(user.id);
+  const triggers = (triggersRes.success ? (triggersRes as any).data ?? [] : []) as IntentTrigger[];
+
   return (
     <div className="flex flex-col h-full p-4">
-      {/* Header fijo */}
-      <div className="sticky top-0 z-1 mb-6">
-        <div className="flex justify-between items-center">
-          <Header
-            title={'Flujos avanzados'}
-          />
-          <CreateWorflowDialog isPro={true} />
-        </div>
+      <div className="flex items-center justify-between mb-6">
+        <Header title="Flujos avanzados" />
+        <CreateWorflowDialog isPro={true} />
       </div>
 
       <Suspense fallback={<UserWorkFlowSkeleton />}>
-        <UserWorkflows userId={user.id} isPro={true} />
+        <UserWorkflows userId={user.id} isPro={true} triggers={triggers} />
       </Suspense>
     </div>
   );

@@ -2,7 +2,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, InboxIcon } from 'lucide-react';
 
 import { getWorkFlowByUser } from '@/actions/workflow-actions';
-import { Workflow } from '@prisma/client';
+import { IntentTrigger, Workflow } from '@prisma/client';
 import CreateWorflowDialog from './CreateWorflowDialog';
 import { WorkflowCard, SortableWorkflowList } from '.';
 
@@ -13,9 +13,10 @@ function hasWorkflow(result: { data?: Workflow[] }): result is { data: Workflow[
 interface UserWorkflowsProps {
     userId: string;
     isPro: boolean;
+    triggers?: IntentTrigger[];
 };
 
-export async function UserWorkflows({ userId, isPro }: UserWorkflowsProps) {
+export async function UserWorkflows({ userId, isPro, triggers = [] }: UserWorkflowsProps) {
     const resWorkflow = await getWorkFlowByUser(userId);
     const workflows = hasWorkflow(resWorkflow) ? resWorkflow.data : [];
     const basicWorkflows = workflows.filter(w => w.isPro === false);
@@ -49,7 +50,7 @@ export async function UserWorkflows({ userId, isPro }: UserWorkflowsProps) {
 
     return (
         <div className="flex-1 overflow-y-auto">
-            <SortableWorkflowList workflows={wichKindWorkflow} userId={userId} />
+            <SortableWorkflowList workflows={wichKindWorkflow} userId={userId} triggers={triggers} />
         </div>
     );
 }

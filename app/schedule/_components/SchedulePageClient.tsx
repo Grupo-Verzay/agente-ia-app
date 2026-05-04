@@ -261,7 +261,7 @@ export const SchedulePageClient = ({ user, reminders, countries, instancePhone }
         const serviceName = user.services.find((s) => s.id === selectedService)?.name ?? "la cita";
         const dateLabel = format(selectedDate, "d 'de' MMMM 'de' yyyy", { locale: es });
         const hourLabel = format(startLocal, "hh:mm a");
-        const waText = `Hola, acabo de agendar una cita:\n\n\u{1F4CB} *Servicio:* ${serviceName}\n\u{1F4C5} *Fecha:* ${dateLabel}\n\u{23F0} *Hora:* ${hourLabel}\n\u{1F464} *Nombre:* ${nameClient.trim()}`;
+        const waText = `Hola, acabo de agendar una cita:\n\n📝 *Servicio:* ${serviceName}\n📅 *Fecha:* ${dateLabel}\n⏰ *Hora:* ${hourLabel}\n👤 *Nombre:* ${nameClient.trim()}`;
         return `https://wa.me/${businessPhone}?text=${encodeURIComponent(waText)}`;
     };
 
@@ -294,24 +294,24 @@ export const SchedulePageClient = ({ user, reminders, countries, instancePhone }
             const appointmentCreated = await handleConfirmAppointment();
             if (!appointmentCreated) return;
 
-            // Awaitar el seguimiento antes de redirigir para evitar que la
-            // navegación cancele el request antes de que se envíe al backend.
+            // Enviar confirmación directamente al cliente antes de redirigir.
+            // No se usa createSeguimiento porque el follow-up runner requiere
+            // una Session activa del cliente, que no existe aún en este punto.
             try {
-                await mutationSeguimiento.mutateAsync({
-                    idNodo: "",
-                    serverurl: `https://${urlevo}`,
-                    instancia: instanceName,
+                await sendMessageWithHistoryAction({
+                    instanceName,
+                    url,
                     apikey,
                     remoteJid,
-                    mensaje: text,
-                    tipo: "text",
-                    time: "60",
-                    name_file: undefined,
-                    consecutivo: undefined,
-                    media: undefined,
+                    message: text,
+                    historyType: "notification",
+                    additionalKwargs: {
+                        source: "SchedulePageClient",
+                        recipient: "client",
+                    },
                 });
             } catch {
-                // No bloquear el redirect si el seguimiento falla
+                // No bloquear el redirect si la notificación falla
             }
 
             const waUrl = buildWhatsAppRedirectUrl();
@@ -459,9 +459,9 @@ export const SchedulePageClient = ({ user, reminders, countries, instancePhone }
                                 </div>
                             </AlertDialogDescription>
                         </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={scheduleAndNotify} disabled={loading}>
+                        <AlertDialogFooter className="flex-row gap-2">
+                            <AlertDialogCancel className="flex-1 mt-0">Cancelar</AlertDialogCancel>
+                            <AlertDialogAction className="flex-1" onClick={scheduleAndNotify} disabled={loading}>
                                 {loading ? "Agendando..." : "Confirmar por WhatsApp"}
                             </AlertDialogAction>
                         </AlertDialogFooter>

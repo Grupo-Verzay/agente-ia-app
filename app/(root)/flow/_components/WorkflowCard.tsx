@@ -2,13 +2,17 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Workflow } from "@prisma/client";
+import { IntentTrigger, Workflow } from "@prisma/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { PencilLine, FileTextIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { PencilLine, FileTextIcon, Zap, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { updateWorkflow } from "@/actions/workflow-actions";
+import { deleteIntentTrigger, toggleIntentTrigger } from "@/actions/intent-trigger-actions";
 import { WorkflowAction } from ".";
+import { IntentTriggerDialog } from "../../workflow/_components/IntentTriggerDialog";
 import { Form, FormField, FormItem, FormControl } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,14 +27,51 @@ const MAX_KEYWORDS = 20;
 export const WorkflowCard = ({
     workflow,
     userId,
+    trigger,
 }: {
     workflow: Workflow;
     userId: string;
+    trigger?: IntentTrigger | null;
 }) => {
     const router = useRouter();
     const editorPath = getWorkflowEditorPath(workflow.id, workflow.isPro);
     const [editing, setEditing] = useState(false);
     const [loading, setLoading] = useState(false);
+
+    const [localTrigger, setLocalTrigger] = useState<IntentTrigger | null>(trigger ?? null);
+    const [triggerDialogOpen, setTriggerDialogOpen] = useState(false);
+    const [editingTrigger, setEditingTrigger] = useState<IntentTrigger | null>(null);
+
+    const handleTriggerSaved = async () => {
+        const { getIntentTriggersByUser } = await import("@/actions/intent-trigger-actions");
+        const res = await getIntentTriggersByUser(userId);
+        if (res.success && res.data) {
+            const updated = (res.data as IntentTrigger[]).find(t => t.workflowId === workflow.id) ?? null;
+            setLocalTrigger(updated);
+        }
+    };
+
+    const handleToggleTrigger = async () => {
+        if (!localTrigger) return;
+        const next = !localTrigger.isActive;
+        setLocalTrigger(prev => prev ? { ...prev, isActive: next } : null);
+        const res = await toggleIntentTrigger(localTrigger.id, next);
+        if (!res.success) {
+            setLocalTrigger(prev => prev ? { ...prev, isActive: !next } : null);
+            toast.error("Error al cambiar estado.");
+        }
+    };
+
+    const handleDeleteTrigger = async () => {
+        if (!localTrigger) return;
+        if (!confirm("¿Eliminar el disparador IA de este flujo?")) return;
+        setLocalTrigger(null);
+        const res = await deleteIntentTrigger(localTrigger.id);
+        if (!res.success) {
+            setLocalTrigger(localTrigger);
+            toast.error("Error al eliminar el disparador.");
+        }
+    };
 
     // --- Parseamos description para obtener keywords[] y matchType ---
     let initialKeywords: string[] = [];
@@ -209,7 +250,8 @@ export const WorkflowCard = ({
 
     return (
         <Card className="border-border">
-            <CardContent className="p-4 flex flex-1 gap-2 items-center justify-between">
+            <CardContent className="p-4 flex flex-1 gap-2 flex-col">
+                <div className="flex flex-1 gap-2 items-center justify-between">
                 <div className="flex flex-1 gap-4 justify-center items-center">
                     <div
                         className="w-10 h-10 rounded-sm flex items-center justify-center bg-blue-500 cursor-pointer"
@@ -349,7 +391,66 @@ export const WorkflowCard = ({
                         userId={userId}
                     />
                 </div>
+                </div>
+
+                {/* Sección disparador IA */}
+                <div className="pt-2 border-t border-border">
+                    {localTrigger ? (
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <Switch
+                                    checked={localTrigger.isActive}
+                                    onCheckedChange={handleToggleTrigger}
+                                    className="shrink-0"
+                                />
+                                <Zap className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
+                                <span className="text-xs font-medium truncate">{localTrigger.name}</span>
+                                <Badge
+                                    variant="secondary"
+                                    className="text-[10px] px-1.5 py-0 h-4 shrink-0 bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+                                >
+                                    Prompt IA
+                                </Badge>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                    onClick={() => { setEditingTrigger(localTrigger); setTriggerDialogOpen(true); }}
+                                    className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                    title="Editar disparador"
+                                >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                    onClick={handleDeleteTrigger}
+                                    className="rounded p-1 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                                    title="Eliminar disparador"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => { setEditingTrigger(null); setTriggerDialogOpen(true); }}
+                            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                            <Zap className="h-3.5 w-3.5" />
+                            Agregar disparador IA
+                        </button>
+                    )}
+                </div>
             </CardContent>
+
+            <IntentTriggerDialog
+                userId={userId}
+                workflows={[]}
+                trigger={editingTrigger}
+                open={triggerDialogOpen}
+                onOpenChange={setTriggerDialogOpen}
+                onSaved={handleTriggerSaved}
+                fixedWorkflowId={workflow.id}
+                fixedWorkflowName={workflow.name}
+            />
         </Card>
     );
 };

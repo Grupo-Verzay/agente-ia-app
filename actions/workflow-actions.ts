@@ -51,7 +51,16 @@ export const getWorkFlowByUser = async (userId?: string): Promise<GetWorkFlowRes
     }
 };
 
-export const createWorkflow = async (form: createWorkflowSchemaType) => {
+export interface CreateWorkflowTriggerPayload {
+    name: string;
+    mode: "keywords" | "prompt";
+    condition: string;
+}
+
+export const createWorkflow = async (
+    form: createWorkflowSchemaType,
+    trigger?: CreateWorkflowTriggerPayload | null,
+) => {
     const user = await currentUser();
     if (!user) return { success: false, message: 'Usuario no autenticado.' };
 
@@ -78,6 +87,19 @@ export const createWorkflow = async (form: createWorkflowSchemaType) => {
         },
     });
     if (!result) return { success: false, message: 'Fallo la creación del flujo.' };
+
+    if (trigger?.name?.trim() && trigger?.condition?.trim()) {
+        await db.intentTrigger.create({
+            data: {
+                userId: user.id,
+                workflowId: result.id,
+                name: trigger.name.trim(),
+                mode: trigger.mode,
+                condition: trigger.condition.trim(),
+                isActive: true,
+            },
+        });
+    }
 
     redirect(getWorkflowEditorPath(result.id, result.isPro));
 };
