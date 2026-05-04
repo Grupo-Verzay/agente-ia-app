@@ -261,7 +261,7 @@ export const SchedulePageClient = ({ user, reminders, countries, instancePhone }
         const serviceName = user.services.find((s) => s.id === selectedService)?.name ?? "la cita";
         const dateLabel = format(selectedDate, "d 'de' MMMM 'de' yyyy", { locale: es });
         const hourLabel = format(startLocal, "hh:mm a");
-        const waText = `Hola, acabo de agendar una cita:\n\n📝 *Servicio:* ${serviceName}\n📅 *Fecha:* ${dateLabel}\n⏰ *Hora:* ${hourLabel}\n👤 *Nombre:* ${nameClient.trim()}`;
+        const waText = `Hola, acabo de agendar una cita:\n\n• *Servicio:* ${serviceName}\n• *Fecha:* ${dateLabel}\n• *Hora:* ${hourLabel}\n• *Nombre:* ${nameClient.trim()}`;
         return `https://wa.me/${businessPhone}?text=${encodeURIComponent(waText)}`;
     };
 
@@ -294,24 +294,24 @@ export const SchedulePageClient = ({ user, reminders, countries, instancePhone }
             const appointmentCreated = await handleConfirmAppointment();
             if (!appointmentCreated) return;
 
-            // Enviar confirmación directamente al cliente antes de redirigir.
-            // No se usa createSeguimiento porque el follow-up runner requiere
-            // una Session activa del cliente, que no existe aún en este punto.
-            try {
-                await sendMessageWithHistoryAction({
-                    instanceName,
-                    url,
-                    apikey,
-                    remoteJid,
-                    message: text,
-                    historyType: "notification",
-                    additionalKwargs: {
-                        source: "SchedulePageClient",
-                        recipient: "client",
-                    },
-                });
-            } catch {
-                // No bloquear el redirect si la notificación falla
+            // Crear seguimiento via keepalive fetch: el browser completa la
+            // request aunque la página navegue. El follow-up runner lo procesa
+            // ~60s después, cuando la sesión del cliente ya existe (porque ya
+            // envió su mensaje de WA). Así la confirmación llega DESPUÉS del
+            // mensaje del cliente, evitando inversión de orden.
+            if (text && remoteJid) {
+                fetch("/api/confirm-appointment", {
+                    method: "POST",
+                    keepalive: true,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        serverurl: `https://${urlevo}`,
+                        instancia: instanceName,
+                        apikey,
+                        remoteJid,
+                        mensaje: text,
+                    }),
+                }).catch(() => {});
             }
 
             const waUrl = buildWhatsAppRedirectUrl();
