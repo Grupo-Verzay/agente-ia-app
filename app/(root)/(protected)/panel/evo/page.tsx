@@ -13,10 +13,7 @@ const EvoManagementPage = async () => {
     return (
         <div className="p-6 space-y-6">
             <div>
-                <h1 className="text-2xl font-bold">Gestión de servidores EVO</h1>
-                <p className="text-muted-foreground text-sm mt-1">
-                    Configura hasta 5 servidores EVO. Cada uno estará disponible como ruta en el módulo manager.
-                </p>
+                <h1 className="text-2xl font-bold">Gestión servidores Evo Api</h1>
             </div>
             <MainEvo userId={user.id} />
         </div>

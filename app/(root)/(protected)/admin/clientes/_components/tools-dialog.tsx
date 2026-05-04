@@ -163,12 +163,12 @@ export const ToolsDialog = ({
 
   return (
     <Dialog open={openToolsDialog} onOpenChange={setOpenToolsDialog}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader className="flex justify-between items-center">
           <DialogTitle className="text-2xl">Gestor de herramientas</DialogTitle>
         </DialogHeader>
 
-        <form className="space-y-6 mt-4 px-2 pb-4">
+        <form className="space-y-[22px] mt-[14px] px-2 pb-[14px]">
           {toolConfig.map(({ id, label, placeholder, icon }) => {
             const isNewValue = !userTools[id]
             return (
@@ -206,10 +206,9 @@ export const ToolsDialog = ({
           })}
         </form>
 
-        <DialogFooter>
-          <Button variant="destructive" onClick={() => setOpenToolsDialog(false)}>
-            Cerrar
-          </Button>
+        <DialogFooter className="flex-row justify-between sm:justify-between">
+          <Button variant="outline" onClick={() => setOpenToolsDialog(false)}>Cancelar</Button>
+          <Button variant="default" onClick={() => setOpenToolsDialog(false)}>Cerrar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
