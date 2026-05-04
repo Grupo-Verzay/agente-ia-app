@@ -265,6 +265,19 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
         }
     };
 
+    const DEFAULT_MAPS_URL = 'https://maps.google.com/?q=0,0';
+    const [mapsEnabled, setMapsEnabled] = useState<boolean>(
+        !!((user.mapsUrl as string)) && (user.mapsUrl as string) !== DEFAULT_MAPS_URL
+    );
+
+    const handleMapsToggle = async (enabled: boolean) => {
+        setMapsEnabled(enabled);
+        if (!enabled) {
+            handleChange("mapsUrl", DEFAULT_MAPS_URL);
+            await updateClientDataByField(userId, "mapsUrl", DEFAULT_MAPS_URL);
+        }
+    };
+
     const [activeTab, setActiveTab] = useState('conexion');
     const [showMoreTabs, setShowMoreTabs] = useState(false);
     const [voiceEnabled, setVoiceEnabled] = useState<boolean>(!!(user as any)?.enableVoiceResponses);
@@ -555,20 +568,27 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                                                 <CardDescription className="text-xs">Cuando el cliente pregunte por tu dirección o cómo llegar, el agente compartirá este enlace automáticamente</CardDescription>
                                             </div>
                                             {loadingField === "mapsUrl" && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                                            <Switch
+                                                checked={mapsEnabled}
+                                                onCheckedChange={handleMapsToggle}
+                                                disabled={loadingField === "mapsUrl"}
+                                            />
                                         </div>
                                     </CardHeader>
-                                    <CardContent>
-                                        <Input
-                                            id="mapsUrl"
-                                            name="mapsUrl"
-                                            type="url"
-                                            placeholder="https://maps.google.com/?q=..."
-                                            value={(user.mapsUrl as string) ?? ""}
-                                            disabled={loadingField === "mapsUrl"}
-                                            onChange={(e) => handleChange("mapsUrl", e.target.value)}
-                                            onBlur={() => handleBlur("mapsUrl")}
-                                        />
-                                    </CardContent>
+                                    {mapsEnabled && (
+                                        <CardContent>
+                                            <Input
+                                                id="mapsUrl"
+                                                name="mapsUrl"
+                                                type="url"
+                                                placeholder="https://maps.google.com/?q=..."
+                                                value={(user.mapsUrl as string) ?? ""}
+                                                disabled={loadingField === "mapsUrl"}
+                                                onChange={(e) => handleChange("mapsUrl", e.target.value)}
+                                                onBlur={() => handleBlur("mapsUrl")}
+                                            />
+                                        </CardContent>
+                                    )}
                                 </Card>
                             </div>
                         </TabPanel>
