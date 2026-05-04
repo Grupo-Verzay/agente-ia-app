@@ -121,28 +121,27 @@ async function runPostAppointmentTasks({
   const sendTextUrl = `${serverUrl}/message/sendText/${instanceName}`;
   const instanceId = instance.instanceId;
 
-  // 1. Confirmación del servicio al cliente via seguimiento
-  // Si el servicio no tiene messageText se usa un mensaje por defecto.
-  // El follow-up runner lo envía ~10s después, cuando la respuesta del agente ya llegó.
+  // 1. Confirmación del servicio al cliente (envío directo)
   const rawConfirmText = service?.messageText?.trim() ||
     `✅ *¡Cita confirmada!*\n\nHola @client_name, tu cita ha sido registrada para el @appointment_datetime.\n\n¡Te esperamos!`;
 
   const confirmMessage = formatReminderMessage(rawConfirmText, pushName, startTime, timezone, slotDuration);
 
-  await db.seguimiento.create({
-    data: {
-      idNodo: '',
-      serverurl: serverUrl,
-      instancia: instanceName,
-      apikey: instanceId,
-      remoteJid: phone,
-      mensaje: confirmMessage,
-      tipo: 'text',
-      time: '10',
-    },
+  const confirmResult = await sendMessageWithHistoryAction({
+    instanceName,
+    url: sendTextUrl,
+    apikey: instanceId,
+    remoteJid: phone,
+    message: confirmMessage,
+    historyType: 'notification',
+    additionalKwargs: { source: 'ScheduleApiAgent', recipient: 'client', serviceId },
   });
 
-  console.log(`[schedule/notification] Seguimiento de confirmación creado para ${phone}`);
+  if (confirmResult.success) {
+    console.log(`[schedule/notification] Confirmación enviada al cliente ${phone}`);
+  } else {
+    console.warn(`[schedule/notification] No se pudo enviar confirmación al cliente ${phone}: ${confirmResult.message}`);
+  }
 
   // 2. Notificar al asesor/dueño (igual que el flujo público)
   const ownerPhones: string[] = [];
