@@ -1098,26 +1098,26 @@ export function BillingCrmClient({
                     </Card>
                 </div>
             </div>
-        </div>
 
-        <Dialog open={deleteConfirm.open} onOpenChange={(open) => !deleting && setDeleteConfirm((s) => ({ ...s, open }))}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>¿Eliminar cliente?</DialogTitle>
-                    <DialogDescription>
-                        Esta acción eliminará permanentemente a <span className="font-semibold">{deleteConfirm.name}</span> y todos sus datos (sesiones, flujos, citas, recordatorios). No se puede deshacer.
-                    </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setDeleteConfirm({ open: false, userId: "", name: "" })} disabled={deleting}>
-                        Cancelar
-                    </Button>
-                    <Button variant="destructive" onClick={handleDeleteUser} disabled={deleting}>
-                        {deleting ? "Eliminando..." : "Eliminar"}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            <Dialog open={deleteConfirm.open} onOpenChange={(open) => !deleting && setDeleteConfirm((s) => ({ ...s, open }))}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>¿Eliminar cliente?</DialogTitle>
+                        <DialogDescription>
+                            Esta acción eliminará permanentemente a <span className="font-semibold">{deleteConfirm.name}</span> y todos sus datos (sesiones, flujos, citas, recordatorios). No se puede deshacer.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteConfirm({ open: false, userId: "", name: "" })} disabled={deleting}>
+                            Cancelar
+                        </Button>
+                        <Button variant="destructive" onClick={handleDeleteUser} disabled={deleting}>
+                            {deleting ? "Eliminando..." : "Eliminar"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
     );
 }
 
