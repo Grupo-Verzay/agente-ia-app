@@ -58,7 +58,7 @@ export const ModuleForm = ({
                     name="label"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Nombre del módulo</FormLabel>
+                            <FormLabel className="text-xs font-semibold text-foreground">Nombre del módulo</FormLabel>
                             <FormControl>
                                 <Input placeholder="Ej: Leads" {...field} />
                             </FormControl>
@@ -71,7 +71,7 @@ export const ModuleForm = ({
                     name="route"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Ruta</FormLabel>
+                            <FormLabel className="text-xs font-semibold text-foreground">Ruta</FormLabel>
                             <Select
                                 onValueChange={field.onChange}
                                 defaultValue={field.value}
@@ -102,7 +102,7 @@ export const ModuleForm = ({
                         name="customUrl"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Ruta personalizada</FormLabel>
+                                <FormLabel className="text-xs font-semibold text-foreground">Ruta personalizada</FormLabel>
                                 <FormControl>
                                     <Input placeholder="https://bot.verzay.co/es/typebots" {...field} />
                                 </FormControl>
@@ -117,7 +117,7 @@ export const ModuleForm = ({
                     name="icon"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Icono del módulo</FormLabel>
+                            <FormLabel className="text-xs font-semibold text-foreground">Icono del módulo</FormLabel>
                             <Select onValueChange={field.onChange} value={field.value}>
                                 <FormControl>
                                     <SelectTrigger>
@@ -152,7 +152,7 @@ export const ModuleForm = ({
                                         onCheckedChange={(checked: CheckedState) => field.onChange(!!checked)}
                                     />
                                 </FormControl>
-                                <FormLabel>{labelMap[key]}</FormLabel>
+                                <FormLabel className="text-xs font-semibold text-foreground">{labelMap[key]}</FormLabel>
                             </FormItem>
                         )}
                     />
@@ -166,7 +166,7 @@ export const ModuleForm = ({
 
                         return (
                             <FormItem className="flex flex-col gap-2">
-                                <FormLabel>Planes permitidos</FormLabel>
+                                <FormLabel className="text-xs font-semibold text-foreground">Planes permitidos</FormLabel>
                                 <Popover open={openPlans} onOpenChange={setOpenPlans}>
                                     <PopoverTrigger asChild>
                                         <FormControl>
@@ -217,7 +217,7 @@ export const ModuleForm = ({
                 />
 
                 <div className="flex flex-col flex-1 gap-2">
-                    <FormLabel>Submódulos</FormLabel>
+                    <FormLabel className="text-xs font-semibold text-foreground">Submódulos</FormLabel>
                     {fields.map((field, index) => (
                         <div key={field.id} className="flex flex-col flex-1 justify-between gap-2">
                             <div className="flex w-full justify-between items-center">

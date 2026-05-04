@@ -162,10 +162,10 @@ export const MainModule = () => {
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 20, scale: 0.95 }}
                             transition={{ duration: 0.2 }}
-                            className="w-full max-w-md p-2"
+                            className="w-full max-w-[33rem] p-2"
                         >
                             <Card className="relative shadow-2xl border-border rounded-md bg-background">
-                                <CardHeader className="flex items-center justify-between flex-row">
+                                <CardHeader className="flex items-center justify-between flex-row pb-2">
                                     <CardTitle>
                                         {editModule ? "Editar módulo" : "Crear módulo"}
                                     </CardTitle>
@@ -177,15 +177,15 @@ export const MainModule = () => {
                                         <X className="w-5 h-5" />
                                     </Button>
                                 </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <ScrollArea className="max-h-[70vh] overflow-y-auto">
+                                <CardContent className="py-0 px-6">
+                                    <ScrollArea className="max-h-[26.5rem] overflow-y-auto">
                                         <ModuleForm
                                             onSubmit={onSubmit}
                                             defaultValues={editModule ? normalizeModule(editModule) : undefined}
                                         />
                                     </ScrollArea>
                                 </CardContent>
-                                <CardFooter>
+                                <CardFooter className="pt-4 flex justify-between gap-2">
                                     <Button variant="save" form="module-form" type="submit" className="w-full">
                                         {editModule ? "Guardar cambios" : "Crear módulo"}
                                     </Button>
