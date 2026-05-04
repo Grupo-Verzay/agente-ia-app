@@ -20,6 +20,7 @@ import {
     HardDrive,
     Loader2,
     Lock,
+    MapPin,
     MessageSquare,
     Mic,
     Monitor,
@@ -539,6 +540,33 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                                             disabled={loadingField === "company"}
                                             onChange={(e) => handleChange("company", e.target.value)}
                                             onBlur={() => handleBlur("company")}
+                                        />
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="border-border flex flex-1 flex-col sm:col-span-2">
+                                    <CardHeader className="pb-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                <MapPin className="w-4 h-4 text-primary" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <CardTitle className="text-sm font-semibold">URL de Google Maps</CardTitle>
+                                                <CardDescription className="text-xs">Cuando el cliente pregunte por tu dirección o cómo llegar, el agente compartirá este enlace automáticamente</CardDescription>
+                                            </div>
+                                            {loadingField === "mapsUrl" && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <Input
+                                            id="mapsUrl"
+                                            name="mapsUrl"
+                                            type="url"
+                                            placeholder="https://maps.google.com/?q=..."
+                                            value={(user.mapsUrl as string) ?? ""}
+                                            disabled={loadingField === "mapsUrl"}
+                                            onChange={(e) => handleChange("mapsUrl", e.target.value)}
+                                            onBlur={() => handleBlur("mapsUrl")}
                                         />
                                     </CardContent>
                                 </Card>
