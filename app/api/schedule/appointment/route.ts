@@ -97,7 +97,7 @@ async function runPostAppointmentTasks({
   serviceId: string;
 }) {
   const [service, instance, user, reminders, notificationContacts] = await Promise.all([
-    db.service.findFirst({ where: { id: serviceId }, select: { name: true } }),
+    db.service.findFirst({ where: { id: serviceId }, select: { messageText: true, name: true } }),
     db.instancia.findFirst({ where: { userId, instanceName }, select: { instanceId: true } }),
     db.user.findUnique({ where: { id: userId }, select: { meetingDuration: true, apiKeyId: true, notificationNumber: true } }),
     db.reminders.findMany({ where: { userId }, orderBy: { id: 'asc' } }),
@@ -108,7 +108,7 @@ async function runPostAppointmentTasks({
     ? await db.apiKey.findUnique({ where: { id: user.apiKeyId }, select: { url: true } })
     : null;
 
-  console.log(`[schedule/notification] apiKey=${!!apiKey?.url} instance=${!!instance?.instanceId} apiKeyId=${user?.apiKeyId ?? 'null'} reminders=${reminders.length}`);
+  console.log(`[schedule/notification] messageText=${!!service?.messageText} apiKey=${!!apiKey?.url} instance=${!!instance?.instanceId} apiKeyId=${user?.apiKeyId ?? 'null'} reminders=${reminders.length}`);
 
   if (!apiKey?.url || !instance?.instanceId) {
     console.warn(`[schedule/notification] Sin apiKey o instancia — abortando tareas post-cita`);
@@ -121,7 +121,29 @@ async function runPostAppointmentTasks({
   const sendTextUrl = `${serverUrl}/message/sendText/${instanceName}`;
   const instanceId = instance.instanceId;
 
-  // 1. Notificar al asesor/dueño (igual que el flujo público)
+  // 1. Confirmación del servicio al cliente (envío directo)
+  const rawConfirmText = service?.messageText?.trim() ||
+    `✅ *¡Cita confirmada!*\n\nHola @client_name, tu cita ha sido registrada para el @appointment_datetime.\n\n¡Te esperamos!`;
+
+  const confirmMessage = formatReminderMessage(rawConfirmText, pushName, startTime, timezone, slotDuration);
+
+  const confirmResult = await sendMessageWithHistoryAction({
+    instanceName,
+    url: sendTextUrl,
+    apikey: instanceId,
+    remoteJid: phone,
+    message: confirmMessage,
+    historyType: 'notification',
+    additionalKwargs: { source: 'ScheduleApiAgent', recipient: 'client', serviceId },
+  });
+
+  if (confirmResult.success) {
+    console.log(`[schedule/notification] Confirmación enviada al cliente ${phone}`);
+  } else {
+    console.warn(`[schedule/notification] No se pudo enviar confirmación al cliente ${phone}: ${confirmResult.message}`);
+  }
+
+  // 2. Notificar al asesor/dueño (igual que el flujo público)
   const ownerPhones: string[] = [];
   if (user?.notificationNumber) ownerPhones.push(user.notificationNumber);
   for (const c of notificationContacts) {
