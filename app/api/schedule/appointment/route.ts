@@ -100,7 +100,7 @@ async function runPostAppointmentTasks({
     db.service.findFirst({ where: { id: serviceId }, select: { messageText: true, name: true } }),
     db.instancia.findFirst({ where: { userId, instanceName }, select: { instanceId: true } }),
     db.user.findUnique({ where: { id: userId }, select: { meetingDuration: true, apiKeyId: true, notificationNumber: true } }),
-    db.reminders.findMany({ where: { userId }, orderBy: { id: 'asc' } }),
+    db.reminders.findMany({ where: { userId, isSchedule: true }, orderBy: { id: 'asc' } }),
     db.userNotificationContact.findMany({ where: { userId }, select: { phone: true } }).catch(() => []),
   ]);
 
@@ -194,14 +194,12 @@ async function runPostAppointmentTasks({
     return;
   }
 
-  const startLocal = toZonedTime(new Date(startTime), timezone);
-
   const seguimientosCreados = await Promise.allSettled(
     reminders.map(async (rem) => {
       const normalizedSeconds = normalizeTimeToSeconds(rem.time ?? '');
       if (!normalizedSeconds) return;
 
-      const seguimientoTime = subtractSecondsFromTime(startLocal, normalizedSeconds);
+      const seguimientoTime = subtractSecondsFromTime(new Date(startTime), normalizedSeconds);
       const mensaje = formatReminderMessage(rem.description ?? rem.title, pushName, startTime, timezone, slotDuration);
 
       await db.seguimiento.create({

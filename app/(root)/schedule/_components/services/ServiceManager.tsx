@@ -184,7 +184,8 @@ function ServiceFormDialog({
                 </DialogHeader>
 
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <form onSubmit={form.handleSubmit(onSubmit)}>
+                        <div className="overflow-auto max-h-[28rem] pr-2 space-y-4 py-2">
                         <FormField
                             control={form.control}
                             name="name"
@@ -219,6 +220,7 @@ function ServiceFormDialog({
                                 </FormItem>
                             )}
                         />
+                        </div>
 
                         <DialogFooter>
                             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={submitting}>
