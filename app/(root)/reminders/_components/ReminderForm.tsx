@@ -188,7 +188,11 @@ export const ReminderForm = ({
     };
 
     const handleConfirmCampaign = () => {
-        if (pendingPayload.current) mutation.mutate(pendingPayload.current);
+        if (pendingPayload.current && !mutation.isPending) {
+            const payload = pendingPayload.current;
+            pendingPayload.current = null;
+            mutation.mutate(payload);
+        }
         setShowCampaignWarning(false);
     };
 
@@ -401,8 +405,8 @@ export const ReminderForm = ({
                     </AlertDialogHeader>
                     <div className="flex justify-between items-center mt-4">
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleConfirmCampaign} className="bg-red-600 hover:bg-red-700 text-white">
-                            Continuar
+                        <AlertDialogAction onClick={handleConfirmCampaign} disabled={mutation.isPending} className="bg-red-600 hover:bg-red-700 text-white">
+                            {mutation.isPending ? "Creando..." : "Continuar"}
                         </AlertDialogAction>
                     </div>
                 </AlertDialogContent>
