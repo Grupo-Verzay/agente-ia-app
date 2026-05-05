@@ -145,10 +145,16 @@ export async function getRemindersByUserId(userId: string): Promise<ReminderResp
 
     try {
         const reminders = await db.reminders.findMany({
-            where: { userId },
+            where: {
+                userId,
+                NOT: { remoteJid: { contains: ',' } },
+            },
             orderBy: [{ order: 'asc' as any }, { createdAt: 'asc' }],
         }).catch(() => db.reminders.findMany({
-            where: { userId },
+            where: {
+                userId,
+                NOT: { remoteJid: { contains: ',' } },
+            },
             orderBy: { id: 'asc' },
         }))
 
@@ -162,6 +168,43 @@ export async function getRemindersByUserId(userId: string): Promise<ReminderResp
         return {
             success: false,
             message: "Error al obtener los recordatorios.",
+        }
+    }
+}
+
+export async function getCampaignsByUserId(userId: string): Promise<ReminderResponse> {
+    if (!userId) {
+        return {
+            success: false,
+            message: "El ID del usuario es obligatorio.",
+        }
+    }
+
+    try {
+        const campaigns = await db.reminders.findMany({
+            where: {
+                userId,
+                remoteJid: { contains: ',' },
+            },
+            orderBy: [{ order: 'asc' as any }, { createdAt: 'asc' }],
+        }).catch(() => db.reminders.findMany({
+            where: {
+                userId,
+                remoteJid: { contains: ',' },
+            },
+            orderBy: { id: 'asc' },
+        }))
+
+        return {
+            success: true,
+            message: "Campañas obtenidas correctamente.",
+            data: campaigns,
+        }
+    } catch (error) {
+        console.error("[GET_CAMPAIGNS]", error)
+        return {
+            success: false,
+            message: "Error al obtener las campañas.",
         }
     }
 }

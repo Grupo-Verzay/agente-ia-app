@@ -2,7 +2,7 @@ import { currentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { getApiKeyById } from "@/actions/api-action"
 import { ApiKey, Instancia, Reminders, Session, Workflow } from "@prisma/client"
-import { getRemindersByUserId } from "@/actions/reminders-actions"
+import { getCampaignsByUserId } from "@/actions/reminders-actions"
 import { getSessionsByUserId } from "@/actions/session-action"
 import { getWorkFlowByUser } from "@/actions/workflow-actions"
 import { getInstancesByUserId } from "@/actions/instances-actions"
@@ -40,8 +40,8 @@ const CampaignsPage = async () => {
     return <strong className="text-red-500">No se encontró una API Key válida.</strong>
   }
 
-  // Obtener recordatorios
-  const resReminder = await getRemindersByUserId(user.id)
+  // Obtener campañas
+  const resReminder = await getCampaignsByUserId(user.id)
   if (!resReminder.success) {
     console.error("[REMINDERS_PAGE] Error al obtener recordatorios:", resReminder.message)
     return <strong>404</strong>
