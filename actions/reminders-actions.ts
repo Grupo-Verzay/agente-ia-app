@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { z } from "zod"
 import { formValuesReminderSchema, reminderSchema } from "@/schema/reminder"
 import { Prisma } from "@prisma/client"
+import { parse as parseDate, format, isValid, addSeconds } from "date-fns"
 
 // ─── Helpers de campaña ───────────────────────────────────────────────────────
 
@@ -11,13 +12,22 @@ function randomBetween(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function normalizeToAbsoluteTime(timeStr: string): Date | null {
+    if (!timeStr) return null;
+    // Formato dd/MM/yyyy HH:mm (DateTimePicker)
+    const byFormat = parseDate(timeStr, 'dd/MM/yyyy HH:mm', new Date());
+    if (isValid(byFormat)) return byFormat;
+    // Formato ISO
+    const byIso = new Date(timeStr);
+    if (!isNaN(byIso.getTime())) return byIso;
+    return null;
+}
+
 function addSecondsToTime(timeStr: string, extraSeconds: number): string {
-    if (!timeStr || extraSeconds === 0) return timeStr;
-    const d = new Date(timeStr);
-    if (!isNaN(d.getTime())) {
-        return new Date(d.getTime() + extraSeconds * 1000).toISOString();
-    }
-    return timeStr;
+    if (!timeStr) return timeStr;
+    const base = normalizeToAbsoluteTime(timeStr);
+    if (!base) return timeStr;
+    return format(addSeconds(base, extraSeconds), 'dd/MM/yyyy HH:mm');
 }
 
 function applyVariables(message: string, name: string, phone: string): string {
@@ -75,7 +85,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                     remoteJid: data.remoteJid ?? "",
                     mensaje:   baseMsg,
                     tipo:      "text",
-                    time:      data.time ?? "",
+                    time:      addSecondsToTime(data.time ?? '', 0),
                 },
             });
         } else {
