@@ -59,20 +59,20 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
         }
     }
 
-    const data = parse.data
+    const { campaignMinDelay, campaignMaxDelay, ...reminderData } = parse.data
 
     try {
         const reminder = await db.reminders.create({
-            data: data as Prisma.RemindersCreateInput,
+            data: reminderData as Prisma.RemindersCreateInput,
         })
 
-        const serverurl = data.serverUrl
-            ? (data.serverUrl.startsWith("https://") ? data.serverUrl : `https://${data.serverUrl}`)
+        const serverurl = reminderData.serverUrl
+            ? (reminderData.serverUrl.startsWith("https://") ? reminderData.serverUrl : `https://${reminderData.serverUrl}`)
             : "";
 
-        const jids   = (data.remoteJid ?? '').split(',').map(s => s.trim()).filter(Boolean);
-        const names  = (data.pushName  ?? '').split(',').map(s => s.trim());
-        const baseMsg = data.description || data.title;
+        const jids   = (reminderData.remoteJid ?? '').split(',').map(s => s.trim()).filter(Boolean);
+        const names  = (reminderData.pushName  ?? '').split(',').map(s => s.trim());
+        const baseMsg = reminderData.description || reminderData.title;
 
         if (jids.length <= 1) {
             // Recordatorio normal — un solo destinatario
@@ -80,18 +80,18 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                 data: {
                     idNodo:    `reminder-${reminder.id}`,
                     serverurl,
-                    instancia: data.instanceName ?? "",
-                    apikey:    data.apikey ?? "",
-                    remoteJid: data.remoteJid ?? "",
+                    instancia: reminderData.instanceName ?? "",
+                    apikey:    reminderData.apikey ?? "",
+                    remoteJid: reminderData.remoteJid ?? "",
                     mensaje:   baseMsg,
                     tipo:      "text",
-                    time:      addSecondsToTime(data.time ?? '', 0),
+                    time:      addSecondsToTime(reminderData.time ?? '', 0),
                 },
             });
         } else {
             // Campaña — un Seguimiento por lead con delay escalonado y variables
-            const minDelay = Math.max(5, data.campaignMinDelay ?? 20);
-            const maxDelay = Math.max(minDelay, data.campaignMaxDelay ?? 60);
+            const minDelay = Math.max(5, campaignMinDelay ?? 20);
+            const maxDelay = Math.max(minDelay, campaignMaxDelay ?? 60);
             let cumulativeDelay = 0;
 
             for (let i = 0; i < jids.length; i++) {
@@ -105,12 +105,12 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                     data: {
                         idNodo:    `reminder-${reminder.id}-${i + 1}`,
                         serverurl,
-                        instancia: data.instanceName ?? "",
-                        apikey:    data.apikey ?? "",
+                        instancia: reminderData.instanceName ?? "",
+                        apikey:    reminderData.apikey ?? "",
                         remoteJid: jid,
                         mensaje:   applyVariables(baseMsg, name, phone),
                         tipo:      "text",
-                        time:      addSecondsToTime(data.time ?? '', cumulativeDelay),
+                        time:      addSecondsToTime(reminderData.time ?? '', cumulativeDelay),
                     },
                 });
             }
