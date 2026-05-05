@@ -51,10 +51,12 @@ async function resolveServiceId(userId: string, serviceId: string): Promise<stri
 
 function normalizeTimeToSeconds(timeStr: string): number {
   const unitToSeconds: Record<string, number> = { seconds: 1, minutes: 60, hours: 3600, days: 86400 };
-  const [unit, valueStr] = timeStr.split('-');
-  const value = parseInt(valueStr);
-  if (!unit || isNaN(value) || !(unit in unitToSeconds)) return 0;
-  return value * unitToSeconds[unit];
+  const [unit, valueStr] = (timeStr ?? '').split('-');
+  const value = parseInt(valueStr, 10);
+  if (unit in unitToSeconds && !isNaN(value)) return value * unitToSeconds[unit];
+  // Fallback: número plano guardado directamente como segundos (formato legacy)
+  const raw = parseInt(timeStr, 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : 0;
 }
 
 function subtractSecondsFromTime(date: Date, seconds: number): string {
