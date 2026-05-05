@@ -154,9 +154,8 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
             secondsReminders.forEach((rem) => {
                 if (!rem.normalizedSeconds) return;
 
-                const startLocal = toZonedTime(new Date(startTime), SERVER_TIME_ZONE);
-                const reminderTargetMs = startLocal.getTime() - rem.normalizedSeconds * 1000;
-                const delayFromNowSeconds = Math.max(0, Math.round((reminderTargetMs - Date.now()) / 1000));
+                const reminderDate = new Date(new Date(startTime).getTime() - rem.normalizedSeconds * 1000);
+                const reminderTime = format(reminderDate, 'dd/MM/yyyy HH:mm');
 
                 const dataSeguimiento: SeguimientoInput = {
                     idNodo: "",
@@ -172,7 +171,7 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
                         slotDuration,
                     }),
                     tipo: "text",
-                    time: String(delayFromNowSeconds),
+                    time: reminderTime,
                     name_file: undefined,
                     consecutivo: undefined,
                     media: undefined,
