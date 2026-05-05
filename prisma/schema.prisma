@@ -1079,6 +1079,8 @@ enum AppointmentStatus {
   CANCELADA
   ATENDIDA
   NO_ASISTIDA
+  FINALIZADO
+  DESCARTADO
 }
 
 enum FinanceAccountType {

@@ -88,7 +88,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
         if (res.success) {
             toast.success("Estado actualizado correctamente", { id: toastId });
 
-            await notifyChangeStatus();
+            if (status !== 'FINALIZADO' && status !== 'DESCARTADO') await notifyChangeStatus();
             await loadAppointments();
         } else {
             toast.error(res.message, { id: toastId });
@@ -231,6 +231,8 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                             <SelectItem value="ATENDIDA">Atendida</SelectItem>
                                             <SelectItem value="NO_ASISTIDA">No asistida</SelectItem>
                                             <SelectItem value="CANCELADA">Cancelada</SelectItem>
+                                            <SelectItem value="FINALIZADO">Finalizado</SelectItem>
+                                            <SelectItem value="DESCARTADO">Descartado</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </CardContent>

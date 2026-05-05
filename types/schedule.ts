@@ -98,4 +98,6 @@ export const STATUS_LABELS: Record<AppointmentStatus, string> = {
     ATENDIDA: "Atendida",
     CANCELADA: "Cancelada",
     NO_ASISTIDA: "No asistida",
+    FINALIZADO: "Finalizado",
+    DESCARTADO: "Descartado",
 };

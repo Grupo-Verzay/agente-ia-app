@@ -184,6 +184,7 @@ export async function sendAppointmentStatusNotification(
     appointmentId: string,
     status: AppointmentStatus,
 ): Promise<void> {
+    if (status === 'FINALIZADO' || status === 'DESCARTADO') return;
     try {
         const appt = await db.appointment.findUnique({
             where: { id: appointmentId },

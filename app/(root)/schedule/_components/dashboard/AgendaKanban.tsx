@@ -36,11 +36,13 @@ const COLUMNS: {
     headerClass: string;
     borderColor: string;
 }[] = [
-    { id: 'PENDIENTE',    label: 'Pendiente',    headerClass: 'bg-yellow-500', borderColor: '#EAB308' },
-    { id: 'CONFIRMADA',   label: 'Confirmada',   headerClass: 'bg-green-500',  borderColor: '#22C55E' },
-    { id: 'ATENDIDA',     label: 'Atendida',     headerClass: 'bg-blue-500',   borderColor: '#3B82F6' },
-    { id: 'NO_ASISTIDA',  label: 'No asistida',  headerClass: 'bg-gray-500',   borderColor: '#6B7280' },
-    { id: 'CANCELADA',    label: 'Cancelada',     headerClass: 'bg-red-500',    borderColor: '#EF4444' },
+    { id: 'PENDIENTE',    label: 'Pendiente',    headerClass: 'bg-yellow-500',  borderColor: '#EAB308' },
+    { id: 'CONFIRMADA',   label: 'Confirmada',   headerClass: 'bg-green-500',   borderColor: '#22C55E' },
+    { id: 'ATENDIDA',     label: 'Atendida',     headerClass: 'bg-blue-500',    borderColor: '#3B82F6' },
+    { id: 'NO_ASISTIDA',  label: 'No asistida',  headerClass: 'bg-gray-500',    borderColor: '#6B7280' },
+    { id: 'CANCELADA',    label: 'Cancelada',    headerClass: 'bg-red-500',     borderColor: '#EF4444' },
+    { id: 'FINALIZADO',   label: 'Finalizado',   headerClass: 'bg-emerald-600', borderColor: '#059669' },
+    { id: 'DESCARTADO',   label: 'Descartado',   headerClass: 'bg-zinc-600',    borderColor: '#52525B' },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

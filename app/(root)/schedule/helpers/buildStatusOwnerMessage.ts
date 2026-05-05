@@ -11,6 +11,8 @@ const STATUS_META: Record<
     CANCELADA: { title: "Cita Cancelada", emoji: "❌" },
     ATENDIDA: { title: "Cita Atendida", emoji: "✅" },
     NO_ASISTIDA: { title: "Cita No Asistida", emoji: "⚠️" },
+    FINALIZADO: { title: "Cita Finalizada", emoji: "🎉" },
+    DESCARTADO: { title: "Cita Descartada", emoji: "🚫" },
 };
 
 interface BuildStatusOwnerMessageInterface {
