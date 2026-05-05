@@ -71,12 +71,13 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
         : "";
 
     try {
-        if (!isCampaign) {
-            // Recordatorio individual
-            const reminder = await db.reminders.create({
-                data: { ...reminderData, isCampaign: false } as Prisma.RemindersCreateInput,
-            });
+        // Crear 1 registro Reminders por campaña o recordatorio
+        const reminder = await db.reminders.create({
+            data: { ...reminderData, isCampaign } as Prisma.RemindersCreateInput,
+        });
 
+        if (!isCampaign) {
+            // Recordatorio individual — 1 Seguimiento
             await db.seguimiento.create({
                 data: {
                     idNodo:    `reminder-${reminder.id}`,
@@ -97,7 +98,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
             };
         }
 
-        // Campaña — un Reminders + un Seguimiento por lead con delay escalonado
+        // Campaña — N Seguimientos individuales con delay escalonado y variables resueltas
         const minDelay = Math.max(5, campaignMinDelay ?? 20);
         const maxDelay = Math.max(minDelay, campaignMaxDelay ?? 60);
         let cumulativeDelay = 0;
@@ -109,29 +110,16 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
 
             if (i > 0) cumulativeDelay += randomBetween(minDelay, maxDelay);
 
-            const scheduledTime = addSecondsToTime(reminderData.time ?? '', cumulativeDelay);
-            const mensaje = applyVariables(baseMsg, name, phone);
-
-            const reminder = await db.reminders.create({
-                data: {
-                    ...reminderData,
-                    remoteJid:  jid,
-                    pushName:   name,
-                    time:       scheduledTime,
-                    isCampaign: true,
-                } as Prisma.RemindersCreateInput,
-            });
-
             await db.seguimiento.create({
                 data: {
-                    idNodo:    `camping-${reminder.id}`,
+                    idNodo:    `camping-${reminder.id}-${i + 1}`,
                     serverurl,
                     instancia: reminderData.instanceName ?? "",
                     apikey:    reminderData.apikey ?? "",
                     remoteJid: jid,
-                    mensaje,
+                    mensaje:   applyVariables(baseMsg, name, phone),
                     tipo:      "text",
-                    time:      scheduledTime,
+                    time:      addSecondsToTime(reminderData.time ?? '', cumulativeDelay),
                 },
             });
         }
@@ -139,6 +127,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
         return {
             success: true,
             message: `Campaña creada: ${jids.length} mensajes programados.`,
+            data: reminder,
         }
     } catch (error) {
         console.error("[CREATE_REMINDER]", error)
