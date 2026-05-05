@@ -10,7 +10,7 @@ import { MainReminderInterface } from '@/schema/reminder';
 import { Input } from '@/components/ui/input';
 import { closeDialog, openCreateDialog, useReminderDialogStore } from '@/stores';
 import { GenericDeleteDialog } from '@/components/shared/GenericDeleteDialog';
-import { deleteReminder } from '@/actions/reminders-actions';
+import { deleteAllReminders, deleteReminder } from '@/actions/reminders-actions';
 import { toast } from 'sonner';
 import { themeClass } from '@/types/generic';
 import { convertToSeconds } from '../../workflow/[workflowId]/helpers';
@@ -24,6 +24,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
 
   const [search, setSearch] = useState("");
   const [sortAsc, setSortAsc] = useState(true);
+  const [showDeleteAll, setShowDeleteAll] = useState(false);
 
   // Schedule view: sorted by DB order (drag-and-drop), filtered by search
   const scheduleReminders = useMemo(() => {
@@ -75,10 +76,17 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
           {!isScheduleView && (
             <div className="flex justify-between items-center">
               <Header title={isCampaignPage ? 'Campañas' : 'Recordatorios'} />
-              <Button size="sm" onClick={handleCreateReminder}>
-                <PlusIcon className="h-4 w-4 mr-2" />
-                Nuevo
-              </Button>
+              <div className="flex gap-2">
+                {reminders.length > 0 && (
+                  <Button size="sm" variant="destructive" onClick={() => setShowDeleteAll(true)}>
+                    Eliminar todos
+                  </Button>
+                )}
+                <Button size="sm" onClick={handleCreateReminder}>
+                  <PlusIcon className="h-4 w-4 mr-2" />
+                  Nuevo
+                </Button>
+              </div>
             </div>
           )}
 
@@ -155,6 +163,15 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
           entityLabel={`${isCampaignPage ? 'la campaña' : 'recordatorio'}`}
         />
       }
+
+      <GenericDeleteDialog
+        open={showDeleteAll}
+        setOpen={setShowDeleteAll}
+        itemName="Si"
+        itemId="all"
+        mutationFn={() => deleteAllReminders(user.id, isCampaignPage)}
+        entityLabel={`todos los ${isCampaignPage ? 'campañas' : 'recordatorios'}`}
+      />
     </div>
   );
 };

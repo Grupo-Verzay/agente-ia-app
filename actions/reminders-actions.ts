@@ -204,6 +204,23 @@ export async function getCampaignsByUserId(userId: string): Promise<ReminderResp
 }
 
 /**
+ * Eliminar todos los recordatorios de un usuario
+ */
+export async function deleteAllReminders(userId: string, isCampaign: boolean): Promise<ReminderResponse> {
+    if (!userId) {
+        return { success: false, message: "El ID del usuario es obligatorio." }
+    }
+
+    try {
+        await db.reminders.deleteMany({ where: { userId, isCampaign } })
+        return { success: true, message: "Todos los registros eliminados correctamente." }
+    } catch (error) {
+        console.error("[DELETE_ALL_REMINDERS]", error)
+        return { success: false, message: "Error al eliminar los registros." }
+    }
+}
+
+/**
  * Eliminar un recordatorio por su ID
  */
 export async function deleteReminder(id: string): Promise<ReminderResponse> {

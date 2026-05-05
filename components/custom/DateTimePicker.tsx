@@ -86,9 +86,9 @@ export function DateTimePicker({
                                 value={minute}
                                 onChange={(e) => updateDateTime(undefined, undefined, parseInt(e.target.value))}
                             >
-                                {[0, 15, 30, 45].map((m) => (
-                                    <option key={m} value={m}>
-                                        {m.toString().padStart(2, '0')}
+                                {[...Array(60)].map((_, i) => (
+                                    <option key={i} value={i}>
+                                        {i.toString().padStart(2, '0')}
                                     </option>
                                 ))}
                             </select>
