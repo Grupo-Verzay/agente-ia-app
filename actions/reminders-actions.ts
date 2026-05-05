@@ -61,21 +61,22 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
 
     const { campaignMinDelay, campaignMaxDelay, ...reminderData } = parse.data
 
+    const jids    = (reminderData.remoteJid ?? '').split(',').map(s => s.trim()).filter(Boolean);
+    const names   = (reminderData.pushName  ?? '').split(',').map(s => s.trim());
+    const baseMsg = reminderData.description || reminderData.title;
+    const isCampaign = jids.length > 1;
+
+    const serverurl = reminderData.serverUrl
+        ? (reminderData.serverUrl.startsWith("https://") ? reminderData.serverUrl : `https://${reminderData.serverUrl}`)
+        : "";
+
     try {
-        const reminder = await db.reminders.create({
-            data: reminderData as Prisma.RemindersCreateInput,
-        })
+        if (!isCampaign) {
+            // Recordatorio individual
+            const reminder = await db.reminders.create({
+                data: { ...reminderData, isCampaign: false } as Prisma.RemindersCreateInput,
+            });
 
-        const serverurl = reminderData.serverUrl
-            ? (reminderData.serverUrl.startsWith("https://") ? reminderData.serverUrl : `https://${reminderData.serverUrl}`)
-            : "";
-
-        const jids   = (reminderData.remoteJid ?? '').split(',').map(s => s.trim()).filter(Boolean);
-        const names  = (reminderData.pushName  ?? '').split(',').map(s => s.trim());
-        const baseMsg = reminderData.description || reminderData.title;
-
-        if (jids.length <= 1) {
-            // Recordatorio normal — un solo destinatario
             await db.seguimiento.create({
                 data: {
                     idNodo:    `reminder-${reminder.id}`,
@@ -88,40 +89,56 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                     time:      addSecondsToTime(reminderData.time ?? '', 0),
                 },
             });
-        } else {
-            // Campaña — un Seguimiento por lead con delay escalonado y variables
-            const minDelay = Math.max(5, campaignMinDelay ?? 20);
-            const maxDelay = Math.max(minDelay, campaignMaxDelay ?? 60);
-            let cumulativeDelay = 0;
 
-            for (let i = 0; i < jids.length; i++) {
-                const jid   = jids[i];
-                const name  = names[i] ?? '';
-                const phone = jid.replace(/@.*/, '');
+            return {
+                success: true,
+                message: "Recordatorio creado exitosamente.",
+                data: reminder,
+            };
+        }
 
-                if (i > 0) cumulativeDelay += randomBetween(minDelay, maxDelay);
+        // Campaña — un Reminders + un Seguimiento por lead con delay escalonado
+        const minDelay = Math.max(5, campaignMinDelay ?? 20);
+        const maxDelay = Math.max(minDelay, campaignMaxDelay ?? 60);
+        let cumulativeDelay = 0;
 
-                await db.seguimiento.create({
-                    data: {
-                        idNodo:    `reminder-${reminder.id}-${i + 1}`,
-                        serverurl,
-                        instancia: reminderData.instanceName ?? "",
-                        apikey:    reminderData.apikey ?? "",
-                        remoteJid: jid,
-                        mensaje:   applyVariables(baseMsg, name, phone),
-                        tipo:      "text",
-                        time:      addSecondsToTime(reminderData.time ?? '', cumulativeDelay),
-                    },
-                });
-            }
+        for (let i = 0; i < jids.length; i++) {
+            const jid   = jids[i];
+            const name  = names[i] ?? '';
+            const phone = jid.replace(/@.*/, '');
+
+            if (i > 0) cumulativeDelay += randomBetween(minDelay, maxDelay);
+
+            const scheduledTime = addSecondsToTime(reminderData.time ?? '', cumulativeDelay);
+            const mensaje = applyVariables(baseMsg, name, phone);
+
+            const reminder = await db.reminders.create({
+                data: {
+                    ...reminderData,
+                    remoteJid:  jid,
+                    pushName:   name,
+                    time:       scheduledTime,
+                    isCampaign: true,
+                } as Prisma.RemindersCreateInput,
+            });
+
+            await db.seguimiento.create({
+                data: {
+                    idNodo:    `camping-${reminder.id}`,
+                    serverurl,
+                    instancia: reminderData.instanceName ?? "",
+                    apikey:    reminderData.apikey ?? "",
+                    remoteJid: jid,
+                    mensaje,
+                    tipo:      "text",
+                    time:      scheduledTime,
+                },
+            });
         }
 
         return {
             success: true,
-            message: jids.length > 1
-                ? `Campaña creada: ${jids.length} mensajes programados.`
-                : "Recordatorio creado exitosamente.",
-            data: reminder,
+            message: `Campaña creada: ${jids.length} mensajes programados.`,
         }
     } catch (error) {
         console.error("[CREATE_REMINDER]", error)
@@ -145,16 +162,10 @@ export async function getRemindersByUserId(userId: string): Promise<ReminderResp
 
     try {
         const reminders = await db.reminders.findMany({
-            where: {
-                userId,
-                NOT: { remoteJid: { contains: ',' } },
-            },
+            where: { userId, isCampaign: false },
             orderBy: [{ order: 'asc' as any }, { createdAt: 'asc' }],
         }).catch(() => db.reminders.findMany({
-            where: {
-                userId,
-                NOT: { remoteJid: { contains: ',' } },
-            },
+            where: { userId, isCampaign: false },
             orderBy: { id: 'asc' },
         }))
 
@@ -182,16 +193,10 @@ export async function getCampaignsByUserId(userId: string): Promise<ReminderResp
 
     try {
         const campaigns = await db.reminders.findMany({
-            where: {
-                userId,
-                remoteJid: { contains: ',' },
-            },
+            where: { userId, isCampaign: true },
             orderBy: [{ order: 'asc' as any }, { createdAt: 'asc' }],
         }).catch(() => db.reminders.findMany({
-            where: {
-                userId,
-                remoteJid: { contains: ',' },
-            },
+            where: { userId, isCampaign: true },
             orderBy: { id: 'asc' },
         }))
 
