@@ -159,53 +159,51 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
               <div className="space-y-2">
                 <FormLabel className="font-bold text-base">Tipo</FormLabel>
 
-                {!flowType ? (
-                  /* Sin selección: descripción + 3 botones */
-                  <>
-                    <p className="text-sm text-foreground/70">
-                      Define cómo se activa el flujo: por intención detectada por IA, condicionado desde el entrenamiento del agente, o por palabras clave exactas como disparadores.
-                    </p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {typeOptions.map(opt => {
-                        const Icon = opt.icon;
-                        return (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => setFlowType(opt.value)}
-                            className="h-[90px] flex items-center justify-center rounded-lg border border-border px-3 hover:border-muted-foreground/50 transition-colors"
-                          >
-                            <div className="flex flex-col items-center gap-1.5">
-                              <Icon className="h-5 w-5" />
-                              <p className="text-sm font-semibold">{opt.label}</p>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                ) : (
-                  /* Con selección: solo el botón elegido + "Cambiar" */
-                  (() => {
+                {!flowType && (
+                  <p className="text-sm text-foreground/70">
+                    Define cómo se activa el flujo: por intención detectada por IA, condicionado desde el entrenamiento del agente, o por palabras clave exactas como disparadores.
+                  </p>
+                )}
+
+                <div className="grid grid-cols-3 gap-2">
+                  {!flowType ? (
+                    typeOptions.map(opt => {
+                      const Icon = opt.icon;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setFlowType(opt.value)}
+                          className="h-[90px] flex items-center justify-center rounded-lg border border-border px-3 hover:border-muted-foreground/50 transition-colors"
+                        >
+                          <div className="flex flex-col items-center gap-1.5">
+                            <Icon className="h-5 w-5" />
+                            <p className="text-sm font-semibold">{opt.label}</p>
+                          </div>
+                        </button>
+                      );
+                    })
+                  ) : (() => {
                     const selected = typeOptions.find(o => o.value === flowType)!;
                     const Icon = selected.icon;
                     return (
-                      <div className="relative h-[90px] flex items-center justify-center rounded-lg border border-primary bg-primary/5 text-primary">
+                      <button
+                        key={selected.value}
+                        type="button"
+                        onClick={() => setFlowType(null)}
+                        className="col-span-3 h-[90px] relative flex items-center justify-center rounded-lg border border-primary bg-primary/5 text-primary transition-colors"
+                      >
                         <div className="flex flex-col items-center gap-1.5">
                           <Icon className="h-5 w-5" />
                           <p className="text-sm font-semibold">{selected.label}</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setFlowType(null)}
-                          className="absolute bottom-2 right-3 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                        >
+                        <span className="absolute bottom-2 right-3 text-xs text-muted-foreground">
                           Cambiar
-                        </button>
-                      </div>
+                        </span>
+                      </button>
                     );
-                  })()
-                )}
+                  })()}
+                </div>
               </div>
 
               {/* SECCIÓN CONDICIONAL SEGÚN TIPO */}
