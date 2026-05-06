@@ -3,7 +3,7 @@
 import React, { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Layers2Icon, Loader2, SaveIcon, Brain, GitBranch, MessageSquare } from 'lucide-react';
+import { Layers2Icon, Loader2, SaveIcon, Brain, Workflow, Bot } from 'lucide-react';
 import CustomDialogHeader from "@/components/shared/CustomDialogHeader";
 import { useForm } from "react-hook-form";
 import { createWorkflowSchema, createWorkflowSchemaType } from "@/schema/workflow";
@@ -115,13 +115,13 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
     {
       value: "Flujo",
       label: "Flujo",
-      icon: GitBranch,
+      icon: Workflow,
       detail: "Se ejecuta manualmente o desde otro flujo. Úsalo para secuencias de seguimiento, mensajes programados o flujos que el agente llama por nombre.",
     },
     {
       value: "Chatbot",
       label: "Chatbot",
-      icon: MessageSquare,
+      icon: Bot,
       detail: "Se activa cuando el cliente escribe una palabra o frase específica (ej: 'precio', 'agendar'). El agente NO interviene; responde el flujo directamente.",
     },
   ];
