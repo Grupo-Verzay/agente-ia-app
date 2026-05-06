@@ -48,11 +48,10 @@ export function CrmRecordsDataTable({
 
     return (
         <div className="flex h-full flex-col gap-2">
-            <div className="flex-1 overflow-x-auto">
-                <div className="grid grid-cols-1 gap-4">
+            <div className="flex-1 min-h-0 overflow-x-auto">
                     <div
                         ref={scrollContainerRef}
-                        className="h-[420px] overflow-auto rounded-xl border border-border/70 bg-background lg:h-[540px]"
+                        className="h-full min-h-[420px] overflow-auto rounded-xl border border-border/70 bg-background lg:min-h-[540px]"
                     >
                         <div className="min-w-max">
                             <table className="w-max border-separate border-spacing-0 text-sm">
@@ -133,7 +132,6 @@ export function CrmRecordsDataTable({
                             </div>
                         </div>
                     </div>
-                </div>
             </div>
         </div>
     );

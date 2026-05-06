@@ -65,7 +65,7 @@ export const DataGrid = <TData, TValue>({
         updatedAt: false // Oculta la columna updatedAt
     })
     const [rowSelection, setRowSelection] = useState({})
-    const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 6 })
+    const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 })
 
     const table = useReactTable({
         data,

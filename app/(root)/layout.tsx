@@ -121,7 +121,7 @@ export default async function RootGroupLayout({
                     <Breadcrumbs />
                     <main className={`flex-1 flex flex-col overflow-hidden overflow-x-hidden p-4 ${themeClass}`}>
                         <PanelAwareTabNav tabs={panelTabs} excludePanelRoutes />
-                        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">{children}</div>
+                        <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden">{children}</div>
                     </main>
                     <ChatWidget />
                     <ChatOnboardingModal />

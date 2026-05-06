@@ -171,7 +171,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
 
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0 gap-2">
       {/* Header fijo */}
       <div className="sticky top-0 z-1">
         <div className="flex justify-between items-center">
@@ -192,7 +192,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
             placeholder="Buscar por nombre o número..."
             value={search}
             onChange={handleSearchChange}
-            className="w-64 shrink-0 text-xs"
+            className="w-72 shrink-0 text-xs"
           />
           <BulkActionsDropdown
             userId={userId}
@@ -206,12 +206,9 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
         </div>
       </div>
 
-      {/* Scroll interno para el content */}
-      <div className="flex-1 overflow-y-auto p-2">
-        <div className="grid grid-cols-1 gap-4">
-          <Card className="border-border">
-            <DataTable columns={columns({ onDeleteSuccess: handleDeleteFromTable, mutateSessions: mutate, allTags, onNavigateToChat: (remoteJid) => router.push(`/chats?jid=${remoteJid}`) })} data={sessions} />
-          </Card>
+      <Card className="flex-1 min-h-0 flex flex-col border-border overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto">
+          <DataTable columns={columns({ onDeleteSuccess: handleDeleteFromTable, mutateSessions: mutate, allTags, onNavigateToChat: (remoteJid) => router.push(`/chats?jid=${remoteJid}`) })} data={sessions} />
 
           {isValidating && !search && (
             <div className="flex justify-center py-4">
@@ -223,7 +220,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
             <div ref={observerRef} className="h-10" />
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

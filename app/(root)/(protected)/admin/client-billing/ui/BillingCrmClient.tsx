@@ -18,10 +18,7 @@ import {
     useReactTable,
 } from "@tanstack/react-table";
 
-import {
-    Card,
-    CardContent,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -115,7 +112,7 @@ export function BillingCrmClient({
     const [rowSelection, setRowSelection] = useState({})
     const [pagination, setPagination] = useState({
         pageIndex: 0,
-        pageSize: 6,
+        pageSize: 20,
     });
     const [hasLoadedPersistedFilters, setHasLoadedPersistedFilters] = useState(false);
     const billingLifecyclePreview = useBillingLifecyclePreview(
@@ -795,12 +792,10 @@ export function BillingCrmClient({
             </div>
 
 
-            {/* Scroll interno para el content */}
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-                <Card className="border-border overflow-x-auto">
-                        <CardContent>
-                            <Table className="w-full border-border table-auto">
-                                <TableHeader>
+            <Card className="flex-1 min-h-0 flex flex-col border-border overflow-hidden">
+                <div className="flex-1 min-h-0 overflow-auto">
+                    <Table className="w-full border-border table-auto">
+                        <TableHeader className="sticky top-0 z-10 bg-background">
                                     {table.getHeaderGroups().map((hg) => (
                                         <TableRow key={hg.id} className="border-border">
                                             {hg.headers.map((header) => (
@@ -837,8 +832,8 @@ export function BillingCrmClient({
                                     )}
                                 </TableBody>
                             </Table>
-
-                            <div className="mt-3 flex items-center justify-between gap-2">
+                </div>
+                <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-t border-border">
                                 <div className="text-xs text-muted-foreground">
                                     Mostrando{" "}
                                     <b>{table.getRowModel().rows.length}</b> de{" "}
@@ -891,9 +886,10 @@ export function BillingCrmClient({
                                         <ChevronsRight className="h-4 w-4" />
                                     </Button>
                                 </div>
-                            </div>
+                </div>
+            </Card>
 
-                            <Dialog
+            <Dialog
                                 open={dialog.open}
                                 onOpenChange={(open) => setDialog((s) => (open ? s : emptyDialog))}
                             >
@@ -1093,10 +1089,7 @@ export function BillingCrmClient({
                                         </Button>
                                     </DialogFooter>
                                 </DialogContent>
-                            </Dialog>
-                        </CardContent>
-                </Card>
-            </div>
+            </Dialog>
 
             <Dialog open={deleteConfirm.open} onOpenChange={(open) => !deleting && setDeleteConfirm((s) => ({ ...s, open }))}>
                 <DialogContent>
