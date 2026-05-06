@@ -80,6 +80,15 @@ export default async function RootGroupLayout({
             const allowedIds = new Set(userModuleRecords.map(r => r.A));
             modules = allModules.filter(m => allowedIds.has(m.id));
         }
+        // Para usuarios regulares (no admin/reseller), filtrar por adminOnly y plan
+        if (!isAdminOrReseller(user?.role)) {
+            const userPlan = user!.plan;
+            modules = modules.filter(m => {
+                if (m.adminOnly) return false;
+                if (m.allowedPlans?.length && !m.allowedPlans.includes(userPlan)) return false;
+                return true;
+            });
+        }
     }
 
     let navPrefs: UserNavPref[] = [];
