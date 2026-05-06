@@ -190,15 +190,17 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                     const selected = typeOptions.find(o => o.value === flowType)!;
                     const Icon = selected.icon;
                     return (
-                      <div className="h-[90px] flex items-center justify-between rounded-lg border border-primary bg-primary/5 px-4">
-                        <div className="flex items-center gap-3 text-primary">
-                          <Icon className="h-5 w-5" />
-                          <p className="text-sm font-semibold">{selected.label}</p>
+                      <div className="flex flex-col gap-1">
+                        <div className="h-[90px] flex items-center justify-center rounded-lg border border-primary bg-primary/5 text-primary">
+                          <div className="flex flex-col items-center gap-1.5">
+                            <Icon className="h-5 w-5" />
+                            <p className="text-sm font-semibold">{selected.label}</p>
+                          </div>
                         </div>
                         <button
                           type="button"
                           onClick={() => setFlowType(null)}
-                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors text-right"
                         >
                           Cambiar tipo
                         </button>
