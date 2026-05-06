@@ -23,6 +23,7 @@ import {
     CardContent,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -961,7 +962,7 @@ export function BillingCrmClient({
                                                     <label className="text-muted-foreground">
                                                         Medio de pago
                                                     </label>
-                                                    <Input
+                                                    <Textarea
                                                         value={dialog.form.paymentNotes}
                                                         onChange={(e) =>
                                                             setDialog((s) => ({
@@ -970,7 +971,8 @@ export function BillingCrmClient({
                                                             }))
                                                         }
                                                         placeholder="Ej: Cuenta, link, referencia, etc."
-                                                        className="h-9"
+                                                        className="min-h-[100px] resize-y text-sm"
+                                                        rows={5}
                                                     />
                                                 </div>
 

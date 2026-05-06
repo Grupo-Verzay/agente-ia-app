@@ -83,17 +83,12 @@ export function PlanBillingCard({ userPlan }: Props) {
                                     <span className="text-muted-foreground">Monto</span>
                                     <span className="font-medium">{fmtPrice(billing?.price, billing?.currencyCode)}</span>
                                 </div>
-                                <div className="flex justify-between items-center gap-2">
-                                    <span className="text-muted-foreground shrink-0">Medio de pago</span>
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-muted-foreground">Medio de pago</span>
                                     {billing?.paymentNotes ? (
-                                        <a
-                                            href={billing.paymentNotes.replace(/^👉\s*/, '')}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-sm text-primary hover:underline font-medium text-right"
-                                        >
+                                        <pre className="text-sm font-medium whitespace-pre-wrap break-words font-sans">
                                             {billing.paymentNotes}
-                                        </a>
+                                        </pre>
                                     ) : (
                                         <span className="font-medium">{billing?.paymentMethodLabel || '—'}</span>
                                     )}
