@@ -386,6 +386,7 @@ export type AgendaKanbanCard = {
     pushName: string | null;
     remoteJid: string;
     serviceName: string | null;
+    tags: { id: number; name: string; color: string | null }[];
 };
 
 // Obtener citas para el Kanban
@@ -397,7 +398,10 @@ export async function getAppointmentsForKanban(userId: string): Promise<{
     try {
         const list = await db.appointment.findMany({
             where: { userId },
-            include: { session: { select: { pushName: true, remoteJid: true } }, service: { select: { name: true } } },
+            include: {
+                session: { select: { pushName: true, remoteJid: true, sessionTags: { include: { tag: { select: { id: true, name: true, color: true } } } } } },
+                service: { select: { name: true } },
+            },
             orderBy: { startTime: 'asc' },
         });
 
@@ -411,6 +415,7 @@ export async function getAppointmentsForKanban(userId: string): Promise<{
                 pushName: a.session.pushName,
                 remoteJid: a.session.remoteJid,
                 serviceName: a.service?.name ?? null,
+                tags: a.session.sessionTags.map((st) => ({ id: st.tag.id, name: st.tag.name, color: st.tag.color })),
             })),
         };
     } catch (error) {
