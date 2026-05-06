@@ -143,8 +143,8 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex gap-1 items-center">
-                      Nombre <p className="text-xs text-primary">(obligatorio)</p>
+                    <FormLabel className="flex gap-1 items-center font-bold text-base">
+                      Nombre <p className="text-xs text-primary font-normal">(obligatorio)</p>
                     </FormLabel>
                     <FormControl>
                       <Input {...field} placeholder="Nombre del flujo" />
@@ -156,7 +156,7 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
 
               {/* 2. TIPO: IA | Flujo | Chatbot */}
               <div className="space-y-2">
-                <FormLabel>Tipo</FormLabel>
+                <FormLabel className="font-bold text-base">Tipo</FormLabel>
                 <p className="text-sm text-foreground/70">
                   Define cómo se activa el flujo: por intención detectada por IA, condicionado desde el entrenamiento del agente, o por palabras clave exactas como disparadores.
                 </p>
