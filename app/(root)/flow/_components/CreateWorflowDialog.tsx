@@ -21,7 +21,7 @@ const MAX_KEYWORDS = 20;
 
 function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: String; isPro: boolean }) {
   const [open, setOpen] = useState(false);
-  const [flowType, setFlowType] = useState<FlowType>("Flujo");
+  const [flowType, setFlowType] = useState<FlowType | null>(null);
 
   // Chatbot
   const [matchType, setMatchType] = useState<"Exacta" | "Contiene">("Exacta");
@@ -49,7 +49,7 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
 
   const clearState = () => {
     form.reset();
-    setFlowType("Flujo");
+    setFlowType(null);
     setMatchType("Exacta");
     setKeywords([]);
     setKeywordInput("");
@@ -79,6 +79,7 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
 
   const onSubmit = useCallback(
     (values: createWorkflowSchemaType) => {
+      if (!flowType) return toast.error("Selecciona un tipo de flujo.");
       let descriptionJson = "";
       let trigger: CreateWorkflowTriggerPayload | null = null;
 
@@ -157,31 +158,54 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
               {/* 2. TIPO: IA | Flujo | Chatbot */}
               <div className="space-y-2">
                 <FormLabel className="font-bold text-base">Tipo</FormLabel>
-                <p className="text-sm text-foreground/70">
-                  Define cómo se activa el flujo: por intención detectada por IA, condicionado desde el entrenamiento del agente, o por palabras clave exactas como disparadores.
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {typeOptions.map(opt => {
-                    const Icon = opt.icon;
+
+                {!flowType ? (
+                  /* Sin selección: descripción + 3 botones */
+                  <>
+                    <p className="text-sm text-foreground/70">
+                      Define cómo se activa el flujo: por intención detectada por IA, condicionado desde el entrenamiento del agente, o por palabras clave exactas como disparadores.
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {typeOptions.map(opt => {
+                        const Icon = opt.icon;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setFlowType(opt.value)}
+                            className="rounded-lg border border-border px-3 py-3 hover:border-muted-foreground/50 transition-colors"
+                          >
+                            <div className="flex flex-col items-center gap-1.5">
+                              <Icon className="h-5 w-5" />
+                              <p className="text-sm font-semibold">{opt.label}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  /* Con selección: solo el botón elegido + "Cambiar" */
+                  (() => {
+                    const selected = typeOptions.find(o => o.value === flowType)!;
+                    const Icon = selected.icon;
                     return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setFlowType(opt.value)}
-                        className={`rounded-lg border px-3 py-3 transition-colors ${
-                          flowType === opt.value
-                            ? "border-primary bg-primary/5 text-primary"
-                            : "border-border hover:border-muted-foreground/50"
-                        }`}
-                      >
-                        <div className="flex flex-col items-center gap-1.5">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 rounded-lg border border-primary bg-primary/5 text-primary px-4 py-2.5">
                           <Icon className="h-5 w-5" />
-                          <p className="text-sm font-semibold">{opt.label}</p>
+                          <p className="text-sm font-semibold">{selected.label}</p>
                         </div>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setFlowType(null)}
+                          className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
+                        >
+                          Cambiar
+                        </button>
+                      </div>
                     );
-                  })}
-                </div>
+                  })()
+                )}
               </div>
 
               {/* SECCIÓN CONDICIONAL SEGÚN TIPO */}
