@@ -83,6 +83,15 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
     const [openDialog, setOpenDialog] = useState(false);
     const canContinueStep3 = Boolean(nameClient.trim() && phone.trim() && areaCode && selectedService);
 
+    const handlePhoneBlur = () => {
+        if (!areaCode || !phone) return;
+        const codeDigits = areaCode.replace('+', '');
+        const digits = phone.replace(/\D/g, '');
+        if (digits.startsWith(codeDigits)) {
+            setPhone(digits.slice(codeDigits.length));
+        }
+    };
+
     const mutationSeguimiento = useMutation({
         mutationFn: async (data: SeguimientoInput) => await createSeguimiento(data),
         onSuccess: (res) => {
@@ -421,6 +430,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                             setPhone={setPhone}
                             setStep={setStep}
                             onContinue={scheduleAndNotify}
+                            onPhoneBlur={handlePhoneBlur}
                         />
                     )}
                 </div>

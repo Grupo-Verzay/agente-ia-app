@@ -16,6 +16,7 @@ export const ScheduleForm = ({
     setPhone,
     setStep,
     onContinue,
+    onPhoneBlur,
 }: ScheduleFormInterface) => {
     return (
         <Card className="border-muted/50">
@@ -45,6 +46,7 @@ export const ScheduleForm = ({
                             placeholder="Número"
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
+                            onBlur={onPhoneBlur}
                             inputMode="tel"
                             aria-label="Número de WhatsApp"
                         />

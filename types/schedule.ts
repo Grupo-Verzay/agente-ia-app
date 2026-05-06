@@ -67,6 +67,7 @@ export interface ScheduleFormInterface {
     setPhone: (phone: string) => void;
     setStep: (step: number) => void;
     onContinue: () => void;
+    onPhoneBlur?: () => void;
 }
 
 export interface SummaryComponentInterface {

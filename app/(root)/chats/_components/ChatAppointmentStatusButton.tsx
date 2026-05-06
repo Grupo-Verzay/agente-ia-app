@@ -194,6 +194,23 @@ export function ChatAppointmentStatusButton({
                   ))}
                 </SelectContent>
               </Select>
+
+              <div className="border-t border-border pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    const phone = remoteJid.replace(/@.*$/, '');
+                    const params = new URLSearchParams();
+                    if (pushName) params.set('name', pushName);
+                    if (phone) params.set('phone', phone);
+                    window.open(`/schedule/${userId}?${params.toString()}`, '_blank');
+                  }}
+                  className="text-xs text-primary hover:underline font-medium"
+                >
+                  + Agendar nueva cita
+                </button>
+              </div>
             </div>
           )}
         </PopoverContent>
