@@ -190,7 +190,7 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                     const selected = typeOptions.find(o => o.value === flowType)!;
                     const Icon = selected.icon;
                     return (
-                      <div className="flex items-center justify-between rounded-lg border border-primary bg-primary/5 px-4 py-3">
+                      <div className="flex items-center justify-between rounded-lg border border-primary bg-primary/5 px-4 py-6">
                         <div className="flex items-center gap-3 text-primary">
                           <Icon className="h-5 w-5" />
                           <p className="text-sm font-semibold">{selected.label}</p>
