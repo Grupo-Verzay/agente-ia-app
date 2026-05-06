@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, MoreVertical, Pin, Trash2, Users } from "lucide-react";
+import { Archive, CalendarClock, MoreVertical, Pin, Trash2, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +10,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { SessionTagsTooltip } from "../../tags/components";
 import { FlowListOrder } from "../../sessions/_components/FlowListOrder";
 import { SeguimientoBadge } from "../../sessions/_components/SeguimientoBadge";
@@ -18,6 +24,26 @@ import { cn } from "@/lib/utils";
 import { getIconForMessageType } from "./chat-sidebar.utils";
 import type { SidebarContact } from "./chat-sidebar.types";
 import type { LeadStatus } from "@/types/session";
+
+const APPT_DOT: Record<string, string> = {
+  PENDIENTE:   'bg-yellow-500',
+  CONFIRMADA:  'bg-green-500',
+  ATENDIDA:    'bg-blue-500',
+  NO_ASISTIDA: 'bg-violet-500',
+  CANCELADA:   'bg-red-500',
+  FINALIZADO:  'bg-emerald-600',
+  DESCARTADO:  'bg-zinc-500',
+};
+
+const APPT_LABEL: Record<string, string> = {
+  PENDIENTE:   'Cita pendiente',
+  CONFIRMADA:  'Cita confirmada',
+  ATENDIDA:    'Cita atendida',
+  NO_ASISTIDA: 'No asistida',
+  CANCELADA:   'Cita cancelada',
+  FINALIZADO:  'Cita finalizada',
+  DESCARTADO:  'Descartado',
+};
 
 type ChatContactItemProps = {
   contact: SidebarContact;
@@ -40,6 +66,7 @@ export function ChatContactItem({
 }: ChatContactItemProps) {
   const IconComponent = getIconForMessageType(contact.messageType);
   const isUnread = contact.isUnreadLocal;
+  const apptStatus = contact.chatSession?.latestAppointmentStatus;
 
   return (
     <div
@@ -110,6 +137,22 @@ export function ChatContactItem({
                   count={contact.chatSession.pendingSeguimientos ?? 0}
                   tipos={contact.chatSession.seguimientosTipos}
                 />
+              )}
+              {apptStatus && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex items-center gap-1 h-6 rounded-full border border-violet-300 bg-violet-50 px-1.5 dark:border-violet-700 dark:bg-violet-950">
+                        <CalendarClock className="h-3 w-3 text-violet-600 dark:text-violet-400 shrink-0" />
+                        <span className={cn('w-2 h-2 rounded-full shrink-0', APPT_DOT[apptStatus] ?? 'bg-gray-400')} />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" sideOffset={6} className="z-[9999]">
+                      <p className="text-xs font-semibold">Cita agendada</p>
+                      <p className="text-xs">{APPT_LABEL[apptStatus] ?? apptStatus}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
               {contact.chatSession && contact.chatSession.tags.length > 0 && (
                 <SessionTagsTooltip tags={contact.chatSession.tags} maxVisible={5} />

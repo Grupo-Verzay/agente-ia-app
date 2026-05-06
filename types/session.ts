@@ -1,5 +1,6 @@
 import type {
   Prisma,
+  AppointmentStatus,
   LeadStatus as PrismaLeadStatus,
   Registro as PrismaRegistro,
   TipoRegistro as PrismaTipoRegistro,
@@ -85,6 +86,7 @@ export type ChatContactSessionSummary = {
   flujos?: string | null;
   pendingSeguimientos?: number;
   seguimientosTipos?: string[];
+  latestAppointmentStatus?: AppointmentStatus | null;
 };
 
 export type ChatContactSessionMap = Record<string, ChatContactSessionSummary>;

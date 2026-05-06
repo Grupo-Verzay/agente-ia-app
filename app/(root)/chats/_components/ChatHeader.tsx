@@ -18,6 +18,7 @@ import { SintesisEditDialog } from './SintesisEditDialog';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
 import { LeadContextSheet } from './LeadContextSheet';
+import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 
 interface ChatHeaderProps {
   header: ChatHeaderData;
@@ -169,6 +170,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             <div className="flex items-center gap-1.5">
               {crmBadge}
               <ChatReminderDialog session={session as any} userId={userId} />
+              <ChatAppointmentStatusButton sessionId={session.id} />
               {tagsCombobox}
             </div>
             {session && (
@@ -240,6 +242,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               />
               {crmBadge}
               <ChatReminderDialog session={session as any} userId={userId} />
+              <ChatAppointmentStatusButton sessionId={session.id} />
               {tagsCombobox}
             </>
           )}

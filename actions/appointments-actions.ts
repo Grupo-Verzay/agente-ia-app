@@ -306,6 +306,45 @@ export async function deleteAppointment(id: string): Promise<AppointmentOperatio
     }
 }
 
+// Obtener la cita más reciente de una sesión
+export type SessionAppointmentCard = {
+    id: string;
+    status: AppointmentStatus;
+    startTime: string;
+    endTime: string;
+    serviceName: string | null;
+};
+
+export async function getLatestAppointmentBySession(sessionId: number): Promise<{
+    success: boolean;
+    data?: SessionAppointmentCard | null;
+    message?: string;
+}> {
+    try {
+        const appt = await db.appointment.findFirst({
+            where: { sessionId },
+            include: { service: { select: { name: true } } },
+            orderBy: { startTime: 'desc' },
+        });
+
+        return {
+            success: true,
+            data: appt
+                ? {
+                      id: appt.id,
+                      status: appt.status,
+                      startTime: appt.startTime.toISOString(),
+                      endTime: appt.endTime.toISOString(),
+                      serviceName: appt.service?.name ?? null,
+                  }
+                : null,
+        };
+    } catch (error) {
+        console.error('Error al obtener cita por sesión:', error);
+        return { success: false, message: 'Error al obtener la cita.' };
+    }
+}
+
 // Tipo para el Kanban de agenda
 export type AgendaKanbanCard = {
     id: string;

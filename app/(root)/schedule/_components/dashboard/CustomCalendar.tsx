@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef, useMemo } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import { toast } from "sonner";
+import { isSameDay, startOfDay, format } from "date-fns";
+import { es } from "date-fns/locale";
 
 import { getAppointmentsByUser, updateAppointmentStatus, deleteAppointment } from "@/actions/appointments-actions";
 import { AppointmentStatus, User } from "@prisma/client";
@@ -53,6 +55,26 @@ import { XCircleIcon } from 'lucide-react';
 import { sendMessageWithHistoryAction } from "@/actions/chat-history/send-message-with-history-action";
 import { STATUS_LABELS } from "@/types/schedule";
 
+const CARD_STATUS_STYLE: Record<AppointmentStatus, string> = {
+    PENDIENTE:   'border-l-4 border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/20',
+    CONFIRMADA:  'border-l-4 border-l-green-500 bg-green-50 dark:bg-green-950/20',
+    ATENDIDA:    'border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20',
+    NO_ASISTIDA: 'border-l-4 border-l-violet-500 bg-violet-50 dark:bg-violet-950/20',
+    CANCELADA:   'border-l-4 border-l-red-500 bg-red-50 dark:bg-red-950/20',
+    FINALIZADO:  'border-l-4 border-l-emerald-500 bg-emerald-50 dark:bg-emerald-950/20',
+    DESCARTADO:  'border-l-4 border-l-zinc-400 bg-zinc-50 dark:bg-zinc-900/20',
+};
+
+const CARD_STATUS_DOT: Record<AppointmentStatus, string> = {
+    PENDIENTE:   'bg-yellow-500',
+    CONFIRMADA:  'bg-green-500',
+    ATENDIDA:    'bg-blue-500',
+    NO_ASISTIDA: 'bg-violet-500',
+    CANCELADA:   'bg-red-500',
+    FINALIZADO:  'bg-emerald-500',
+    DESCARTADO:  'bg-zinc-400',
+};
+
 export const CustomCalendar = ({ user }: ScheduleInterface) => {
     const toastId = "progress-calendar";
 
@@ -63,6 +85,33 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
     const [newStatus, setNewStatus] = useState<AppointmentStatus>("CONFIRMADA");
     const [openCancelAlert, setOpenCancelAlert] = useState(false);
     const [openDeleteAlert, setOpenDeleteAlert] = useState(false);
+
+    const [agendaMode, setAgendaMode] = useState(true);
+    const [agendaDate, setAgendaDate] = useState(() => startOfDay(new Date()));
+    const [activeView, setActiveView] = useState<'agenda' | 'week' | 'month'>('agenda');
+    const calendarRef = useRef<FullCalendar>(null);
+    const calendarWrapRef = useRef<HTMLDivElement>(null);
+
+    // Oculta/muestra el cuerpo del calendario según el modo
+    useEffect(() => {
+        const el = calendarWrapRef.current?.querySelector('.fc-view-harness') as HTMLElement | null;
+        if (el) el.style.display = agendaMode ? 'none' : '';
+        if (!agendaMode) {
+            requestAnimationFrame(() => calendarRef.current?.getApi().updateSize());
+        }
+    }, [agendaMode]);
+
+    // Resalta el botón activo en el grupo Día/Semana/Mes
+    useEffect(() => {
+        const wrapper = calendarWrapRef.current;
+        if (!wrapper) return;
+        const diaBtn    = wrapper.querySelector('.fc-agendaToggle-button');
+        const semanaBtn = wrapper.querySelector('.fc-semanaBtn-button');
+        const mesBtn    = wrapper.querySelector('.fc-mesBtn-button');
+        diaBtn?.classList.toggle('fc-button-active', activeView === 'agenda');
+        semanaBtn?.classList.toggle('fc-button-active', activeView === 'week');
+        mesBtn?.classList.toggle('fc-button-active', activeView === 'month');
+    }, [activeView]);
 
     const loadAppointments = useCallback(async () => {
         const res = await getAppointmentsByUser(user.id);
@@ -97,6 +146,22 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
 
     const events = normalizeAppointmentsToEvents(appointments);
     const selectedAppointment = appointments.find((a) => a.id === selectedEventId);
+
+    const dayAppts = useMemo(() =>
+        appointments
+            .filter(a => isSameDay(new Date(a.startTime), agendaDate))
+            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()),
+        [appointments, agendaDate]
+    );
+    const morningAppts = dayAppts.filter(a => new Date(a.startTime).getHours() < 12);
+    const afternoonAppts = dayAppts.filter(a => new Date(a.startTime).getHours() >= 12);
+
+    const openApptDialog = (appt: AppointmentWithSession) => {
+        setSelectedEventId(appt.id);
+        setCurrentAppointment(appt);
+        setNewStatus(appt.status);
+        setOpenDialog(true);
+    };
 
 
     const notifyChangeStatus = async () => {
@@ -148,40 +213,132 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
 
     return (
         <>
-            <FullCalendar plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-                initialView="timeGridDay"
-                timeZone="local"
-                events={events}
-                headerToolbar={
-                    isMobile
-                        ? { left: "prev,next", center: "title", right: "timeGridDay,timeGridWeek,dayGridMonth" }
-                        : { left: "prev,next today", center: "title", right: "timeGridDay,timeGridWeek,dayGridMonth" }
-                }
-                buttonText={
-                    isMobile
-                        ? { today: "Hoy", timeGridDay: "D", timeGridWeek: "S", dayGridMonth: "M" }
-                        : { today: "Hoy", timeGridDay: "Día", timeGridWeek: "Semana", dayGridMonth: "Mes" }
-                }
-                editable={true}
-                height="calc(100vh - 175px)"
-                allDaySlot={false}
-                slotMinTime="07:00:00"
-                slotMaxTime="19:00:00"
-                eventClick={(info) => {
-                    setSelectedEventId(info.event.id);
-                    const currentStatus = appointments.find((a) => a.id === info.event.id)?.status;
-                    setCurrentAppointment(appointments.find((a) => a.id === info.event.id))
-                    setNewStatus(currentStatus || "PENDIENTE");
-                    setOpenDialog(true);
-                }}
-                titleFormat={
-                    isMobile
-                        ? { day: "numeric", month: "short" } // 23 feb
-                        : { year: "numeric", month: "long", day: "numeric" } // 23 febrero 2026
+            {/* ── FullCalendar — toolbar siempre visible ─────────────── */}
+            <div ref={calendarWrapRef}>
+                <FullCalendar
+                    ref={calendarRef}
+                    plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                    initialView="timeGridDay"
+                    timeZone="local"
+                    events={events}
+                    datesSet={(info) => {
+                        const next = startOfDay(info.start).getTime();
+                        setAgendaDate(prev => prev.getTime() === next ? prev : new Date(next));
+                    }}
+                    customButtons={{
+                        agendaToggle: {
+                            text: isMobile ? 'D' : 'Día',
+                            click: () => {
+                                setAgendaMode(true);
+                                setActiveView('agenda');
+                                calendarRef.current?.getApi().changeView('timeGridDay');
+                            },
+                        },
+                        semanaBtn: {
+                            text: isMobile ? 'S' : 'Semana',
+                            click: () => {
+                                setAgendaMode(false);
+                                setActiveView('week');
+                                calendarRef.current?.getApi().changeView('timeGridWeek');
+                            },
+                        },
+                        mesBtn: {
+                            text: isMobile ? 'M' : 'Mes',
+                            click: () => {
+                                setAgendaMode(false);
+                                setActiveView('month');
+                                calendarRef.current?.getApi().changeView('dayGridMonth');
+                            },
+                        },
+                    }}
+                    headerToolbar={
+                        isMobile
+                            ? { left: "prev,next", center: "title", right: "agendaToggle,semanaBtn,mesBtn" }
+                            : { left: "prev,next today", center: "title", right: "agendaToggle,semanaBtn,mesBtn" }
+                    }
+                    buttonText={{ today: "Hoy" }}
+                    editable={true}
+                    height={agendaMode ? "auto" : "calc(100vh - 175px)"}
+                    fixedWeekCount={false}
+                    allDaySlot={false}
+                    slotMinTime="07:00:00"
+                    slotMaxTime="19:00:00"
+                    eventClick={(info) => {
+                        const appt = appointments.find((a) => a.id === info.event.id);
+                        if (!appt) return;
+                        openApptDialog(appt);
+                    }}
+                    titleFormat={
+                        isMobile
+                            ? { day: "numeric", month: "short" }
+                            : { year: "numeric", month: "long", day: "numeric" }
+                    }
+                    locale={esLocale}
+                />
+            </div>
 
-                }
-                locale={esLocale}
-            />
+            {/* ── Panel Agenda: dos columnas Mañana / Tarde ─────────── */}
+            {agendaMode && (
+                <div className="grid grid-cols-2 gap-4 pt-3 overflow-y-auto" style={{ height: 'calc(100vh - 230px)' }}>
+                    {/* Mañana */}
+                    <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pb-1 border-b border-border">
+                            Mañana
+                        </p>
+                        {morningAppts.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center pt-6">Sin citas</p>
+                        ) : morningAppts.map(appt => (
+                            <button key={appt.id} type="button" onClick={() => openApptDialog(appt)}
+                                className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}>
+                                <div className="grid grid-cols-2 gap-x-2">
+                                    <p className="text-sm font-bold leading-tight text-muted-foreground">
+                                        {format(new Date(appt.startTime), "HH:mm")} – {format(new Date(appt.endTime), "HH:mm")}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground italic text-right leading-tight">
+                                        {appt.service?.name ?? ''}
+                                    </p>
+                                    <p className="text-sm font-semibold leading-tight mt-0.5">
+                                        {appt.session?.pushName || "Sin nombre"}
+                                    </p>
+                                    <div className="flex items-center justify-end gap-1 mt-0.5">
+                                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${CARD_STATUS_DOT[appt.status]}`} />
+                                        <span className="text-xs font-medium opacity-80">{STATUS_LABELS[appt.status]}</span>
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Tarde */}
+                    <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pb-1 border-b border-border">
+                            Tarde
+                        </p>
+                        {afternoonAppts.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center pt-6">Sin citas</p>
+                        ) : afternoonAppts.map(appt => (
+                            <button key={appt.id} type="button" onClick={() => openApptDialog(appt)}
+                                className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}>
+                                <div className="grid grid-cols-2 gap-x-2">
+                                    <p className="text-sm font-bold leading-tight text-muted-foreground">
+                                        {format(new Date(appt.startTime), "HH:mm")} – {format(new Date(appt.endTime), "HH:mm")}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground italic text-right leading-tight">
+                                        {appt.service?.name ?? ''}
+                                    </p>
+                                    <p className="text-sm font-semibold leading-tight mt-0.5">
+                                        {appt.session?.pushName || "Sin nombre"}
+                                    </p>
+                                    <div className="flex items-center justify-end gap-1 mt-0.5">
+                                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${CARD_STATUS_DOT[appt.status]}`} />
+                                        <span className="text-xs font-medium opacity-80">{STATUS_LABELS[appt.status]}</span>
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
 
             <AlertDialog
@@ -365,30 +522,24 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Confirmar cancelación</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Al cambiar el estado a <strong>CANCELADA</strong>, se eliminarán todos los recordatorios/seguimientos
-                            del agendamiento asociados a este cliente:
-                            <span className="block mt-2 text-muted-foreground">
-                                {selectedAppointment?.session?.pushName || "Cliente desconocido"}
-                            </span>
-                            <span className="block text-muted-foreground">
-                                {selectedAppointment?.session?.remoteJid?.split("@")[0] || ""}
-                            </span>
+                            Al cambiar el estado a <strong>CANCELADA</strong>, se eliminarán todos los recordatorios/seguimientos del agendamiento asociados.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
 
-                    <AlertDialogFooter className="gap-2">
-                        <AlertDialogCancel>Volver</AlertDialogCancel>
+                    <AlertDialogFooter className="gap-2 sm:justify-between">
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
 
                         <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             onClick={() => {
                                 if (!selectedEventId) return;
 
-                                handleStatusChange(selectedEventId, newStatus); // aquí newStatus es CANCELADA
+                                handleStatusChange(selectedEventId, newStatus);
                                 setOpenCancelAlert(false);
                                 setOpenDialog(false);
                             }}
                         >
-                            Sí, cancelar y eliminar recordatorios
+                            Eliminar
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

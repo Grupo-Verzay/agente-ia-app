@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db'
 import { registerSessionSchema } from '@/schema/session';
-import { Prisma, Session as PrismaSession } from '@prisma/client';
+import { AppointmentStatus, Prisma, Session as PrismaSession } from '@prisma/client';
 import { z } from 'zod';
 import { ActionResponse } from './tag-actions';
 import {
@@ -121,6 +121,7 @@ function mapChatContactSessionSummary(
   session: SessionWithTagsRecord,
   pendingSeguimientos?: number,
   seguimientosTipos?: string[],
+  latestAppointmentStatus?: AppointmentStatus | null,
 ): ChatContactSessionSummary {
   const mappedSession = mapSessionRecord(session);
 
@@ -135,6 +136,7 @@ function mapChatContactSessionSummary(
     flujos: mappedSession.flujos ?? null,
     pendingSeguimientos: pendingSeguimientos ?? 0,
     seguimientosTipos: seguimientosTipos ?? [],
+    latestAppointmentStatus: latestAppointmentStatus ?? null,
   };
 }
 
@@ -443,6 +445,22 @@ export async function getChatContactSessions(
       seguimientosMap.set(s.remoteJid, entry);
     }
 
+    const sessionIds = sessions.map((s) => s.id);
+    const appointmentsRaw = sessionIds.length
+      ? await db.appointment.findMany({
+          where: { sessionId: { in: sessionIds } },
+          select: { sessionId: true, status: true, startTime: true },
+          orderBy: { startTime: 'desc' },
+        })
+      : [];
+
+    const appointmentStatusMap = new Map<number, AppointmentStatus>();
+    for (const appt of appointmentsRaw) {
+      if (appt.sessionId !== null && !appointmentStatusMap.has(appt.sessionId)) {
+        appointmentStatusMap.set(appt.sessionId, appt.status);
+      }
+    }
+
     const data: ChatContactSessionMap = {};
 
     for (const chat of chatsWithCandidates) {
@@ -477,7 +495,12 @@ export async function getChatContactSessions(
       if (!preferredSession) continue;
 
       const seg = seguimientosMap.get(preferredSession.remoteJid);
-      data[chat.chatRemoteJid] = mapChatContactSessionSummary(preferredSession, seg?.count ?? 0, seg?.tipos ?? []);
+      data[chat.chatRemoteJid] = mapChatContactSessionSummary(
+        preferredSession,
+        seg?.count ?? 0,
+        seg?.tipos ?? [],
+        appointmentStatusMap.get(preferredSession.id) ?? null,
+      );
     }
 
     return {
