@@ -13,6 +13,7 @@ import {
     SidebarHeader,
     SidebarRail,
     SidebarTrigger,
+    useSidebar,
 } from "@/components/ui/sidebar"
 import ThemeSwitcher from "./custom/ThemeSwitcher"
 import LogoutButton from "./logout-button"
@@ -22,6 +23,28 @@ import { usePathname } from "next/navigation"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
     user: User;
+}
+
+function SidebarFooterContent({ user }: { user: User }) {
+    const { state } = useSidebar();
+    const collapsed = state === "collapsed";
+
+    return (
+        <SidebarFooter>
+            <div className="flex items-center justify-end">
+                <SidebarTrigger />
+            </div>
+            <div className="flex flex-row w-full justify-center items-center">
+                <LogoutButton user={user} />
+                {!collapsed && <NavCustomizer userId={user.id} />}
+                {!collapsed && (
+                    <div>
+                        <ThemeSwitcher />
+                    </div>
+                )}
+            </div>
+        </SidebarFooter>
+    );
 }
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
@@ -36,20 +59,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             <SidebarContent>
                 <NavMain user={user} />
             </SidebarContent>
-            <SidebarFooter>
-                <div className="flex items-center justify-end">
-                    <SidebarTrigger />
-                </div>
-                <div className="flex flex-row w-full justify-center items-center">
-                    {/* <NavProjects user={user} /> */}
-                    <LogoutButton user={user} />
-                    <NavCustomizer userId={user.id} />
-                    <div>
-                        <ThemeSwitcher />
-                    </div>
-                </div>
-                {/* <LogoutButton user={user} /> */}
-            </SidebarFooter>
+            <SidebarFooterContent user={user} />
             <SidebarRail />
         </Sidebar>
     )

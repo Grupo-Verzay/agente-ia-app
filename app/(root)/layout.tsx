@@ -119,9 +119,9 @@ export default async function RootGroupLayout({
                 <AppSidebar user={user} />
                 <SidebarInset className="h-screen flex flex-col min-w-0 overflow-x-hidden">
                     <Breadcrumbs />
-                    <main className={`flex-1 overflow-y-auto overflow-x-hidden p-4 ${themeClass}`}>
+                    <main className={`flex-1 flex flex-col overflow-hidden overflow-x-hidden p-4 ${themeClass}`}>
                         <PanelAwareTabNav tabs={panelTabs} excludePanelRoutes />
-                        {children}
+                        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">{children}</div>
                     </main>
                     <ChatWidget />
                     <ChatOnboardingModal />

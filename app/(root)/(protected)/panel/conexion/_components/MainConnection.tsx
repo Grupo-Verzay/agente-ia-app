@@ -8,7 +8,7 @@ import { ApiKey, User } from "@prisma/client";
 import { getColumns, DataGrid, CreateDialog, EditDialog, DeleteDialog } from "./";
 import { MetricCard } from "@/components/custom/MetricCard";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Link2, KeyRound } from "lucide-react";
+import { Link2, KeyRound, CalendarCheck, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
@@ -75,9 +75,14 @@ export const MainConnection = ({ searchParams, user, apiKeys }: Props) => {
 
     const columns = getColumns(handleDialogAction);
 
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const recentCount = apiKeys.filter(k => new Date(k.createdAt) >= thirtyDaysAgo).length;
+    const oldCount = apiKeys.length - recentCount;
+
     return (
         <TooltipProvider delayDuration={120}>
-            <div className="flex h-full min-w-0 flex-col gap-2">
+            <div className="flex h-full min-w-0 w-full flex-col gap-2">
                 {/* MetricCards */}
                 <div className="flex flex-wrap gap-3">
                     <div className="flex-1">
@@ -92,10 +97,28 @@ export const MainConnection = ({ searchParams, user, apiKeys }: Props) => {
                     <div className="flex-1">
                         <MetricCard
                             icon={<KeyRound className="h-4 w-4" />}
-                            label="APIs únicas"
+                            label="Servidores únicos"
                             value={new Set(apiKeys.map(k => k.url)).size}
                             helper="Servidores Evolution distintos"
                             color="#8B5CF6"
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <MetricCard
+                            icon={<CalendarCheck className="h-4 w-4" />}
+                            label="Recientes (30d)"
+                            value={recentCount}
+                            helper="Agregadas en los últimos 30 días"
+                            color="#22C55E"
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <MetricCard
+                            icon={<Clock className="h-4 w-4" />}
+                            label="Antiguas"
+                            value={oldCount}
+                            helper="Con más de 30 días de antigüedad"
+                            color="#F59E0B"
                         />
                     </div>
                 </div>

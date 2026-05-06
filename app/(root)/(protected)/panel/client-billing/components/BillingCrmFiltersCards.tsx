@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
+import type { CSSProperties } from "react";
 import type { Table } from "@tanstack/react-table";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ClientRow } from "@/types/billing";
 import { daysLeftService } from "../helpers";
-import { Database, CircleCheck, CircleX, UserCheck, UserX } from "lucide-react";
+import { Database, CircleCheck, UserCheck, UserX } from "lucide-react";
 
 type Props = {
     table: Table<ClientRow>;
@@ -21,31 +22,42 @@ function StatCard({
     icon,
     active,
     onClick,
-    activeClassName,
-    valueClassName,
-    bgClassName,
+    color,
 }: {
     title: string;
     value: number;
     icon: React.ReactNode;
     active?: boolean;
     onClick?: () => void;
-    activeClassName?: string;
-    valueClassName?: string;
-    bgClassName?: string;
+    color: string;
 }) {
+    const w = (alpha: string) => `${color}${alpha}`;
+
+    const cardStyle: CSSProperties = {
+        borderColor: active ? w("99") : w("52"),
+        backgroundColor: active ? w("22") : w("12"),
+    };
+
     return (
         <Card
             onClick={onClick}
-            className={cn(
-                "cursor-pointer select-none backdrop-blur transition-colors hover:opacity-90",
-                "rounded-xl px-3 py-3 flex items-center gap-3",
-                active ? (activeClassName ?? "ring-2 ring-primary") : (bgClassName ?? "border-border bg-background/40")
-            )}
+            className="border-2 bg-background/60 shadow-sm cursor-pointer select-none transition-opacity hover:opacity-90"
+            style={cardStyle}
         >
-            <div className="text-muted-foreground shrink-0">{icon}</div>
-            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{title}</span>
-            <div className={cn("shrink-0 text-lg font-semibold", valueClassName)}>{value}</div>
+            <CardContent className="flex items-center gap-2 px-3 py-3">
+                <div
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2"
+                    style={{ color, borderColor: w("5C"), backgroundColor: w("16") }}
+                >
+                    {icon}
+                </div>
+                <span className="min-w-0 flex-1 truncate text-xs font-medium" style={{ color: w("CC") }}>
+                    {title}
+                </span>
+                <div className="shrink-0 text-lg font-bold leading-none" style={{ color }}>
+                    {value}
+                </div>
+            </CardContent>
         </Card>
     );
 }
@@ -59,11 +71,6 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
 
     const paidCount = React.useMemo(
         () => data.filter((u) => (u.billing?.billingStatus ?? "UNPAID") === "PAID").length,
-        [data]
-    );
-
-    const unpaidCount = React.useMemo(
-        () => data.filter((u) => (u.billing?.billingStatus ?? "UNPAID") !== "PAID").length,
         [data]
     );
 
@@ -106,15 +113,14 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
     const anyQuickFilterActive = !!paidFilter || !!accessFilter || !!dueFilter;
 
     return (
-        <div className={cn("grid grid-cols-1 md:grid-cols-5 gap-3", className)}>
+        <div className={cn("grid grid-cols-1 md:grid-cols-4 gap-3", className)}>
             <StatCard
                 title="Total"
                 value={total}
                 icon={<Database className="h-4 w-4" />}
                 active={!anyQuickFilterActive}
                 onClick={clearAllQuickFilters}
-                bgClassName="bg-blue-50/60 border-blue-200"
-                valueClassName="text-blue-600"
+                color="#3B82F6"
             />
 
             <StatCard
@@ -123,20 +129,7 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
                 icon={<CircleCheck className="h-4 w-4" />}
                 active={paidFilter === "PAID"}
                 onClick={() => setExclusiveFilter("paid", "PAID")}
-                valueClassName="text-emerald-600"
-                activeClassName="ring-1 ring-emerald-500/60"
-                bgClassName="bg-emerald-50/60 border-emerald-200"
-            />
-
-            <StatCard
-                title="No pagaron"
-                value={unpaidCount}
-                icon={<CircleX className="h-4 w-4" />}
-                active={paidFilter === "UNPAID"}
-                onClick={() => setExclusiveFilter("paid", "UNPAID")}
-                valueClassName="text-red-600"
-                activeClassName="ring-1 ring-red-500/60"
-                bgClassName="bg-red-50/60 border-red-200"
+                color="#22C55E"
             />
 
             <StatCard
@@ -145,9 +138,7 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
                 icon={<UserCheck className="h-4 w-4" />}
                 active={accessFilter === "ACTIVE"}
                 onClick={() => setExclusiveFilter("access", "ACTIVE")}
-                valueClassName="text-emerald-600"
-                activeClassName="ring-1 ring-emerald-500/60"
-                bgClassName="bg-emerald-50/60 border-emerald-200"
+                color="#8B5CF6"
             />
 
             <StatCard
@@ -156,9 +147,7 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
                 icon={<UserX className="h-4 w-4" />}
                 active={dueFilter === "SOON"}
                 onClick={() => setExclusiveFilter("due", "SOON")}
-                valueClassName={dueSoonCount > 0 ? "text-yellow-600" : "text-muted-foreground"}
-                activeClassName="ring-1 ring-yellow-500/60"
-                bgClassName="bg-yellow-50/60 border-yellow-200"
+                color="#EAB308"
             />
         </div>
     );

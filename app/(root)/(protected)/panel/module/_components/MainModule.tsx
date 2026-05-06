@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from "framer-motion"
 import { useEffect, useState, useTransition } from 'react';
 import { Input } from '@/components/ui/input';
-import { Search, X, LayoutGrid, Eye, EyeOff } from 'lucide-react';
+import { Search, X, LayoutGrid, Eye, EyeOff, Layers } from 'lucide-react';
 import { ModuleCardSkeleton } from './ModuleCardSkeleton';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { toast } from 'sonner';
@@ -90,10 +90,11 @@ export const MainModule = () => {
 
     const visiblesCount = modules.filter(m => m.showInSidebar).length;
     const adminOnlyCount = modules.filter(m => m.adminOnly).length;
+    const conSubMenuCount = modules.filter(m => m.moduleItems.length > 0).length;
 
     return (
         <TooltipProvider delayDuration={120}>
-        <div className="flex h-full min-w-0 flex-col gap-2">
+        <div className="flex h-full min-w-0 w-full flex-col gap-2">
             {/* MetricCards */}
             <div className="flex flex-wrap gap-3">
                 <div className="flex-1">
@@ -123,6 +124,15 @@ export const MainModule = () => {
                         color="#8B5CF6"
                     />
                 </div>
+                <div className="flex-1">
+                    <MetricCard
+                        icon={<Layers className="h-4 w-4" />}
+                        label="Con sub-menú"
+                        value={conSubMenuCount}
+                        helper="Módulos con ítems de sub-navegación"
+                        color="#F59E0B"
+                    />
+                </div>
             </div>
 
             {/* Actions */}
@@ -141,7 +151,7 @@ export const MainModule = () => {
                 </Button>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {isPending ? (
                         <ModuleCardSkeleton />

@@ -115,7 +115,7 @@ export function BillingCrmClient({
     const [rowSelection, setRowSelection] = useState({})
     const [pagination, setPagination] = useState({
         pageIndex: 0,
-        pageSize: 9,
+        pageSize: 6,
     });
     const [hasLoadedPersistedFilters, setHasLoadedPersistedFilters] = useState(false);
     const billingLifecyclePreview = useBillingLifecyclePreview(
@@ -728,7 +728,7 @@ export function BillingCrmClient({
     });
 
     return (
-        <div className="flex flex-col h-full gap-2">
+        <div className="flex flex-col h-full w-full gap-2">
             {/* Header fijo */}
             <div className="sticky top-0 z-1">
                 <div className="flex justify-between items-center gap-2">
@@ -796,9 +796,8 @@ export function BillingCrmClient({
 
 
             {/* Scroll interno para el content */}
-            <div className="flex-1 overflow-y-auto">
-                <div className="grid grid-cols-1 gap-4">
-                    <Card className="border-border">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+                <Card className="border-border overflow-x-auto">
                         <CardContent>
                             <Table className="w-full border-border table-auto">
                                 <TableHeader>
@@ -1096,8 +1095,7 @@ export function BillingCrmClient({
                                 </DialogContent>
                             </Dialog>
                         </CardContent>
-                    </Card>
-                </div>
+                </Card>
             </div>
 
             <Dialog open={deleteConfirm.open} onOpenChange={(open) => !deleting && setDeleteConfirm((s) => ({ ...s, open }))}>

@@ -52,7 +52,7 @@ export function ColumnFilterInput<TData>({ table }: Props<TData>) {
                     setValue(val)
                     handleFilter(val, selectedColumn)
                 }}
-                className="w-64 shrink-0"
+                className="w-72 shrink-0"
             />
         </div>
     )

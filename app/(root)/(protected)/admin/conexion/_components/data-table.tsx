@@ -13,7 +13,7 @@ import {
     getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -91,7 +91,7 @@ export const DataGrid = <TData, TValue>({
                             onChange={(event) =>
                                 table.getColumn("url")?.setFilterValue(event.target.value)
                             }
-                            className="w-64 shrink-0"
+                            className="w-72 shrink-0"
                         />
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -174,23 +174,28 @@ export const DataGrid = <TData, TValue>({
                             </TableBody>
                         </Table>
                     </div>
-                    <div className="flex items-center justify-end pt-2">
-                        <div className="space-x-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => table.previousPage()}
-                                disabled={!table.getCanPreviousPage()}
-                            >
-                                Anterior
+                    <div className="flex items-center justify-between gap-2 pt-3">
+                        <div className="text-xs text-muted-foreground">
+                            Mostrando{" "}
+                            <b>{table.getRowModel().rows.length}</b> de{" "}
+                            <b>{table.getFilteredRowModel().rows.length}</b> resultados
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()}>
+                                <ChevronsLeft className="h-4 w-4" />
                             </Button>
-                            <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => table.nextPage()}
-                                disabled={!table.getCanNextPage()}
-                            >
-                                Siguiente
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <div className="px-2 text-xs">
+                                Página <b>{table.getState().pagination.pageIndex + 1}</b> /{" "}
+                                <b>{table.getPageCount()}</b>
+                            </div>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.setPageIndex(table.getPageCount() - 1)} disabled={!table.getCanNextPage()}>
+                                <ChevronsRight className="h-4 w-4" />
                             </Button>
                         </div>
                     </div>

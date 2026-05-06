@@ -13,7 +13,7 @@ import { User } from "@prisma/client"
 import { getClientsByReseller, assignClientToReseller, removeClientFromReseller } from "@/actions/reseller-action"
 import { MetricCard } from "@/components/custom/MetricCard"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { UserCheck, Users, UserX } from "lucide-react"
+import { UserCheck, Users, UserX, UsersRound } from "lucide-react"
 
 interface Props {
     searchParams: { [key: string]: string | undefined },
@@ -84,7 +84,7 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
 
     return (
         <TooltipProvider delayDuration={120}>
-        <div className="flex h-full min-w-0 flex-col gap-2">
+        <div className="flex h-full min-w-0 w-full flex-col gap-2">
             {/* MetricCards */}
             <div className="flex flex-wrap gap-3">
                 <div className="flex-1">
@@ -112,6 +112,15 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
                         value={unassignedClients.length}
                         helper="Clientes disponibles para asignar"
                         color="#F59E0B"
+                    />
+                </div>
+                <div className="flex-1">
+                    <MetricCard
+                        icon={<UsersRound className="h-4 w-4" />}
+                        label="Total clientes"
+                        value={user.length}
+                        helper="Clientes registrados en la plataforma"
+                        color="#8B5CF6"
                     />
                 </div>
             </div>

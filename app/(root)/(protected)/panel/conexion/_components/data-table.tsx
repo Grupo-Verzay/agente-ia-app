@@ -13,7 +13,7 @@ import {
     getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table"
-import { ChevronDown, Ellipsis } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -65,6 +65,7 @@ export const DataGrid = <TData, TValue>({
         updatedAt: false // Oculta la columna updatedAt
     })
     const [rowSelection, setRowSelection] = useState({})
+    const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 6 })
 
     const table = useReactTable({
         data,
@@ -77,8 +78,10 @@ export const DataGrid = <TData, TValue>({
         getFilteredRowModel: getFilteredRowModel(),
         onColumnVisibilityChange: setColumnVisibility,
         onRowSelectionChange: setRowSelection,
+        onPaginationChange: setPagination,
         state: {
             sorting,
+            pagination,
             columnFilters,
             columnVisibility,
             rowSelection,
@@ -96,7 +99,7 @@ export const DataGrid = <TData, TValue>({
                         onChange={(event) =>
                             table.getColumn("url")?.setFilterValue(event.target.value)
                         }
-                        className="w-64 shrink-0"
+                        className="w-72 shrink-0"
                     />
                     {onCreateClick && (
                         <Button onClick={onCreateClick}>
@@ -159,18 +162,15 @@ export const DataGrid = <TData, TValue>({
                 </div>
             </div>
 
-            {/* Tabla en Card separada */}
-            <div className="flex-1 overflow-y-auto">
-                <Card className="border-border">
+            <Card className="flex-1 min-h-0 flex flex-col border-border overflow-hidden">
+                <div className="flex-1 min-h-0 overflow-auto">
                     <Table className="w-full border-border table-auto">
-                        <TableHeader>
+                        <TableHeader className="sticky top-0 z-10 bg-background">
                             {table.getHeaderGroups().map((headerGroup) => (
                                 <TableRow className="border-border" key={headerGroup.id}>
                                     {headerGroup.headers.map((header) => (
                                         <TableHead key={header.id}>
-                                            {header.isPlaceholder
-                                                ? null
-                                                : flexRender(header.column.columnDef.header, header.getContext())}
+                                            {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                                         </TableHead>
                                     ))}
                                 </TableRow>
@@ -179,11 +179,7 @@ export const DataGrid = <TData, TValue>({
                         <TableBody>
                             {table.getRowModel().rows?.length ? (
                                 table.getRowModel().rows.map((row) => (
-                                    <TableRow
-                                        className="border-border"
-                                        key={row.id}
-                                        data-state={row.getIsSelected() && "selected"}
-                                    >
+                                    <TableRow className="border-border" key={row.id} data-state={row.getIsSelected() && "selected"}>
                                         {row.getVisibleCells().map((cell) => (
                                             <TableCell key={cell.id}>
                                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -200,26 +196,33 @@ export const DataGrid = <TData, TValue>({
                             )}
                         </TableBody>
                     </Table>
-                    <div className="flex items-center justify-end gap-2 p-4">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => table.previousPage()}
-                            disabled={!table.getCanPreviousPage()}
-                        >
-                            Anterior
+                </div>
+                <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-t border-border">
+                    <div className="text-xs text-muted-foreground">
+                        Mostrando{" "}
+                        <b>{table.getRowModel().rows.length}</b> de{" "}
+                        <b>{table.getFilteredRowModel().rows.length}</b> resultados
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()}>
+                            <ChevronsLeft className="h-4 w-4" />
                         </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => table.nextPage()}
-                            disabled={!table.getCanNextPage()}
-                        >
-                            Siguiente
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <div className="px-2 text-xs">
+                            Página <b>{table.getState().pagination.pageIndex + 1}</b> /{" "}
+                            <b>{table.getPageCount()}</b>
+                        </div>
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.setPageIndex(table.getPageCount() - 1)} disabled={!table.getCanNextPage()}>
+                            <ChevronsRight className="h-4 w-4" />
                         </Button>
                     </div>
-                </Card>
-            </div>
+                </div>
+            </Card>
         </div>
     )
 }

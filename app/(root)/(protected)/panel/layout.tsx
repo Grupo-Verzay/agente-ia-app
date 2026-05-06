@@ -18,9 +18,9 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     }));
 
     return (
-        <div className="flex h-full min-w-0 flex-col gap-2">
+        <div className="flex h-full min-w-0 w-full flex-col">
             <PanelAwareTabNav tabs={panelTabs} />
-            {children}
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">{children}</div>
         </div>
     );
 }

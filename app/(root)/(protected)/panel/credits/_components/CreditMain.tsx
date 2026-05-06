@@ -13,7 +13,7 @@ import {
 import { onCreditsToTokens, onTokensToCredits } from '@/utils/onTokensToCredits';
 import { MetricCard } from '@/components/custom/MetricCard';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Coins, TrendingDown, Wallet } from 'lucide-react';
+import { Coins, TrendingDown, Wallet, Gauge } from 'lucide-react';
 
 interface Props {
     userId: string;
@@ -82,7 +82,7 @@ export const CreditMain = ({ userId }: Props) => {
 
     return (
         <TooltipProvider delayDuration={120}>
-        <div className="flex h-full min-w-0 flex-col gap-2">
+        <div className="flex h-full min-w-0 w-full flex-col gap-2">
             {/* MetricCards */}
             {!loading && (
                 <div className="flex flex-wrap gap-3">
@@ -111,6 +111,15 @@ export const CreditMain = ({ userId }: Props) => {
                             value={available.toLocaleString()}
                             helper="Créditos restantes para usar"
                             color="#22C55E"
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <MetricCard
+                            icon={<Gauge className="h-4 w-4" />}
+                            label="% Uso"
+                            value={`${usagePercent}%`}
+                            helper="Porcentaje del total consumido"
+                            color="#F59E0B"
                         />
                     </div>
                 </div>

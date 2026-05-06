@@ -33,7 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ChevronDown, Ellipsis } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { ClientInterface } from '@/lib/types'
 
@@ -72,7 +72,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
   }
   const [pagination, setPagination] = useState({
     pageIndex: 0,
-    pageSize: 8,
+    pageSize: 20,
   })
 
   const table = useReactTable({
@@ -173,78 +173,70 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
       </div>
 
 
-      {/* Scroll interno para el content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-1 gap-4">
-          <Card className="border-border">
-            <Table className="w-full border-border table-auto">
-              <TableHeader className='sticky top-0'>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}
-                    className="border-border"
-                  >
-                    {headerGroup.headers.map((header) => {
-                      return (
-                        <TableHead key={header.id} className="text-left px-2">
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                        </TableHead>
-                      )
-                    })}
+      {/* Card ocupa el espacio restante: tabla scrollea, paginación fija abajo */}
+      <Card className="flex-1 min-h-0 flex flex-col border-border overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto">
+          <Table className="w-full border-border table-auto">
+            <TableHeader className="sticky top-0 z-10 bg-background">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id} className="border-border">
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id} className="text-left px-2">
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id} className="border-border">
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id} className="text-left align-middle py-2">
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
                   </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows?.length ? (
-                  table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id}
-                      className="border-border"
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id} className="text-left align-middle truncate overflow-hidden whitespace-nowrap py-2">
-                          {/* <TableCell key={cell.id}> */}
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow
-                    className="border-border"
-                  >
-                    <TableCell colSpan={columns.length} className="h-24 text-center">
-                      No hay resultados.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-
-            <div className="flex items-center justify-end gap-2 p-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
-              >
-                Anterior
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
-              >
-                Siguiente
-              </Button>
-            </div>
-          </Card>
+                ))
+              ) : (
+                <TableRow className="border-border">
+                  <TableCell colSpan={columns.length} className="h-24 text-center">
+                    No hay resultados.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
-      </div>
+
+        {/* Paginación siempre visible, fuera del scroll */}
+        <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-t border-border">
+          <div className="text-xs text-muted-foreground">
+            Mostrando{" "}
+            <b>{table.getRowModel().rows.length}</b> de{" "}
+            <b>{table.getFilteredRowModel().rows.length}</b> resultados
+          </div>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()}>
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="px-2 text-xs">
+              Página <b>{table.getState().pagination.pageIndex + 1}</b> /{" "}
+              <b>{table.getPageCount()}</b>
+            </div>
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.setPageIndex(table.getPageCount() - 1)} disabled={!table.getCanNextPage()}>
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </Card>
     </div>
   )
 }

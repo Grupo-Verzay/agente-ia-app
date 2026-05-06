@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { db } from '@/lib/db';
 import { auth } from '@/auth';
 
-import { CalendarDays, TrendingUp, TrendingDown, Wallet, Settings } from 'lucide-react';
+import { CalendarDays, TrendingUp, TrendingDown, Wallet, Settings, ReceiptText } from 'lucide-react';
 import { FinanceMonthChart } from './_components/FinanceMonthChart';
 
 export const dynamic = 'force-dynamic';
@@ -156,7 +156,7 @@ export default async function FinanceHomePage() {
       </div>
 
       {/* Totales clickeables */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         {/* Ventas */}
         <Link href="/dashboard/finance/sales" className="block">
           <Card className="border-border transition hover:bg-muted/40">
@@ -204,6 +204,17 @@ export default async function FinanceHomePage() {
             </CardContent>
           </Card>
         </Link>
+
+        {/* Transacciones */}
+        <Card className="border-border">
+          <CardContent className="flex items-center gap-3 px-3 py-3">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 bg-muted/40">
+              <ReceiptText className="h-3.5 w-3.5 text-muted-foreground" />
+            </div>
+            <span className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">Transacciones</span>
+            <span className="text-lg font-semibold tracking-tight">{monthTx.length}</span>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Chart */}

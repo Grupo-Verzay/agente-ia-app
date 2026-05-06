@@ -22,7 +22,7 @@ import { createTemplate, deleteTemplate, getAllTemplates, updateTemplate } from 
 import { GenericDeleteDialog } from '@/components/shared/GenericDeleteDialog'
 import { MetricCard } from '@/components/custom/MetricCard'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { FileText, CheckCircle, XCircle } from 'lucide-react'
+import { FileText, CheckCircle, XCircle, Tag } from 'lucide-react'
 
 export const MainTemplate = ({ userRole }: { userRole: Role }) => {
     const router = useRouter()
@@ -109,10 +109,11 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
 
     const activasCount = templates.filter(t => t.isActive).length;
     const inactivasCount = templates.filter(t => !t.isActive).length;
+    const conCategoriaCount = templates.filter(t => !!t.category).length;
 
     return (
         <TooltipProvider delayDuration={120}>
-        <div className="flex h-full min-w-0 flex-col gap-2">
+        <div className="flex h-full min-w-0 w-full flex-col gap-2">
             {/* MetricCards */}
             <div className="flex flex-wrap gap-3">
                 <div className="flex-1">
@@ -142,6 +143,15 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                         color="#EF4444"
                     />
                 </div>
+                <div className="flex-1">
+                    <MetricCard
+                        icon={<Tag className="h-4 w-4" />}
+                        label="Con categoría"
+                        value={conCategoriaCount}
+                        helper="Plantillas con categoría asignada"
+                        color="#F59E0B"
+                    />
+                </div>
             </div>
 
             {/* Actions */}
@@ -161,9 +171,8 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
             </div>
 
 
-            <div className="flex-1">
-                <div className="overflow-auto py-2">
-                    <div className="flex flex-wrap flex-1 gap-2 justify-center">
+            <div className="flex-1 min-h-0 overflow-y-auto py-2">
+                <div className="flex flex-wrap flex-1 gap-2 justify-center">
                         {isPending ? (
                             <TemplateCardSkeleton />
                         ) : (
@@ -175,7 +184,6 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                             />
                         )}
                     </div>
-                </div>
             </div>
 
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>

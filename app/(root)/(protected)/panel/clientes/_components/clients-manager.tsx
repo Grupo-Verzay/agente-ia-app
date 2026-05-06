@@ -249,7 +249,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
 
     return (
         <TooltipProvider delayDuration={120}>
-        <div className="flex h-full min-w-0 flex-col gap-2">
+        <div className="flex h-full min-w-0 w-full flex-col gap-2">
             {/* MetricCards */}
             <div className="shrink-0 flex flex-wrap gap-3">
                 <div className="flex-1">
