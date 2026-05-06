@@ -36,7 +36,6 @@ import {
 } from '@/actions/appointments-actions';
 import { STATUS_LABELS } from '@/types/schedule';
 import { cn } from '@/lib/utils';
-import { ChatCreateAppointmentSheet } from './ChatCreateAppointmentSheet';
 
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
   PENDIENTE:   'bg-yellow-500',
@@ -68,7 +67,6 @@ export function ChatAppointmentStatusButton({
   const [saving, setSaving] = useState(false);
   const [appointment, setAppointment] = useState<SessionAppointmentCard | null | undefined>(undefined);
   const [pendingCancelConfirm, setPendingCancelConfirm] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(false);
 
   const loadAppointment = useCallback(async () => {
     if (appointment !== undefined) return;
@@ -148,7 +146,14 @@ export function ChatAppointmentStatusButton({
               <p className="text-sm text-muted-foreground">Sin citas registradas</p>
               <button
                 type="button"
-                onClick={() => { setOpen(false); setSheetOpen(true); }}
+                onClick={() => {
+                  setOpen(false);
+                  const phone = remoteJid.replace(/@.*$/, '');
+                  const params = new URLSearchParams();
+                  if (pushName) params.set('name', pushName);
+                  if (phone) params.set('phone', phone);
+                  window.open(`/schedule/${userId}?${params.toString()}`, '_blank');
+                }}
                 className="text-xs text-primary hover:underline font-medium"
               >
                 + Agendar cita
@@ -193,17 +198,6 @@ export function ChatAppointmentStatusButton({
           )}
         </PopoverContent>
       </Popover>
-
-      <ChatCreateAppointmentSheet
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-        userId={userId}
-        sessionId={sessionId}
-        pushName={pushName}
-        remoteJid={remoteJid}
-        instanceId={instanceId}
-        onCreated={() => setAppointment(undefined)}
-      />
 
       <AlertDialog open={pendingCancelConfirm} onOpenChange={setPendingCancelConfirm}>
         <AlertDialogContent className="border-border">

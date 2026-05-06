@@ -18,4 +18,6 @@ export interface ScheduleInterface {
     reminders?: Reminders[]
     countries?: Country[]
     instancePhone?: string | null
+    prefillName?: string
+    prefillPhone?: string
 };

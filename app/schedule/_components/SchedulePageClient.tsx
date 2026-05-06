@@ -39,7 +39,22 @@ import { es } from "date-fns/locale";
 import { DateComponent, HourComponent, ScheduleForm, ServiceComponent } from "./steps";
 import { SummaryItem } from "./";
 
-export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInterface) => {
+function splitPhonePrefix(fullPhone: string, countries?: ScheduleInterface['countries']) {
+    if (!fullPhone || !countries?.length) return { areaCode: '', localPhone: fullPhone };
+    const digits = fullPhone.replace(/\D/g, '');
+    const allCodes = countries.flatMap((c) =>
+        (c.codes?.length ? c.codes : c.code ? [c.code] : []).map((code) => code.replace('+', ''))
+    );
+    allCodes.sort((a, b) => b.length - a.length);
+    for (const code of allCodes) {
+        if (digits.startsWith(code)) {
+            return { areaCode: `+${code}`, localPhone: digits.slice(code.length) };
+        }
+    }
+    return { areaCode: '', localPhone: digits };
+}
+
+export const SchedulePageClient = ({ user, reminders, countries, prefillName = '', prefillPhone = '' }: ScheduleInterface) => {
     const [step, setStep] = useState(0);
     const stepLabel = [
         { label: "Servicio", icon: <List className="h-4 w-4" /> },
@@ -60,9 +75,10 @@ export const SchedulePageClient = ({ user, reminders, countries }: ScheduleInter
     const [loadingSlots, setLoadingSlots] = useState(false);
     const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
 
-    const [nameClient, setNameClient] = useState("");
-    const [areaCode, setAreaCode] = useState("");
-    const [phone, setPhone] = useState("");
+    const initialSplit = splitPhonePrefix(prefillPhone, countries);
+    const [nameClient, setNameClient] = useState(prefillName);
+    const [areaCode, setAreaCode] = useState(initialSplit.areaCode);
+    const [phone, setPhone] = useState(initialSplit.localPhone);
     const [loading, setLoading] = useState(false);
     const [openDialog, setOpenDialog] = useState(false);
     const canContinueStep3 = Boolean(nameClient.trim() && phone.trim() && areaCode && selectedService);

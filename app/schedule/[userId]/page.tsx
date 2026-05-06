@@ -11,7 +11,7 @@ function hasReminder(result: { data?: Reminders[] }): result is { data: Reminder
 }
 
 // Puedes precargar el asesor para mostrar info contextual
-const SchedulePage = async ({ params }: { params: { userId: string } }) => {
+const SchedulePage = async ({ params, searchParams }: { params: { userId: string }; searchParams: { name?: string; phone?: string } }) => {
     const user = await db.user.findUnique({
         where: { id: params.userId },
         include: {
@@ -51,6 +51,8 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
         reminders={reminders}
         countries={countries}
         instancePhone={instancePhone}
+        prefillName={searchParams.name}
+        prefillPhone={searchParams.phone}
     />
 
 };
