@@ -36,6 +36,7 @@ import {
 } from '@/actions/appointments-actions';
 import { STATUS_LABELS } from '@/types/schedule';
 import { cn } from '@/lib/utils';
+import { ChatCreateAppointmentSheet } from './ChatCreateAppointmentSheet';
 
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
   PENDIENTE:   'bg-yellow-500',
@@ -49,14 +50,25 @@ const STATUS_COLORS: Record<AppointmentStatus, string> = {
 
 interface ChatAppointmentStatusButtonProps {
   sessionId: number;
+  userId: string;
+  pushName?: string | null;
+  remoteJid: string;
+  instanceId?: string | null;
 }
 
-export function ChatAppointmentStatusButton({ sessionId }: ChatAppointmentStatusButtonProps) {
+export function ChatAppointmentStatusButton({
+  sessionId,
+  userId,
+  pushName,
+  remoteJid,
+  instanceId,
+}: ChatAppointmentStatusButtonProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [appointment, setAppointment] = useState<SessionAppointmentCard | null | undefined>(undefined);
   const [pendingCancelConfirm, setPendingCancelConfirm] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const loadAppointment = useCallback(async () => {
     if (appointment !== undefined) return;
@@ -132,7 +144,16 @@ export function ChatAppointmentStatusButton({ sessionId }: ChatAppointmentStatus
           )}
 
           {!loading && appointment === null && (
-            <p className="text-sm text-muted-foreground text-center py-2">Sin citas registradas</p>
+            <div className="text-center space-y-2 py-1">
+              <p className="text-sm text-muted-foreground">Sin citas registradas</p>
+              <button
+                type="button"
+                onClick={() => { setOpen(false); setSheetOpen(true); }}
+                className="text-xs text-primary hover:underline font-medium"
+              >
+                + Agendar cita
+              </button>
+            </div>
           )}
 
           {!loading && appointment && (
@@ -172,6 +193,17 @@ export function ChatAppointmentStatusButton({ sessionId }: ChatAppointmentStatus
           )}
         </PopoverContent>
       </Popover>
+
+      <ChatCreateAppointmentSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        userId={userId}
+        sessionId={sessionId}
+        pushName={pushName}
+        remoteJid={remoteJid}
+        instanceId={instanceId}
+        onCreated={() => setAppointment(undefined)}
+      />
 
       <AlertDialog open={pendingCancelConfirm} onOpenChange={setPendingCancelConfirm}>
         <AlertDialogContent className="border-border">

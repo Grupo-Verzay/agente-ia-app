@@ -306,6 +306,38 @@ export async function deleteAppointment(id: string): Promise<AppointmentOperatio
     }
 }
 
+// Configuración de agenda del usuario (timezone, duración, servicios)
+export async function getUserScheduleConfig(userId: string): Promise<{
+    success: boolean;
+    data?: { timezone: string; meetingDuration: number; services: { id: string; name: string }[] };
+    message?: string;
+}> {
+    try {
+        const [user, services] = await Promise.all([
+            db.user.findUnique({
+                where: { id: userId },
+                select: { timezone: true, meetingDuration: true },
+            }),
+            db.service.findMany({
+                where: { userId },
+                select: { id: true, name: true },
+                orderBy: { order: 'asc' },
+            }),
+        ]);
+        return {
+            success: true,
+            data: {
+                timezone: user?.timezone ?? 'America/Bogota',
+                meetingDuration: user?.meetingDuration ?? 30,
+                services,
+            },
+        };
+    } catch (error) {
+        console.error('Error al obtener configuración de agenda:', error);
+        return { success: false, message: 'Error al obtener configuración.' };
+    }
+}
+
 // Obtener la cita más reciente de una sesión
 export type SessionAppointmentCard = {
     id: string;

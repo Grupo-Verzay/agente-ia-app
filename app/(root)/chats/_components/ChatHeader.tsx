@@ -170,7 +170,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             <div className="flex items-center gap-1.5">
               {crmBadge}
               <ChatReminderDialog session={session as any} userId={userId} />
-              <ChatAppointmentStatusButton sessionId={session.id} />
+              <ChatAppointmentStatusButton
+                  sessionId={session.id}
+                  userId={session.userId}
+                  pushName={session.pushName}
+                  remoteJid={session.remoteJid}
+                  instanceId={session.instanceId}
+                />
               {tagsCombobox}
             </div>
             {session && (
@@ -242,7 +248,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               />
               {crmBadge}
               <ChatReminderDialog session={session as any} userId={userId} />
-              <ChatAppointmentStatusButton sessionId={session.id} />
+              <ChatAppointmentStatusButton
+                  sessionId={session.id}
+                  userId={session.userId}
+                  pushName={session.pushName}
+                  remoteJid={session.remoteJid}
+                  instanceId={session.instanceId}
+                />
               {tagsCombobox}
             </>
           )}
