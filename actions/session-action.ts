@@ -1039,15 +1039,24 @@ export async function toggleAgentDisabled(userId: string, sessionId: number, age
 
     const session = await db.session.findUnique({
       where: { id: sessionId },
-      select: { userId: true },
+      select: { userId: true, leadStatus: true },
     });
     if (!session || session.userId !== userId) {
       return { success: false, message: 'Sesion no encontrada o no autorizada.' };
     }
 
+    // Si se reactiva el agente y el contacto estaba DESCARTADO, sacarlo de la lista negra
+    const wasDescartado = session.leadStatus === 'DESCARTADO';
     await db.session.update({
       where: { id: sessionId },
-      data: { agentDisabled },
+      data: {
+        agentDisabled,
+        ...(!agentDisabled && wasDescartado && {
+          leadStatus: null,
+          leadStatusSourceHash: null,
+          leadStatusUpdatedAt: new Date(),
+        }),
+      },
     });
 
     return { success: true, message: 'Estado actualizado correctamente' };
