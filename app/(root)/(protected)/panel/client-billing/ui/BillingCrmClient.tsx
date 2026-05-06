@@ -971,8 +971,7 @@ export function BillingCrmClient({
                                                             }))
                                                         }
                                                         placeholder="Ej: Cuenta, link, referencia, etc."
-                                                        className="min-h-[40px] resize-y text-sm"
-                                                        rows={1}
+                                                        className="min-h-[32px]"
                                                     />
                                                 </div>
 
