@@ -16,11 +16,27 @@ import {
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, User, Users, Bell, Tag, Clock, X, Search } from 'lucide-react';
+import {
+    Loader2, RefreshCw, User, Users, Bell, Tag, Clock,
+    X, Search, Sparkles, TrendingUp,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getKanbanSessionsAction, type KanbanCard } from '@/actions/crm-kanban-actions';
 import { assignTagToSessionAction, removeTagFromSessionAction } from '@/actions/tag-actions';
+import { scoreLeadBySessionId, scoreAllLeadsByUserId } from '@/actions/lead-score-action';
 import type { SimpleTag } from '@/types/session';
+
+// ─── Score ranges ─────────────────────────────────────────────────────────────
+
+const SCORE_RANGES = [
+    { key: 'bajo',     label: 'Bajo',     min: 0,  max: 25,  color: '#EF4444' },
+    { key: 'medio',    label: 'Medio',    min: 26, max: 50,  color: '#F97316' },
+    { key: 'moderado', label: 'Moderado', min: 51, max: 75,  color: '#F59E0B' },
+    { key: 'alto',     label: 'Alto',     min: 76, max: 90,  color: '#22C55E' },
+    { key: 'listo',    label: 'Listo',    min: 91, max: 100, color: '#16A34A' },
+] as const;
+
+type ScoreKey = typeof SCORE_RANGES[number]['key'];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,16 +86,36 @@ function columnDropId(tagId: number | null) {
     return tagId !== null ? `tag-${tagId}` : 'SIN_ETIQUETA';
 }
 
+// ─── Score badge ──────────────────────────────────────────────────────────────
+
+function ScoreBadge({ score }: { score: number }) {
+    const color = score >= 91 ? '#16A34A' : score >= 76 ? '#22C55E' : score >= 51 ? '#F59E0B' : score >= 26 ? '#F97316' : '#EF4444';
+    return (
+        <div
+            className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold text-white"
+            style={{ backgroundColor: color }}
+            title={`Lead Score: ${score}/100`}
+        >
+            <TrendingUp className="h-2.5 w-2.5" />
+            {score}
+        </div>
+    );
+}
+
 // ─── Card Item ────────────────────────────────────────────────────────────────
 
 function TagKanbanCardItem({
     card,
     currentTagId,
     isDragging = false,
+    onScore,
+    scoring = false,
 }: {
     card: KanbanCard;
     currentTagId: number | null;
     isDragging?: boolean;
+    onScore?: (id: number) => void;
+    scoring?: boolean;
 }) {
     const ago = timeAgo(card.leadStatusUpdatedAt);
     const otherTags = card.tags.filter((t) => t.id !== currentTagId);
@@ -106,6 +142,9 @@ function TagKanbanCardItem({
                     </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                    {card.leadScore !== null && card.leadScore !== undefined && (
+                        <ScoreBadge score={card.leadScore} />
+                    )}
                     {card.pendingFollowUps > 0 && (
                         <div className="flex items-center gap-0.5 text-[10px] text-amber-600 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded px-1 py-0.5">
                             <Bell className="h-2.5 w-2.5" />
@@ -118,8 +157,25 @@ function TagKanbanCardItem({
                             {ago}
                         </div>
                     )}
+                    {onScore && (
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onScore(card.id); }}
+                            disabled={scoring}
+                            className="flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40"
+                            title={card.leadScore !== null ? 'Re-puntuar lead' : 'Puntuar lead con IA'}
+                        >
+                            {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {card.leadScoreReason && card.leadScore !== null && (
+                <p className="text-[10px] text-muted-foreground/70 italic line-clamp-1">
+                    {card.leadScoreReason}
+                </p>
+            )}
 
             {card.leadStatus && (
                 <div
@@ -160,7 +216,17 @@ function TagKanbanCardItem({
 
 // ─── Draggable wrapper ────────────────────────────────────────────────────────
 
-function DraggableCard({ card, fromTagId }: { card: KanbanCard; fromTagId: number | null }) {
+function DraggableCard({
+    card,
+    fromTagId,
+    onScore,
+    scoring,
+}: {
+    card: KanbanCard;
+    fromTagId: number | null;
+    onScore?: (id: number) => void;
+    scoring?: boolean;
+}) {
     const draggableId = `${card.id}-${fromTagId ?? 'none'}`;
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: draggableId,
@@ -173,14 +239,24 @@ function DraggableCard({ card, fromTagId }: { card: KanbanCard; fromTagId: numbe
 
     return (
         <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing">
-            <TagKanbanCardItem card={card} currentTagId={fromTagId} isDragging={isDragging} />
+            <TagKanbanCardItem card={card} currentTagId={fromTagId} isDragging={isDragging} onScore={onScore} scoring={scoring} />
         </div>
     );
 }
 
 // ─── Droppable Column ─────────────────────────────────────────────────────────
 
-function TagKanbanColumn({ col, cards }: { col: TagColumn; cards: KanbanCard[] }) {
+function TagKanbanColumn({
+    col,
+    cards,
+    onScore,
+    scoringIds,
+}: {
+    col: TagColumn;
+    cards: KanbanCard[];
+    onScore?: (id: number) => void;
+    scoringIds?: Set<number>;
+}) {
     const { setNodeRef, isOver } = useDroppable({ id: columnDropId(col.id) });
     const headerColor = col.color ?? DEFAULT_TAG_COLOR;
 
@@ -210,7 +286,13 @@ function TagKanbanColumn({ col, cards }: { col: TagColumn; cards: KanbanCard[] }
                 )}
             >
                 {cards.map((card) => (
-                    <DraggableCard key={`${card.id}-${col.id}`} card={card} fromTagId={col.id} />
+                    <DraggableCard
+                        key={`${card.id}-${col.id}`}
+                        card={card}
+                        fromTagId={col.id}
+                        onScore={onScore}
+                        scoring={scoringIds?.has(card.id)}
+                    />
                 ))}
                 {cards.length === 0 && (
                     <div className="flex items-center justify-center h-20 text-xs text-muted-foreground/40">
@@ -235,6 +317,9 @@ export function TagKanbanBoard({
     const [loading, setLoading] = useState(true);
     const [activeData, setActiveData] = useState<DragData | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreKey>>(new Set());
+    const [scoringIds, setScoringIds] = useState<Set<number>>(new Set());
+    const [scoringAll, setScoringAll] = useState(false);
     const pendingRef = useRef(false);
 
     const sensors = useSensors(
@@ -259,19 +344,74 @@ export function TagKanbanBoard({
 
     useEffect(() => { loadCards(); }, [loadCards]);
 
+    const toggleScoreRange = (key: ScoreKey) => {
+        setSelectedScoreRanges((prev) => {
+            const next = new Set(prev);
+            next.has(key) ? next.delete(key) : next.add(key);
+            return next;
+        });
+    };
+
+    const scoreCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        for (const range of SCORE_RANGES) {
+            counts[range.key] = cards.filter(
+                (c) => c.leadScore !== null && c.leadScore !== undefined && c.leadScore >= range.min && c.leadScore <= range.max
+            ).length;
+        }
+        return counts;
+    }, [cards]);
+
     const filteredCards = useMemo(() => {
-        if (!searchQuery.trim()) return cards;
-        const q = searchQuery.toLowerCase().trim();
-        return cards.filter((c) =>
-            (c.pushName ?? '').toLowerCase().includes(q) ||
-            c.remoteJid.toLowerCase().includes(q)
-        );
-    }, [cards, searchQuery]);
+        let result = cards;
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase().trim();
+            result = result.filter((c) =>
+                (c.pushName ?? '').toLowerCase().includes(q) ||
+                c.remoteJid.toLowerCase().includes(q)
+            );
+        }
+        if (selectedScoreRanges.size > 0) {
+            result = result.filter((c) => {
+                if (c.leadScore === null || c.leadScore === undefined) return false;
+                return SCORE_RANGES.some(
+                    (r) => selectedScoreRanges.has(r.key) && c.leadScore! >= r.min && c.leadScore! <= r.max
+                );
+            });
+        }
+        return result;
+    }, [cards, searchQuery, selectedScoreRanges]);
 
     const columnCards = (tagId: number | null) => {
         if (tagId === null) return filteredCards.filter((c) => c.tags.length === 0);
         return filteredCards.filter((c) => c.tags.some((t) => t.id === tagId));
     };
+
+    const handleScore = useCallback(async (id: number) => {
+        setScoringIds((prev) => new Set(prev).add(id));
+        const res = await scoreLeadBySessionId(id);
+        if (res.success && res.score !== undefined) {
+            setCards((prev) => prev.map((c) =>
+                c.id === id ? { ...c, leadScore: res.score!, leadScoreReason: res.reason ?? null, leadScoredAt: new Date().toISOString() } : c
+            ));
+            toast.success(`Lead puntuado: ${res.score}/100`);
+        } else {
+            toast.error(res.message ?? 'Error al puntuar el lead');
+        }
+        setScoringIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    }, []);
+
+    const handleScoreAll = useCallback(async () => {
+        setScoringAll(true);
+        const res = await scoreAllLeadsByUserId();
+        if (res.success) {
+            toast.success(`${res.scored ?? 0} leads puntuados`);
+            await loadCards();
+        } else {
+            toast.error(res.message ?? 'Error en puntuación masiva');
+        }
+        setScoringAll(false);
+    }, [loadCards]);
 
     const handleDragStart = (e: DragStartEvent) => {
         const data = e.active.data.current as DragData | undefined;
@@ -343,9 +483,11 @@ export function TagKanbanBoard({
         );
     }
 
+    const isFiltered = searchQuery || selectedScoreRanges.size > 0;
+
     return (
         <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0 rounded-xl border-2 border-border/70 bg-card/50 p-4 shadow-md">
-            {/* Toolbar */}
+            {/* Toolbar fila 1: búsqueda + score ranges + acciones */}
             <div className="flex items-center gap-2 min-w-0 flex-wrap">
                 <div className="relative w-72 shrink-0">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -367,38 +509,84 @@ export function TagKanbanBoard({
                     )}
                 </div>
 
-                {/* Tag pills con conteo */}
-                <div className="hidden sm:flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto flex-1 min-w-0">
-                    {columns.map((col) => {
-                        const dotColor = col.color ?? DEFAULT_TAG_COLOR;
-                        const count = col.id === null
-                            ? cards.filter((c) => c.tags.length === 0).length
-                            : cards.filter((c) => c.tags.some((t) => t.id === col.id)).length;
-                        return (
-                            <span key={col.id ?? 'none'} className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs text-muted-foreground whitespace-nowrap">
-                                <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
-                                {col.label}
-                                {count > 0 && (
-                                    <span className="font-bold text-white px-1 rounded-full text-[10px]" style={{ backgroundColor: dotColor }}>
-                                        {count}
-                                    </span>
-                                )}
-                            </span>
-                        );
-                    })}
+                {/* Score range pills */}
+                <div className="flex items-center gap-1 shrink-0">
+                    <TrendingUp className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
+                        {SCORE_RANGES.map((range) => {
+                            const active = selectedScoreRanges.has(range.key);
+                            const count = scoreCounts[range.key] ?? 0;
+                            return (
+                                <button
+                                    key={range.key}
+                                    type="button"
+                                    title={`Score ${range.min}–${range.max}`}
+                                    onClick={() => toggleScoreRange(range.key)}
+                                    className="rounded-md px-2.5 py-1 text-xs font-medium transition-all flex items-center gap-1 whitespace-nowrap"
+                                    style={{
+                                        color: active ? range.color : undefined,
+                                        backgroundColor: active ? range.color + '18' : undefined,
+                                        boxShadow: active ? `inset 0 0 0 1px ${range.color}60` : undefined,
+                                    }}
+                                >
+                                    <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: range.color }} />
+                                    {range.label}
+                                    {count > 0 && (
+                                        <span
+                                            className="ml-0.5 text-[10px] font-bold px-1 py-0 rounded-full text-white"
+                                            style={{ backgroundColor: range.color }}
+                                        >
+                                            {count}
+                                        </span>
+                                    )}
+                                    {active && <X className="h-2.5 w-2.5 ml-0.5 opacity-60" />}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 ml-auto">
                     <span className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
                         <Users className="h-3.5 w-3.5" />
                         <span className="font-medium text-foreground">
-                            {searchQuery ? `${filteredCards.length}/${cards.length}` : cards.length}
+                            {isFiltered ? `${filteredCards.length}/${cards.length}` : cards.length}
                         </span>
                     </span>
                     <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={loadCards} title="Actualizar">
                         <RefreshCw className="h-3.5 w-3.5" />
                     </Button>
+                    <Button
+                        size="sm"
+                        onClick={handleScoreAll}
+                        disabled={scoringAll}
+                        className="gap-1.5 shrink-0 bg-violet-600 hover:bg-violet-700 text-white border-0"
+                    >
+                        {scoringAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                        Puntuar leads
+                    </Button>
                 </div>
+            </div>
+
+            {/* Toolbar fila 2: tag pills con conteo */}
+            <div className="hidden sm:flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto">
+                {columns.map((col) => {
+                    const dotColor = col.color ?? DEFAULT_TAG_COLOR;
+                    const count = col.id === null
+                        ? cards.filter((c) => c.tags.length === 0).length
+                        : cards.filter((c) => c.tags.some((t) => t.id === col.id)).length;
+                    return (
+                        <span key={col.id ?? 'none'} className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs text-muted-foreground whitespace-nowrap">
+                            <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
+                            {col.label}
+                            {count > 0 && (
+                                <span className="font-bold text-white px-1 rounded-full text-[10px]" style={{ backgroundColor: dotColor }}>
+                                    {count}
+                                </span>
+                            )}
+                        </span>
+                    );
+                })}
             </div>
 
             {/* Board */}
@@ -406,7 +594,13 @@ export function TagKanbanBoard({
                 <div className="overflow-x-auto w-full flex-1 min-h-0 pb-3">
                     <div className="flex gap-3 h-full" style={{ width: 'max-content', minWidth: '100%' }}>
                         {columns.map((col) => (
-                            <TagKanbanColumn key={col.id ?? 'none'} col={col} cards={columnCards(col.id)} />
+                            <TagKanbanColumn
+                                key={col.id ?? 'none'}
+                                col={col}
+                                cards={columnCards(col.id)}
+                                onScore={handleScore}
+                                scoringIds={scoringIds}
+                            />
                         ))}
                     </div>
                 </div>
