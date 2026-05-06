@@ -3,7 +3,7 @@
 import React, { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Layers2Icon, Loader2, SaveIcon } from 'lucide-react';
+import { Layers2Icon, Loader2, SaveIcon, Brain, GitBranch, MessageSquare } from 'lucide-react';
 import CustomDialogHeader from "@/components/shared/CustomDialogHeader";
 import { useForm } from "react-hook-form";
 import { createWorkflowSchema, createWorkflowSchemaType } from "@/schema/workflow";
@@ -105,23 +105,23 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
     [mutate, flowType, matchType, keywords, isPro, triggerCondition]
   );
 
-  const typeOptions: { value: FlowType; label: string; desc: string; detail: string }[] = [
+  const typeOptions: { value: FlowType; label: string; icon: React.ElementType; detail: string }[] = [
     {
       value: "IA",
       label: "IA",
-      desc: "Disparador por intención",
+      icon: Brain,
       detail: "El agente detecta automáticamente la intención del cliente y lanza este flujo. Ideal para: enviar catálogos, cotizaciones o activar procesos cuando el usuario muestra interés.",
     },
     {
       value: "Flujo",
       label: "Flujo",
-      desc: "Sin trigger automático",
+      icon: GitBranch,
       detail: "Se ejecuta manualmente o desde otro flujo. Úsalo para secuencias de seguimiento, mensajes programados o flujos que el agente llama por nombre.",
     },
     {
       value: "Chatbot",
       label: "Chatbot",
-      desc: "Palabras clave",
+      icon: MessageSquare,
       detail: "Se activa cuando el cliente escribe una palabra o frase específica (ej: 'precio', 'agendar'). El agente NO interviene; responde el flujo directamente.",
     },
   ];
@@ -161,21 +161,26 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                   Define cómo se activa el flujo: por intención detectada por IA, manualmente desde el agente, o por palabras clave exactas.
                 </p>
                 <div className="grid grid-cols-3 gap-2">
-                  {typeOptions.map(opt => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setFlowType(opt.value)}
-                      className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                        flowType === opt.value
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-border hover:border-muted-foreground/50"
-                      }`}
-                    >
-                      <p className="text-sm font-semibold">{opt.label}</p>
-                      <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{opt.desc}</p>
-                    </button>
-                  ))}
+                  {typeOptions.map(opt => {
+                    const Icon = opt.icon;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setFlowType(opt.value)}
+                        className={`rounded-lg border px-3 py-3 transition-colors ${
+                          flowType === opt.value
+                            ? "border-primary bg-primary/5 text-primary"
+                            : "border-border hover:border-muted-foreground/50"
+                        }`}
+                      >
+                        <div className="flex flex-col items-center gap-1.5">
+                          <Icon className="h-5 w-5" />
+                          <p className="text-sm font-semibold">{opt.label}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
