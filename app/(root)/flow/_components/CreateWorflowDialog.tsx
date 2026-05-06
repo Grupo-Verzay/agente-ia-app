@@ -173,7 +173,7 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                             key={opt.value}
                             type="button"
                             onClick={() => setFlowType(opt.value)}
-                            className="rounded-lg border border-border px-3 py-5 hover:border-muted-foreground/50 transition-colors"
+                            className="rounded-lg border border-border px-3 py-6 hover:border-muted-foreground/50 transition-colors"
                           >
                             <div className="flex flex-col items-center gap-1.5">
                               <Icon className="h-5 w-5" />
