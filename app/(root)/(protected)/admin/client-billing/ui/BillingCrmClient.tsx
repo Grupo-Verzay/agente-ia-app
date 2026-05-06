@@ -909,7 +909,7 @@ export function BillingCrmClient({
                                     {dialog.loading ? (
                                         <BillingSkeletton />
                                     ) : (
-                                        <ScrollArea className="max-h-[75vh] pr-3">
+                                        <ScrollArea className="max-h-[28rem] pr-3">
                                             <div className="grid gap-2 p-2">
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div className="grid gap-1">
