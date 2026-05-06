@@ -41,20 +41,25 @@ const STATUS_LABELS = {
 
 function getStatusClassName(status: SessionCrmFollowUpSummary["latestStatus"]) {
   switch (status) {
-    case "PENDING":
-      return "border-amber-300 bg-amber-100 text-amber-800";
-    case "PROCESSING":
-      return "border-blue-300 bg-blue-100 text-blue-800";
-    case "SENT":
-      return "border-emerald-300 bg-emerald-100 text-emerald-800";
-    case "FAILED":
-      return "border-rose-300 bg-rose-100 text-rose-800";
-    case "CANCELLED":
-      return "border-slate-300 bg-slate-200 text-slate-700";
-    case "SKIPPED":
-      return "border-violet-300 bg-violet-100 text-violet-800";
-    default:
-      return "border-slate-300 bg-slate-100 text-slate-600";
+    case "PENDING":   return "border-amber-300 bg-amber-100 text-amber-800";
+    case "PROCESSING":return "border-blue-300 bg-blue-100 text-blue-800";
+    case "SENT":      return "border-emerald-300 bg-emerald-100 text-emerald-800";
+    case "FAILED":    return "border-rose-300 bg-rose-100 text-rose-800";
+    case "CANCELLED": return "border-slate-300 bg-slate-200 text-slate-700";
+    case "SKIPPED":   return "border-violet-300 bg-violet-100 text-violet-800";
+    default:          return "border-slate-300 bg-slate-100 text-slate-600";
+  }
+}
+
+function getBadgeBg(status: SessionCrmFollowUpSummary["latestStatus"]) {
+  switch (status) {
+    case "PENDING":   return "bg-amber-600";
+    case "PROCESSING":return "bg-blue-600";
+    case "SENT":      return "bg-emerald-600";
+    case "FAILED":    return "bg-rose-600";
+    case "CANCELLED": return "bg-slate-500";
+    case "SKIPPED":   return "bg-violet-600";
+    default:          return "bg-slate-500";
   }
 }
 
@@ -90,9 +95,9 @@ export function CrmFollowUpSummaryBadge({
 
   if (!summary || summary.total === 0) {
     return (
-      <Badge variant="outline" className="h-7 rounded-md px-2 text-xs font-medium border-slate-300 bg-slate-100 text-slate-600" title="Sin follow-up">
+      <button type="button" title="Sin follow-up" className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-200 focus:outline-none transition-colors">
         <Zap className="h-3.5 w-3.5" />
-      </Badge>
+      </button>
     );
   }
 
@@ -175,18 +180,16 @@ export function CrmFollowUpSummaryBadge({
         <Popover>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <button type="button" className="inline-flex h-7 items-center focus:outline-none">
-                <Badge
-                  variant="outline"
-                  className={`h-7 gap-1 rounded-md px-2 text-xs font-medium ${getStatusClassName(summary.latestStatus)}`}
-                >
-                  <Zap className="h-3.5 w-3.5" />
-                  {summary.pending > 0 && (
-                    <span className="inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-current/20 px-1 text-[10px] font-bold leading-none">
-                      {summary.pending}
-                    </span>
-                  )}
-                </Badge>
+              <button
+                type="button"
+                className={`relative inline-flex h-7 w-7 items-center justify-center rounded-md border focus:outline-none transition-colors hover:opacity-80 ${getStatusClassName(summary.latestStatus)}`}
+              >
+                <Zap className="h-3.5 w-3.5" />
+                {summary.pending > 0 && (
+                  <span className={`absolute -top-1.5 -right-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none text-white ${getBadgeBg(summary.latestStatus)}`}>
+                    {summary.pending}
+                  </span>
+                )}
               </button>
             </PopoverTrigger>
           </TooltipTrigger>
