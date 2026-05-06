@@ -399,19 +399,10 @@ export async function deleteInstance(userId: string, instanceType: string = 'Wha
         },
       };
 
-      const logoutResponse = await fetch(
+      await fetch(
         `https://${serverUrl}/instance/logout/${instanceName}`,
         logoutOptions
-      );
-
-      const logoutResult = await logoutResponse.json().catch(() => ({} as any));
-
-      if (!logoutResponse.ok) {
-        return {
-          success: false,
-          message: logoutResult?.message || 'Error al hacer logout de la instancia en la API.',
-        };
-      }
+      ).catch(() => null);
 
       // 2. Eliminar la instancia en la API
       const deleteOptions = {
