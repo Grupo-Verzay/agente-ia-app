@@ -173,7 +173,7 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                             key={opt.value}
                             type="button"
                             onClick={() => setFlowType(opt.value)}
-                            className="rounded-lg border border-border px-3 py-6 hover:border-muted-foreground/50 transition-colors"
+                            className="h-[90px] flex items-center justify-center rounded-lg border border-border px-3 hover:border-muted-foreground/50 transition-colors"
                           >
                             <div className="flex flex-col items-center gap-1.5">
                               <Icon className="h-5 w-5" />
@@ -190,7 +190,7 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                     const selected = typeOptions.find(o => o.value === flowType)!;
                     const Icon = selected.icon;
                     return (
-                      <div className="flex items-center justify-between rounded-lg border border-primary bg-primary/5 px-4 py-6">
+                      <div className="h-[90px] flex items-center justify-between rounded-lg border border-primary bg-primary/5 px-4">
                         <div className="flex items-center gap-3 text-primary">
                           <Icon className="h-5 w-5" />
                           <p className="text-sm font-semibold">{selected.label}</p>
