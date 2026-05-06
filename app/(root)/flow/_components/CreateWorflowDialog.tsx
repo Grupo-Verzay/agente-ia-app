@@ -221,9 +221,6 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                     rows={3}
                     className="resize-none text-sm"
                   />
-                  <p className="text-[11px] text-muted-foreground">
-                    La IA analiza el mensaje del cliente y dispara este flujo si coincide con la intención descrita.
-                  </p>
                 </div>
               )}
 
