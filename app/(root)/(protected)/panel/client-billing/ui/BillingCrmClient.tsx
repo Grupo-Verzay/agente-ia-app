@@ -972,7 +972,7 @@ export function BillingCrmClient({
                                                         }
                                                         placeholder="Ej: Cuenta, link, referencia, etc."
                                                         className="resize-y text-sm"
-                                                        rows={2}
+                                                        rows={1}
                                                     />
                                                 </div>
 
