@@ -26,17 +26,15 @@ import { assignTagToSessionAction, removeTagFromSessionAction } from '@/actions/
 import { scoreLeadBySessionId, scoreAllLeadsByUserId } from '@/actions/lead-score-action';
 import type { SimpleTag } from '@/types/session';
 
-// ─── Score ranges ─────────────────────────────────────────────────────────────
+// ─── Score ranges (para filtrado interno) ────────────────────────────────────
 
 const SCORE_RANGES = [
-    { key: 'bajo',     label: 'Bajo',     min: 0,  max: 25,  color: '#EF4444' },
-    { key: 'medio',    label: 'Medio',    min: 26, max: 50,  color: '#F97316' },
-    { key: 'moderado', label: 'Moderado', min: 51, max: 75,  color: '#F59E0B' },
-    { key: 'alto',     label: 'Alto',     min: 76, max: 90,  color: '#22C55E' },
-    { key: 'listo',    label: 'Listo',    min: 91, max: 100, color: '#16A34A' },
+    { key: 'bajo',     min: 0,  max: 25  },
+    { key: 'medio',    min: 26, max: 50  },
+    { key: 'moderado', min: 51, max: 75  },
+    { key: 'alto',     min: 76, max: 90  },
+    { key: 'listo',    min: 91, max: 100 },
 ] as const;
-
-type ScoreKey = typeof SCORE_RANGES[number]['key'];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -309,15 +307,20 @@ function TagKanbanColumn({
 export function TagKanbanBoard({
     userId,
     initialTags,
+    selectedScoreRanges = new Set(),
+    onScoreCountsChange,
+    onTagCountsChange,
 }: {
     userId: string;
     initialTags: SimpleTag[];
+    selectedScoreRanges?: Set<string>;
+    onScoreCountsChange?: (counts: Record<string, number>) => void;
+    onTagCountsChange?: (counts: Record<string, number>) => void;
 }) {
     const [cards, setCards] = useState<KanbanCard[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeData, setActiveData] = useState<DragData | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreKey>>(new Set());
     const [scoringIds, setScoringIds] = useState<Set<number>>(new Set());
     const [scoringAll, setScoringAll] = useState(false);
     const pendingRef = useRef(false);
@@ -336,31 +339,32 @@ export function TagKanbanBoard({
         const res = await getKanbanSessionsAction();
         if (res.success && res.data) {
             setCards(res.data);
+            if (onScoreCountsChange) {
+                const counts: Record<string, number> = {};
+                for (const range of SCORE_RANGES) {
+                    counts[range.key] = res.data.filter(
+                        (c) => c.leadScore !== null && c.leadScore !== undefined && c.leadScore >= range.min && c.leadScore <= range.max
+                    ).length;
+                }
+                onScoreCountsChange(counts);
+            }
+            if (onTagCountsChange) {
+                const tc: Record<string, number> = { none: 0 };
+                for (const card of res.data) {
+                    if (card.tags.length === 0) { tc['none'] = (tc['none'] ?? 0) + 1; continue; }
+                    for (const tag of card.tags) {
+                        tc[tag.id] = (tc[tag.id] ?? 0) + 1;
+                    }
+                }
+                onTagCountsChange(tc);
+            }
         } else {
             toast.error(res.message ?? 'Error al cargar el tablero');
         }
         setLoading(false);
-    }, []);
+    }, [onScoreCountsChange, onTagCountsChange]);
 
     useEffect(() => { loadCards(); }, [loadCards]);
-
-    const toggleScoreRange = (key: ScoreKey) => {
-        setSelectedScoreRanges((prev) => {
-            const next = new Set(prev);
-            next.has(key) ? next.delete(key) : next.add(key);
-            return next;
-        });
-    };
-
-    const scoreCounts = useMemo(() => {
-        const counts: Record<string, number> = {};
-        for (const range of SCORE_RANGES) {
-            counts[range.key] = cards.filter(
-                (c) => c.leadScore !== null && c.leadScore !== undefined && c.leadScore >= range.min && c.leadScore <= range.max
-            ).length;
-        }
-        return counts;
-    }, [cards]);
 
     const filteredCards = useMemo(() => {
         let result = cards;
@@ -394,12 +398,22 @@ export function TagKanbanBoard({
             setCards((prev) => prev.map((c) =>
                 c.id === id ? { ...c, leadScore: res.score!, leadScoreReason: res.reason ?? null, leadScoredAt: new Date().toISOString() } : c
             ));
+            if (onScoreCountsChange) {
+                const updated = cards.map((c) => c.id === id ? { ...c, leadScore: res.score! } : c);
+                const counts: Record<string, number> = {};
+                for (const range of SCORE_RANGES) {
+                    counts[range.key] = updated.filter(
+                        (c) => c.leadScore !== null && c.leadScore !== undefined && c.leadScore >= range.min && c.leadScore <= range.max
+                    ).length;
+                }
+                onScoreCountsChange(counts);
+            }
             toast.success(`Lead puntuado: ${res.score}/100`);
         } else {
             toast.error(res.message ?? 'Error al puntuar el lead');
         }
         setScoringIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
-    }, []);
+    }, [cards, onScoreCountsChange]);
 
     const handleScoreAll = useCallback(async () => {
         setScoringAll(true);
@@ -436,23 +450,13 @@ export function TagKanbanBoard({
 
         if (fromTagId === toTagId) return;
 
-        // Optimistic update
         setCards((prev) => prev.map((c) => {
             if (c.id !== card.id) return c;
             let newTags = [...c.tags];
-            if (fromTagId !== null) {
-                newTags = newTags.filter((t) => t.id !== fromTagId);
-            }
+            if (fromTagId !== null) newTags = newTags.filter((t) => t.id !== fromTagId);
             if (toTagId !== null && !newTags.some((t) => t.id === toTagId)) {
                 const destTag = initialTags.find((t) => t.id === toTagId);
-                if (destTag) {
-                    newTags = [...newTags, {
-                        id: destTag.id,
-                        name: destTag.name,
-                        color: destTag.color ?? null,
-                        slug: destTag.slug,
-                    }];
-                }
+                if (destTag) newTags = [...newTags, { id: destTag.id, name: destTag.name, color: destTag.color ?? null, slug: destTag.slug }];
             }
             return { ...c, tags: newTags };
         }));
@@ -487,8 +491,8 @@ export function TagKanbanBoard({
 
     return (
         <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0 rounded-xl border-2 border-border/70 bg-card/50 p-4 shadow-md">
-            {/* Toolbar fila 1: búsqueda + score ranges + acciones */}
-            <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            {/* Toolbar: búsqueda + etiquetas + contador + botones */}
+            <div className="flex items-center gap-2 min-w-0">
                 <div className="relative w-72 shrink-0">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                     <input
@@ -509,41 +513,25 @@ export function TagKanbanBoard({
                     )}
                 </div>
 
-                {/* Score range pills */}
-                <div className="flex items-center gap-1 shrink-0">
-                    <TrendingUp className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                    <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
-                        {SCORE_RANGES.map((range) => {
-                            const active = selectedScoreRanges.has(range.key);
-                            const count = scoreCounts[range.key] ?? 0;
-                            return (
-                                <button
-                                    key={range.key}
-                                    type="button"
-                                    title={`Score ${range.min}–${range.max}`}
-                                    onClick={() => toggleScoreRange(range.key)}
-                                    className="rounded-md px-2.5 py-1 text-xs font-medium transition-all flex items-center gap-1 whitespace-nowrap"
-                                    style={{
-                                        color: active ? range.color : undefined,
-                                        backgroundColor: active ? range.color + '18' : undefined,
-                                        boxShadow: active ? `inset 0 0 0 1px ${range.color}60` : undefined,
-                                    }}
-                                >
-                                    <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: range.color }} />
-                                    {range.label}
-                                    {count > 0 && (
-                                        <span
-                                            className="ml-0.5 text-[10px] font-bold px-1 py-0 rounded-full text-white"
-                                            style={{ backgroundColor: range.color }}
-                                        >
-                                            {count}
-                                        </span>
-                                    )}
-                                    {active && <X className="h-2.5 w-2.5 ml-0.5 opacity-60" />}
-                                </button>
-                            );
-                        })}
-                    </div>
+                {/* Tag pills con conteo */}
+                <div className="hidden sm:flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto flex-1 min-w-0">
+                    {columns.map((col) => {
+                        const dotColor = col.color ?? DEFAULT_TAG_COLOR;
+                        const count = col.id === null
+                            ? cards.filter((c) => c.tags.length === 0).length
+                            : cards.filter((c) => c.tags.some((t) => t.id === col.id)).length;
+                        return (
+                            <span key={col.id ?? 'none'} className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs text-muted-foreground whitespace-nowrap">
+                                <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
+                                {col.label}
+                                {count > 0 && (
+                                    <span className="font-bold text-white px-1 rounded-full text-[10px]" style={{ backgroundColor: dotColor }}>
+                                        {count}
+                                    </span>
+                                )}
+                            </span>
+                        );
+                    })}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 ml-auto">
@@ -566,27 +554,6 @@ export function TagKanbanBoard({
                         Puntuar leads
                     </Button>
                 </div>
-            </div>
-
-            {/* Toolbar fila 2: tag pills con conteo */}
-            <div className="hidden sm:flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto">
-                {columns.map((col) => {
-                    const dotColor = col.color ?? DEFAULT_TAG_COLOR;
-                    const count = col.id === null
-                        ? cards.filter((c) => c.tags.length === 0).length
-                        : cards.filter((c) => c.tags.some((t) => t.id === col.id)).length;
-                    return (
-                        <span key={col.id ?? 'none'} className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs text-muted-foreground whitespace-nowrap">
-                            <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
-                            {col.label}
-                            {count > 0 && (
-                                <span className="font-bold text-white px-1 rounded-full text-[10px]" style={{ backgroundColor: dotColor }}>
-                                    {count}
-                                </span>
-                            )}
-                        </span>
-                    );
-                })}
             </div>
 
             {/* Board */}
