@@ -40,7 +40,7 @@ export async function getClientsPageData(): Promise<
             obtenerApiKeys(),
             getCountryCodes(),
             db.module.findMany({
-                where: { showInSidebar: true, adminOnly: false },
+                where: { showInSidebar: { not: false }, adminOnly: false },
                 include: { moduleItems: { orderBy: { createdAt: 'asc' } } },
                 orderBy: { order: 'asc' },
             }),

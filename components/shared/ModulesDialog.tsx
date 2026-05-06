@@ -29,19 +29,12 @@ export const ModulesDialog = ({ open, setOpen, handleModules, user, allModules }
 
   useEffect(() => {
     if (!open) return;
-    const planMods = allModules.filter(
-      (mod) => !mod.allowedPlans?.length || mod.allowedPlans.includes(user.plan as any)
-    );
     setLoading(true);
     getUserModuleIds(user.id).then((res) => {
-      setEnabledModuleIds(res.data.length > 0 ? res.data : planMods.map((m) => m.id));
+      setEnabledModuleIds(res.data.length > 0 ? res.data : allModules.map((m) => m.id));
       setLoading(false);
     });
-  }, [user.id, user.plan, open, allModules]);
-
-  const planModules = allModules.filter(
-    (mod) => !mod.allowedPlans?.length || mod.allowedPlans.includes(user.plan as any)
-  );
+  }, [user.id, open, allModules]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -56,13 +49,13 @@ export const ModulesDialog = ({ open, setOpen, handleModules, user, allModules }
           </p>
           {loading ? (
             <span className="text-sm text-muted-foreground">Cargando módulos...</span>
-          ) : planModules.length === 0 ? (
+          ) : allModules.length === 0 ? (
             <span className="text-sm text-muted-foreground">
-              No hay módulos disponibles para este plan.
+              No hay módulos disponibles.
             </span>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              {planModules.map((mod) => {
+              {allModules.map((mod) => {
                 const isEnabled = enabledModuleIds.includes(mod.id);
                 return (
                   <div key={mod.id} className="flex items-center justify-between gap-2 pr-2">
