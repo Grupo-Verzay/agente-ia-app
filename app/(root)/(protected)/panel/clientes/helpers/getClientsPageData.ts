@@ -5,9 +5,11 @@ import { getEnrichedClients } from "@/actions/userClientDataActions";
 import { obtenerApiKeys } from "@/actions/api-action";
 import { getCountryCodes } from "@/actions/get-country-action";
 import { isAdminOrReseller } from "@/lib/rbac";
+import { db } from "@/lib/db";
 import type { ClientInterface } from "@/lib/types";
 import type { ApiKey } from "@prisma/client";
 import type { Country } from "@/components/custom/CountryCodeSelect";
+import type { ModuleWithItems } from "@/schema/module";
 
 type ClientsPageData = {
     users: ClientInterface[];
@@ -15,6 +17,7 @@ type ClientsPageData = {
     availableApikeys: ApiKey[];
     currentUserRol: string;
     countries: Country[];
+    allModules: ModuleWithItems[];
 };
 
 export async function getClientsPageData(): Promise<
@@ -32,10 +35,15 @@ export async function getClientsPageData(): Promise<
                 : getEnrichedClients();
 
         //  Paralelo (evita “tildado” por awaits en cascada)
-        const [resUsers, resApikeys, countries] = await Promise.all([
+        const [resUsers, resApikeys, countries, allModules] = await Promise.all([
             usersPromise,
             obtenerApiKeys(),
             getCountryCodes(),
+            db.module.findMany({
+                where: { showInSidebar: true, adminOnly: false },
+                include: { moduleItems: { orderBy: { createdAt: 'asc' } } },
+                orderBy: { order: 'asc' },
+            }),
         ]);
 
         const users = resUsers?.data ?? [];
@@ -57,6 +65,7 @@ export async function getClientsPageData(): Promise<
                 availableApikeys,
                 currentUserRol: user.role,
                 countries,
+                allModules: allModules as ModuleWithItems[],
             },
         };
     } catch (e) {

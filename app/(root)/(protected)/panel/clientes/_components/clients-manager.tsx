@@ -24,9 +24,12 @@ import { LENGTH_PASSWORD_HASH } from '@/types/generic';
 import { MetricCard } from '@/components/custom/MetricCard';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Users, Wifi, WifiOff, Zap } from 'lucide-react';
+import { ModuleWithItems } from '@/schema/module';
+import { setUserModules } from '@/actions/user-module-actions';
+import { ModulesDialog } from '@/components/shared/ModulesDialog';
 
 
-export type DialogType = 'editar' | 'tools' | 'evo' | 'delete' | 'backup'
+export type DialogType = 'editar' | 'tools' | 'evo' | 'delete' | 'backup' | 'modules'
 
 interface Props {
     users: ClientInterface[],
@@ -34,10 +37,11 @@ interface Props {
     availableApikeys: ApiKey[],
     currentUserRol: string,
     countries: Country[],
+    allModules: ModuleWithItems[],
     initialSearch?: string,
 };
 
-export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRol, countries, initialSearch }: Props) => {
+export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRol, countries, allModules, initialSearch }: Props) => {
     const router = useRouter();
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [openCreateDialog, setOpenCreateDialog] = useState(false);
@@ -45,6 +49,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
     const [openEvoDialog, setOpenEvoDialog] = useState(false);
     const [openEditDialog, setOpenEditDialog] = useState(false);
     const [openBackupDialog, setOpenBackupDialog] = useState(false);
+    const [openModulesDialog, setOpenModulesDialog] = useState(false);
     const [user, setCurrentUser] = useState<ClientInterface>();
     const [statusFilter, setStatusFilter] = useState<StatusKey | null>(null);
 
@@ -183,6 +188,19 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         }
     };
 
+    const handleModules = async (userId: string, moduleIds: string[]) => {
+        const toastId = 'modules-client';
+        toast.loading('Guardando módulos...', { id: toastId });
+        try {
+            await setUserModules(userId, moduleIds);
+            toast.success('Módulos actualizados', { id: toastId });
+            router.refresh();
+            setOpenModulesDialog(false);
+        } catch {
+            toast.error('Error al guardar módulos', { id: toastId });
+        }
+    };
+
     const handleDelete = async (userId: string) => {
         if (!userId || userId === '' || !openDeleteDialog) return toast.error('Faltan parametros para completar la ejecución.');;
 
@@ -207,6 +225,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         if (dialog === 'delete') return setOpenDeleteDialog(state);
         if (dialog === 'editar') return setOpenEditDialog(state);
         if (dialog === 'backup') return setOpenBackupDialog(state);
+        if (dialog === 'modules') return setOpenModulesDialog(state);
     };
 
     const openCreateDialogUser = () => {
@@ -232,7 +251,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         <TooltipProvider delayDuration={120}>
         <div className="flex h-full min-w-0 flex-col gap-2">
             {/* MetricCards */}
-            <div className="flex flex-wrap gap-3">
+            <div className="shrink-0 flex flex-wrap gap-3">
                 <div className="flex-1">
                     <MetricCard
                         icon={<Users className="h-4 w-4" />}
@@ -272,14 +291,16 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
             </div>
 
             {/* Gestión de clients */}
-            <DataTable
-                columns={columns}
-                data={filteredUsers}
-                currentUserRol={currentUserRol}
-                openCreateDialogUser={openCreateDialogUser}
-                setStatusFilter={setStatusFilter}
-                initialSearch={initialSearch}
-            />
+            <div className="flex-1 min-h-0">
+                <DataTable
+                    columns={columns}
+                    data={filteredUsers}
+                    currentUserRol={currentUserRol}
+                    openCreateDialogUser={openCreateDialogUser}
+                    setStatusFilter={setStatusFilter}
+                    initialSearch={initialSearch}
+                />
+            </div>
 
 
 
@@ -293,7 +314,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     apikeys={availableApikeys}
                 />
             )}
-            {/* Dialog delete */}
+            {/* Dialog editar */}
             {user && apikeys && (
                 <EditDialog
                     openEditDialog={openEditDialog}
@@ -334,6 +355,16 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     openBackupDialog={openBackupDialog}
                     setOpenBackupDialog={setOpenBackupDialog}
                     user={user}
+                />
+            )}
+            {/* Módulos */}
+            {user && (
+                <ModulesDialog
+                    open={openModulesDialog}
+                    setOpen={setOpenModulesDialog}
+                    handleModules={handleModules}
+                    user={user}
+                    allModules={allModules}
                 />
             )}
         </div>

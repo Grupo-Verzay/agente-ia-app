@@ -10,20 +10,22 @@ import { useResellerStore } from '@/stores/resellers/resellerStore';
 import { usePathname, useRouter } from 'next/navigation';
 import { canAccessRoute } from '@/utils/access';
 import { toast } from 'sonner';
+import type { UserNavPref } from '@/types/nav-preference';
 
 interface AppInitializerInterface {
     onReseller: ResellerInfoResponse
     modules: ModuleWithItems[]
     user: User
+    navPrefs: UserNavPref[]
 };
 
-export default function AppInitializer({ onReseller, modules, user }: AppInitializerInterface) {
+export default function AppInitializer({ onReseller, modules, user, navPrefs }: AppInitializerInterface) {
     const pathname = usePathname();
     const router = useRouter();
     const { initTheme } = useThemeStore();
     const { setReseller, clearReseller } = useResellerStore();
     const { labelModule } = useModuleStore();
-    const { setModules } = useModuleStore();
+    const { setModules, setNavPrefs } = useModuleStore();
 
     const theme: ThemeApp = onReseller.success
         ? onReseller.data?.theme ?? 'Default'
@@ -41,21 +43,22 @@ export default function AppInitializer({ onReseller, modules, user }: AppInitial
 
         if (!access.allowed) {
             toast.info(`Acceso denegado por:", ${access.reason ?? 'Desconocido'}`);
-            router.push("/credits"); // 👈 redirección en cliente
+            router.push("/credits");
         }
     }, [pathname, user, modules, labelModule, router]);
 
-    //Setear modulos de la app
     useEffect(() => {
         setModules(modules)
     }, [modules, setModules])
 
-    // Aplicar theme visual al montar o al cambiar
+    useEffect(() => {
+        setNavPrefs(navPrefs)
+    }, [navPrefs, setNavPrefs])
+
     useEffect(() => {
         initTheme(theme)
     }, [theme, initTheme])
 
-    // Guardar información de reseller (cliente o propio)
     useEffect(() => {
         if (onReseller.success && onReseller.data) {
             setReseller(onReseller.data)

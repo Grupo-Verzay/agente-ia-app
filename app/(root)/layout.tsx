@@ -20,6 +20,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { themeClass } from "@/types/generic";
 import { ChatWidget } from "./ai-chat/components";
 import { ChatOnboardingModal } from "@/components/shared/ChatOnboardingModal";
+import type { UserNavPref } from "@/types/nav-preference";
 
 export default async function RootGroupLayout({
     children,
@@ -64,10 +65,34 @@ export default async function RootGroupLayout({
     }
 
     const onReseller = await getResellerProfileForUser(user!.id);
-    const modules = (await getAllModules()).data ?? [];
+    const allModules = (await getAllModules()).data ?? [];
 
-    const loading = !user || modules.length === 0;
+    const loading = !user || allModules.length === 0;
     if (loading) return <AppSkeleton />;
+
+    let modules = allModules;
+    if (!isAdmin(user?.role)) {
+        const userModuleRecords = await db.userModule.findMany({
+            where: { B: user!.id },
+            select: { A: true },
+        });
+        if (userModuleRecords.length > 0) {
+            const allowedIds = new Set(userModuleRecords.map(r => r.A));
+            modules = allModules.filter(m => allowedIds.has(m.id));
+        }
+    }
+
+    let navPrefs: UserNavPref[] = [];
+    try {
+        navPrefs = await db.$queryRaw<UserNavPref[]>`
+            SELECT "moduleId", "displayLabel", "isHidden", "sortOrder"
+            FROM "UserNavPreference"
+            WHERE "userId" = ${user!.id}
+            ORDER BY "sortOrder" ASC
+        `;
+    } catch {
+        // tabla aún no existe — primera vez
+    }
 
     const panelModule = await db.module.findFirst({
         where: { route: { in: ["/panel", "/admin"] } },
@@ -80,14 +105,18 @@ export default async function RootGroupLayout({
 
     return (
         <>
-            <AppInitializer onReseller={onReseller} modules={modules} user={user} />
+            <AppInitializer onReseller={onReseller} modules={modules} user={user} navPrefs={navPrefs} />
             <SidebarProvider defaultOpen={defaultOpen}>
                 <AppSidebar user={user} />
                 <SidebarInset className="h-screen flex flex-col min-w-0 overflow-x-hidden">
                     <Breadcrumbs />
-                    <main className={`flex-1 overflow-y-auto overflow-x-hidden p-4 ${themeClass}`}>
-                        <PanelAwareTabNav tabs={panelTabs} excludePanelRoutes />
-                        {children}
+                    <main className={`flex-1 flex flex-col overflow-hidden overflow-x-hidden p-4 ${themeClass}`}>
+                        <div className="shrink-0">
+                            <PanelAwareTabNav tabs={panelTabs} excludePanelRoutes />
+                        </div>
+                        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+                            {children}
+                        </div>
                     </main>
                     <ChatWidget />
                     <ChatOnboardingModal />

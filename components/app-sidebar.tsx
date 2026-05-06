@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sidebar"
 import ThemeSwitcher from "./custom/ThemeSwitcher"
 import LogoutButton from "./logout-button"
+import { NavCustomizer } from "./custom/NavCustomizer"
 import { ResellerInfoResponse } from "@/schema/reseller"
 import { usePathname } from "next/navigation"
 
@@ -42,7 +43,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                 <div className="flex flex-row w-full justify-center items-center">
                     {/* <NavProjects user={user} /> */}
                     <LogoutButton user={user} />
-
+                    <NavCustomizer userId={user.id} />
                     <div>
                         <ThemeSwitcher />
                     </div>

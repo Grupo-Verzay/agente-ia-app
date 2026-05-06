@@ -69,6 +69,11 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
                         </DropdownMenuItem>
                     }
                     <DropdownMenuItem
+                        onClick={() => openDialogGetUserId(user.id, 'modules', true)}
+                    >
+                        Módulos
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                         onClick={() => openDialogGetUserId(user.id, 'backup', true)}
                     >
                         Backup

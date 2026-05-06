@@ -166,6 +166,7 @@ model Module {
   customUrl              String?
   moduleItems            ModuleItem[]
   userModules            UserModule[]
+  navPreferences         UserNavPreference[]
 }
 
 model ModuleItem {
@@ -466,6 +467,7 @@ model User {
   billing                            UserBilling?
   notificationContacts               UserNotificationContact[]
   userModules                        UserModule[]
+  navPreferences                     UserNavPreference[]
   crmFollowUpRules                   CrmFollowUpRule[]
   crmFollowUps                       CrmFollowUp[]
   weeklyReports                      WeeklyReport[]
@@ -1004,6 +1006,20 @@ model UserModule {
   @@id([A, B], map: "_UserModules_AB_pkey")
   @@index([B], map: "_UserModules_B_index")
   @@map("_UserModules")
+}
+
+model UserNavPreference {
+  id           String  @id @default(uuid())
+  userId       String
+  moduleId     String
+  displayLabel String?
+  isHidden     Boolean @default(false)
+  sortOrder    Int     @default(0)
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module       Module  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId])
+  @@index([userId])
 }
 
 model crm_follow_ups_archive {

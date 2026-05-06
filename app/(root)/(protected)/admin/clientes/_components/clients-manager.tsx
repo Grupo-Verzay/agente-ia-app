@@ -21,19 +21,23 @@ import { UserFormValues } from '@/schema/user';
 import { Country } from '@/components/custom/CountryCodeSelect';
 import bcrypt from "bcryptjs";
 import { LENGTH_PASSWORD_HASH } from '@/types/generic';
+import { ModuleWithItems } from '@/schema/module';
+import { setUserModules } from '@/actions/user-module-actions';
+import { ModulesDialog } from '@/components/shared/ModulesDialog';
 
 
-export type DialogType = 'editar' | 'tools' | 'evo' | 'delete' | 'backup'
+export type DialogType = 'editar' | 'tools' | 'evo' | 'delete' | 'backup' | 'modules'
 
 interface Props {
     users: ClientInterface[],
     apikeys: ApiKey[],
     availableApikeys: ApiKey[],
     currentUserRol: string,
-    countries: Country[]
+    countries: Country[],
+    allModules: ModuleWithItems[],
 };
 
-export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRol, countries }: Props) => {
+export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRol, countries, allModules }: Props) => {
     const router = useRouter();
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [openCreateDialog, setOpenCreateDialog] = useState(false);
@@ -41,6 +45,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
     const [openEvoDialog, setOpenEvoDialog] = useState(false);
     const [openEditDialog, setOpenEditDialog] = useState(false);
     const [openBackupDialog, setOpenBackupDialog] = useState(false);
+    const [openModulesDialog, setOpenModulesDialog] = useState(false);
     const [user, setCurrentUser] = useState<ClientInterface>();
     const [statusFilter, setStatusFilter] = useState<StatusKey | null>(null);
 
@@ -179,6 +184,19 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         }
     };
 
+    const handleModules = async (userId: string, moduleIds: string[]) => {
+        const toastId = 'modules-client';
+        toast.loading('Guardando módulos...', { id: toastId });
+        try {
+            await setUserModules(userId, moduleIds);
+            toast.success('Módulos actualizados', { id: toastId });
+            router.refresh();
+            setOpenModulesDialog(false);
+        } catch {
+            toast.error('Error al guardar módulos', { id: toastId });
+        }
+    };
+
     const handleDelete = async (userId: string) => {
         if (!userId || userId === '' || !openDeleteDialog) return toast.error('Faltan parametros para completar la ejecución.');;
 
@@ -203,6 +221,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         if (dialog === 'delete') return setOpenDeleteDialog(state);
         if (dialog === 'editar') return setOpenEditDialog(state);
         if (dialog === 'backup') return setOpenBackupDialog(state);
+        if (dialog === 'modules') return setOpenModulesDialog(state);
     };
 
     const openCreateDialogUser = () => {
@@ -245,7 +264,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     apikeys={availableApikeys}
                 />
             )}
-            {/* Dialog delete */}
+            {/* Dialog editar */}
             {user && apikeys && (
                 <EditDialog
                     openEditDialog={openEditDialog}
@@ -286,6 +305,16 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     openBackupDialog={openBackupDialog}
                     setOpenBackupDialog={setOpenBackupDialog}
                     user={user}
+                />
+            )}
+            {/* Módulos */}
+            {user && (
+                <ModulesDialog
+                    open={openModulesDialog}
+                    setOpen={setOpenModulesDialog}
+                    handleModules={handleModules}
+                    user={user}
+                    allModules={allModules}
                 />
             )}
         </>

@@ -19,12 +19,11 @@ import { iconMap } from '@/schema/module';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 
 export function NavMain({ user }: { user: User }) {
-    const { modules, setLabelModule, labelModule, setCanvaUrl } = useModuleStore();
+    const { modules, navPrefs, setLabelModule, labelModule, setCanvaUrl } = useModuleStore();
     const pathname = usePathname();
     const router = useRouter();
 
-
-    /* Se ocupa de ocultar/mostrar basado en los permisos del modulo */
+    /* Aplica preferencias del usuario (displayLabel, isHidden, sortOrder) */
     const navItems = modules
         .filter(link => link.showInSidebar)
         .filter(link => {
@@ -35,25 +34,26 @@ export function NavMain({ user }: { user: User }) {
                 modules,
                 label: link.label,
             });
-
-            // Control de acceso por rol
-            if (!access.allowed) {
-                return false;
-            }
-
+            if (!access.allowed) return false;
             return true;
         })
         .map(link => {
-            let isActive = false;
+            const pref = navPrefs.find(p => p.moduleId === link.id);
+            const isHidden = pref?.isHidden ?? false;
+            const displayLabel = pref?.displayLabel ?? link.label;
+            const sortOrder = pref?.sortOrder ?? link.order;
 
+            let isActive = false;
             if (pathname === '/canva') {
-                isActive = labelModule === link.label
+                isActive = labelModule === link.label;
             } else {
                 isActive = pathname === link.route;
             }
 
-            return { ...link, isActive };
-        });
+            return { ...link, isActive, isHidden, displayLabel, sortOrder };
+        })
+        .filter(link => !link.isHidden)
+        .sort((a, b) => a.sortOrder - b.sortOrder);
 
     const handleRoute = (label: string, targetRoute: string, customUrl?: string | null) => {
         setLabelModule(label)
@@ -65,7 +65,7 @@ export function NavMain({ user }: { user: User }) {
             {/* <SidebarGroupLabel>Módulos</SidebarGroupLabel> */}
             <SidebarMenu>
                 {navItems.map((item) => {
-                    const { id, route, icon, label, requiresPremium, isActive, moduleItems } = item;
+                    const { id, route, icon, label, displayLabel, requiresPremium, isActive, moduleItems } = item;
                     const Icon = iconMap[icon as keyof typeof iconMap];
                     const linkClasses = clsx(
                         'flex items-center justify-between py-2 rounded-md text-sm font-medium transition',
@@ -86,9 +86,9 @@ export function NavMain({ user }: { user: User }) {
                     if (!moduleItems || moduleItems.length === 0) {
                         return (
                             <SidebarMenuItem key={id}>
-                                <SidebarMenuButton className={linkClasses} tooltip={label} onClick={() => handleRoute(label, targetRoute, item.customUrl)}>
+                                <SidebarMenuButton className={linkClasses} tooltip={displayLabel} onClick={() => handleRoute(label, targetRoute, item.customUrl)}>
                                     {Icon && <Icon className={iconClasses} />}
-                                    <span>{label}</span>
+                                    <span>{displayLabel}</span>
                                     <ChevronRight className="invisible ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                                     {route === '/profile' && <ChevronRight />}
                                     {requiresPremium && <PremiumModule />}
@@ -103,9 +103,9 @@ export function NavMain({ user }: { user: User }) {
                     const firstDest = firstSubItem?.url?.replace('/admin/', '/panel/') ?? targetRoute;
                     return (
                         <SidebarMenuItem key={id}>
-                            <SidebarMenuButton className={linkClasses} tooltip={label} onClick={() => handleRoute(label, firstDest, firstSubItem?.customUrl ?? item.customUrl)}>
+                            <SidebarMenuButton className={linkClasses} tooltip={displayLabel} onClick={() => handleRoute(label, firstDest, firstSubItem?.customUrl ?? item.customUrl)}>
                                 {Icon && <Icon className={iconClasses} />}
-                                <span>{label}</span>
+                                <span>{displayLabel}</span>
                                 <ChevronRight className="invisible ml-auto" />
                                 {requiresPremium && <PremiumModule />}
                             </SidebarMenuButton>

@@ -13,7 +13,7 @@ export default async function ClientesPage() {
     return <h1>{res.message}</h1>;
   }
 
-  const { users, apikeys, availableApikeys, currentUserRol, countries } = res.data;
+  const { users, apikeys, availableApikeys, currentUserRol, countries, allModules } = res.data;
 
   return (
     <ClientsManager
@@ -22,6 +22,7 @@ export default async function ClientesPage() {
       availableApikeys={availableApikeys}
       currentUserRol={currentUserRol}
       countries={countries}
+      allModules={allModules}
     />
   );
 }

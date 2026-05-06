@@ -27,7 +27,6 @@ import { Switch } from "@/components/ui/switch"
 import { ApiKeyConfigurator } from "@/app/(root)/profile/_components/ApiKeyConfigurator"
 import { getIaCreditByUser } from "@/actions/actions-ia-credits"
 import { onTokensToCredits } from "@/utils/onTokensToCredits"
-
 interface Props {
   openEditDialog: boolean
   setOpenEditDialog: (open: boolean) => void
@@ -43,7 +42,7 @@ export const EditDialog = ({
   handleEdit,
   user,
   apikeys,
-  currentUserRol
+  currentUserRol,
 }: Props) => {
   const ROLES = Object.values(Role);
   const ROLE_LABELS: Record<Role, string> = {
@@ -412,6 +411,7 @@ export const EditDialog = ({
                   );
                 });
               })()}
+
             </div>
           </div>
 
