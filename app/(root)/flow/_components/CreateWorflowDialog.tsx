@@ -165,7 +165,7 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                   </p>
                 )}
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2" style={{ gridTemplateRows: '90px' }}>
                   {!flowType ? (
                     typeOptions.map(opt => {
                       const Icon = opt.icon;
