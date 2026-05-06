@@ -88,6 +88,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                     mensaje:   baseMsg,
                     tipo:      "text",
                     time:      addSecondsToTime(reminderData.time ?? '', 0),
+                    workflowId: reminderData.workflowId ?? null,
                 },
             });
 
@@ -120,6 +121,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                     mensaje:   applyVariables(baseMsg, name, phone),
                     tipo:      "text",
                     time:      addSecondsToTime(reminderData.time ?? '', cumulativeDelay),
+                    workflowId: reminderData.workflowId ?? null,
                 },
             });
         }

@@ -23,6 +23,8 @@ interface SessionTagsManagerProps {
     sessionId: number;
     allTags: SimpleTag[];
     initialSelectedTagIds: number[];
+    hideSessionSection?: boolean;
+    onTagsChanged?: (tags: SimpleTag[]) => void;
 }
 
 const COLOR_PRESETS = [
@@ -39,6 +41,8 @@ export const SessionTagsManager = ({
     sessionId,
     allTags,
     initialSelectedTagIds,
+    hideSessionSection = false,
+    onTagsChanged,
 }: SessionTagsManagerProps) => {
     const [isPending, startTransition] = useTransition();
 
@@ -109,7 +113,11 @@ export const SessionTagsManager = ({
                 order: (res.data as any).order ?? 0,
             };
 
-            setTags((prev) => [...prev, newTag]);
+            setTags((prev) => {
+                const next = [...prev, newTag];
+                onTagsChanged?.(next);
+                return next;
+            });
             setNewTagName("");
             setNewTagColor(null);
 
@@ -145,8 +153,8 @@ export const SessionTagsManager = ({
                 return;
             }
 
-            setTags((prev) =>
-                prev.map((t) =>
+            setTags((prev) => {
+                const next = prev.map((t) =>
                     t.id === tagId
                         ? {
                             ...t,
@@ -155,8 +163,10 @@ export const SessionTagsManager = ({
                             color: (res.data as any).color ?? null,
                         }
                         : t
-                )
-            );
+                );
+                onTagsChanged?.(next);
+                return next;
+            });
 
             setEditingTagId(null);
             toast.success("Etiqueta actualizada", {
@@ -175,7 +185,11 @@ export const SessionTagsManager = ({
         const res = await deleteTagAction({ id: tagId, userId });
 
         if (res.success) {
-            setTags((prev) => prev.filter((t) => t.id !== tagId));
+            setTags((prev) => {
+                const next = prev.filter((t) => t.id !== tagId);
+                onTagsChanged?.(next);
+                return next;
+            });
             setSelectedIds((prev) => prev.filter((sid) => sid !== tagId));
             setTagToDelete(null);
         }
@@ -197,40 +211,46 @@ export const SessionTagsManager = ({
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                         <TagIcon className="h-4 w-4 text-muted-foreground" />
-                        <h3 className="font-semibold">Etiquetas de la sesión</h3>
+                        <h3 className="font-semibold">
+                            {hideSessionSection ? 'Gestionar etiquetas' : 'Etiquetas de la sesión'}
+                        </h3>
                     </div>
                     {isPending && (
                         <span className="text-muted-foreground">Guardando...</span>
                     )}
                 </div>
 
-                {/* Tags asignados */}
-                <div className="space-y-1">
-                    <p className="font-medium text-muted-foreground">
-                        Asignadas a esta sesión
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                        {tags.filter((t) => selectedIds.includes(t.id)).length === 0 ? (
-                            <span className="text-muted-foreground">
-                                Sin etiquetas asignadas.
-                            </span>
-                        ) : (
-                            tags
-                                .filter((t) => selectedIds.includes(t.id))
-                                .map((tag) => (
-                                    <Badge
-                                        key={tag.id}
-                                        className="flex items-center gap-1 rounded-full px-2 py-1"
-                                    >
-                                        {renderColorDot(tag.color)}
-                                        {tag.name}
-                                    </Badge>
-                                ))
-                        )}
-                    </div>
-                </div>
+                {/* Tags asignados — solo visible cuando hay sesión activa */}
+                {!hideSessionSection && (
+                    <>
+                        <div className="space-y-1">
+                            <p className="font-medium text-muted-foreground">
+                                Asignadas a esta sesión
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {tags.filter((t) => selectedIds.includes(t.id)).length === 0 ? (
+                                    <span className="text-muted-foreground">
+                                        Sin etiquetas asignadas.
+                                    </span>
+                                ) : (
+                                    tags
+                                        .filter((t) => selectedIds.includes(t.id))
+                                        .map((tag) => (
+                                            <Badge
+                                                key={tag.id}
+                                                className="flex items-center gap-1 rounded-full px-2 py-1"
+                                            >
+                                                {renderColorDot(tag.color)}
+                                                {tag.name}
+                                            </Badge>
+                                        ))
+                                )}
+                            </div>
+                        </div>
 
-                <hr className="my-1 border-border/50" />
+                        <hr className="my-1 border-border/50" />
+                    </>
+                )}
 
                 {/* Crear nueva etiqueta */}
                 <div className="space-y-2">
