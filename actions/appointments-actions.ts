@@ -377,6 +377,28 @@ export async function getLatestAppointmentBySession(sessionId: number): Promise<
     }
 }
 
+// Conteos de citas por estado
+export async function getAppointmentStatusCounts(userId: string): Promise<{
+    success: boolean;
+    data?: { status: AppointmentStatus; count: number }[];
+    message?: string;
+}> {
+    try {
+        const counts = await db.appointment.groupBy({
+            by: ['status'],
+            where: { userId },
+            _count: { id: true },
+        });
+        return {
+            success: true,
+            data: counts.map((c) => ({ status: c.status, count: c._count.id })),
+        };
+    } catch (error) {
+        console.error('Error al obtener conteos de citas:', error);
+        return { success: false, message: 'Error al obtener conteos.' };
+    }
+}
+
 // Tipo para el Kanban de agenda
 export type AgendaKanbanCard = {
     id: string;

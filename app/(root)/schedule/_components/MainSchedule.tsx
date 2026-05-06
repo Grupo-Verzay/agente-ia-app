@@ -1,53 +1,135 @@
-import {
-    Card,
-    CardContent,
-} from "@/components/ui/card";
-import {
-    Tabs,
-    TabsContent,
-    TabsList,
-    TabsTrigger,
-} from "@/components/ui/tabs";
+'use client';
 
-import { MainReminders } from "../../reminders/_components";
-import { MainReminderInterface } from "@/schema/reminder";
+import { useCallback, useEffect, useState } from 'react';
+import {
+    LayoutDashboard,
+    CalendarDays,
+    Kanban,
+    Wrench,
+    Bell,
+    Settings2,
+    Clock,
+    Calendar,
+} from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { MetricCard } from '@/components/custom/MetricCard';
+import { MainReminders } from '../../reminders/_components';
+import { MainReminderInterface } from '@/schema/reminder';
 import ServiceManager from './services/ServiceManager';
-import { CustomCalendar } from "./dashboard";
-import { AgendaKanban } from "./dashboard/AgendaKanban";
-import { ShareScheduleLinkButton, UserAvailabilityForm } from "./availability";
-import { UpdateMeetingDuration } from "./settings";
-import { Clock } from "lucide-react";
+import { CustomCalendar } from './dashboard';
+import { AgendaKanban } from './dashboard/AgendaKanban';
+import { ShareScheduleLinkButton, UserAvailabilityForm } from './availability';
+import { UpdateMeetingDuration } from './settings';
+import { getAppointmentStatusCounts } from '@/actions/appointments-actions';
+import { AppointmentStatus } from '@prisma/client';
 
-export const MainSchedule = ({ isCampaignPage, user, apiKey, reminders, leads, workflows, instancia, }: MainReminderInterface) => {
+type TabValue = 'dashboard' | 'availability' | 'kanban' | 'services' | 'reminders' | 'settings';
+
+const TABS: { value: TabValue; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
+    { value: 'dashboard',    label: 'Dashboard',      Icon: LayoutDashboard },
+    { value: 'availability', label: 'Disponibilidad', Icon: CalendarDays },
+    { value: 'kanban',       label: 'Kanban',         Icon: Kanban },
+    { value: 'services',     label: 'Servicios',      Icon: Wrench },
+    { value: 'reminders',    label: 'Recordatorios',  Icon: Bell },
+    { value: 'settings',     label: 'Ajustes',        Icon: Settings2 },
+];
+
+const STATUS_META: Record<AppointmentStatus, { label: string; color: string }> = {
+    PENDIENTE:   { label: 'Pendiente',   color: '#EAB308' },
+    CONFIRMADA:  { label: 'Confirmada',  color: '#22C55E' },
+    ATENDIDA:    { label: 'Atendida',    color: '#3B82F6' },
+    NO_ASISTIDA: { label: 'No asistida', color: '#8B5CF6' },
+    CANCELADA:   { label: 'Cancelada',   color: '#EF4444' },
+    FINALIZADO:  { label: 'Finalizado',  color: '#059669' },
+    DESCARTADO:  { label: 'Descartado',  color: '#52525B' },
+};
+
+// Siempre mostrar estos 4 estados como referencia fija
+const FIXED_METRICS: AppointmentStatus[] = ['PENDIENTE', 'CONFIRMADA', 'ATENDIDA', 'CANCELADA'];
+
+export const MainSchedule = ({
+    isCampaignPage,
+    user,
+    apiKey,
+    reminders,
+    leads,
+    workflows,
+    instancia,
+}: MainReminderInterface) => {
+    const [tab, setTab] = useState<TabValue>('dashboard');
+    const [statusCounts, setStatusCounts] = useState<{ status: AppointmentStatus; count: number }[]>([]);
     const userId = user.id;
 
-    return (
-        <div className="flex w-full flex-col gap-4">
-            <Tabs defaultValue="dashboard">
-                <TabsList className="overflow-x-auto flex gap-4 whitespace-nowrap">
-                    <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-                    <TabsTrigger value="availability">Disponibilidad</TabsTrigger>
-                    <TabsTrigger value="kanban">Kanban</TabsTrigger>
-                    <TabsTrigger value="services">Servicios</TabsTrigger>
-                    <TabsTrigger value="reminders">Recordatorios</TabsTrigger>
-                    <TabsTrigger value="settings">Ajustes</TabsTrigger>
-                </TabsList>
+    const loadCounts = useCallback(async () => {
+        const res = await getAppointmentStatusCounts(userId);
+        if (res.success && res.data) setStatusCounts(res.data);
+    }, [userId]);
 
+    useEffect(() => { loadCounts(); }, [loadCounts]);
+
+    // 4 estados fijos con sus conteos actuales
+    const countByStatus = Object.fromEntries(statusCounts.map((s) => [s.status, s.count]));
+    const topMetrics = FIXED_METRICS.map((status) => ({
+        status,
+        count: countByStatus[status] ?? 0,
+        ...STATUS_META[status],
+    }));
+
+    return (
+        <div className="flex h-full w-full flex-col gap-3">
+            {/* Metric cards — siempre visibles, altura fija */}
+            <div className="flex flex-wrap gap-3 shrink-0">
+                {topMetrics.map((m) => (
+                    <div key={m.status} className="flex-1">
+                        <MetricCard
+                            icon={<Calendar className="h-4 w-4" />}
+                            label={m.label}
+                            value={m.count}
+                            helper={`Citas en estado "${m.label}"`}
+                            color={m.color}
+                        />
+                    </div>
+                ))}
+            </div>
+
+            {/* Tab nav — CRM style, izquierda, altura fija */}
+            <div className="flex shrink-0">
+                <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto">
+                    {TABS.map(({ value, label, Icon }) => (
+                        <button
+                            key={value}
+                            type="button"
+                            onClick={() => setTab(value)}
+                            className={[
+                                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap',
+                                tab === value
+                                    ? 'bg-background shadow-sm text-foreground'
+                                    : 'text-muted-foreground hover:text-foreground',
+                            ].join(' ')}
+                        >
+                            <Icon className="h-3.5 w-3.5" />
+                            {label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Contenido — ocupa el espacio restante */}
+            <div className="flex-1 min-h-0">
                 {/* Dashboard */}
-                <TabsContent value="dashboard">
-                    <Card className="border-none bg-transparent">
-                        <CardContent>
-                            <CustomCalendar user={user} />
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                {tab === 'dashboard' && (
+                    <div className="h-full overflow-y-auto pr-1 pb-4">
+                        <Card className="border-none bg-transparent">
+                            <CardContent>
+                                <CustomCalendar user={user} />
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
 
                 {/* Disponibilidad */}
-                <TabsContent value="availability" className="mt-2">
-                    <div
-                        style={{ height: 'calc(100dvh - 148px)' }}
-                        className="overflow-y-auto flex flex-col gap-4 pr-1 pb-4"
-                    >
+                {tab === 'availability' && (
+                    <div className="h-full overflow-y-auto flex flex-col gap-4 pr-1 pb-4">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <p className="hidden sm:flex items-center gap-1.5 text-sm font-semibold text-foreground">
                                 <Clock className="w-4 h-4 shrink-0 text-blue-500" />
@@ -57,46 +139,50 @@ export const MainSchedule = ({ isCampaignPage, user, apiKey, reminders, leads, w
                         </div>
                         <UserAvailabilityForm userId={userId} />
                     </div>
-                </TabsContent>
+                )}
 
                 {/* Kanban */}
-                <TabsContent value="kanban" className="mt-2">
-                    <div style={{ height: 'calc(100dvh - 148px)' }} className="flex flex-col">
-                        <AgendaKanban userId={userId} />
+                {tab === 'kanban' && (
+                    <div className="h-full flex flex-col">
+                        <AgendaKanban userId={userId} onStatusCountsChange={setStatusCounts} />
                     </div>
-                </TabsContent>
+                )}
 
                 {/* Servicios */}
-                <TabsContent value="services">
-                    <Card className="border-none bg-transparent">
-                        <CardContent className="flex flex-col gap-2">
-                            <ServiceManager userId={userId} />
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                {tab === 'services' && (
+                    <div className="h-full overflow-y-auto pr-1 pb-4">
+                        <Card className="border-none bg-transparent">
+                            <CardContent className="flex flex-col gap-2">
+                                <ServiceManager userId={userId} />
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
 
                 {/* Recordatorios */}
-                <TabsContent value="reminders">
-                    <Card className="border-none bg-transparent">
-                        <CardContent className="flex flex-col gap-2">
-                            <MainReminders
-                                isCampaignPage={isCampaignPage}
-                                user={user}
-                                apiKey={apiKey}
-                                reminders={reminders}
-                                leads={leads}
-                                workflows={workflows}
-                                instancia={instancia}
-                                isScheduleView={true}
-                                isSchedule={true}
-                            />
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                {tab === 'reminders' && (
+                    <div className="h-full overflow-y-auto pr-1 pb-4">
+                        <Card className="border-none bg-transparent">
+                            <CardContent className="flex flex-col gap-2">
+                                <MainReminders
+                                    isCampaignPage={isCampaignPage}
+                                    user={user}
+                                    apiKey={apiKey}
+                                    reminders={reminders}
+                                    leads={leads}
+                                    workflows={workflows}
+                                    instancia={instancia}
+                                    isScheduleView={true}
+                                    isSchedule={true}
+                                />
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
 
                 {/* Ajustes */}
-                <TabsContent value="settings">
-                    <div className="flex justify-center py-8 px-4">
+                {tab === 'settings' && (
+                    <div className="h-full overflow-y-auto flex justify-center py-8 px-4">
                         <div className="w-full max-w-lg rounded-xl border bg-card shadow-sm p-6">
                             <UpdateMeetingDuration
                                 userId={user.id}
@@ -105,8 +191,8 @@ export const MainSchedule = ({ isCampaignPage, user, apiKey, reminders, leads, w
                             />
                         </div>
                     </div>
-                </TabsContent>
-            </Tabs>
+                )}
+            </div>
         </div>
     );
-}
+};

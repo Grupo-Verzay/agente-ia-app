@@ -17,7 +17,6 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { MetricCard } from '@/components/custom/MetricCard';
 import { Loader2, RefreshCw, User, Search, X, Calendar, Clock, Tag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -176,7 +175,13 @@ function AgendaColumn({ col, cards }: { col: (typeof COLUMNS)[number]; cards: Ag
 
 // ─── Main Board ───────────────────────────────────────────────────────────────
 
-export function AgendaKanban({ userId }: { userId: string }) {
+export function AgendaKanban({
+    userId,
+    onStatusCountsChange,
+}: {
+    userId: string;
+    onStatusCountsChange?: (counts: { status: AppointmentStatus; count: number }[]) => void;
+}) {
     const [cards, setCards] = useState<AgendaKanbanCard[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeCard, setActiveCard] = useState<AgendaKanbanCard | null>(null);
@@ -191,10 +196,20 @@ export function AgendaKanban({ userId }: { userId: string }) {
     const loadCards = useCallback(async () => {
         setLoading(true);
         const res = await getAppointmentsForKanban(userId);
-        if (res.success && res.data) setCards(res.data);
-        else toast.error(res.message ?? 'Error al cargar el tablero');
+        if (res.success && res.data) {
+            setCards(res.data);
+            if (onStatusCountsChange) {
+                const countMap = new Map<AppointmentStatus, number>();
+                for (const c of res.data) {
+                    countMap.set(c.status, (countMap.get(c.status) ?? 0) + 1);
+                }
+                onStatusCountsChange(Array.from(countMap.entries()).map(([status, count]) => ({ status, count })));
+            }
+        } else {
+            toast.error(res.message ?? 'Error al cargar el tablero');
+        }
         setLoading(false);
-    }, [userId]);
+    }, [userId, onStatusCountsChange]);
 
     useEffect(() => { loadCards(); }, [loadCards]);
 
@@ -207,14 +222,6 @@ export function AgendaKanban({ userId }: { userId: string }) {
             }
         }
         return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'es'));
-    }, [cards]);
-
-    // Top 4 columnas por cantidad de citas
-    const topMetrics = useMemo(() => {
-        return COLUMNS
-            .map((col) => ({ ...col, count: cards.filter((c) => c.status === col.id).length }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 4);
     }, [cards]);
 
     const toggleTag = (id: number) => {
@@ -292,21 +299,6 @@ export function AgendaKanban({ userId }: { userId: string }) {
     return (
         <TooltipProvider delayDuration={120}>
             <div className="flex flex-col gap-3 min-w-0 w-full h-full">
-                {/* Top 4 metric cards */}
-                <div className="flex flex-wrap gap-3">
-                    {topMetrics.map((col) => (
-                        <div key={col.id} className="flex-1">
-                            <MetricCard
-                                icon={<Calendar className="h-4 w-4" />}
-                                label={col.label}
-                                value={col.count}
-                                helper={`Citas en estado "${col.label}"`}
-                                color={col.borderColor}
-                            />
-                        </div>
-                    ))}
-                </div>
-
                 {/* Board card */}
                 <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0 rounded-xl border-2 border-border/70 bg-card/50 p-4 shadow-md">
                     {/* Toolbar */}
