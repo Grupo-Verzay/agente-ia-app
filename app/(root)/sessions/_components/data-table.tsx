@@ -61,9 +61,9 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="rounded-md border-border overflow-x-auto">
+      <div className="rounded-md border-border">
         <Table className="w-full border-border table-auto">
-          <TableHeader>
+          <TableHeader className="sticky top-0 z-10 bg-background">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="border-border h-8">
                 {headerGroup.headers.map((header) => (

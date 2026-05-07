@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Database, Loader2, Plus, RefreshCw } from 'lucide-react';
+import { Database, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { listExternalClientData } from '@/actions/external-client-data-actions';
@@ -94,9 +94,8 @@ export function MyDataManagement({ userId }: Props) {
                   : <RefreshCw className="h-3.5 w-3.5" />}
                 Actualizar
               </Button>
-              <Button size="sm" onClick={handleCreateNew} className="gap-1.5">
-                <Plus className="h-3.5 w-3.5" />
-                Nuevo registro
+              <Button size="sm" onClick={handleCreateNew} className="bg-blue-600 hover:bg-blue-700 text-white">
+                + Nuevo registro
               </Button>
             </div>
           </div>

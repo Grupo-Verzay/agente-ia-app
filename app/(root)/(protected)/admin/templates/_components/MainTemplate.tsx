@@ -122,7 +122,7 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
-                    {(userRole === 'admin' || userRole === 'super_admin') && <Button onClick={() => handleOpenModal()}>Nuevo</Button>}
+                    {(userRole === 'admin' || userRole === 'super_admin') && <Button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white">+ Nuevo</Button>}
                 </div>
             </div>
 

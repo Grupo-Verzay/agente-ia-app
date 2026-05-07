@@ -24,7 +24,6 @@ import {
 } from '@/actions/finance-accounts-actions';
 
 import {
-  Plus,
   Wallet,
   Coins,
   CalendarDays,
@@ -489,9 +488,9 @@ export default function MainFinanceAccounts({
   };
 
   return (
-    <div className="space-y-3">
-      <Card className="border-border">
-        <CardHeader className="py-3">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-3">
+      <Card className="border-border flex-1 min-h-0 flex flex-col">
+        <CardHeader className="py-3 flex-1 min-h-0">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <CardTitle className="text-sm">Cuentas</CardTitle>
@@ -500,9 +499,8 @@ export default function MainFinanceAccounts({
               </Badge>
             </div>
 
-            <Button size="sm" onClick={openCreate} disabled={isPending} className="h-9">
-              <Plus className="mr-2 h-4 w-4" />
-              Nueva cuenta
+            <Button size="sm" onClick={openCreate} disabled={isPending} className="h-9 bg-blue-600 hover:bg-blue-700 text-white">
+              + Nueva cuenta
             </Button>
           </div>
 
@@ -671,7 +669,7 @@ export default function MainFinanceAccounts({
           <Separator />
 
           {/* Tabs */}
-          <Tabs value={ledgerTab} onValueChange={(v) => setLedgerTab(v as any)}>
+          <Tabs value={ledgerTab} onValueChange={(v) => setLedgerTab(v as any)} className="flex flex-col flex-1 min-h-0">
             <TabsList className="h-9 w-full justify-start gap-6 rounded-none bg-transparent p-0">
               <TabsTrigger
                 value="all"
@@ -704,7 +702,7 @@ export default function MainFinanceAccounts({
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="all" className="mt-2">
+            <TabsContent value="all" className="mt-0 flex-1 min-h-0">
               <DataTable
                 columns={ledgerColumns as any}
                 data={ledgerRows}
@@ -713,7 +711,7 @@ export default function MainFinanceAccounts({
               />
             </TabsContent>
 
-            <TabsContent value="sales" className="mt-2">
+            <TabsContent value="sales" className="mt-0 flex-1 min-h-0">
               <DataTable
                 columns={ledgerColumns as any}
                 data={ledgerRows}
@@ -722,7 +720,7 @@ export default function MainFinanceAccounts({
               />
             </TabsContent>
 
-            <TabsContent value="expenses" className="mt-2">
+            <TabsContent value="expenses" className="mt-0 flex-1 min-h-0">
               <DataTable
                 columns={ledgerColumns as any}
                 data={ledgerRows}

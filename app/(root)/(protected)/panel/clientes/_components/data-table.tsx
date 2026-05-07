@@ -109,8 +109,8 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
               {/* button-create-client */}
               {(currentUserRol === 'admin' || currentUserRol === 'super_admin') &&
 
-                <Button onClick={openCreateDialogUser}>
-                  Nuevo
+                <Button onClick={openCreateDialogUser} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  + Nuevo
                 </Button>
               }
             </div>

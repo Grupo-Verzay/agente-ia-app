@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { ChevronDown, Plus, Search } from 'lucide-react';
+import { ChevronDown, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -88,9 +88,8 @@ export function ExternalClientDataTable({
           />
         </div>
 
-        <Button onClick={onCreateNew} size="sm" className="gap-1.5 shrink-0">
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Nuevo registro</span>
+        <Button onClick={onCreateNew} size="sm" className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white">
+          <span className="hidden sm:inline">+ Nuevo</span>
         </Button>
 
         <DropdownMenu>

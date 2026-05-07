@@ -176,7 +176,7 @@ function ServiceFormDialog({
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>{trigger ?? <Button size="sm"><Plus className="h-4 w-4 mr-2" />Nuevo</Button>}</DialogTrigger>
+            <DialogTrigger asChild>{trigger ?? <Button size="sm">+ Nuevo</Button>}</DialogTrigger>
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
@@ -525,7 +525,7 @@ export default function ServiceManager({ userId }: { userId: string }) {
                         mode="create"
                         onSaved={(s) => upsertLocal(s)}
                         trigger={
-                            <Button size="sm" className="shrink-0">
+                            <Button size="sm" className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white">
                                 <Plus className="h-4 w-4 sm:mr-2" />
                                 <span className="hidden sm:inline">Nuevo</span>
                             </Button>

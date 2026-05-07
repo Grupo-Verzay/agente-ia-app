@@ -95,9 +95,9 @@ export function CrmFollowUpSummaryBadge({
 
   if (!summary || summary.total === 0) {
     return (
-      <button type="button" title="Sin follow-up" className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-200 focus:outline-none transition-colors">
+      <Button variant="outline" type="button" title="Sin follow-up" className="h-7 w-7 p-0 border-indigo-300 bg-indigo-100 text-indigo-800 hover:bg-indigo-200 hover:text-indigo-900">
         <Zap className="h-3.5 w-3.5" />
-      </button>
+      </Button>
     );
   }
 
@@ -180,9 +180,10 @@ export function CrmFollowUpSummaryBadge({
         <Popover>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <button
+              <Button
+                variant="outline"
                 type="button"
-                className={`relative inline-flex h-7 w-7 items-center justify-center rounded-md border focus:outline-none transition-colors hover:opacity-80 ${getStatusClassName(summary.latestStatus)}`}
+                className={`relative h-7 w-7 p-0 hover:opacity-80 ${getStatusClassName(summary.latestStatus)}`}
               >
                 <Zap className="h-3.5 w-3.5" />
                 {summary.pending > 0 && (
@@ -190,7 +191,7 @@ export function CrmFollowUpSummaryBadge({
                     {summary.pending}
                   </span>
                 )}
-              </button>
+              </Button>
             </PopoverTrigger>
           </TooltipTrigger>
           <PopoverContent align="start" className="w-[380px] p-0">

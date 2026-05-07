@@ -102,8 +102,8 @@ export const DataGrid = <TData, TValue>({
                         className="w-72 shrink-0"
                     />
                     {onCreateClick && (
-                        <Button onClick={onCreateClick}>
-                            Nuevo
+                        <Button onClick={onCreateClick} className="bg-blue-600 hover:bg-blue-700 text-white">
+                            + Nuevo
                         </Button>
                     )}
                     <div className="ml-auto flex items-center gap-1">

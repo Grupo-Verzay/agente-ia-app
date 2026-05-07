@@ -17,8 +17,8 @@ export function ModuleCreator({ onSave, openModule = false, setOpenModule }: {
 
     return (
         <>
-            <Button onClick={() => setOpenModule(true)}>
-                Nuevo
+            <Button onClick={() => setOpenModule(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                + Nuevo
             </Button>
             <AnimatePresence>
                 {openModule && (

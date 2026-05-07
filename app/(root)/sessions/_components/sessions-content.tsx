@@ -1,22 +1,24 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import useSWRInfinite from "swr/infinite";
+import useSWR from "swr";
 import { activateAllSessions, deactivateAllSessions, deleteAllSessions, getSessionsByUserId, getSessionsCountByUserId, searchSessionsByUserId } from "@/actions/session-action";
 import { clearAllHistory } from "@/actions/n8n-chat-historial-action";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { UserSessionsSkeleton } from "./user-sessions-skeleton";
 import { columns } from "./Columns";
 import { DataTable } from "./data-table";
 import { BulkActionsDropdown } from "./BulkActionsDropdown";
 import { deleteSeguimientosByInstanceName } from "@/actions/seguimientos-actions";
-import { Session, SessionsContentProps, SimpleTag } from "@/types/session";
+import { Session, SessionsContentProps } from "@/types/session";
 import { FilterLeadsByStats, FilterSessionTypes, SessionStatsInterface } from "./FilterLeadsByStats";
+import { CreateContactDialog } from "./CreateContactDialog";
 
 const PAGE_SIZE = 20;
 
@@ -26,19 +28,13 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
   const [stats, setStats] = useState<SessionStatsInterface | null>(null);
   const [searchResults, setSearchResults] = useState<Session[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
-  const observerRef = useRef<HTMLDivElement>(null);
+  const [currentPage, setCurrentPage] = useState(0);
   const [filter, setFilter] = useState<FilterSessionTypes>("all");
 
-  const getKey = (pageIndex: number, previousPageData: Session[] | null) => {
-    if (previousPageData && previousPageData.length < PAGE_SIZE) return null;
-    return JSON.stringify({ userId, pageIndex, filter });
-  };
-
-  const { data, size, setSize, mutate, isLoading, isValidating, error } = useSWRInfinite<Session[]>(
-    getKey,
+  const { data: pageData = [], mutate, isLoading, isValidating, error } = useSWR<Session[]>(
+    search.trim() ? null : JSON.stringify({ userId, currentPage, filter }),
     async (key: string) => {
-      const { userId, pageIndex, filter } = JSON.parse(key);
-      const page = parseInt(pageIndex, 10);
+      const { userId, currentPage, filter } = JSON.parse(key);
       const sessionStatus =
         filter === "activeSession" ? true :
           filter === "inactiveSession" ? false :
@@ -48,10 +44,9 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
           filter === "inactiveAgent" ? true :
             undefined;
 
-
       const response = await getSessionsByUserId(
         userId,
-        page * PAGE_SIZE,
+        currentPage * PAGE_SIZE,
         PAGE_SIZE,
         sessionStatus,
         agentDisabled
@@ -60,59 +55,43 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
       if (!response.success) throw new Error(response.message);
       return response.data || [];
     },
-    {
-      revalidateAll: false,
-      revalidateFirstPage: false,
-    }
+    { revalidateOnFocus: false }
   );
 
   const sessions = useMemo(() => {
-    if (search.trim() !== "" && searchResults !== null) {
-      return searchResults;
-    }
-    return data ? data.flat() : [];
-  }, [data, searchResults, search]);
+    if (search.trim() !== "" && searchResults !== null) return searchResults;
+    return pageData;
+  }, [pageData, searchResults, search]);
 
-  const hasMore = !data || (data[data.length - 1]?.length === PAGE_SIZE);
+  const totalCount = useMemo(() => {
+    if (!stats) return 0;
+    switch (filter) {
+      case "activeSession": return stats.activeSession;
+      case "inactiveSession": return stats.inactiveSession;
+      case "activeAgent": return stats.activeAgent;
+      case "inactiveAgent": return stats.inactiveAgent;
+      default: return stats.total;
+    }
+  }, [stats, filter]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   useEffect(() => {
     async function fetchStats() {
       const res = await getSessionsCountByUserId(userId);
-      if (res.success && res.data) {
-        setStats(res.data);
-      }
+      if (res.success && res.data) setStats(res.data);
     }
     fetchStats();
   }, [userId]);
 
   useEffect(() => {
-    if (!observerRef.current || search.trim() !== "") return;
-
-    const observer = new IntersectionObserver((entries) => {
-      const [entry] = entries;
-      if (entry.isIntersecting && !isValidating && hasMore && sessions.length > 0) {
-        setSize((prev) => prev + 1);
-      }
-    }, { threshold: 1.0 });
-
-    observer.observe(observerRef.current);
-
-    return () => observer.disconnect();
-  }, [isValidating, hasMore, sessions.length, search, setSize]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      mutate();
-    }, 30000);
-
+    const interval = setInterval(() => { mutate(); }, 30000);
     return () => clearInterval(interval);
   }, [mutate]);
 
   const handleDeleteFromTable = (deletedId: number) => {
-    mutate((currentData) => {
-      if (!currentData) return currentData;
-      return currentData.map(page => page.filter(session => session.id !== deletedId));
-    }, false);
+    mutate((current) => current?.filter((s) => s.id !== deletedId), false);
+    setStats((prev) => prev ? { ...prev, total: Math.max(0, prev.total - 1) } : prev);
   };
 
   const handleSearchChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,11 +106,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
     setIsSearching(true);
     try {
       const res = await searchSessionsByUserId(userId, value);
-      if (res.success) {
-        setSearchResults(res.data || []);
-      } else {
-        setSearchResults([]);
-      }
+      setSearchResults(res.success ? res.data || [] : []);
     } catch (err) {
       console.error("Error buscando sesiones:", err);
       setSearchResults([]);
@@ -140,7 +115,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
     }
   };
 
-  if (isLoading && size === 1 && !search) return <UserSessionsSkeleton />;
+  if (isLoading && currentPage === 0 && !search) return <UserSessionsSkeleton />;
 
   if (error) {
     return (
@@ -154,24 +129,14 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
     );
   }
 
-  const hasResults = sessions.length > 0;
-
-  // if (!isLoading && !isSearching && !hasResults) {
-  //   return (
-  //     <div className="flex flex-col items-center justify-center mt-10 space-y-4">
-  //       <Alert>
-  //         <AlertCircle className="h-4 w-4" />
-  //         <AlertTitle>No se encontraron resultados</AlertTitle>
-  //         <AlertDescription>Intenta buscar otro nombre o número.</AlertDescription>
-  //       </Alert>
-  //     </div>
-  //   );
-  // }
-
-
+  const isInSearchMode = search.trim() !== "";
+  const showingCount = sessions.length;
+  const totalDisplay = isInSearchMode ? showingCount : totalCount;
+  const showingFrom = currentPage * PAGE_SIZE + 1;
+  const showingTo = Math.min((currentPage + 1) * PAGE_SIZE, totalCount);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 gap-2">
+    <div className="flex flex-col h-full min-h-0 gap-2 overflow-hidden">
       {/* Header fijo */}
       <div className="sticky top-0 z-1">
         <div className="flex justify-between items-center">
@@ -181,11 +146,10 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
               filter={filter}
               onChangeFilter={(key) => {
                 setFilter(key);
-                setSize(1); // reinicia paginación
+                setCurrentPage(0);
               }}
             />
           </div>
-
         </div>
         <div className="flex flex-1 justify-between p-2">
           <Input
@@ -194,30 +158,67 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
             onChange={handleSearchChange}
             className="w-72 shrink-0 text-xs"
           />
-          <BulkActionsDropdown
-            userId={userId}
-            onActivateAll={activateAllSessions}
-            onDeactivateAll={deactivateAllSessions}
-            onDeleteAll={deleteAllSessions}
-            onClearHistory={clearAllHistory}
-            onClearSeguimientos={deleteSeguimientosByInstanceName}
-            onSuccess={() => router.refresh()}
-          />
+          <div className="flex items-center gap-2">
+            <CreateContactDialog userId={userId} onSuccess={() => mutate()} />
+            <BulkActionsDropdown
+              userId={userId}
+              onActivateAll={activateAllSessions}
+              onDeactivateAll={deactivateAllSessions}
+              onDeleteAll={deleteAllSessions}
+              onClearHistory={clearAllHistory}
+              onClearSeguimientos={deleteSeguimientosByInstanceName}
+              onSuccess={() => router.refresh()}
+            />
+          </div>
         </div>
       </div>
 
       <Card className="flex-1 min-h-0 flex flex-col border-border overflow-hidden">
         <div className="flex-1 min-h-0 overflow-auto">
-          <DataTable columns={columns({ onDeleteSuccess: handleDeleteFromTable, mutateSessions: mutate, allTags, onNavigateToChat: (remoteJid) => router.push(`/chats?jid=${remoteJid}`) })} data={sessions} />
-
-          {isValidating && !search && (
+          <DataTable
+            columns={columns({
+              onDeleteSuccess: handleDeleteFromTable,
+              mutateSessions: mutate,
+              allTags,
+              onNavigateToChat: (remoteJid) => router.push(`/chats?jid=${remoteJid}`)
+            })}
+            data={sessions}
+          />
+          {isValidating && (
             <div className="flex justify-center py-4">
               <Skeleton className="h-6 w-[200px]" />
             </div>
           )}
+        </div>
 
-          {!search && hasResults && (
-            <div ref={observerRef} className="h-10" />
+        {/* Footer de paginación */}
+        <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-t border-border">
+          <div className="text-xs text-muted-foreground">
+            {showingCount === 0
+              ? "Sin resultados"
+              : isInSearchMode
+                ? <>Mostrando <b>{showingCount}</b> de <b>{totalDisplay}</b> resultados</>
+                : <>Mostrando <b>{totalCount > 0 ? `${showingFrom}–${showingTo}` : "0"}</b> de <b>{totalCount}</b> resultados</>
+            }
+          </div>
+          {!isInSearchMode && (
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCurrentPage(0)} disabled={currentPage === 0 || isValidating}>
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCurrentPage((p) => Math.max(0, p - 1))} disabled={currentPage === 0 || isValidating}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="px-2 text-xs">
+                Página <b>{currentPage + 1}</b> / <b>{totalPages}</b>
+              </div>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1 || isValidating}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCurrentPage(totalPages - 1)} disabled={currentPage >= totalPages - 1 || isValidating}>
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
           )}
         </div>
       </Card>

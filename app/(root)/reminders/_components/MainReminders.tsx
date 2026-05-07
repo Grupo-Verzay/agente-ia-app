@@ -5,7 +5,7 @@ import Header from '@/components/shared/header';
 import { ReminderListClient, ReminderSkeleton, ReminderModal } from './';
 import { SortableReminderList } from './SortableReminderList';
 import { Button } from '@/components/ui/button';
-import { ArrowDownUp, PlusIcon, Search } from 'lucide-react';
+import { ArrowDownUp, Search } from 'lucide-react';
 import { MainReminderInterface } from '@/schema/reminder';
 import { Input } from '@/components/ui/input';
 import { closeDialog, openCreateDialog, useReminderDialogStore } from '@/stores';
@@ -82,9 +82,8 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
                     Eliminar todos
                   </Button>
                 )}
-                <Button size="sm" onClick={handleCreateReminder}>
-                  <PlusIcon className="h-4 w-4 mr-2" />
-                  Nuevo
+                <Button size="sm" onClick={handleCreateReminder} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  + Nuevo
                 </Button>
               </div>
             </div>
@@ -113,9 +112,8 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
             )}
 
             {isScheduleView && (
-              <Button size="sm" onClick={handleCreateReminder} className="ml-auto">
-                <PlusIcon className="h-4 w-4 mr-2" />
-                Nuevo
+              <Button size="sm" onClick={handleCreateReminder} className="ml-auto bg-blue-600 hover:bg-blue-700 text-white">
+                + Nuevo
               </Button>
             )}
           </div>

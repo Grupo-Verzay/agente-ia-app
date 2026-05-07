@@ -129,15 +129,20 @@ export function DataGrid<TData, TValue>({
 
             <Card className="flex-1 min-h-0 flex flex-col border-border overflow-hidden">
                 <div className="flex-1 min-h-0 overflow-auto">
-                    <Table className="w-full border-border table-auto">
-                        <TableHeader className="sticky top-0 z-10 bg-background">
+                    <Table className="w-full border-separate border-spacing-0 text-sm">
+                        <TableHeader>
                             {table.getHeaderGroups().map((headerGroup) => (
-                                <TableRow key={headerGroup.id} className="border-border">
+                                <TableRow key={headerGroup.id} className="border-border/70 bg-background hover:bg-background">
                                     {headerGroup.headers.map((header) => (
-                                        <TableHead key={header.id}>
-                                            {header.isPlaceholder
-                                                ? null
-                                                : flexRender(header.column.columnDef.header, header.getContext())}
+                                        <TableHead
+                                            key={header.id}
+                                            className="sticky top-0 z-20 h-9 whitespace-nowrap border-b border-border/70 bg-background/95 px-2 text-center shadow-[0_1px_0_0_hsl(var(--border)/0.7)] backdrop-blur supports-[backdrop-filter]:bg-background/85"
+                                        >
+                                            <div className="flex w-full items-center justify-center">
+                                                {header.isPlaceholder
+                                                    ? null
+                                                    : flexRender(header.column.columnDef.header, header.getContext())}
+                                            </div>
                                         </TableHead>
                                     ))}
                                 </TableRow>
@@ -148,11 +153,14 @@ export function DataGrid<TData, TValue>({
                                 table.getRowModel().rows.map((row) => (
                                     <TableRow
                                         key={row.id}
-                                        className="border-border"
+                                        className="hover:bg-accent/30"
                                         data-state={row.getIsSelected() && "selected"}
                                     >
                                         {row.getVisibleCells().map((cell) => (
-                                            <TableCell key={cell.id} className="align-middle">
+                                            <TableCell
+                                                key={cell.id}
+                                                className={`align-middle py-2 bg-background border-b border-border/60 ${["remoteJid", "createdAt"].includes(cell.column.id) ? "px-1" : "px-2"}`}
+                                            >
                                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                             </TableCell>
                                         ))}

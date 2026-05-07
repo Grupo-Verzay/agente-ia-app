@@ -36,7 +36,6 @@ import {
   ExternalLink,
   FileText,
   Receipt,
-  Plus,
   Pencil,
   Trash2,
 } from 'lucide-react';
@@ -419,16 +418,15 @@ export default function MainExpenses({
 
   return (
     <TooltipProvider>
-      <div className="space-y-3">
-        <Card className="border-border">
-          <CardHeader className="py-3">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-3">
+        <Card className="border-border flex-1 min-h-0 flex flex-col">
+          <CardHeader className="py-3 flex-1 min-h-0">
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-sm">Gastos</CardTitle>
 
               {/* mismo estilo de Sales */}
-              <Button size="sm" onClick={openCreate} disabled={isPending} className="h-9">
-                <Plus className="mr-2 h-4 w-4" />
-                Nuevo gasto
+              <Button size="sm" onClick={openCreate} disabled={isPending} className="h-9 bg-blue-600 hover:bg-blue-700 text-white">
+                + Nuevo gasto
               </Button>
             </div>
 
@@ -467,7 +465,7 @@ export default function MainExpenses({
               </div>
             </div>
 
-            <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="mt-2">
+            <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="mt-2 flex flex-col flex-1 min-h-0">
               <TabsList className="h-9 w-full justify-start gap-6 rounded-none bg-transparent p-0">
                 <TabsTrigger
                   value="month"
@@ -490,7 +488,7 @@ export default function MainExpenses({
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="month" className="mt-2">
+              <TabsContent value="month" className="mt-0 flex-1 min-h-0">
                 <DataTable
                   columns={columns as any}
                   data={monthRows}
@@ -500,7 +498,7 @@ export default function MainExpenses({
                 />
               </TabsContent>
 
-              <TabsContent value="total" className="mt-2">
+              <TabsContent value="total" className="mt-0 flex-1 min-h-0">
                 <DataTable
                   columns={columns as any}
                   data={rows}

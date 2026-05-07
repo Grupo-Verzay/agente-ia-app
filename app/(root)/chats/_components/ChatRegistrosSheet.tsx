@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { X } from "lucide-react";
 import type { Registro, TipoRegistro } from "@prisma/client";
 
 import { getRegistrosBySessionId, deleteRegistro } from "@/actions/registro-action";
@@ -179,8 +179,7 @@ export function ChatRegistrosSheet({
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button size="sm" className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
-                        <Plus className="h-4 w-4 mr-1" />
-                        Nuevo Registro
+                        + Nuevo
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
@@ -193,8 +192,7 @@ export function ChatRegistrosSheet({
                   </DropdownMenu>
                 ) : NUEVO_TIPO_LABEL[activeTab] ? (
                   <Button size="sm" className="h-8 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => openCreate(activeTab as TipoRegistro)}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    {NUEVO_TIPO_LABEL[activeTab]}
+                    {"+ " + NUEVO_TIPO_LABEL[activeTab]}
                   </Button>
                 ) : null}
                 <DialogClose asChild>

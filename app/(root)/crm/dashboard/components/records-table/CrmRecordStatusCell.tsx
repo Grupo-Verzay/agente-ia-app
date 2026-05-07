@@ -34,7 +34,7 @@ export function CrmRecordStatusCell({
             }}
             disabled={disabled || !onChangeEstado}
         >
-            <SelectTrigger className="h-7 w-[120px] text-xs">
+            <SelectTrigger className="h-7 w-[100px] text-xs">
                 <SelectValue placeholder="Estado" />
             </SelectTrigger>
             <SelectContent>

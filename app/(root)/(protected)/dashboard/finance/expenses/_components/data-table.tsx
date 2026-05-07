@@ -128,7 +128,7 @@ export function DataTable<TData, TValue>({
                     key={row.id}
                     onClick={() => onRowClick?.(row.original)}
                     className={[
-                      '[&>td]:py-1 [&>td]:text-sm border-border',
+                      '[&>td]:py-2 [&>td]:text-sm border-border',
                       onRowClick ? 'cursor-pointer hover:bg-muted/50' : '',
                     ].join(' ')}
                   >

@@ -30,7 +30,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis, Plus, PlusCircle } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { ClientInterface } from '@/lib/types'
 
@@ -104,12 +104,8 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
               {/* button-create-client */}
               {(currentUserRol === 'admin' || currentUserRol === 'super_admin') &&
 
-                <Button onClick={openCreateDialogUser} className="m-0 flex items-center gap-2">
-                  {/* Icono + para móviles */}
-                  <Plus className="h-4 w-4 md:hidden" />
-
-                  {/* Texto para pantallas mayores a md */}
-                  <span className="hidden md:inline">Nuevo</span>
+                <Button onClick={openCreateDialogUser} className="m-0 bg-blue-600 hover:bg-blue-700 text-white">
+                  + Nuevo
                 </Button>
               }
             </div>

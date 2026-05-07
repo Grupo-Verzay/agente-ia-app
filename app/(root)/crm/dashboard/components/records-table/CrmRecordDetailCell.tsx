@@ -58,7 +58,7 @@ export function CrmRecordDetailCell({
                         <PopoverTrigger asChild>
                             <button
                                 type="button"
-                                className="w-[250px] text-left"
+                                className="w-[165px] text-left"
                                 title="Ver y editar detalle"
                             >
                                 <span className={`block truncate text-sm ${isEmpty ? "text-muted-foreground italic" : ""}`}>
