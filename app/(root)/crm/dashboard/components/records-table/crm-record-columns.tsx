@@ -178,7 +178,7 @@ header: () => (
             accessorFn: (row) => row.session.leadStatus ?? "",
             header: ({ column }) => <SortableHeader column={column} label="Lead" />,
             cell: ({ row }) => (
-                <div className="flex justify-center min-w-[104px]">
+                <div className="flex w-full justify-center">
                     <LeadStatusBadge status={row.original.session.leadStatus ?? null} />
                 </div>
             ),
@@ -213,7 +213,7 @@ header: () => (
             accessorFn: (row) => row.estado ?? "",
             header: ({ column }) => <SortableHeader column={column} label="Estado" />,
             cell: ({ row }) => (
-                <div className="flex justify-center min-w-[100px]">
+                <div className="flex w-full justify-center">
                     <CrmRecordStatusCell
                         registro={row.original}
                         disabled={isUpdatingRegistros}
