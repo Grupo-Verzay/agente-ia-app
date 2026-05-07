@@ -21,6 +21,7 @@ import {
     X, Search, Sparkles, TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { fmtPhone } from '@/lib/whatsapp-jid';
 import { getKanbanSessionsAction, type KanbanCard } from '@/actions/crm-kanban-actions';
 import { assignTagToSessionAction, removeTagFromSessionAction } from '@/actions/tag-actions';
 import { scoreLeadBySessionId, scoreAllLeadsByUserId } from '@/actions/lead-score-action';
@@ -66,9 +67,6 @@ const LEAD_STATUS_LABELS: Record<string, string> = {
 
 const DEFAULT_TAG_COLOR = '#64748B';
 
-function fmtPhone(remoteJid: string) {
-    return remoteJid.replace(/@.*/, '').replace(/(\d{2})(\d{3})(\d{3})(\d{4})/, '+$1 $2 $3 $4');
-}
 
 function timeAgo(iso: string | null) {
     if (!iso) return null;

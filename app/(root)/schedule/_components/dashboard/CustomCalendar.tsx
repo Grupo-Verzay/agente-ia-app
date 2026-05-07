@@ -51,9 +51,11 @@ import {
     SelectItem,
 } from "@/components/ui/select";
 import { ScheduleInterface } from "@/schema/schema";
-import { XCircleIcon } from 'lucide-react';
+import { XCircleIcon, Phone } from 'lucide-react';
+import Link from "next/link";
 import { sendMessageWithHistoryAction } from "@/actions/chat-history/send-message-with-history-action";
 import { STATUS_LABELS } from "@/types/schedule";
+import { fmtPhone } from "@/lib/whatsapp-jid";
 
 const CARD_STATUS_STYLE: Record<AppointmentStatus, string> = {
     PENDIENTE:   'border-l-4 border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/20',
@@ -290,19 +292,33 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                         ) : morningAppts.map(appt => (
                             <button key={appt.id} type="button" onClick={() => openApptDialog(appt)}
                                 className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}>
-                                <div className="grid grid-cols-2 gap-x-2">
-                                    <p className="text-sm font-bold leading-tight text-muted-foreground">
-                                        {format(new Date(appt.startTime), "HH:mm")} – {format(new Date(appt.endTime), "HH:mm")}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground italic text-right leading-tight">
-                                        {appt.service?.name ?? ''}
-                                    </p>
-                                    <p className="text-sm font-semibold leading-tight mt-0.5">
-                                        {appt.session?.pushName || "Sin nombre"}
-                                    </p>
-                                    <div className="flex items-center justify-end gap-1 mt-0.5">
-                                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${CARD_STATUS_DOT[appt.status]}`} />
-                                        <span className="text-xs font-medium opacity-80">{STATUS_LABELS[appt.status]}</span>
+                                <div className="flex flex-row gap-x-2">
+                                    <div className="flex flex-col flex-1 min-w-0">
+                                        <p className="text-sm font-bold leading-tight text-muted-foreground">
+                                            {format(new Date(appt.startTime), "HH:mm")} – {format(new Date(appt.endTime), "HH:mm")}
+                                        </p>
+                                        <p className="text-sm font-semibold leading-tight mt-0.5 truncate">
+                                            {appt.session?.pushName || "Sin nombre"}
+                                        </p>
+                                        <Link
+                                            href={`/chats?jid=${encodeURIComponent(appt.session.remoteJid)}`}
+                                            className="flex items-center gap-1 text-xs text-primary hover:underline leading-tight mt-1"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <Phone className="w-3 h-3 shrink-0" />
+                                            {fmtPhone(appt.session.remoteJid)}
+                                        </Link>
+                                    </div>
+                                    <div className="flex flex-col justify-between items-end shrink-0">
+                                        {appt.service?.name && (
+                                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 bg-primary/10 text-primary leading-tight">
+                                                {appt.service.name}
+                                            </span>
+                                        )}
+                                        <div className="flex items-center gap-1">
+                                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${CARD_STATUS_DOT[appt.status]}`} />
+                                            <span className="text-xs font-medium opacity-80">{STATUS_LABELS[appt.status]}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </button>
@@ -319,19 +335,33 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                         ) : afternoonAppts.map(appt => (
                             <button key={appt.id} type="button" onClick={() => openApptDialog(appt)}
                                 className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}>
-                                <div className="grid grid-cols-2 gap-x-2">
-                                    <p className="text-sm font-bold leading-tight text-muted-foreground">
-                                        {format(new Date(appt.startTime), "HH:mm")} – {format(new Date(appt.endTime), "HH:mm")}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground italic text-right leading-tight">
-                                        {appt.service?.name ?? ''}
-                                    </p>
-                                    <p className="text-sm font-semibold leading-tight mt-0.5">
-                                        {appt.session?.pushName || "Sin nombre"}
-                                    </p>
-                                    <div className="flex items-center justify-end gap-1 mt-0.5">
-                                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${CARD_STATUS_DOT[appt.status]}`} />
-                                        <span className="text-xs font-medium opacity-80">{STATUS_LABELS[appt.status]}</span>
+                                <div className="flex flex-row gap-x-2">
+                                    <div className="flex flex-col flex-1 min-w-0">
+                                        <p className="text-sm font-bold leading-tight text-muted-foreground">
+                                            {format(new Date(appt.startTime), "HH:mm")} – {format(new Date(appt.endTime), "HH:mm")}
+                                        </p>
+                                        <p className="text-sm font-semibold leading-tight mt-0.5 truncate">
+                                            {appt.session?.pushName || "Sin nombre"}
+                                        </p>
+                                        <Link
+                                            href={`/chats?jid=${encodeURIComponent(appt.session.remoteJid)}`}
+                                            className="flex items-center gap-1 text-xs text-primary hover:underline leading-tight mt-1"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <Phone className="w-3 h-3 shrink-0" />
+                                            {fmtPhone(appt.session.remoteJid)}
+                                        </Link>
+                                    </div>
+                                    <div className="flex flex-col justify-between items-end shrink-0">
+                                        {appt.service?.name && (
+                                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 bg-primary/10 text-primary leading-tight">
+                                                {appt.service.name}
+                                            </span>
+                                        )}
+                                        <div className="flex items-center gap-1">
+                                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${CARD_STATUS_DOT[appt.status]}`} />
+                                            <span className="text-xs font-medium opacity-80">{STATUS_LABELS[appt.status]}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </button>
@@ -427,7 +457,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
                                                 <strong className="uppercase font-medium">Teléfono:</strong>
-                                                {currentAppointment.session.remoteJid.split('@')[0] || "No disponible"}
+                                                {fmtPhone(currentAppointment.session.remoteJid) || "No disponible"}
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
                                                 {currentAppointment.service && (

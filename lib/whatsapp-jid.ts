@@ -159,6 +159,36 @@ export function pickPreferredWhatsAppRemoteJid(values: Array<string | null | und
   return cleanedValues[0] ?? "";
 }
 
+// Prefijos ordenados de mayor a menor longitud para match greedy
+const KNOWN_PREFIXES = [
+  '1809','1829','1849',           // Rep. Dominicana
+  '1787','1939',                  // Puerto Rico
+  '593','591','595','598',        // Ecuador, Bolivia, Paraguay, Uruguay
+  '506','503','502','504','505','507', // C. Rica, El Salvador, Guatemala, Honduras, Nicaragua, Panamá
+  '57','58','51','52','56','54','55','53', // Colombia, Venezuela, Perú, México, Chile, Argentina, Brasil, Cuba
+  '1',                            // USA / Canadá
+];
+
+function groupLocal(local: string): string {
+  const len = local.length;
+  if (len === 7)  return `${local.slice(0,3)} ${local.slice(3)}`;
+  if (len === 8)  return `${local.slice(0,4)} ${local.slice(4)}`;
+  if (len === 9)  return `${local.slice(0,2)} ${local.slice(2,5)} ${local.slice(5)}`;
+  if (len === 10) return `${local.slice(0,3)} ${local.slice(3,6)} ${local.slice(6)}`;
+  return local;
+}
+
+export function fmtPhone(remoteJid: string | null | undefined): string {
+  if (!remoteJid) return '';
+  const digits = remoteJid.replace(/@.*/, '').replace(/\D/g, '');
+  if (!digits) return '';
+
+  const cc = KNOWN_PREFIXES.find(p => digits.startsWith(p));
+  if (cc) return `+${cc} ${groupLocal(digits.slice(cc.length))}`;
+
+  return `+${digits}`;
+}
+
 export function pickObservedAlternateRemoteJid(
   preferredRemoteJid: string,
   values: Array<string | null | undefined>,

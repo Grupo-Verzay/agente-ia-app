@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, User, Users, Bell, Tag, Clock, X, Search, Sparkles, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { fmtPhone } from '@/lib/whatsapp-jid';
 import { getKanbanSessionsAction, type KanbanCard } from '@/actions/crm-kanban-actions';
 import { updateSessionLeadStatus } from '@/actions/session-action';
 import { scoreLeadBySessionId, scoreAllLeadsByUserId } from '@/actions/lead-score-action';
@@ -95,11 +96,6 @@ const SCORE_RANGES = [
     { key: 'listo',    min: 91, max: 100 },
 ] as const;
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmtPhone(remoteJid: string) {
-    return remoteJid.replace(/@.*/, '').replace(/(\d{2})(\d{3})(\d{3})(\d{4})/, '+$1 $2 $3 $4');
-}
 
 function timeAgo(iso: string | null) {
     if (!iso) return null;

@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Loader2, RefreshCw, User, Search, X, Calendar, Clock, Tag } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { fmtPhone } from '@/lib/whatsapp-jid';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { AppointmentStatus } from '@prisma/client';
@@ -46,11 +47,6 @@ const COLUMNS: {
     { id: 'DESCARTADO',  label: 'Descartado',  headerClass: 'bg-zinc-600',    borderColor: '#52525B' },
 ];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmtPhone(remoteJid: string) {
-    return remoteJid.replace(/@.*/, '').replace(/(\d{2})(\d{3})(\d{3})(\d{4})/, '+$1 $2 $3 $4');
-}
 
 function fmtDate(iso: string) {
     return format(new Date(iso), 'dd MMM · HH:mm', { locale: es });

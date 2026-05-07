@@ -2,6 +2,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { fmtPhone } from "@/lib/whatsapp-jid"
 import { Controller, useForm } from "react-hook-form"
 import { useMutation } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
@@ -122,7 +123,7 @@ export const ReminderForm = ({
     } = reminderForm;
 
     const initialLeadValue = initialData && initialData?.remoteJid
-        ? `${initialData.pushName || 'Sin nombre'} ${initialData?.remoteJid.split('@')[0]}`
+        ? `${initialData.pushName || 'Sin nombre'} ${fmtPhone(initialData?.remoteJid)}`
         : undefined;
 
     // Lógica para inicializar con múltiples leads

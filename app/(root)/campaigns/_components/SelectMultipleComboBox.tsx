@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Session } from "@prisma/client"
 import { cn } from "@/lib/utils"
+import { fmtPhone } from "@/lib/whatsapp-jid"
 import { Button } from "@/components/ui/button"
 import {
     Command,
@@ -55,7 +56,7 @@ export const SelectMultipleComboBox = ({ leads, onSelect, onLeadCreated, initial
         if (selectedLeads.length === 0) return "Seleccione uno o más leads...";
         if (selectedLeads.length === 1) {
             const lead = selectedLeads[0];
-            return `${lead.pushName || "Sin nombre"} (${lead.remoteJid.split("@")[0]})`;
+            return `${lead.pushName || "Sin nombre"} (${fmtPhone(lead.remoteJid)})`;
         }
         return `${selectedLeads.length} seleccionados`;
     };
@@ -96,7 +97,7 @@ export const SelectMultipleComboBox = ({ leads, onSelect, onLeadCreated, initial
                         <CommandGroup>
                             {leads.map((lead) => {
                                 const leadName = lead.pushName || 'Sin nombre';
-                                const leadPhone = lead.remoteJid.split("@")[0];
+                                const leadPhone = fmtPhone(lead.remoteJid);
                                 const isSelected = selectedLeads.some(l => l.id === lead.id);
 
                                 return (
