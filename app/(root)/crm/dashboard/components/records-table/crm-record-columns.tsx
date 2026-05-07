@@ -152,7 +152,7 @@ export function createCrmRecordColumns({
                 row.fecha ? new Date(row.fecha).getTime() : Number.NEGATIVE_INFINITY,
             header: ({ column }) => <SortableHeader column={column} label="Fecha" />,
             cell: ({ row }) => row.original.fecha
-                ? <DateCell value={row.original.fecha} />
+                ? <DateCell value={row.original.fecha.toISOString()} />
                 : <span className="text-sm">-</span>,
         },
         {
