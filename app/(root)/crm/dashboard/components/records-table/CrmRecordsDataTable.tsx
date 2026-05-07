@@ -37,11 +37,11 @@ export function CrmRecordsDataTable({
 }) {
     const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-    const STICKY_COLS: Record<string, { right: number; width: number }> = {
+    const STICKY_COLS: Record<string, { right: number; width: number; zIndexBoost?: number }> = {
         actions:     { right: 0,   width: 48  },
-        estado:      { right: 48,  width: 116 },
+        estado:      { right: 48,  width: 116, zIndexBoost: 1 },
         crmFollowUp: { right: 164, width: 40  },
-        leadStatus:  { right: 204, width: 120 },
+        leadStatus:  { right: 204, width: 120, zIndexBoost: 2 },
     };
 
     const getStickyStyle = (id: string, zIndex: number): CSSProperties | undefined => {
@@ -53,7 +53,7 @@ export function CrmRecordsDataTable({
             width: col.width,
             minWidth: col.width,
             boxSizing: "border-box",
-            zIndex,
+            zIndex: zIndex + (col.zIndexBoost ?? 0),
         };
     };
 
