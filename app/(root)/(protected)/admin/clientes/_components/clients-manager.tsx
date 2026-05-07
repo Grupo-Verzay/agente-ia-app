@@ -84,15 +84,15 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
             webhookUrl: 'https://backend.ia-app.com/webhook',
             apiUrl,
             timezone,
-            status: true,
+            status: formData.status ?? true,
             passPlainTxt: password,
             meetingDuration: 60,//tiempo en minutos
             meetingUrl: null,//tiempo en minutos
             delayTimeGpt: '12',//tiempo en minutos
             muteAgentResponses: false,
-            enabledSynthesizer: false,
-            enabledLeadStatusClassifier: false,
-            enabledCrmFollowUps: false,
+            enabledSynthesizer: formData.enabledSynthesizer ?? false,
+            enabledLeadStatusClassifier: formData.enabledLeadStatusClassifier ?? false,
+            enabledCrmFollowUps: formData.enabledCrmFollowUps ?? false,
             onFacebook: false,
             onInstagram: false,
             preferredCurrencyCode: 'COP',
@@ -241,7 +241,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
     const columns = getColumns(openDialogGetUserId, currentUserRol);
 
     return (
-        <>
+        <div className="flex h-full min-w-0 w-full flex-col overflow-hidden">
 
             {/* Gestión de clients */}
             <DataTable
@@ -317,6 +317,6 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     allModules={allModules}
                 />
             )}
-        </>
+        </div>
     );
 };

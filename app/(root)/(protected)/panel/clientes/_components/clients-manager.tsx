@@ -88,15 +88,15 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
             webhookUrl: 'https://backend.ia-app.com/webhook',
             apiUrl,
             timezone,
-            status: true,
+            status: formData.status ?? true,
             passPlainTxt: password,
             meetingDuration: 60,//tiempo en minutos
             meetingUrl: null,//tiempo en minutos
             delayTimeGpt: '12',//tiempo en minutos
             muteAgentResponses: false,
-            enabledSynthesizer: false,
-            enabledLeadStatusClassifier: false,
-            enabledCrmFollowUps: false,
+            enabledSynthesizer: formData.enabledSynthesizer ?? false,
+            enabledLeadStatusClassifier: formData.enabledLeadStatusClassifier ?? false,
+            enabledCrmFollowUps: formData.enabledCrmFollowUps ?? false,
             onFacebook: false,
             onInstagram: false,
             preferredCurrencyCode: 'COP',
@@ -249,7 +249,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
 
     return (
         <TooltipProvider delayDuration={120}>
-        <div className="flex h-full min-w-0 w-full flex-col gap-2">
+        <div className="flex h-full min-w-0 w-full flex-col gap-2 overflow-hidden">
             {/* MetricCards */}
             <div className="shrink-0 flex flex-wrap gap-3">
                 <div className="flex-1">

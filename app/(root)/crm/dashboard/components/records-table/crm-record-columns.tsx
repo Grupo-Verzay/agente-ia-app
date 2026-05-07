@@ -3,6 +3,7 @@
 import { type CSSProperties } from "react";
 import type { Column, ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown } from "lucide-react";
+import { useSidebar } from "@/components/ui/sidebar";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,33 @@ import { CrmRecordStatusCell } from "./CrmRecordStatusCell";
 import { CrmRecordNameCell } from "./CrmRecordNameCell";
 import { LeadStatusBadge } from "./LeadStatusBadge";
 
+function DateCell({ value }: { value: string }) {
+    const { state } = useSidebar();
+    const d = new Date(value);
+    const date = d.toLocaleDateString("es-CO", { year: "2-digit", month: "2-digit", day: "2-digit" });
+    const time = d.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit", hour12: true });
+
+    if (state === "expanded") {
+        return (
+            <div className="leading-tight text-center">
+                <div className="whitespace-nowrap text-xs">{date}</div>
+                <div className="whitespace-nowrap text-xs text-muted-foreground">{time}</div>
+            </div>
+        );
+    }
+    return <span className="block whitespace-nowrap text-center text-sm">{date}, {time}</span>;
+}
+
+const TIPO_ABBR: Record<string, string> = {
+    REPORTE:   "REP",
+    SOLICITUD: "SOL",
+    PEDIDO:    "PED",
+    RECLAMO:   "REC",
+    PAGO:      "PAG",
+    RESERVA:   "RES",
+    PRODUCTO:  "PRO",
+};
+
 function SortableHeader({
     column,
     label,
@@ -32,7 +60,7 @@ function SortableHeader({
         <Button
             variant="ghost"
             size="sm"
-            className="-ml-3 h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground"
+            className="h-8 px-2 text-sm font-medium text-muted-foreground hover:text-foreground"
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
             {label}
@@ -72,7 +100,7 @@ export function createCrmRecordColumns({
                 return (
                     <div
                         className={cn(
-                            "min-w-[80px] cursor-pointer text-blue-600 hover:text-blue-800 transition-colors",
+                            "cursor-pointer text-blue-600 hover:text-blue-800 transition-colors",
                             onNavigateToChat && "hover:bg-blue-50 rounded p-1"
                         )}
                         onClick={() => onNavigateToChat?.(row.original.session.remoteJid)}
@@ -101,7 +129,6 @@ export function createCrmRecordColumns({
             cell: ({ row }) => {
                 const tipo = row.original.tipo as TipoRegistro;
                 const tipoColor = CRM_TAB_COLORS[tipo];
-
                 return (
                     <div className="flex justify-center">
                         <span
@@ -124,16 +151,14 @@ export function createCrmRecordColumns({
             accessorFn: (row) =>
                 row.fecha ? new Date(row.fecha).getTime() : Number.NEGATIVE_INFINITY,
             header: ({ column }) => <SortableHeader column={column} label="Fecha" />,
-            cell: ({ row }) => (
-                <span className="whitespace-nowrap text-sm">
-                    {formatFecha(row.original.fecha || "")}
-                </span>
-            ),
+            cell: ({ row }) => row.original.fecha
+                ? <DateCell value={row.original.fecha} />
+                : <span className="text-sm">-</span>,
         },
         {
             id: "detalle",
             accessorFn: (row) => row.resumen ?? row.detalles ?? "",
-            header: () => (
+header: () => (
                 <span className="text-xs font-medium text-muted-foreground">
                     Detalle
                 </span>
@@ -148,25 +173,29 @@ export function createCrmRecordColumns({
         },
         {
             id: "leadStatus",
+            size: 120,
+            minSize: 120,
             accessorFn: (row) => row.session.leadStatus ?? "",
             header: ({ column }) => <SortableHeader column={column} label="Lead" />,
             cell: ({ row }) => (
-                <div className="flex justify-center">
+                <div className="flex justify-center min-w-[104px]">
                     <LeadStatusBadge status={row.original.session.leadStatus ?? null} />
                 </div>
             ),
         },
         {
             id: "crmFollowUp",
+            size: 40,
+            minSize: 40,
             accessorFn: (row) => {
                 const latestScheduledFor = row.session.crmFollowUpSummary?.latestScheduledFor;
                 return latestScheduledFor ? new Date(latestScheduledFor).getTime() : 0;
             },
             header: ({ column }) => (
-                <SortableHeader column={column} label="Follow-up" />
+                <SortableHeader column={column} label="Follow" />
             ),
             cell: ({ row }) => (
-                <div className="flex justify-center">
+                <div className="flex justify-center min-w-[24px]">
                     <CrmFollowUpSummaryBadge
                         summary={row.original.session.crmFollowUpSummary}
                         userId={userId}
@@ -179,10 +208,12 @@ export function createCrmRecordColumns({
         },
         {
             id: "estado",
+            size: 116,
+            minSize: 116,
             accessorFn: (row) => row.estado ?? "",
             header: ({ column }) => <SortableHeader column={column} label="Estado" />,
             cell: ({ row }) => (
-                <div className="flex justify-center">
+                <div className="flex justify-center min-w-[100px]">
                     <CrmRecordStatusCell
                         registro={row.original}
                         disabled={isUpdatingRegistros}
@@ -193,6 +224,8 @@ export function createCrmRecordColumns({
         },
         {
             id: "actions",
+            size: 48,
+            minSize: 48,
             enableSorting: false,
             header: () => (
                 <span className="text-xs font-medium text-muted-foreground">
@@ -200,7 +233,7 @@ export function createCrmRecordColumns({
                 </span>
             ),
             cell: ({ row }) => (
-                <div className="flex justify-center">
+                <div className="flex justify-center min-w-[32px]">
                     <CrmRecordActionsCell
                         registro={row.original}
                         onUpdated={onRecordsChanged}

@@ -31,6 +31,10 @@ export const userSchema = z.object({
     mapsUrl: z.string().url().optional(),
     lat: z.string().optional(),
     lng: z.string().optional(),
+    status: z.boolean().optional(),
+    enabledSynthesizer: z.boolean().optional(),
+    enabledLeadStatusClassifier: z.boolean().optional(),
+    enabledCrmFollowUps: z.boolean().optional(),
 });
 
 export type UserFormValues = z.infer<typeof userSchema>;

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
+import { useSidebar } from "@/components/ui/sidebar";
 import { SwitchStatus } from "./SwitchStatus";
 import {
   DropdownMenu,
@@ -11,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowUpDown, BadgeCheckIcon, MoreHorizontal } from "lucide-react";
+import { ArrowUpDown, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { deleteSession } from "@/actions/session-action";
 import { deleteConversationN8N } from "@/actions/n8n-chat-historial-action";
@@ -31,11 +32,26 @@ import { deleteReminderByInstanceUserRemote } from "@/actions/seguimientos-actio
 import { SessionTagsCombobox } from "../../tags/components";
 import { Session, SimpleTag } from "@/types/session";
 import { SwitchAgentDisabled } from "./SwitchAgentDisabled";
-import { HeaderWithInfo } from "./HeaderWithInfo";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { FlowListOrder } from "./FlowListOrder";
 import { SeguimientoBadge } from "./SeguimientoBadge";
 import { EditableNameCell } from "./EditableNameCell";
+
+function DateCell({ value }: { value: string }) {
+  const { state } = useSidebar();
+  const d = new Date(value);
+  const date = d.toLocaleDateString("es-CO", { year: "2-digit", month: "2-digit", day: "2-digit" });
+  const time = d.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit", hour12: true });
+
+  if (state === "expanded") {
+    return (
+      <div className="leading-tight text-center">
+        <div className="whitespace-nowrap text-sm">{date}</div>
+        <div className="whitespace-nowrap text-xs text-muted-foreground">{time}</div>
+      </div>
+    );
+  }
+  return <span className="block whitespace-nowrap text-center text-sm">{date}, {time}</span>;
+}
 
 export const ActionsCell = ({ session, onDeleteSuccess }: { session: Session, onDeleteSuccess?: (deletedId: number) => void }) => {
   const [openDeleteCliente, setOpenDeleteCliente] = useState(false);
@@ -205,7 +221,7 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
 }): ColumnDef<Session>[] => [
     {
       accessorKey: "remoteJid",
-      header: "Celular",
+      header: () => <div className="w-full text-center text-sm font-medium text-muted-foreground">WhatsApp</div>,
       cell: ({ row }) => {
         const remoteJid = row.getValue("remoteJid") as string;
         const phone = remoteJid.split('@')[0];
@@ -224,7 +240,7 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
     },
     {
       accessorKey: "pushName",
-      header: "Nombre",
+      header: () => <div className="w-full text-center text-sm font-medium text-muted-foreground">Nombre</div>,
       cell: ({ row }) => (
         <EditableNameCell session={row.original} onUpdated={mutateSessions} />
       ),
@@ -232,15 +248,9 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
     {
       accessorKey: "status",
       header: ({ column }) => (
-        <div className="flex items-center gap-1">
-          <HeaderWithInfo
-            title="Sesión"
-            info="Controla si el chat está activo/inactivo para automatizaciones de conversación (pausas, antiflood, reactivaciones, etc.)."
-          />
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-            <ArrowUpDown className="h-3 w-3" />
-          </Button>
-        </div>
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="w-full px-1 text-sm font-medium text-muted-foreground hover:text-foreground justify-center">
+          Sesión <ArrowUpDown className="ml-0.5 h-3 w-3" />
+        </Button>
       ),
       cell: ({ row }) => {
         const status = row.getValue("status") as boolean;
@@ -255,15 +265,9 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
     {
       accessorKey: "agentDisabled",
       header: ({ column }) => (
-        <div className="flex items-center gap-1">
-          <HeaderWithInfo
-            title="Agente"
-            info="Apaga o enciende el agente IA para este cliente. Si está OFF, el sistema guarda historial, pero no ejecuta IA ni workflows."
-          />
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-            <ArrowUpDown className="h-3 w-3" />
-          </Button>
-        </div>
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="w-full px-1 text-sm font-medium text-muted-foreground hover:text-foreground justify-center">
+          Agente <ArrowUpDown className="ml-0.5 h-3 w-3" />
+        </Button>
       ),
       cell: ({ row }) => {
         const session = row.original;
@@ -282,16 +286,16 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
     {
       accessorKey: "createdAt",
       header: ({ column }) => (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="px-1 text-sm">
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="w-full px-1 text-sm font-medium text-muted-foreground hover:text-foreground justify-center">
           Creado <ArrowUpDown className="ml-0.5 h-3 w-3" />
         </Button>
       ),
-      cell: ({ row }) => new Date(row.getValue("createdAt")).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" }),
+      cell: ({ row }) => <DateCell value={row.getValue("createdAt")} />,
     },
     {
       accessorKey: "flujos",
       header: ({ column }) => (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="px-1 text-sm">
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="w-full px-1 text-sm font-medium text-muted-foreground hover:text-foreground justify-center">
           Flujos <ArrowUpDown className="ml-0.5 h-3 w-3" />
         </Button>
       ),
@@ -307,7 +311,7 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
     {
       accessorKey: "pendingSeguimientos",
       header: ({ column }) => (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="px-1 text-sm">
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")} className="w-full px-1 text-sm font-medium text-muted-foreground hover:text-foreground justify-center">
           Seguimientos <ArrowUpDown className="ml-0.5 h-3 w-3" />
         </Button>
       ),
@@ -322,7 +326,7 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
     },
     {
       id: "tags",
-      header: "Etiquetas",
+      header: () => <div className="w-full text-center text-sm font-medium text-muted-foreground">Etiquetas</div>,
       cell: ({ row }) => {
         const session = row.original;
         const initialSelectedTagIds = (session.tags ?? []).map((t) => t.id);
@@ -341,7 +345,7 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
     },
     {
       accessorKey: "acciones",
-      header: "Acciones",
+      header: () => <div className="w-full text-center text-sm font-medium text-muted-foreground">Acciones</div>,
       cell: ({ row }) => (
         <div className="flex justify-center">
           <ActionsCell session={row.original} onDeleteSuccess={onDeleteSuccess} />

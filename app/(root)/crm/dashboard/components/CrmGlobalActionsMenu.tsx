@@ -191,7 +191,7 @@ export function CrmGlobalActionsMenu({
             <MoreVertical/>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[280px]">
+        <DropdownMenuContent align="end" className="w-[280px] max-h-[70vh] overflow-y-auto">
           <DropdownMenuLabel>Follow-ups</DropdownMenuLabel>
           <DropdownMenuItem
             disabled={actions["cancel-active-follow-ups"].disabled}
