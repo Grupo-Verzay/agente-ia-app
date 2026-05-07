@@ -106,24 +106,39 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
     [mutate, flowType, matchType, keywords, isPro, triggerCondition]
   );
 
-  const typeOptions: { value: FlowType; label: string; icon: React.ElementType; detail: string }[] = [
+  const typeOptions: { value: FlowType; label: string; subtitle: string; icon: React.ElementType; bg: string; border: string; text: string; iconColor: string; subtitleColor: string }[] = [
     {
       value: "IA",
       label: "IA",
+      subtitle: "Detecta intenciones",
       icon: Brain,
-      detail: "El agente detecta automáticamente la intención del cliente y lanza este flujo. Ideal para: enviar catálogos, cotizaciones o activar procesos cuando el usuario muestra interés.",
+      bg: "bg-blue-50 dark:bg-blue-950/30",
+      border: "border-blue-200 dark:border-blue-800 hover:border-blue-400",
+      text: "text-blue-700 dark:text-blue-300",
+      iconColor: "text-blue-500",
+      subtitleColor: "text-blue-400 dark:text-blue-500",
     },
     {
       value: "Flujo",
       label: "Flujo",
+      subtitle: "Manual o encadenado",
       icon: Workflow,
-      detail: "Se ejecuta manualmente o desde otro flujo. Úsalo para secuencias de seguimiento, mensajes programados o flujos que el agente llama por nombre.",
+      bg: "bg-violet-50 dark:bg-violet-950/30",
+      border: "border-violet-200 dark:border-violet-800 hover:border-violet-400",
+      text: "text-violet-700 dark:text-violet-300",
+      iconColor: "text-violet-500",
+      subtitleColor: "text-violet-400 dark:text-violet-500",
     },
     {
       value: "Chatbot",
       label: "Chatbot",
+      subtitle: "Por palabras clave",
       icon: Bot,
-      detail: "Se activa cuando el cliente escribe una palabra o frase específica (ej: 'precio', 'agendar'). El agente NO interviene; responde el flujo directamente.",
+      bg: "bg-emerald-50 dark:bg-emerald-950/30",
+      border: "border-emerald-200 dark:border-emerald-800 hover:border-emerald-400",
+      text: "text-emerald-700 dark:text-emerald-300",
+      iconColor: "text-emerald-500",
+      subtitleColor: "text-emerald-400 dark:text-emerald-500",
     },
   ];
 
@@ -134,9 +149,9 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
       </DialogTrigger>
       <DialogContent className="px-0">
         <CustomDialogHeader icon={Layers2Icon} title="CREAR FLUJO" />
-        <div className="p-6">
+        <div className="px-6 pt-6 pb-0">
           <Form {...form}>
-            <form className="space-y-6 w-full" onSubmit={form.handleSubmit(onSubmit)}>
+            <form className="space-y-3 w-full" onSubmit={form.handleSubmit(onSubmit)}>
 
               {/* 1. NOMBRE */}
               <FormField
@@ -156,16 +171,14 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
               />
 
               {/* 2. TIPO: IA | Flujo | Chatbot */}
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <FormLabel className="font-bold text-base">Tipo</FormLabel>
 
                 {!flowType && (
-                  <p className="text-sm text-foreground/70">
-                    Define cómo se activa el flujo: por intención detectada por IA, condicionado desde el entrenamiento del agente, o por palabras clave exactas como disparadores.
-                  </p>
+                  <p className="text-sm text-foreground/70">Define cómo se activa el flujo:</p>
                 )}
 
-                <div className="grid grid-cols-3 gap-2" style={{ gridTemplateRows: '90px' }}>
+                <div className="grid grid-cols-3 gap-2">
                   {!flowType ? (
                     typeOptions.map(opt => {
                       const Icon = opt.icon;
@@ -174,12 +187,13 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                           key={opt.value}
                           type="button"
                           onClick={() => setFlowType(opt.value)}
-                          className="h-[90px] flex items-center justify-center rounded-lg border border-border px-3 hover:border-muted-foreground/50 transition-colors"
+                          className={`h-[72px] flex flex-col items-center justify-center gap-1 rounded-lg border px-2 transition-colors ${opt.bg} ${opt.border}`}
                         >
-                          <div className="flex flex-col items-center gap-1.5">
-                            <Icon className="h-5 w-5" />
-                            <p className="text-sm font-semibold">{opt.label}</p>
+                          <div className="flex flex-row items-center gap-1.5">
+                            <Icon className={`h-4 w-4 shrink-0 ${opt.iconColor}`} />
+                            <p className={`text-sm font-semibold leading-none ${opt.text}`}>{opt.label}</p>
                           </div>
+                          <p className={`text-[10px] leading-none ${opt.subtitleColor}`}>{opt.subtitle}</p>
                         </button>
                       );
                     })
@@ -191,15 +205,11 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                         key={selected.value}
                         type="button"
                         onClick={() => setFlowType(null)}
-                        className="col-span-3 h-[90px] relative flex items-center justify-center rounded-lg border border-primary bg-primary/5 text-primary transition-colors"
+                        className="col-span-3 h-10 px-4 flex items-center gap-2 rounded-lg border border-primary bg-primary/5 text-primary transition-colors"
                       >
-                        <div className="flex flex-col items-center gap-1.5">
-                          <Icon className="h-5 w-5" />
-                          <p className="text-sm font-semibold">{selected.label}</p>
-                        </div>
-                        <span className="absolute bottom-2 right-3 text-xs text-muted-foreground">
-                          Cambiar
-                        </span>
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <p className="text-sm font-semibold">{selected.label}</p>
+                        <span className="ml-auto text-sm text-primary/60">Cambiar</span>
                       </button>
                     );
                   })()}
@@ -208,10 +218,15 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
 
               {/* SECCIÓN CONDICIONAL SEGÚN TIPO */}
 
+              {/* FLUJO: descripción breve */}
+              {flowType === "Flujo" && (
+                <p className="text-sm text-foreground/70">Se activa cuando el agente IA lo llama por su nombre desde<br />algún paso, o manualmente mediante una respuesta rápida.</p>
+              )}
+
               {/* IA: descripción de intención (Prompt IA siempre) */}
               {flowType === "IA" && (
                 <div className="space-y-1.5">
-                  <FormLabel>Descripción de la intención <span className="text-xs text-primary">(obligatorio)</span></FormLabel>
+                  <FormLabel className="font-semibold text-sm">Descripción de la intención <span className="text-xs text-primary font-normal">(obligatorio)</span></FormLabel>
                   <Textarea
                     value={triggerCondition}
                     onChange={e => setTriggerCondition(e.target.value)}
@@ -226,7 +241,7 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
               {flowType === "Chatbot" && (
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <FormLabel>Tipo de coincidencia</FormLabel>
+                    <FormLabel className="font-semibold text-sm">Tipo de coincidencia</FormLabel>
                     <select
                       value={matchType}
                       onChange={e => setMatchType(e.target.value as "Exacta" | "Contiene")}
@@ -235,9 +250,6 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                       <option value="Exacta">Exacta</option>
                       <option value="Contiene">Contiene</option>
                     </select>
-                    <p className="text-[11px] text-muted-foreground">
-                      Define si la palabra clave debe coincidir exactamente o basta con que esté contenida en el mensaje.
-                    </p>
                   </div>
 
                   <FormField
@@ -245,8 +257,8 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                     name="description"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="flex gap-1 items-center">
-                          Palabras clave <p className="text-xs text-muted-foreground">(opcional, hasta 20)</p>
+                        <FormLabel className="flex gap-1 items-center font-semibold text-sm">
+                          Palabras clave <p className="text-xs text-primary font-normal">(opcional, hasta 20)</p>
                         </FormLabel>
                         <FormControl>
                           <div className="space-y-2">
@@ -266,20 +278,16 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                               </Button>
                             </div>
                             <input type="hidden" {...field} value={keywords.join(", ")} readOnly />
-                            <div className="flex flex-wrap gap-2 min-h-[24px]">
+                            <div className="flex flex-wrap gap-2">
                               {keywords.map(kw => (
                                 <span key={kw} className="inline-flex items-center rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
                                   {kw}
                                   <button type="button" onClick={() => handleRemoveKeyword(kw)} className="ml-1 opacity-70 hover:opacity-100">✕</button>
                                 </span>
                               ))}
-                              {keywords.length === 0 && (
-                                <p className="text-xs text-muted-foreground italic">&apos;precio&apos;, &apos;cotización&apos;, &apos;tengo una duda&apos;...</p>
-                              )}
                             </div>
                           </div>
                         </FormControl>
-                        <FormDescription className="text-xs">Estas palabras activarán el flujo. Máx. 20.</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -288,7 +296,7 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
               )}
 
               {/* 3. CREAR */}
-              <Button type="submit" className="w-full" disabled={isPending}>
+              <Button type="submit" className="w-full !mt-5" disabled={isPending}>
                 {isPending ? <Loader2 className="animate-spin" /> : "Crear"}
               </Button>
             </form>

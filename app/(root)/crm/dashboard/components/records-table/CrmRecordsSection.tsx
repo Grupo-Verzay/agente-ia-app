@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { Loader2 } from "lucide-react";
 import { CrmExportDialog } from "../CrmExportDialog";
 import { useRouter } from "next/navigation";
 
@@ -338,7 +339,7 @@ export function CrmRecordsSection({
 
     return (
         <>
-        <Card className="min-w-0 border-0 bg-transparent shadow-none">
+        <Card className="min-w-0 border-border flex-1 min-h-0 flex flex-col overflow-hidden">
             <CardHeader className="space-y-2 p-0">
                 <Tabs
                     value={activeTab}
@@ -428,7 +429,7 @@ export function CrmRecordsSection({
                 ) : null}
             </CardHeader>
 
-            <CardContent className="p-0 pt-2">
+            <CardContent className="p-0 pt-2 flex-1 min-h-0 flex flex-col">
                 <CrmRecordsDataTable
                     table={table}
                     activeTab={activeTab}
@@ -439,6 +440,21 @@ export function CrmRecordsSection({
                     onScrollRootReady={onScrollRootReady}
                 />
             </CardContent>
+
+            <div className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-t border-border">
+                <div className="text-xs text-muted-foreground">
+                    {registros.length === 0
+                        ? "Sin resultados"
+                        : <><b>{registros.length}</b> cargados de <b>{totalRegistros}</b> globales</>
+                    }
+                </div>
+                {isLoadingMore && (
+                    <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Cargando más...
+                    </span>
+                )}
+            </div>
         </Card>
 
         <CrmExportDialog

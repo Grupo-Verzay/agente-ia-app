@@ -253,7 +253,7 @@ export const MainDashboard = ({
   }
 
   return (
-    <div className="flex flex-col h-full min-w-0 w-full">
+    <div className="flex flex-col h-full min-h-0 min-w-0 w-full overflow-hidden">
       <CrmDashboard
         stats={stats}
         userId={userId}

@@ -172,7 +172,7 @@ export const CrmDashboard = ({
 
     return (
         <TooltipProvider delayDuration={120}>
-            <div className="flex h-full min-w-0 w-full flex-col gap-2">
+            <div className="flex h-full min-h-0 min-w-0 w-full flex-col gap-2 overflow-hidden">
                 {/* Metric Cards */}
                 <div className="flex flex-wrap gap-3">
                     {viewMode === "reportes" ? (
@@ -453,6 +453,7 @@ export const CrmDashboard = ({
                         />
                     </div>
                 ) : viewMode === "registros" ? (
+                    <div className="flex-1 min-h-0 flex flex-col">
                     <CrmRecordsSection
                         activeTab={activeTab}
                         registros={registros}
@@ -473,6 +474,7 @@ export const CrmDashboard = ({
                         onScrollRootReady={onScrollRootReady}
                         hideDateBadge={period !== "all"}
                     />
+                    </div>
                 ) : (
                     <AnalyticsView userId={userId} stats={stats} period={period} />
                 )}

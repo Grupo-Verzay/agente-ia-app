@@ -394,8 +394,8 @@ export const WorkflowCard = ({
                 </div>
 
                 {/* Sección disparador IA */}
-                <div className="pt-2 border-t border-border">
-                    {localTrigger ? (
+                {localTrigger && (
+                    <div className="pt-2 border-t border-border">
                         <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                                 <Switch
@@ -429,16 +429,8 @@ export const WorkflowCard = ({
                                 </button>
                             </div>
                         </div>
-                    ) : (
-                        <button
-                            onClick={() => { setEditingTrigger(null); setTriggerDialogOpen(true); }}
-                            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                            <Zap className="h-3.5 w-3.5" />
-                            Agregar disparador IA
-                        </button>
-                    )}
-                </div>
+                    </div>
+                )}
             </CardContent>
 
             <IntentTriggerDialog
