@@ -65,11 +65,11 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
         <Table className="w-full border-border table-auto">
           <TableHeader className="sticky top-0 z-10 bg-background">
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="border-border h-8">
+              <TableRow key={headerGroup.id} className="border-border">
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className="py-1 px-2  font-medium text-muted-foreground"
+                    className="py-2 px-2 font-medium text-muted-foreground"
                   >
                     {header.isPlaceholder
                       ? null
@@ -85,16 +85,16 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} className="border-border h-8 hover:bg-muted/50">
+                <TableRow key={row.id} className="border-border hover:bg-muted/50">
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-1 px-2 ">
+                    <TableCell key={cell.id} className="py-2 px-2">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
-              <TableRow className="border-border h-8">
+              <TableRow className="border-border">
                 <TableCell colSpan={columns.length} className="text-center  py-2">
                   No hay resultados.
                 </TableCell>

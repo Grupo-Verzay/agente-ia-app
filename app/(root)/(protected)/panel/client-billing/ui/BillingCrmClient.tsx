@@ -53,7 +53,7 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 
-import { ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis, ExternalLink, Trash2 } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Ellipsis, ExternalLink, Search, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { deleteUser } from "@/actions/userClientDataActions";
 
@@ -519,13 +519,8 @@ export function BillingCrmClient({
                     const u = row.original;
                     return (
                         <div className="py-2">
-                            <div className="leading-tight">
-                                <div className="font-medium truncate max-w-[260px]">
-                                    {u.name ?? "Sin nombre"}
-                                </div>
-                                <div className="text-muted-foreground truncate max-w-[260px]">
-                                    {u.email}
-                                </div>
+                            <div className="font-medium truncate max-w-[260px]">
+                                {u.company ?? u.name ?? "Sin nombre"}
                             </div>
                         </div>
                     );
@@ -732,18 +727,22 @@ export function BillingCrmClient({
                     <div className="flex flex-row flex-1 gap-2">
                         <div className="flex flex-col gap-2 flex-1">
                             <BillingCrmFiltersCards table={table} data={data} soonDays={SOON_DAYS_BILLING} />
-                            <div className="flex flex-row gap-1">
-                                <Input
-                                    value={globalFilter}
-                                    onChange={(e) => setGlobalFilter(e.target.value)}
-                                    placeholder="Buscar por nombre, email, empresa, plan…"
-                                    className="h-9"
-                                />
+                            <div className="flex flex-row items-center gap-2">
+                                <div className="relative w-72 shrink-0">
+                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                                    <Input
+                                        value={globalFilter}
+                                        onChange={(e) => setGlobalFilter(e.target.value)}
+                                        placeholder="Buscar por nombre, email, empresa, plan…"
+                                        className="h-9 pl-8"
+                                    />
+                                </div>
 
+                                <div className="flex items-center gap-1 ml-auto">
                                 {/* Filtros columnas */}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="ml-auto">
+                                        <Button variant="outline">
                                             <Ellipsis className="h-4 w-4 md:hidden" />
                                             <span className="hidden md:inline">Columnas</span>
                                             <ChevronDown className="ml-2 h-4 w-4 hidden md:inline" />
@@ -771,7 +770,7 @@ export function BillingCrmClient({
                                 {/* Table actions */}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" className="ml-auto">
+                                        <Button variant="outline">
                                             <Ellipsis />
                                         </Button>
                                     </DropdownMenuTrigger>
@@ -785,6 +784,7 @@ export function BillingCrmClient({
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
+                                </div>
                             </div>
                         </div>
                     </div>

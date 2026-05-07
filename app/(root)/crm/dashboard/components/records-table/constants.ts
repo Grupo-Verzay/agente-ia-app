@@ -59,14 +59,14 @@ export const CRM_DEFAULT_COLUMN_VISIBILITY: Record<CrmTableColumnId, boolean> = 
     detalle: true,
     leadStatus: true,
     crmFollowUp: true,
-    estado: false,
+    estado: true,
     actions: true,
 };
 
 export { LEAD_STATUS_FILTER_OPTIONS };
 
 export const CRM_COLUMN_VISIBILITY_STORAGE_KEY =
-    "crm-dashboard-records-column-visibility";
+    "crm-dashboard-records-column-visibility-v2";
 
 export function isCrmTabValue(value: string): value is CrmDashboardTab {
     return (CRM_TABS as readonly string[]).includes(value);

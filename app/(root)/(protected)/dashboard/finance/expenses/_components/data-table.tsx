@@ -111,7 +111,7 @@ export function DataTable<TData, TValue>({
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} className="border-border [&>th]:text-sm">
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className="py-1">
+                    <TableHead key={header.id} className="py-2">
                       {header.isPlaceholder
                         ? null
                         : flexRender(header.column.columnDef.header, header.getContext())}

@@ -106,10 +106,10 @@ export const RegistrosTable = ({
                     <Table>
                         <TableHeader>
                             <TableRow className="hover:bg-transparent">
-                                <TableHead className="h-8 py-1.5 w-32">Fecha</TableHead>
-                                <TableHead className="h-8 py-1.5">Detalles</TableHead>
-                                <TableHead className="h-8 py-1.5 w-[140px] text-center">Estado</TableHead>
-                                <TableHead className="h-8 py-1.5 w-16 text-center">Acciones</TableHead>
+                                <TableHead className="h-8 py-2 w-32">Fecha</TableHead>
+                                <TableHead className="h-8 py-2">Detalles</TableHead>
+                                <TableHead className="h-8 py-2 w-[140px] text-center">Estado</TableHead>
+                                <TableHead className="h-8 py-2 w-16 text-center">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
 
@@ -127,17 +127,17 @@ export const RegistrosTable = ({
 
                             {registros.map((r) => (
                                 <TableRow key={r.id} className="hover:bg-accent/40">
-                                    <TableCell className="py-1.5 align-middle whitespace-nowrap text-xs">
+                                    <TableCell className="py-2 align-middle whitespace-nowrap text-xs">
                                         {formatFecha(r.fecha || "")}
                                     </TableCell>
 
-                                    <TableCell className="py-1.5 align-middle max-w-[240px]">
+                                    <TableCell className="py-2 align-middle max-w-[240px]">
                                         <span className="line-clamp-2 text-xs">
                                             {r.detalles || r.resumen || "Sin detalles"}
                                         </span>
                                     </TableCell>
 
-                                    <TableCell className="py-1.5 align-middle text-center">
+                                    <TableCell className="py-2 align-middle text-center">
                                         <div className="flex justify-center">
                                             <EstadoSelect
                                                 registro={r}
@@ -146,7 +146,7 @@ export const RegistrosTable = ({
                                         </div>
                                     </TableCell>
 
-                                    <TableCell className="py-1.5 align-middle text-center">
+                                    <TableCell className="py-2 align-middle text-center">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button variant="ghost" size="icon" className="h-7 w-7 mx-auto flex">
