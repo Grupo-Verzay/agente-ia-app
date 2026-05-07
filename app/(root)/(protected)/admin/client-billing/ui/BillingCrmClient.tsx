@@ -519,7 +519,6 @@ export function BillingCrmClient({
                     const u = row.original;
                     return (
                         <div className="py-2">
-                            <div className="leading-tight">
                             <div className="font-medium truncate max-w-[260px]">
                                 {u.company ?? u.name ?? "Sin nombre"}
                             </div>
