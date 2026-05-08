@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
-import { getTeamAdvisors } from "@/actions/team-actions";
+import { getTeamAdvisors, type AdvisorRow } from "@/actions/team-actions";
 import Header from "@/components/shared/header";
 import { TeamClient } from "./_components/team-client";
 
@@ -11,8 +11,13 @@ export default async function EquipoPage() {
   // Los asesores (ownerId != null) no pueden gestionar equipo
   if ((user as any).ownerId) redirect("/");
 
-  const res = await getTeamAdvisors();
-  const advisors = res.success ? (res.data ?? []) : [];
+  let advisors: AdvisorRow[] = [];
+  try {
+    const res = await getTeamAdvisors();
+    advisors = res.success ? (res.data ?? []) : [];
+  } catch {
+    // columna owner_id aún no existe en BD
+  }
 
   return (
     <div className="p-6 space-y-6">
