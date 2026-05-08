@@ -302,7 +302,7 @@ export async function fullRegisterAction(
           name: 'BIENVENIDA',
           definition: '{}',
           status: 'active',
-          isPro: true,
+          isPro: false,
           order: 0,
         },
       });
