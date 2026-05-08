@@ -181,7 +181,6 @@ export function UserBackupManager({
         return;
       }
 
-      setConfirmationText("");
       setIsReplaceConfirmed(false);
       setSelectedFileName("");
       setSelectedFileContent("");
