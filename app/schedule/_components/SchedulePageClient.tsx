@@ -26,7 +26,6 @@ import { createSeguimiento } from "@/actions/seguimientos-actions";
 import { registerSession } from "@/actions/session-action";
 import { ScheduleInterface } from "@/schema/schema";
 import { SeguimientoInput } from "@/schema/seguimientos";
-import { SERVER_TIME_ZONE } from "@/lib/utils";
 import {
     formatDateLabel,
     formatServiceMessage,
@@ -64,6 +63,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
     ];
 
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const ownerTimezone = user.timezone ?? 'America/Bogota';
     const slotDuration = !user.meetingDuration ? 60 : user.meetingDuration;
     const primaryInstance = user.instancias?.[0];
     const instanceName = primaryInstance?.instanceName ?? "";
@@ -106,7 +106,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
         if (!user.id || !selectedDateYmd) return;
         setLoadingSlots(true);
         (async () => {
-            const res = await getAvailableSlots(user.id as string, selectedDateYmd, slotDuration, SERVER_TIME_ZONE);
+            const res = await getAvailableSlots(user.id as string, selectedDateYmd, slotDuration, ownerTimezone);
             if (res.success) setSlots(res.data || []);
             else toast.error(res.message);
             setLoadingSlots(false);
@@ -162,7 +162,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                 instanceName,
                 startTime,
                 endTime,
-                timezone,
+                timezone: ownerTimezone,
                 serviceId: selectedService,
             });
 
@@ -221,7 +221,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                 } catch { /* non-critical */ }
 
                 if (allPhones.length > 0) {
-                    const startLocal = toZonedTime(new Date(startTime), SERVER_TIME_ZONE);
+                    const startLocal = toZonedTime(new Date(startTime), ownerTimezone);
                     const dateLabel = format(selectedDate!, "d 'de' MMMM 'de' yyyy", { locale: es });
                     const hourLabel = format(startLocal, "hh:mm a");
                     const serviceName = user.services.find((s) => s.id === selectedService)?.name ?? "Asesoría";
