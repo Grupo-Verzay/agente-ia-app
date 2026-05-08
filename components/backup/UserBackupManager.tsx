@@ -17,7 +17,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -101,10 +100,7 @@ export function UserBackupManager({
   const [selectedFileName, setSelectedFileName] = useState("");
   const [selectedFileContent, setSelectedFileContent] = useState("");
   const [preview, setPreview] = useState<BackupPreview | null>(null);
-  const [isReplaceConfirmed, setIsReplaceConfirmed] = useState(false);
-  const isReadyToImport =
-    selectedFileContent.length > 0 &&
-    isReplaceConfirmed;
+  const isReadyToImport = selectedFileContent.length > 0;
 
   const isReadyToImportSimple = selectedFileContent.length > 0;
 
@@ -181,7 +177,6 @@ export function UserBackupManager({
         return;
       }
 
-      setIsReplaceConfirmed(false);
       setSelectedFileName("");
       setSelectedFileContent("");
       setPreview(null);
@@ -262,23 +257,6 @@ export function UserBackupManager({
           ) : null}
         </div>
       ) : null}
-
-      <div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50/60 p-3">
-        <Checkbox
-          id={`backup-confirm-${targetUserId}`}
-          checked={isReplaceConfirmed}
-          onCheckedChange={(checked) => setIsReplaceConfirmed(Boolean(checked))}
-          disabled={isImportPending || isExportPending}
-        />
-        <div className="space-y-1">
-          <Label htmlFor={`backup-confirm-${targetUserId}`}>
-            Confirmo que deseo reemplazar los datos actuales de {subjectLabel}
-          </Label>
-          <p className="text-xs text-muted-foreground">
-            Esta acción sobrescribe la información operativa guardada para este usuario.
-          </p>
-        </div>
-      </div>
 
       <Button
         type="button"
