@@ -38,6 +38,7 @@ import {
   createAdvisor,
   updateAdvisorPassword,
   deleteAdvisor,
+  linkExistingAdvisor,
 } from "@/actions/team-actions";
 
 type Props = {
@@ -55,6 +56,10 @@ export function TeamClient({ initialAdvisors }: Props) {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateForm>({ name: "", email: "", password: "" });
 
+  // Link existing dialog
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkEmail, setLinkEmail] = useState("");
+
   // Password dialog
   const [pwForm, setPwForm] = useState<PasswordForm | null>(null);
 
@@ -63,6 +68,19 @@ export function TeamClient({ initialAdvisors }: Props) {
 
   function handleCreateField(field: keyof CreateForm, value: string) {
     setCreateForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function handleLink() {
+    startTransition(async () => {
+      const res = await linkExistingAdvisor(linkEmail);
+      if (!res.success) { toast.error(res.message); return; }
+      toast.success(res.message ?? "Asesor vinculado.");
+      setLinkOpen(false);
+      setLinkEmail("");
+      const { getTeamAdvisors } = await import("@/actions/team-actions");
+      const list = await getTeamAdvisors();
+      if (list.success && list.data) setAdvisors(list.data);
+    });
   }
 
   function handleCreate() {
@@ -115,10 +133,16 @@ export function TeamClient({ initialAdvisors }: Props) {
         <p className="text-sm text-muted-foreground">
           Los asesores pueden ver todas las conversaciones y enviar mensajes usando tu instancia.
         </p>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Agregar asesor
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setLinkOpen(true)}>
+            <UserCheck className="w-4 h-4 mr-2" />
+            Vincular existente
+          </Button>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Agregar asesor
+          </Button>
+        </div>
       </div>
 
       {advisors.length === 0 ? (
@@ -176,6 +200,33 @@ export function TeamClient({ initialAdvisors }: Props) {
           </TableBody>
         </Table>
       )}
+
+      {/* Link existing dialog */}
+      <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Vincular usuario existente</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label htmlFor="link-email">Email del usuario</Label>
+              <Input
+                id="link-email"
+                type="email"
+                placeholder="asesor@empresa.com"
+                value={linkEmail}
+                onChange={(e) => setLinkEmail(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLinkOpen(false)}>Cancelar</Button>
+            <Button onClick={handleLink} disabled={isPending || !linkEmail.trim()}>
+              {isPending ? "Vinculando..." : "Vincular"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
