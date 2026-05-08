@@ -32,7 +32,7 @@ export async function currentUser(request?: Request) {
         impersonateId && isAdminLike(realUser.role) ? impersonateId : realUser.id;
 
     const userPromise = db.user.findUnique({
-        where: { id: effectiveUserId }, // por id (no email)
+        where: { id: effectiveUserId },
         select: {
             id: true,
             status: true,
@@ -59,6 +59,19 @@ export async function currentUser(request?: Request) {
             advisorSignature: true,
             delSeguimiento: true,
         },
+    }).then(async (u) => {
+        if (!u) return null;
+        // Obtener ownerId via SQL raw para evitar error de schema incompleto del cliente Prisma
+        let ownerId: string | null = null;
+        try {
+            const rows = await db.$queryRaw<{ owner_id: string | null }[]>`
+                SELECT owner_id FROM "User" WHERE id = ${u.id}
+            `;
+            ownerId = rows[0]?.owner_id ?? null;
+        } catch {
+            // Si la columna aún no existe, ownerId queda null
+        }
+        return { ...u, ownerId, effectiveId: ownerId ?? u.id };
     });
 
     if (request) {

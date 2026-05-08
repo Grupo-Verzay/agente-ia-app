@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { redirect } from "next/navigation";
 import type { ApiKey, Instancia, QuickReply, Workflow } from "@prisma/client";
 import { currentUser } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { getApiKeyById } from "@/actions/api-action";
 import {
   fetchChatsFromEvolution,
@@ -67,9 +68,16 @@ export default async function ChatsPage({
   const user = await currentUser();
   if (!user) redirect("/login");
 
+  // Si el usuario es asesor (tiene ownerId), usa los recursos del dueño
+  const effectiveOwnerId = (user as any).ownerId ?? user.id;
+  const ownerApiKeyId =
+    effectiveOwnerId !== user.id
+      ? (await db.user.findUnique({ where: { id: effectiveOwnerId }, select: { apiKeyId: true } }))?.apiKeyId
+      : user.apiKeyId;
+
   const [resInstancias, resApikey] = await Promise.all([
-    getInstancesByUserId(user.id),
-    getApiKeyById(user.apiKeyId),
+    getInstancesByUserId(effectiveOwnerId),
+    getApiKeyById(ownerApiKeyId),
   ]);
 
   const instancias = hasInstancias(resInstancias) ? resInstancias.data : [];
@@ -121,7 +129,7 @@ export default async function ChatsPage({
     }
   }
 
-  const workflowsResponse = await getWorkFlowByUser(user.id);
+  const workflowsResponse = await getWorkFlowByUser(effectiveOwnerId);
   const workflows = hasWorkflows(workflowsResponse) ? workflowsResponse.data : [];
   const workflowOptions: ChatWorkflowOption[] = workflows.map((workflow) => ({
     id: workflow.id,
@@ -129,7 +137,7 @@ export default async function ChatsPage({
     isPro: workflow.isPro,
   }));
 
-  const quickRepliesResponse = await getAllRRs(user.id);
+  const quickRepliesResponse = await getAllRRs(effectiveOwnerId);
   const quickReplies = hasQuickReplies(quickRepliesResponse) ? quickRepliesResponse.data : [];
   const quickReplyOptions: ChatQuickReplyOption[] = quickReplies
     .map((quickReply) => {
@@ -148,10 +156,10 @@ export default async function ChatsPage({
     .filter((item): item is ChatQuickReplyOption => item !== null);
 
   const [tagsRes, chatSessionsRes, chatPreferencesRes] = await Promise.all([
-    listTagsAction(user.id),
+    listTagsAction(effectiveOwnerId),
     chatsResult.success
       ? getChatContactSessions(
-          user.id,
+          effectiveOwnerId,
           chatsResult.data.map((chat) => ({
             remoteJid: chat.remoteJid,
             remoteJidAlt: chat.remoteJidAlt,
@@ -164,7 +172,7 @@ export default async function ChatsPage({
           success: false as const,
           message: "No se pudieron cargar las sesiones del sidebar.",
         }),
-    getChatConversationPreferencesByUserId(user.id),
+    getChatConversationPreferencesByUserId(effectiveOwnerId),
   ]);
 
   const allTags =

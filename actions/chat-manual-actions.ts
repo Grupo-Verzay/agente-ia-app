@@ -288,8 +288,9 @@ export async function sendManualChatPayloadAction(
   if (payload.kind === "text" && user?.id) {
     const signature = (user?.advisorSignature as string | null | undefined)?.trim();
     if (signature) {
+      const effectiveId = (user as any).effectiveId ?? user.id;
       const sessionRow = await db.session.findFirst({
-        where: { userId: user.id, remoteJid },
+        where: { userId: effectiveId, remoteJid },
         select: { signatureEnabled: true },
       });
       if (sessionRow?.signatureEnabled) {
@@ -307,6 +308,9 @@ export async function sendManualChatPayloadAction(
   });
 
   if (result.success && user?.id) {
+    // Si el usuario es asesor, actualiza las sesiones del dueño
+    const effectiveOwnerId = (user as any).ownerId ?? user.id;
+
     const delPhrase = (user?.delSeguimiento as string | null | undefined)?.trim();
     const isClosing = Boolean(originalText !== null && delPhrase && originalText === delPhrase);
 
@@ -316,13 +320,13 @@ export async function sendManualChatPayloadAction(
     };
 
     const ops: Promise<any>[] = [
-      db.session.updateMany({ where: { userId: user.id, remoteJid }, data: sessionData }),
+      db.session.updateMany({ where: { userId: effectiveOwnerId, remoteJid }, data: sessionData }),
     ];
 
     if (isClosing) {
       ops.push(
         db.crmFollowUp.updateMany({
-          where: { userId: user.id, remoteJid, status: { in: ["PENDING", "PROCESSING"] } },
+          where: { userId: effectiveOwnerId, remoteJid, status: { in: ["PENDING", "PROCESSING"] } },
           data: { status: "CANCELLED", cancelledAt: new Date() },
         }),
         db.seguimiento.deleteMany({ where: { remoteJid } }),
@@ -372,8 +376,10 @@ export async function toggleSessionSignatureAction(
     };
   }
 
+  const effectiveOwnerId = (user as any).ownerId ?? user.id;
+
   await db.session.updateMany({
-    where: { userId: user.id },
+    where: { userId: effectiveOwnerId },
     data: { signatureEnabled: enabled },
   });
 
@@ -393,10 +399,11 @@ export async function sendManualWorkflowAction(
   }
 
   const user = await requireCurrentUser();
+  const effectiveId = (user as any).effectiveId ?? user.id;
   const workflow = await db.workflow.findFirst({
     where: {
       id: workflowId,
-      userId: user.id,
+      userId: effectiveId,
     },
     select: {
       id: true,
@@ -483,10 +490,11 @@ export async function sendManualQuickReplyAction(
   }
 
   const user = await requireCurrentUser();
+  const effectiveId = (user as any).effectiveId ?? user.id;
   const quickReply = await db.quickReply.findFirst({
     where: {
       id: quickReplyId,
-      userId: user.id,
+      userId: effectiveId,
     },
     select: {
       id: true,
@@ -507,7 +515,7 @@ export async function sendManualQuickReplyAction(
     ? await db.workflow.findFirst({
         where: {
           id: quickReply.workflowId,
-          userId: user.id,
+          userId: effectiveId,
         },
         select: {
           name: true,

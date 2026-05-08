@@ -449,6 +449,7 @@ model User {
   ttsProvider                        String?                      @default("openai")
   elevenLabsApiKey                   String?
   elevenLabsVoiceId                  String?
+  ownerId                            String?                      @map("owner_id")
   accounts                           Account[]
   agentPrompts                       AgentPrompt[]
   publishedAgentPromptRevisions      AgentPromptRevision[]
@@ -483,6 +484,8 @@ model User {
   reseller_reseller_reselleridToUser Reseller[]                   @relation("reseller_reselleridToUser")
   reseller_reseller_userIdToUser     Reseller[]                   @relation("reseller_userIdToUser")
   aiConfigs                          UserAiConfig[]
+  owner                              User?                        @relation("AgentToOwner", fields: [ownerId], references: [id])
+  agents                             User[]                       @relation("AgentToOwner")
 }
 
 model UserNotificationContact {
