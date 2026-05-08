@@ -10,6 +10,7 @@ interface AppointmentOperationResponse {
     success: boolean;
     message: string;
     data?: Appointment | Appointment[];
+    seguimientosCount?: Record<string, number>;
 }
 
 interface CreateAppointmentInput {
@@ -30,16 +31,37 @@ export async function getAppointmentsByUser(userId: string): Promise<Appointment
         const list = await db.appointment.findMany({
             where: { userId },
             include: {
-                session: true,
+                session: {
+                    include: {
+                        sessionTags: { include: { tag: { select: { id: true, name: true, color: true } } } },
+                    },
+                },
                 service: true,
             },
             orderBy: { startTime: 'asc' },
         });
 
+        let seguimientosCount: Record<string, number> = {};
+        try {
+            const jids = list.map(a => a.session.remoteJid).filter(Boolean);
+            if (jids.length) {
+                const rows = await db.seguimiento.findMany({
+                    where: { remoteJid: { in: jids }, followUpStatus: 'pending' },
+                    select: { remoteJid: true },
+                });
+                for (const r of rows) {
+                    if (r.remoteJid) seguimientosCount[r.remoteJid] = (seguimientosCount[r.remoteJid] ?? 0) + 1;
+                }
+            }
+        } catch (segErr) {
+            console.error('Error cargando seguimientos:', segErr);
+        }
+
         return {
             success: true,
             message: 'Citas obtenidas correctamente.',
             data: list,
+            seguimientosCount,
         };
     } catch (error) {
         console.error('Error al obtener citas:', error);

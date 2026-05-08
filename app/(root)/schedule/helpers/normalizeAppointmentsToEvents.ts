@@ -1,7 +1,9 @@
-import { Appointment, Service, Session } from "@prisma/client";
+import { Appointment, Service, Session, Tag } from "@prisma/client";
 
 export interface AppointmentWithSession extends Appointment {
-    session: Session;
+    session: Session & {
+        sessionTags: { tag: Pick<Tag, 'id' | 'name' | 'color'> }[];
+    };
     service: Service | null;
 }
 
