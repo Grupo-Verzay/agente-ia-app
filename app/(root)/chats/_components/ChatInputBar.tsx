@@ -1,14 +1,23 @@
 'use client';
 
-import React from 'react';
-import { ArrowRight, Mic, Send, SendIcon, Trash2, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowRight, Check, Mic, PenLine, Send, SendIcon, Trash2, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { SafeImage } from '@/components/custom/SafeImage';
 import { AttachmentMenu } from './attachment-menu';
 import { ChatAutomationPicker } from './ChatAutomationPicker';
 import { cn } from '@/lib/utils';
 import { formatSecs } from './chat-message-utils';
+import {
+  getAdvisorSignatureAction,
+  toggleSessionSignatureAction,
+  updateAdvisorSignatureAction,
+} from '@/actions/chat-manual-actions';
 import type { ComposeMedia } from './attachment-menu';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
 import type { Session } from '@/types/session';
@@ -68,6 +77,53 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   onSendWorkflow,
   onSessionMutate,
 }) => {
+  const [signatureText, setSignatureText] = useState('');
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [isLoadingSignature, setIsLoadingSignature] = useState(false);
+  const [isSavingSignature, setIsSavingSignature] = useState(false);
+  const [isTogglingSignature, setIsTogglingSignature] = useState(false);
+
+  const signatureEnabled = (session as any)?.signatureEnabled ?? false;
+
+  const handlePopoverOpenChange = async (open: boolean) => {
+    setIsPopoverOpen(open);
+    if (open) {
+      setIsLoadingSignature(true);
+      try {
+        const text = await getAdvisorSignatureAction();
+        setSignatureText(text);
+      } finally {
+        setIsLoadingSignature(false);
+      }
+    }
+  };
+
+  const handleSaveSignature = async () => {
+    setIsSavingSignature(true);
+    try {
+      const result = await updateAdvisorSignatureAction(signatureText);
+      if (result.success) toast.success('Firma guardada.');
+      else toast.error(result.message);
+    } finally {
+      setIsSavingSignature(false);
+    }
+  };
+
+  const handleToggleSignature = async (enabled: boolean) => {
+    if (!session?.id) return;
+    setIsTogglingSignature(true);
+    try {
+      const result = await toggleSessionSignatureAction(session.id, enabled);
+      if (result.success) {
+        onSessionMutate();
+      } else {
+        toast.error(result.message);
+      }
+    } finally {
+      setIsTogglingSignature(false);
+    }
+  };
+
   const isPreviewingAudio = recordedAudio !== null && !isRecording;
   const isInputActive = !isRecording && !isPreviewingAudio && !isSending;
   const isSendButtonVisible = isInputActive && (input.trim().length > 0 || !!composeMedia);
@@ -173,7 +229,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       {/* Input + botones */}
       <div className="relative flex flex-nowrap gap-2">
         <div className="relative flex flex-nowrap z-10 items-center justify-center flex-col sm:flex-row">
-          <div className="pr-2 md:block hidden">
+          <div className="pr-2 md:flex hidden items-center gap-1">
             {session && (
               <SwitchStatus
                 key={`${session.id}-${session.status ? 'on' : 'off'}`}
@@ -181,6 +237,62 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                 sessionId={session.id ?? -1}
                 mutateSessions={onSessionMutate}
               />
+            )}
+            {session && (
+              <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                      'h-7 w-7 rounded-full shrink-0 transition-colors',
+                      signatureEnabled
+                        ? 'bg-blue-100 text-blue-600 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300'
+                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300',
+                    )}
+                    title={signatureEnabled ? 'Firma activa' : 'Configurar firma del asesor'}
+                    aria-label="Firma del asesor"
+                    type="button"
+                  >
+                    <PenLine className="w-3.5 h-3.5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent side="top" align="start" className="w-72 p-3 space-y-3">
+                  <p className="text-xs font-semibold text-foreground">Firma del asesor</p>
+
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      value={isLoadingSignature ? '' : signatureText}
+                      onChange={(e) => setSignatureText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleSaveSignature(); } }}
+                      placeholder={isLoadingSignature ? 'Cargando…' : '— Nombre | Cargo'}
+                      disabled={isLoadingSignature || isSavingSignature}
+                      className="h-8 text-sm flex-1"
+                    />
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 shrink-0 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950"
+                      onClick={handleSaveSignature}
+                      disabled={isLoadingSignature || isSavingSignature}
+                      title="Guardar firma"
+                      type="button"
+                    >
+                      <Check className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-0.5">
+                    <span className="text-xs text-muted-foreground">Activa en este chat</span>
+                    <Switch
+                      checked={signatureEnabled}
+                      onCheckedChange={handleToggleSignature}
+                      disabled={isTogglingSignature}
+                      aria-label="Activar firma en este chat"
+                    />
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
           </div>
           <ChatAutomationPicker

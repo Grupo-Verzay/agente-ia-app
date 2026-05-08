@@ -26,6 +26,7 @@ import {
     Mic,
     Monitor,
     Palette,
+    PenLine,
     Settings2,
     ShieldCheck,
     Sparkles,
@@ -67,6 +68,7 @@ const clientSchema = z.object({
     company: z.string().max(50).min(3, { message: 'Mínimo 3 caracteres' }),
     notificationNumber: z.string().min(7).max(15),
     delSeguimiento: z.string().min(3).max(45),
+    advisorSignature: z.string().max(120).optional(),
     lat: z.string().optional(),
     lng: z.string().optional(),
     mapsUrl: z.string().url({ message: 'URL de Google Maps no válida' }),
@@ -895,6 +897,32 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                                             disabled={loadingField === "delSeguimiento"}
                                             onChange={(e) => handleChange("delSeguimiento", e.target.value)}
                                             onBlur={() => handleBlur("delSeguimiento")}
+                                        />
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="border-border">
+                                    <CardHeader className="pb-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                <PenLine className="w-4 h-4 text-primary" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <CardTitle className="text-sm font-semibold">Firma del asesor</CardTitle>
+                                                <CardDescription className="text-xs">Se agrega al final de tus mensajes cuando la firma está activa en el chat</CardDescription>
+                                            </div>
+                                            {loadingField === "advisorSignature" && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <Input
+                                            id="advisorSignature"
+                                            name="advisorSignature"
+                                            placeholder="— Juan Pérez | Asesor de Ventas"
+                                            value={((user as any).advisorSignature as string | null | undefined) ?? ""}
+                                            disabled={loadingField === "advisorSignature"}
+                                            onChange={(e) => handleChange("advisorSignature" as any, e.target.value)}
+                                            onBlur={() => handleBlur("advisorSignature" as any)}
                                         />
                                     </CardContent>
                                 </Card>

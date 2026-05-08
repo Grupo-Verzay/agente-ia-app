@@ -279,6 +279,25 @@ export async function sendManualChatPayloadAction(
     };
   }
 
+  const user = await currentUser();
+
+  // Guardamos el texto original antes de appendear firma
+  const originalText = payload.kind === "text" ? payload.text.trim() : null;
+
+  // Prepend firma del asesor (al inicio) si está activa para esta sesión
+  if (payload.kind === "text" && user?.id) {
+    const signature = (user?.advisorSignature as string | null | undefined)?.trim();
+    if (signature) {
+      const sessionRow = await db.session.findFirst({
+        where: { userId: user.id, remoteJid },
+        select: { signatureEnabled: true },
+      });
+      if (sessionRow?.signatureEnabled) {
+        payload = { ...payload, text: `${signature}\n\n${payload.text}` };
+      }
+    }
+  }
+
   const result = await sendOutgoingPayload({
     context,
     remoteJid,
@@ -287,37 +306,78 @@ export async function sendManualChatPayloadAction(
     historyType: "notification",
   });
 
-  if (result.success && payload.kind === "text") {
-    const user = await currentUser();
+  if (result.success && user?.id) {
     const delPhrase = (user?.delSeguimiento as string | null | undefined)?.trim();
-    if (delPhrase && payload.text.trim() === delPhrase && user?.id) {
-      await Promise.all([
-        // 1. Desactivar sesión
-        db.session.updateMany({
-          where: { userId: user.id, remoteJid },
-          data: { status: false },
-        }),
-        // 2. Detener agente
-        db.session.updateMany({
-          where: { userId: user.id, remoteJid },
-          data: { agentDisabled: true },
-        }),
-        // 3. Cancelar follow-ups IA (PENDING / PROCESSING → CANCELLED)
+    const isClosing = Boolean(originalText !== null && delPhrase && originalText === delPhrase);
+
+    const sessionData = {
+      agentDisabled: true,
+      ...(isClosing ? { status: false, signatureEnabled: false } : {}),
+    };
+
+    const ops: Promise<any>[] = [
+      db.session.updateMany({ where: { userId: user.id, remoteJid }, data: sessionData }),
+    ];
+
+    if (isClosing) {
+      ops.push(
         db.crmFollowUp.updateMany({
-          where: {
-            userId: user.id,
-            remoteJid,
-            status: { in: ["PENDING", "PROCESSING"] },
-          },
+          where: { userId: user.id, remoteJid, status: { in: ["PENDING", "PROCESSING"] } },
           data: { status: "CANCELLED", cancelledAt: new Date() },
         }),
-        // 4. Eliminar seguimientos legacy
         db.seguimiento.deleteMany({ where: { remoteJid } }),
-      ]);
+      );
     }
+
+    await Promise.all(ops);
   }
 
   return result;
+}
+
+export async function getAdvisorSignatureAction(): Promise<string> {
+  const user = await currentUser();
+  return (user?.advisorSignature as string | null | undefined) ?? "";
+}
+
+export async function updateAdvisorSignatureAction(
+  signature: string,
+): Promise<{ success: boolean; message: string }> {
+  const user = await currentUser();
+  if (!user?.id) return { success: false, message: "No autorizado." };
+
+  const trimmed = signature.trim();
+  await db.user.update({
+    where: { id: user.id },
+    data: { advisorSignature: trimmed || null },
+  });
+
+  return { success: true, message: "Firma actualizada." };
+}
+
+export async function toggleSessionSignatureAction(
+  sessionId: number,
+  enabled: boolean,
+): Promise<{ success: boolean; message: string }> {
+  const user = await currentUser();
+  if (!user?.id) {
+    return { success: false, message: "No autorizado." };
+  }
+
+  const signature = (user?.advisorSignature as string | null | undefined)?.trim();
+  if (enabled && !signature) {
+    return {
+      success: false,
+      message: "Configura tu firma en Ajustes antes de activarla.",
+    };
+  }
+
+  await db.session.updateMany({
+    where: { id: sessionId, userId: user.id },
+    data: { signatureEnabled: enabled },
+  });
+
+  return { success: true, message: enabled ? "Firma activada." : "Firma desactivada." };
 }
 
 export async function sendManualWorkflowAction(

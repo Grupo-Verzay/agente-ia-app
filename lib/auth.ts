@@ -56,6 +56,8 @@ export async function currentUser(request?: Request) {
             enabledSynthesizer: true,
             enabledLeadStatusClassifier: true,
             enabledCrmFollowUps: true,
+            advisorSignature: true,
+            delSeguimiento: true,
         },
     });
 
