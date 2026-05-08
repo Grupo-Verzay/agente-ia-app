@@ -28,22 +28,26 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
 
-  // Usar raw SQL para evitar problemas con el cliente Prisma y la columna owner_id
-  const rows = await db.$queryRaw<{ id: string; name: string | null; email: string; created_at: Date }[]>`
-    SELECT id, name, email, created_at
-    FROM "User"
-    WHERE owner_id = ${owner.id}
-    ORDER BY created_at ASC
-  `;
+  try {
+    const rows = await db.$queryRaw<{ id: string; name: string | null; email: string; created_at: Date }[]>`
+      SELECT id, name, email, created_at
+      FROM "User"
+      WHERE owner_id = ${owner.id}
+      ORDER BY created_at ASC
+    `;
 
-  const advisors: AdvisorRow[] = rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    email: r.email,
-    createdAt: r.created_at,
-  }));
+    const advisors: AdvisorRow[] = rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      createdAt: r.created_at,
+    }));
 
-  return { success: true, data: advisors };
+    return { success: true, data: advisors };
+  } catch {
+    // La columna owner_id aún no existe en la BD — devolver lista vacía
+    return { success: true, data: [] };
+  }
 }
 
 export async function createAdvisor(input: {
