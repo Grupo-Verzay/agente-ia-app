@@ -241,6 +241,23 @@ export const deleteEntireWorkflow = async (userId: string, workflowId: string) =
     }
 };
 
+export const toggleFunnelStep = async (workflowId: string, active: boolean): Promise<RROperationResponse> => {
+    try {
+        const user = await currentUser();
+        if (!user) return { success: false, message: "Usuario no autenticado." };
+
+        await db.workflow.update({
+            where: { id: workflowId, userId: user.id },
+            data: { isFunnelStep: active },
+        });
+
+        return { success: true, message: active ? "Flujo marcado como paso de embudo." : "Flujo quitado del embudo." };
+    } catch (error) {
+        console.error("Error toggleFunnelStep:", error);
+        return { success: false, message: "Error al actualizar el paso de embudo." };
+    }
+};
+
 export const setWelcomeWorkflow = async (workflowId: string): Promise<RROperationResponse> => {
     try {
         const user = await currentUser();

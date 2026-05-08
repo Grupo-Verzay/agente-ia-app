@@ -14,22 +14,26 @@ import {
 
 import TooltipWrapper from "@/components/TooltipWrapper";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { HomeIcon, MoreVerticalIcon, ShuffleIcon, TrashIcon, XCircleIcon } from "lucide-react";
+import { HomeIcon, ListOrderedIcon, MoreVerticalIcon, ShuffleIcon, TrashIcon, XCircleIcon } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { GenericDeleteDialog } from "@/components/shared/GenericDeleteDialog";
-import { deleteEntireWorkflow } from "@/actions/workflow-actions";
+import { deleteEntireWorkflow, toggleFunnelStep } from "@/actions/workflow-actions";
 
 export const WorkflowAction = ({
     workflowId,
     userId,
     isWelcome,
     onSetAsWelcome,
+    isFunnelStep,
+    onToggleFunnel,
 }: {
     workflowId: string;
     userId: string;
     isWelcome?: boolean;
     onSetAsWelcome?: () => void;
+    isFunnelStep?: boolean;
+    onToggleFunnel?: () => void;
 }) => {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -80,6 +84,15 @@ export const WorkflowAction = ({
                 <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    {onToggleFunnel && (
+                        <DropdownMenuItem
+                            className="flex items-center gap-2"
+                            onSelect={onToggleFunnel}
+                        >
+                            <ListOrderedIcon size={16} className={isFunnelStep ? "text-muted-foreground" : "text-blue-600"} />
+                            {isFunnelStep ? "Quitar del embudo" : "Paso de embudo"}
+                        </DropdownMenuItem>
+                    )}
                     {onSetAsWelcome && (
                         <DropdownMenuItem
                             className="flex items-center gap-2"

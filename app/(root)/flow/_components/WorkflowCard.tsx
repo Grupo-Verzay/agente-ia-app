@@ -7,9 +7,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { PencilLine, FileTextIcon, Zap, Pencil, Trash2, HomeIcon } from "lucide-react";
+import { PencilLine, FileTextIcon, Zap, Pencil, Trash2, HomeIcon, ListOrderedIcon } from "lucide-react";
 import { toast } from "sonner";
-import { updateWorkflow, setWelcomeWorkflow, unsetWelcomeWorkflow } from "@/actions/workflow-actions";
+import { updateWorkflow, setWelcomeWorkflow, unsetWelcomeWorkflow, toggleFunnelStep } from "@/actions/workflow-actions";
 import { deleteIntentTrigger, toggleIntentTrigger } from "@/actions/intent-trigger-actions";
 import { WorkflowAction } from ".";
 import { IntentTriggerDialog } from "../../workflow/_components/IntentTriggerDialog";
@@ -44,6 +44,21 @@ export const WorkflowCard = ({
 
     const [welcomeActive, setWelcomeActive] = useState<boolean>((workflow as any).triggerOnNewSession ?? false);
     const [welcomeLoading, setWelcomeLoading] = useState(false);
+
+    const [funnelActive, setFunnelActive] = useState<boolean>((workflow as any).isFunnelStep ?? false);
+
+    const handleToggleFunnel = async () => {
+        const next = !funnelActive;
+        setFunnelActive(next);
+        const res = await toggleFunnelStep(workflow.id, next);
+        if (!res.success) {
+            setFunnelActive(!next);
+            toast.error("Error al actualizar el paso de embudo.");
+        } else {
+            toast.success(next ? "Marcado como paso de embudo." : "Quitado del embudo.");
+            router.refresh();
+        }
+    };
 
     const handleToggleWelcome = async () => {
         const next = !welcomeActive;
@@ -391,6 +406,9 @@ export const WorkflowCard = ({
                                     {welcomeActive && (
                                         <HomeIcon className="w-3.5 h-3.5 text-green-500 inline mr-1.5 relative -top-px" />
                                     )}
+                                    {funnelActive && !welcomeActive && (
+                                        <ListOrderedIcon className="w-3.5 h-3.5 text-blue-500 inline mr-1.5 relative -top-px" />
+                                    )}
                                         {workflow.name.toUpperCase()}
                                     </h3>
                                     {!welcomeActive && (
@@ -416,6 +434,8 @@ export const WorkflowCard = ({
                         userId={userId}
                         isWelcome={welcomeActive}
                         onSetAsWelcome={handleToggleWelcome}
+                        isFunnelStep={funnelActive}
+                        onToggleFunnel={!welcomeActive ? handleToggleFunnel : undefined}
                     />
                 </div>
                 </div>
