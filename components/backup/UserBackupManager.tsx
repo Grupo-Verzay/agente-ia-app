@@ -22,8 +22,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
-const RESTORE_CONFIRMATION_TEXT = "RESTAURAR";
-
 type BackupPreview = {
   exportedAt?: string;
   sourceName?: string | null;
@@ -104,12 +102,9 @@ export function UserBackupManager({
   const [selectedFileContent, setSelectedFileContent] = useState("");
   const [preview, setPreview] = useState<BackupPreview | null>(null);
   const [isReplaceConfirmed, setIsReplaceConfirmed] = useState(false);
-  const [confirmationText, setConfirmationText] = useState("");
-
   const isReadyToImport =
     selectedFileContent.length > 0 &&
-    isReplaceConfirmed &&
-    confirmationText.trim().toUpperCase() === RESTORE_CONFIRMATION_TEXT;
+    isReplaceConfirmed;
 
   const isReadyToImportSimple = selectedFileContent.length > 0;
 
@@ -284,19 +279,6 @@ export function UserBackupManager({
             Esta acción sobrescribe la información operativa guardada para este usuario.
           </p>
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor={`backup-phrase-${targetUserId}`}>
-          Escribe <span className="font-semibold">{RESTORE_CONFIRMATION_TEXT}</span> para continuar
-        </Label>
-        <Input
-          id={`backup-phrase-${targetUserId}`}
-          value={confirmationText}
-          onChange={(event) => setConfirmationText(event.target.value)}
-          placeholder={RESTORE_CONFIRMATION_TEXT}
-          disabled={isImportPending || isExportPending}
-        />
       </div>
 
       <Button
