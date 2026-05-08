@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, KeyRound, UserCheck } from "lucide-react";
+import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,22 +33,28 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import type { AdvisorRow } from "@/actions/team-actions";
+import { Switch } from "@/components/ui/switch";
+import type { AdvisorRow, ModuleOption } from "@/actions/team-actions";
 import {
   createAdvisor,
   updateAdvisorPassword,
   deleteAdvisor,
   linkExistingAdvisor,
+  getAdvisorModuleIds,
+  saveAdvisorModules,
 } from "@/actions/team-actions";
+
+type ModulesForm = { advisorId: string; advisorName: string; enabledIds: string[]; loading: boolean };
 
 type Props = {
   initialAdvisors: AdvisorRow[];
+  ownerModules: ModuleOption[];
 };
 
 type CreateForm = { name: string; email: string; password: string };
 type PasswordForm = { advisorId: string; advisorName: string; newPassword: string };
 
-export function TeamClient({ initialAdvisors }: Props) {
+export function TeamClient({ initialAdvisors, ownerModules }: Props) {
   const [advisors, setAdvisors] = useState<AdvisorRow[]>(initialAdvisors);
   const [isPending, startTransition] = useTransition();
 
@@ -66,8 +72,28 @@ export function TeamClient({ initialAdvisors }: Props) {
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState<AdvisorRow | null>(null);
 
+  // Modules dialog
+  const [modulesForm, setModulesForm] = useState<ModulesForm | null>(null);
+
   function handleCreateField(field: keyof CreateForm, value: string) {
     setCreateForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function openModules(advisor: AdvisorRow) {
+    setModulesForm({ advisorId: advisor.id, advisorName: advisor.name ?? advisor.email, enabledIds: [], loading: true });
+    const res = await getAdvisorModuleIds(advisor.id);
+    const ids = res.success && res.data && res.data.length > 0 ? res.data : ownerModules.map((m) => m.id);
+    setModulesForm((prev) => prev ? { ...prev, enabledIds: ids, loading: false } : null);
+  }
+
+  function handleSaveModules() {
+    if (!modulesForm) return;
+    startTransition(async () => {
+      const res = await saveAdvisorModules(modulesForm.advisorId, modulesForm.enabledIds);
+      if (!res.success) { toast.error(res.message); return; }
+      toast.success(res.message ?? "Módulos guardados.");
+      setModulesForm(null);
+    });
   }
 
   function handleLink() {
@@ -177,6 +203,14 @@ export function TeamClient({ initialAdvisors }: Props) {
                     <Button
                       variant="outline"
                       size="icon"
+                      title="Módulos"
+                      onClick={() => openModules(advisor)}
+                    >
+                      <LayoutGrid className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
                       title="Cambiar contraseña"
                       onClick={() =>
                         setPwForm({ advisorId: advisor.id, advisorName: advisor.name ?? advisor.email, newPassword: "" })
@@ -200,6 +234,46 @@ export function TeamClient({ initialAdvisors }: Props) {
           </TableBody>
         </Table>
       )}
+
+      {/* Modules dialog */}
+      <Dialog open={Boolean(modulesForm)} onOpenChange={(open) => !open && setModulesForm(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Módulos — {modulesForm?.advisorName}</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            {modulesForm?.loading ? (
+              <p className="text-sm text-muted-foreground">Cargando módulos...</p>
+            ) : ownerModules.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No hay módulos disponibles.</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {ownerModules.map((mod) => (
+                  <div key={mod.id} className="flex items-center justify-between gap-2 pr-2">
+                    <Label className="text-xs">{mod.label}</Label>
+                    <Switch
+                      checked={modulesForm?.enabledIds.includes(mod.id) ?? false}
+                      onCheckedChange={(val) =>
+                        setModulesForm((prev) =>
+                          prev
+                            ? { ...prev, enabledIds: val ? [...prev.enabledIds, mod.id] : prev.enabledIds.filter((id) => id !== mod.id) }
+                            : null
+                        )
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setModulesForm(null)}>Cancelar</Button>
+            <Button onClick={handleSaveModules} disabled={isPending || modulesForm?.loading}>
+              {isPending ? "Guardando..." : "Guardar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Link existing dialog */}
       <Dialog open={linkOpen} onOpenChange={setLinkOpen}>

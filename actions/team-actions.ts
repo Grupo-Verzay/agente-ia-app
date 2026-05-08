@@ -4,6 +4,49 @@ import bcrypt from "bcryptjs";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { LENGTH_PASSWORD_HASH } from "@/types/generic";
+import { getUserModuleIds, setUserModules } from "@/actions/user-module-actions";
+import { getAllModules } from "@/actions/module-actions";
+
+export type ModuleOption = { id: string; label: string };
+
+export async function getOwnerModules(): Promise<ActionResult<ModuleOption[]>> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  const allRes = await getAllModules();
+  if (!allRes.success || !allRes.data) return { success: true, data: [] };
+
+  const ownerIds = await getUserModuleIds(owner.id);
+  const enabledIds = new Set(ownerIds.data);
+
+  const modules = allRes.data
+    .filter((m) => !m.adminOnly && (enabledIds.size === 0 || enabledIds.has(m.id)))
+    .map((m) => ({ id: m.id, label: m.label }));
+
+  return { success: true, data: modules };
+}
+
+export async function getAdvisorModuleIds(advisorId: string): Promise<ActionResult<string[]>> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  const advisor = await db.user.findFirst({ where: { id: advisorId, ownerId: owner.id }, select: { id: true } });
+  if (!advisor) return { success: false, message: "Asesor no encontrado." };
+
+  const res = await getUserModuleIds(advisorId);
+  return { success: true, data: res.data };
+}
+
+export async function saveAdvisorModules(advisorId: string, moduleIds: string[]): Promise<ActionResult> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  const advisor = await db.user.findFirst({ where: { id: advisorId, ownerId: owner.id }, select: { id: true } });
+  if (!advisor) return { success: false, message: "Asesor no encontrado." };
+
+  await setUserModules(advisorId, moduleIds);
+  return { success: true, message: "Módulos guardados." };
+}
 
 type ActionResult<T = undefined> =
   | { success: true; data?: T; message?: string }
