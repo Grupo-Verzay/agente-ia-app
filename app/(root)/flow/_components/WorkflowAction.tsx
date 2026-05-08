@@ -14,13 +14,23 @@ import {
 
 import TooltipWrapper from "@/components/TooltipWrapper";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { MoreVerticalIcon, ShuffleIcon, TrashIcon } from "lucide-react";
+import { HomeIcon, MoreVerticalIcon, ShuffleIcon, TrashIcon, XCircleIcon } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { GenericDeleteDialog } from "@/components/shared/GenericDeleteDialog";
 import { deleteEntireWorkflow } from "@/actions/workflow-actions";
 
-export const WorkflowAction = ({ workflowId, userId }: { workflowId: string; userId: string }) => {
+export const WorkflowAction = ({
+    workflowId,
+    userId,
+    isWelcome,
+    onSetAsWelcome,
+}: {
+    workflowId: string;
+    userId: string;
+    isWelcome?: boolean;
+    onSetAsWelcome?: () => void;
+}) => {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
     const pathname = usePathname();
@@ -70,6 +80,24 @@ export const WorkflowAction = ({ workflowId, userId }: { workflowId: string; use
                 <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    {onSetAsWelcome && (
+                        <DropdownMenuItem
+                            className="flex items-center gap-2"
+                            onSelect={onSetAsWelcome}
+                        >
+                            {isWelcome ? (
+                                <>
+                                    <XCircleIcon size={16} className="text-muted-foreground" />
+                                    Quitar
+                                </>
+                            ) : (
+                                <>
+                                    <HomeIcon size={16} className="text-green-600" />
+                                    Bienvenida
+                                </>
+                            )}
+                        </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                         className="text-destructive flex items items-center gap-2"
                         onSelect={() => setShowDeleteDialog((prev) => !prev)}

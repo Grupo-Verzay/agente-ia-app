@@ -38,7 +38,7 @@ export const getWorkFlowByUser = async (userId?: string): Promise<GetWorkFlowRes
     try {
         const workflows = await db.workflow.findMany({
             where: { userId },
-            orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+            orderBy: [{ triggerOnNewSession: "desc" }, { order: "asc" }, { createdAt: "asc" }],
         }).catch(() => db.workflow.findMany({
             where: { userId },
             orderBy: [{ createdAt: "asc" }],
@@ -76,6 +76,28 @@ export const createWorkflow = async (
     });
 
     const nextOrder = (maxOrder._max.order ?? 0) + 1;
+
+    if (data.triggerOnNewSession) {
+        // Si ya existe un flujo con ese nombre, activarlo en lugar de crear uno nuevo
+        const existing = await db.workflow.findUnique({
+            where: { name_userId: { name: data.name.toUpperCase(), userId: user.id } },
+        });
+        if (existing) {
+            await db.workflow.updateMany({
+                where: { userId: user.id, triggerOnNewSession: true },
+                data: { triggerOnNewSession: false },
+            });
+            await db.workflow.update({
+                where: { id: existing.id },
+                data: { triggerOnNewSession: true },
+            });
+            redirect(getWorkflowEditorPath(existing.id, existing.isPro));
+        }
+        await db.workflow.updateMany({
+            where: { userId: user.id, triggerOnNewSession: true },
+            data: { triggerOnNewSession: false },
+        });
+    }
 
     const result = await db.workflow.create({
         data: {
@@ -216,6 +238,46 @@ export const deleteEntireWorkflow = async (userId: string, workflowId: string) =
             stage: "general",
             detail: error instanceof Error ? error.message : String(error),
         };
+    }
+};
+
+export const setWelcomeWorkflow = async (workflowId: string): Promise<RROperationResponse> => {
+    try {
+        const user = await currentUser();
+        if (!user) return { success: false, message: "Usuario no autenticado." };
+
+        await db.$transaction([
+            db.workflow.updateMany({
+                where: { userId: user.id, triggerOnNewSession: true },
+                data: { triggerOnNewSession: false },
+            }),
+            db.workflow.update({
+                where: { id: workflowId },
+                data: { triggerOnNewSession: true },
+            }),
+        ]);
+
+        return { success: true, message: "Flujo de bienvenida configurado." };
+    } catch (error) {
+        console.error("Error setWelcomeWorkflow:", error);
+        return { success: false, message: "Error al configurar el flujo de bienvenida." };
+    }
+};
+
+export const unsetWelcomeWorkflow = async (workflowId: string): Promise<RROperationResponse> => {
+    try {
+        const user = await currentUser();
+        if (!user) return { success: false, message: "Usuario no autenticado." };
+
+        await db.workflow.update({
+            where: { id: workflowId, userId: user.id },
+            data: { triggerOnNewSession: false },
+        });
+
+        return { success: true, message: "Flujo de bienvenida desactivado." };
+    } catch (error) {
+        console.error("Error unsetWelcomeWorkflow:", error);
+        return { success: false, message: "Error al desactivar el flujo de bienvenida." };
     }
 };
 

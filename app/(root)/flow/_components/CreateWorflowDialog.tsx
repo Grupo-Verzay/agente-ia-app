@@ -3,7 +3,7 @@
 import React, { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Layers2Icon, Loader2, SaveIcon, Brain, Workflow, Bot } from 'lucide-react';
+import { Layers2Icon, Loader2, SaveIcon, Brain, Workflow, Bot, HomeIcon } from 'lucide-react';
 import CustomDialogHeader from "@/components/shared/CustomDialogHeader";
 import { useForm } from "react-hook-form";
 import { createWorkflowSchema, createWorkflowSchemaType } from "@/schema/workflow";
@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { useMutation } from "@tanstack/react-query";
 import { createWorkflow, CreateWorkflowTriggerPayload } from "@/actions/workflow-actions";
 
-type FlowType = "IA" | "Flujo" | "Chatbot";
+type FlowType = "IA" | "Flujo" | "Chatbot" | "Bienvenida";
 
 const MAX_KEYWORDS = 20;
 
@@ -99,7 +99,8 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
         };
       }
 
-      const payload: createWorkflowSchemaType = { ...values, isPro, description: descriptionJson };
+      const isBienvenida = flowType === "Bienvenida";
+      const payload: createWorkflowSchemaType = { ...values, isPro, description: descriptionJson, triggerOnNewSession: isBienvenida };
       toast.loading("Creando flujo...", { id: "create-workflow" });
       mutate({ payload, trigger });
     },
@@ -107,6 +108,17 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
   );
 
   const typeOptions: { value: FlowType; label: string; subtitle: string; icon: React.ElementType; bg: string; border: string; text: string; iconColor: string; subtitleColor: string }[] = [
+    {
+      value: "Bienvenida",
+      label: "Inicio",
+      subtitle: "Primera conexión",
+      icon: HomeIcon,
+      bg: "bg-orange-50 dark:bg-orange-950/30",
+      border: "border-orange-200 dark:border-orange-800 hover:border-orange-400",
+      text: "text-orange-700 dark:text-orange-300",
+      iconColor: "text-orange-500",
+      subtitleColor: "text-orange-400 dark:text-orange-500",
+    },
     {
       value: "IA",
       label: "IA",
@@ -163,7 +175,12 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                       Nombre <p className="text-xs text-primary font-normal">(obligatorio)</p>
                     </FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Nombre del flujo" />
+                      <Input
+                        {...field}
+                        placeholder="NOMBRE DEL FLUJO"
+                        disabled={flowType === "Bienvenida"}
+                        onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -178,7 +195,7 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                   <p className="text-sm text-foreground/70">Define cómo se activa el flujo:</p>
                 )}
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {!flowType ? (
                     typeOptions.map(opt => {
                       const Icon = opt.icon;
@@ -186,7 +203,14 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                         <button
                           key={opt.value}
                           type="button"
-                          onClick={() => setFlowType(opt.value)}
+                          onClick={() => {
+                            setFlowType(opt.value);
+                            if (opt.value === "Bienvenida") {
+                              form.setValue("name", "BIENVENIDA");
+                            } else {
+                              form.setValue("name", "");
+                            }
+                          }}
                           className={`h-[72px] flex flex-col items-center justify-center gap-1 rounded-lg border px-2 transition-colors ${opt.bg} ${opt.border}`}
                         >
                           <div className="flex flex-row items-center gap-1.5">
@@ -204,8 +228,8 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                       <button
                         key={selected.value}
                         type="button"
-                        onClick={() => setFlowType(null)}
-                        className="col-span-3 h-10 px-4 flex items-center gap-2 rounded-lg border border-primary bg-primary/5 text-primary transition-colors"
+                        onClick={() => { setFlowType(null); form.setValue("name", ""); }}
+                        className="col-span-2 h-10 px-4 flex items-center gap-2 rounded-lg border border-primary bg-primary/5 text-primary transition-colors"
                       >
                         <Icon className="h-4 w-4 shrink-0" />
                         <p className="text-sm font-semibold">{selected.label}</p>
@@ -221,6 +245,11 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
               {/* FLUJO: descripción breve */}
               {flowType === "Flujo" && (
                 <p className="text-sm text-foreground/70">Se activa cuando el agente IA lo llama por su nombre desde<br />algún paso, o manualmente mediante una respuesta rápida.</p>
+              )}
+
+              {/* BIENVENIDA: descripción breve */}
+              {flowType === "Bienvenida" && (
+                <p className="text-sm text-foreground/70">Se ejecuta automáticamente cuando un contacto escribe<br />por primera vez. Solo puede haber un flujo de bienvenida activo.</p>
               )}
 
               {/* IA: descripción de intención (Prompt IA siempre) */}

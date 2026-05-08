@@ -7,9 +7,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { PencilLine, FileTextIcon, Zap, Pencil, Trash2 } from "lucide-react";
+import { PencilLine, FileTextIcon, Zap, Pencil, Trash2, HomeIcon } from "lucide-react";
 import { toast } from "sonner";
-import { updateWorkflow } from "@/actions/workflow-actions";
+import { updateWorkflow, setWelcomeWorkflow, unsetWelcomeWorkflow } from "@/actions/workflow-actions";
 import { deleteIntentTrigger, toggleIntentTrigger } from "@/actions/intent-trigger-actions";
 import { WorkflowAction } from ".";
 import { IntentTriggerDialog } from "../../workflow/_components/IntentTriggerDialog";
@@ -41,6 +41,26 @@ export const WorkflowCard = ({
     const [localTrigger, setLocalTrigger] = useState<IntentTrigger | null>(trigger ?? null);
     const [triggerDialogOpen, setTriggerDialogOpen] = useState(false);
     const [editingTrigger, setEditingTrigger] = useState<IntentTrigger | null>(null);
+
+    const [welcomeActive, setWelcomeActive] = useState<boolean>((workflow as any).triggerOnNewSession ?? false);
+    const [welcomeLoading, setWelcomeLoading] = useState(false);
+
+    const handleToggleWelcome = async () => {
+        const next = !welcomeActive;
+        setWelcomeActive(next);
+        setWelcomeLoading(true);
+        const res = next
+            ? await setWelcomeWorkflow(workflow.id)
+            : await unsetWelcomeWorkflow(workflow.id);
+        setWelcomeLoading(false);
+        if (!res.success) {
+            setWelcomeActive(!next);
+            toast.error("Error al cambiar la configuración.");
+        } else {
+            toast.success(next ? "Flujo de bienvenida activado." : "Flujo de bienvenida desactivado.");
+            router.refresh();
+        }
+    };
 
     const handleTriggerSaved = async () => {
         const { getIntentTriggersByUser } = await import("@/actions/intent-trigger-actions");
@@ -364,19 +384,24 @@ export const WorkflowCard = ({
                         ) : (
                             <>
                                 <div
-                                    className="flex items-center gap-2 cursor-pointer group"
-                                    onClick={() => setEditing(true)}
+                                    className={`flex items-center gap-2 ${welcomeActive ? "" : "cursor-pointer group"}`}
+                                    onClick={() => { if (!welcomeActive) setEditing(true); }}
                                 >
-                                    <h3 className="text-base font-semibold text-muted-foreground group-hover:underline">
+                                    <h3 className={`text-base font-semibold text-muted-foreground ${welcomeActive ? "" : "group-hover:underline"}`}>
+                                    {welcomeActive && (
+                                        <HomeIcon className="w-3.5 h-3.5 text-green-500 inline mr-1.5 relative -top-px" />
+                                    )}
                                         {workflow.name.toUpperCase()}
                                     </h3>
-                                    <PencilLine className="w-4 h-4 text-muted-foreground opacity-60 group-hover:opacity-100 transition" />
+                                    {!welcomeActive && (
+                                        <PencilLine className="w-4 h-4 text-muted-foreground opacity-60 group-hover:opacity-100 transition" />
+                                    )}
                                 </div>
                                 <div
-                                    className="flex items-center gap-2 cursor-pointer group"
-                                    onClick={() => setEditing(true)}
+                                    className={`flex items-center gap-2 ${welcomeActive ? "" : "cursor-pointer group"}`}
+                                    onClick={() => { if (!welcomeActive) setEditing(true); }}
                                 >
-                                    <p className="text-sm text-muted-foreground group-hover:underline">
+                                    <p className={`text-sm text-muted-foreground ${welcomeActive ? "" : "group-hover:underline"}`}>
                                         {getDescriptionLabel()}
                                     </p>
                                 </div>
@@ -389,6 +414,8 @@ export const WorkflowCard = ({
                     <WorkflowAction
                         workflowId={workflow.id}
                         userId={userId}
+                        isWelcome={welcomeActive}
+                        onSetAsWelcome={handleToggleWelcome}
                     />
                 </div>
                 </div>

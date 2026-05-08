@@ -304,6 +304,7 @@ export async function fullRegisterAction(
           status: 'active',
           isPro: false,
           order: 0,
+          triggerOnNewSession: true,
         },
       });
       await tx.workflowNode.create({
