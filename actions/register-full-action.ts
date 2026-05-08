@@ -295,13 +295,14 @@ export async function fullRegisterAction(
         });
       }
 
-      // 7. Workflow BIENVENIDA — template inicial listo para editar
+      // 7. Workflow BIENVENIDA — template inicial listo para editar (flujo avanzado)
       const bienvenidaWorkflow = await tx.workflow.create({
         data: {
           userId: created.id,
           name: 'BIENVENIDA',
           definition: '{}',
           status: 'active',
+          isPro: true,
           order: 0,
         },
       });
