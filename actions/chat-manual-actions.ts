@@ -293,7 +293,7 @@ export async function sendManualChatPayloadAction(
         select: { signatureEnabled: true },
       });
       if (sessionRow?.signatureEnabled) {
-        payload = { ...payload, text: `${signature}\n\n${payload.text}` };
+        payload = { ...payload, text: `${signature}\n${payload.text}` };
       }
     }
   }
@@ -312,7 +312,8 @@ export async function sendManualChatPayloadAction(
 
     const sessionData = {
       agentDisabled: true,
-      ...(isClosing ? { status: false, signatureEnabled: false } : {}),
+      status: false,
+      ...(isClosing ? { signatureEnabled: false } : {}),
     };
 
     const ops: Promise<any>[] = [
@@ -373,7 +374,7 @@ export async function toggleSessionSignatureAction(
   }
 
   await db.session.updateMany({
-    where: { id: sessionId, userId: user.id },
+    where: { userId: user.id },
     data: { signatureEnabled: enabled },
   });
 

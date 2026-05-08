@@ -238,13 +238,14 @@ export const ChatMain: React.FC<ChatMainProps> = ({
 
     try {
       await onSend(payload);
+      mutateSessionStatus();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo enviar el mensaje.');
     } finally {
       setIsSending(false);
       setTempMessage(null);
     }
-  }, [recordedAudio, composeMedia, input, onSend, clearRecordedAudio]);
+  }, [recordedAudio, composeMedia, input, onSend, clearRecordedAudio, mutateSessionStatus]);
 
   const handleKeyPress = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
