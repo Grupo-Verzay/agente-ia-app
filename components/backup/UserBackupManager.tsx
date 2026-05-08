@@ -162,7 +162,7 @@ export function UserBackupManager({
   const handleImport = () => {
     if (!isReadyToImport) {
       toast.error(
-        "Confirma la restauración y escribe la palabra requerida antes de continuar."
+        "Selecciona un archivo y confirma que deseas reemplazar los datos antes de continuar."
       );
       return;
     }
