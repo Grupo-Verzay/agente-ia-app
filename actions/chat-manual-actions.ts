@@ -311,7 +311,6 @@ export async function sendManualChatPayloadAction(
     const isClosing = Boolean(originalText !== null && delPhrase && originalText === delPhrase);
 
     const sessionData = {
-      agentDisabled: true,
       status: false,
       ...(isClosing ? { signatureEnabled: false } : {}),
     };
