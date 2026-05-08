@@ -82,15 +82,12 @@ export default async function RootGroupLayout({
         }
         // Para usuarios regulares (no admin/reseller), filtrar por adminOnly y plan
         if (!isAdminOrReseller(user?.role)) {
-            // Asesores heredan el plan del dueño para no perder acceso a módulos premium
-            let effectivePlan = user!.plan;
-            if ((user as any).ownerId) {
-                const ownerRow = await db.user.findUnique({ where: { id: (user as any).ownerId }, select: { plan: true } });
-                if (ownerRow?.plan) effectivePlan = ownerRow.plan;
-            }
+            const isAdvisor = !!(user as any).ownerId;
+            const userPlan = user!.plan;
             modules = modules.filter(m => {
                 if (m.adminOnly) return false;
-                if (m.allowedPlans?.length && !m.allowedPlans.includes(effectivePlan)) return false;
+                // Asesores no se filtran por plan — el dueño controla su acceso desde Equipo
+                if (!isAdvisor && m.allowedPlans?.length && !m.allowedPlans.includes(userPlan)) return false;
                 return true;
             });
         }
