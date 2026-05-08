@@ -9,7 +9,7 @@ const CrmRulesPage = async () => {
 
     return (
         <MainCrmRules
-            userId={user.id}
+            userId={user.effectiveId}
             features={{
                 enabledSynthesizer: user.enabledSynthesizer ?? false,
                 enabledLeadStatusClassifier: user.enabledLeadStatusClassifier ?? false,

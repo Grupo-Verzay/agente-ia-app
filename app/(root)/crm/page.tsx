@@ -25,7 +25,7 @@ const CrmPage = async ({ searchParams }: PageProps) => {
     //             ? false
     //             : undefined;
 
-    const tagsRes = await listTagsAction(user.id);
+    const tagsRes = await listTagsAction(user.effectiveId);
 
     const allTags =
         tagsRes.data?.map((t) => ({
@@ -38,7 +38,7 @@ const CrmPage = async ({ searchParams }: PageProps) => {
 
         })) ?? [];
 
-    return <MainCrm userId={user.id} allTags={allTags} />
+    return <MainCrm userId={user.effectiveId} allTags={allTags} />
 
 };
 

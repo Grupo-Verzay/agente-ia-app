@@ -20,10 +20,10 @@ const AutoRepliesPage = async () => {
         return <h1 className="text-center text-2xl font-bold mt-10">404 - Usuario no autorizado</h1>;
     }
 
-    const resWorkflow = await getWorkFlowByUser(user.id);
+    const resWorkflow = await getWorkFlowByUser(user.effectiveId);
     const workflows = hasWorkflow(resWorkflow) ? resWorkflow.data : [];
 
-    const resAutoReplies = await getAllRRs(user.id);
+    const resAutoReplies = await getAllRRs(user.effectiveId);
     const autoReplies = hasAutoReplies(resAutoReplies) ? resAutoReplies.data : [];
 
     return (

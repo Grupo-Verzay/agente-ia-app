@@ -12,7 +12,7 @@ const CrmDashboardPage = async ({ searchParams }: { searchParams: { view?: strin
         view === "registros" ? "registros" :
         undefined;
 
-    return <MainDashboard userId={user.id} initialView={initialView} />;
+    return <MainDashboard userId={user.effectiveId} initialView={initialView} />;
 };
 
 export default CrmDashboardPage;

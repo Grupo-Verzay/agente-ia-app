@@ -14,6 +14,9 @@ export async function assertCanAccessTargetUser(targetUserId: string) {
 
   if (actor.id === cleanTarget) return actor;
 
+  // Asesores pueden acceder a datos de su dueño
+  if ((actor as any).ownerId === cleanTarget) return actor;
+
   if (!isAdminOrReseller(actor.role)) {
     throw new Error("No autorizado.");
   }

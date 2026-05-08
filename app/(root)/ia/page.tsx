@@ -15,15 +15,15 @@ const ProfilePage = async () => {
     const user = await currentUser();
     if (!user) redirect('/login');
 
-    const resWorkflow = await getWorkFlowByUser(user.id);
+    const resWorkflow = await getWorkFlowByUser(user.effectiveId);
     const workflows = hasWorkflow(resWorkflow) ? resWorkflow.data : [];
 
     const prompt = await getOrCreatePrompt({
-        userId: user.id,
+        userId: user.effectiveId,
         agentId: AGENT_PROMPT_IDS.systemPromptAI,
     });
     const paymentReceiptPrompt = await getAgentPromptByUserAndAgentId({
-        userId: user.id,
+        userId: user.effectiveId,
         agentId: AGENT_PROMPT_IDS.paymentReceiptAnalyzer,
     });
 

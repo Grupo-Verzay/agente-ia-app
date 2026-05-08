@@ -26,7 +26,7 @@ const WorkflowPage = async () => {
     redirect('/login');
   };
 
-  const triggersRes = await getIntentTriggersByUser(user.id);
+  const triggersRes = await getIntentTriggersByUser(user.effectiveId);
   const triggers = (triggersRes.success ? (triggersRes as any).data ?? [] : []) as IntentTrigger[];
 
   return (
@@ -37,7 +37,7 @@ const WorkflowPage = async () => {
       </div>
 
       <Suspense fallback={<UserWorkFlowSkeleton />}>
-        <UserWorkflows userId={user.id} isPro={true} triggers={triggers} />
+        <UserWorkflows userId={user.effectiveId} isPro={true} triggers={triggers} />
       </Suspense>
     </div>
   );

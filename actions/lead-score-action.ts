@@ -154,14 +154,15 @@ export async function scoreAllLeadsByUserId(): Promise<{
         const user = await currentUser();
         if (!user?.id) return { success: false, message: "No autorizado." };
 
-        const aiConfig = await getUserAiConfig(user.id);
+        const effectiveId = (user as any).effectiveId ?? user.id;
+        const aiConfig = await getUserAiConfig(effectiveId);
         if (!aiConfig) return { success: false, message: "No hay configuración de IA activa." };
 
         const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
         const sessions = await db.session.findMany({
             where: {
-                userId: user.id,
+                userId: effectiveId,
                 OR: [
                     { crmFollowUps: { some: { summarySnapshot: { not: null } } } },
                     { registros: { some: { tipo: "REPORTE", resumen: { not: null } } } },
@@ -174,7 +175,7 @@ export async function scoreAllLeadsByUserId(): Promise<{
         // Filtrar los ya puntuados en las últimas 24h via raw para evitar tipos desactualizados
         const scored24h = await db.$queryRaw<Array<{ id: number }>>`
             SELECT id FROM "Session"
-            WHERE "userId" = ${user.id}
+            WHERE "userId" = ${effectiveId}
             AND lead_scored_at IS NOT NULL
             AND lead_scored_at > ${cutoff}
         `;

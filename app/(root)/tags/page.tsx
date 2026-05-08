@@ -10,12 +10,12 @@ export default async function TagsPage() {
         redirect("/login");
     }
 
-    const tagsRes = await listTagsAction(user.id);
+    const tagsRes = await listTagsAction(user.effectiveId);
     const allTags = tagsRes.data ?? [];
 
     return (
         <TagsPageClient
-            userId={user.id}
+            userId={user.effectiveId}
             allTags={allTags.map((t) => ({
                 id: t.id,
                 name: t.name,

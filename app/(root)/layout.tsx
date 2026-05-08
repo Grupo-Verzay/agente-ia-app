@@ -89,6 +89,12 @@ export default async function RootGroupLayout({
                 return true;
             });
         }
+
+        // Asesores: ocultar módulos de configuración que pertenecen solo al dueño
+        if ((user as any).ownerId) {
+            const ADVISOR_HIDDEN_ROUTES = ['/profile', '/connection', '/evo', '/my-data', '/credits', '/schedule'];
+            modules = modules.filter(m => !ADVISOR_HIDDEN_ROUTES.includes(m.route));
+        }
     }
 
     let navPrefs: UserNavPref[] = [];

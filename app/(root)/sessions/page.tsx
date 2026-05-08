@@ -12,7 +12,7 @@ export default async function SessionsPage() {
     redirect('/login');
   };
 
-  const tagsRes = await listTagsAction(user.id);
+  const tagsRes = await listTagsAction(user.effectiveId);
 
   const allTags =
     tagsRes.data?.map((t) => ({
@@ -26,6 +26,6 @@ export default async function SessionsPage() {
     })) ?? [];
 
   return (
-    <SessionsContent userId={user.id} allTags={allTags} />
+    <SessionsContent userId={user.effectiveId} allTags={allTags} />
   );
 }

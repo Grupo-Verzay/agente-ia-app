@@ -28,7 +28,7 @@ export async function getKanbanSessionsAction(): Promise<{
         if (!user?.id) return { success: false, message: 'No autorizado.' };
 
         const sessions = await db.session.findMany({
-            where: { userId: user.id },
+            where: { userId: user.effectiveId },
             include: {
                 sessionTags: { include: { tag: true } },
                 crmFollowUps: {
