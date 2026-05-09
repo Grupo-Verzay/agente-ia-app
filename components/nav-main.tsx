@@ -23,6 +23,8 @@ export function NavMain({ user }: { user: User }) {
     const pathname = usePathname();
     const router = useRouter();
 
+    const isAdvisor = !!(user as any).ownerId;
+
     /* Aplica preferencias del usuario (displayLabel, isHidden, sortOrder) */
     const navItems = modules
         .filter(link => link.showInSidebar)
@@ -33,6 +35,7 @@ export function NavMain({ user }: { user: User }) {
                 userPlan: user.plan,
                 modules,
                 label: link.label,
+                isAdvisor,
             });
             if (!access.allowed) return false;
             return true;

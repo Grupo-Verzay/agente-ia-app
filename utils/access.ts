@@ -63,19 +63,22 @@ export function getRouteAccess(
 /**
  * Control de acceso por rol/plan + módulo.
  * Acepta `label` para desambiguar módulos con rutas iguales.
+ * `isAdvisor`: los asesores heredan acceso del dueño, no se filtran por plan.
  */
 export function canAccessRoute({
   route,
   userRole,
   userPlan,
   modules,
-  label, // opcional: desambiguación
+  label,
+  isAdvisor = false,
 }: {
   route: string;
-  userRole: string; // 'user' | 'admin' | 'super_admin' | 'reseller'
+  userRole: string;
   userPlan: Plan;
   modules: ModuleWithItems[];
   label: string;
+  isAdvisor?: boolean;
 }) {
   const isAdminLike = userRole === 'admin' || userRole === 'super_admin' || userRole === 'reseller';
 
@@ -86,7 +89,7 @@ export function canAccessRoute({
     return { allowed: false as const, reason: 'Only admin' as const };
   }
 
-  if (link.allowedPlans?.length && !link.allowedPlans.includes(userPlan)) {
+  if (!isAdvisor && link.allowedPlans?.length && !link.allowedPlans.includes(userPlan)) {
     return { allowed: false as const, reason: 'Invalid plan' as const };
   }
 
