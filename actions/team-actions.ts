@@ -48,11 +48,11 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
       u.name,
       u.email,
       u."createdAt",
-      u.advisor_role AS "advisorRole",
-      COUNT(s.id)::int                                        AS "assignedCount",
-      COUNT(s.id) FILTER (WHERE s.status = true)::int        AS "activeCount"
+      u.advisor_role                                            AS "advisorRole",
+      COUNT(s.id)::int                                         AS "assignedCount",
+      COUNT(s.id) FILTER (WHERE s.status = true)::int         AS "activeCount"
     FROM "User" u
-    LEFT JOIN "Session" s ON s."assignedAdvisorId" = u.id
+    LEFT JOIN "Session" s ON s.assigned_advisor_id = u.id
     WHERE u.owner_id = ${owner.id}
     GROUP BY u.id
     ORDER BY u."createdAt" ASC
