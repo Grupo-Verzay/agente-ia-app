@@ -207,7 +207,7 @@ export default async function ChatsPage({
 
   return (
     <ChatsClient
-      userId={user.id}
+      userId={effectiveOwnerId}
       chatsResult={chatsResult}
       initialChatPreferences={initialChatPreferences}
       initialChatSessions={initialChatSessions}
