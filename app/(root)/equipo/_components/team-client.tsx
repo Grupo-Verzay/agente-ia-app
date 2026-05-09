@@ -34,10 +34,18 @@ import {
 } from "@/components/ui/table";
 
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { AdvisorRow, ModuleOption } from "@/actions/team-actions";
 import {
   createAdvisor,
   updateAdvisorPassword,
+  updateAdvisorRole,
   deleteAdvisor,
   linkExistingAdvisor,
   getAdvisorModuleIds,
@@ -51,7 +59,7 @@ type Props = {
   ownerModules: ModuleOption[];
 };
 
-type CreateForm = { name: string; email: string; password: string };
+type CreateForm = { name: string; email: string; password: string; role: "agente" | "administrador" };
 type PasswordForm = { advisorId: string; advisorName: string; newPassword: string };
 
 export function TeamClient({ initialAdvisors, ownerModules }: Props) {
@@ -60,7 +68,7 @@ export function TeamClient({ initialAdvisors, ownerModules }: Props) {
 
   // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState<CreateForm>({ name: "", email: "", password: "" });
+  const [createForm, setCreateForm] = useState<CreateForm>({ name: "", email: "", password: "", role: "agente" });
 
   // Link existing dialog
   const [linkOpen, setLinkOpen] = useState(false);
@@ -118,7 +126,7 @@ export function TeamClient({ initialAdvisors, ownerModules }: Props) {
       }
       toast.success(res.message ?? "Asesor creado.");
       setCreateOpen(false);
-      setCreateForm({ name: "", email: "", password: "" });
+      setCreateForm({ name: "", email: "", password: "", role: "agente" });
       // Reload list
       const { getTeamAdvisors } = await import("@/actions/team-actions");
       const list = await getTeamAdvisors();
@@ -182,6 +190,7 @@ export function TeamClient({ initialAdvisors, ownerModules }: Props) {
             <TableRow>
               <TableHead>Nombre</TableHead>
               <TableHead>Email</TableHead>
+              <TableHead>Rol</TableHead>
               <TableHead>Creado</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
@@ -191,6 +200,26 @@ export function TeamClient({ initialAdvisors, ownerModules }: Props) {
               <TableRow key={advisor.id}>
                 <TableCell className="font-medium">{advisor.name ?? "—"}</TableCell>
                 <TableCell className="text-muted-foreground">{advisor.email}</TableCell>
+                <TableCell>
+                  <Select
+                    value={advisor.advisorRole ?? "agente"}
+                    onValueChange={(val) => {
+                      startTransition(async () => {
+                        const res = await updateAdvisorRole(advisor.id, val as "agente" | "administrador");
+                        if (!res.success) { toast.error(res.message); return; }
+                        setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, advisorRole: val } : a));
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="h-7 w-32 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="agente">Agente</SelectItem>
+                      <SelectItem value="administrador">Administrador</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </TableCell>
                 <TableCell className="text-muted-foreground text-xs">
                   {new Date(advisor.createdAt).toLocaleDateString("es-CO", {
                     day: "2-digit",
@@ -364,6 +393,21 @@ export function TeamClient({ initialAdvisors, ownerModules }: Props) {
                 value={createForm.password}
                 onChange={(e) => handleCreateField("password", e.target.value)}
               />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="adv-role">Rol</Label>
+              <Select
+                value={createForm.role}
+                onValueChange={(val) => setCreateForm((prev) => ({ ...prev, role: val as "agente" | "administrador" }))}
+              >
+                <SelectTrigger id="adv-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="agente">Agente — solo ve conversaciones asignadas</SelectItem>
+                  <SelectItem value="administrador">Administrador — ve todas las conversaciones</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>

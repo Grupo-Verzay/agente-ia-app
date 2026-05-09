@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
 import type { Session, SimpleTag } from '@/types/session';
+import type { AdvisorInfo } from '@/actions/team-actions';
 
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageList } from './ChatMessageList';
@@ -49,6 +50,11 @@ type ChatMainProps = {
   quickReplies: ChatQuickReplyOption[];
   onSessionResolved?: (remoteJid: string, session: Session | null) => void;
   onSessionTagsChange?: (remoteJid: string, selectedIds: number[]) => void;
+  advisors?: AdvisorInfo[];
+  currentAdvisorId?: string;
+  advisorRole?: string | null;
+  assignedAdvisorId?: string | null;
+  onAssignAdvisor?: (advisorId: string | null) => Promise<void>;
 };
 
 export const ChatMain: React.FC<ChatMainProps> = ({
@@ -66,6 +72,11 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   workflows,
   onSessionResolved,
   onSessionTagsChange,
+  advisors,
+  currentAdvisorId,
+  advisorRole,
+  assignedAdvisorId,
+  onAssignAdvisor,
 }) => {
   /* ─── Refs ─── */
   const listRef = useRef<HTMLDivElement>(null);
@@ -276,6 +287,11 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onSessionTagsChange={onSessionTagsChange}
         onSessionMutate={mutateSessionStatus}
         onSessionRefresh={refreshSessionStatus}
+        advisors={advisors}
+        currentAdvisorId={currentAdvisorId}
+        advisorRole={advisorRole}
+        assignedAdvisorId={assignedAdvisorId}
+        onAssignAdvisor={onAssignAdvisor}
       />
 
       <ContactEditDialog

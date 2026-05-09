@@ -61,7 +61,8 @@ const ensureAdminOrResellerUser = async () => {
 const ensureSelfOrAdmin = async (targetUserId: string) => {
   const me = await currentUser();
   if (!me) throw new Error("No autorizado.");
-  if (me.id !== targetUserId && !isAdminOrReseller(me.role)) {
+  const effectiveId = (me as any).effectiveId ?? me.id;
+  if (me.id !== targetUserId && effectiveId !== targetUserId && !isAdminOrReseller(me.role)) {
     throw new Error("No autorizado.");
   }
   return me;

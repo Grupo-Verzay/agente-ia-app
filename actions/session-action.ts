@@ -137,6 +137,7 @@ function mapChatContactSessionSummary(
     pendingSeguimientos: pendingSeguimientos ?? 0,
     seguimientosTipos: seguimientosTipos ?? [],
     latestAppointmentStatus: latestAppointmentStatus ?? null,
+    assignedAdvisorId: (session as any).assignedAdvisorId ?? null,
   };
 }
 

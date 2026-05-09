@@ -62,12 +62,13 @@ const ProfilePage = async () => {
     redirect('/login');
   };
 
+  const effectiveId: string = (user as any).effectiveId ?? user.id;
 
   // Obtener instancias, API key y prompts en paralelo
   const [resInstancias, resApikey, resPrompts] = await Promise.all([
-    getInstancesByUserId(user.id),
+    getInstancesByUserId(effectiveId),
     getApiKeyById((user as any).apiKeyId),
-    getPromptsByUserId(user.id)
+    getPromptsByUserId(effectiveId)
   ]);
 
   const instancias = hasInstancias(resInstancias) ? resInstancias.data : [];
@@ -120,7 +121,7 @@ const ProfilePage = async () => {
 
   return (
     <>
-      <UserInformation userId={user.id} countries={countries} instancesData={instancesData} />
+      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} />
     </>
   );
 }

@@ -25,6 +25,8 @@ import { getAllRRs } from "@/actions/rr-actions";
 import { getChatContactSessions } from "@/actions/session-action";
 import { listTagsAction } from "@/actions/tag-actions";
 import { getWorkFlowByUser } from "@/actions/workflow-actions";
+import { getTeamAdvisorInfos } from "@/actions/team-actions";
+import { assignSessionToAdvisor, takeSession } from "@/actions/advisor-assign-actions";
 import { ChatsClient } from "./_components/chats-client";
 import { normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
 import type {
@@ -155,7 +157,10 @@ export default async function ChatsPage({
     })
     .filter((item): item is ChatQuickReplyOption => item !== null);
 
-  const [tagsRes, chatSessionsRes, chatPreferencesRes] = await Promise.all([
+  const advisorRole: string | null = (user as any).advisorRole ?? null;
+  const currentAdvisorId: string = user.id;
+
+  const [tagsRes, chatSessionsRes, chatPreferencesRes, advisorsRes] = await Promise.all([
     listTagsAction(effectiveOwnerId),
     chatsResult.success
       ? getChatContactSessions(
@@ -173,6 +178,7 @@ export default async function ChatsPage({
           message: "No se pudieron cargar las sesiones del sidebar.",
         }),
     getChatConversationPreferencesByUserId(effectiveOwnerId),
+    getTeamAdvisorInfos(),
   ]);
 
   const allTags =
@@ -188,6 +194,7 @@ export default async function ChatsPage({
   const initialChatSessions = chatSessionsRes.success ? chatSessionsRes.data ?? {} : {};
   const initialChatPreferences =
     chatPreferencesRes.success ? chatPreferencesRes.data ?? {} : {};
+  const advisors = advisorsRes.success ? advisorsRes.data ?? [] : [];
   const actionContext =
     whatsappInstancia && apiKey
       ? {
@@ -204,6 +211,8 @@ export default async function ChatsPage({
   const sendAnyAction = sendManualChatPayloadAction.bind(null, actionContext);
   const sendWorkflowAction = sendManualWorkflowAction.bind(null, actionContext);
   const sendQuickReplyAction = sendManualQuickReplyAction.bind(null, actionContext);
+  const assignAdvisorAction = assignSessionToAdvisor;
+  const takeSessionAction = takeSession;
 
   return (
     <ChatsClient
@@ -223,6 +232,11 @@ export default async function ChatsPage({
       allTags={allTags}
       workflows={workflowOptions}
       quickReplies={quickReplyOptions}
+      advisors={advisors}
+      currentAdvisorId={currentAdvisorId}
+      advisorRole={advisorRole}
+      assignAdvisorAction={assignAdvisorAction}
+      takeSessionAction={takeSessionAction}
     />
   );
 }

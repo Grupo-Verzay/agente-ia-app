@@ -9,6 +9,7 @@ import {
   toggleChatPinAction,
 } from "@/actions/chat-conversation-actions";
 import { getChatContactSessions } from "@/actions/session-action";
+import type { AdvisorInfo } from "@/actions/team-actions";
 import type {
   ChatData,
   EvolutionMessage,
@@ -71,6 +72,7 @@ function mapSessionToChatContactSummary(session: Session): ChatContactSessionSum
     pushName: session.pushName,
     tags: session.tags ?? [],
     leadStatus: session.leadStatus ?? null,
+    assignedAdvisorId: (session as any).assignedAdvisorId ?? null,
   };
 }
 
@@ -114,6 +116,11 @@ interface ChatsClientProps {
   allTags: SimpleTag[];
   workflows: ChatWorkflowOption[];
   quickReplies: ChatQuickReplyOption[];
+  advisors?: AdvisorInfo[];
+  currentAdvisorId?: string;
+  advisorRole?: string | null;
+  assignAdvisorAction?: (sessionId: number, advisorId: string | null) => Promise<{ success: boolean; message?: string }>;
+  takeSessionAction?: (sessionId: number) => Promise<{ success: boolean; message?: string }>;
 }
 
 export function ChatsClient({
@@ -128,6 +135,11 @@ export function ChatsClient({
   sendWorkflowAction,
   sendQuickReplyAction,
   refetchChatsAction,
+  advisors = [],
+  currentAdvisorId,
+  advisorRole,
+  assignAdvisorAction,
+  takeSessionAction,
   instanceName,
   apiKeyData,
   allTags,
@@ -187,10 +199,20 @@ export function ChatsClient({
 
   const contacts = useMemo(() => {
     if (!currentChatsResult.success) return [];
-    return currentChatsResult.data.filter(
+    const all = currentChatsResult.data.filter(
       (chat) => chat.remoteJid && chat.remoteJid !== "status@broadcast",
     );
-  }, [currentChatsResult]);
+    if (advisorRole !== "agente" || !currentAdvisorId) return all;
+    return all.filter((chat) => {
+      const session = chatSessions[chat.remoteJid];
+      return !session?.assignedAdvisorId || session.assignedAdvisorId === currentAdvisorId;
+    });
+  }, [currentChatsResult, advisorRole, currentAdvisorId, chatSessions]);
+
+  const sidebarResult = useMemo((): FetchChatsResult => {
+    if (!currentChatsResult.success) return currentChatsResult;
+    return { ...currentChatsResult, data: contacts };
+  }, [currentChatsResult, contacts]);
 
   const visibleContacts = useMemo(
     () =>
@@ -333,6 +355,37 @@ export function ChatsClient({
       });
     },
     [],
+  );
+
+  const handleAssignAdvisor = useCallback(
+    async (remoteJid: string, advisorId: string | null) => {
+      const sessionSummary = chatSessions[remoteJid];
+      if (!sessionSummary?.id) {
+        toast.error("No hay sesión CRM para asignar.");
+        return;
+      }
+
+      if (advisorRole === "agente") {
+        if (!takeSessionAction) return;
+        const res = await takeSessionAction(sessionSummary.id);
+        if (!res.success) { toast.error(res.message ?? "Error al tomar la conversación."); return; }
+        setChatSessions((prev) => ({
+          ...prev,
+          [remoteJid]: { ...prev[remoteJid]!, assignedAdvisorId: currentAdvisorId ?? null },
+        }));
+        toast.success("Conversación tomada.");
+      } else {
+        if (!assignAdvisorAction) return;
+        const res = await assignAdvisorAction(sessionSummary.id, advisorId);
+        if (!res.success) { toast.error(res.message ?? "Error al asignar."); return; }
+        setChatSessions((prev) => ({
+          ...prev,
+          [remoteJid]: { ...prev[remoteJid]!, assignedAdvisorId: advisorId },
+        }));
+        toast.success(advisorId ? "Asignado correctamente." : "Asignación removida.");
+      }
+    },
+    [chatSessions, advisorRole, currentAdvisorId, takeSessionAction, assignAdvisorAction],
   );
 
   const handleSessionTagsChange = useCallback(
@@ -733,7 +786,7 @@ export function ChatsClient({
           onRestoreChat={handleRestoreChat}
           onSelectRemoteJid={handleSelectFromSidebar}
           onTogglePin={handleToggleChatPin}
-          result={currentChatsResult}
+          result={sidebarResult}
           selectedJid={selectedJid}
         />
       </div>
@@ -760,6 +813,15 @@ export function ChatsClient({
             quickReplies={quickReplies}
             userId={userId}
             workflows={workflows}
+            advisors={advisors}
+            currentAdvisorId={currentAdvisorId}
+            advisorRole={advisorRole}
+            assignedAdvisorId={currentContactSession?.assignedAdvisorId ?? null}
+            onAssignAdvisor={
+              assignAdvisorAction || takeSessionAction
+                ? (advisorId) => handleAssignAdvisor(selectedJid, advisorId)
+                : undefined
+            }
           />
         ) : (
           <div className="flex h-full flex-1 items-center justify-center text-gray-500">

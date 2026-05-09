@@ -126,7 +126,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
     }, [activeView]);
 
     const loadAppointments = useCallback(async () => {
-        const res = await getAppointmentsByUser(user.id);
+        const res = await getAppointmentsByUser((user as any).effectiveId ?? user.id);
         if (res.success) {
             setAppointments((res.data || []) as AppointmentWithSession[]);
             setSeguimientosMap(res.seguimientosCount ?? {});
@@ -134,7 +134,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
         } else {
             toast.error(res.message, { id: toastId });
         }
-    }, [user.id, toastId]);
+    }, [(user as any).effectiveId ?? user.id, toastId]);
 
     useEffect(() => {
         toast.loading("Cargando su agenda, un momento por favor...", {
@@ -188,7 +188,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
         const text = buildStatusOwnerMessage({
             appointment: currentAppointment,
             newStatus,
-            userId: user.id
+            userId: (user as any).effectiveId ?? user.id
         });
 
         const remoteJid = currentAppointment.session.remoteJid;

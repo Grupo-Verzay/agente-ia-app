@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowRight, PencilLine, Pin, Phone } from 'lucide-react';
+import { ArrowRight, PencilLine, Pin, Phone, UserCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { ChatSessionActions } from './ChatSessionActions';
 import { initialFromName } from './chat-message-utils';
 import type { ChatHeader as ChatHeaderData } from './chat-message-types';
 import type { Session, SimpleTag } from '@/types/session';
+import type { AdvisorInfo } from '@/actions/team-actions';
 import { SessionTagsCombobox } from '../../tags/components';
 import { CrmFollowUpSummaryBadge } from '../../crm/dashboard/components/CrmFollowUpSummaryBadge';
 import { SwitchStatus } from '../../sessions/_components';
@@ -33,6 +35,11 @@ interface ChatHeaderProps {
   onSessionTagsChange?: (remoteJid: string, selectedIds: number[]) => void;
   onSessionMutate: () => void;
   onSessionRefresh: () => Promise<void>;
+  advisors?: AdvisorInfo[];
+  currentAdvisorId?: string;
+  advisorRole?: string | null;
+  assignedAdvisorId?: string | null;
+  onAssignAdvisor?: (advisorId: string | null) => Promise<void>;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -48,6 +55,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onSessionTagsChange,
   onSessionMutate,
   onSessionRefresh,
+  advisors,
+  currentAdvisorId,
+  advisorRole,
+  assignedAdvisorId,
+  onAssignAdvisor,
 }) => {
   const initialSelectedTagIds = session?.tags?.map((t) => t?.id).filter(Boolean) ?? [];
 
@@ -87,6 +99,58 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       userId={userId}
       mutateSessions={onSessionMutate}
     />
+  );
+
+  const [isAssigning, setIsAssigning] = useState(false);
+
+  const handleAssign = async (advisorId: string | null) => {
+    if (!onAssignAdvisor) return;
+    setIsAssigning(true);
+    try {
+      await onAssignAdvisor(advisorId);
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  const assignBlock = session && onAssignAdvisor && (
+    advisorRole === "agente" ? (
+      !assignedAdvisorId ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs gap-1"
+          onClick={() => void handleAssign(null)}
+          disabled={isAssigning}
+          title="Tomar esta conversación"
+        >
+          <UserCheck className="h-3.5 w-3.5" />
+          Tomar
+        </Button>
+      ) : (
+        <Badge variant="outline" className="h-6 text-xs border-green-300 bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-400 dark:border-green-800">
+          <UserCheck className="h-3 w-3 mr-1" />
+          Asignado a mí
+        </Badge>
+      )
+    ) : (
+      <Select
+        value={assignedAdvisorId ?? "__none__"}
+        onValueChange={(v) => void handleAssign(v === "__none__" ? null : v)}
+        disabled={isAssigning}
+      >
+        <SelectTrigger className="h-7 text-xs w-40 min-w-0">
+          <SelectValue placeholder="Sin asignar" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">Sin asignar</SelectItem>
+          {(advisors ?? []).map((a) => (
+            <SelectItem key={a.id} value={a.id}>{a.name ?? a.email}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
   );
 
   return (
@@ -187,6 +251,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 mutateSessions={onSessionMutate}
               />
             )}
+            {assignBlock}
             {sessionActions}
           </div>
         ) : (
@@ -256,6 +321,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   instanceId={session.instanceId}
                 />
               {tagsCombobox}
+              {assignBlock}
             </>
           )}
           {sessionActions}

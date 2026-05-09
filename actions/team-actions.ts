@@ -8,7 +8,8 @@ import { getUserModuleIds, setUserModules } from "@/actions/user-module-actions"
 import { getAllModules } from "@/actions/module-actions";
 
 export type ModuleOption = { id: string; label: string };
-export type AdvisorRow = { id: string; name: string | null; email: string; createdAt: Date };
+export type AdvisorRow = { id: string; name: string | null; email: string; createdAt: Date; advisorRole: string | null };
+export type AdvisorInfo = { id: string; name: string | null; email: string; advisorRole: string | null };
 
 type ActionResult<T = undefined> =
   | { success: true; data?: T; message?: string }
@@ -33,8 +34,8 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
 
-  const rows = await db.$queryRaw<{ id: string; name: string | null; email: string; createdAt: Date }[]>`
-    SELECT id, name, email, "createdAt"
+  const rows = await db.$queryRaw<{ id: string; name: string | null; email: string; createdAt: Date; advisorRole: string | null }[]>`
+    SELECT id, name, email, "createdAt", advisor_role AS "advisorRole"
     FROM "User"
     WHERE owner_id = ${owner.id}
     ORDER BY "createdAt" ASC
@@ -43,10 +44,36 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
   return { success: true, data: rows };
 }
 
+export async function updateAdvisorRole(advisorId: string, role: "agente" | "administrador"): Promise<ActionResult> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  const found = await findAdvisorRaw(advisorId, owner.id);
+  if (!found) return { success: false, message: "Asesor no encontrado." };
+
+  await db.$executeRaw`UPDATE "User" SET advisor_role = ${role} WHERE id = ${advisorId}`;
+  return { success: true, message: "Rol actualizado." };
+}
+
+export async function getTeamAdvisorInfos(): Promise<ActionResult<AdvisorInfo[]>> {
+  const user = await currentUser();
+  if (!user?.id) return { success: false, message: "No autorizado." };
+  const ownerId: string = (user as any).ownerId ?? user.id;
+
+  const rows = await db.$queryRaw<AdvisorInfo[]>`
+    SELECT id, name, email, advisor_role AS "advisorRole"
+    FROM "User"
+    WHERE owner_id = ${ownerId}
+    ORDER BY name ASC
+  `;
+  return { success: true, data: rows };
+}
+
 export async function createAdvisor(input: {
   name: string;
   email: string;
   password: string;
+  role?: "agente" | "administrador";
 }): Promise<ActionResult> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
@@ -70,7 +97,8 @@ export async function createAdvisor(input: {
     select: { id: true },
   });
 
-  await db.$executeRaw`UPDATE "User" SET owner_id = ${owner.id} WHERE id = ${newUser.id}`;
+  const role = input.role ?? "agente";
+  await db.$executeRaw`UPDATE "User" SET owner_id = ${owner.id}, advisor_role = ${role} WHERE id = ${newUser.id}`;
 
   return { success: true, message: "Asesor creado correctamente." };
 }

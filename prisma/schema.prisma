@@ -312,6 +312,7 @@ model Session {
   leadScore            Int?                   @map("lead_score")
   leadScoreReason      String?                @map("lead_score_reason")
   leadScoredAt         DateTime?              @map("lead_scored_at")
+  assignedAdvisorId    String?                @map("assigned_advisor_id")
   appointments         Appointment[]
   registros            Registro[]
   user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -450,6 +451,7 @@ model User {
   elevenLabsApiKey                   String?
   elevenLabsVoiceId                  String?
   ownerId                            String?                      @map("owner_id")
+  advisorRole                        String?                      @map("advisor_role")
   accounts                           Account[]
   agentPrompts                       AgentPrompt[]
   publishedAgentPromptRevisions      AgentPromptRevision[]
