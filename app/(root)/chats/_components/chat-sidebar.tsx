@@ -6,6 +6,7 @@ import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
 import type { ChatContactSessionMap, SimpleTag } from "@/types/session";
+import type { AdvisorInfo } from "@/actions/team-actions";
 
 import { ChatSearchBar } from "./ChatSearchBar";
 import { TagFilterPanel } from "./TagFilterPanel";
@@ -36,6 +37,10 @@ type ChatSidebarProps = {
   onTogglePin?: (remoteJid: string, isPinned: boolean) => void | Promise<void>;
   result: FetchChatsResult;
   selectedJid?: string;
+  advisors?: AdvisorInfo[];
+  advisorRole?: string | null;
+  currentAdvisorId?: string;
+  onAssignAdvisor?: (remoteJid: string, advisorId: string | null) => Promise<void>;
 };
 
 export function ChatSidebar({
@@ -50,6 +55,10 @@ export function ChatSidebar({
   onTogglePin,
   result,
   selectedJid,
+  advisors,
+  advisorRole,
+  currentAdvisorId,
+  onAssignAdvisor,
 }: ChatSidebarProps) {
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<TabKey>("all");
@@ -266,6 +275,10 @@ export function ChatSidebar({
                 onArchive={(id, isArchived) => void onArchiveChat?.(id, isArchived)}
                 onDeleteRequest={setDeleteTarget}
                 onLeadStatusChange={onLeadStatusChange}
+                advisors={advisors}
+                advisorRole={advisorRole}
+                currentAdvisorId={currentAdvisorId}
+                onAssignAdvisor={onAssignAdvisor}
               />
             ))
           ) : (

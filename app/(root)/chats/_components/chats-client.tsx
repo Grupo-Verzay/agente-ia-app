@@ -788,6 +788,14 @@ export function ChatsClient({
           onTogglePin={handleToggleChatPin}
           result={sidebarResult}
           selectedJid={selectedJid}
+          advisors={advisors}
+          advisorRole={advisorRole}
+          currentAdvisorId={currentAdvisorId}
+          onAssignAdvisor={
+            assignAdvisorAction || takeSessionAction
+              ? (remoteJid, advisorId) => handleAssignAdvisor(remoteJid, advisorId)
+              : undefined
+          }
         />
       </div>
 

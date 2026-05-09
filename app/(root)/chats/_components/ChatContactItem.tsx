@@ -24,6 +24,8 @@ import { cn } from "@/lib/utils";
 import { getIconForMessageType } from "./chat-sidebar.utils";
 import type { SidebarContact } from "./chat-sidebar.types";
 import type { LeadStatus } from "@/types/session";
+import type { AdvisorInfo } from "@/actions/team-actions";
+import { AdvisorAssignBadge } from "./AdvisorAssignBadge";
 
 const APPT_DOT: Record<string, string> = {
   PENDIENTE:   'bg-yellow-500',
@@ -53,6 +55,10 @@ type ChatContactItemProps = {
   onTogglePin: (id: string, isPinned: boolean) => void;
   onLeadStatusChange?: (remoteJid: string, status: LeadStatus | null) => void;
   selected: boolean;
+  advisors?: AdvisorInfo[];
+  advisorRole?: string | null;
+  currentAdvisorId?: string;
+  onAssignAdvisor?: (remoteJid: string, advisorId: string | null) => Promise<void>;
 };
 
 export function ChatContactItem({
@@ -63,6 +69,10 @@ export function ChatContactItem({
   onTogglePin,
   onLeadStatusChange,
   selected,
+  advisors,
+  advisorRole,
+  currentAdvisorId,
+  onAssignAdvisor,
 }: ChatContactItemProps) {
   const IconComponent = getIconForMessageType(contact.messageType);
   const isUnread = contact.isUnreadLocal;
@@ -156,6 +166,18 @@ export function ChatContactItem({
               )}
               {contact.chatSession && contact.chatSession.tags.length > 0 && (
                 <SessionTagsTooltip tags={contact.chatSession.tags} maxVisible={5} />
+              )}
+              {advisors && advisors.length > 0 && contact.chatSession && (
+                <span onClick={(e) => e.stopPropagation()}>
+                  <AdvisorAssignBadge
+                    assignedAdvisorId={contact.chatSession.assignedAdvisorId}
+                    advisors={advisors}
+                    advisorRole={advisorRole}
+                    currentAdvisorId={currentAdvisorId}
+                    onAssign={onAssignAdvisor ? (id) => onAssignAdvisor(contact.id, id) : undefined}
+                    size="sm"
+                  />
+                </span>
               )}
             </div>
 
