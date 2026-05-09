@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Users } from 'lucide-react';
 
 import { canAccessRoute } from '@/utils/access';
 import { PremiumModule } from './shared/PremiumModule';
@@ -63,10 +63,30 @@ export function NavMain({ user }: { user: User }) {
         if (targetRoute === '/canva' && customUrl) setCanvaUrl(customUrl)
         router.push(targetRoute)
     }
+    const equipoActive = pathname === '/equipo';
+
     return (
         <SidebarGroup>
             {/* <SidebarGroupLabel>Módulos</SidebarGroupLabel> */}
             <SidebarMenu>
+                {!isAdvisor && (
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            className={clsx(
+                                'flex items-center justify-between py-2 rounded-md text-sm font-medium transition',
+                                equipoActive
+                                    ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white'
+                                    : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                            )}
+                            tooltip="Mi Equipo"
+                            onClick={() => router.push('/equipo')}
+                        >
+                            <Users className={clsx('h-5', equipoActive && 'invert brightness-200')} />
+                            <span>Mi Equipo</span>
+                            <ChevronRight className="invisible ml-auto" />
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                )}
                 {navItems.map((item) => {
                     const { id, route, icon, label, displayLabel, requiresPremium, isActive, moduleItems } = item;
                     const Icon = iconMap[icon as keyof typeof iconMap];
