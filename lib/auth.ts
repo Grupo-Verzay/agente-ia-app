@@ -71,6 +71,26 @@ export async function currentUser(request?: Request) {
         } catch {
             // Si la columna aún no existe, ownerId queda null
         }
+
+        // Si es asesor, heredar credenciales de API del dueño
+        if (ownerId) {
+            const ownerCreds = await db.user.findUnique({
+                where: { id: ownerId },
+                select: {
+                    apiKey: true,
+                    apiKeyId: true,
+                    apiUrl: true,
+                    webhookUrl: true,
+                    instancias: true,
+                    notificationNumber: true,
+                    timezone: true,
+                },
+            });
+            if (ownerCreds) {
+                return { ...u, ...ownerCreds, ownerId, effectiveId: ownerId };
+            }
+        }
+
         return { ...u, ownerId, effectiveId: ownerId ?? u.id };
     });
 
