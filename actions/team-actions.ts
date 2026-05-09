@@ -191,6 +191,36 @@ export async function saveAdvisorModules(advisorId: string, moduleIds: string[])
   return { success: true, message: "Módulos guardados." };
 }
 
+export async function getAutoAssignSettings(): Promise<
+  ActionResult<{ autoAssignEnabled: boolean; autoAssignMaxChats: number }>
+> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  const rows = await db.$queryRaw<{ autoAssignEnabled: boolean; autoAssignMaxChats: number }[]>`
+    SELECT auto_assign_enabled AS "autoAssignEnabled", auto_assign_max_chats AS "autoAssignMaxChats"
+    FROM "User" WHERE id = ${owner.id}
+  `;
+  const row = rows[0] ?? { autoAssignEnabled: false, autoAssignMaxChats: 5 };
+  return { success: true, data: row };
+}
+
+export async function saveAutoAssignSettings(input: {
+  enabled: boolean;
+  maxChats: number;
+}): Promise<ActionResult> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  const maxChats = Math.max(1, Math.min(input.maxChats, 500));
+  await db.$executeRaw`
+    UPDATE "User"
+    SET auto_assign_enabled = ${input.enabled}, auto_assign_max_chats = ${maxChats}
+    WHERE id = ${owner.id}
+  `;
+  return { success: true, message: "Configuración guardada." };
+}
+
 export async function getOwnerModules(): Promise<ActionResult<ModuleOption[]>> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };

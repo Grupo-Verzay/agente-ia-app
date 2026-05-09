@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid } from "lucide-react";
+import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +50,7 @@ import {
   linkExistingAdvisor,
   getAdvisorModuleIds,
   saveAdvisorModules,
+  saveAutoAssignSettings,
 } from "@/actions/team-actions";
 
 const PALETTE = [
@@ -70,17 +71,49 @@ function getInitials(name: string | null, email: string) {
 
 type ModulesForm = { advisorId: string; advisorName: string; enabledIds: string[]; loading: boolean };
 
+type AutoAssignSettings = { autoAssignEnabled: boolean; autoAssignMaxChats: number };
+
 type Props = {
   initialAdvisors: AdvisorRow[];
   ownerModules: ModuleOption[];
+  initialAutoAssign: AutoAssignSettings;
 };
 
 type CreateForm = { name: string; email: string; password: string; role: "agente" | "administrador" };
 type PasswordForm = { advisorId: string; advisorName: string; newPassword: string };
 
-export function TeamClient({ initialAdvisors, ownerModules }: Props) {
+export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign }: Props) {
   const [advisors, setAdvisors] = useState<AdvisorRow[]>(initialAdvisors);
   const [isPending, startTransition] = useTransition();
+
+  // Auto-assign settings
+  const [autoAssignEnabled, setAutoAssignEnabled] = useState(initialAutoAssign.autoAssignEnabled);
+  const [autoAssignMaxChats, setAutoAssignMaxChats] = useState(initialAutoAssign.autoAssignMaxChats);
+  const [autoAssignSaving, setAutoAssignSaving] = useState(false);
+
+  function handleAutoAssignToggle(enabled: boolean) {
+    setAutoAssignEnabled(enabled);
+    setAutoAssignSaving(true);
+    saveAutoAssignSettings({ enabled, maxChats: autoAssignMaxChats }).then((res) => {
+      if (!res.success) toast.error(res.message);
+      setAutoAssignSaving(false);
+    });
+  }
+
+  function handleMaxChatsChange(val: string) {
+    const n = parseInt(val);
+    if (isNaN(n) || n < 1) return;
+    setAutoAssignMaxChats(n);
+  }
+
+  function handleMaxChatsBlur() {
+    setAutoAssignSaving(true);
+    saveAutoAssignSettings({ enabled: autoAssignEnabled, maxChats: autoAssignMaxChats }).then((res) => {
+      if (!res.success) toast.error(res.message);
+      else toast.success("Configuración guardada.");
+      setAutoAssignSaving(false);
+    });
+  }
 
   // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
@@ -178,7 +211,48 @@ export function TeamClient({ initialAdvisors, ownerModules }: Props) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Auto-assign settings card */}
+      <div className="rounded-lg border bg-card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Bot className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Auto-asignación de conversaciones</span>
+          {autoAssignSaving && <span className="text-xs text-muted-foreground ml-auto">Guardando...</span>}
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="auto-assign-toggle"
+              checked={autoAssignEnabled}
+              onCheckedChange={handleAutoAssignToggle}
+            />
+            <Label htmlFor="auto-assign-toggle" className="text-sm cursor-pointer">
+              {autoAssignEnabled ? "Activada" : "Desactivada"}
+            </Label>
+          </div>
+          {autoAssignEnabled && (
+            <div className="flex items-center gap-2">
+              <Label htmlFor="max-chats" className="text-sm text-muted-foreground whitespace-nowrap">
+                Máx. chats por asesor:
+              </Label>
+              <Input
+                id="max-chats"
+                type="number"
+                min={1}
+                max={500}
+                className="h-8 w-20 text-sm"
+                value={autoAssignMaxChats}
+                onChange={(e) => handleMaxChatsChange(e.target.value)}
+                onBlur={handleMaxChatsBlur}
+              />
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Cuando llegue un nuevo contacto, se asignará automáticamente al asesor con menos conversaciones activas, sin superar el límite.
+        </p>
+      </div>
+
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           Los <strong>administradores</strong> ven todas las conversaciones. Los <strong>agentes</strong> solo ven las asignadas a ellos.
@@ -225,16 +299,6 @@ export function TeamClient({ initialAdvisors, ownerModules }: Props) {
                   </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">{advisor.email}</TableCell>
-                <TableCell className="text-center">
-                  <span className={`inline-flex items-center justify-center h-6 min-w-[1.5rem] rounded-full px-1.5 text-xs font-semibold ${advisor.assignedCount > 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-muted-foreground'}`}>
-                    {advisor.assignedCount}
-                  </span>
-                </TableCell>
-                <TableCell className="text-center">
-                  <span className={`inline-flex items-center justify-center h-6 min-w-[1.5rem] rounded-full px-1.5 text-xs font-semibold ${advisor.activeCount > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'text-muted-foreground'}`}>
-                    {advisor.activeCount}
-                  </span>
-                </TableCell>
                 <TableCell>
                   <Select
                     value={advisor.advisorRole ?? "agente"}
@@ -254,6 +318,16 @@ export function TeamClient({ initialAdvisors, ownerModules }: Props) {
                       <SelectItem value="administrador">🛡️ Administrador</SelectItem>
                     </SelectContent>
                   </Select>
+                </TableCell>
+                <TableCell className="text-center">
+                  <span className={`inline-flex items-center justify-center h-6 min-w-[1.5rem] rounded-full px-1.5 text-xs font-semibold ${advisor.assignedCount > 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-muted-foreground'}`}>
+                    {advisor.assignedCount}
+                  </span>
+                </TableCell>
+                <TableCell className="text-center">
+                  <span className={`inline-flex items-center justify-center h-6 min-w-[1.5rem] rounded-full px-1.5 text-xs font-semibold ${advisor.activeCount > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'text-muted-foreground'}`}>
+                    {advisor.activeCount}
+                  </span>
                 </TableCell>
                 <TableCell className="text-muted-foreground text-xs">
                   {new Date(advisor.createdAt).toLocaleDateString("es-CO", {

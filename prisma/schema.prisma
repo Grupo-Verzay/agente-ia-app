@@ -452,6 +452,8 @@ model User {
   elevenLabsVoiceId                  String?
   ownerId                            String?                      @map("owner_id")
   advisorRole                        String?                      @map("advisor_role")
+  autoAssignEnabled                  Boolean                      @default(false) @map("auto_assign_enabled")
+  autoAssignMaxChats                 Int                          @default(5) @map("auto_assign_max_chats")
   accounts                           Account[]
   agentPrompts                       AgentPrompt[]
   publishedAgentPromptRevisions      AgentPromptRevision[]
