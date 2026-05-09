@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { AlertCircle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Download } from "lucide-react";
 import { UserSessionsSkeleton } from "./user-sessions-skeleton";
 import { columns } from "./Columns";
 import { DataTable } from "./data-table";
@@ -19,8 +19,22 @@ import { deleteSeguimientosByInstanceName } from "@/actions/seguimientos-actions
 import { Session, SessionsContentProps } from "@/types/session";
 import { FilterLeadsByStats, FilterSessionTypes, SessionStatsInterface } from "./FilterLeadsByStats";
 import { CreateContactDialog } from "./CreateContactDialog";
+import { getSessionsForExport } from "@/actions/export-actions";
+import { toast } from "sonner";
 
 const PAGE_SIZE = 20;
+
+function downloadCsv(filename: string, headers: string[], rows: string[][]) {
+  const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const lines = [headers.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))];
+  const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export function SessionsContent({ userId, allTags }: SessionsContentProps) {
   const router = useRouter();
@@ -30,6 +44,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
   const [isSearching, setIsSearching] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [filter, setFilter] = useState<FilterSessionTypes>("all");
+  const [isExporting, setIsExporting] = useState(false);
 
   const { data: pageData = [], mutate, isLoading, isValidating, error } = useSWR<Session[]>(
     search.trim() ? null : JSON.stringify({ userId, currentPage, filter }),
@@ -159,6 +174,30 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
             className="w-72 shrink-0 text-xs"
           />
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isExporting}
+              onClick={async () => {
+                setIsExporting(true);
+                try {
+                  const res = await getSessionsForExport();
+                  if (!res.success) { toast.error(res.message); return; }
+                  const headers = ["ID", "Nombre", "Teléfono", "Lead Status", "Conversación", "Agente IA", "Asesor", "Etiquetas", "Fecha creación"];
+                  const rows = res.rows.map((r) => [
+                    String(r.id), r.nombre, r.telefono, r.leadStatus,
+                    r.estadoConversacion, r.agenteIA, r.asesor, r.etiquetas, r.fechaCreacion,
+                  ]);
+                  downloadCsv(`contactos_${new Date().toISOString().split("T")[0]}.csv`, headers, rows);
+                  toast.success(`${res.rows.length} contactos exportados.`);
+                } finally {
+                  setIsExporting(false);
+                }
+              }}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              {isExporting ? "Exportando..." : "Exportar CSV"}
+            </Button>
             <CreateContactDialog userId={userId} onSuccess={() => mutate()} />
             <BulkActionsDropdown
               userId={userId}

@@ -26,7 +26,7 @@ import { getChatContactSessions } from "@/actions/session-action";
 import { listTagsAction } from "@/actions/tag-actions";
 import { getWorkFlowByUser } from "@/actions/workflow-actions";
 import { getTeamAdvisorInfos } from "@/actions/team-actions";
-import { assignSessionToAdvisor, takeSession } from "@/actions/advisor-assign-actions";
+import { assignSessionToAdvisor, takeSession, releaseSession } from "@/actions/advisor-assign-actions";
 import { ChatsClient } from "./_components/chats-client";
 import { normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
 import type {
@@ -213,6 +213,7 @@ export default async function ChatsPage({
   const sendQuickReplyAction = sendManualQuickReplyAction.bind(null, actionContext);
   const assignAdvisorAction = assignSessionToAdvisor;
   const takeSessionAction = takeSession;
+  const releaseSessionAction = releaseSession;
 
   return (
     <ChatsClient
@@ -237,6 +238,7 @@ export default async function ChatsPage({
       advisorRole={advisorRole}
       assignAdvisorAction={assignAdvisorAction}
       takeSessionAction={takeSessionAction}
+      releaseSessionAction={releaseSessionAction}
     />
   );
 }

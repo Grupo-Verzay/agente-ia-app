@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot } from "lucide-react";
+import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,12 +47,14 @@ import {
   createAdvisor,
   updateAdvisorPassword,
   updateAdvisorRole,
+  toggleAdvisorAvailability,
   deleteAdvisor,
   linkExistingAdvisor,
   getAdvisorModuleIds,
   saveAdvisorModules,
   saveAutoAssignSettings,
 } from "@/actions/team-actions";
+import { bulkAutoAssign } from "@/actions/advisor-assign-actions";
 
 const PALETTE = [
   'bg-blue-500', 'bg-violet-500', 'bg-emerald-500',
@@ -260,6 +262,22 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
           Los <strong>administradores</strong> ven todas las conversaciones. Los <strong>agentes</strong> solo ven las asignadas a ellos.
         </p>
         <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isPending}
+            onClick={() => {
+              startTransition(async () => {
+                const res = await bulkAutoAssign();
+                if (!res.success) { toast.error(res.message ?? "Error."); return; }
+                const n = res.assigned ?? 0;
+                toast.success(n > 0 ? `${n} conversación${n !== 1 ? 'es' : ''} asignada${n !== 1 ? 's' : ''}.` : "No hay conversaciones pendientes.");
+              });
+            }}
+          >
+            <Users className="w-4 h-4 mr-2" />
+            Asignar sin atender
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setLinkOpen(true)}>
             <UserCheck className="w-4 h-4 mr-2" />
             Vincular existente
@@ -283,6 +301,7 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
               <TableHead>Nombre</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Rol</TableHead>
+              <TableHead className="text-center">Disponible</TableHead>
               <TableHead className="text-center">Asignados</TableHead>
               <TableHead className="text-center">Activos</TableHead>
               <TableHead>Creado</TableHead>
@@ -320,6 +339,20 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
                       <SelectItem value="administrador">🛡️ Administrador</SelectItem>
                     </SelectContent>
                   </Select>
+                </TableCell>
+                <TableCell className="text-center">
+                  <Switch
+                    checked={advisor.advisorAvailable}
+                    onCheckedChange={(val) => {
+                      setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, advisorAvailable: val } : a));
+                      toggleAdvisorAvailability(advisor.id, val).then((res) => {
+                        if (!res.success) {
+                          toast.error(res.message);
+                          setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, advisorAvailable: !val } : a));
+                        }
+                      });
+                    }}
+                  />
                 </TableCell>
                 <TableCell className="text-center">
                   <span className={`inline-flex items-center justify-center h-6 min-w-[1.5rem] rounded-full px-1.5 text-xs font-semibold ${advisor.assignedCount > 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-muted-foreground'}`}>

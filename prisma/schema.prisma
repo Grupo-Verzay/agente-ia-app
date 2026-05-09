@@ -321,8 +321,22 @@ model Session {
   workflowStates       SessionWorkflowState[]
   crmFollowUps         CrmFollowUp[]
   financeTransactions  FinanceTransaction[]
+  assignmentLogs       AssignmentLog[]
 
   @@index([userId, remoteJid])
+}
+
+model AssignmentLog {
+  id         Int      @id @default(autoincrement())
+  sessionId  Int
+  advisorId  String?
+  assignedBy String?
+  action     String
+  createdAt  DateTime @default(now())
+  session    Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([createdAt])
 }
 
 model ChatConversationPreference {
@@ -452,6 +466,7 @@ model User {
   elevenLabsVoiceId                  String?
   ownerId                            String?                      @map("owner_id")
   advisorRole                        String?                      @map("advisor_role")
+  advisorAvailable                   Boolean                      @default(true) @map("advisor_available")
   autoAssignEnabled                  Boolean                      @default(false) @map("auto_assign_enabled")
   autoAssignMaxChats                 Int                          @default(5) @map("auto_assign_max_chats")
   accounts                           Account[]

@@ -107,6 +107,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       advisors={advisors ?? []}
       advisorRole={advisorRole}
       currentAdvisorId={currentAdvisorId}
+      sessionId={session.id}
       onAssign={onAssignAdvisor}
       size="md"
     />

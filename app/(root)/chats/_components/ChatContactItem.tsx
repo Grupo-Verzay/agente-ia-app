@@ -100,6 +100,7 @@ export function ChatContactItem({
           advisors={advisors}
           advisorRole={advisorRole}
           currentAdvisorId={currentAdvisorId}
+          sessionId={contact.chatSession.id}
           onAssign={onAssignAdvisor ? (id) => onAssignAdvisor(contact.id, id) : undefined}
           size="sm"
         />

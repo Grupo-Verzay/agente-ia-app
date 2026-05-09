@@ -16,6 +16,7 @@ export type AdvisorRow = {
   advisorRole: string | null;
   assignedCount: number;
   activeCount: number;
+  advisorAvailable: boolean;
 };
 export type AdvisorInfo = { id: string; name: string | null; email: string; advisorRole: string | null };
 
@@ -49,6 +50,7 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
       u.email,
       u."createdAt",
       u.advisor_role                                            AS "advisorRole",
+      u.advisor_available                                       AS "advisorAvailable",
       COUNT(s.id)::int                                         AS "assignedCount",
       COUNT(s.id) FILTER (WHERE s.status = true)::int         AS "activeCount"
     FROM "User" u
@@ -70,6 +72,17 @@ export async function updateAdvisorRole(advisorId: string, role: "agente" | "adm
 
   await db.$executeRaw`UPDATE "User" SET advisor_role = ${role} WHERE id = ${advisorId}`;
   return { success: true, message: "Rol actualizado." };
+}
+
+export async function toggleAdvisorAvailability(advisorId: string, available: boolean): Promise<ActionResult> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  const found = await findAdvisorRaw(advisorId, owner.id);
+  if (!found) return { success: false, message: "Asesor no encontrado." };
+
+  await db.$executeRaw`UPDATE "User" SET advisor_available = ${available} WHERE id = ${advisorId}`;
+  return { success: true };
 }
 
 export async function getTeamAdvisorInfos(): Promise<ActionResult<AdvisorInfo[]>> {

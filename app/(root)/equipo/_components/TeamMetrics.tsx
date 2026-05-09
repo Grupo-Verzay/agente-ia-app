@@ -1,6 +1,20 @@
 "use client";
 
+import { Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { TeamMetrics } from "@/actions/team-actions";
+
+function downloadCsv(filename: string, headers: string[], rows: string[][]) {
+  const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const lines = [headers.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))];
+  const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const LEAD_COLORS: Record<string, string> = {
   FRIO:       "bg-blue-400",
@@ -74,7 +88,27 @@ export function TeamMetrics({ metrics }: Props) {
       {/* Per-advisor performance */}
       {advisors.length > 0 && (
         <div className="rounded-lg border bg-card p-4 space-y-3">
-          <p className="text-sm font-medium">Rendimiento por asesor</p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Rendimiento por asesor</p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1.5"
+              onClick={() => {
+                const date = new Date().toISOString().split("T")[0];
+                const headers = ["Asesor", "Email", "Asignadas", "Activas", "Cerradas", "Calientes", "Convertidas"];
+                const rows = advisors.map((a) => [
+                  a.name ?? "", a.email,
+                  String(a.totalAssigned), String(a.activeCount),
+                  String(a.closedCount), String(a.hotCount), String(a.convertedCount),
+                ]);
+                downloadCsv(`metricas_equipo_${date}.csv`, headers, rows);
+              }}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Exportar CSV
+            </Button>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

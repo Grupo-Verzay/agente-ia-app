@@ -33,6 +33,7 @@ export function useAdvisorNotifications(
   advisorRole: string | null | undefined,
 ) {
   const seenIdsRef = useRef<Set<number> | null>(null);
+  const prevMyIdsRef = useRef<Set<number> | null>(null);
   const pendingCountRef = useRef(0);
   const originalTitleRef = useRef("");
 
@@ -65,14 +66,32 @@ export function useAdvisorNotifications(
       (s) => s?.assignedAdvisorId === currentAdvisorId,
     );
 
+    const currentMyIds = new Set(myChats.filter(Boolean).map((s) => s!.id));
+
     // Primera ejecución: inicializar seenIds con todo lo existente (sin notificar)
     if (seenIdsRef.current === null) {
       const stored: number[] = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
-      const currentIds = myChats.filter(Boolean).map((s) => s!.id);
-      seenIdsRef.current = new Set(stored.concat(currentIds));
+      seenIdsRef.current = new Set(stored.concat(Array.from(currentMyIds)));
       localStorage.setItem(storageKey, JSON.stringify(Array.from(seenIdsRef.current)));
+      prevMyIdsRef.current = new Set(currentMyIds);
       return;
     }
+
+    // Detectar sesiones quitadas (estaban en prevMyIds pero ya no están en las mías)
+    if (prevMyIdsRef.current) {
+      const removedIds = Array.from(prevMyIdsRef.current).filter((id) => !currentMyIds.has(id));
+      if (removedIds.length > 0 && typeof Notification !== "undefined" && Notification.permission === "granted") {
+        removedIds.forEach((id) => {
+          const n = new Notification("Conversación reasignada", {
+            body: "Te quitaron una conversación.",
+            icon: "/favicon.ico",
+            tag: `advisor-removed-${id}`,
+          });
+          setTimeout(() => n.close(), 7000);
+        });
+      }
+    }
+    prevMyIdsRef.current = new Set(currentMyIds);
 
     const newSessions = myChats.filter((s) => s && !seenIdsRef.current!.has(s.id));
 

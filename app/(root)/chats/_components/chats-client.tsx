@@ -120,8 +120,9 @@ interface ChatsClientProps {
   advisors?: AdvisorInfo[];
   currentAdvisorId?: string;
   advisorRole?: string | null;
-  assignAdvisorAction?: (sessionId: number, advisorId: string | null) => Promise<{ success: boolean; message?: string }>;
+  assignAdvisorAction?: (sessionId: number, advisorId: string | null) => Promise<{ success: boolean; message?: string; warning?: string }>;
   takeSessionAction?: (sessionId: number) => Promise<{ success: boolean; message?: string }>;
+  releaseSessionAction?: (sessionId: number) => Promise<{ success: boolean; message?: string }>;
 }
 
 export function ChatsClient({
@@ -141,6 +142,7 @@ export function ChatsClient({
   advisorRole,
   assignAdvisorAction,
   takeSessionAction,
+  releaseSessionAction,
   instanceName,
   apiKeyData,
   allTags,
@@ -370,14 +372,26 @@ export function ChatsClient({
       }
 
       if (advisorRole === "agente") {
-        if (!takeSessionAction) return;
-        const res = await takeSessionAction(sessionSummary.id);
-        if (!res.success) { toast.error(res.message ?? "Error al tomar la conversación."); return; }
-        setChatSessions((prev) => ({
-          ...prev,
-          [remoteJid]: { ...prev[remoteJid]!, assignedAdvisorId: currentAdvisorId ?? null },
-        }));
-        toast.success("Conversación tomada.");
+        if (advisorId === null) {
+          // Agente libera su propia conversación
+          if (!releaseSessionAction) return;
+          const res = await releaseSessionAction(sessionSummary.id);
+          if (!res.success) { toast.error(res.message ?? "Error al liberar."); return; }
+          setChatSessions((prev) => ({
+            ...prev,
+            [remoteJid]: { ...prev[remoteJid]!, assignedAdvisorId: null },
+          }));
+          toast.success("Conversación liberada.");
+        } else {
+          if (!takeSessionAction) return;
+          const res = await takeSessionAction(sessionSummary.id);
+          if (!res.success) { toast.error(res.message ?? "Error al tomar la conversación."); return; }
+          setChatSessions((prev) => ({
+            ...prev,
+            [remoteJid]: { ...prev[remoteJid]!, assignedAdvisorId: currentAdvisorId ?? null },
+          }));
+          toast.success("Conversación tomada.");
+        }
       } else {
         if (!assignAdvisorAction) return;
         const res = await assignAdvisorAction(sessionSummary.id, advisorId);
@@ -386,6 +400,7 @@ export function ChatsClient({
           ...prev,
           [remoteJid]: { ...prev[remoteJid]!, assignedAdvisorId: advisorId },
         }));
+        if (res.warning) toast.warning(res.warning);
         if (advisorId) {
           const advisorName = advisors?.find((a) => a.id === advisorId)?.name ?? "Asesor";
           toast.success(`Asignado a ${advisorName}.`);
@@ -394,7 +409,7 @@ export function ChatsClient({
         }
       }
     },
-    [chatSessions, advisorRole, currentAdvisorId, takeSessionAction, assignAdvisorAction],
+    [chatSessions, advisorRole, currentAdvisorId, takeSessionAction, assignAdvisorAction, releaseSessionAction],
   );
 
   const handleSessionTagsChange = useCallback(
@@ -801,7 +816,7 @@ export function ChatsClient({
           advisorRole={advisorRole}
           currentAdvisorId={currentAdvisorId}
           onAssignAdvisor={
-            assignAdvisorAction || takeSessionAction
+            assignAdvisorAction || takeSessionAction || releaseSessionAction
               ? (remoteJid, advisorId) => handleAssignAdvisor(remoteJid, advisorId)
               : undefined
           }
@@ -835,7 +850,7 @@ export function ChatsClient({
             advisorRole={advisorRole}
             assignedAdvisorId={currentContactSession?.assignedAdvisorId ?? null}
             onAssignAdvisor={
-              assignAdvisorAction || takeSessionAction
+              assignAdvisorAction || takeSessionAction || releaseSessionAction
                 ? (advisorId) => handleAssignAdvisor(selectedJid, advisorId)
                 : undefined
             }
