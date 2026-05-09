@@ -10,15 +10,9 @@ export default async function EquipoPage() {
 
   if ((user as any).ownerId) redirect("/");
 
-  let advisors: AdvisorRow[] = [];
-  let ownerModules: ModuleOption[] = [];
-  try {
-    const [advisorsRes, modulesRes] = await Promise.all([getTeamAdvisors(), getOwnerModules()]);
-    advisors = advisorsRes.success ? (advisorsRes.data ?? []) : [];
-    ownerModules = modulesRes.success ? (modulesRes.data ?? []) : [];
-  } catch {
-    // columna owner_id aún no existe en BD
-  }
+  const [advisorsRes, modulesRes] = await Promise.all([getTeamAdvisors(), getOwnerModules()]);
+  const advisors = advisorsRes.success ? (advisorsRes.data ?? []) : [];
+  const ownerModules = modulesRes.success ? (modulesRes.data ?? []) : [];
 
   return (
     <div className="p-6 space-y-6">
