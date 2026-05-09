@@ -247,22 +247,49 @@ export function TeamClient({ initialAdvisors, ownerModules }: Props) {
             ) : ownerModules.length === 0 ? (
               <p className="text-sm text-muted-foreground">No hay módulos disponibles.</p>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {ownerModules.map((mod) => (
-                  <div key={mod.id} className="flex items-center justify-between gap-2 pr-2">
-                    <Label className="text-xs">{mod.label}</Label>
-                    <Switch
-                      checked={modulesForm?.enabledIds.includes(mod.id) ?? false}
-                      onCheckedChange={(val) =>
-                        setModulesForm((prev) =>
-                          prev
-                            ? { ...prev, enabledIds: val ? [...prev.enabledIds, mod.id] : prev.enabledIds.filter((id) => id !== mod.id) }
-                            : null
-                        )
-                      }
-                    />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    {modulesForm?.enabledIds.length ?? 0} de {ownerModules.length} habilitados
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-6 text-xs px-2"
+                      onClick={() => setModulesForm((prev) => prev ? { ...prev, enabledIds: ownerModules.map((m) => m.id) } : null)}
+                    >
+                      Todos
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-6 text-xs px-2"
+                      onClick={() => setModulesForm((prev) => prev ? { ...prev, enabledIds: [] } : null)}
+                    >
+                      Ninguno
+                    </Button>
                   </div>
-                ))}
+                </div>
+                <div className="grid grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
+                  {ownerModules.map((mod) => (
+                    <div key={mod.id} className="flex items-center justify-between gap-2 pr-2">
+                      <Label className="text-xs">{mod.label}</Label>
+                      <Switch
+                        checked={modulesForm?.enabledIds.includes(mod.id) ?? false}
+                        onCheckedChange={(val) =>
+                          setModulesForm((prev) =>
+                            prev
+                              ? { ...prev, enabledIds: val ? [...prev.enabledIds, mod.id] : prev.enabledIds.filter((id) => id !== mod.id) }
+                              : null
+                          )
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

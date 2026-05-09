@@ -141,7 +141,8 @@ export async function saveAdvisorModules(advisorId: string, moduleIds: string[])
   const found = await findAdvisorRaw(advisorId, owner.id);
   if (!found) return { success: false, message: "Asesor no encontrado." };
 
-  await setUserModules(advisorId, moduleIds);
+  const saved = await setUserModules(advisorId, moduleIds);
+  if (!saved.success) return { success: false, message: "Error al guardar módulos." };
   return { success: true, message: "Módulos guardados." };
 }
 
