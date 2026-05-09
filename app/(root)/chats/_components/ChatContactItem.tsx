@@ -16,7 +16,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { SessionTagsTooltip } from "../../tags/components";
 import { FlowListOrder } from "../../sessions/_components/FlowListOrder";
 import { SeguimientoBadge } from "../../sessions/_components/SeguimientoBadge";
 import { LeadStatusSelect } from "./LeadStatusSelect";
@@ -78,6 +77,68 @@ export function ChatContactItem({
   const isUnread = contact.isUnreadLocal;
   const apptStatus = contact.chatSession?.latestAppointmentStatus;
 
+  const MAX_BADGES = 4;
+
+  const badgeItems: React.ReactNode[] = [];
+
+  if (contact.chatSession) {
+    badgeItems.push(
+      <span key="status" onClick={(e) => e.stopPropagation()}>
+        <LeadStatusSelect
+          sessionId={contact.chatSession.id}
+          currentStatus={contact.chatSession.leadStatus ?? null}
+          onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus)}
+        />
+      </span>
+    );
+  }
+  if (advisors && advisors.length > 0 && contact.chatSession) {
+    badgeItems.push(
+      <span key="advisor" onClick={(e) => e.stopPropagation()}>
+        <AdvisorAssignBadge
+          assignedAdvisorId={contact.chatSession.assignedAdvisorId}
+          advisors={advisors}
+          advisorRole={advisorRole}
+          currentAdvisorId={currentAdvisorId}
+          onAssign={onAssignAdvisor ? (id) => onAssignAdvisor(contact.id, id) : undefined}
+          size="sm"
+        />
+      </span>
+    );
+  }
+  if (contact.chatSession?.flujos) {
+    badgeItems.push(<FlowListOrder key="flow" raw={contact.chatSession.flujos} />);
+  }
+  if ((contact.chatSession?.pendingSeguimientos ?? 0) > 0) {
+    badgeItems.push(
+      <SeguimientoBadge
+        key="seguimiento"
+        count={contact.chatSession!.pendingSeguimientos ?? 0}
+        tipos={contact.chatSession!.seguimientosTipos}
+      />
+    );
+  }
+  if (apptStatus) {
+    badgeItems.push(
+      <TooltipProvider key="appt">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex items-center gap-1 h-6 rounded-full border border-violet-300 bg-violet-50 px-1.5 dark:border-violet-700 dark:bg-violet-950">
+              <CalendarClock className="h-3 w-3 text-violet-600 dark:text-violet-400 shrink-0" />
+              <span className={cn('w-2 h-2 rounded-full shrink-0', APPT_DOT[apptStatus] ?? 'bg-gray-400')} />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={6} className="z-[9999]">
+            <p className="text-xs font-semibold">Cita agendada</p>
+            <p className="text-xs">{APPT_LABEL[apptStatus] ?? apptStatus}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+  const visibleBadges = badgeItems.slice(0, MAX_BADGES);
+  const hiddenCount = badgeItems.length - MAX_BADGES;
+
   return (
     <div
       role="listitem"
@@ -130,53 +191,10 @@ export function ChatContactItem({
             </div>
 
             <div className="mt-0.5 flex items-center gap-1">
-              {contact.chatSession ? (
-                <span onClick={(e) => e.stopPropagation()}>
-                  <LeadStatusSelect
-                    sessionId={contact.chatSession.id}
-                    currentStatus={contact.chatSession.leadStatus ?? null}
-                    onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus)}
-                  />
-                </span>
-              ) : null}
-              {contact.chatSession && (
-                <FlowListOrder raw={contact.chatSession.flujos ?? ""} />
-              )}
-              {contact.chatSession && (
-                <SeguimientoBadge
-                  count={contact.chatSession.pendingSeguimientos ?? 0}
-                  tipos={contact.chatSession.seguimientosTipos}
-                />
-              )}
-              {apptStatus && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex items-center gap-1 h-6 rounded-full border border-violet-300 bg-violet-50 px-1.5 dark:border-violet-700 dark:bg-violet-950">
-                        <CalendarClock className="h-3 w-3 text-violet-600 dark:text-violet-400 shrink-0" />
-                        <span className={cn('w-2 h-2 rounded-full shrink-0', APPT_DOT[apptStatus] ?? 'bg-gray-400')} />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" sideOffset={6} className="z-[9999]">
-                      <p className="text-xs font-semibold">Cita agendada</p>
-                      <p className="text-xs">{APPT_LABEL[apptStatus] ?? apptStatus}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-              {contact.chatSession && contact.chatSession.tags.length > 0 && (
-                <SessionTagsTooltip tags={contact.chatSession.tags} maxVisible={5} />
-              )}
-              {advisors && advisors.length > 0 && contact.chatSession && (
-                <span onClick={(e) => e.stopPropagation()}>
-                  <AdvisorAssignBadge
-                    assignedAdvisorId={contact.chatSession.assignedAdvisorId}
-                    advisors={advisors}
-                    advisorRole={advisorRole}
-                    currentAdvisorId={currentAdvisorId}
-                    onAssign={onAssignAdvisor ? (id) => onAssignAdvisor(contact.id, id) : undefined}
-                    size="sm"
-                  />
+              {visibleBadges}
+              {hiddenCount > 0 && (
+                <span className="inline-flex items-center h-6 rounded-full bg-muted px-1.5 text-[10px] font-medium text-muted-foreground shrink-0">
+                  +{hiddenCount}
                 </span>
               )}
             </div>

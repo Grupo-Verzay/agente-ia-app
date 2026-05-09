@@ -4,11 +4,9 @@ import { useState } from 'react';
 import { UserCheck, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { AdvisorInfo } from '@/actions/team-actions';
 
-// Paleta de colores determinista por ID
 const PALETTE = [
   'bg-blue-500', 'bg-violet-500', 'bg-emerald-500',
   'bg-amber-500', 'bg-rose-500', 'bg-cyan-500', 'bg-fuchsia-500',
@@ -50,7 +48,8 @@ export function AdvisorAssignBadge({
   const isAgent = advisorRole === 'agente';
   const isMySession = assignedAdvisorId === currentAdvisorId;
 
-  const circleSize = size === 'sm' ? 'h-5 w-5 text-[10px]' : 'h-6 w-6 text-xs';
+  // sm = pill (sidebar), md = circle (header)
+  const isPill = size === 'sm';
 
   const handleAssign = async (advisorId: string | null) => {
     if (!onAssign) return;
@@ -65,7 +64,7 @@ export function AdvisorAssignBadge({
     }
   };
 
-  // Agente: no puede reasignar, solo ver o tomar
+  // Agente: solo ver o tomar
   if (isAgent) {
     if (!assignedAdvisorId) {
       return (
@@ -77,11 +76,12 @@ export function AdvisorAssignBadge({
             void handleAssign(currentAdvisorId ?? null);
           }}
           className={cn(
-            'inline-flex items-center gap-0.5 h-5 rounded-full border border-dashed border-muted-foreground/50 px-1.5 text-[10px] text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50',
+            'inline-flex items-center gap-1 rounded-full border border-dashed border-muted-foreground/50 px-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50',
+            isPill ? 'h-6 text-[10px]' : 'h-7 text-xs',
           )}
           title="Tomar esta conversación"
         >
-          <UserPlus className="h-2.5 w-2.5 shrink-0" />
+          <UserPlus className={cn('shrink-0', isPill ? 'h-2.5 w-2.5' : 'h-3.5 w-3.5')} />
           Tomar
         </button>
       );
@@ -90,21 +90,23 @@ export function AdvisorAssignBadge({
       return (
         <span
           className={cn(
-            'inline-flex items-center gap-0.5 h-5 rounded-full bg-green-100 dark:bg-green-950 border border-green-300 dark:border-green-800 px-1.5 text-[10px] text-green-700 dark:text-green-400',
+            'inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-950 border border-green-300 dark:border-green-800 px-2 text-green-700 dark:text-green-400',
+            isPill ? 'h-6 text-[10px]' : 'h-7 text-xs',
           )}
         >
-          <UserCheck className="h-2.5 w-2.5 shrink-0" />
+          <UserCheck className={cn('shrink-0', isPill ? 'h-2.5 w-2.5' : 'h-3.5 w-3.5')} />
           Yo
         </span>
       );
     }
-    // Asignado a otro — solo muestra iniciales sin interacción
+    // Asignado a otro — solo muestra
     return (
       <span
         className={cn(
-          'inline-flex items-center justify-center rounded-full font-semibold text-white shrink-0',
-          circleSize,
-          colorFor(assignedAdvisorId),
+          'inline-flex items-center justify-center font-semibold text-white shrink-0',
+          isPill
+            ? cn('h-6 rounded-full px-1.5 text-[10px]', assigned ? colorFor(assignedAdvisorId) : 'bg-muted text-muted-foreground')
+            : cn('h-6 w-6 rounded-full text-xs', assigned ? colorFor(assignedAdvisorId) : 'bg-muted text-muted-foreground'),
         )}
         title={assigned ? (assigned.name ?? assigned.email) : 'Asignado'}
       >
@@ -123,16 +125,26 @@ export function AdvisorAssignBadge({
           onClick={(e) => e.stopPropagation()}
           title={assigned ? (assigned.name ?? assigned.email) : 'Sin asignar — click para asignar'}
           className={cn(
-            'inline-flex items-center justify-center rounded-full shrink-0 transition-opacity disabled:opacity-50',
+            'inline-flex items-center justify-center shrink-0 transition-opacity disabled:opacity-50',
             assigned
-              ? cn('font-semibold text-white', circleSize, colorFor(assigned.id))
+              ? cn(
+                  'font-semibold text-white',
+                  isPill
+                    ? cn('h-6 rounded-full px-1.5 text-[10px]', colorFor(assigned.id))
+                    : cn('h-6 w-6 rounded-full text-xs', colorFor(assigned.id)),
+                )
               : cn(
                   'border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-primary hover:text-primary',
-                  circleSize,
+                  isPill ? 'h-6 rounded-full px-1 gap-0.5 text-[10px]' : 'h-6 w-6 rounded-full',
                 ),
           )}
         >
-          {assigned ? initials(assigned) : <UserPlus className="h-2.5 w-2.5" />}
+          {assigned
+            ? initials(assigned)
+            : isPill
+              ? <><UserPlus className="h-2.5 w-2.5 shrink-0" /><span>Asignar</span></>
+              : <UserPlus className="h-2.5 w-2.5" />
+          }
         </button>
       </PopoverTrigger>
 

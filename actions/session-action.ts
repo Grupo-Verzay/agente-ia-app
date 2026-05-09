@@ -120,7 +120,7 @@ function mapSessionRecord(session: SessionWithTagsRecord): AppSession {
 function mapChatContactSessionSummary(
   session: SessionWithTagsRecord,
   pendingSeguimientos?: number,
-  seguimientosTipos?: string[],
+  seguimientosTipos?: { tipo: string; count: number }[],
   latestAppointmentStatus?: AppointmentStatus | null,
 ): ChatContactSessionSummary {
   const mappedSession = mapSessionRecord(session);
@@ -297,12 +297,13 @@ export async function getSessionsByUserId(
         })
       : [];
 
-    const seguimientosMap = new Map<string, { count: number; tipos: string[] }>();
+    const seguimientosMap = new Map<string, { count: number; tiposMap: Record<string, number> }>();
     for (const s of seguimientosRaw) {
       if (!s.remoteJid) continue;
-      const entry = seguimientosMap.get(s.remoteJid) ?? { count: 0, tipos: [] };
+      const entry = seguimientosMap.get(s.remoteJid) ?? { count: 0, tiposMap: {} };
       entry.count++;
-      if (s.tipo && !entry.tipos.includes(s.tipo)) entry.tipos.push(s.tipo);
+      const t = s.tipo ?? 'Sin tipo';
+      entry.tiposMap[t] = (entry.tiposMap[t] ?? 0) + 1;
       seguimientosMap.set(s.remoteJid, entry);
     }
 
@@ -316,7 +317,7 @@ export async function getSessionsByUserId(
         order: (st.tag as any).order ?? 0,
       })),
       pendingSeguimientos: seguimientosMap.get(s.remoteJid)?.count ?? 0,
-      seguimientosTipos: seguimientosMap.get(s.remoteJid)?.tipos ?? [],
+      seguimientosTipos: Object.entries(seguimientosMap.get(s.remoteJid)?.tiposMap ?? {}).map(([tipo, count]) => ({ tipo, count })),
     }));
 
     return {
@@ -437,12 +438,13 @@ export async function getChatContactSessions(
         })
       : [];
 
-    const seguimientosMap = new Map<string, { count: number; tipos: string[] }>();
+    const seguimientosMap = new Map<string, { count: number; tiposMap: Record<string, number> }>();
     for (const s of seguimientosRaw) {
       if (!s.remoteJid) continue;
-      const entry = seguimientosMap.get(s.remoteJid) ?? { count: 0, tipos: [] };
+      const entry = seguimientosMap.get(s.remoteJid) ?? { count: 0, tiposMap: {} };
       entry.count++;
-      if (s.tipo && !entry.tipos.includes(s.tipo)) entry.tipos.push(s.tipo);
+      const t = s.tipo ?? 'Sin tipo';
+      entry.tiposMap[t] = (entry.tiposMap[t] ?? 0) + 1;
       seguimientosMap.set(s.remoteJid, entry);
     }
 
@@ -499,7 +501,7 @@ export async function getChatContactSessions(
       data[chat.chatRemoteJid] = mapChatContactSessionSummary(
         preferredSession,
         seg?.count ?? 0,
-        seg?.tipos ?? [],
+        Object.entries(seg?.tiposMap ?? {}).map(([tipo, count]) => ({ tipo, count })),
         appointmentStatusMap.get(preferredSession.id) ?? null,
       );
     }

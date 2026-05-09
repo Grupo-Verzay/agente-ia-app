@@ -85,7 +85,7 @@ export type ChatContactSessionSummary = {
   leadStatus?: LeadStatus | null;
   flujos?: string | null;
   pendingSeguimientos?: number;
-  seguimientosTipos?: string[];
+  seguimientosTipos?: { tipo: string; count: number }[];
   latestAppointmentStatus?: AppointmentStatus | null;
   assignedAdvisorId?: string | null;
 };

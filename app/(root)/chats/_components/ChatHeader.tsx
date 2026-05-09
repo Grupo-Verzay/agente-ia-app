@@ -158,6 +158,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 >
                   <Phone className="h-4 w-4" />
                 </Button>
+                {advisorBadge}
                 <Button
                   type="button"
                   variant="ghost"
@@ -210,7 +211,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 mutateSessions={onSessionMutate}
               />
             )}
-            {advisorBadge}
             {sessionActions}
           </div>
         ) : (
@@ -260,6 +260,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               >
                 <Phone className="h-4 w-4" />
               </Button>
+              {advisorBadge}
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               <ChatRegistrosBadge
@@ -280,7 +281,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   instanceId={session.instanceId}
                 />
               {tagsCombobox}
-              {advisorBadge}
             </>
           )}
           {sessionActions}

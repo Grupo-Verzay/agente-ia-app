@@ -5,7 +5,15 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-export const SeguimientoBadge = ({ count, tipos }: { count: number; tipos?: string[] }) => {
+type TipoCount = { tipo: string; count: number };
+
+export const SeguimientoBadge = ({
+  count,
+  tipos,
+}: {
+  count: number;
+  tipos?: TipoCount[];
+}) => {
   if (count === 0) return null;
 
   return (
@@ -19,13 +27,16 @@ export const SeguimientoBadge = ({ count, tipos }: { count: number; tipos?: stri
             </span>
           </span>
         </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={6} className="z-[9999] max-w-[420px]">
-          <div className="space-y-1">
+        <TooltipContent side="top" sideOffset={6} className="z-[9999]">
+          <div className="space-y-1 min-w-[130px]">
             <div className="text-xs font-bold">Seguimientos pendientes</div>
             {tipos && tipos.length > 0 ? (
-              <ul className="list-disc pl-4 text-xs space-y-0.5">
-                {tipos.map((t) => (
-                  <li key={t} className="break-words">{t}</li>
+              <ul className="space-y-0.5">
+                {tipos.map(({ tipo, count: c }) => (
+                  <li key={tipo} className="flex items-center justify-between gap-4 text-xs">
+                    <span className="capitalize">{tipo}</span>
+                    <span className="font-semibold tabular-nums">{c}</span>
+                  </li>
                 ))}
               </ul>
             ) : (
