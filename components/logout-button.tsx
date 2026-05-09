@@ -37,7 +37,7 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
   };
 
   const isAdvisor = !!(user as any)?.ownerId;
-  const planLabel = isAdvisor ? 'Asesor' : user?.plan;
+  const planLabel = isAdvisor ? '👤 Asesor' : user?.plan;
   const customStyles = isAdvisor
     ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
     : PLAN_COLORS[user?.plan ?? 'basico'];

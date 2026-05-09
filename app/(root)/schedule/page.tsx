@@ -35,6 +35,8 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
     const user = await currentUser()
     if (!user) return null;
 
+    const effectiveId: string = (user as any).effectiveId ?? user.id;
+
     // Obtener API Key
     const resApikey = await getApiKeyById(user.apiKeyId)
     if (!resApikey.success || !hasApiKey(resApikey)) {
@@ -43,7 +45,7 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
     }
 
     // Obtener recordatorios
-    const resReminder = await getRemindersByUserId(user.id)
+    const resReminder = await getRemindersByUserId(effectiveId)
     if (!resReminder.success) {
         console.error("[REMINDERS_PAGE] Error al obtener recordatorios:", resReminder.message)
         return <strong>404</strong>
@@ -51,7 +53,7 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
     const reminders = hasReminder(resReminder) ? resReminder.data : []
 
     // Obtener sesiones
-    const resSession = await getSessionsByUserId(user.id)
+    const resSession = await getSessionsByUserId(effectiveId)
     if (!resSession.success) {
         console.error("[REMINDERS_PAGE] Error al obtener sesiones:", resSession.message)
         return <strong>404</strong>
@@ -59,7 +61,7 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
     const sessions = hasSession(resSession) ? resSession.data : []
 
     // Obtener workflows
-    const resWorkflow = await getWorkFlowByUser(user.id)
+    const resWorkflow = await getWorkFlowByUser(effectiveId)
     if (!resWorkflow.success) {
         console.error("[REMINDERS_PAGE] Error al obtener flujos de trabajo:", resWorkflow.message)
         return <strong>404</strong>
@@ -67,7 +69,7 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
     const workflows = hasWorkflow(resWorkflow) ? resWorkflow.data : []
 
 
-    const resInstancia = await getInstancesByUserId(user.id)
+    const resInstancia = await getInstancesByUserId(effectiveId)
     if (!resInstancia.success || !hasInstancia(resInstancia)) {
         console.error("[REMINDERS_PAGE] No se encontró una API Key válida para el usuario.")
         return <strong className="text-red-500">No se encontró una API Key válida.</strong>
