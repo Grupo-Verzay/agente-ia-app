@@ -191,6 +191,109 @@ export async function saveAdvisorModules(advisorId: string, moduleIds: string[])
   return { success: true, message: "Módulos guardados." };
 }
 
+export type AdvisorMetric = {
+  id: string;
+  name: string | null;
+  email: string;
+  totalAssigned: number;
+  activeCount: number;
+  closedCount: number;
+  hotCount: number;
+  convertedCount: number;
+};
+
+export type TeamMetrics = {
+  advisors: AdvisorMetric[];
+  global: {
+    totalActive: number;
+    newThisWeek: number;
+    escalationRate: number;
+    conversionRate: number;
+    leadStatus: { FRIO: number; TIBIO: number; CALIENTE: number; FINALIZADO: number; DESCARTADO: number };
+  };
+};
+
+export async function getTeamMetrics(): Promise<ActionResult<TeamMetrics>> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+
+  const [advisorRows, globalRows, leadRows, newSessionRows] = await Promise.all([
+    // Per-advisor stats
+    db.$queryRaw<{
+      id: string; name: string | null; email: string;
+      total_assigned: number; active_count: number; closed_count: number;
+      hot_count: number; converted_count: number;
+    }[]>`
+      SELECT
+        u.id, u.name, u.email,
+        COUNT(s.id)::int                                                   AS total_assigned,
+        COUNT(s.id) FILTER (WHERE s.status = true)::int                    AS active_count,
+        COUNT(s.id) FILTER (WHERE s.status = false)::int                   AS closed_count,
+        COUNT(s.id) FILTER (WHERE s.lead_status = 'CALIENTE')::int         AS hot_count,
+        COUNT(s.id) FILTER (WHERE s.lead_status = 'FINALIZADO')::int       AS converted_count
+      FROM "User" u
+      LEFT JOIN "Session" s ON s.assigned_advisor_id = u.id
+      WHERE u.owner_id = ${owner.id}
+      GROUP BY u.id, u.name, u.email
+      ORDER BY total_assigned DESC
+    `,
+    // Global: active + escalation rate
+    db.$queryRaw<{ total_active: number; escalated: number; total: number }[]>`
+      SELECT
+        COUNT(*) FILTER (WHERE status = true)::int  AS total_active,
+        COUNT(*) FILTER (WHERE agent_disabled = true)::int AS escalated,
+        COUNT(*)::int                               AS total
+      FROM "Session" WHERE "userId" = ${owner.id}
+    `,
+    // Lead status distribution
+    db.$queryRaw<{ lead_status: string; cnt: number }[]>`
+      SELECT lead_status, COUNT(*)::int AS cnt
+      FROM "Session"
+      WHERE "userId" = ${owner.id} AND lead_status IS NOT NULL
+      GROUP BY lead_status
+    `,
+    // New sessions this week
+    db.$queryRaw<{ cnt: number }[]>`
+      SELECT COUNT(*)::int AS cnt FROM "Session"
+      WHERE "userId" = ${owner.id} AND "createdAt" >= ${weekAgo}
+    `,
+  ]);
+
+  const g = globalRows[0] ?? { total_active: 0, escalated: 0, total: 0 };
+  const leadStatus = { FRIO: 0, TIBIO: 0, CALIENTE: 0, FINALIZADO: 0, DESCARTADO: 0 };
+  for (const row of leadRows) {
+    if (row.lead_status in leadStatus)
+      leadStatus[row.lead_status as keyof typeof leadStatus] = row.cnt;
+  }
+  const totalClassified = Object.values(leadStatus).reduce((a, b) => a + b, 0);
+
+  return {
+    success: true,
+    data: {
+      advisors: advisorRows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        totalAssigned: r.total_assigned,
+        activeCount: r.active_count,
+        closedCount: r.closed_count,
+        hotCount: r.hot_count,
+        convertedCount: r.converted_count,
+      })),
+      global: {
+        totalActive: g.total_active,
+        newThisWeek: newSessionRows[0]?.cnt ?? 0,
+        escalationRate: g.total > 0 ? Math.round((g.escalated / g.total) * 100) : 0,
+        conversionRate: totalClassified > 0 ? Math.round((leadStatus.FINALIZADO / totalClassified) * 100) : 0,
+        leadStatus,
+      },
+    },
+  };
+}
+
 export async function getAutoAssignSettings(): Promise<
   ActionResult<{ autoAssignEnabled: boolean; autoAssignMaxChats: number }>
 > {

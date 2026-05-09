@@ -41,7 +41,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { AdvisorRow, ModuleOption } from "@/actions/team-actions";
+import type { AdvisorRow, ModuleOption, TeamMetrics } from "@/actions/team-actions";
+import { TeamMetrics as TeamMetricsPanel } from "./TeamMetrics";
 import {
   createAdvisor,
   updateAdvisorPassword,
@@ -77,12 +78,13 @@ type Props = {
   initialAdvisors: AdvisorRow[];
   ownerModules: ModuleOption[];
   initialAutoAssign: AutoAssignSettings;
+  teamMetrics: TeamMetrics | null;
 };
 
 type CreateForm = { name: string; email: string; password: string; role: "agente" | "administrador" };
 type PasswordForm = { advisorId: string; advisorName: string; newPassword: string };
 
-export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign }: Props) {
+export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, teamMetrics }: Props) {
   const [advisors, setAdvisors] = useState<AdvisorRow[]>(initialAdvisors);
   const [isPending, startTransition] = useTransition();
 
@@ -372,6 +374,9 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign }:
           </TableBody>
         </Table>
       )}
+
+      {/* Team metrics */}
+      {teamMetrics && <TeamMetricsPanel metrics={teamMetrics} />}
 
       {/* Modules dialog */}
       <Dialog open={Boolean(modulesForm)} onOpenChange={(open) => !open && setModulesForm(null)}>
