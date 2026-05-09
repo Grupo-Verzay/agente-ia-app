@@ -24,10 +24,12 @@ const AiPage = async ({ params, searchParams }: PageProps) => {
         redirect('/login');
     };
 
-    const resPromptAi = await getPromptAiByUserId(user.id);
+    const effectiveId = (user as any).effectiveId ?? user.id;
+
+    const resPromptAi = await getPromptAiByUserId(effectiveId);
     const promptAi = Array.isArray(resPromptAi.data) ? resPromptAi.data : [];
     const paymentReceiptPrompt = await getAgentPromptByUserAndAgentId({
-        userId: user.id,
+        userId: effectiveId,
         agentId: AGENT_PROMPT_IDS.paymentReceiptAnalyzer,
     });
 
@@ -35,7 +37,7 @@ const AiPage = async ({ params, searchParams }: PageProps) => {
         <Suspense fallback={<MessagesSkeleton />}>
             <MainAi
                 promptAi={promptAi}
-                userId={user.id}
+                userId={effectiveId}
                 paymentReceiptPrompt={paymentReceiptPrompt
                     ? {
                         id: paymentReceiptPrompt.id,

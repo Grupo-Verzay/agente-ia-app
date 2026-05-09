@@ -40,11 +40,13 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
         redirect("/login");
     }
 
+    const effectiveId = (user as any).effectiveId ?? user.id;
+
     // Obtener instancias, API key y prompts en paralelo
     const [resInstancias, resApikey, resPrompts] = await Promise.all([
-        getInstancesByUserId(user.id),
+        getInstancesByUserId(effectiveId),
         getApiKeyById((user as any).apiKeyId),
-        getPromptsByUserId(user.id)
+        getPromptsByUserId(effectiveId)
     ]);
 
     const instancias = hasInstancias(resInstancias) ? resInstancias.data : [];

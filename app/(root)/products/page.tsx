@@ -13,13 +13,14 @@ export default async function ProductsPage({
         redirect('/login');
     };
 
+    const effectiveId = (user as any).effectiveId ?? user.id;
     const q = searchParams?.q ?? "";
     const page = Number(searchParams?.page ?? 1);
-    const data = await listProducts({ userId: user.id, q, page, perPage: 20 });
+    const data = await listProducts({ userId: effectiveId, q, page, perPage: 20 });
 
     return (
         <Suspense fallback={<div>Cargando…</div>}>
-            <MainProducts data={data} userId={user.id} initialFilter={q} />
+            <MainProducts data={data} userId={effectiveId} initialFilter={q} />
         </Suspense>
     );
 }
