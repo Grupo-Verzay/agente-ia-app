@@ -36,8 +36,12 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
     personalizado: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
   };
 
-  const customStyles = PLAN_COLORS[user?.plan ?? 'basico'];
-  
+  const isAdvisor = !!(user as any)?.ownerId;
+  const planLabel = isAdvisor ? 'Asesor' : user?.plan;
+  const customStyles = isAdvisor
+    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+    : PLAN_COLORS[user?.plan ?? 'basico'];
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -56,7 +60,7 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">{user?.name}</span>
                 <span className={`truncate text-xs capitalize p-1 rounded-sm  ${customStyles}`}>
-                  {user?.plan}
+                  {planLabel}
                 </span>
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
