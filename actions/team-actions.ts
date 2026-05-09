@@ -8,7 +8,15 @@ import { getUserModuleIds, setUserModules } from "@/actions/user-module-actions"
 import { getAllModules } from "@/actions/module-actions";
 
 export type ModuleOption = { id: string; label: string };
-export type AdvisorRow = { id: string; name: string | null; email: string; createdAt: Date; advisorRole: string | null };
+export type AdvisorRow = {
+  id: string;
+  name: string | null;
+  email: string;
+  createdAt: Date;
+  advisorRole: string | null;
+  assignedCount: number;
+  activeCount: number;
+};
 export type AdvisorInfo = { id: string; name: string | null; email: string; advisorRole: string | null };
 
 type ActionResult<T = undefined> =
@@ -34,11 +42,20 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
 
-  const rows = await db.$queryRaw<{ id: string; name: string | null; email: string; createdAt: Date; advisorRole: string | null }[]>`
-    SELECT id, name, email, "createdAt", advisor_role AS "advisorRole"
-    FROM "User"
-    WHERE owner_id = ${owner.id}
-    ORDER BY "createdAt" ASC
+  const rows = await db.$queryRaw<AdvisorRow[]>`
+    SELECT
+      u.id,
+      u.name,
+      u.email,
+      u."createdAt",
+      u.advisor_role AS "advisorRole",
+      COUNT(s.id)::int                                        AS "assignedCount",
+      COUNT(s.id) FILTER (WHERE s.status = true)::int        AS "activeCount"
+    FROM "User" u
+    LEFT JOIN "Session" s ON s."assignedAdvisorId" = u.id
+    WHERE u.owner_id = ${owner.id}
+    GROUP BY u.id
+    ORDER BY u."createdAt" ASC
   `;
 
   return { success: true, data: rows };

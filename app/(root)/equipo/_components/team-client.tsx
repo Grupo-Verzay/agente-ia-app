@@ -207,6 +207,8 @@ export function TeamClient({ initialAdvisors, ownerModules }: Props) {
               <TableHead>Nombre</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Rol</TableHead>
+              <TableHead className="text-center">Asignados</TableHead>
+              <TableHead className="text-center">Activos</TableHead>
               <TableHead>Creado</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
@@ -222,7 +224,17 @@ export function TeamClient({ initialAdvisors, ownerModules }: Props) {
                     <span className="font-medium">{advisor.name ?? "—"}</span>
                   </div>
                 </TableCell>
-                <TableCell className="text-muted-foreground">{advisor.email}</TableCell>
+                <TableCell className="text-muted-foreground text-sm">{advisor.email}</TableCell>
+                <TableCell className="text-center">
+                  <span className={`inline-flex items-center justify-center h-6 min-w-[1.5rem] rounded-full px-1.5 text-xs font-semibold ${advisor.assignedCount > 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-muted-foreground'}`}>
+                    {advisor.assignedCount}
+                  </span>
+                </TableCell>
+                <TableCell className="text-center">
+                  <span className={`inline-flex items-center justify-center h-6 min-w-[1.5rem] rounded-full px-1.5 text-xs font-semibold ${advisor.activeCount > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'text-muted-foreground'}`}>
+                    {advisor.activeCount}
+                  </span>
+                </TableCell>
                 <TableCell>
                   <Select
                     value={advisor.advisorRole ?? "agente"}
