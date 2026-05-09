@@ -10,7 +10,8 @@ const ToolOne = async () => {
         redirect("/login");
     }
 
-    const toolResponse = await getTools(user.id);
+    const effectiveId = (user as any).effectiveId ?? user.id;
+    const toolResponse = await getTools(effectiveId);
     const toolsMap: Record<string, string> = {};
 
     if (toolResponse.success && toolResponse.data) {
