@@ -11,6 +11,24 @@ import type { AdvisorInfo } from "@/actions/team-actions";
 import { ChatSearchBar } from "./ChatSearchBar";
 import { TagFilterPanel } from "./TagFilterPanel";
 import { ChatTabBar } from "./ChatTabBar";
+import { UserX } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const PALETTE = [
+  'bg-blue-500', 'bg-violet-500', 'bg-emerald-500',
+  'bg-amber-500', 'bg-rose-500', 'bg-cyan-500', 'bg-fuchsia-500',
+];
+function colorFor(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return PALETTE[Math.abs(h) % PALETTE.length];
+}
+function initials(name: string | null, email: string) {
+  const src = name?.trim() || email;
+  const parts = src.split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return src.slice(0, 2).toUpperCase();
+}
 import { ChatContactItem } from "./ChatContactItem";
 import { DeletedContactItem } from "./DeletedContactItem";
 import { ChatEmptyState } from "./ChatEmptyState";
@@ -64,6 +82,10 @@ export function ChatSidebar({
   const [tab, setTab] = useState<TabKey>("all");
   const [deleteTarget, setDeleteTarget] = useState<SidebarContact | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
+  const [advisorFilter, setAdvisorFilter] = useState<string | null>(null); // null=todos, 'unassigned'=sin asignar, id=asesor específico
+
+  const isOwnerOrAdmin = advisorRole !== "agente";
+  const showAdvisorFilter = isOwnerOrAdmin && (advisors?.length ?? 0) > 0;
   const [seenMessages, setSeenMessages] = useLocalStorageObjectArray(
     "seenMessages",
     [] as MessageRecord[],
@@ -185,12 +207,18 @@ export function ChatSidebar({
       );
     }
 
+    if (advisorFilter === 'unassigned') {
+      list = list.filter((c) => !c.chatSession?.assignedAdvisorId);
+    } else if (advisorFilter) {
+      list = list.filter((c) => c.chatSession?.assignedAdvisorId === advisorFilter);
+    }
+
     return list.slice().sort((a, b) => {
       if (a.isPinned !== b.isPinned) return Number(b.isPinned) - Number(a.isPinned);
       if (a.pinnedAtMs !== b.pinnedAtMs) return b.pinnedAtMs - a.pinnedAtMs;
       return b.ts - a.ts;
     });
-  }, [contacts, q, selectedTagIds, tab]);
+  }, [contacts, q, selectedTagIds, tab, advisorFilter]);
 
   React.useEffect(() => {
     if (selectedJid) {
@@ -241,6 +269,51 @@ export function ChatSidebar({
               />
             )}
           </div>
+
+          {showAdvisorFilter && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+              <button
+                type="button"
+                onClick={() => setAdvisorFilter(null)}
+                className={cn(
+                  'shrink-0 h-6 rounded-full px-2 text-[10px] font-medium transition-colors',
+                  advisorFilter === null
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                )}
+              >
+                Todos
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdvisorFilter(advisorFilter === 'unassigned' ? null : 'unassigned')}
+                title="Sin asignar"
+                className={cn(
+                  'shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-full border transition-colors',
+                  advisorFilter === 'unassigned'
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-dashed border-muted-foreground/50 text-muted-foreground hover:border-primary hover:text-primary'
+                )}
+              >
+                <UserX className="h-3 w-3" />
+              </button>
+              {advisors?.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => setAdvisorFilter(advisorFilter === a.id ? null : a.id)}
+                  title={a.name ?? a.email}
+                  className={cn(
+                    'shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white transition-opacity',
+                    colorFor(a.id),
+                    advisorFilter === a.id ? 'ring-2 ring-primary ring-offset-1' : 'opacity-70 hover:opacity-100'
+                  )}
+                >
+                  {initials(a.name, a.email)}
+                </button>
+              ))}
+            </div>
+          )}
 
           <ChatTabBar tab={tab} onTabChange={setTab} tabCounts={tabCounts} />
         </div>
