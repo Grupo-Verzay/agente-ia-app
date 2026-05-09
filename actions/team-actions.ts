@@ -33,17 +33,14 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
 
-  const rows = await db.$queryRaw<{ id: string; name: string | null; email: string; created_at: Date }[]>`
-    SELECT id, name, email, created_at
+  const rows = await db.$queryRaw<{ id: string; name: string | null; email: string; createdAt: Date }[]>`
+    SELECT id, name, email, "createdAt"
     FROM "User"
     WHERE owner_id = ${owner.id}
-    ORDER BY created_at ASC
+    ORDER BY "createdAt" ASC
   `;
 
-  return {
-    success: true,
-    data: rows.map((r) => ({ id: r.id, name: r.name, email: r.email, createdAt: r.created_at })),
-  };
+  return { success: true, data: rows };
 }
 
 export async function createAdvisor(input: {
