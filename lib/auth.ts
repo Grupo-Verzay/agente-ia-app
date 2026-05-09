@@ -61,15 +61,17 @@ export async function currentUser(request?: Request) {
         },
     }).then(async (u) => {
         if (!u) return null;
-        // Obtener ownerId via SQL raw para evitar error de schema incompleto del cliente Prisma
+        // Obtener ownerId y advisorRole via SQL raw para evitar error de schema incompleto del cliente Prisma
         let ownerId: string | null = null;
+        let advisorRole: string | null = null;
         try {
-            const rows = await db.$queryRaw<{ owner_id: string | null }[]>`
-                SELECT owner_id FROM "User" WHERE id = ${u.id}
+            const rows = await db.$queryRaw<{ owner_id: string | null; advisor_role: string | null }[]>`
+                SELECT owner_id, advisor_role FROM "User" WHERE id = ${u.id}
             `;
             ownerId = rows[0]?.owner_id ?? null;
+            advisorRole = rows[0]?.advisor_role ?? null;
         } catch {
-            // Si la columna aún no existe, ownerId queda null
+            // Si las columnas aún no existen, quedan null
         }
 
         // Si es asesor, heredar credenciales de API del dueño
@@ -87,11 +89,11 @@ export async function currentUser(request?: Request) {
                 },
             });
             if (ownerCreds) {
-                return { ...u, ...ownerCreds, ownerId, effectiveId: ownerId };
+                return { ...u, ...ownerCreds, ownerId, advisorRole, effectiveId: ownerId };
             }
         }
 
-        return { ...u, ownerId, effectiveId: ownerId ?? u.id };
+        return { ...u, ownerId, advisorRole, effectiveId: ownerId ?? u.id };
     });
 
     if (request) {
