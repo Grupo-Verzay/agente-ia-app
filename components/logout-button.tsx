@@ -27,19 +27,36 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
   const userInitial = user?.name?.charAt(0).toUpperCase() ?? '?'
 
   const PLAN_COLORS: Record<Plan, string> = {
-    enterprise: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
-    lite: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300',              // Básico reducido
-    unico: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-300',             // Singular / especial
-    basico: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-900 dark:text-zinc-300',            // Igual que "standard"
-    intermedio: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',// Similar a "intermediate"
-    avanzado: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300',  // Similar a "advanced"
+    enterprise:    'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
+    avanzado:      'bg-indigo-100  text-indigo-800  dark:bg-indigo-900  dark:text-indigo-300',
+    intermedio:    'bg-orange-100  text-orange-800  dark:bg-orange-900  dark:text-orange-300',
+    basico:        'bg-zinc-100    text-zinc-800    dark:bg-zinc-900    dark:text-zinc-300',
+    lite:          'bg-gray-100    text-gray-800    dark:bg-gray-900    dark:text-gray-300',
+    unico:         'bg-pink-100    text-pink-800    dark:bg-pink-900    dark:text-pink-300',
     personalizado: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
   };
 
+  const PLAN_LABELS: Record<Plan, string> = {
+    enterprise:    '🏢 Enterprise',
+    avanzado:      '🚀 Avanzado',
+    intermedio:    '⚙️ Intermedio',
+    basico:        '🌱 Básico',
+    lite:          '💡 Lite',
+    unico:         '⭐ Único',
+    personalizado: '🏢 Enterprise',
+  };
+
   const isAdvisor = !!(user as any)?.ownerId;
-  const planLabel = isAdvisor ? '👤 Asesor' : user?.plan;
+  const advisorRole: string | null = (user as any)?.advisorRole ?? null;
+
+  const planLabel = isAdvisor
+    ? advisorRole === 'administrador' ? '🛡️ Administrador' : '🕵️ Agente'
+    : PLAN_LABELS[user?.plan ?? 'basico'];
+
   const customStyles = isAdvisor
-    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+    ? advisorRole === 'administrador'
+      ? 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-300'
+      : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
     : PLAN_COLORS[user?.plan ?? 'basico'];
 
   return (
@@ -59,7 +76,7 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">{user?.name}</span>
-                <span className={`truncate text-xs capitalize p-1 rounded-sm  ${customStyles}`}>
+                <span className={`truncate text-xs text-center p-1 rounded-sm ${customStyles}`}>
                   {planLabel}
                 </span>
               </div>
