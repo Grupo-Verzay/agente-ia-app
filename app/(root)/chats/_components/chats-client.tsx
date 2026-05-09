@@ -10,6 +10,7 @@ import {
 } from "@/actions/chat-conversation-actions";
 import { getChatContactSessions } from "@/actions/session-action";
 import type { AdvisorInfo } from "@/actions/team-actions";
+import { useAdvisorNotifications } from "@/hooks/chats/useAdvisorNotifications";
 import type {
   ChatData,
   EvolutionMessage,
@@ -285,30 +286,8 @@ export function ChatsClient({
     messagesRef.current = messages;
   }, [messages]);
 
-  // Notificación al agente: detecta chats nuevos asignados desde la última visita
-  useEffect(() => {
-    if (advisorRole !== "agente" || !currentAdvisorId) return;
-    const myChats = Object.values(chatSessions).filter(
-      (s) => s?.assignedAdvisorId === currentAdvisorId,
-    );
-    if (myChats.length === 0) return;
-    const storageKey = `advisor_seen_${currentAdvisorId}`;
-    const seenIds: number[] = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
-    const newChats = myChats.filter((s) => !seenIds.includes(s.id));
-    if (newChats.length > 0) {
-      toast.info(
-        newChats.length === 1
-          ? "Tienes 1 conversación nueva asignada."
-          : `Tienes ${newChats.length} conversaciones nuevas asignadas.`,
-        { duration: 6000 },
-      );
-      localStorage.setItem(storageKey, JSON.stringify(myChats.map((s) => s.id)));
-    } else {
-      localStorage.setItem(storageKey, JSON.stringify(myChats.map((s) => s.id)));
-    }
-  // Solo al montar
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Notificaciones en tiempo real para asesores (browser notification + sonido + badge en título)
+  useAdvisorNotifications(chatSessions, currentAdvisorId, advisorRole);
 
   const toggleSidebarVisibility = useCallback(() => {
     setIsSidebarVisible((previous) => !previous);
