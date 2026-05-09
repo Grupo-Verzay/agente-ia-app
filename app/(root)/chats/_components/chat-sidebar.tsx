@@ -152,6 +152,21 @@ export function ChatSidebar({
       });
   }, [chatPreferences, chatSessions, isMessageSeen, result, selectedJid]);
 
+  const advisorCounts = useMemo(() => {
+    const active = contacts.filter((c) => !c.isDeleted && !c.isArchived);
+    const countMap: Record<string, number> = {};
+    let unassigned = 0;
+    for (const c of active) {
+      const aid = c.chatSession?.assignedAdvisorId;
+      if (aid) {
+        countMap[aid] = (countMap[aid] ?? 0) + 1;
+      } else {
+        unassigned++;
+      }
+    }
+    return { countMap, unassigned };
+  }, [contacts]);
+
   const tabCounts = useMemo<TabCounts>(() => {
     const active = contacts.filter((c) => !c.isDeleted && !c.isArchived);
     return {
@@ -284,34 +299,50 @@ export function ChatSidebar({
               >
                 Todos
               </button>
-              <button
-                type="button"
-                onClick={() => setAdvisorFilter(advisorFilter === 'unassigned' ? null : 'unassigned')}
-                title="Sin asignar"
-                className={cn(
-                  'shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-full border transition-colors',
-                  advisorFilter === 'unassigned'
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-dashed border-muted-foreground/50 text-muted-foreground hover:border-primary hover:text-primary'
-                )}
-              >
-                <UserX className="h-3 w-3" />
-              </button>
-              {advisors?.map((a) => (
+              <div className="relative shrink-0">
                 <button
-                  key={a.id}
                   type="button"
-                  onClick={() => setAdvisorFilter(advisorFilter === a.id ? null : a.id)}
-                  title={a.name ?? a.email}
+                  onClick={() => setAdvisorFilter(advisorFilter === 'unassigned' ? null : 'unassigned')}
+                  title={`Sin asignar (${advisorCounts.unassigned})`}
                   className={cn(
-                    'shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white transition-opacity',
-                    colorFor(a.id),
-                    advisorFilter === a.id ? 'ring-2 ring-primary ring-offset-1' : 'opacity-70 hover:opacity-100'
+                    'inline-flex h-6 w-6 items-center justify-center rounded-full border transition-colors',
+                    advisorFilter === 'unassigned'
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-dashed border-muted-foreground/50 text-muted-foreground hover:border-primary hover:text-primary'
                   )}
                 >
-                  {initials(a.name, a.email)}
+                  <UserX className="h-3 w-3" />
                 </button>
-              ))}
+                {advisorCounts.unassigned > 0 && (
+                  <span className="pointer-events-none absolute -top-1 -right-1 inline-flex h-3.5 min-w-[0.875rem] items-center justify-center rounded-full bg-amber-500 px-0.5 text-[8px] font-bold text-white leading-none">
+                    {advisorCounts.unassigned > 99 ? '99+' : advisorCounts.unassigned}
+                  </span>
+                )}
+              </div>
+              {advisors?.map((a) => {
+                const count = advisorCounts.countMap[a.id] ?? 0;
+                return (
+                  <div key={a.id} className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setAdvisorFilter(advisorFilter === a.id ? null : a.id)}
+                      title={`${a.name ?? a.email} (${count})`}
+                      className={cn(
+                        'inline-flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white transition-opacity',
+                        colorFor(a.id),
+                        advisorFilter === a.id ? 'ring-2 ring-primary ring-offset-1' : 'opacity-70 hover:opacity-100'
+                      )}
+                    >
+                      {initials(a.name, a.email)}
+                    </button>
+                    {count > 0 && (
+                      <span className="pointer-events-none absolute -top-1 -right-1 inline-flex h-3.5 min-w-[0.875rem] items-center justify-center rounded-full bg-zinc-700 px-0.5 text-[8px] font-bold text-white leading-none dark:bg-zinc-300 dark:text-zinc-900">
+                        {count > 99 ? '99+' : count}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
