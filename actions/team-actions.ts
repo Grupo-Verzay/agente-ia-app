@@ -232,8 +232,8 @@ export async function getTeamMetrics(): Promise<ActionResult<TeamMetrics>> {
         COUNT(s.id)::int                                                   AS total_assigned,
         COUNT(s.id) FILTER (WHERE s.status = true)::int                    AS active_count,
         COUNT(s.id) FILTER (WHERE s.status = false)::int                   AS closed_count,
-        COUNT(s.id) FILTER (WHERE s.lead_status = 'CALIENTE')::int         AS hot_count,
-        COUNT(s.id) FILTER (WHERE s.lead_status = 'FINALIZADO')::int       AS converted_count
+        COUNT(s.id) FILTER (WHERE s."leadStatus" = 'CALIENTE')::int         AS hot_count,
+        COUNT(s.id) FILTER (WHERE s."leadStatus" = 'FINALIZADO')::int       AS converted_count
       FROM "User" u
       LEFT JOIN "Session" s ON s.assigned_advisor_id = u.id
       WHERE u.owner_id = ${owner.id}
@@ -244,16 +244,16 @@ export async function getTeamMetrics(): Promise<ActionResult<TeamMetrics>> {
     db.$queryRaw<{ total_active: number; escalated: number; total: number }[]>`
       SELECT
         COUNT(*) FILTER (WHERE status = true)::int  AS total_active,
-        COUNT(*) FILTER (WHERE agent_disabled = true)::int AS escalated,
+        COUNT(*) FILTER (WHERE "agentDisabled" = true)::int AS escalated,
         COUNT(*)::int                               AS total
       FROM "Session" WHERE "userId" = ${owner.id}
     `,
     // Lead status distribution
-    db.$queryRaw<{ lead_status: string; cnt: number }[]>`
-      SELECT lead_status, COUNT(*)::int AS cnt
+    db.$queryRaw<{ leadStatus: string; cnt: number }[]>`
+      SELECT "leadStatus", COUNT(*)::int AS cnt
       FROM "Session"
-      WHERE "userId" = ${owner.id} AND lead_status IS NOT NULL
-      GROUP BY lead_status
+      WHERE "userId" = ${owner.id} AND "leadStatus" IS NOT NULL
+      GROUP BY "leadStatus"
     `,
     // New sessions this week
     db.$queryRaw<{ cnt: number }[]>`
@@ -265,8 +265,8 @@ export async function getTeamMetrics(): Promise<ActionResult<TeamMetrics>> {
   const g = globalRows[0] ?? { total_active: 0, escalated: 0, total: 0 };
   const leadStatus = { FRIO: 0, TIBIO: 0, CALIENTE: 0, FINALIZADO: 0, DESCARTADO: 0 };
   for (const row of leadRows) {
-    if (row.lead_status in leadStatus)
-      leadStatus[row.lead_status as keyof typeof leadStatus] = row.cnt;
+    if (row.leadStatus in leadStatus)
+      leadStatus[row.leadStatus as keyof typeof leadStatus] = row.cnt;
   }
   const totalClassified = Object.values(leadStatus).reduce((a, b) => a + b, 0);
 
