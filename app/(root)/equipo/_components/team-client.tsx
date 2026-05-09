@@ -52,6 +52,22 @@ import {
   saveAdvisorModules,
 } from "@/actions/team-actions";
 
+const PALETTE = [
+  'bg-blue-500', 'bg-violet-500', 'bg-emerald-500',
+  'bg-amber-500', 'bg-rose-500', 'bg-cyan-500', 'bg-fuchsia-500',
+];
+function colorFor(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return PALETTE[Math.abs(h) % PALETTE.length];
+}
+function getInitials(name: string | null, email: string) {
+  const src = name?.trim() || email;
+  const parts = src.split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return src.slice(0, 2).toUpperCase();
+}
+
 type ModulesForm = { advisorId: string; advisorName: string; enabledIds: string[]; loading: boolean };
 
 type Props = {
@@ -165,7 +181,7 @@ export function TeamClient({ initialAdvisors, ownerModules }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Los asesores pueden ver todas las conversaciones y enviar mensajes usando tu instancia.
+          Los <strong>administradores</strong> ven todas las conversaciones. Los <strong>agentes</strong> solo ven las asignadas a ellos.
         </p>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => setLinkOpen(true)}>
@@ -198,7 +214,14 @@ export function TeamClient({ initialAdvisors, ownerModules }: Props) {
           <TableBody>
             {advisors.map((advisor) => (
               <TableRow key={advisor.id}>
-                <TableCell className="font-medium">{advisor.name ?? "—"}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-white shrink-0 ${colorFor(advisor.id)}`}>
+                      {getInitials(advisor.name, advisor.email)}
+                    </span>
+                    <span className="font-medium">{advisor.name ?? "—"}</span>
+                  </div>
+                </TableCell>
                 <TableCell className="text-muted-foreground">{advisor.email}</TableCell>
                 <TableCell>
                   <Select
@@ -211,12 +234,12 @@ export function TeamClient({ initialAdvisors, ownerModules }: Props) {
                       });
                     }}
                   >
-                    <SelectTrigger className="h-7 w-32 text-xs">
+                    <SelectTrigger className="h-7 w-36 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="agente">Agente</SelectItem>
-                      <SelectItem value="administrador">Administrador</SelectItem>
+                      <SelectItem value="agente">🕵️ Agente</SelectItem>
+                      <SelectItem value="administrador">🛡️ Administrador</SelectItem>
                     </SelectContent>
                   </Select>
                 </TableCell>
