@@ -77,34 +77,32 @@ export function ChatContactItem({
   const isUnread = contact.isUnreadLocal;
   const apptStatus = contact.chatSession?.latestAppointmentStatus;
 
-  const MAX_BADGES = 4;
+  const MAX_BADGES = 5;
 
   const badgeItems: React.ReactNode[] = [];
 
   if (contact.chatSession) {
     badgeItems.push(
-      <span key="status" onClick={(e) => e.stopPropagation()}>
-        <LeadStatusSelect
-          sessionId={contact.chatSession.id}
-          currentStatus={contact.chatSession.leadStatus ?? null}
-          onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus)}
-        />
-      </span>
+      <LeadStatusSelect
+        key="status"
+        sessionId={contact.chatSession.id}
+        currentStatus={contact.chatSession.leadStatus ?? null}
+        onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus)}
+      />
     );
   }
   if (advisors && advisors.length > 0 && contact.chatSession) {
     badgeItems.push(
-      <span key="advisor" onClick={(e) => e.stopPropagation()}>
-        <AdvisorAssignBadge
-          assignedAdvisorId={contact.chatSession.assignedAdvisorId}
-          advisors={advisors}
-          advisorRole={advisorRole}
-          currentAdvisorId={currentAdvisorId}
-          sessionId={contact.chatSession.id}
-          onAssign={onAssignAdvisor ? (id) => onAssignAdvisor(contact.id, id) : undefined}
-          size="sm"
-        />
-      </span>
+      <AdvisorAssignBadge
+        key="advisor"
+        assignedAdvisorId={contact.chatSession.assignedAdvisorId}
+        advisors={advisors}
+        advisorRole={advisorRole}
+        currentAdvisorId={currentAdvisorId}
+        sessionId={contact.chatSession.id}
+        onAssign={onAssignAdvisor ? (id) => onAssignAdvisor(contact.id, id) : undefined}
+        size="sm"
+      />
     );
   }
   if (contact.chatSession?.flujos) {
@@ -191,15 +189,6 @@ export function ChatContactItem({
               </span>
             </div>
 
-            <div className="mt-0.5 flex items-center gap-1">
-              {visibleBadges}
-              {hiddenCount > 0 && (
-                <span className="inline-flex items-center h-6 rounded-full bg-muted px-1.5 text-[10px] font-medium text-muted-foreground shrink-0">
-                  +{hiddenCount}
-                </span>
-              )}
-            </div>
-
             <div className="mt-0.5 flex items-center justify-between gap-2">
               <div
                 className={cn(
@@ -264,6 +253,20 @@ export function ChatContactItem({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {visibleBadges.length > 0 && (
+        <div
+          className="mt-1 flex flex-wrap items-center gap-1 pl-[52px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {visibleBadges}
+          {hiddenCount > 0 && (
+            <span className="inline-flex items-center h-6 rounded-full bg-muted px-1.5 text-[10px] font-medium text-muted-foreground shrink-0">
+              +{hiddenCount}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

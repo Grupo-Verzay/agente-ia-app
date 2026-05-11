@@ -160,6 +160,17 @@ export async function deleteAdvisor(advisorId: string): Promise<ActionResult> {
   const found = await findAdvisorRaw(advisorId, owner.id);
   if (!found) return { success: false, message: "Asesor no encontrado." };
 
+  // Release any sessions assigned to this advisor
+  await db.$executeRaw`UPDATE "Session" SET assigned_advisor_id = NULL WHERE assigned_advisor_id = ${advisorId}`;
+
+  // Service has no onDelete:Cascade — clean up appointments then services manually
+  const services = await db.service.findMany({ where: { userId: advisorId }, select: { id: true } });
+  if (services.length > 0) {
+    const serviceIds = services.map((s) => s.id);
+    await db.appointment.updateMany({ where: { serviceId: { in: serviceIds } }, data: { serviceId: null } });
+    await db.service.deleteMany({ where: { id: { in: serviceIds } } });
+  }
+
   await db.user.delete({ where: { id: advisorId } });
 
   return { success: true, message: "Asesor eliminado." };

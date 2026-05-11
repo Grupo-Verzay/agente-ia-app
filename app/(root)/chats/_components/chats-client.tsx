@@ -123,6 +123,7 @@ interface ChatsClientProps {
   assignAdvisorAction?: (sessionId: number, advisorId: string | null) => Promise<{ success: boolean; message?: string; warning?: string }>;
   takeSessionAction?: (sessionId: number) => Promise<{ success: boolean; message?: string }>;
   releaseSessionAction?: (sessionId: number) => Promise<{ success: boolean; message?: string }>;
+  transferSessionAction?: (sessionId: number, targetAdvisorId: string) => Promise<{ success: boolean; message?: string }>;
 }
 
 export function ChatsClient({
@@ -143,6 +144,7 @@ export function ChatsClient({
   assignAdvisorAction,
   takeSessionAction,
   releaseSessionAction,
+  transferSessionAction,
   instanceName,
   apiKeyData,
   allTags,
@@ -382,7 +384,18 @@ export function ChatsClient({
             [remoteJid]: { ...prev[remoteJid]!, assignedAdvisorId: null },
           }));
           toast.success("Conversación liberada.");
+        } else if (advisorId !== currentAdvisorId) {
+          // Agente transfiere a otro asesor
+          if (!transferSessionAction) return;
+          const res = await transferSessionAction(sessionSummary.id, advisorId);
+          if (!res.success) { toast.error(res.message ?? "Error al transferir."); return; }
+          setChatSessions((prev) => ({
+            ...prev,
+            [remoteJid]: { ...prev[remoteJid]!, assignedAdvisorId: advisorId },
+          }));
+          toast.success("Conversación transferida.");
         } else {
+          // Agente toma conversación sin asignar
           if (!takeSessionAction) return;
           const res = await takeSessionAction(sessionSummary.id);
           if (!res.success) { toast.error(res.message ?? "Error al tomar la conversación."); return; }
@@ -409,7 +422,7 @@ export function ChatsClient({
         }
       }
     },
-    [chatSessions, advisorRole, currentAdvisorId, takeSessionAction, assignAdvisorAction, releaseSessionAction],
+    [chatSessions, advisorRole, currentAdvisorId, takeSessionAction, assignAdvisorAction, releaseSessionAction, transferSessionAction],
   );
 
   const handleSessionTagsChange = useCallback(
@@ -816,7 +829,7 @@ export function ChatsClient({
           advisorRole={advisorRole}
           currentAdvisorId={currentAdvisorId}
           onAssignAdvisor={
-            assignAdvisorAction || takeSessionAction || releaseSessionAction
+            assignAdvisorAction || takeSessionAction || releaseSessionAction || transferSessionAction
               ? (remoteJid, advisorId) => handleAssignAdvisor(remoteJid, advisorId)
               : undefined
           }
@@ -850,7 +863,7 @@ export function ChatsClient({
             advisorRole={advisorRole}
             assignedAdvisorId={currentContactSession?.assignedAdvisorId ?? null}
             onAssignAdvisor={
-              assignAdvisorAction || takeSessionAction || releaseSessionAction
+              assignAdvisorAction || takeSessionAction || releaseSessionAction || transferSessionAction
                 ? (advisorId) => handleAssignAdvisor(selectedJid, advisorId)
                 : undefined
             }

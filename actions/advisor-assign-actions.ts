@@ -165,6 +165,30 @@ export async function bulkAutoAssign(): Promise<Result & { assigned?: number }> 
   return { success: true, assigned };
 }
 
+export async function transferSession(
+  sessionId: number,
+  targetAdvisorId: string,
+): Promise<Result> {
+  const user = await currentUser();
+  if (!user?.id) return { success: false, message: "No autorizado." };
+
+  const rows = await db.$queryRaw<{ assigned_advisor_id: string | null }[]>`
+    SELECT assigned_advisor_id FROM "Session" WHERE id = ${sessionId}
+  `;
+  if (!rows[0]) return { success: false, message: "Sesión no encontrada." };
+  if (rows[0].assigned_advisor_id !== user.id) {
+    return { success: false, message: "Solo puedes transferir tus propias conversaciones." };
+  }
+
+  await db.$executeRaw`
+    UPDATE "Session" SET assigned_advisor_id = ${targetAdvisorId} WHERE id = ${sessionId}
+  `;
+
+  await logAssignment(sessionId, targetAdvisorId, user.id, "transferred");
+
+  return { success: true };
+}
+
 export async function resolveSession(sessionId: number): Promise<{ success: boolean; message?: string }> {
   const user = await currentUser();
   if (!user?.id) return { success: false, message: "No autorizado." };

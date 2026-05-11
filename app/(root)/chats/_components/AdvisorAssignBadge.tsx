@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { UserCheck, UserPlus, LogOut, Clock } from 'lucide-react';
+import { UserCheck, UserPlus, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,8 @@ const ACTION_LABELS: Record<string, string> = {
   released: 'Liberado',
   taken: 'Tomado',
   bulk_assigned: 'Auto-asignado',
+  transferred: 'Transferido',
+  resolved: 'Resuelto',
 };
 
 interface AdvisorAssignBadgeProps {
@@ -52,7 +54,6 @@ export function AdvisorAssignBadge({
   size = 'sm',
 }: AdvisorAssignBadgeProps) {
   const [open, setOpen] = useState(false);
-  const [agentOpen, setAgentOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<AssignmentLogEntry[] | null>(null);
 
@@ -62,7 +63,6 @@ export function AdvisorAssignBadge({
 
   const isPill = size === 'sm';
 
-  // Load history when owner popover opens
   useEffect(() => {
     if (!open || !sessionId || isAgent) return;
     setHistory(null);
@@ -75,7 +75,6 @@ export function AdvisorAssignBadge({
     if (!onAssign) return;
     setBusy(true);
     setOpen(false);
-    setAgentOpen(false);
     try {
       await onAssign(advisorId);
     } catch {
@@ -85,7 +84,7 @@ export function AdvisorAssignBadge({
     }
   };
 
-  // Agente: solo ver o tomar
+  // Agente: tomar si libre, indicador si asignado
   if (isAgent) {
     if (!assignedAdvisorId) {
       return (
@@ -108,43 +107,20 @@ export function AdvisorAssignBadge({
       );
     }
     if (isMySession) {
-      // Own session — show popover with release option
       return (
-        <Popover open={agentOpen} onOpenChange={setAgentOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={(e) => e.stopPropagation()}
-              className={cn(
-                'inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-950 border border-green-300 dark:border-green-800 px-2 text-green-700 dark:text-green-400 hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50',
-                isPill ? 'h-6 text-[10px]' : 'h-7 text-xs',
-              )}
-              title="Mi conversación — click para opciones"
-            >
-              <UserCheck className={cn('shrink-0', isPill ? 'h-2.5 w-2.5' : 'h-3.5 w-3.5')} />
-              Yo
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            className="w-40 p-1"
-            side="top"
-            align="start"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => void handleAssign(null)}
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-            >
-              <LogOut className="h-3.5 w-3.5 shrink-0" />
-              Liberar
-            </button>
-          </PopoverContent>
-        </Popover>
+        <span
+          className={cn(
+            'inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-950 border border-green-300 dark:border-green-800 px-2 text-green-700 dark:text-green-400',
+            isPill ? 'h-6 text-[10px]' : 'h-7 text-xs',
+          )}
+          title="Mi conversación"
+        >
+          <UserCheck className={cn('shrink-0', isPill ? 'h-2.5 w-2.5' : 'h-3.5 w-3.5')} />
+          Yo
+        </span>
       );
     }
-    // Asignado a otro — solo muestra
+    // Asignado a otro
     return (
       <span
         className={cn(
@@ -162,7 +138,7 @@ export function AdvisorAssignBadge({
 
   // Dueño / admin: popover para asignar/reasignar + historial
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -227,19 +203,13 @@ export function AdvisorAssignBadge({
               assignedAdvisorId === a.id && 'font-semibold text-primary',
             )}
           >
-            <span
-              className={cn(
-                'inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white shrink-0',
-                colorFor(a.id),
-              )}
-            >
+            <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white shrink-0', colorFor(a.id))}>
               {initials(a)}
             </span>
             <span className="truncate">{a.name ?? a.email}</span>
           </button>
         ))}
 
-        {/* Historial de asignaciones */}
         {sessionId && (
           <>
             <div className="my-1 border-t border-border/50" />

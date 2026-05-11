@@ -2,10 +2,16 @@
 
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, PencilLine, Pin, Phone, CheckCircle } from 'lucide-react';
+import { ArrowRight, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ChatSessionActions } from './ChatSessionActions';
 import { initialFromName } from './chat-message-utils';
 import type { ChatHeader as ChatHeaderData } from './chat-message-types';
@@ -22,6 +28,19 @@ import { ChatReminderDialog } from './ChatReminderDialog';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
 import { LeadContextSheet } from './LeadContextSheet';
 import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
+import { cn } from '@/lib/utils';
+
+const PALETTE = ['bg-blue-500','bg-violet-500','bg-emerald-500','bg-amber-500','bg-rose-500','bg-cyan-500','bg-fuchsia-500'];
+function colorFor(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return PALETTE[Math.abs(h) % PALETTE.length];
+}
+function initials(a: AdvisorInfo) {
+  const name = a.name?.trim() || a.email;
+  const parts = name.split(/\s+/);
+  return parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
+}
 
 interface ChatHeaderProps {
   header: ChatHeaderData;
@@ -65,9 +84,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const initialSelectedTagIds = session?.tags?.map((t) => t?.id).filter(Boolean) ?? [];
   const [resolving, setResolving] = useState(false);
 
-  const canResolve = session?.status === true && (
-    !advisorRole || currentAdvisorId === assignedAdvisorId
-  );
+  const isAgent = !!advisorRole;
+  const isMySession = !!assignedAdvisorId && currentAdvisorId === assignedAdvisorId;
+  const canResolve = !!session && (!advisorRole || isMySession);
+  const canLiberate = isAgent && isMySession;
+  const otherAdvisors = (advisors ?? []).filter((a) => a.id !== currentAdvisorId);
+  const showLifecycleButton = session && (canResolve || canLiberate);
 
   const handleResolve = async () => {
     if (!session?.id || resolving) return;
@@ -80,9 +102,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     await onSessionRefresh();
   };
 
+  const handleTransfer = async (targetId: string) => {
+    await onAssignAdvisor?.(targetId);
+  };
+
+  const handleLiberate = async () => {
+    await onAssignAdvisor?.(null);
+  };
+
   const handleCall = () => {
     toast.info('Próximamente disponible en planes Premium', { duration: 4000 });
   };
+
   const sessionStatusTone = session?.status
     ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
     : 'border-amber-300 bg-amber-100 text-amber-800';
@@ -128,6 +159,69 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       onAssign={onAssignAdvisor}
       size="md"
     />
+  );
+
+  const lifecycleButton = showLifecycleButton && (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          size="sm"
+          variant="secondary"
+          className="h-8 text-xs gap-1.5 px-2.5"
+          disabled={resolving}
+        >
+          Acciones
+          <ChevronDown className="h-3 w-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-52 p-1" align="end">
+        {/* Transferir — solo para agentes con sesión propia */}
+        {canLiberate && (
+          <>
+            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Transferir a...
+            </p>
+            {otherAdvisors.length === 0 ? (
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">No hay otros asesores.</p>
+            ) : (
+              otherAdvisors.map((a) => (
+                <DropdownMenuItem
+                  key={a.id}
+                  onSelect={() => void handleTransfer(a.id)}
+                  className="flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer"
+                >
+                  <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white shrink-0', colorFor(a.id))}>
+                    {initials(a)}
+                  </span>
+                  <span className="truncate">{a.name ?? a.email}</span>
+                </DropdownMenuItem>
+              ))
+            )}
+            <div className="my-1 border-t border-border/50" />
+          </>
+        )}
+
+        {/* Liberar y Resolver en lista vertical */}
+        {canLiberate && (
+          <DropdownMenuItem
+            onSelect={() => void handleLiberate()}
+            className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+          >
+            <LogOut className="h-3.5 w-3.5 shrink-0" />
+            Liberar conversación
+          </DropdownMenuItem>
+        )}
+        {canResolve && (
+          <DropdownMenuItem
+            onSelect={() => void handleResolve()}
+            className="flex items-center gap-2 cursor-pointer text-emerald-700 dark:text-emerald-400 focus:text-emerald-700 dark:focus:text-emerald-400 focus:bg-emerald-50 dark:focus:bg-emerald-950/30"
+          >
+            <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+            Resolver conversación
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 
   return (
@@ -213,37 +307,24 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               {crmBadge}
               <ChatReminderDialog session={session as any} userId={userId} />
               <ChatAppointmentStatusButton
-                  sessionId={session.id}
-                  userId={session.userId}
-                  pushName={session.pushName}
-                  remoteJid={session.remoteJid}
-                  instanceId={session.instanceId}
-                />
+                sessionId={session.id}
+                userId={session.userId}
+                pushName={session.pushName}
+                remoteJid={session.remoteJid}
+                instanceId={session.instanceId}
+              />
               {tagsCombobox}
             </div>
-            {session && (
-              <div className="flex items-center gap-2">
-                <SwitchStatus
-                  key={`${session.id}-${session.status ? 'on' : 'off'}`}
-                  checked={session.status ?? false}
-                  sessionId={session.id ?? -1}
-                  mutateSessions={onSessionMutate}
-                />
-                {canResolve && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs gap-1.5 border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-600 dark:text-emerald-400 dark:hover:bg-emerald-950"
-                    onClick={handleResolve}
-                    disabled={resolving}
-                  >
-                    <CheckCircle className="h-3.5 w-3.5" />
-                    {resolving ? 'Resolviendo...' : 'Resolver'}
-                  </Button>
-                )}
-              </div>
-            )}
-            {sessionActions}
+            <div className="flex items-center gap-2">
+              <SwitchStatus
+                key={`${session.id}-${session.status ? 'on' : 'off'}`}
+                checked={session.status ?? false}
+                sessionId={session.id ?? -1}
+                mutateSessions={onSessionMutate}
+              />
+              {sessionActions}
+              {lifecycleButton}
+            </div>
           </div>
         ) : (
           <div className="pl-14 text-xs text-muted-foreground">Sin sesión CRM sincronizada</div>
@@ -252,7 +333,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
       {/* ── Desktop ── */}
       <div className="hidden md:grid md:grid-cols-[1fr_auto] items-center p-3 gap-3 overflow-hidden">
-        {/* Columna 1 (1fr): nombre encoge para ceder espacio a los badges */}
         <div className="flex items-center gap-3 min-w-0">
           <Avatar className="w-14 h-14 ring-2 ring-border flex-shrink-0">
             <AvatarImage src={header.avatarSrc || '/default-avatar.png'} />
@@ -278,7 +358,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </div>
         </div>
 
-        {/* Columna 2 (auto): badges siempre visibles, ancho natural */}
         <div className="flex items-center gap-1.5">
           {session && (
             <>
@@ -306,28 +385,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               {crmBadge}
               <ChatReminderDialog session={session as any} userId={userId} />
               <ChatAppointmentStatusButton
-                  sessionId={session.id}
-                  userId={session.userId}
-                  pushName={session.pushName}
-                  remoteJid={session.remoteJid}
-                  instanceId={session.instanceId}
-                />
+                sessionId={session.id}
+                userId={session.userId}
+                pushName={session.pushName}
+                remoteJid={session.remoteJid}
+                instanceId={session.instanceId}
+              />
               {tagsCombobox}
-              {canResolve && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs gap-1.5 border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-600 dark:text-emerald-400 dark:hover:bg-emerald-950"
-                  onClick={handleResolve}
-                  disabled={resolving}
-                >
-                  <CheckCircle className="h-3.5 w-3.5" />
-                  {resolving ? 'Resolviendo...' : 'Resolver'}
-                </Button>
-              )}
             </>
           )}
           {sessionActions}
+          {lifecycleButton}
         </div>
       </div>
 
@@ -336,7 +404,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           Sin sesión CRM sincronizada
         </div>
       )}
-
     </div>
   );
 };
