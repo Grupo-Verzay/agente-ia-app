@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal } from "lucide-react";
+import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -340,7 +340,13 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 pb-3">
 
       {/* Tabla unificada */}
-      {advisors.length > 0 && (() => {
+      {advisors.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 py-5 text-center">
+          <UserPlus className="w-8 h-8 text-muted-foreground/40" />
+          <p className="text-base font-semibold text-foreground">Sin asesores aún</p>
+          <p className="text-xs text-muted-foreground">Agrega el primero para empezar a gestionar tu equipo</p>
+        </div>
+      ) : (() => {
         // Mapa de métricas por asesor para lookup O(1)
         const metricsMap = new Map(
           (teamMetrics?.advisors ?? []).map((a) => [a.id, a])
