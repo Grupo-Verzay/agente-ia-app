@@ -194,7 +194,12 @@ export default async function ChatsPage({
   const initialChatSessions = chatSessionsRes.success ? chatSessionsRes.data ?? {} : {};
   const initialChatPreferences =
     chatPreferencesRes.success ? chatPreferencesRes.data ?? {} : {};
-  const advisors = advisorsRes.success ? advisorsRes.data ?? [] : [];
+  const advisorsFromTeam = advisorsRes.success ? advisorsRes.data ?? [] : [];
+  // El dueño se incluye a sí mismo para poder autoasignarse desde el badge
+  const isOwner = !(user as any).ownerId;
+  const advisors = isOwner && user.id && user.email
+    ? [{ id: user.id, name: user.name ?? null, email: user.email, advisorRole: null as string | null }, ...advisorsFromTeam]
+    : advisorsFromTeam;
   const actionContext =
     whatsappInstancia && apiKey
       ? {

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown } from 'lucide-react';
+import { ArrowRight, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -85,11 +85,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const [resolving, setResolving] = useState(false);
 
   const isAgent = !!advisorRole;
+  const isOwnerLike = !advisorRole || advisorRole === 'administrador';
   const isMySession = !!assignedAdvisorId && currentAdvisorId === assignedAdvisorId;
-  const canResolve = !!session && (!advisorRole || isMySession);
-  const canLiberate = isAgent && isMySession;
+  const canResolve = !!session && (isOwnerLike || isMySession);
+  const canLiberate = isMySession;
+  const canTake = !assignedAdvisorId;
   const otherAdvisors = (advisors ?? []).filter((a) => a.id !== currentAdvisorId);
-  const showLifecycleButton = session && (canResolve || canLiberate);
+  const showLifecycleButton = session && (canResolve || canLiberate || canTake);
 
   const handleResolve = async () => {
     if (!session?.id || resolving) return;
@@ -100,6 +102,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     toast.success('Conversación resuelta.');
     onSessionMutate();
     await onSessionRefresh();
+  };
+
+  const handleTake = async () => {
+    await onAssignAdvisor?.(currentAdvisorId ?? null);
   };
 
   const handleTransfer = async (targetId: string) => {
@@ -175,6 +181,20 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-52 p-1" align="end">
+        {/* Tomar — para agentes/admins cuando la sesión está sin asignar */}
+        {canTake && (
+          <DropdownMenuItem
+            onSelect={() => void handleTake()}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <UserPlus className="h-3.5 w-3.5 shrink-0" />
+            Tomar conversación
+          </DropdownMenuItem>
+        )}
+        {canTake && (canLiberate || canResolve) && (
+          <div className="my-1 border-t border-border/50" />
+        )}
+
         {/* Transferir — solo para agentes con sesión propia */}
         {canLiberate && (
           <>

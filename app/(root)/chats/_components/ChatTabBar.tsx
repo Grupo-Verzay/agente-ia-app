@@ -27,7 +27,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts }: ChatTabBarProps) {
             key={key}
             type="button"
             onClick={() => onTabChange(key)}
-            className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap transition-all"
+            className="inline-flex shrink-0 h-6 items-center gap-1 rounded-full border px-2 text-[11px] font-medium whitespace-nowrap transition-all"
             style={
               isActive
                 ? { background: color, borderColor: color, color: "#fff" }

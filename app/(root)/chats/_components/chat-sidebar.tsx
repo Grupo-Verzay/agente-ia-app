@@ -1,17 +1,23 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
-import { Inbox, Trash2 } from "lucide-react";
+import { Inbox, Trash2, Users, UserX, Check } from "lucide-react";
 import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
 import type { ChatContactSessionMap, SimpleTag } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 import { ChatSearchBar } from "./ChatSearchBar";
 import { TagFilterPanel } from "./TagFilterPanel";
 import { ChatTabBar } from "./ChatTabBar";
-import { UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PALETTE = [
@@ -283,68 +289,78 @@ export function ChatSidebar({
                 onClearFilter={() => setSelectedTagIds(new Set())}
               />
             )}
-          </div>
-
-          {showAdvisorFilter && (
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-              <button
-                type="button"
-                onClick={() => setAdvisorFilter(null)}
-                className={cn(
-                  'shrink-0 h-6 rounded-full px-2 text-[10px] font-medium transition-colors',
-                  advisorFilter === null
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                )}
-              >
-                Todos
-              </button>
-              <div className="relative shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setAdvisorFilter(advisorFilter === 'unassigned' ? null : 'unassigned')}
-                  title={`Sin asignar (${advisorCounts.unassigned})`}
-                  className={cn(
-                    'inline-flex h-6 w-6 items-center justify-center rounded-full border transition-colors',
-                    advisorFilter === 'unassigned'
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-dashed border-muted-foreground/50 text-muted-foreground hover:border-primary hover:text-primary'
-                  )}
-                >
-                  <UserX className="h-3 w-3" />
-                </button>
-                {advisorCounts.unassigned > 0 && (
-                  <span className="pointer-events-none absolute -top-1 -right-1 inline-flex h-3.5 min-w-[0.875rem] items-center justify-center rounded-full bg-amber-500 px-0.5 text-[8px] font-bold text-white leading-none">
-                    {advisorCounts.unassigned > 99 ? '99+' : advisorCounts.unassigned}
-                  </span>
-                )}
-              </div>
-              {advisors?.map((a) => {
-                const count = advisorCounts.countMap[a.id] ?? 0;
-                return (
-                  <div key={a.id} className="relative shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setAdvisorFilter(advisorFilter === a.id ? null : a.id)}
-                      title={`${a.name ?? a.email} (${count})`}
-                      className={cn(
-                        'inline-flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white transition-opacity',
-                        colorFor(a.id),
-                        advisorFilter === a.id ? 'ring-2 ring-primary ring-offset-1' : 'opacity-70 hover:opacity-100'
-                      )}
-                    >
-                      {initials(a.name, a.email)}
-                    </button>
-                    {count > 0 && (
-                      <span className="pointer-events-none absolute -top-1 -right-1 inline-flex h-3.5 min-w-[0.875rem] items-center justify-center rounded-full bg-zinc-700 px-0.5 text-[8px] font-bold text-white leading-none dark:bg-zinc-300 dark:text-zinc-900">
-                        {count > 99 ? '99+' : count}
-                      </span>
+            {showAdvisorFilter && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    title="Filtrar por asesor"
+                    className={cn(
+                      'relative shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors',
+                      advisorFilter !== null
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                     )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  >
+                    <Users className="h-4 w-4" />
+                    {advisorFilter !== null && (
+                      <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 p-1">
+                  <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Filtrar por asesor
+                  </p>
+                  <DropdownMenuItem
+                    onSelect={() => setAdvisorFilter(null)}
+                    className="flex items-center justify-between gap-2 cursor-pointer"
+                  >
+                    <span className="text-sm">Todos</span>
+                    {advisorFilter === null && <Check className="h-3.5 w-3.5 text-primary" />}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => setAdvisorFilter(advisorFilter === 'unassigned' ? null : 'unassigned')}
+                    className="flex items-center justify-between gap-2 cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2 text-sm">
+                      <UserX className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      Sin asignar
+                    </span>
+                    <span className="flex items-center gap-1">
+                      {advisorCounts.unassigned > 0 && (
+                        <span className="text-[10px] text-muted-foreground">{advisorCounts.unassigned}</span>
+                      )}
+                      {advisorFilter === 'unassigned' && <Check className="h-3.5 w-3.5 text-primary" />}
+                    </span>
+                  </DropdownMenuItem>
+                  {advisors?.map((a) => {
+                    const count = advisorCounts.countMap[a.id] ?? 0;
+                    const isActive = advisorFilter === a.id;
+                    return (
+                      <DropdownMenuItem
+                        key={a.id}
+                        onSelect={() => setAdvisorFilter(isActive ? null : a.id)}
+                        className="flex items-center justify-between gap-2 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2 text-sm">
+                          <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', colorFor(a.id))} />
+                          <span className="truncate">{a.name ?? a.email}</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          {count > 0 && (
+                            <span className="text-[10px] text-muted-foreground">{count > 99 ? '99+' : count}</span>
+                          )}
+                          {isActive && <Check className="h-3.5 w-3.5 text-primary" />}
+                        </span>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
 
           <ChatTabBar tab={tab} onTabChange={setTab} tabCounts={tabCounts} />
         </div>
