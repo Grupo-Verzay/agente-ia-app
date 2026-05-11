@@ -35,29 +35,40 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
 
   const activeAccountId = cookies().get("active_account_id")?.value ?? realUserId;
 
-  const [masterRows, linkedRows] = await Promise.all([
-    db.$queryRaw<{ id: string; name: string | null; email: string; company: string }[]>`
-      SELECT id, name, email, company FROM "User" WHERE id = ${realUserId} LIMIT 1
-    `,
-    db.$queryRaw<LinkedAccountInfo[]>`
-      SELECT la.id, la."linked_user_id" AS "linkedUserId", la.label,
-             u.name, u.email, u.company
-      FROM "linked_accounts" la
-      JOIN "User" u ON u.id = la."linked_user_id"
-      WHERE la."master_user_id" = ${realUserId}
-      ORDER BY la."createdAt" ASC
-    `,
-  ]);
+  try {
+    const [masterRows, linkedRows] = await Promise.all([
+      db.$queryRaw<{ id: string; name: string | null; email: string; company: string }[]>`
+        SELECT id, name, email, company FROM "User" WHERE id = ${realUserId} LIMIT 1
+      `,
+      db.$queryRaw<LinkedAccountInfo[]>`
+        SELECT la.id, la."linked_user_id" AS "linkedUserId", la.label,
+               u.name, u.email, u.company
+        FROM "linked_accounts" la
+        JOIN "User" u ON u.id = la."linked_user_id"
+        WHERE la."master_user_id" = ${realUserId}
+        ORDER BY la."createdAt" ASC
+      `,
+    ]);
 
-  return {
-    success: true,
-    data: {
-      realUserId,
-      activeAccountId,
-      masterUser: masterRows[0] ?? null,
-      accounts: linkedRows,
-    },
-  };
+    return {
+      success: true,
+      data: {
+        realUserId,
+        activeAccountId,
+        masterUser: masterRows[0] ?? null,
+        accounts: linkedRows,
+      },
+    };
+  } catch {
+    // Tabla linked_accounts no existe aún — devolver sin cuentas vinculadas
+    const masterRows = await db.$queryRaw<{ id: string; name: string | null; email: string; company: string }[]>`
+      SELECT id, name, email, company FROM "User" WHERE id = ${realUserId} LIMIT 1
+    `.catch(() => []);
+    return {
+      success: true,
+      data: { realUserId, activeAccountId: realUserId, masterUser: masterRows[0] ?? null, accounts: [] },
+    };
+  }
 }
 
 export async function switchToAccount(targetUserId: string): Promise<Result> {
@@ -69,11 +80,16 @@ export async function switchToAccount(targetUserId: string): Promise<Result> {
     return { success: true };
   }
 
-  const link = await db.$queryRaw<{ id: string }[]>`
-    SELECT id FROM "linked_accounts"
-    WHERE "master_user_id" = ${realUserId} AND "linked_user_id" = ${targetUserId}
-    LIMIT 1
-  `;
+  let link: { id: string }[];
+  try {
+    link = await db.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "linked_accounts"
+      WHERE "master_user_id" = ${realUserId} AND "linked_user_id" = ${targetUserId}
+      LIMIT 1
+    `;
+  } catch {
+    return { success: false, message: "Las cuentas vinculadas no están disponibles." };
+  }
 
   if (link.length === 0) return { success: false, message: "Cuenta no vinculada." };
 
@@ -115,10 +131,14 @@ export async function addLinkedAccount(linkedEmail: string): Promise<Result<Link
     return { success: false, message: "Esa cuenta ya está vinculada." };
 
   const newId = crypto.randomUUID();
-  await db.$executeRaw`
-    INSERT INTO "linked_accounts" (id, "master_user_id", "linked_user_id")
-    VALUES (${newId}, ${realUserId}, ${linked.id})
-  `;
+  try {
+    await db.$executeRaw`
+      INSERT INTO "linked_accounts" (id, "master_user_id", "linked_user_id")
+      VALUES (${newId}, ${realUserId}, ${linked.id})
+    `;
+  } catch {
+    return { success: false, message: "Error al vincular. Contacta al soporte si el problema persiste." };
+  }
 
   return {
     success: true,
@@ -130,10 +150,14 @@ export async function removeLinkedAccount(linkedUserId: string): Promise<Result>
   const realUserId = await getRealUserId();
   if (!realUserId) return { success: false, message: "No autorizado." };
 
-  await db.$executeRaw`
-    DELETE FROM "linked_accounts"
-    WHERE "master_user_id" = ${realUserId} AND "linked_user_id" = ${linkedUserId}
-  `;
+  try {
+    await db.$executeRaw`
+      DELETE FROM "linked_accounts"
+      WHERE "master_user_id" = ${realUserId} AND "linked_user_id" = ${linkedUserId}
+    `;
+  } catch {
+    return { success: false, message: "Error al desvincular cuenta." };
+  }
 
   const activeAccountId = cookies().get("active_account_id")?.value;
   if (activeAccountId === linkedUserId) {

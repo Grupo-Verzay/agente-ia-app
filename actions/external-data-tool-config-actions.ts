@@ -93,7 +93,7 @@ export async function addBuiltinTool(
 export async function updateBuiltinTool(
   userId: string,
   toolKey: string,
-  updates: { displayName: string; toolDescription: string },
+  updates: { displayName: string; toolDescription: string; promptTemplate?: string | null },
 ): Promise<{ success: boolean; error?: string }> {
   if (!userId || !toolKey) return { success: false, error: 'Parámetros inválidos' };
 
@@ -106,7 +106,13 @@ export async function updateBuiltinTool(
   try {
     await db.externalDataToolConfig.update({
       where: { userId_toolKey: { userId, toolKey } },
-      data: { displayName: newDisplayName, toolDescription: newDescription },
+      data: {
+        displayName: newDisplayName,
+        toolDescription: newDescription,
+        ...(updates.promptTemplate !== undefined && {
+          promptTemplate: updates.promptTemplate?.trim() || null,
+        }),
+      },
     });
 
     return { success: true };

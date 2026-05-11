@@ -551,6 +551,8 @@ function AddBuiltinDialog({
 
 // ─── Dialog: Edit builtin ─────────────────────────────────────────────────────
 
+const URL_TOOL_TYPES = new Set(['leer_google_sheets', 'scrape_web']);
+
 function EditBuiltinDialog({
   open,
   cfg,
@@ -563,11 +565,11 @@ function EditBuiltinDialog({
   onClose: () => void;
   onSave: (
     currentKey: string,
-    updates: { displayName: string; toolDescription: string },
+    updates: { displayName: string; toolDescription: string; promptTemplate?: string | null },
   ) => Promise<void>;
   onRestore: (toolKey: string) => Promise<void>;
 }) {
-  const [form, setForm] = useState({ displayName: '', toolDescription: '' });
+  const [form, setForm] = useState({ displayName: '', toolDescription: '', promptTemplate: '' });
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -577,6 +579,7 @@ function EditBuiltinDialog({
       setForm({
         displayName: cfg.displayName,
         toolDescription: cfg.toolDescription,
+        promptTemplate: cfg.promptTemplate ?? '',
       });
       setErrors({});
     }
@@ -595,7 +598,11 @@ function EditBuiltinDialog({
     if (!cfg || !validate()) return;
     setIsSaving(true);
     try {
-      await onSave(cfg.toolKey, form);
+      await onSave(cfg.toolKey, {
+        displayName: form.displayName,
+        toolDescription: form.toolDescription,
+        ...(URL_TOOL_TYPES.has(cfg.toolType) && { promptTemplate: form.promptTemplate || null }),
+      });
       onClose();
     } finally {
       setIsSaving(false);
@@ -688,6 +695,23 @@ function EditBuiltinDialog({
               <FieldError message={errors.toolDescription ?? null} />
               <FieldHint message="El agente decide cuándo usar esta herramienta basándose en esta descripción. Usa lenguaje claro y específico." />
             </div>
+
+            {URL_TOOL_TYPES.has(cfg.toolType) && (
+              <div className="space-y-1.5">
+                <Label>
+                  {cfg.toolType === 'leer_google_sheets' ? 'URL de Google Sheets' : 'URL de la página web'}
+                  <span className="text-muted-foreground font-normal text-xs ml-1">(predeterminada)</span>
+                </Label>
+                <Input
+                  value={form.promptTemplate}
+                  onChange={(e) => setForm((f) => ({ ...f, promptTemplate: e.target.value }))}
+                  placeholder={cfg.toolType === 'leer_google_sheets'
+                    ? 'https://docs.google.com/spreadsheets/d/...'
+                    : 'https://mipagina.com/pagina-info'}
+                />
+                <FieldHint message="El agente usará esta URL por defecto si el cliente no especifica una distinta." />
+              </div>
+            )}
 
             <Button
               variant="ghost"
@@ -1189,7 +1213,7 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
   // ── Edit builtin ──────────────────────────────────────────────────────────────
   const handleEditBuiltin = async (
     currentKey: string,
-    updates: { displayName: string; toolDescription: string },
+    updates: { displayName: string; toolDescription: string; promptTemplate?: string | null },
   ) => {
     const result = await updateBuiltinTool(selectedUserId, currentKey, updates);
     if (result.success) {

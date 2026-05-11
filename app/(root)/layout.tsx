@@ -64,16 +64,17 @@ export default async function RootGroupLayout({
         }
     }
 
-    const onReseller = await getResellerProfileForUser(user!.id);
+    if (!user) return <AppSkeleton />;
+
+    const onReseller = await getResellerProfileForUser(user.id);
     const allModules = (await getAllModules()).data ?? [];
 
-    const loading = !user || allModules.length === 0;
-    if (loading) return <AppSkeleton />;
+    if (allModules.length === 0) return <AppSkeleton />;
 
     let modules = allModules;
     if (!isAdmin(user?.role)) {
         const userModuleRecords = await db.userModule.findMany({
-            where: { B: user!.id },
+            where: { B: user.id },
             select: { A: true },
         });
         if (userModuleRecords.length > 0) {

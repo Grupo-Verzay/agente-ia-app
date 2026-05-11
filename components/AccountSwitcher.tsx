@@ -71,43 +71,55 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
   const handleSwitch = (targetId: string) => {
     if (payload?.activeAccountId === targetId) return;
     startTransition(async () => {
-      const res = await switchToAccount(targetId);
-      if (!res.success) {
-        toast.error((res as any).message ?? "Error al cambiar de cuenta.");
-        return;
+      try {
+        const res = await switchToAccount(targetId);
+        if (!res.success) {
+          toast.error((res as any).message ?? "Error al cambiar de cuenta.");
+          return;
+        }
+        window.location.reload();
+      } catch {
+        toast.error("Error al cambiar de cuenta. Intenta nuevamente.");
       }
-      window.location.reload();
     });
   };
 
   const handleAdd = () => {
     if (!emailInput.trim()) return;
     startTransition(async () => {
-      const res = await addLinkedAccount(emailInput);
-      if (!res.success) {
-        toast.error((res as any).message ?? "Error al vincular cuenta.");
-        return;
+      try {
+        const res = await addLinkedAccount(emailInput);
+        if (!res.success) {
+          toast.error((res as any).message ?? "Error al vincular cuenta.");
+          return;
+        }
+        toast.success("Cuenta vinculada correctamente.");
+        setEmailInput("");
+        setAddDialogOpen(false);
+        const updated = await getMyLinkedAccounts();
+        if (updated.success && updated.data) setPayload(updated.data);
+      } catch {
+        toast.error("Error al vincular cuenta. Intenta nuevamente.");
       }
-      toast.success("Cuenta vinculada correctamente.");
-      setEmailInput("");
-      setAddDialogOpen(false);
-      const updated = await getMyLinkedAccounts();
-      if (updated.success && updated.data) setPayload(updated.data);
     });
   };
 
   const handleRemove = (linkedUserId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     startTransition(async () => {
-      const res = await removeLinkedAccount(linkedUserId);
-      if (!res.success) {
-        toast.error((res as any).message ?? "Error al desvincular.");
-        return;
+      try {
+        const res = await removeLinkedAccount(linkedUserId);
+        if (!res.success) {
+          toast.error((res as any).message ?? "Error al desvincular.");
+          return;
+        }
+        toast.success("Cuenta desvinculada.");
+        const updated = await getMyLinkedAccounts();
+        if (updated.success && updated.data) setPayload(updated.data);
+        if (payload?.activeAccountId === linkedUserId) window.location.reload();
+      } catch {
+        toast.error("Error al desvincular cuenta. Intenta nuevamente.");
       }
-      toast.success("Cuenta desvinculada.");
-      const updated = await getMyLinkedAccounts();
-      if (updated.success && updated.data) setPayload(updated.data);
-      if (payload?.activeAccountId === linkedUserId) window.location.reload();
     });
   };
 
