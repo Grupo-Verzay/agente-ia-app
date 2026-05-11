@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { toZonedTime } from 'date-fns-tz';
+import { toZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { db } from '@/lib/db';
 import { createAppointment } from '@/actions/appointments-actions';
 import { sendMessageWithHistoryAction } from '@/actions/chat-history/send-message-with-history-action';
@@ -59,9 +59,14 @@ function normalizeTimeToSeconds(timeStr: string): number {
   return Number.isFinite(raw) && raw > 0 ? raw : 0;
 }
 
+function tzCityLabel(tz: string): string {
+  const parts = tz.split('/');
+  return (parts[parts.length - 1] ?? tz).replace(/_/g, ' ');
+}
+
 function subtractSecondsFromTime(date: Date, seconds: number): string {
   const newDate = new Date(date.getTime() - seconds * 1000);
-  return format(newDate, 'dd/MM/yyyy HH:mm');
+  return formatInTimeZone(newDate, 'UTC', 'dd/MM/yyyy HH:mm');
 }
 
 function formatReminderMessage(template: string, pushName: string, startTime: string, timezone: string, durationMin: number): string {
@@ -70,7 +75,8 @@ function formatReminderMessage(template: string, pushName: string, startTime: st
   const startLocal = toZonedTime(new Date(startTime), timezone);
   const dateLabel = format(startLocal, 'dd/MM/yyyy', { locale: es });
   const hourLabel = format(startLocal, 'h:mm a', { locale: es });
-  msg = msg.replace(/@appointment_datetime\b/gi, `${dateLabel} ${hourLabel}.`);
+  const tzLabel = tzCityLabel(timezone);
+  msg = msg.replace(/@appointment_datetime\b/gi, `${dateLabel} ${hourLabel} (hora ${tzLabel}).`);
   msg = msg.replace(/@appointment_duration\b/gi, `${durationMin} min`);
   return msg;
 }
@@ -155,13 +161,14 @@ async function runPostAppointmentTasks({
     const ownerStartLocal = toZonedTime(new Date(startTime), timezone);
     const dateLabel = format(ownerStartLocal, "d 'de' MMMM 'de' yyyy", { locale: es });
     const hourLabel = format(ownerStartLocal, 'hh:mm a', { locale: es });
+    const tzLabel = tzCityLabel(timezone);
     const serviceName = service?.name ?? 'Asesoría';
     const clientPhone = phone.replace(/@s\.whatsapp\.net$/, '');
 
     const ownerText =
       `📅 *Tienes Nueva Cita*:\n\n` +
       `👤 *Nombre:* ${pushName}\n` +
-      `📝 *Descripción ${serviceName}:* Para el día ${dateLabel} a las ${hourLabel}.\n\n` +
+      `📝 *Descripción ${serviceName}:* Para el día ${dateLabel} a las ${hourLabel} (hora ${tzLabel}).\n\n` +
       `📱 *WhatsApp del usuario:*\n\n` +
       `👉 ${clientPhone}`;
 
