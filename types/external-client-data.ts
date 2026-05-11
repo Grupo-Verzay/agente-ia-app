@@ -66,7 +66,9 @@ export type ExternalDataBuiltinToolType =
   | 'etiquetar_contacto'
   | 'registrar_nota_seguimiento'
   | 'crear_recordatorio'
-  | 'buscar_plantilla';
+  | 'buscar_plantilla'
+  | 'leer_google_sheets'
+  | 'scrape_web';
 
 export type ExternalDataQueryToolType = 'auto_inject' | 'search_by_field';
 

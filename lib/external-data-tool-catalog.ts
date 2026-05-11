@@ -170,4 +170,26 @@ export const BUILTIN_TOOL_CATALOG: {
       'Permite al agente encontrar plantillas de mensajes configuradas en el sistema. Útil para mantener consistencia en las respuestas frecuentes.',
     sortOrder: 13,
   },
+  {
+    toolType: 'leer_google_sheets',
+    defaultKey: 'leer_google_sheets',
+    defaultDisplayName: 'Leer Google Sheets',
+    defaultDescription:
+      'Lee datos de una hoja de cálculo pública de Google Sheets. Úsala cuando el cliente pregunte por información que está en una hoja de cálculo: precios, inventario, horarios, listas, etc. La hoja debe estar compartida como "Cualquiera con el enlace puede ver".',
+    isCritical: false,
+    helpText:
+      'El agente puede consultar cualquier Google Sheet público en tiempo real. Requiere la URL completa de la hoja. Devuelve hasta 10 filas con todos los campos. Ideal para precios, inventarios o datos que cambian frecuentemente.',
+    sortOrder: 14,
+  },
+  {
+    toolType: 'scrape_web',
+    defaultKey: 'scrape_web',
+    defaultDisplayName: 'Consultar página web',
+    defaultDescription:
+      'Extrae y lee el contenido de texto de una URL pública (página web, blog, ficha de producto, etc.). Úsala cuando el cliente pida información que está en una página web específica o cuando necesites consultar datos de una fuente externa en tiempo real.',
+    isCritical: false,
+    helpText:
+      'Permite al agente leer el contenido de cualquier página web pública: sitios HTML estáticos, páginas de precios, fichas técnicas, blogs, etc. No funciona con páginas que requieren login ni con aplicaciones de una sola página (SPA/React). Devuelve el texto limpio extraído de la página.',
+    sortOrder: 15,
+  },
 ];
