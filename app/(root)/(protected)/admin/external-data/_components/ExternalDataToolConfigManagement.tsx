@@ -225,6 +225,8 @@ const BUILTIN_TYPE_LABELS: Record<ExternalDataBuiltinToolType, string> = {
   registrar_nota_seguimiento: 'Nota seguimiento',
   crear_recordatorio: 'Crear recordatorio',
   buscar_plantilla: 'Buscar plantilla',
+  leer_google_sheets: 'Google Sheets',
+  scrape_web: 'Consultar web',
 };
 
 function ToolCard({
