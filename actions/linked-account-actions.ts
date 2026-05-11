@@ -33,8 +33,7 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
   const realUserId = await getRealUserId();
   if (!realUserId) return { success: false, message: "No autorizado." };
 
-  const cookieStore = await cookies();
-  const activeAccountId = cookieStore.get("active_account_id")?.value ?? realUserId;
+  const activeAccountId = cookies().get("active_account_id")?.value ?? realUserId;
 
   const [masterRows, linkedRows] = await Promise.all([
     db.$queryRaw<{ id: string; name: string | null; email: string; company: string }[]>`
@@ -65,10 +64,8 @@ export async function switchToAccount(targetUserId: string): Promise<Result> {
   const realUserId = await getRealUserId();
   if (!realUserId) return { success: false, message: "No autorizado." };
 
-  const cookieStore = await cookies();
-
   if (targetUserId === realUserId) {
-    cookieStore.delete("active_account_id");
+    cookies().delete("active_account_id");
     return { success: true };
   }
 
@@ -80,7 +77,7 @@ export async function switchToAccount(targetUserId: string): Promise<Result> {
 
   if (link.length === 0) return { success: false, message: "Cuenta no vinculada." };
 
-  cookieStore.set("active_account_id", targetUserId, {
+  cookies().set("active_account_id", targetUserId, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -138,10 +135,9 @@ export async function removeLinkedAccount(linkedUserId: string): Promise<Result>
     WHERE "master_user_id" = ${realUserId} AND "linked_user_id" = ${linkedUserId}
   `;
 
-  const cookieStore = await cookies();
-  const activeAccountId = cookieStore.get("active_account_id")?.value;
+  const activeAccountId = cookies().get("active_account_id")?.value;
   if (activeAccountId === linkedUserId) {
-    cookieStore.delete("active_account_id");
+    cookies().delete("active_account_id");
   }
 
   return { success: true };
