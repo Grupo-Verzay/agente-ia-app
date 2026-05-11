@@ -4,7 +4,7 @@ import { User } from "@prisma/client"
 
 import { NavMain } from "@/components/nav-main"
 import { NavProjects } from "@/components/nav-projects"
-import { TeamSwitcher } from "@/components/team-switcher"
+import { AccountSwitcher } from "@/components/AccountSwitcher"
 
 import {
     Sidebar,
@@ -53,7 +53,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     return (
         <Sidebar collapsible="icon" {...props} className="bg-white dark:bg-gray-900 text-gray-800 dark:text-zinc-100 border-r border-zinc-200 dark:border-gray-800">
             <SidebarHeader>
-                <TeamSwitcher user={user} />
+                <AccountSwitcher user={user} />
             </SidebarHeader>
 
             <SidebarContent>

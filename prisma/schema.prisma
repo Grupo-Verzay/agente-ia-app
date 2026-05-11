@@ -505,6 +505,8 @@ model User {
   aiConfigs                          UserAiConfig[]
   owner                              User?                        @relation("AgentToOwner", fields: [ownerId], references: [id])
   agents                             User[]                       @relation("AgentToOwner")
+  masterLinks                        LinkedAccount[]              @relation("MasterLinks")
+  linkedTo                           LinkedAccount[]              @relation("LinkedTo")
 }
 
 model UserNotificationContact {
@@ -631,6 +633,20 @@ model VerificationToken {
   identifier String   @id @unique
   token      String
   expires    DateTime
+}
+
+model LinkedAccount {
+  id           String   @id @default(uuid())
+  masterUserId String   @map("master_user_id")
+  linkedUserId String   @map("linked_user_id")
+  label        String?
+  createdAt    DateTime @default(now())
+  masterUser   User     @relation("MasterLinks", fields: [masterUserId], references: [id], onDelete: Cascade)
+  linkedUser   User     @relation("LinkedTo", fields: [linkedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([masterUserId, linkedUserId])
+  @@index([masterUserId])
+  @@map("linked_accounts")
 }
 
 model Workflow {

@@ -18,6 +18,7 @@ export async function currentUser(request?: Request) {
 
     // cookie de impersonación
     const impersonateId = cookies().get("impersonate_user_id")?.value;
+    const activeAccountId = cookies().get("active_account_id")?.value;
 
     // trae el usuario real (solo para saber su role)
     const realUser = await db.user.findUnique({
@@ -28,8 +29,22 @@ export async function currentUser(request?: Request) {
     if (!realUser) return null;
 
     // decide qué userId usar
-    const effectiveUserId =
-        impersonateId && isAdminLike(realUser.role) ? impersonateId : realUser.id;
+    let effectiveUserId = realUser.id;
+    if (impersonateId && isAdminLike(realUser.role)) {
+        effectiveUserId = impersonateId;
+    } else if (activeAccountId && activeAccountId !== realUser.id) {
+        // Verificar que sea una cuenta vinculada legítima
+        try {
+            const link = await db.$queryRaw<{ id: string }[]>`
+                SELECT id FROM "linked_accounts"
+                WHERE "master_user_id" = ${realUser.id} AND "linked_user_id" = ${activeAccountId}
+                LIMIT 1
+            `;
+            if (link.length > 0) effectiveUserId = activeAccountId;
+        } catch {
+            // tabla aún no existe — ignora
+        }
+    }
 
     const userPromise = db.user.findUnique({
         where: { id: effectiveUserId },

@@ -184,7 +184,7 @@ export function ChatContactItem({
                   {contact.name || "Sin nombre"}
                 </span>
               </div>
-              <span className="shrink-0 text-xs text-muted-foreground">
+              <span className="shrink-0 text-xs text-muted-foreground" suppressHydrationWarning>
                 {contact.timestamp}
               </span>
             </div>
