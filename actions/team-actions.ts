@@ -12,11 +12,11 @@ export type AdvisorRow = {
   id: string;
   name: string | null;
   email: string;
-  createdAt: Date;
   advisorRole: string | null;
   assignedCount: number;
   activeCount: number;
   advisorAvailable: boolean;
+  lastActivity: Date | null;
 };
 export type AdvisorInfo = { id: string; name: string | null; email: string; advisorRole: string | null };
 
@@ -48,16 +48,16 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
       u.id,
       u.name,
       u.email,
-      u."createdAt",
       u.advisor_role                                            AS "advisorRole",
       u.advisor_available                                       AS "advisorAvailable",
       COUNT(s.id)::int                                         AS "assignedCount",
-      COUNT(s.id) FILTER (WHERE s.status = true)::int         AS "activeCount"
+      COUNT(s.id) FILTER (WHERE s.status = true)::int         AS "activeCount",
+      MAX(s."updatedAt")                                       AS "lastActivity"
     FROM "User" u
     LEFT JOIN "Session" s ON s.assigned_advisor_id = u.id
     WHERE u.owner_id = ${owner.id}
     GROUP BY u.id
-    ORDER BY u."createdAt" ASC
+    ORDER BY u.name ASC
   `;
 
   return { success: true, data: rows };

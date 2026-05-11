@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
 import { getTeamAdvisors, getOwnerModules, getAutoAssignSettings, getTeamMetrics, type AdvisorRow, type ModuleOption, type TeamMetrics } from "@/actions/team-actions";
-import Header from "@/components/shared/header";
 import { TeamClient } from "./_components/team-client";
 
 export default async function EquipoPage() {
@@ -24,17 +23,11 @@ export default async function EquipoPage() {
   const teamMetrics = metricsRes.success ? metricsRes.data ?? null : null;
 
   return (
-    <div className="p-6 space-y-6">
-      <Header
-        title="Mi Equipo"
-        subtitle="Gestiona los asesores que tienen acceso a tus conversaciones."
-      />
-      <TeamClient
-        initialAdvisors={advisors}
-        ownerModules={ownerModules}
-        initialAutoAssign={autoAssignSettings}
-        teamMetrics={teamMetrics}
-      />
-    </div>
+    <TeamClient
+      initialAdvisors={advisors}
+      ownerModules={ownerModules}
+      initialAutoAssign={autoAssignSettings}
+      teamMetrics={teamMetrics}
+    />
   );
 }

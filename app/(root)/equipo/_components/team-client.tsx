@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users } from "lucide-react";
+import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, UserPlus, Download, MoreHorizontal } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,7 +49,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { AdvisorRow, ModuleOption, TeamMetrics } from "@/actions/team-actions";
-import { TeamMetrics as TeamMetricsPanel } from "./TeamMetrics";
+import { TeamKpiCards } from "./TeamMetrics";
+import { TeamCharts } from "./TeamCharts";
 import {
   createAdvisor,
   updateAdvisorPassword,
@@ -55,6 +63,21 @@ import {
   saveAutoAssignSettings,
 } from "@/actions/team-actions";
 import { bulkAutoAssign } from "@/actions/advisor-assign-actions";
+import { cn } from "@/lib/utils";
+
+function StatCell({ value, max, colorClass }: { value: number; max: number; colorClass: string }) {
+  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <span className={cn("text-xs font-semibold tabular-nums", value > 0 ? colorClass.replace("bg-", "text-") : "text-muted-foreground")}>
+        {value}
+      </span>
+      <div className="w-10 h-1.5 rounded-full bg-muted overflow-hidden">
+        <div className={cn("h-full rounded-full transition-all", value > 0 ? colorClass : "")} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
 
 const PALETTE = [
   'bg-blue-500', 'bg-violet-500', 'bg-emerald-500',
@@ -73,7 +96,6 @@ function getInitials(name: string | null, email: string) {
 }
 
 type ModulesForm = { advisorId: string; advisorName: string; enabledIds: string[]; loading: boolean };
-
 type AutoAssignSettings = { autoAssignEnabled: boolean; autoAssignMaxChats: number };
 
 type Props = {
@@ -90,7 +112,6 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
   const [advisors, setAdvisors] = useState<AdvisorRow[]>(initialAdvisors);
   const [isPending, startTransition] = useTransition();
 
-  // Auto-assign settings
   const [autoAssignEnabled, setAutoAssignEnabled] = useState(initialAutoAssign.autoAssignEnabled);
   const [autoAssignMaxChats, setAutoAssignMaxChats] = useState(initialAutoAssign.autoAssignMaxChats);
   const [autoAssignSaving, setAutoAssignSaving] = useState(false);
@@ -119,21 +140,37 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
     });
   }
 
-  // Create dialog
+  function downloadCsv() {
+    const metricsMap = new Map((teamMetrics?.advisors ?? []).map((a) => [a.id, a]));
+    const date = new Date().toISOString().split("T")[0];
+    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const headers = ["Asesor", "Email", "Rol", "Disponible", "Activas", "Cerradas", "Calientes", "Convertidas", "Última actividad"];
+    const rows = advisors.map((a) => {
+      const m = metricsMap.get(a.id);
+      return [
+        a.name ?? "", a.email, a.advisorRole ?? "",
+        a.advisorAvailable ? "Sí" : "No",
+        String(a.activeCount),
+        String(m?.closedCount ?? 0),
+        String(m?.hotCount ?? 0),
+        String(m?.convertedCount ?? 0),
+        a.lastActivity ? new Date(a.lastActivity).toLocaleDateString("es-CO") : "Sin actividad",
+      ];
+    });
+    const lines = [headers.map(esc).join(","), ...rows.map((r) => r.map(esc).join(","))];
+    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `equipo_${date}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateForm>({ name: "", email: "", password: "", role: "agente" });
-
-  // Link existing dialog
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkEmail, setLinkEmail] = useState("");
-
-  // Password dialog
   const [pwForm, setPwForm] = useState<PasswordForm | null>(null);
-
-  // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState<AdvisorRow | null>(null);
-
-  // Modules dialog
   const [modulesForm, setModulesForm] = useState<ModulesForm | null>(null);
 
   function handleCreateField(field: keyof CreateForm, value: string) {
@@ -173,14 +210,10 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
   function handleCreate() {
     startTransition(async () => {
       const res = await createAdvisor(createForm);
-      if (!res.success) {
-        toast.error(res.message);
-        return;
-      }
+      if (!res.success) { toast.error(res.message); return; }
       toast.success(res.message ?? "Asesor creado.");
       setCreateOpen(false);
       setCreateForm({ name: "", email: "", password: "", role: "agente" });
-      // Reload list
       const { getTeamAdvisors } = await import("@/actions/team-actions");
       const list = await getTeamAdvisors();
       if (list.success && list.data) setAdvisors(list.data);
@@ -191,10 +224,7 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
     if (!pwForm) return;
     startTransition(async () => {
       const res = await updateAdvisorPassword({ advisorId: pwForm.advisorId, newPassword: pwForm.newPassword });
-      if (!res.success) {
-        toast.error(res.message);
-        return;
-      }
+      if (!res.success) { toast.error(res.message); return; }
       toast.success(res.message ?? "Contraseña actualizada.");
       setPwForm(null);
     });
@@ -204,10 +234,7 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
     if (!deleteTarget) return;
     startTransition(async () => {
       const res = await deleteAdvisor(deleteTarget.id);
-      if (!res.success) {
-        toast.error(res.message);
-        return;
-      }
+      if (!res.success) { toast.error(res.message); return; }
       toast.success(res.message ?? "Asesor eliminado.");
       setAdvisors((prev) => prev.filter((a) => a.id !== deleteTarget.id));
       setDeleteTarget(null);
@@ -215,36 +242,49 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
   }
 
   return (
-    <div className="space-y-6">
-      {/* Auto-assign settings card */}
-      <div className="rounded-lg border bg-card p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <Bot className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Auto-asignación de conversaciones</span>
-          {autoAssignSaving && <span className="text-xs text-muted-foreground ml-auto">Guardando...</span>}
-        </div>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <Switch
-              id="auto-assign-toggle"
-              checked={autoAssignEnabled}
-              onCheckedChange={handleAutoAssignToggle}
-            />
-            <Label htmlFor="auto-assign-toggle" className="text-sm cursor-pointer">
-              {autoAssignEnabled ? "Activada" : "Desactivada"}
-            </Label>
+    <div className="flex flex-col flex-1 min-h-0">
+
+      {/* Sección fija: KPI cards + barra de acciones */}
+      <div className="flex flex-col gap-3 shrink-0 pb-3">
+
+      {/* KPI cards — primera fila */}
+      {teamMetrics && <TeamKpiCards metrics={teamMetrics} />}
+
+      {/* Auto-assign + acciones en una sola barra */}
+      <div className={cn(
+        "rounded-xl border bg-card px-4 py-3 flex items-center justify-between gap-4 transition-colors",
+        autoAssignEnabled ? "border-l-4 border-l-emerald-500" : "border-l-4 border-l-border"
+      )}>
+        {/* Lado izquierdo: icono + toggle + max chats */}
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="flex items-center gap-3 shrink-0">
+            <div className={cn(
+              "flex items-center justify-center h-9 w-9 rounded-lg shrink-0",
+              autoAssignEnabled ? "bg-emerald-100 dark:bg-emerald-950" : "bg-muted"
+            )}>
+              <Bot className={cn("h-4 w-4", autoAssignEnabled ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")} />
+            </div>
+            <div>
+              <p className="text-sm font-medium leading-tight">Auto-asignación</p>
+              {autoAssignSaving && <p className="text-xs text-muted-foreground leading-tight mt-0.5">Guardando...</p>}
+            </div>
           </div>
+          <Switch
+            id="auto-assign-toggle"
+            checked={autoAssignEnabled}
+            onCheckedChange={handleAutoAssignToggle}
+          />
           {autoAssignEnabled && (
             <div className="flex items-center gap-2">
-              <Label htmlFor="max-chats" className="text-sm text-muted-foreground whitespace-nowrap">
-                Máx. chats por asesor:
+              <Label htmlFor="max-chats" className="text-xs text-muted-foreground whitespace-nowrap">
+                Máx. chats
               </Label>
               <Input
                 id="max-chats"
                 type="number"
                 min={1}
                 max={500}
-                className="h-8 w-20 text-sm"
+                className="h-8 w-16 text-sm"
                 value={autoAssignMaxChats}
                 onChange={(e) => handleMaxChatsChange(e.target.value)}
                 onBlur={handleMaxChatsBlur}
@@ -252,16 +292,8 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
             </div>
           )}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Cuando llegue un nuevo contacto, se asignará automáticamente al asesor con menos conversaciones activas, sin superar el límite.
-        </p>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Los <strong>administradores</strong> ven todas las conversaciones. Los <strong>agentes</strong> solo ven las asignadas a ellos.
-        </p>
-        <div className="flex gap-2">
+        {/* Lado derecho: botones — siempre en la misma línea */}
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             size="sm"
             variant="outline"
@@ -275,141 +307,207 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
               });
             }}
           >
-            <Users className="w-4 h-4 mr-2" />
+            <Users className="w-3.5 h-3.5 mr-1.5" />
             Asignar sin atender
           </Button>
           <Button size="sm" variant="outline" onClick={() => setLinkOpen(true)}>
-            <UserCheck className="w-4 h-4 mr-2" />
+            <UserCheck className="w-3.5 h-3.5 mr-1.5" />
             Vincular existente
           </Button>
           <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            Agregar asesor
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="h-9 w-9 p-0 shrink-0">
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={downloadCsv} disabled={advisors.length === 0}>
+                <Download className="w-4 h-4 mr-2" />
+                Exportar CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+      </div>
+      </div>{/* /fixed-top */}
+
+      {/* Área scrollable: tabla + gráficas */}
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 pb-3">
+
+      {/* Tabla unificada */}
+      {advisors.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4 rounded-xl border border-dashed bg-muted/30">
+          <div className="flex items-center justify-center h-14 w-14 rounded-full bg-muted">
+            <UserPlus className="w-6 h-6 text-muted-foreground" />
+          </div>
+          <div className="text-center space-y-1">
+            <p className="text-sm font-medium">Sin asesores aún</p>
+            <p className="text-xs text-muted-foreground">Agrega el primero para empezar a gestionar tu equipo</p>
+          </div>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
             Agregar asesor
           </Button>
         </div>
-      </div>
+      ) : (() => {
+        // Mapa de métricas por asesor para lookup O(1)
+        const metricsMap = new Map(
+          (teamMetrics?.advisors ?? []).map((a) => [a.id, a])
+        );
 
-      {advisors.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
-          <UserCheck className="w-10 h-10 opacity-30" />
-          <p className="text-sm">No tienes asesores aún. Agrega el primero.</p>
-        </div>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Rol</TableHead>
-              <TableHead className="text-center">Disponible</TableHead>
-              <TableHead className="text-center">Asignados</TableHead>
-              <TableHead className="text-center">Activos</TableHead>
-              <TableHead>Creado</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {advisors.map((advisor) => (
-              <TableRow key={advisor.id}>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-white shrink-0 ${colorFor(advisor.id)}`}>
-                      {getInitials(advisor.name, advisor.email)}
-                    </span>
-                    <span className="font-medium">{advisor.name ?? "—"}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-muted-foreground text-sm">{advisor.email}</TableCell>
-                <TableCell>
-                  <Select
-                    value={advisor.advisorRole ?? "agente"}
-                    onValueChange={(val) => {
-                      startTransition(async () => {
-                        const res = await updateAdvisorRole(advisor.id, val as "agente" | "administrador");
-                        if (!res.success) { toast.error(res.message); return; }
-                        setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, advisorRole: val } : a));
-                      });
-                    }}
-                  >
-                    <SelectTrigger className="h-7 w-36 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="agente">🕵️ Agente</SelectItem>
-                      <SelectItem value="administrador">🛡️ Administrador</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell className="text-center">
-                  <Switch
-                    checked={advisor.advisorAvailable}
-                    onCheckedChange={(val) => {
-                      setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, advisorAvailable: val } : a));
-                      toggleAdvisorAvailability(advisor.id, val).then((res) => {
-                        if (!res.success) {
-                          toast.error(res.message);
-                          setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, advisorAvailable: !val } : a));
-                        }
-                      });
-                    }}
-                  />
-                </TableCell>
-                <TableCell className="text-center">
-                  <span className={`inline-flex items-center justify-center h-6 min-w-[1.5rem] rounded-full px-1.5 text-xs font-semibold ${advisor.assignedCount > 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-muted-foreground'}`}>
-                    {advisor.assignedCount}
-                  </span>
-                </TableCell>
-                <TableCell className="text-center">
-                  <span className={`inline-flex items-center justify-center h-6 min-w-[1.5rem] rounded-full px-1.5 text-xs font-semibold ${advisor.activeCount > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'text-muted-foreground'}`}>
-                    {advisor.activeCount}
-                  </span>
-                </TableCell>
-                <TableCell className="text-muted-foreground text-xs">
-                  {new Date(advisor.createdAt).toLocaleDateString("es-CO", {
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex gap-2 justify-end">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      title="Módulos"
-                      onClick={() => openModules(advisor)}
-                    >
-                      <LayoutGrid className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      title="Cambiar contraseña"
-                      onClick={() =>
-                        setPwForm({ advisorId: advisor.id, advisorName: advisor.name ?? advisor.email, newPassword: "" })
-                      }
-                    >
-                      <KeyRound className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      title="Eliminar asesor"
-                      className="text-destructive hover:bg-destructive/10"
-                      onClick={() => setDeleteTarget(advisor)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+        // Máximos del equipo para barras relativas
+        const maxActive    = Math.max(...advisors.map((a) => a.activeCount), 1);
+        const maxHot       = Math.max(...(teamMetrics?.advisors ?? []).map((a) => a.hotCount), 1);
+        const maxConverted = Math.max(...(teamMetrics?.advisors ?? []).map((a) => a.convertedCount), 1);
 
-      {/* Team metrics */}
-      {teamMetrics && <TeamMetricsPanel metrics={teamMetrics} />}
+        return (
+          <div className="rounded-xl border overflow-hidden shrink-0">
+            <div className="overflow-x-auto">
+            <Table className="min-w-[900px]">
+              <TableHeader>
+                <TableRow className="bg-muted/20 hover:bg-muted/20">
+                  <TableHead className="pl-4 whitespace-nowrap">Asesor</TableHead>
+                  <TableHead className="whitespace-nowrap">Rol</TableHead>
+                  <TableHead className="text-center whitespace-nowrap">Disponible</TableHead>
+                  <TableHead className="text-center whitespace-nowrap">Activas</TableHead>
+                  <TableHead className="text-center whitespace-nowrap">Cerradas</TableHead>
+                  <TableHead className="text-center whitespace-nowrap">Calientes</TableHead>
+                  <TableHead className="text-center whitespace-nowrap">Convertidas</TableHead>
+                  <TableHead className="whitespace-nowrap">Última actividad</TableHead>
+                  <TableHead className="text-right pr-4 whitespace-nowrap">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {advisors.map((advisor) => {
+                  const m = metricsMap.get(advisor.id);
+                  return (
+                    <TableRow key={advisor.id} className="hover:bg-muted/30 transition-colors">
+                      <TableCell className="pl-4">
+                        <div className="flex items-center gap-3">
+                          <div className="relative shrink-0">
+                            <span className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold text-white ring-2 ring-background shadow-sm ${colorFor(advisor.id)}`}>
+                              {getInitials(advisor.name, advisor.email)}
+                            </span>
+                            <span className={cn(
+                              "absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-background",
+                              advisor.advisorAvailable ? "bg-emerald-500" : "bg-zinc-400"
+                            )} />
+                          </div>
+                          <div className="min-w-0 space-y-1">
+                            <p className="text-sm font-medium leading-tight truncate">{advisor.name ?? advisor.email}</p>
+                            {/* Barra de carga */}
+                            {autoAssignEnabled && (() => {
+                              const loadPct = Math.min((advisor.activeCount / autoAssignMaxChats) * 100, 100);
+                              const loadColor = loadPct >= 80 ? "bg-red-500" : loadPct >= 50 ? "bg-amber-400" : "bg-emerald-400";
+                              return (
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                                    <div className={cn("h-full rounded-full transition-all", loadColor)} style={{ width: `${loadPct}%` }} />
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground tabular-nums">{advisor.activeCount}/{autoAssignMaxChats}</span>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={advisor.advisorRole ?? "agente"}
+                          onValueChange={(val) => {
+                            startTransition(async () => {
+                              const res = await updateAdvisorRole(advisor.id, val as "agente" | "administrador");
+                              if (!res.success) { toast.error(res.message); return; }
+                              setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, advisorRole: val } : a));
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="h-7 w-36 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="agente">Agente</SelectItem>
+                            <SelectItem value="administrador">Administrador</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Switch
+                          checked={advisor.advisorAvailable}
+                          onCheckedChange={(val) => {
+                            setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, advisorAvailable: val } : a));
+                            toggleAdvisorAvailability(advisor.id, val).then((res) => {
+                              if (!res.success) {
+                                toast.error(res.message);
+                                setAdvisors((prev) => prev.map((a) => a.id === advisor.id ? { ...a, advisorAvailable: !val } : a));
+                              }
+                            });
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <StatCell value={advisor.activeCount} max={maxActive} colorClass="bg-emerald-500" />
+                      </TableCell>
+                      <TableCell className="text-center tabular-nums text-sm text-muted-foreground">
+                        {m?.closedCount ?? 0}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <StatCell value={m?.hotCount ?? 0} max={maxHot} colorClass="bg-orange-500" />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <StatCell value={m?.convertedCount ?? 0} max={maxConverted} colorClass="bg-blue-500" />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs">
+                        {advisor.lastActivity
+                          ? new Date(advisor.lastActivity).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" })
+                          : <span className="italic">Sin actividad</span>}
+                      </TableCell>
+                      <TableCell className="text-right pr-4">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openModules(advisor)}>
+                              <LayoutGrid className="w-4 h-4 mr-2" />
+                              Módulos
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setPwForm({ advisorId: advisor.id, advisorName: advisor.name ?? advisor.email, newPassword: "" })}>
+                              <KeyRound className="w-4 h-4 mr-2" />
+                              Cambiar contraseña
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setDeleteTarget(advisor)}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Gráficas */}
+      {teamMetrics && <TeamCharts metrics={teamMetrics} maxChats={autoAssignMaxChats} />}
+
+      </div>{/* /scrollable */}
 
       {/* Modules dialog */}
       <Dialog open={Boolean(modulesForm)} onOpenChange={(open) => !open && setModulesForm(null)}>
@@ -429,22 +527,12 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
                     {modulesForm?.enabledIds.length ?? 0} de {ownerModules.length} habilitados
                   </p>
                   <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-6 text-xs px-2"
-                      onClick={() => setModulesForm((prev) => prev ? { ...prev, enabledIds: ownerModules.map((m) => m.id) } : null)}
-                    >
+                    <Button type="button" variant="outline" size="sm" className="h-6 text-xs px-2"
+                      onClick={() => setModulesForm((prev) => prev ? { ...prev, enabledIds: ownerModules.map((m) => m.id) } : null)}>
                       Todos
                     </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-6 text-xs px-2"
-                      onClick={() => setModulesForm((prev) => prev ? { ...prev, enabledIds: [] } : null)}
-                    >
+                    <Button type="button" variant="outline" size="sm" className="h-6 text-xs px-2"
+                      onClick={() => setModulesForm((prev) => prev ? { ...prev, enabledIds: [] } : null)}>
                       Ninguno
                     </Button>
                   </div>
@@ -457,9 +545,7 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
                         checked={modulesForm?.enabledIds.includes(mod.id) ?? false}
                         onCheckedChange={(val) =>
                           setModulesForm((prev) =>
-                            prev
-                              ? { ...prev, enabledIds: val ? [...prev.enabledIds, mod.id] : prev.enabledIds.filter((id) => id !== mod.id) }
-                              : null
+                            prev ? { ...prev, enabledIds: val ? [...prev.enabledIds, mod.id] : prev.enabledIds.filter((id) => id !== mod.id) } : null
                           )
                         }
                       />
@@ -487,13 +573,7 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
           <div className="space-y-4 py-2">
             <div className="space-y-1">
               <Label htmlFor="link-email">Email del usuario</Label>
-              <Input
-                id="link-email"
-                type="email"
-                placeholder="asesor@empresa.com"
-                value={linkEmail}
-                onChange={(e) => setLinkEmail(e.target.value)}
-              />
+              <Input id="link-email" type="email" placeholder="asesor@empresa.com" value={linkEmail} onChange={(e) => setLinkEmail(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
@@ -514,39 +594,19 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
           <div className="space-y-4 py-2">
             <div className="space-y-1">
               <Label htmlFor="adv-name">Nombre</Label>
-              <Input
-                id="adv-name"
-                placeholder="Juan Pérez"
-                value={createForm.name}
-                onChange={(e) => handleCreateField("name", e.target.value)}
-              />
+              <Input id="adv-name" placeholder="Juan Pérez" value={createForm.name} onChange={(e) => handleCreateField("name", e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label htmlFor="adv-email">Email</Label>
-              <Input
-                id="adv-email"
-                type="email"
-                placeholder="asesor@empresa.com"
-                value={createForm.email}
-                onChange={(e) => handleCreateField("email", e.target.value)}
-              />
+              <Input id="adv-email" type="email" placeholder="asesor@empresa.com" value={createForm.email} onChange={(e) => handleCreateField("email", e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label htmlFor="adv-pw">Contraseña</Label>
-              <Input
-                id="adv-pw"
-                type="password"
-                placeholder="Mínimo 6 caracteres"
-                value={createForm.password}
-                onChange={(e) => handleCreateField("password", e.target.value)}
-              />
+              <Input id="adv-pw" type="password" placeholder="Mínimo 6 caracteres" value={createForm.password} onChange={(e) => handleCreateField("password", e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label htmlFor="adv-role">Rol</Label>
-              <Select
-                value={createForm.role}
-                onValueChange={(val) => setCreateForm((prev) => ({ ...prev, role: val as "agente" | "administrador" }))}
-              >
+              <Select value={createForm.role} onValueChange={(val) => setCreateForm((prev) => ({ ...prev, role: val as "agente" | "administrador" }))}>
                 <SelectTrigger id="adv-role">
                   <SelectValue />
                 </SelectTrigger>
@@ -558,9 +618,7 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              Cancelar
-            </Button>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
             <Button onClick={handleCreate} disabled={isPending}>
               {isPending ? "Creando..." : "Crear asesor"}
             </Button>
@@ -577,19 +635,12 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
           <div className="space-y-4 py-2">
             <div className="space-y-1">
               <Label htmlFor="new-pw">Nueva contraseña</Label>
-              <Input
-                id="new-pw"
-                type="password"
-                placeholder="Mínimo 6 caracteres"
-                value={pwForm?.newPassword ?? ""}
-                onChange={(e) => setPwForm((prev) => prev ? { ...prev, newPassword: e.target.value } : null)}
-              />
+              <Input id="new-pw" type="password" placeholder="Mínimo 6 caracteres" value={pwForm?.newPassword ?? ""}
+                onChange={(e) => setPwForm((prev) => prev ? { ...prev, newPassword: e.target.value } : null)} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPwForm(null)}>
-              Cancelar
-            </Button>
+            <Button variant="outline" onClick={() => setPwForm(null)}>Cancelar</Button>
             <Button onClick={handleUpdatePassword} disabled={isPending}>
               {isPending ? "Actualizando..." : "Guardar"}
             </Button>
