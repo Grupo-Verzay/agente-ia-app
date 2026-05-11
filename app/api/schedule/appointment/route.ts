@@ -59,6 +59,39 @@ function normalizeTimeToSeconds(timeStr: string): number {
   return Number.isFinite(raw) && raw > 0 ? raw : 0;
 }
 
+// ─── Detección automática de timezone por código de país ─────────────────────
+// Ordenado de prefijos más largos a más cortos para evitar coincidencias parciales
+const COUNTRY_TZ_MAP: [string, string][] = [
+  ['593', 'America/Guayaquil'],
+  ['598', 'America/Montevideo'],
+  ['595', 'America/Asuncion'],
+  ['591', 'America/La_Paz'],
+  ['507', 'America/Panama'],
+  ['506', 'America/Costa_Rica'],
+  ['505', 'America/Managua'],
+  ['504', 'America/Tegucigalpa'],
+  ['503', 'America/El_Salvador'],
+  ['502', 'America/Guatemala'],
+  ['58',  'America/Caracas'],
+  ['57',  'America/Bogota'],
+  ['56',  'America/Santiago'],
+  ['55',  'America/Sao_Paulo'],
+  ['54',  'America/Argentina/Buenos_Aires'],
+  ['53',  'America/Havana'],
+  ['52',  'America/Mexico_City'],
+  ['51',  'America/Lima'],
+  ['34',  'Europe/Madrid'],
+  ['1',   'America/New_York'],
+];
+
+function getClientTimezone(remoteJid: string, fallback: string): string {
+  const digits = (remoteJid ?? '').split('@')[0].replace(/\D/g, '');
+  for (const [prefix, tz] of COUNTRY_TZ_MAP) {
+    if (digits.startsWith(prefix)) return tz;
+  }
+  return fallback;
+}
+
 function tzCityLabel(tz: string): string {
   const parts = tz.split('/');
   return (parts[parts.length - 1] ?? tz).replace(/_/g, ' ');
@@ -69,13 +102,21 @@ function subtractSecondsFromTime(date: Date, seconds: number): string {
   return formatInTimeZone(newDate, 'UTC', 'dd/MM/yyyy HH:mm');
 }
 
-function formatReminderMessage(template: string, pushName: string, startTime: string, timezone: string, durationMin: number): string {
+function formatReminderMessage(
+  template: string,
+  pushName: string,
+  startTime: string,
+  advisorTimezone: string,
+  durationMin: number,
+  clientTimezone?: string,
+): string {
+  const displayTz = clientTimezone ?? advisorTimezone;
   let msg = template;
   msg = msg.replace(/@client_name\b/gi, pushName);
-  const startLocal = toZonedTime(new Date(startTime), timezone);
+  const startLocal = toZonedTime(new Date(startTime), displayTz);
   const dateLabel = format(startLocal, 'dd/MM/yyyy', { locale: es });
   const hourLabel = format(startLocal, 'h:mm a', { locale: es });
-  const tzLabel = tzCityLabel(timezone);
+  const tzLabel = tzCityLabel(displayTz);
   msg = msg.replace(/@appointment_datetime\b/gi, `${dateLabel} ${hourLabel} (hora ${tzLabel}).`);
   msg = msg.replace(/@appointment_duration\b/gi, `${durationMin} min`);
   return msg;
@@ -129,9 +170,12 @@ async function runPostAppointmentTasks({
   const sendTextUrl = `${serverUrl}/message/sendText/${instanceName}`;
   const instanceId = instance.instanceId;
 
+  // Detectar timezone del cliente por código de país del teléfono
+  const clientTimezone = getClientTimezone(phone, timezone);
+
   // 1. Confirmación del servicio al cliente via seguimiento (mismo mecanismo que confirm-appointment)
   if (service?.messageText) {
-    const confirmMessage = formatReminderMessage(service.messageText, pushName, startTime, timezone, slotDuration);
+    const confirmMessage = formatReminderMessage(service.messageText, pushName, startTime, timezone, slotDuration, clientTimezone);
     db.seguimiento.create({
       data: {
         idNodo: '',
@@ -209,7 +253,7 @@ async function runPostAppointmentTasks({
       if (!normalizedSeconds) return;
 
       const seguimientoTime = subtractSecondsFromTime(new Date(startTime), normalizedSeconds);
-      const mensaje = formatReminderMessage(rem.description ?? rem.title, pushName, startTime, timezone, slotDuration);
+      const mensaje = formatReminderMessage(rem.description ?? rem.title, pushName, startTime, timezone, slotDuration, clientTimezone);
 
       await db.seguimiento.create({
         data: {
