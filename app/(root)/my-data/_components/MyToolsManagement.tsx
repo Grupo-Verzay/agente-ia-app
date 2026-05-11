@@ -133,7 +133,10 @@ function ToolCard({
             )}
           </div>
 
-          <div className="flex items-center flex-shrink-0">
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <Button variant="ghost" size="icon" onClick={onEdit} title="Editar" className="h-8 w-8">
+              <Edit2 className="h-4 w-4" />
+            </Button>
             <Switch
               checked={cfg.isEnabled}
               onCheckedChange={(v) => onToggle(cfg, v)}
