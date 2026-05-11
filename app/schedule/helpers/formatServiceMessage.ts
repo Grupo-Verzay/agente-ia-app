@@ -40,7 +40,9 @@ export function formatServiceMessage(
             const localTime = toZonedTime(new Date(startTime), timezone);
             const dateLabel = format(selectedDate, "dd/MM/yyyy", { locale: es });
             const hourLabel = format(localTime, "h:mm a", { locale: es });
-            const fullDateTime = `${dateLabel} ${hourLabel}.`;
+            const tzParts = timezone.split('/');
+            const tzCity = (tzParts[tzParts.length - 1] ?? timezone).replace(/_/g, ' ');
+            const fullDateTime = `${dateLabel} ${hourLabel} (hora ${tzCity}).`;
             formatted = formatted.replace(/@appointment_datetime\b/gi, fullDateTime);
         }
 

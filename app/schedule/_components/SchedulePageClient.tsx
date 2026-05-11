@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { format } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
+import { toZonedTime, formatInTimeZone } from "date-fns-tz";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -37,6 +37,38 @@ import { CalendarIcon, Clock, List, ScrollText } from "lucide-react";
 import { es } from "date-fns/locale";
 import { DateComponent, HourComponent, ScheduleForm, ServiceComponent } from "./steps";
 import { SummaryItem } from "./";
+
+// Mapa código de país → timezone (prefijos más largos primero)
+const COUNTRY_TZ_MAP: [string, string][] = [
+    ['593', 'America/Guayaquil'],
+    ['598', 'America/Montevideo'],
+    ['595', 'America/Asuncion'],
+    ['591', 'America/La_Paz'],
+    ['507', 'America/Panama'],
+    ['506', 'America/Costa_Rica'],
+    ['505', 'America/Managua'],
+    ['504', 'America/Tegucigalpa'],
+    ['503', 'America/El_Salvador'],
+    ['502', 'America/Guatemala'],
+    ['58',  'America/Caracas'],
+    ['57',  'America/Bogota'],
+    ['56',  'America/Santiago'],
+    ['55',  'America/Sao_Paulo'],
+    ['54',  'America/Argentina/Buenos_Aires'],
+    ['53',  'America/Havana'],
+    ['52',  'America/Mexico_City'],
+    ['51',  'America/Lima'],
+    ['34',  'Europe/Madrid'],
+    ['1',   'America/New_York'],
+];
+
+function getTimezoneFromAreaCode(areaCode: string, fallback: string): string {
+    const digits = (areaCode ?? '').replace(/\D/g, '');
+    for (const [prefix, tz] of COUNTRY_TZ_MAP) {
+        if (digits.startsWith(prefix)) return tz;
+    }
+    return fallback;
+}
 
 function splitPhonePrefix(fullPhone: string, countries?: ScheduleInterface['countries']) {
     if (!fullPhone || !countries?.length) return { areaCode: '', localPhone: fullPhone };
@@ -171,6 +203,9 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                 return false;
             }
 
+            // Timezone del cliente derivado del indicativo seleccionado en el formulario
+            const clientTimezone = getTimezoneFromAreaCode(areaCode, timezone);
+
             const secondsReminders = (reminders ?? []).map((rem) => ({
                 ...rem,
                 normalizedSeconds: isNaN(normalizeTimeToSeconds(rem?.time ?? "")) ? 0 : normalizeTimeToSeconds(rem?.time ?? ""),
@@ -180,7 +215,8 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                 if (!rem.normalizedSeconds) return;
 
                 const reminderDate = new Date(new Date(startTime).getTime() - rem.normalizedSeconds * 1000);
-                const reminderTime = format(reminderDate, 'dd/MM/yyyy HH:mm');
+                // Almacenar en UTC explícito para que el runner lo interprete correctamente
+                const reminderTime = formatInTimeZone(reminderDate, 'UTC', 'dd/MM/yyyy HH:mm');
 
                 const dataSeguimiento: SeguimientoInput = {
                     idNodo: "",
@@ -192,7 +228,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                         nameClient: normalizedClientName,
                         selectedDate,
                         selectedSlot,
-                        timezone,
+                        timezone: clientTimezone,
                         slotDuration,
                     }),
                     tipo: "text",
@@ -223,7 +259,9 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                 if (allPhones.length > 0) {
                     const startLocal = toZonedTime(new Date(startTime), ownerTimezone);
                     const dateLabel = format(selectedDate!, "d 'de' MMMM 'de' yyyy", { locale: es });
-                    const hourLabel = format(startLocal, "hh:mm a");
+                    const tzParts = ownerTimezone.split('/');
+                    const tzOwnerCity = (tzParts[tzParts.length - 1] ?? ownerTimezone).replace(/_/g, ' ');
+                    const hourLabel = `${format(startLocal, "hh:mm a")} (hora ${tzOwnerCity})`;
                     const serviceName = user.services.find((s) => s.id === selectedService)?.name ?? "Asesoría";
 
                     const ownerText = `📅 *Tienes Nueva Cita*:
@@ -286,11 +324,13 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
         const apikey = primaryInstance.instanceId;
         const url = `https://${urlevo}/message/sendText/${instanceName}`;
         const currentService = user.services.find((s) => s.id === selectedService);
+        // Usar timezone derivado del indicativo seleccionado para el mensaje al cliente
+        const clientTimezoneForMsg = getTimezoneFromAreaCode(areaCode, timezone);
         const text = formatServiceMessage(currentService?.messageText, {
             nameClient: normalizedClientName,
             selectedDate,
             selectedSlot,
-            timezone,
+            timezone: clientTimezoneForMsg,
             slotDuration,
         });
 
