@@ -165,6 +165,27 @@ export async function bulkAutoAssign(): Promise<Result & { assigned?: number }> 
   return { success: true, assigned };
 }
 
+export async function resolveSession(sessionId: number): Promise<{ success: boolean; message?: string }> {
+  const user = await currentUser();
+  if (!user?.id) return { success: false, message: "No autorizado." };
+
+  const rows = await db.$queryRaw<{ userId: string; assignedAdvisorId: string | null }[]>`
+    SELECT "userId", assigned_advisor_id AS "assignedAdvisorId"
+    FROM "Session" WHERE id = ${sessionId}
+  `;
+  if (!rows[0]) return { success: false, message: "Sesión no encontrada." };
+
+  const { userId: ownerId, assignedAdvisorId } = rows[0];
+  const isOwner = user.id === ownerId;
+  const isAssigned = user.id === assignedAdvisorId;
+  if (!isOwner && !isAssigned) return { success: false, message: "No autorizado." };
+
+  await db.$executeRaw`UPDATE "Session" SET status = false WHERE id = ${sessionId}`;
+  await logAssignment(sessionId, assignedAdvisorId, user.id, "resolved");
+
+  return { success: true, message: "Conversación resuelta." };
+}
+
 export async function getAssignmentHistory(sessionId: number): Promise<AssignmentLogEntry[]> {
   try {
     const rows = await db.$queryRaw<AssignmentLogEntry[]>`

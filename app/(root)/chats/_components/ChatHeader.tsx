@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, PencilLine, Pin, Phone } from 'lucide-react';
+import { ArrowRight, PencilLine, Pin, Phone, CheckCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { SessionTagsCombobox } from '../../tags/components';
 import { CrmFollowUpSummaryBadge } from '../../crm/dashboard/components/CrmFollowUpSummaryBadge';
 import { SwitchStatus } from '../../sessions/_components';
 import { LeadStatusSelect } from './LeadStatusSelect';
+import { resolveSession } from '@/actions/advisor-assign-actions';
 import { SintesisEditDialog } from './SintesisEditDialog';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
@@ -62,6 +63,22 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onAssignAdvisor,
 }) => {
   const initialSelectedTagIds = session?.tags?.map((t) => t?.id).filter(Boolean) ?? [];
+  const [resolving, setResolving] = useState(false);
+
+  const canResolve = session?.status === true && (
+    !advisorRole || currentAdvisorId === assignedAdvisorId
+  );
+
+  const handleResolve = async () => {
+    if (!session?.id || resolving) return;
+    setResolving(true);
+    const res = await resolveSession(session.id);
+    setResolving(false);
+    if (!res.success) { toast.error(res.message ?? 'Error al resolver.'); return; }
+    toast.success('Conversación resuelta.');
+    onSessionMutate();
+    await onSessionRefresh();
+  };
 
   const handleCall = () => {
     toast.info('Próximamente disponible en planes Premium', { duration: 4000 });
@@ -205,12 +222,26 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               {tagsCombobox}
             </div>
             {session && (
-              <SwitchStatus
-                key={`${session.id}-${session.status ? 'on' : 'off'}`}
-                checked={session.status ?? false}
-                sessionId={session.id ?? -1}
-                mutateSessions={onSessionMutate}
-              />
+              <div className="flex items-center gap-2">
+                <SwitchStatus
+                  key={`${session.id}-${session.status ? 'on' : 'off'}`}
+                  checked={session.status ?? false}
+                  sessionId={session.id ?? -1}
+                  mutateSessions={onSessionMutate}
+                />
+                {canResolve && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1.5 border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-600 dark:text-emerald-400 dark:hover:bg-emerald-950"
+                    onClick={handleResolve}
+                    disabled={resolving}
+                  >
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    {resolving ? 'Resolviendo...' : 'Resolver'}
+                  </Button>
+                )}
+              </div>
             )}
             {sessionActions}
           </div>
@@ -282,6 +313,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   instanceId={session.instanceId}
                 />
               {tagsCombobox}
+              {canResolve && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1.5 border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-600 dark:text-emerald-400 dark:hover:bg-emerald-950"
+                  onClick={handleResolve}
+                  disabled={resolving}
+                >
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  {resolving ? 'Resolviendo...' : 'Resolver'}
+                </Button>
+              )}
             </>
           )}
           {sessionActions}
