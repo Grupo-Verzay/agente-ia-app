@@ -454,7 +454,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                             selectedSlot={selectedSlot}
                             setSelectedSlot={setSelectedSlot}
                             setStep={setStep}
-                            timezone={timezone}
+                            timezone={ownerTimezone}
                         />
                     )}
 
@@ -493,11 +493,11 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                                             label="Hora"
                                             value={
                                                 selectedSlot
-                                                    ? format(toZonedTime(new Date(selectedSlot.split("|")[0]), timezone), "hh:mm a")
+                                                    ? format(toZonedTime(new Date(selectedSlot.split("|")[0]), ownerTimezone), "hh:mm a")
                                                     : "-"
                                             }
                                         />
-                                        <SummaryItem label="Zona horaria" value={timezone} />
+                                        <SummaryItem label="Zona horaria" value={ownerTimezone} />
                                     </CardContent>
                                 </Card>
                             </AlertDialogDescription>

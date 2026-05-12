@@ -6,8 +6,9 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import { toast } from "sonner";
-import { isSameDay, startOfDay, format } from "date-fns";
+import { startOfDay } from "date-fns";
 import { es } from "date-fns/locale";
+import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 
 import { getAppointmentsByUser, updateAppointmentStatus, deleteAppointment } from "@/actions/appointments-actions";
 import { AppointmentStatus, User } from "@prisma/client";
@@ -103,6 +104,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
     const [activeView, setActiveView] = useState<'agenda' | 'week' | 'month'>('agenda');
     const calendarRef = useRef<FullCalendar>(null);
     const calendarWrapRef = useRef<HTMLDivElement>(null);
+    const ownerTz = (user as any).timezone ?? 'America/Bogota';
 
     // Oculta/muestra el cuerpo del calendario según el modo
     useEffect(() => {
@@ -162,12 +164,15 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
 
     const dayAppts = useMemo(() =>
         appointments
-            .filter(a => isSameDay(new Date(a.startTime), agendaDate))
+            .filter(a =>
+                formatInTimeZone(new Date(a.startTime), ownerTz, 'yyyy-MM-dd') ===
+                formatInTimeZone(agendaDate, ownerTz, 'yyyy-MM-dd')
+            )
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()),
-        [appointments, agendaDate]
+        [appointments, agendaDate, ownerTz]
     );
-    const morningAppts = dayAppts.filter(a => new Date(a.startTime).getHours() < 12);
-    const afternoonAppts = dayAppts.filter(a => new Date(a.startTime).getHours() >= 12);
+    const morningAppts = dayAppts.filter(a => toZonedTime(new Date(a.startTime), ownerTz).getHours() < 12);
+    const afternoonAppts = dayAppts.filter(a => toZonedTime(new Date(a.startTime), ownerTz).getHours() >= 12);
 
     const openApptDialog = (appt: AppointmentWithSession) => {
         setSelectedEventId(appt.id);
@@ -308,7 +313,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                     <div className="flex flex-row gap-x-2">
                                         <div className="flex flex-col flex-1 min-w-0">
                                             <p className="text-sm font-bold leading-tight text-muted-foreground">
-                                                {format(new Date(appt.startTime), "HH:mm")} – {format(new Date(appt.endTime), "HH:mm")}
+                                                {formatInTimeZone(new Date(appt.startTime), ownerTz, "HH:mm")} – {formatInTimeZone(new Date(appt.endTime), ownerTz, "HH:mm")}
                                             </p>
                                             <p className="text-sm font-semibold leading-tight mt-0.5 truncate">
                                                 {appt.session?.pushName || "Sin nombre"}
@@ -388,7 +393,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                     <div className="flex flex-row gap-x-2">
                                         <div className="flex flex-col flex-1 min-w-0">
                                             <p className="text-sm font-bold leading-tight text-muted-foreground">
-                                                {format(new Date(appt.startTime), "HH:mm")} – {format(new Date(appt.endTime), "HH:mm")}
+                                                {formatInTimeZone(new Date(appt.startTime), ownerTz, "HH:mm")} – {formatInTimeZone(new Date(appt.endTime), ownerTz, "HH:mm")}
                                             </p>
                                             <p className="text-sm font-semibold leading-tight mt-0.5 truncate">
                                                 {appt.session?.pushName || "Sin nombre"}
@@ -573,12 +578,11 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                         <div className="space-y-3 mt-4">
                                             <div className="flex text-sm gap-1 flex-row">
                                                 <strong className="uppercase font-medium">Fecha:</strong>
-                                                {new Date(currentAppointment.startTime).toLocaleDateString("es-ES")}
+                                                {formatInTimeZone(new Date(currentAppointment.startTime), ownerTz, "dd/MM/yyyy")}
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
                                                 <strong className="uppercase font-medium">Hora:</strong>
-                                                {new Date(currentAppointment.startTime).toLocaleTimeString("es-ES")} -
-                                                {new Date(currentAppointment.endTime).toLocaleTimeString("es-ES")}
+                                                {formatInTimeZone(new Date(currentAppointment.startTime), ownerTz, "HH:mm")} – {formatInTimeZone(new Date(currentAppointment.endTime), ownerTz, "HH:mm")}
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
                                                 <strong className="uppercase font-medium">Zona Horaria:</strong>
