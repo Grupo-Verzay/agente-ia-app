@@ -218,7 +218,8 @@ const BUILTIN_TYPE_LABELS: Record<ExternalDataBuiltinToolType, string> = {
   registrar_nota_seguimiento: 'Nota seguimiento',
   crear_recordatorio: 'Crear recordatorio',
   buscar_plantilla: 'Buscar plantilla',
-  leer_google_sheets: 'Google Sheets',
+  leer_google_sheets: 'Google Sheets (leer)',
+  escribir_google_sheets: 'Google Sheets (guardar)',
   scrape_web: 'Consultar web',
 };
 
