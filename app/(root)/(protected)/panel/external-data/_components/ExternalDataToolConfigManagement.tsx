@@ -551,7 +551,7 @@ function AddBuiltinDialog({
 
 // ─── Dialog: Edit builtin ─────────────────────────────────────────────────────
 
-const URL_TOOL_TYPES = new Set(['leer_google_sheets', 'scrape_web']);
+const URL_TOOL_TYPES = new Set(['leer_google_sheets', 'escribir_google_sheets', 'scrape_web']);
 
 function EditBuiltinDialog({
   open,
@@ -699,7 +699,7 @@ function EditBuiltinDialog({
             {URL_TOOL_TYPES.has(cfg.toolType) && (
               <div className="space-y-1.5">
                 <Label>
-                  {cfg.toolType === 'leer_google_sheets' ? 'URL de Google Sheets' : 'URL de la página web'}
+                  {cfg.toolType === 'leer_google_sheets' ? 'URL de Google Sheets' : cfg.toolType === 'escribir_google_sheets' ? 'URL del webhook (Apps Script)' : 'URL de la página web'}
                   <span className="text-muted-foreground font-normal text-xs ml-1">(predeterminada)</span>
                 </Label>
                 <Input

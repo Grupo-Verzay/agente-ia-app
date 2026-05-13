@@ -182,6 +182,17 @@ export const BUILTIN_TOOL_CATALOG: {
     sortOrder: 14,
   },
   {
+    toolType: 'escribir_google_sheets',
+    defaultKey: 'escribir_google_sheets',
+    defaultDisplayName: 'Guardar en Google Sheets',
+    defaultDescription:
+      'Guarda datos en una hoja de cálculo de Google Sheets vía un webhook de Google Apps Script. Úsala cuando el usuario quiera registrar información (leads, solicitudes, formularios, etc.) o cuando se deba guardar datos recopilados en la conversación.',
+    isCritical: false,
+    helpText:
+      'Requiere crear un Google Apps Script en la hoja destino y publicarlo como web app. El agente envía los datos como un objeto JSON y el script los escribe como una nueva fila. Los campos deben coincidir con los encabezados de la hoja.',
+    sortOrder: 15,
+  },
+  {
     toolType: 'scrape_web',
     defaultKey: 'scrape_web',
     defaultDisplayName: 'Consultar página web',
