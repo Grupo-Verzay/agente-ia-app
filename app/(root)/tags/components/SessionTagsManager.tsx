@@ -129,7 +129,7 @@ export const SessionTagsManager = ({
 
     const startEditTag = (tag: SimpleTag) => {
         setEditingTagId(tag.id);
-        setEditName(tag.name);
+        setEditName(tag.name.toUpperCase());
         setEditColor(tag.color ?? null);
     };
 
@@ -261,7 +261,7 @@ export const SessionTagsManager = ({
                         <Input
                             placeholder="Nombre (ej: Lead, Prospecto...)"
                             value={newTagName}
-                            onChange={(e) => setNewTagName(e.target.value)}
+                            onChange={(e) => setNewTagName(e.target.value.toUpperCase())}
                             className="h-9"
                         />
                         {/* selector de color */}

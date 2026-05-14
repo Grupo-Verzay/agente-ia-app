@@ -87,7 +87,7 @@ const SortableTagItem = ({
           {renderColorDot(editColor)}
           <Input
             value={editName}
-            onChange={(e) => onEditName(e.target.value)}
+            onChange={(e) => onEditName(e.target.value.toUpperCase())}
             className="h-9"
           />
         </div>
@@ -153,7 +153,7 @@ const SortableTagItem = ({
         className="inline-flex min-w-[120px] flex-1 items-center gap-2 rounded-full px-2 py-1 text-left"
       >
         {renderColorDot(tag.color)}
-        <span className="truncate">{tag.name}</span>
+        <span className="truncate uppercase">{tag.name}</span>
       </button>
 
       <div className="flex items-center gap-1">
