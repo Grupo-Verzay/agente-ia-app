@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from "framer-motion"
 import { useEffect, useState, useTransition } from 'react';
 import { Input } from '@/components/ui/input';
-import { Search, X, LayoutGrid, Eye, EyeOff, Layers } from 'lucide-react';
+import { Search, X, LayoutGrid, Eye, EyeOff, Layers, Plus } from 'lucide-react';
 import { ModuleCardSkeleton } from './ModuleCardSkeleton';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { toast } from 'sonner';
@@ -146,7 +146,8 @@ export const MainModule = () => {
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                <Button onClick={() => handleOpenModal()}>
+                <Button onClick={() => handleOpenModal()} className="ml-auto gap-1.5">
+                    <Plus className="h-4 w-4" />
                     Nuevo
                 </Button>
             </div>
