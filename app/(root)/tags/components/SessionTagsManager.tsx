@@ -316,7 +316,10 @@ export const SessionTagsManager = ({
                     ) : (
                         <SortableTagList
                             tags={tags}
-                            onReorder={setTags}
+                            onReorder={(reordered) => {
+                                setTags(reordered);
+                                onTagsChanged?.(reordered);
+                            }}
                             editingTagId={editingTagId}
                             editName={editName}
                             editColor={editColor}

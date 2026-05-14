@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Kanban, Settings2, TrendingUp, X, Tag } from 'lucide-react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { MetricCard } from '@/components/custom/MetricCard';
@@ -30,6 +30,11 @@ export function TagsPageClient({
 }) {
     const [view, setView] = useState<View>('kanban');
     const [tags, setTags] = useState<SimpleTag[]>(allTags);
+
+    // Sincronizar cuando el servidor retorna datos frescos (tras router.refresh())
+    const allTagsKey = allTags.map(t => `${t.id}-${t.order}`).join(',');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => { setTags(allTags); }, [allTagsKey]);
     const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreKey>>(new Set());
     const [scoreCounts, setScoreCounts] = useState<Record<string, number>>({});
     const [tagCounts, setTagCounts] = useState<Record<string, number>>({});

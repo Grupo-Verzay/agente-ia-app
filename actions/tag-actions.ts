@@ -3,6 +3,7 @@
 import { db } from '@/lib/db';
 import { Tag } from '@prisma/client';
 import { z } from 'zod';
+import { revalidatePath } from 'next/cache';
 
 export interface ActionResponse<T> {
     success: boolean;
@@ -188,7 +189,7 @@ export async function updateTagAction(
     }
 }
 
-// Actualizar el orden de un tag
+// Actualizar el orden de un tag (individual — mantenido por compatibilidad)
 export async function updateTagOrderAction(
     tagId: number,
     order: number,
@@ -198,9 +199,28 @@ export async function updateTagOrderAction(
             where: { id: tagId },
             data: { order },
         });
+        revalidatePath('/tags');
         return { success: true, message: 'Orden actualizado.', data: null };
     } catch (error) {
         console.error('updateTagOrderAction error:', error);
+        return { success: false, message: 'Error actualizando el orden.' };
+    }
+}
+
+// Actualizar el orden de múltiples tags en una sola transacción
+export async function batchUpdateTagOrderAction(
+    updates: { id: number; order: number }[],
+): Promise<ActionResponse<null>> {
+    try {
+        await db.$transaction(
+            updates.map(({ id, order }) =>
+                db.tag.update({ where: { id }, data: { order } })
+            )
+        );
+        revalidatePath('/tags');
+        return { success: true, message: 'Orden actualizado.', data: null };
+    } catch (error) {
+        console.error('batchUpdateTagOrderAction error:', error);
         return { success: false, message: 'Error actualizando el orden.' };
     }
 }

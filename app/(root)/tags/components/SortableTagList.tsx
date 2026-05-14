@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import {
   DndContext,
   closestCenter,
@@ -21,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { SimpleTag } from '@/types/session';
-import { updateTagOrderAction } from '@/actions/tag-actions';
+import { batchUpdateTagOrderAction } from '@/actions/tag-actions';
 
 const COLOR_PRESETS = [
   '#3B82F6',
@@ -213,6 +214,7 @@ export const SortableTagList = ({
   onDelete,
   renderColorDot,
 }: SortableTagListProps) => {
+  const router = useRouter();
   const sensors = useSensors(useSensor(PointerSensor));
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -227,12 +229,13 @@ export const SortableTagList = ({
     onReorder(reordered);
 
     const toastId = toast.loading('Guardando orden...');
-    try {
-      await Promise.all(
-        reordered.map((tag, index) => updateTagOrderAction(tag.id, index))
-      );
+    const res = await batchUpdateTagOrderAction(
+      reordered.map((tag, index) => ({ id: tag.id, order: index }))
+    );
+    if (res.success) {
       toast.success('Orden actualizado', { id: toastId });
-    } catch {
+      router.refresh();
+    } else {
       toast.error('Error guardando el orden', { id: toastId });
       onReorder(tags); // revertir
     }
