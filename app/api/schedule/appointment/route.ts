@@ -250,9 +250,11 @@ async function runPostAppointmentTasks({
   const seguimientosCreados = await Promise.allSettled(
     reminders.map(async (rem) => {
       const normalizedSeconds = normalizeTimeToSeconds(rem.time ?? '');
+      console.log(`[REMINDER_DEBUG] rem.time: "${rem.time}" | normalizedSeconds: ${normalizedSeconds} | startTime: ${startTime}`);
       if (!normalizedSeconds) return;
 
       const seguimientoTime = subtractSecondsFromTime(new Date(startTime), normalizedSeconds);
+      console.log(`[REMINDER_DEBUG] reminderDate UTC: ${new Date(new Date(startTime).getTime() - normalizedSeconds * 1000).toISOString()} | seguimientoTime guardado: "${seguimientoTime}"`);
       const mensaje = formatReminderMessage(rem.description ?? rem.title, pushName, startTime, timezone, slotDuration, clientTimezone);
 
       await db.seguimiento.create({
@@ -296,14 +298,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { userId, serviceId: rawServiceId, pushName, phone, instanceName, startTime, endTime, timezone } = body;
+  const { userId, serviceId: rawServiceId, pushName, phone, instanceName, startTime: rawStartTime, endTime: rawEndTime, timezone } = body;
 
-  if (!userId || !rawServiceId || !pushName || !phone || !instanceName || !startTime || !endTime || !timezone) {
+  if (!userId || !rawServiceId || !pushName || !phone || !instanceName || !rawStartTime || !rawEndTime || !timezone) {
     return NextResponse.json(
       { error: 'Missing required fields: userId, serviceId, pushName, phone, instanceName, startTime, endTime, timezone' },
       { status: 400 }
     );
   }
+
+  // Asegurar que startTime/endTime siempre sean UTC.
+  // Si el LLM envía la string sin Z (ej: "2025-10-17T21:00:00"), Node.js la interpreta como hora
+  // local del servidor (America/Bogota, UTC-5), desplazando todos los cálculos 5 horas.
+  const utcSuffix = /Z$|\+\d{2}:\d{2}$|-\d{2}:\d{2}$/.test(rawStartTime);
+  const startTime = utcSuffix ? rawStartTime : rawStartTime + 'Z';
+  const endTime = /Z$|\+\d{2}:\d{2}$|-\d{2}:\d{2}$/.test(rawEndTime) ? rawEndTime : rawEndTime + 'Z';
+
+  console.log(`[schedule/appointment] startTime normalizado: "${rawStartTime}" → "${startTime}"`);
 
   const resolvedServiceId = await resolveServiceId(userId, rawServiceId);
   if (!resolvedServiceId) {
@@ -314,7 +325,7 @@ export async function POST(request: Request) {
     );
   }
 
-  console.log(`[schedule/appointment] Creando cita: userId=${userId} serviceId=${resolvedServiceId} startTime=${startTime} tz=${timezone}`);
+  console.log(`[schedule/appointment] Creando cita: userId=${userId} serviceId=${resolvedServiceId} startTime=${startTime} (raw="${rawStartTime}") tz=${timezone}`);
 
   const result = await createAppointment({
     userId,
