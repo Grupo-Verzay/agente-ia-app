@@ -54,7 +54,7 @@ export const TagFilterBar = ({
                         <Badge
                             variant={isActive ? "default" : "outline"}
                             className={cn(
-                                "px-2 py-1 rounded-full cursor-pointer flex items-center gap-1"
+                                "px-2 py-1 rounded-full cursor-pointer flex items-center gap-1 uppercase"
                             )}
                             style={
                                 isActive && tag.color

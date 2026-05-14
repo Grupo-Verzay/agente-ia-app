@@ -188,7 +188,7 @@ function TagKanbanCardItem({
                         <Badge
                             key={tag.id}
                             variant="outline"
-                            className="text-[10px] h-4 px-1.5 py-0"
+                            className="text-[10px] h-4 px-1.5 py-0 uppercase"
                             style={tag.color ? {
                                 borderColor: tag.color + '60',
                                 color: tag.color,
@@ -267,7 +267,7 @@ function TagKanbanColumn({
             >
                 <div className="flex items-center gap-1.5">
                     <Tag className="h-3.5 w-3.5 text-white/80" />
-                    <span className="text-white text-sm font-semibold">{col.label}</span>
+                    <span className="text-white text-sm font-semibold uppercase">{col.label}</span>
                 </div>
                 <Badge className="bg-white/20 text-white border-0 text-xs font-medium">
                     {cards.length}
@@ -519,7 +519,7 @@ export function TagKanbanBoard({
                             ? cards.filter((c) => c.tags.length === 0).length
                             : cards.filter((c) => c.tags.some((t) => t.id === col.id)).length;
                         return (
-                            <span key={col.id ?? 'none'} className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs text-muted-foreground whitespace-nowrap">
+                            <span key={col.id ?? 'none'} className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs text-muted-foreground whitespace-nowrap uppercase">
                                 <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
                                 {col.label}
                                 {count > 0 && (
