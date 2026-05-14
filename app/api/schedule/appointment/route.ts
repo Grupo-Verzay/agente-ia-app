@@ -253,8 +253,15 @@ async function runPostAppointmentTasks({
       console.log(`[REMINDER_DEBUG] rem.time: "${rem.time}" | normalizedSeconds: ${normalizedSeconds} | startTime: ${startTime}`);
       if (!normalizedSeconds) return;
 
+      const reminderDate = new Date(new Date(startTime).getTime() - normalizedSeconds * 1000);
+      console.log(`[REMINDER_DEBUG] reminderDate UTC: ${reminderDate.toISOString()} | seguimientoTime guardado: "${subtractSecondsFromTime(new Date(startTime), normalizedSeconds)}"`);
+
+      if (reminderDate.getTime() <= Date.now()) {
+        console.log(`[REMINDER_DEBUG] Recordatorio vencido al crear cita, omitiendo: ${reminderDate.toISOString()}`);
+        return;
+      }
+
       const seguimientoTime = subtractSecondsFromTime(new Date(startTime), normalizedSeconds);
-      console.log(`[REMINDER_DEBUG] reminderDate UTC: ${new Date(new Date(startTime).getTime() - normalizedSeconds * 1000).toISOString()} | seguimientoTime guardado: "${seguimientoTime}"`);
       const mensaje = formatReminderMessage(rem.description ?? rem.title, pushName, startTime, timezone, slotDuration, clientTimezone);
 
       await db.seguimiento.create({
