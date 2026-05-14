@@ -116,7 +116,7 @@ function validateDisplayName(name: string): string | null {
 function validateDescription(desc: string): string | null {
   if (!desc.trim()) return 'La descripción es requerida';
   if (desc.trim().length < 20) return 'La descripción debe ser más detallada (mín. 20 caracteres)';
-  if (desc.trim().length > 500) return 'Máximo 500 caracteres';
+  if (desc.trim().length > 1500) return 'Máximo 1500 caracteres';
   return null;
 }
 
