@@ -53,11 +53,9 @@ const MultiagentePage = () => {
                     position: "absolute",
                     top: 0,
                     left: 0,
-                    width: "111.11%",
-                    height: "111.11%",
+                    width: "100%",
+                    height: "100%",
                     border: "none",
-                    transform: "scale(0.9)",
-                    transformOrigin: "top left",
                 }}
             />
         </div>
