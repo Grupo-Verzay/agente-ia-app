@@ -99,7 +99,7 @@ function tzCityLabel(tz: string): string {
 
 function subtractSecondsFromTime(date: Date, seconds: number): string {
   const newDate = new Date(date.getTime() - seconds * 1000);
-  return formatInTimeZone(newDate, 'UTC', 'dd/MM/yyyy HH:mm');
+  return newDate.toISOString();
 }
 
 function formatReminderMessage(

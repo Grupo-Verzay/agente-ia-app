@@ -215,8 +215,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                 if (!rem.normalizedSeconds) return;
 
                 const reminderDate = new Date(new Date(startTime).getTime() - rem.normalizedSeconds * 1000);
-                // Almacenar en UTC explícito para que el runner lo interprete correctamente
-                const reminderTime = formatInTimeZone(reminderDate, 'UTC', 'dd/MM/yyyy HH:mm');
+                const reminderTime = reminderDate.toISOString();
 
                 const dataSeguimiento: SeguimientoInput = {
                     idNodo: "",
