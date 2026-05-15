@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ClientRow } from "@/types/billing";
 import { daysLeftService } from "../helpers";
-import { Database, CircleCheck, UserCheck, UserX } from "lucide-react";
+import { Database, CircleCheck, CircleX, UserX } from "lucide-react";
 
 type Props = {
     table: Table<ClientRow>;
@@ -64,7 +64,6 @@ function StatCard({
 
 export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Props) => {
     const paidFilter = table.getColumn("paid")?.getFilterValue() as string | undefined;
-    const accessFilter = table.getColumn("access")?.getFilterValue() as string | undefined;
     const dueFilter = table.getColumn("due")?.getFilterValue() as string | undefined;
 
     const total = table.getPreFilteredRowModel().rows.length;
@@ -74,8 +73,8 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
         [data]
     );
 
-    const accessActiveCount = React.useMemo(
-        () => data.filter((u) => (u.billing?.accessStatus ?? "ACTIVE") === "ACTIVE").length,
+    const unpaidCount = React.useMemo(
+        () => data.filter((u) => (u.billing?.billingStatus ?? "UNPAID") === "UNPAID").length,
         [data]
     );
 
@@ -89,11 +88,10 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
 
     function clearAllQuickFilters() {
         table.getColumn("paid")?.setFilterValue(undefined);
-        table.getColumn("access")?.setFilterValue(undefined);
         table.getColumn("due")?.setFilterValue(undefined);
     }
 
-    function setExclusiveFilter(colId: "paid" | "access" | "due", value: string) {
+    function setExclusiveFilter(colId: "paid" | "due", value: string) {
         const col = table.getColumn(colId);
         if (!col) return;
 
@@ -110,7 +108,7 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
         col.setFilterValue(value);
     }
 
-    const anyQuickFilterActive = !!paidFilter || !!accessFilter || !!dueFilter;
+    const anyQuickFilterActive = !!paidFilter || !!dueFilter;
 
     return (
         <div className={cn("grid grid-cols-1 md:grid-cols-4 gap-3", className)}>
@@ -133,12 +131,12 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
             />
 
             <StatCard
-                title="Servicio activo"
-                value={accessActiveCount}
-                icon={<UserCheck className="h-4 w-4" />}
-                active={accessFilter === "ACTIVE"}
-                onClick={() => setExclusiveFilter("access", "ACTIVE")}
-                color="#8B5CF6"
+                title="No pagaron"
+                value={unpaidCount}
+                icon={<CircleX className="h-4 w-4" />}
+                active={paidFilter === "UNPAID"}
+                onClick={() => setExclusiveFilter("paid", "UNPAID")}
+                color="#EF4444"
             />
 
             <StatCard

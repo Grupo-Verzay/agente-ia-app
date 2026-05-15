@@ -38,6 +38,7 @@ export async function getClientsWithBilling(): Promise<ResponseFormat<any[]>> {
       orderBy: { createdAt: "desc" },
       where: {
         status: true,
+        ownerId: null,
         ...(assignedUserIds ? { id: { in: assignedUserIds } } : {}),
       },
       select: {
