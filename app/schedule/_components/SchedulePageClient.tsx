@@ -40,26 +40,128 @@ import { SummaryItem } from "./";
 
 // Mapa código de país → timezone (prefijos más largos primero)
 const COUNTRY_TZ_MAP: [string, string][] = [
-    ['593', 'America/Guayaquil'],
-    ['598', 'America/Montevideo'],
-    ['595', 'America/Asuncion'],
-    ['591', 'America/La_Paz'],
-    ['507', 'America/Panama'],
-    ['506', 'America/Costa_Rica'],
-    ['505', 'America/Managua'],
-    ['504', 'America/Tegucigalpa'],
-    ['503', 'America/El_Salvador'],
-    ['502', 'America/Guatemala'],
-    ['58',  'America/Caracas'],
-    ['57',  'America/Bogota'],
-    ['56',  'America/Santiago'],
-    ['55',  'America/Sao_Paulo'],
-    ['54',  'America/Argentina/Buenos_Aires'],
-    ['53',  'America/Havana'],
-    ['52',  'America/Mexico_City'],
-    ['51',  'America/Lima'],
-    ['34',  'Europe/Madrid'],
-    ['1',   'America/New_York'],
+    // ── América (3 dígitos) ───────────────────────────────────────────────────
+    ['598', 'America/Montevideo'],              // Uruguay
+    ['597', 'America/Paramaribo'],             // Suriname
+    ['595', 'America/Asuncion'],               // Paraguay
+    ['593', 'America/Guayaquil'],              // Ecuador
+    ['592', 'America/Guyana'],                 // Guyana
+    ['591', 'America/La_Paz'],                 // Bolivia
+    ['509', 'America/Port-au-Prince'],         // Haití
+    ['507', 'America/Panama'],                 // Panamá
+    ['506', 'America/Costa_Rica'],             // Costa Rica
+    ['505', 'America/Managua'],                // Nicaragua
+    ['504', 'America/Tegucigalpa'],            // Honduras
+    ['503', 'America/El_Salvador'],            // El Salvador
+    ['502', 'America/Guatemala'],              // Guatemala
+    // ── Europa (3 dígitos) ────────────────────────────────────────────────────
+    ['421', 'Europe/Bratislava'],              // Eslovaquia
+    ['420', 'Europe/Prague'],                  // República Checa
+    ['385', 'Europe/Zagreb'],                  // Croacia
+    ['381', 'Europe/Belgrade'],                // Serbia
+    ['380', 'Europe/Kiev'],                    // Ucrania
+    ['372', 'Europe/Tallinn'],                 // Estonia
+    ['371', 'Europe/Riga'],                    // Letonia
+    ['370', 'Europe/Vilnius'],                 // Lituania
+    ['358', 'Europe/Helsinki'],                // Finlandia
+    ['353', 'Europe/Dublin'],                  // Irlanda
+    ['352', 'Europe/Luxembourg'],              // Luxemburgo
+    ['351', 'Europe/Lisbon'],                  // Portugal
+    // ── Oriente Medio (3 dígitos) ─────────────────────────────────────────────
+    ['974', 'Asia/Qatar'],                     // Qatar
+    ['973', 'Asia/Bahrain'],                   // Bahréin
+    ['972', 'Asia/Jerusalem'],                 // Israel
+    ['971', 'Asia/Dubai'],                     // Emiratos Árabes
+    ['968', 'Asia/Muscat'],                    // Omán
+    ['966', 'Asia/Riyadh'],                    // Arabia Saudita
+    ['965', 'Asia/Kuwait'],                    // Kuwait
+    ['964', 'Asia/Baghdad'],                   // Iraq
+    ['962', 'Asia/Amman'],                     // Jordania
+    ['961', 'Asia/Beirut'],                    // Líbano
+    // ── Asia Central (3 dígitos) ──────────────────────────────────────────────
+    ['998', 'Asia/Tashkent'],                  // Uzbekistán
+    ['996', 'Asia/Bishkek'],                   // Kirguistán
+    ['995', 'Asia/Tbilisi'],                   // Georgia
+    ['994', 'Asia/Baku'],                      // Azerbaiyán
+    ['993', 'Asia/Ashgabat'],                  // Turkmenistán
+    ['992', 'Asia/Dushanbe'],                  // Tayikistán
+    ['977', 'Asia/Kathmandu'],                 // Nepal
+    ['880', 'Asia/Dhaka'],                     // Bangladesh
+    ['856', 'Asia/Vientiane'],                 // Laos
+    ['855', 'Asia/Phnom_Penh'],                // Camboya
+    ['852', 'Asia/Hong_Kong'],                 // Hong Kong
+    // ── África (3 dígitos) ────────────────────────────────────────────────────
+    ['267', 'Africa/Gaborone'],                // Botsuana
+    ['266', 'Africa/Maseru'],                  // Lesoto
+    ['265', 'Africa/Blantyre'],                // Malaui
+    ['264', 'Africa/Windhoek'],                // Namibia
+    ['263', 'Africa/Harare'],                  // Zimbabue
+    ['260', 'Africa/Lusaka'],                  // Zambia
+    ['256', 'Africa/Kampala'],                 // Uganda
+    ['255', 'Africa/Dar_es_Salaam'],           // Tanzania
+    ['254', 'Africa/Nairobi'],                 // Kenia
+    ['251', 'Africa/Addis_Ababa'],             // Etiopía
+    ['250', 'Africa/Kigali'],                  // Ruanda
+    ['249', 'Africa/Khartoum'],                // Sudán
+    ['244', 'Africa/Luanda'],                  // Angola
+    ['243', 'Africa/Kinshasa'],                // RD Congo
+    ['237', 'Africa/Douala'],                  // Camerún
+    ['234', 'Africa/Lagos'],                   // Nigeria
+    ['233', 'Africa/Accra'],                   // Ghana
+    ['225', 'Africa/Abidjan'],                 // Costa de Marfil
+    ['221', 'Africa/Dakar'],                   // Senegal
+    ['218', 'Africa/Tripoli'],                 // Libia
+    ['216', 'Africa/Tunis'],                   // Túnez
+    ['213', 'Africa/Algiers'],                 // Argelia
+    ['212', 'Africa/Casablanca'],              // Marruecos
+    // ── América del Sur (2 dígitos) ───────────────────────────────────────────
+    ['58',  'America/Caracas'],                // Venezuela
+    ['57',  'America/Bogota'],                 // Colombia
+    ['56',  'America/Santiago'],               // Chile
+    ['55',  'America/Sao_Paulo'],              // Brasil
+    ['54',  'America/Argentina/Buenos_Aires'], // Argentina
+    ['53',  'America/Havana'],                 // Cuba
+    ['52',  'America/Mexico_City'],            // México
+    ['51',  'America/Lima'],                   // Perú
+    // ── Europa (2 dígitos) ────────────────────────────────────────────────────
+    ['49',  'Europe/Berlin'],                  // Alemania
+    ['48',  'Europe/Warsaw'],                  // Polonia
+    ['47',  'Europe/Oslo'],                    // Noruega
+    ['46',  'Europe/Stockholm'],               // Suecia
+    ['45',  'Europe/Copenhagen'],              // Dinamarca
+    ['44',  'Europe/London'],                  // Reino Unido
+    ['43',  'Europe/Vienna'],                  // Austria
+    ['41',  'Europe/Zurich'],                  // Suiza
+    ['40',  'Europe/Bucharest'],               // Rumanía
+    ['39',  'Europe/Rome'],                    // Italia
+    ['36',  'Europe/Budapest'],                // Hungría
+    ['34',  'Europe/Madrid'],                  // España
+    ['33',  'Europe/Paris'],                   // Francia
+    ['32',  'Europe/Brussels'],                // Bélgica
+    ['31',  'Europe/Amsterdam'],               // Países Bajos
+    ['30',  'Europe/Athens'],                  // Grecia
+    // ── África (2 dígitos) ────────────────────────────────────────────────────
+    ['27',  'Africa/Johannesburg'],            // Sudáfrica
+    ['20',  'Africa/Cairo'],                   // Egipto
+    // ── Asia / Oceanía (2 dígitos) ────────────────────────────────────────────
+    ['94',  'Asia/Colombo'],                   // Sri Lanka
+    ['92',  'Asia/Karachi'],                   // Pakistán
+    ['91',  'Asia/Kolkata'],                   // India
+    ['90',  'Europe/Istanbul'],                // Turquía
+    ['86',  'Asia/Shanghai'],                  // China
+    ['84',  'Asia/Ho_Chi_Minh'],               // Vietnam
+    ['82',  'Asia/Seoul'],                     // Corea del Sur
+    ['81',  'Asia/Tokyo'],                     // Japón
+    ['66',  'Asia/Bangkok'],                   // Tailandia
+    ['65',  'Asia/Singapore'],                 // Singapur
+    ['64',  'Pacific/Auckland'],               // Nueva Zelanda
+    ['63',  'Asia/Manila'],                    // Filipinas
+    ['62',  'Asia/Jakarta'],                   // Indonesia
+    ['61',  'Australia/Sydney'],               // Australia
+    ['60',  'Asia/Kuala_Lumpur'],              // Malasia
+    // ── 1 dígito (siempre al final) ───────────────────────────────────────────
+    ['7',   'Europe/Moscow'],                  // Rusia / Kazajistán
+    ['1',   'America/New_York'],               // EE.UU. / Canadá
 ];
 
 function getTimezoneFromAreaCode(areaCode: string, fallback: string): string {
