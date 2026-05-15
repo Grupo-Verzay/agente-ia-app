@@ -17,7 +17,7 @@ const MultiagentePage = () => {
 
     if (isMobile) {
         return (
-            <div className="-mx-4 -mt-4 overflow-hidden" style={{ height: "calc(100vh - 4.5rem)" }}>
+            <div className="-mx-4 -mb-4 flex-1 min-h-0 overflow-hidden">
                 <iframe
                     src={url}
                     allow="microphone; autoplay; clipboard-read; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
