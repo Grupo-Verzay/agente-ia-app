@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSidebar } from "@/components/ui/sidebar";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 
 const MultiagentePage = () => {
     const url = "https://multiagente.ia-app.com";
@@ -17,12 +18,16 @@ const MultiagentePage = () => {
 
     if (isMobile) {
         return (
-            <div className="-mx-4 -mb-4 flex-1 min-h-0 overflow-hidden">
+            <div className="-m-4 flex flex-col overflow-hidden" style={{ height: "calc(100vh - 4.5rem)" }}>
+                <div className="flex items-center gap-2 px-3 py-2 border-b bg-background shrink-0">
+                    <SidebarTrigger />
+                    <span className="text-sm font-medium">Multiagente</span>
+                </div>
                 <iframe
                     src={url}
                     allow="microphone; autoplay; clipboard-read; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                     allowFullScreen
-                    style={{ display: "block", width: "100%", height: "100%", border: "none" }}
+                    style={{ flex: 1, width: "100%", border: "none", minHeight: 0 }}
                 />
             </div>
         );
