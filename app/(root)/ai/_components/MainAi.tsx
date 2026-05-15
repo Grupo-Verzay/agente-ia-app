@@ -127,7 +127,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
 
     return (
         <>
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabKey)} className="w-full">
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabKey)} className="w-full flex flex-col flex-1 min-h-0">
                 <div className="sticky w-full top-0 z-10 -mx-4 lg:mx-0 bg-slate-100 dark:bg-black">
                     <div className="flex items-center justify-between gap-2 px-2 py-2">
                         <Button
@@ -257,7 +257,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                     </div>
                 </div>
 
-                <div className="flex flex-row w-full gap-2 max-h-[78vh]">
+                <div className="flex flex-row w-full gap-2 flex-1 min-h-0">
                     <div className="flex flex-1 flex-col min-h-0 overflow-y-auto pr-1">
                         <TabsContent value="business" className="m-0">
                             <BusinessPromptBuilder
