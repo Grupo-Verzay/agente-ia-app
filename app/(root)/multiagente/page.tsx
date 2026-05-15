@@ -17,18 +17,13 @@ const MultiagentePage = () => {
 
     if (isMobile) {
         return (
-            <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-6">
-                <p className="text-muted-foreground text-sm">
-                    Para una mejor experiencia, abre el Multiagente directamente en el navegador.
-                </p>
-                <a
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-primary text-primary-foreground px-5 py-2.5 rounded-lg text-sm font-medium"
-                >
-                    Abrir Multiagente
-                </a>
+            <div className="-mx-4 -mt-4 overflow-hidden" style={{ height: "calc(100vh - 4.5rem)" }}>
+                <iframe
+                    src={url}
+                    allow="microphone; autoplay; clipboard-read; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                    allowFullScreen
+                    style={{ display: "block", width: "100%", height: "100%", border: "none" }}
+                />
             </div>
         );
     }
