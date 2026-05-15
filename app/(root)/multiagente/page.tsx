@@ -1,10 +1,26 @@
 "use client";
 
+import { useSidebar } from "@/components/ui/sidebar";
+
 const MultiagentePage = () => {
     const url = "https://multiagente.ia-app.com";
+    const { state } = useSidebar();
+
+    const leftOffset = state === "collapsed" ? "3rem" : "16rem";
 
     return (
-        <div style={{ position: "fixed", inset: 0, zIndex: 40, overflow: "hidden" }}>
+        <div
+            style={{
+                position: "fixed",
+                top: 0,
+                left: leftOffset,
+                right: 0,
+                bottom: 0,
+                zIndex: 9,
+                overflow: "hidden",
+                transition: "left 200ms ease-linear",
+            }}
+        >
             <iframe
                 src={url}
                 allow="microphone; autoplay; clipboard-read; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
