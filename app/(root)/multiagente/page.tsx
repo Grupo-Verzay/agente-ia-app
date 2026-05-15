@@ -12,12 +12,14 @@ const MultiagentePage = () => {
         <div
             style={{
                 position: "fixed",
-                top: 0,
-                left: leftOffset,
-                right: 0,
-                bottom: 0,
+                top: "0.75rem",
+                left: `calc(${leftOffset} + 0.75rem)`,
+                right: "0.75rem",
+                bottom: "0.75rem",
                 zIndex: 9,
                 overflow: "hidden",
+                borderRadius: "0.75rem",
+                boxShadow: "0 4px 24px 0 rgba(0,0,0,0.12)",
                 transition: "left 200ms ease-linear",
             }}
         >
