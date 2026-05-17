@@ -128,9 +128,11 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const displayedContactName = session?.pushName?.trim() || header.name;
   const displayedWhatsapp = session
     ? getDisplayWhatsappFromSession(session)
-    : info?.remoteJid?.includes('@')
-      ? info.remoteJid.split('@')[0]
-      : info?.remoteJid || '';
+    : info?.remoteJid?.toLowerCase().endsWith('@lid')
+      ? ''
+      : info?.remoteJid?.includes('@')
+        ? info.remoteJid.split('@')[0]
+        : info?.remoteJid || '';
 
   /* ─── Message list ─── */
   const reversed = useMemo(() => messages.slice().reverse(), [messages]);

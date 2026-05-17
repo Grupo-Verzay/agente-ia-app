@@ -180,6 +180,8 @@ function groupLocal(local: string): string {
 
 export function fmtPhone(remoteJid: string | null | undefined): string {
   if (!remoteJid) return '';
+  // @lid es un ID interno de WhatsApp, no un número de teléfono real
+  if (remoteJid.toLowerCase().endsWith('@lid')) return '';
   const digits = remoteJid.replace(/@.*/, '').replace(/\D/g, '');
   if (!digits) return '';
 
