@@ -95,7 +95,11 @@ export async function findMessagesFromBaileys(
 
     const messages: EvolutionMessage[] = (json.messages ?? []).map((m: any) => ({
       key: { id: m.id, fromMe: m.fromMe, remoteJid: m.remoteJid },
-      messageType: m.type ?? 'conversation',
+      // El body siempre se mapea como conversation; mantener el tipo real
+      // solo si es audioMessage/imageMessage/etc. para el renderer de media
+      messageType: ['audioMessage', 'imageMessage', 'videoMessage', 'documentMessage', 'stickerMessage'].includes(m.type)
+        ? m.type
+        : 'conversation',
       message: { conversation: m.body ?? '' },
       messageTimestamp: m.timestamp
         ? Math.floor(new Date(m.timestamp).getTime() / 1000)
