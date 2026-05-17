@@ -9,7 +9,6 @@ RUN npm ci
 
 FROM base AS builder
 ENV NODE_ENV=production
-ENV NODE_OPTIONS="--max-old-space-size=4096"
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
