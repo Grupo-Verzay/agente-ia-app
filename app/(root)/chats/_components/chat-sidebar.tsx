@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
-import { Inbox, Trash2, Users, UserX, Check } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Inbox, Trash2, Users, UserX, Check, Radio } from "lucide-react";
 import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
@@ -65,6 +66,8 @@ type ChatSidebarProps = {
   advisorRole?: string | null;
   currentAdvisorId?: string;
   onAssignAdvisor?: (remoteJid: string, advisorId: string | null) => Promise<void>;
+  instancias?: { instanceName: string; instanceId: string; instanceType?: string | null }[];
+  currentInstanceName?: string;
 };
 
 export function ChatSidebar({
@@ -83,7 +86,11 @@ export function ChatSidebar({
   advisorRole,
   currentAdvisorId,
   onAssignAdvisor,
+  instancias = [],
+  currentInstanceName,
 }: ChatSidebarProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<TabKey>("all");
   const [deleteTarget, setDeleteTarget] = useState<SidebarContact | null>(null);
@@ -271,9 +278,53 @@ export function ChatSidebar({
         ? "No hay chats eliminados."
         : "No hay chats que coincidan con el filtro.";
 
+  const handleSwitchInstance = useCallback(
+    (instanceName: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("instance", instanceName);
+      params.delete("jid");
+      router.push(`/chats?${params.toString()}`);
+    },
+    [router, searchParams],
+  );
+
   return (
     <>
       <aside className="flex h-full w-full max-w-[700px] flex-col border-r bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/50 xs:min-w-[200px]">
+        {instancias.length > 1 && (
+          <div className="shrink-0 border-b px-3 py-2">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Canales
+            </p>
+            <div className="space-y-0.5">
+              {instancias.map((inst) => {
+                const isActive = inst.instanceName === currentInstanceName;
+                return (
+                  <button
+                    key={inst.instanceName}
+                    type="button"
+                    onClick={() => handleSwitchInstance(inst.instanceName)}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                      isActive
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    )}
+                  >
+                    <Radio
+                      className={cn(
+                        "h-3.5 w-3.5 shrink-0",
+                        isActive ? "text-primary" : "text-muted-foreground",
+                      )}
+                    />
+                    <span className="truncate">{inst.instanceName}</span>
+                    {isActive && <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className="sticky top-0 z-10 space-y-2 border-b bg-background/80 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex items-center gap-2">
             <ChatSearchBar

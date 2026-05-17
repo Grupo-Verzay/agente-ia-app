@@ -41,3 +41,6 @@ prisma/migrations/*
 
 # Claude Code local config
 .claude/
+
+# Carpetas de referencia externa (no pertenecen al proyecto)
+/forms/

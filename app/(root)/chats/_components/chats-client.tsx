@@ -90,6 +90,7 @@ function filterChatList(result: FetchChatsResult): FetchChatsResult {
 
 interface ChatsClientProps {
   userId: string;
+  instancias?: { instanceName: string; instanceId: string; instanceType?: string | null }[];
   chatsResult: FetchChatsResult;
   initialChatPreferences: ChatConversationPreferenceMap;
   initialChatSessions: ChatContactSessionMap;
@@ -128,6 +129,7 @@ interface ChatsClientProps {
 
 export function ChatsClient({
   userId,
+  instancias = [],
   chatsResult: initialChatsResult,
   initialChatPreferences,
   initialChatSessions,
@@ -828,6 +830,8 @@ export function ChatsClient({
           advisors={advisors}
           advisorRole={advisorRole}
           currentAdvisorId={currentAdvisorId}
+          instancias={instancias}
+          currentInstanceName={instanceName}
           onAssignAdvisor={
             assignAdvisorAction || takeSessionAction || releaseSessionAction || transferSessionAction
               ? (remoteJid, advisorId) => handleAssignAdvisor(remoteJid, advisorId)
