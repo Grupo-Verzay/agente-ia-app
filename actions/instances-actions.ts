@@ -77,6 +77,28 @@ export async function switchInstanceAdapter(
   }
 }
 
+export async function stopBaileysSession(
+  instanceName: string,
+): Promise<{ success: boolean; message: string }> {
+  if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
+
+  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
+  const secret = process.env.BAILEYS_SECRET;
+
+  if (!backendUrl || !secret) return { success: false, message: 'Backend no configurado.' };
+
+  try {
+    await fetch(`${backendUrl}/whatsapp/baileys/stop/${encodeURIComponent(instanceName)}`, {
+      method: 'DELETE',
+      headers: { 'x-internal-secret': secret },
+      cache: 'no-store',
+    });
+    return { success: true, message: 'Sesión detenida.' };
+  } catch {
+    return { success: false, message: 'Error al detener la sesión.' };
+  }
+}
+
 export async function startBaileysSession(
   instanceName: string,
 ): Promise<{ success: boolean; message: string }> {

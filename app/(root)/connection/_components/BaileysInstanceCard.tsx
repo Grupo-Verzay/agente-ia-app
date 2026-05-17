@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { FaWhatsapp } from 'react-icons/fa';
-import { Loader2, QrCode, RefreshCw, ArrowLeftRight } from 'lucide-react';
+import { Loader2, QrCode, RefreshCw, ArrowLeftRight, Power } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { switchInstanceAdapter, startBaileysSession } from '@/actions/instances-actions';
+import { switchInstanceAdapter, startBaileysSession, stopBaileysSession } from '@/actions/instances-actions';
 import { toast } from 'sonner';
 
 interface BaileysInstanceCardProps {
@@ -32,7 +32,6 @@ interface BaileysInstanceCardProps {
 }
 
 interface StatusResponse {
-  instanceName?: string;
   connected: boolean;
   hasQr: boolean;
   profileName?: string | null;
@@ -49,12 +48,11 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
   const [showSwitchDialog, setShowSwitchDialog] = useState(false);
   const [switchingAdapter, setSwitchingAdapter] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [stopping, setStopping] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch(`/api/baileys/status/${encodeURIComponent(instanceName)}`, {
-        cache: 'no-store',
-      });
+      const res = await fetch(`/api/baileys/status/${encodeURIComponent(instanceName)}`, { cache: 'no-store' });
       if (res.ok) {
         const data: StatusResponse = await res.json();
         setStatus(data);
@@ -91,24 +89,39 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
     }
   };
 
-  const handleSwitchToEvolution = async () => {
-    setSwitchingAdapter(true);
-    const result = await switchInstanceAdapter(instanceName, 'Whatsapp');
-    setSwitchingAdapter(false);
-    setShowSwitchDialog(false);
+  const handleStop = async () => {
+    setStopping(true);
+    const result = await stopBaileysSession(instanceName);
+    setStopping(false);
     if (result.success) {
-      toast.success(result.message);
+      toast.success('Sesión desconectada.');
+      fetchStatus();
     } else {
       toast.error(result.message);
     }
   };
 
-  const qrSrc = `/api/baileys/qr/${encodeURIComponent(instanceName)}?t=${qrTimestamp}`;
+  const handleSwitchToEvolution = async () => {
+    setSwitchingAdapter(true);
+    const result = await switchInstanceAdapter(instanceName, 'Whatsapp');
+    setSwitchingAdapter(false);
+    setShowSwitchDialog(false);
+    if (result.success) toast.success(result.message);
+    else toast.error(result.message);
+  };
+
+  const openQrDialog = () => {
+    setLoadingQr(true);
+    setQrTimestamp(Date.now());
+    setShowQrDialog(true);
+  };
+
   const connected = status?.connected ?? false;
   const hasQr = status?.hasQr ?? false;
   const profileName = status?.profileName;
   const phoneNumber = status?.phoneNumber;
   const userInitial = instanceName.charAt(0).toUpperCase();
+  const qrSrc = `/api/baileys/qr/${encodeURIComponent(instanceName)}?t=${qrTimestamp}`;
 
   return (
     <>
@@ -124,7 +137,8 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
         </CardHeader>
 
         <CardContent>
-          <div className="flex items-center gap-3">
+          {/* Fila de perfil */}
+          <div className="flex items-center gap-3 mb-4">
             {status === null ? (
               <>
                 <Skeleton className="h-10 w-10 rounded-lg" />
@@ -152,77 +166,61 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
                   )}
                 </div>
               </>
-            ) : starting ? (
-              <>
-                <Loader2 className="animate-spin w-4 h-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Iniciando sesión...</span>
-              </>
             ) : (
               <span className="text-sm text-muted-foreground">
-                {hasQr ? 'QR listo — escanea para conectar' : 'Desconectado'}
+                {starting ? 'Iniciando sesión...' : hasQr ? 'QR listo — escanea para conectar' : 'Desconectado'}
               </span>
             )}
           </div>
 
-          <div className="flex justify-end gap-2 mt-4">
-            {!connected && !hasQr && (
-              <Button size="sm" variant="outline" onClick={handleStart} disabled={starting}>
+          {/* Fila de acciones principales */}
+          <div className="flex gap-2">
+            {connected ? (
+              <>
+                <Button
+                  size="sm"
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  onClick={openQrDialog}
+                >
+                  <QrCode className="w-4 h-4 mr-1" />
+                  Conectado
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  onClick={handleStop}
+                  disabled={stopping}
+                >
+                  {stopping
+                    ? <Loader2 className="animate-spin w-4 h-4 mr-1" />
+                    : <Power className="w-4 h-4 mr-1" />}
+                  Apagar
+                </Button>
+              </>
+            ) : hasQr ? (
+              <Button size="sm" className="flex-1" onClick={openQrDialog}>
+                <QrCode className="w-4 h-4 mr-1" />
+                Ver QR
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" className="flex-1" onClick={handleStart} disabled={starting}>
                 {starting
                   ? <Loader2 className="animate-spin w-4 h-4 mr-1" />
                   : <RefreshCw className="w-4 h-4 mr-1" />}
                 Reconectar
               </Button>
             )}
-            {!connected && hasQr && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  setLoadingQr(true);
-                  setQrTimestamp(Date.now());
-                  setShowQrDialog(true);
-                }}
-              >
-                <QrCode className="w-4 h-4 mr-1" />
-                Ver QR
-              </Button>
-            )}
-            {connected && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setLoadingQr(true);
-                  setQrTimestamp(Date.now());
-                  setShowQrDialog(true);
-                }}
-              >
-                <QrCode className="w-4 h-4 mr-1" />
-                Ver QR
-              </Button>
-            )}
           </div>
         </CardContent>
 
         <CardFooter className="flex justify-between items-center">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowSwitchDialog(true)}
-            disabled={switchingAdapter}
-          >
+          <Button size="sm" variant="outline" onClick={() => setShowSwitchDialog(true)} disabled={switchingAdapter}>
             {switchingAdapter
               ? <Loader2 className="animate-spin w-4 h-4 mr-1" />
               : <ArrowLeftRight className="w-4 h-4 mr-1" />}
             Cambiar a Evolution
           </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={fetchStatus}
-            disabled={starting}
-            title="Actualizar estado"
-          >
+          <Button size="sm" variant="outline" onClick={fetchStatus} title="Actualizar estado">
             <RefreshCw className="w-4 h-4" />
           </Button>
         </CardFooter>
