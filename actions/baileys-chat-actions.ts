@@ -10,7 +10,8 @@ import type {
   SendMessageResult,
 } from '@/actions/chat-actions';
 import type { ChatToolActionResult } from '@/types/chat';
-import type { OutgoingMessagePayload } from '@/app/(root)/chats/_components/chat-message-types';
+
+type BaileysOutgoingPayload = { kind: string; text?: string; [key: string]: unknown };
 
 function backendUrl() {
   return (process.env.BACKEND_URL ?? '').replace(/\/$/, '');
@@ -106,7 +107,7 @@ export async function findMessagesFromBaileys(
 export async function sendBaileysTextAction(
   instanceName: string,
   remoteJid: string,
-  payload: OutgoingMessagePayload,
+  payload: BaileysOutgoingPayload,
 ): Promise<SendMessageResult> {
   if (payload.kind !== 'text') {
     return { success: false, message: 'Solo texto soportado en Baileys por ahora.', remoteJid };
