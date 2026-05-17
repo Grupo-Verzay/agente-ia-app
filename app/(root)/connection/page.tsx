@@ -7,6 +7,7 @@ import { getApiKeyById } from "@/actions/api-action";
 import { fetchInstanceAction } from "@/actions/fetch-intance-action";
 import { getPromptsByUserId } from "@/actions/prompt-actions";
 import { ConnectionMain } from "./_components";
+import { BaileysInstanceCard } from "./_components/BaileysInstanceCard";
 
 // Tipo de la respuesta esperada
 interface ActionResponse<T> {
@@ -28,7 +29,7 @@ function hasPrompts(result: { data?: PromptInstance[] | null }): result is { dat
 
 // 🔹 Normaliza el tipo (null/undefined -> "Desconocido")
 const normalizeType = (t?: string | null): string => {
-    const valid = ["Whatsapp", "Instagram", "Facebook"];
+    const valid = ["Whatsapp", "Instagram", "Facebook", "baileys"];
     if (!t) return "Desconocido";
     const normalized = t.trim();
     return valid.includes(normalized) ? normalized : "Desconocido";
@@ -62,12 +63,20 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
         Whatsapp: { prompts: [] },
         Instagram: { prompts: [] },
         Facebook: { prompts: [] },
+        baileys: { prompts: [] },
         Desconocido: { prompts: [] },
     };
+
+    // Instancias Baileys (puede haber varias)
+    const baileysInstances: Instancia[] = [];
 
     // Asignar instancias sin interferir entre tipos
     instancias.forEach(instancia => {
         const type = normalizeType(instancia.instanceType);
+        if (type === 'baileys') {
+            baileysInstances.push(instancia);
+            return;
+        }
         if (!instancesData[type]) instancesData[type] = { prompts: [] };
         if (!instancesData[type].instance) {
             instancesData[type].instance = instancia;
@@ -102,29 +111,17 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
 
     // Render principal
     return (
-        <div className="flex flex-1 flex-wrap gap-4 items-center justify-center">
+        <div className=”flex flex-1 flex-wrap gap-4 items-center justify-center”>
             <ConnectionMain
                 user={user}
-                instance={instancesData["Whatsapp"].instance}
-                instanceInfo={instancesData["Whatsapp"].info}
-                instanceType={"Whatsapp"}
-                prompts={instancesData["Whatsapp"].prompts}
+                instance={instancesData[“Whatsapp”].instance}
+                instanceInfo={instancesData[“Whatsapp”].info}
+                instanceType={“Whatsapp”}
+                prompts={instancesData[“Whatsapp”].prompts}
             />
-            {/* <ConnectionMain
-                user={user}
-                instance={instancesData["Instagram"].instance}
-                instanceInfo={instancesData["Instagram"].info}
-                instanceType={"Instagram"}
-                prompts={instancesData["Instagram"].prompts}
-            />
-            <ConnectionMain
-                user={user}
-                instance={instancesData["Facebook"].instance}
-                instanceInfo={instancesData["Facebook"].info}
-                instanceType={"Facebook"}
-                prompts={instancesData["Facebook"].prompts}
-            /> */}
-            {/* No se renderiza la tarjeta “Desconocido” */}
+            {baileysInstances.map((inst) => (
+                <BaileysInstanceCard key={inst.instanceName} instanceName={inst.instanceName} />
+            ))}
         </div>
     );
 };

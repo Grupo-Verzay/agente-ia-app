@@ -13,6 +13,20 @@ import { deleteInstance } from '@/actions/api-action';
 import { ClientInstanceCardProps } from '@/schema/connection';
 import { PromptInstanceDialog } from './PromptInstanceDialog';
 import { RenameInstanceDialog } from './RenameInstanceDialog';
+import { switchInstanceAdapter } from '@/actions/instances-actions';
+import { toast } from 'sonner';
+import { Loader2, ArrowLeftRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface SocialIconSelectorProps {
   instanceType?: string;
@@ -67,6 +81,8 @@ export const ClientInstanceCard = ({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPromptDialog, setShowPromptDialog] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [showSwitchDialog, setShowSwitchDialog] = useState(false);
+  const [switchingAdapter, setSwitchingAdapter] = useState(false);
   const [_clickCount, setClickCount] = useState(0);
 
   const handleSecretClick = useCallback(() => {
@@ -83,6 +99,18 @@ export const ClientInstanceCard = ({
   const handlePromptDialogOpen = useCallback((open: boolean) => {
     setShowPromptDialog(open);
   }, []);
+
+  const handleSwitchToBaileys = async () => {
+    setSwitchingAdapter(true);
+    const result = await switchInstanceAdapter(intanceName, 'baileys');
+    setSwitchingAdapter(false);
+    setShowSwitchDialog(false);
+    if (result.success) {
+      toast.success(result.message);
+    } else {
+      toast.error(result.message);
+    }
+  };
 
   const instanceId = currentInstanceInfo?.id;
   const ownerJid = currentInstanceInfo?.ownerJid;
@@ -150,11 +178,21 @@ export const ClientInstanceCard = ({
           </div>
         </CardContent>
 
-        {/* <CardFooter className="flex flex-row justify-start items-center">
-          <div className="flex flex-1 flex-row items-center gap-1">
-            <SocialIconSelector instanceType={instanceType} callback={handleSecretClick} />
-          </div>
-        </CardFooter> */}
+        {instanceType === 'Whatsapp' && (
+          <CardFooter className="flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowSwitchDialog(true)}
+              disabled={switchingAdapter}
+            >
+              {switchingAdapter
+                ? <Loader2 className="animate-spin w-4 h-4 mr-1" />
+                : <ArrowLeftRight className="w-4 h-4 mr-1" />}
+              Cambiar a Baileys
+            </Button>
+          </CardFooter>
+        )}
       </Card>
 
       <PromptInstanceDialog
@@ -181,6 +219,25 @@ export const ClientInstanceCard = ({
         mutationFn={async (_id) => deleteInstance(user.id, instanceType)}
         entityLabel="Agente IA"
       />
+
+      <AlertDialog open={showSwitchDialog} onOpenChange={setShowSwitchDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cambiar a Baileys?</AlertDialogTitle>
+            <AlertDialogDescription>
+              La instancia <strong>{intanceName}</strong> dejará de usar Evolution API y pasará a conectarse
+              por Baileys. Deberás escanear el QR nuevamente con WhatsApp.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={switchingAdapter}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSwitchToBaileys} disabled={switchingAdapter}>
+              {switchingAdapter && <Loader2 className="animate-spin w-4 h-4 mr-1" />}
+              Sí, cambiar a Baileys
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };

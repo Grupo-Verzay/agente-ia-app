@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { Instancia } from "@prisma/client";
+import { revalidatePath } from "next/cache";
 
 const getInstancesSchema = z.object({
   userId: z.string().min(1, "El userId es obligatorio"),
@@ -25,6 +26,54 @@ export async function checkInstanceNameExists(instanceName: string): Promise<boo
     return !!existing;
   } catch {
     return false;
+  }
+}
+
+export type SwitchAdapterResult = { success: boolean; message: string };
+
+export async function switchInstanceAdapter(
+  instanceName: string,
+  targetType: 'baileys' | 'Whatsapp',
+): Promise<SwitchAdapterResult> {
+  if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
+
+  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
+  const secret = process.env.BAILEYS_SECRET;
+
+  try {
+    if (targetType === 'baileys') {
+      await db.instancia.updateMany({
+        where: { instanceName },
+        data: { instanceType: 'baileys' },
+      });
+
+      if (backendUrl && secret) {
+        await fetch(`${backendUrl}/whatsapp/baileys/start/${encodeURIComponent(instanceName)}`, {
+          method: 'POST',
+          headers: { 'x-internal-secret': secret },
+          cache: 'no-store',
+        }).catch(() => {});
+      }
+    } else {
+      if (backendUrl && secret) {
+        await fetch(`${backendUrl}/whatsapp/baileys/stop/${encodeURIComponent(instanceName)}`, {
+          method: 'DELETE',
+          headers: { 'x-internal-secret': secret },
+          cache: 'no-store',
+        }).catch(() => {});
+      }
+
+      await db.instancia.updateMany({
+        where: { instanceName },
+        data: { instanceType: 'Whatsapp' },
+      });
+    }
+
+    revalidatePath('/connection');
+    return { success: true, message: `Adaptador cambiado a ${targetType === 'baileys' ? 'Baileys' : 'Evolution API'}.` };
+  } catch (error) {
+    console.error('[switchInstanceAdapter]', error);
+    return { success: false, message: 'Error al cambiar el adaptador.' };
   }
 }
 
