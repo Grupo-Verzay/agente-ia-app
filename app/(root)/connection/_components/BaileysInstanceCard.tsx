@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { FaWhatsapp } from 'react-icons/fa';
-import { Loader2, QrCode, CheckCircle2, RefreshCw, ArrowLeftRight } from 'lucide-react';
+import { Loader2, QrCode, RefreshCw, ArrowLeftRight } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -33,6 +35,8 @@ interface StatusResponse {
   instanceName?: string;
   connected: boolean;
   hasQr: boolean;
+  profileName?: string | null;
+  phoneNumber?: string | null;
 }
 
 const POLL_INTERVAL_MS = 8000;
@@ -75,7 +79,6 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
     setStarting(true);
     const result = await startBaileysSession(instanceName);
     if (result.success) {
-      // esperar 3s para que Baileys genere el QR y luego refrescar estado
       setTimeout(() => {
         fetchStatus();
         setQrTimestamp(Date.now());
@@ -103,6 +106,9 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
   const qrSrc = `/api/baileys/qr/${encodeURIComponent(instanceName)}?t=${qrTimestamp}`;
   const connected = status?.connected ?? false;
   const hasQr = status?.hasQr ?? false;
+  const profileName = status?.profileName;
+  const phoneNumber = status?.phoneNumber;
+  const userInitial = instanceName.charAt(0).toUpperCase();
 
   return (
     <>
@@ -118,13 +124,33 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
         </CardHeader>
 
         <CardContent>
-          <div className="flex items-center gap-3 min-h-[48px]">
+          <div className="flex items-center gap-3">
             {status === null ? (
-              <Loader2 className="animate-spin w-4 h-4 text-muted-foreground" />
+              <>
+                <Skeleton className="h-10 w-10 rounded-lg" />
+                <div>
+                  <Skeleton className="h-4 w-[120px] mb-1" />
+                  <Skeleton className="h-3 w-[100px]" />
+                </div>
+              </>
             ) : connected ? (
               <>
-                <CheckCircle2 className="w-5 h-5 text-green-500" />
-                <span className="text-sm font-medium text-green-600">Conectado a WhatsApp</span>
+                <Avatar className="rounded-lg">
+                  <AvatarFallback className="rounded-lg">{userInitial}</AvatarFallback>
+                </Avatar>
+                <div>
+                  {profileName ? (
+                    <>
+                      <div className="text-sm font-medium">{profileName}</div>
+                      <div className="text-xs text-muted-foreground">+{phoneNumber}</div>
+                    </>
+                  ) : (
+                    <>
+                      <Skeleton className="h-4 w-[120px] mb-1" />
+                      <Skeleton className="h-3 w-[100px]" />
+                    </>
+                  )}
+                </div>
               </>
             ) : starting ? (
               <>
@@ -137,38 +163,10 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
               </span>
             )}
           </div>
-        </CardContent>
 
-        <CardFooter className="flex gap-2 justify-between">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowSwitchDialog(true)}
-            disabled={switchingAdapter}
-          >
-            {switchingAdapter
-              ? <Loader2 className="animate-spin w-4 h-4 mr-1" />
-              : <ArrowLeftRight className="w-4 h-4 mr-1" />}
-            Cambiar a Evolution
-          </Button>
-
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={fetchStatus}
-              title="Actualizar estado"
-              disabled={starting}
-            >
-              <RefreshCw className="w-4 h-4" />
-            </Button>
+          <div className="flex justify-end gap-2 mt-4">
             {!connected && !hasQr && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleStart}
-                disabled={starting}
-              >
+              <Button size="sm" variant="outline" onClick={handleStart} disabled={starting}>
                 {starting
                   ? <Loader2 className="animate-spin w-4 h-4 mr-1" />
                   : <RefreshCw className="w-4 h-4 mr-1" />}
@@ -188,7 +186,45 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
                 Ver QR
               </Button>
             )}
+            {connected && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setLoadingQr(true);
+                  setQrTimestamp(Date.now());
+                  setShowQrDialog(true);
+                }}
+              >
+                <QrCode className="w-4 h-4 mr-1" />
+                Ver QR
+              </Button>
+            )}
           </div>
+        </CardContent>
+
+        <CardFooter className="flex justify-between items-center">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowSwitchDialog(true)}
+            disabled={switchingAdapter}
+          >
+            {switchingAdapter
+              ? <Loader2 className="animate-spin w-4 h-4 mr-1" />
+              : <ArrowLeftRight className="w-4 h-4 mr-1" />}
+            Cambiar a Evolution
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={fetchStatus}
+            disabled={starting}
+            title="Actualizar estado"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </Button>
         </CardFooter>
       </Card>
 
@@ -197,7 +233,6 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
           <DialogHeader>
             <DialogTitle>Escanea con WhatsApp — {instanceName}</DialogTitle>
           </DialogHeader>
-
           <div className="flex flex-col items-center gap-4 py-2">
             {loadingQr && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
