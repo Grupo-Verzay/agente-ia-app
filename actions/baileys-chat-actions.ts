@@ -54,6 +54,11 @@ export async function fetchChatsFromBaileys(instanceName: string): Promise<Fetch
           }
         : null;
 
+      // phoneNumber es el número real para contactos @lid (senderPn de Baileys)
+      const senderPn = c.phoneNumber
+        ? `${String(c.phoneNumber).replace(/\D/g, '')}@s.whatsapp.net`
+        : undefined;
+
       return {
         id: null,
         remoteJid: c.remoteJid,
@@ -62,6 +67,7 @@ export async function fetchChatsFromBaileys(instanceName: string): Promise<Fetch
         unreadCount: 0,
         updatedAt: c.lastMessageAt ?? undefined,
         lastMessage,
+        senderPn,
       } satisfies ChatData;
     });
 
