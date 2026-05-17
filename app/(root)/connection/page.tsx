@@ -1,4 +1,4 @@
-import { UnderConstruction } from "@/components/custom"
+﻿import { UnderConstruction } from "@/components/custom"
 import { currentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { ApiKey, Instancia, PromptInstance } from "@prisma/client";
@@ -111,13 +111,13 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
 
     // Render principal
     return (
-        <div className=”flex flex-1 flex-wrap gap-4 items-center justify-center”>
+        <div className="flex flex-1 flex-wrap gap-4 items-center justify-center">
             <ConnectionMain
                 user={user}
-                instance={instancesData[“Whatsapp”].instance}
-                instanceInfo={instancesData[“Whatsapp”].info}
-                instanceType={“Whatsapp”}
-                prompts={instancesData[“Whatsapp”].prompts}
+                instance={instancesData["Whatsapp"].instance}
+                instanceInfo={instancesData["Whatsapp"].info}
+                instanceType={"Whatsapp"}
+                prompts={instancesData["Whatsapp"].prompts}
             />
             {baileysInstances.map((inst) => (
                 <BaileysInstanceCard key={inst.instanceName} instanceName={inst.instanceName} />
