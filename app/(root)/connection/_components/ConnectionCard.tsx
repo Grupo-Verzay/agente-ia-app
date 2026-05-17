@@ -22,7 +22,7 @@ import { Loader2, Lock } from "lucide-react"
 import { SubmitHandler, useForm } from "react-hook-form"
 import { FormInstanceConnectionValues, FormInstanceConnectionSchema, sanitizeInstanceNameInput } from '@/schema/connection'
 import { FaInstagram, FaFacebook, FaWhatsapp } from "react-icons/fa"
-import { useMemo, useCallback } from "react"
+import { useMemo, useCallback, useState } from "react"
 
 interface MinimalUser {
     onFacebook?: boolean
@@ -39,6 +39,8 @@ interface ConnectionCardProps {
     handleSubmit: SubmitHandler<FormInstanceConnectionValues>
     checkNameAvailable?: (name: string) => Promise<boolean>
 }
+
+type WhatsAppAdapter = 'Whatsapp' | 'baileys'
 
 interface SocialIconSelectorProps {
     instanceType: string
@@ -84,6 +86,14 @@ export const ConnectionCard = ({
     instanceType,
     checkNameAvailable,
 }: ConnectionCardProps) => {
+    const type = (instanceType || '').trim().toLowerCase()
+    const isWhatsapp = type === 'whatsapp' || type === 'whatsapp business' || type === 'whatsappb'
+    const isFacebook = type === 'facebook'
+    const isInstagram = type === 'instagram'
+    const isFacebookOrInstagram = isFacebook || isInstagram
+
+    const [selectedAdapter, setSelectedAdapter] = useState<WhatsAppAdapter>('Whatsapp')
+
     // Hooks y Lógica
     const form = useForm<FormInstanceConnectionValues>({
         resolver: zodResolver(FormInstanceConnectionSchema),
@@ -108,15 +118,15 @@ export const ConnectionCard = ({
                     return
                 }
             }
-            handleSubmit(values, ev)
+            // Inyectar el adaptador seleccionado cuando es WhatsApp
+            const finalValues = isWhatsapp
+                ? { ...values, instanceType: selectedAdapter }
+                : values
+            handleSubmit(finalValues, ev)
         },
-        [handleSubmit, checkNameAvailable, form]
+        [handleSubmit, checkNameAvailable, form, isWhatsapp, selectedAdapter]
     )
 
-    const type = (instanceType || '').trim().toLowerCase()
-    const isFacebook = type === 'facebook'
-    const isInstagram = type === 'instagram'
-    const isFacebookOrInstagram = isFacebook || isInstagram
     const isChannelEnabled = useMemo(() => {
         if (isFacebook) return isStrictTrue(user.onFacebook)
         if (isInstagram) return isStrictTrue(user.onInstagram)
@@ -206,11 +216,43 @@ export const ConnectionCard = ({
                             render={({ field }) => (
                                 <FormItem className="hidden">
                                     <FormControl>
-                                        <Input type="hidden" {...field} value={instanceType} readOnly />
+                                        <Input type="hidden" {...field} value={isWhatsapp ? selectedAdapter : instanceType} readOnly />
                                     </FormControl>
                                 </FormItem>
                             )}
                         />
+
+                        {/* Selector de adaptador solo para WhatsApp */}
+                        {isWhatsapp && (
+                            <FormItem>
+                                <FormLabel>Conectar vía</FormLabel>
+                                <div className="flex gap-2">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={selectedAdapter === 'Whatsapp' ? 'default' : 'outline'}
+                                        className="flex-1"
+                                        onClick={() => setSelectedAdapter('Whatsapp')}
+                                    >
+                                        Evolution API
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={selectedAdapter === 'baileys' ? 'default' : 'outline'}
+                                        className="flex-1"
+                                        onClick={() => setSelectedAdapter('baileys')}
+                                    >
+                                        Baileys
+                                    </Button>
+                                </div>
+                                {selectedAdapter === 'baileys' && (
+                                    <p className="text-xs text-muted-foreground">
+                                        Conexión directa sin Evolution API. Escanea el QR después de crear.
+                                    </p>
+                                )}
+                            </FormItem>
+                        )}
                     </CardContent>
 
                     <CardFooter>

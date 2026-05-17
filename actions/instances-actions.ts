@@ -99,6 +99,43 @@ export async function stopBaileysSession(
   }
 }
 
+export async function createBaileysInstance(
+  instanceName: string,
+  userId: string,
+): Promise<{ success: boolean; message: string }> {
+  if (!instanceName || !userId) return { success: false, message: 'Datos requeridos.' };
+
+  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
+  const secret = process.env.BAILEYS_SECRET;
+
+  if (!backendUrl || !secret) return { success: false, message: 'Backend no configurado.' };
+
+  try {
+    // 1. Crear registro en BD
+    await db.instancia.create({
+      data: {
+        instanceName,
+        instanceType: 'baileys',
+        userId,
+        instanceId: `baileys-${instanceName}`,
+      },
+    });
+
+    // 2. Iniciar sesión Baileys en el backend
+    await fetch(`${backendUrl}/whatsapp/baileys/start/${encodeURIComponent(instanceName)}`, {
+      method: 'POST',
+      headers: { 'x-internal-secret': secret },
+      cache: 'no-store',
+    }).catch(() => {});
+
+    revalidatePath('/connection');
+    return { success: true, message: 'Instancia Baileys creada. Escanea el QR para conectar.' };
+  } catch (error: any) {
+    console.error('[createBaileysInstance]', error);
+    return { success: false, message: error?.message ?? 'Error al crear la instancia.' };
+  }
+}
+
 export async function deleteBaileysInstance(
   instanceName: string,
 ): Promise<{ success: boolean; message: string }> {

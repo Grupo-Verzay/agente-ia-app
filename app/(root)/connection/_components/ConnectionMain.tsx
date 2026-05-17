@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { ClientInstanceCard, ConnectionCard } from './';
 import { ConnectionMainInterface, FormInstanceConnectionValues } from '@/schema/connection';
 import { PromptInstance } from '@prisma/client';
-import { checkInstanceNameExists } from '@/actions/instances-actions';
+import { checkInstanceNameExists, createBaileysInstance } from '@/actions/instances-actions';
 
 export const ConnectionMain = ({
   user,
@@ -26,37 +26,33 @@ export const ConnectionMain = ({
   }, [prompts, instanceType]);
 
   const onSubmit = async (data: FormInstanceConnectionValues) => {
-
     setLoading(true);
 
     if (instance) {
-      console.warn('[ConnectionMain] Instancia ya existente, cancelando creación.');
       toast.error('El usuario ya tiene una instancia activa.');
       setLoading(false);
       return;
     }
 
-    const formData = new FormData();
-    formData.append('instanceName', data.instanceName);
-    formData.append('instanceType', data.instanceType);
-    formData.append('userId', user.id);
-
-
     try {
-      const result = await createInstance(formData);
-
-      if (result.success) {
-        toast.success(result.message);
+      if (data.instanceType === 'baileys') {
+        const result = await createBaileysInstance(data.instanceName, user.id);
+        if (result.success) toast.success(result.message);
+        else toast.error(result.message);
       } else {
-        console.warn('[ConnectionMain] ❌ Error al crear instancia →', result.message);
-        toast.error(result.message);
+        const formData = new FormData();
+        formData.append('instanceName', data.instanceName);
+        formData.append('instanceType', data.instanceType);
+        formData.append('userId', user.id);
+        const result = await createInstance(formData);
+        if (result.success) toast.success(result.message);
+        else toast.error(result.message);
       }
     } catch (error) {
-      console.error('[ConnectionMain] ⚠️ Excepción atrapada →', error);
+      console.error('[ConnectionMain]', error);
       toast.error('Hubo un error al procesar la solicitud.');
     } finally {
       setLoading(false);
-      
     }
   };
 
