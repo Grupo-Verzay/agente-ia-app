@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { FaWhatsapp } from 'react-icons/fa';
-import { Loader2, QrCode, RefreshCw, ArrowLeftRight, Power } from 'lucide-react';
+import { Loader2, QrCode, RefreshCw, ArrowLeftRight, Power, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { switchInstanceAdapter, startBaileysSession, stopBaileysSession } from '@/actions/instances-actions';
+import { switchInstanceAdapter, startBaileysSession, stopBaileysSession, deleteBaileysInstance } from '@/actions/instances-actions';
 import { toast } from 'sonner';
 
 interface BaileysInstanceCardProps {
@@ -47,6 +47,8 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
   const [loadingQr, setLoadingQr] = useState(true);
   const [showSwitchDialog, setShowSwitchDialog] = useState(false);
   const [switchingAdapter, setSwitchingAdapter] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [starting, setStarting] = useState(false);
   const [stopping, setStopping] = useState(false);
 
@@ -101,6 +103,18 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
     }
   };
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    const result = await deleteBaileysInstance(instanceName);
+    setDeleting(false);
+    if (result.success) {
+      toast.success(result.message);
+    } else {
+      toast.error(result.message);
+      setShowDeleteDialog(false);
+    }
+  };
+
   const handleSwitchToEvolution = async () => {
     setSwitchingAdapter(true);
     const result = await switchInstanceAdapter(instanceName, 'Whatsapp');
@@ -129,10 +143,20 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle>{instanceName}</CardTitle>
-            <Badge variant="outline" className="text-green-500 border-green-500 gap-1">
-              <FaWhatsapp className="w-3 h-3" />
-              Baileys
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-green-500 border-green-500 gap-1">
+                <FaWhatsapp className="w-3 h-3" />
+                Baileys
+              </Badge>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setShowDeleteDialog(true)}
+                title="Eliminar instancia"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </CardHeader>
 
@@ -270,6 +294,29 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
             <AlertDialogAction onClick={handleSwitchToEvolution} disabled={switchingAdapter}>
               {switchingAdapter && <Loader2 className="animate-spin w-4 h-4 mr-1" />}
               Sí, cambiar a Evolution
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar instancia?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará permanentemente <strong>{instanceName}</strong>, incluyendo todos sus
+              contactos y mensajes almacenados. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting && <Loader2 className="animate-spin w-4 h-4 mr-1" />}
+              Sí, eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

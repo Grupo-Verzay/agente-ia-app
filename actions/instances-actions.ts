@@ -99,6 +99,38 @@ export async function stopBaileysSession(
   }
 }
 
+export async function deleteBaileysInstance(
+  instanceName: string,
+): Promise<{ success: boolean; message: string }> {
+  if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
+
+  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
+  const secret = process.env.BAILEYS_SECRET;
+
+  try {
+    // 1. Detener sesión Baileys en el backend (ignorar errores si ya está detenida)
+    if (backendUrl && secret) {
+      await fetch(`${backendUrl}/whatsapp/baileys/stop/${encodeURIComponent(instanceName)}`, {
+        method: 'DELETE',
+        headers: { 'x-internal-secret': secret },
+        cache: 'no-store',
+      }).catch(() => {});
+    }
+
+    // 2. Eliminar contactos (cascade elimina mensajes también)
+    await db.baileysContact.deleteMany({ where: { instanceName } });
+
+    // 3. Eliminar el registro de Instancia
+    await db.instancia.deleteMany({ where: { instanceName } });
+
+    revalidatePath('/connection');
+    return { success: true, message: 'Instancia eliminada correctamente.' };
+  } catch (error) {
+    console.error('[deleteBaileysInstance]', error);
+    return { success: false, message: 'Error al eliminar la instancia.' };
+  }
+}
+
 export async function startBaileysSession(
   instanceName: string,
 ): Promise<{ success: boolean; message: string }> {
