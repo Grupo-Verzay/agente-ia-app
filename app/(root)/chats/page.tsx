@@ -19,6 +19,13 @@ import {
   sendManualWorkflowAction,
   warmChatMessagesAction,
 } from "@/actions/chat-manual-actions";
+import {
+  fetchChatsFromBaileys,
+  findMessagesFromBaileys,
+  sendBaileysTextAction,
+  sendBaileysWorkflowAction,
+  sendBaileysQuickReplyAction,
+} from "@/actions/baileys-chat-actions";
 import { getChatConversationPreferencesByUserId } from "@/actions/chat-conversation-actions";
 import { getInstancesByUserId } from "@/actions/instances-actions";
 import { getAllRRs } from "@/actions/rr-actions";
@@ -38,6 +45,7 @@ function pickWhatsappOrNull(arr: Instancia[]) {
   return (
     arr.find((instance) => instance.instanceType === "Whatsapp") ??
     arr.find((instance) => instance.instanceType == null) ??
+    arr.find((instance) => instance.instanceType === "baileys") ??
     null
   );
 }
@@ -65,7 +73,7 @@ function hasQuickReplies(
 export default async function ChatsPage({
   searchParams,
 }: {
-  searchParams?: { jid?: string };
+  searchParams?: { jid?: string; instance?: string };
 }) {
   const user = await currentUser();
   if (!user) redirect("/login");
@@ -83,17 +91,24 @@ export default async function ChatsPage({
   ]);
 
   const instancias = hasInstancias(resInstancias) ? resInstancias.data : [];
-  const whatsappInstancia = pickWhatsappOrNull(instancias);
+  const requestedInstance = searchParams?.instance;
+  const whatsappInstancia = requestedInstance
+    ? (instancias.find((i) => i.instanceName === requestedInstance) ?? pickWhatsappOrNull(instancias))
+    : pickWhatsappOrNull(instancias);
   const apiKey = hasApikey(resApikey) ? resApikey.data : null;
 
+  const isBaileys = whatsappInstancia?.instanceType === "baileys";
+
   const chatsResult: FetchChatsResult =
-    whatsappInstancia && apiKey
-      ? await fetchChatsFromEvolution(apiKey, whatsappInstancia.instanceName)
+    whatsappInstancia && (isBaileys || apiKey)
+      ? isBaileys
+        ? await fetchChatsFromBaileys(whatsappInstancia.instanceName)
+        : await fetchChatsFromEvolution(apiKey!, whatsappInstancia.instanceName)
       : {
           success: false,
-          message: !apiKey
-            ? "No hay API Key configurada."
-            : "No se encontro una instancia Whatsapp valida.",
+          message: !whatsappInstancia
+            ? "No se encontró una instancia WhatsApp válida."
+            : "No hay API Key configurada.",
         };
 
   const requestedJid = searchParams?.jid
@@ -114,17 +129,17 @@ export default async function ChatsPage({
       : requestedJid);
 
   let initialMessages: EvoMsgFromAction[] = [];
-  if (chatsResult.success && initialSelectedJid && whatsappInstancia && apiKey) {
-    const messagesResponse = await findMessagesByRemoteJid(
-      { url: apiKey.url, key: apiKey.key },
-      whatsappInstancia.instanceName,
-      initialSelectedJid,
-      {
-        page: 1,
-        pageSize: 50,
-        remoteJidAliases: initialSelectedChat?.aliases,
-      },
-    );
+  if (chatsResult.success && initialSelectedJid && whatsappInstancia) {
+    const messagesResponse = isBaileys
+      ? await findMessagesFromBaileys(whatsappInstancia.instanceName, initialSelectedJid, { pageSize: 50 })
+      : apiKey
+        ? await findMessagesByRemoteJid(
+            { url: apiKey.url, key: apiKey.key },
+            whatsappInstancia.instanceName,
+            initialSelectedJid,
+            { page: 1, pageSize: 50, remoteJidAliases: initialSelectedChat?.aliases },
+          )
+        : { success: false as const, message: "Sin API Key." };
 
     if (messagesResponse.success) {
       initialMessages = messagesResponse.data || [];
@@ -201,21 +216,31 @@ export default async function ChatsPage({
     ? [{ id: user.id, name: user.name ?? null, email: user.email, advisorRole: null as string | null }, ...advisorsFromTeam]
     : advisorsFromTeam;
   const actionContext =
-    whatsappInstancia && apiKey
-      ? {
-          apiKeyData: {
-            url: apiKey.url,
-            key: apiKey.key,
-          },
-          instanceName: whatsappInstancia.instanceName,
-        }
+    whatsappInstancia && apiKey && !isBaileys
+      ? { apiKeyData: { url: apiKey.url, key: apiKey.key }, instanceName: whatsappInstancia.instanceName }
       : null;
 
-  const warmMessagesAction = warmChatMessagesAction.bind(null, actionContext);
-  const refetchChatsAction = refetchChatsManualAction.bind(null, actionContext);
-  const sendAnyAction = sendManualChatPayloadAction.bind(null, actionContext);
-  const sendWorkflowAction = sendManualWorkflowAction.bind(null, actionContext);
-  const sendQuickReplyAction = sendManualQuickReplyAction.bind(null, actionContext);
+  const instanceNameForActions = whatsappInstancia?.instanceName ?? '';
+
+  const warmMessagesAction = isBaileys
+    ? findMessagesFromBaileys.bind(null, instanceNameForActions)
+    : warmChatMessagesAction.bind(null, actionContext);
+
+  const refetchChatsAction = isBaileys
+    ? fetchChatsFromBaileys.bind(null, instanceNameForActions)
+    : refetchChatsManualAction.bind(null, actionContext);
+
+  const sendAnyAction = isBaileys
+    ? sendBaileysTextAction.bind(null, instanceNameForActions)
+    : sendManualChatPayloadAction.bind(null, actionContext);
+
+  const sendWorkflowAction = isBaileys
+    ? sendBaileysWorkflowAction.bind(null, instanceNameForActions)
+    : sendManualWorkflowAction.bind(null, actionContext);
+
+  const sendQuickReplyAction = isBaileys
+    ? sendBaileysQuickReplyAction.bind(null, instanceNameForActions)
+    : sendManualQuickReplyAction.bind(null, actionContext);
   const assignAdvisorAction = assignSessionToAdvisor;
   const takeSessionAction = takeSession;
   const releaseSessionAction = releaseSession;
@@ -224,6 +249,7 @@ export default async function ChatsPage({
   return (
     <ChatsClient
       userId={effectiveOwnerId}
+      instancias={instancias}
       chatsResult={chatsResult}
       initialChatPreferences={initialChatPreferences}
       initialChatSessions={initialChatSessions}
