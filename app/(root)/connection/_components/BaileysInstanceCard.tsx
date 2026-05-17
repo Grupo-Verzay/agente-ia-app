@@ -22,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { switchInstanceAdapter } from '@/actions/instances-actions';
+import { switchInstanceAdapter, startBaileysSession } from '@/actions/instances-actions';
 import { toast } from 'sonner';
 
 interface BaileysInstanceCardProps {
@@ -44,6 +44,7 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
   const [loadingQr, setLoadingQr] = useState(true);
   const [showSwitchDialog, setShowSwitchDialog] = useState(false);
   const [switchingAdapter, setSwitchingAdapter] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -69,6 +70,23 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
     const id = setInterval(() => setQrTimestamp(Date.now()), POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, [showQrDialog]);
+
+  const handleStart = async () => {
+    setStarting(true);
+    const result = await startBaileysSession(instanceName);
+    if (result.success) {
+      // esperar 3s para que Baileys genere el QR y luego refrescar estado
+      setTimeout(() => {
+        fetchStatus();
+        setQrTimestamp(Date.now());
+        setShowQrDialog(true);
+        setStarting(false);
+      }, 3000);
+    } else {
+      toast.error(result.message);
+      setStarting(false);
+    }
+  };
 
   const handleSwitchToEvolution = async () => {
     setSwitchingAdapter(true);
@@ -108,6 +126,11 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
                 <CheckCircle2 className="w-5 h-5 text-green-500" />
                 <span className="text-sm font-medium text-green-600">Conectado a WhatsApp</span>
               </>
+            ) : starting ? (
+              <>
+                <Loader2 className="animate-spin w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Iniciando sesión...</span>
+              </>
             ) : (
               <span className="text-sm text-muted-foreground">
                 {hasQr ? 'QR listo — escanea para conectar' : 'Desconectado'}
@@ -135,10 +158,24 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
               variant="outline"
               onClick={fetchStatus}
               title="Actualizar estado"
+              disabled={starting}
             >
               <RefreshCw className="w-4 h-4" />
             </Button>
-            {!connected && (
+            {!connected && !hasQr && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleStart}
+                disabled={starting}
+              >
+                {starting
+                  ? <Loader2 className="animate-spin w-4 h-4 mr-1" />
+                  : <RefreshCw className="w-4 h-4 mr-1" />}
+                Reconectar
+              </Button>
+            )}
+            {!connected && hasQr && (
               <Button
                 size="sm"
                 onClick={() => {
