@@ -507,6 +507,7 @@ model User {
   agents                             User[]                       @relation("AgentToOwner")
   masterLinks                        LinkedAccount[]              @relation("MasterLinks")
   linkedTo                           LinkedAccount[]              @relation("LinkedTo")
+  team                               Team?
 }
 
 model UserNotificationContact {
@@ -1243,6 +1244,113 @@ enum PaymentSource {
   WOMPI_WEBHOOK
   MANUAL
 }
+
+// ─── MÓDULO BOOKINGS (Multi-agenda) ──────────────────────────────────────────
+
+model Team {
+  id           String               @id @default(uuid())
+  userId       String               @unique
+  name         String
+  description  String?
+  timezone     String               @default("America/Bogota")
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members      TeamMember[]
+  services     TeamService[]
+  appointments BookingAppointment[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id           String                   @id @default(uuid())
+  teamId       String
+  name         String
+  bio          String?
+  photo        String?
+  color        String?
+  isActive     Boolean                  @default(true)
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  team         Team                     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  availability TeamMemberAvailability[]
+  services     TeamMemberService[]
+  appointments BookingAppointment[]
+
+  @@index([teamId])
+  @@map("team_members")
+}
+
+model TeamMemberAvailability {
+  id           String     @id @default(uuid())
+  teamMemberId String
+  dayOfWeek    Int
+  startTime    String
+  endTime      String
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([teamMemberId, dayOfWeek, startTime, endTime])
+  @@index([teamMemberId])
+  @@map("team_member_availability")
+}
+
+model TeamService {
+  id           String               @id @default(uuid())
+  teamId       String
+  name         String
+  description  String?
+  duration     Int
+  messageText  String?
+  color        String?
+  isActive     Boolean              @default(true)
+  order        Int                  @default(0)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  team         Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  members      TeamMemberService[]
+  appointments BookingAppointment[]
+
+  @@index([teamId])
+  @@map("team_services")
+}
+
+model TeamMemberService {
+  teamMemberId  String
+  teamServiceId String
+  teamMember    TeamMember  @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  teamService   TeamService @relation(fields: [teamServiceId], references: [id], onDelete: Cascade)
+
+  @@id([teamMemberId, teamServiceId])
+  @@map("team_member_services")
+}
+
+model BookingAppointment {
+  id            String            @id @default(uuid())
+  teamId        String
+  teamMemberId  String
+  teamServiceId String
+  clientName    String
+  clientPhone   String
+  startTime     DateTime
+  endTime       DateTime
+  timezone      String
+  status        AppointmentStatus @default(PENDIENTE)
+  notes         String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  team          Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamMember    TeamMember        @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  teamService   TeamService       @relation(fields: [teamServiceId], references: [id])
+
+  @@index([teamId, startTime])
+  @@index([teamMemberId, startTime])
+  @@index([teamServiceId])
+  @@map("booking_appointments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 model BaileysContact {
   id           String           @id @default(cuid())
