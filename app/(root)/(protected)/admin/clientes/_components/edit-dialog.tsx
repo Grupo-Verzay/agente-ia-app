@@ -367,45 +367,44 @@ export const EditDialog = ({
 
 
         <form action={(formData) => handleEdit(user.id, formData)}>
-          {/* Canal WhatsApp — siempre visible para todos los roles de admin */}
-          <div className="flex flex-col gap-2 pb-3 mb-3 border-b">
-              <Label className="text-xs font-semibold text-foreground">Canal WhatsApp</Label>
-              <div className="flex items-center gap-2">
-                <Select
-                  value={connectionType}
-                  onValueChange={(v) => setConnectionType(v as 'baileys' | 'Whatsapp')}
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Whatsapp">Evolution API</SelectItem>
-                    <SelectItem value="baileys">Baileys</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={applyingType}
-                  onClick={async () => {
-                    setApplyingType(true);
-                    const res = await setUserConnectionType(user.id, connectionType, user.company ?? undefined);
-                    setApplyingType(false);
-                    if (res.success) toast.success(res.message);
-                    else toast.error(res.message);
-                  }}
-                >
-                  {applyingType ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Aplicar'}
-                </Button>
-              </div>
-              {waInstance && (
-                <p className="text-xs text-muted-foreground">Instancia: {waInstance.instanceName}</p>
-              )}
-            </div>
-
           <div className="overflow-auto max-h-[28rem] pr-2">
             <div className="grid gap-4 py-4">
+              {/* Canal WhatsApp */}
+              <div className="flex flex-col gap-2 pb-3 mb-1 border-b">
+                <Label className="text-xs font-semibold text-foreground">Canal WhatsApp</Label>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={connectionType}
+                    onValueChange={(v) => setConnectionType(v as 'baileys' | 'Whatsapp')}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Whatsapp">Evolution API</SelectItem>
+                      <SelectItem value="baileys">Baileys</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={applyingType}
+                    onClick={async () => {
+                      setApplyingType(true);
+                      const res = await setUserConnectionType(user.id, connectionType, user.company ?? undefined);
+                      setApplyingType(false);
+                      if (res.success) toast.success(res.message);
+                      else toast.error(res.message);
+                    }}
+                  >
+                    {applyingType ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Aplicar'}
+                  </Button>
+                </div>
+                {waInstance && (
+                  <p className="text-xs text-muted-foreground">Instancia: {waInstance.instanceName}</p>
+                )}
+              </div>
               {/* Switches en grid 2 columnas */}
               <div className="grid grid-cols-2 gap-2">
                 {switchFields.map(({ id, label, readOnly }) => {
