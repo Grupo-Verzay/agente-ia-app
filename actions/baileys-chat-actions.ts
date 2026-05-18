@@ -35,14 +35,25 @@ export async function fetchChatsFromBaileys(instanceName: string): Promise<Fetch
     const json = await res.json();
 
     const chats: ChatData[] = (json.chats ?? []).map((c: any) => {
-      const lastMessage: LastMessage | null = c.lastMessageBody != null
+      const MEDIA_LABELS_CHAT: Record<string, string> = {
+        imageMessage: '[Imagen]', videoMessage: '[Video]',
+        audioMessage: '[Audio]', documentMessage: '[Documento]', stickerMessage: '[Sticker]',
+      };
+      const lastBody = c.lastMessageBody ?? '';
+      const lastType = c.lastMessageType ?? 'conversation';
+      const isLastMedia = lastType in MEDIA_LABELS_CHAT;
+      const lastMessageBody = isLastMedia && !lastBody
+        ? MEDIA_LABELS_CHAT[lastType]
+        : lastBody;
+
+      const lastMessage: LastMessage | null = c.lastMessageBody != null || isLastMedia
         ? {
             id: null,
             key: { id: '', fromMe: c.lastMessageFromMe ?? false, remoteJid: c.remoteJid },
             pushName: c.pushName ?? null,
             participant: null,
             messageType: 'conversation',
-            message: { conversation: c.lastMessageBody },
+            message: { conversation: lastMessageBody },
             contextInfo: null,
             source: 'baileys',
             instanceId: instanceName,
@@ -93,20 +104,36 @@ export async function findMessagesFromBaileys(
 
     const json = await res.json();
 
-    const messages: EvolutionMessage[] = (json.messages ?? []).map((m: any) => ({
-      key: { id: m.id, fromMe: m.fromMe, remoteJid: m.remoteJid },
-      // El body siempre se mapea como conversation; mantener el tipo real
-      // solo si es audioMessage/imageMessage/etc. para el renderer de media
-      messageType: ['audioMessage', 'imageMessage', 'videoMessage', 'documentMessage', 'stickerMessage'].includes(m.type)
-        ? m.type
-        : 'conversation',
-      message: { conversation: m.body ?? '' },
-      messageTimestamp: m.timestamp
-        ? Math.floor(new Date(m.timestamp).getTime() / 1000)
-        : 0,
-      status: m.status ?? 'DELIVERY_ACK',
-      pushName: null,
-    }));
+    const MEDIA_LABELS: Record<string, string> = {
+      imageMessage:    '[Imagen]',
+      videoMessage:    '[Video]',
+      audioMessage:    '[Audio]',
+      documentMessage: '[Documento]',
+      stickerMessage:  '[Sticker]',
+    };
+    const MEDIA_TYPES = Object.keys(MEDIA_LABELS);
+
+    const messages: EvolutionMessage[] = (json.messages ?? []).map((m: any) => {
+      const isMedia  = MEDIA_TYPES.includes(m.type);
+      const mediaUrl: string | null = m.mediaUrl ?? null;
+
+      return {
+        key: { id: m.id, fromMe: m.fromMe, remoteJid: m.remoteJid },
+        // Si hay mediaUrl renderiza con UI de media; si no, muestra como texto con etiqueta
+        messageType: isMedia && mediaUrl ? m.type : 'conversation',
+        message: {
+          conversation: isMedia && !mediaUrl
+            ? (m.body?.trim() || MEDIA_LABELS[m.type] || '')
+            : (m.body ?? ''),
+          ...(mediaUrl ? { mediaUrl } : {}),
+        },
+        messageTimestamp: m.timestamp
+          ? Math.floor(new Date(m.timestamp).getTime() / 1000)
+          : 0,
+        status: m.status ?? 'DELIVERY_ACK',
+        pushName: null,
+      };
+    });
 
     return { success: true, message: 'OK', data: messages };
   } catch (err: any) {
