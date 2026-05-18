@@ -418,7 +418,7 @@ export const EditDialog = ({
               {/* Instancias WhatsApp — solo para admins */}
               {showAiConfig && (() => {
                 const waInstances = (user.instancias ?? []).filter(
-                  (i) => i.instanceType === 'Whatsapp' || i.instanceType === 'baileys'
+                  (i) => i.instanceType !== 'Instagram' && i.instanceType !== 'Facebook'
                 );
                 if (!waInstances.length) return null;
                 return (
