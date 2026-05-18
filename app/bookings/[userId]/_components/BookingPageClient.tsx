@@ -13,6 +13,7 @@ import type { Country } from '@/components/custom/CountryCodeSelect';
 import {
     createBookingAppointment,
     getAvailableBookingSlots,
+    sendBookingNotifications,
 } from '@/actions/bookings-actions';
 
 import { ServiceStep } from './steps/ServiceStep';
@@ -38,6 +39,7 @@ interface TeamService {
     duration: number;
     color: string | null;
     order: number;
+    messageText?: string | null;
     members: { teamMember: TeamMember }[];
 }
 
@@ -181,6 +183,22 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
                 toast.error((res as any).message ?? 'No se pudo agendar la cita.');
                 return;
             }
+
+            // Notificación WhatsApp (fire-and-forget — no bloqueamos la UI)
+            const selectedMemberData = membersForService.find((m) => m.id === selectedMember);
+            sendBookingNotifications({
+                userId,
+                bookingId:          (res.data as any)?.id ?? '',
+                clientName:         nameClient.trim(),
+                clientPhone:        e164,
+                startTimeIso:       startTime,
+                endTimeIso:         endTime,
+                timezone,
+                serviceName:        currentService?.name ?? '',
+                serviceMessageText: currentService?.messageText ?? null,
+                memberName:         selectedMemberData?.name ?? '',
+                teamName:           team.name,
+            }).catch(() => {});
 
             toast.success('¡Cita agendada exitosamente!');
             resetForm();

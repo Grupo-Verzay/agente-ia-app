@@ -6,15 +6,10 @@ import {
     addMinutes,
     format,
     parseISO,
-    setHours,
-    setMinutes,
-    setSeconds,
-    setMilliseconds,
     isBefore,
     isAfter,
-    startOfDay,
-    endOfDay,
 } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 // ─── Tipos de respuesta ───────────────────────────────────────────────────────
@@ -459,6 +454,7 @@ export async function getPublicTeamData(userId: string) {
                         duration: true,
                         color: true,
                         order: true,
+                        messageText: true,
                         members: {
                             select: {
                                 teamMember: {
@@ -477,5 +473,113 @@ export async function getPublicTeamData(userId: string) {
     } catch (error) {
         console.error('[getPublicTeamData]', error);
         return { success: false, message: 'Error al obtener datos del equipo.' };
+    }
+}
+
+// ─── NOTIFICACIONES WhatsApp ──────────────────────────────────────────────────
+
+export interface BookingNotificationInput {
+    userId: string;          // propietario del equipo
+    bookingId: string;
+    clientName: string;
+    clientPhone: string;     // E.164 sin @s.whatsapp.net
+    startTimeIso: string;
+    endTimeIso: string;
+    timezone: string;
+    serviceName: string;
+    serviceMessageText: string | null;
+    memberName: string;
+    teamName: string;
+}
+
+function replaceVars(template: string, vars: Record<string, string>): string {
+    return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
+}
+
+export async function sendBookingNotifications(input: BookingNotificationInput): Promise<void> {
+    try {
+        const {
+            userId, clientName, clientPhone,
+            startTimeIso, timezone, serviceName,
+            serviceMessageText, memberName, teamName,
+        } = input;
+
+        // Cargar apiKey + instancia del propietario del equipo
+        const userData = await db.user.findUnique({
+            where: { id: userId },
+            select: {
+                notificationNumber: true,
+                apiKey: { select: { url: true } },
+                instancias: { take: 1, select: { instanceName: true, instanceId: true } },
+            },
+        });
+
+        const apiKeyUrl  = userData?.apiKey?.url;
+        const instance   = userData?.instancias?.[0];
+        if (!apiKeyUrl || !instance) return;
+
+        const instanceName = instance.instanceName;
+        const apikey       = instance.instanceId;
+        const baseUrl      = `https://${apiKeyUrl}`;
+
+        const { sendMessageWithHistoryAction } = await import('@/actions/chat-history/send-message-with-history-action');
+
+        const localStart = toZonedTime(new Date(startTimeIso), timezone);
+        const dateLabel  = format(localStart, "d 'de' MMMM 'de' yyyy", { locale: es });
+        const hourLabel  = format(localStart, 'h:mm a');
+
+        const clientJid = `${clientPhone.replace(/\D/g, '')}@s.whatsapp.net`;
+
+        // ── Mensaje al cliente ──
+        const rawMsg = serviceMessageText?.trim() ||
+            `¡Hola {{nombre}}! Tu cita ha sido confirmada.\n📅 {{fecha}} — ⏰ {{hora}}\n🩺 {{servicio}} con {{especialista}}\n\n¡Te esperamos!`;
+
+        const clientMsg = replaceVars(rawMsg, {
+            nombre:       clientName,
+            fecha:        dateLabel,
+            hora:         hourLabel,
+            servicio:     serviceName,
+            especialista: memberName,
+            equipo:       teamName,
+        });
+
+        await sendMessageWithHistoryAction({
+            instanceName,
+            url: `${baseUrl}/message/sendText/${instanceName}`,
+            apikey,
+            remoteJid: clientJid,
+            message: clientMsg,
+            historyType: 'notification',
+            additionalKwargs: { source: 'BookingConfirmation' },
+        }).catch(() => {});
+
+        // ── Notificación al asesor ──
+        const ownerPhone = userData?.notificationNumber;
+        if (ownerPhone) {
+            const ownerJid = ownerPhone.includes('@s.whatsapp.net')
+                ? ownerPhone
+                : `${ownerPhone.replace(/\D/g, '')}@s.whatsapp.net`;
+
+            const ownerMsg =
+                `📅 *Nueva cita en Multi-agenda*\n\n` +
+                `👤 *Cliente:* ${clientName}\n` +
+                `📱 *WhatsApp:* +${clientPhone.replace(/\D/g, '')}\n` +
+                `🩺 *Servicio:* ${serviceName}\n` +
+                `👨‍⚕️ *Especialista:* ${memberName}\n` +
+                `📅 *Fecha:* ${dateLabel}\n` +
+                `⏰ *Hora:* ${hourLabel}`;
+
+            await sendMessageWithHistoryAction({
+                instanceName,
+                url: `${baseUrl}/message/sendText/${instanceName}`,
+                apikey,
+                remoteJid: ownerJid,
+                message: ownerMsg,
+                historyType: 'notification',
+                additionalKwargs: { source: 'BookingNotificationOwner' },
+            }).catch(() => {});
+        }
+    } catch (err) {
+        console.error('[sendBookingNotifications]', err);
     }
 }
