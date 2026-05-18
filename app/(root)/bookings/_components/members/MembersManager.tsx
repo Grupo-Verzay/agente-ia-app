@@ -6,7 +6,6 @@ import { Plus, Pencil, Trash2, Loader2, ChevronDown, ChevronUp } from 'lucide-re
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -182,7 +181,6 @@ function MemberFormDialog({
 }) {
     const [open, setOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const router = useRouter();
 
     const form = useForm<MemberFormValues>({
         resolver: zodResolver(memberSchema),
@@ -211,7 +209,6 @@ function MemberFormDialog({
                 onSaved(member);
                 toast.success(mode === 'create' ? 'Especialista creado' : 'Especialista actualizado');
                 setOpen(false);
-                router.refresh();
             } else {
                 toast.error((res as any).message);
             }
