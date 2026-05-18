@@ -27,6 +27,8 @@ import { Switch } from "@/components/ui/switch"
 import { ApiKeyConfigurator } from "@/app/(root)/profile/_components/ApiKeyConfigurator"
 import { getIaCreditByUser } from "@/actions/actions-ia-credits"
 import { onTokensToCredits } from "@/utils/onTokensToCredits"
+import { switchInstanceAdapter } from "@/actions/instances-actions"
+import { Loader2 } from "lucide-react"
 interface Props {
   openEditDialog: boolean
   setOpenEditDialog: (open: boolean) => void
@@ -67,6 +69,7 @@ export const EditDialog = ({
   const [creditUsed, setCreditUsed] = useState(0);
   const [creditHasRecord, setCreditHasRecord] = useState(false);
   const [creditLoading, setCreditLoading] = useState(false);
+  const [switchingInstance, setSwitchingInstance] = useState<string | null>(null);
 
   useEffect(() => {
     if (!openEditDialog || currentUserRol === 'reseller') return;
@@ -410,6 +413,48 @@ export const EditDialog = ({
                     </div>
                   );
                 });
+              })()}
+
+              {/* Instancias WhatsApp — solo para admins */}
+              {showAiConfig && (() => {
+                const waInstances = (user.instancias ?? []).filter(
+                  (i) => i.instanceType === 'Whatsapp' || i.instanceType === 'baileys'
+                );
+                if (!waInstances.length) return null;
+                return (
+                  <div className="flex flex-col gap-2 pt-2 border-t">
+                    <Label className="text-xs font-semibold text-foreground">Canal WhatsApp</Label>
+                    {waInstances.map((inst) => {
+                      const isBaileys = inst.instanceType === 'baileys';
+                      const target = isBaileys ? 'Whatsapp' : 'baileys';
+                      const label = isBaileys ? 'Cambiar a Evo API' : 'Cambiar a Baileys';
+                      const loading = switchingInstance === inst.instanceName;
+                      return (
+                        <div key={inst.instanceName} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-medium">{inst.instanceName}</span>
+                            <span className={`text-xs ${isBaileys ? 'text-blue-500' : 'text-green-600'}`}>
+                              {isBaileys ? 'Baileys' : 'Evolution API'}
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={loading}
+                            onClick={async () => {
+                              setSwitchingInstance(inst.instanceName);
+                              await switchInstanceAdapter(inst.instanceName, target);
+                              setSwitchingInstance(null);
+                            }}
+                          >
+                            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : label}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
               })()}
 
             </div>

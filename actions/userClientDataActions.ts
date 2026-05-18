@@ -95,6 +95,7 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
       include: {
         pausar: true,
         aiConfigs: true,
+        instancias: { select: { instanceName: true, instanceType: true } },
       },
       orderBy: { name: "asc" },
     });
@@ -165,7 +166,8 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
           isEvoEnabled,
           qrStatus,
           reseller,
-          credits
+          credits,
+          instancias: user.instancias,
         };
       })
     );

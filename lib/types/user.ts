@@ -10,4 +10,5 @@ export interface ClientInterface extends User {
     qrStatus: boolean;
     reseller: User | null;
     credits: IaCredit | null;
+    instancias?: { instanceName: string; instanceType: string | null }[];
 };
