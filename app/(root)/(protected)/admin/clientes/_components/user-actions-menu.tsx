@@ -78,6 +78,11 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
                     >
                         Backup
                     </DropdownMenuItem>
+                    <DropdownMenuItem
+                        onClick={() => openDialogGetUserId(user.id, 'canal', true)}
+                    >
+                        Canal
+                    </DropdownMenuItem>
 
 <DropdownMenuItem
                         onClick={() => handleUserDashboard()}

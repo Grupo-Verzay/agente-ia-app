@@ -15,7 +15,7 @@ import {
 import { autoConfigureUserAi } from '@/actions/userAiconfig-actions';
 import { createIaCreditForUser, rechargeIaCredit } from '@/actions/actions-ia-credits';
 import { onCreditsToTokens } from '@/utils/onTokensToCredits';
-import { CreateDialog, DeleteDialog, ToolsDialog, EvoDialog, EditDialog, ClientStatusPanel, StatusKey, UserBackupDialog } from './';
+import { CreateDialog, DeleteDialog, ToolsDialog, EvoDialog, EditDialog, ClientStatusPanel, StatusKey, UserBackupDialog, CanalDialog } from './';
 import { ApiKey } from '@prisma/client';
 import { UserFormValues } from '@/schema/user';
 import { Country } from '@/components/custom/CountryCodeSelect';
@@ -26,7 +26,7 @@ import { setUserModules } from '@/actions/user-module-actions';
 import { ModulesDialog } from '@/components/shared/ModulesDialog';
 
 
-export type DialogType = 'editar' | 'tools' | 'evo' | 'delete' | 'backup' | 'modules'
+export type DialogType = 'editar' | 'tools' | 'evo' | 'delete' | 'backup' | 'modules' | 'canal'
 
 interface Props {
     users: ClientInterface[],
@@ -46,6 +46,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
     const [openEditDialog, setOpenEditDialog] = useState(false);
     const [openBackupDialog, setOpenBackupDialog] = useState(false);
     const [openModulesDialog, setOpenModulesDialog] = useState(false);
+    const [openCanalDialog, setOpenCanalDialog] = useState(false);
     const [user, setCurrentUser] = useState<ClientInterface>();
     const [statusFilter, setStatusFilter] = useState<StatusKey | null>(null);
 
@@ -222,6 +223,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         if (dialog === 'editar') return setOpenEditDialog(state);
         if (dialog === 'backup') return setOpenBackupDialog(state);
         if (dialog === 'modules') return setOpenModulesDialog(state);
+        if (dialog === 'canal') return setOpenCanalDialog(state);
     };
 
     const openCreateDialogUser = () => {
@@ -315,6 +317,14 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     handleModules={handleModules}
                     user={user}
                     allModules={allModules}
+                />
+            )}
+            {/* Canal WhatsApp */}
+            {user && (
+                <CanalDialog
+                    open={openCanalDialog}
+                    setOpen={setOpenCanalDialog}
+                    user={user}
                 />
             )}
         </div>

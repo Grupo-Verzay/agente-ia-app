@@ -7,3 +7,4 @@ export * from './UserBackupDialog';
 export * from './ColumnFilterInput';
 export * from './FormUser';
 export * from './ClientStatusPanel';
+export * from './canal-dialog';
