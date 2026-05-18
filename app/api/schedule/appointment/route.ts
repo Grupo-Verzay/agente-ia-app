@@ -146,7 +146,7 @@ async function runPostAppointmentTasks({
     const confirmMessage = formatReminderMessage(service.messageText, pushName, startTime, timezone, slotDuration, clientTimezone);
     db.seguimiento.create({
       data: {
-        idNodo: '',
+        idNodo: `appt-confirm-${serviceId}`,
         serverurl: serverUrl,
         instancia: instanceName,
         apikey: instanceId,
@@ -234,7 +234,7 @@ async function runPostAppointmentTasks({
 
       await db.seguimiento.create({
         data: {
-          idNodo: '',
+          idNodo: `reminder-${rem.id}`,
           serverurl: serverUrl,
           instancia: instanceName,
           apikey: instanceId,
