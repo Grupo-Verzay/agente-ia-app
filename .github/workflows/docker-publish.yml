@@ -43,3 +43,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Deploy via Portainer webhook
+        run: |
+          curl -s -X POST "https://panel-n8n.ia-app.com/api/webhooks/27fbb2d6-dce9-4464-95f8-557fb669f184"
+          echo "Portainer webhook triggered"
