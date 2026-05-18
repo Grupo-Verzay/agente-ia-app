@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,7 +24,9 @@ import {
     Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription,
 } from '@/components/ui/form';
 import {
-    createTeamService, updateTeamService, deleteTeamService, getTeamServices,
+    createTeamService, updateTeamService, deleteTeamService,
+    getTeamServices, getTeamMembers,
+    assignServiceToMember, removeServiceFromMember,
 } from '@/actions/bookings-actions';
 
 interface TeamService {
@@ -38,6 +39,12 @@ interface TeamService {
     isActive: boolean;
     order: number;
     members: { teamMemberId: string }[];
+}
+
+interface TeamMemberBasic {
+    id: string;
+    name: string;
+    color: string | null;
 }
 
 const serviceSchema = z.object({
@@ -59,6 +66,81 @@ Tu cita ha sido confirmada:
 
 Te esperamos puntualmente. ¡Gracias!`;
 
+// ─── Specialist assignment ─────────────────────────────────────────────────────
+
+function SpecialistAssignment({
+    serviceId,
+    assignedMemberIds,
+    allMembers,
+    onToggle,
+}: {
+    serviceId: string;
+    assignedMemberIds: string[];
+    allMembers: TeamMemberBasic[];
+    onToggle: (memberId: string, assigned: boolean) => void;
+}) {
+    const [loading, setLoading] = useState<string | null>(null);
+
+    const handleToggle = async (memberId: string) => {
+        const isAssigned = assignedMemberIds.includes(memberId);
+        setLoading(memberId);
+        const res = isAssigned
+            ? await removeServiceFromMember(memberId, serviceId)
+            : await assignServiceToMember(memberId, serviceId);
+        if (res.success) {
+            onToggle(memberId, !isAssigned);
+            toast.success(isAssigned ? 'Especialista removido' : 'Especialista asignado');
+        } else {
+            toast.error(res.message);
+        }
+        setLoading(null);
+    };
+
+    if (!allMembers.length) {
+        return <p className="text-xs text-muted-foreground">Crea especialistas primero en la pestaña Especialistas.</p>;
+    }
+
+    return (
+        <div className="space-y-2">
+            <p className="text-sm font-medium">Especialistas que lo atienden</p>
+            <div className="flex flex-wrap gap-2">
+                {allMembers.map((m) => {
+                    const assigned = assignedMemberIds.includes(m.id);
+                    return (
+                        <button
+                            key={m.id}
+                            type="button"
+                            disabled={loading === m.id}
+                            onClick={() => handleToggle(m.id)}
+                            className={[
+                                'flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                                assigned
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'border-border text-muted-foreground hover:border-primary/50',
+                                loading === m.id ? 'opacity-50 cursor-wait' : '',
+                            ].join(' ')}
+                        >
+                            {loading === m.id && <Loader2 className="h-3 w-3 animate-spin" />}
+                            <span
+                                className="h-2 w-2 rounded-full shrink-0"
+                                style={{ backgroundColor: m.color ?? '#3B82F6' }}
+                            />
+                            {assigned ? '✓ ' : '+ '}{m.name}
+                        </button>
+                    );
+                })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+                {assignedMemberIds.length === 0
+                    ? 'Sin asignación — todos los especialistas aparecen para este servicio.'
+                    : `${assignedMemberIds.length} especialista(s) asignado(s).`}
+            </p>
+        </div>
+    );
+}
+
+// ─── Service form dialog ───────────────────────────────────────────────────────
+
 function ServiceFormDialog({
     teamId,
     mode,
@@ -74,7 +156,6 @@ function ServiceFormDialog({
 }) {
     const [open, setOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const router = useRouter();
 
     const form = useForm<ServiceFormValues>({
         resolver: zodResolver(serviceSchema),
@@ -104,7 +185,6 @@ function ServiceFormDialog({
                 onSaved(svc);
                 toast.success(mode === 'create' ? 'Servicio creado' : 'Servicio actualizado');
                 setOpen(false);
-                router.refresh();
             } else {
                 toast.error((res as any).message);
             }
@@ -189,17 +269,22 @@ function ServiceFormDialog({
     );
 }
 
+// ─── Service card ──────────────────────────────────────────────────────────────
+
 function ServiceCard({
     teamId,
     service,
+    allMembers,
     onUpdated,
     onDeleted,
 }: {
     teamId: string;
     service: TeamService;
+    allMembers: TeamMemberBasic[];
     onUpdated: (s: TeamService) => void;
     onDeleted: (id: string) => void;
 }) {
+    const [expanded, setExpanded] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [deleting, setDeleting] = useState(false);
 
@@ -219,7 +304,7 @@ function ServiceCard({
     return (
         <>
             <Card className="border-border">
-                <CardContent className="p-4">
+                <CardContent className="p-4 space-y-3">
                     <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-3 min-w-0">
                             <div className="h-8 w-1.5 rounded-full shrink-0" style={{ backgroundColor: service.color ?? '#3B82F6' }} />
@@ -227,8 +312,13 @@ function ServiceCard({
                                 <p className="font-semibold text-sm truncate">{service.name}</p>
                                 <div className="flex items-center gap-2 mt-0.5">
                                     <Badge variant="outline" className="text-xs">{service.duration} min</Badge>
+                                    <Badge variant="outline" className="text-xs">
+                                        {service.members.length === 0
+                                            ? 'Todos los especialistas'
+                                            : `${service.members.length} especialista(s)`}
+                                    </Badge>
                                     {service.description && (
-                                        <span className="text-xs text-muted-foreground truncate">{service.description}</span>
+                                        <span className="text-xs text-muted-foreground truncate hidden sm:inline">{service.description}</span>
                                     )}
                                 </div>
                             </div>
@@ -253,8 +343,34 @@ function ServiceCard({
                             >
                                 <Trash2 className="h-3.5 w-3.5" />
                             </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => setExpanded((p) => !p)}
+                            >
+                                {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                            </Button>
                         </div>
                     </div>
+
+                    {expanded && (
+                        <div className="border-t pt-3">
+                            <SpecialistAssignment
+                                serviceId={service.id}
+                                assignedMemberIds={service.members.map((m) => m.teamMemberId)}
+                                allMembers={allMembers}
+                                onToggle={(memberId, assigned) => {
+                                    onUpdated({
+                                        ...service,
+                                        members: assigned
+                                            ? [...service.members, { teamMemberId: memberId }]
+                                            : service.members.filter((m) => m.teamMemberId !== memberId),
+                                    });
+                                }}
+                            />
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
@@ -279,15 +395,24 @@ function ServiceCard({
     );
 }
 
+// ─── Main component ────────────────────────────────────────────────────────────
+
 export function BookingServicesManager({ teamId }: { teamId: string }) {
     const [services, setServices] = useState<TeamService[]>([]);
+    const [allMembers, setAllMembers] = useState<TeamMemberBasic[]>([]);
     const [loading, setLoading] = useState(true);
 
     const load = useCallback(async () => {
         setLoading(true);
-        const res = await getTeamServices(teamId);
-        if (res.success && res.data) setServices(res.data as TeamService[]);
-        else toast.error(res.message);
+        const [servicesRes, membersRes] = await Promise.all([
+            getTeamServices(teamId),
+            getTeamMembers(teamId),
+        ]);
+        if (servicesRes.success && servicesRes.data) setServices(servicesRes.data as TeamService[]);
+        else toast.error(servicesRes.message);
+        if (membersRes.success && membersRes.data) {
+            setAllMembers((membersRes.data as any[]).map((m) => ({ id: m.id, name: m.name, color: m.color })));
+        }
         setLoading(false);
     }, [teamId]);
 
@@ -345,7 +470,14 @@ export function BookingServicesManager({ teamId }: { teamId: string }) {
             {!loading && services.length > 0 && (
                 <div className="space-y-3">
                     {services.map((s) => (
-                        <ServiceCard key={s.id} teamId={teamId} service={s} onUpdated={upsert} onDeleted={remove} />
+                        <ServiceCard
+                            key={s.id}
+                            teamId={teamId}
+                            service={s}
+                            allMembers={allMembers}
+                            onUpdated={upsert}
+                            onDeleted={remove}
+                        />
                     ))}
                 </div>
             )}
