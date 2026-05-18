@@ -368,7 +368,7 @@ export const EditDialog = ({
 
         <form action={(formData) => handleEdit(user.id, formData)}>
           {/* Canal WhatsApp — siempre visible para todos los roles de admin */}
-          <div className="flex flex-col gap-2 pb-3 mb-3 border-b">
+          <div className="flex flex-col gap-2 pb-3 mb-3 border-b bg-blue-50 p-2 rounded">
               <Label className="text-xs font-semibold text-foreground">Canal WhatsApp</Label>
               <div className="flex items-center gap-2">
                 <Select
