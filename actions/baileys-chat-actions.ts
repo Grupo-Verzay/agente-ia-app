@@ -19,7 +19,7 @@ function backendUrl() {
 
 function authHeaders(): Record<string, string> {
   return {
-    'x-internal-secret': process.env.BAILEYS_SECRET ?? '',
+    'x-internal-secret': process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? '',
     'Content-Type': 'application/json',
   };
 }
