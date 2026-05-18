@@ -444,6 +444,12 @@ export async function getPublicTeamData(userId: string) {
                 name: true,
                 description: true,
                 timezone: true,
+                // Todos los miembros activos del equipo (fallback cuando un servicio no tiene asignados)
+                members: {
+                    where: { isActive: true },
+                    select: { id: true, name: true, bio: true, photo: true, color: true },
+                    orderBy: { name: 'asc' },
+                },
                 services: {
                     where: { isActive: true },
                     select: {

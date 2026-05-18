@@ -27,7 +27,9 @@ import {
 } from '@/components/ui/form';
 import {
     createTeamMember, updateTeamMember, deleteTeamMember,
-    getTeamMembers, setMemberAvailability, type AvailabilitySlot,
+    getTeamMembers, setMemberAvailability, getTeamServices,
+    assignServiceToMember, removeServiceFromMember,
+    type AvailabilitySlot,
 } from '@/actions/bookings-actions';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -276,14 +278,88 @@ function MemberFormDialog({
 
 // ─── Member card ──────────────────────────────────────────────────────────────
 
+// ─── Service assignment panel ─────────────────────────────────────────────────
+
+function ServiceAssignment({
+    memberId,
+    assignedIds,
+    allServices,
+    onToggle,
+}: {
+    memberId: string;
+    assignedIds: string[];
+    allServices: { id: string; name: string; duration: number }[];
+    onToggle: (serviceId: string, assigned: boolean) => void;
+}) {
+    const [loading, setLoading] = useState<string | null>(null);
+
+    const handleToggle = async (serviceId: string) => {
+        const isAssigned = assignedIds.includes(serviceId);
+        setLoading(serviceId);
+        const res = isAssigned
+            ? await removeServiceFromMember(memberId, serviceId)
+            : await assignServiceToMember(memberId, serviceId);
+        if (res.success) {
+            onToggle(serviceId, !isAssigned);
+            toast.success(isAssigned ? 'Servicio removido' : 'Servicio asignado');
+        } else {
+            toast.error(res.message);
+        }
+        setLoading(null);
+    };
+
+    if (!allServices.length) {
+        return <p className="text-xs text-muted-foreground">Crea servicios primero en la pestaña Servicios.</p>;
+    }
+
+    return (
+        <div className="space-y-2">
+            <p className="text-sm font-medium">Servicios que atiende</p>
+            <div className="flex flex-wrap gap-2">
+                {allServices.map((svc) => {
+                    const assigned = assignedIds.includes(svc.id);
+                    return (
+                        <button
+                            key={svc.id}
+                            type="button"
+                            disabled={loading === svc.id}
+                            onClick={() => handleToggle(svc.id)}
+                            className={[
+                                'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                                assigned
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'border-border text-muted-foreground hover:border-primary/50',
+                                loading === svc.id ? 'opacity-50 cursor-wait' : '',
+                            ].join(' ')}
+                        >
+                            {loading === svc.id && <Loader2 className="h-3 w-3 animate-spin" />}
+                            {assigned ? '✓ ' : '+ '}{svc.name}
+                            <span className="opacity-60">· {svc.duration}min</span>
+                        </button>
+                    );
+                })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+                {assignedIds.length === 0
+                    ? 'Sin asignación — el especialista aparece en todos los servicios.'
+                    : `${assignedIds.length} servicio(s) asignado(s).`}
+            </p>
+        </div>
+    );
+}
+
+// ─── Member card ──────────────────────────────────────────────────────────────
+
 function MemberCard({
     teamId,
     member,
+    allServices,
     onUpdated,
     onDeleted,
 }: {
     teamId: string;
     member: Member;
+    allServices: { id: string; name: string; duration: number }[];
     onUpdated: (m: Member) => void;
     onDeleted: (id: string) => void;
 }) {
@@ -356,7 +432,21 @@ function MemberCard({
                     </div>
 
                     {expanded && (
-                        <div className="border-t pt-3">
+                        <div className="border-t pt-3 space-y-5">
+                            <ServiceAssignment
+                                memberId={member.id}
+                                assignedIds={member.services.map((s) => s.teamServiceId)}
+                                allServices={allServices}
+                                onToggle={(serviceId, assigned) => {
+                                    onUpdated({
+                                        ...member,
+                                        services: assigned
+                                            ? [...member.services, { teamServiceId: serviceId }]
+                                            : member.services.filter((s) => s.teamServiceId !== serviceId),
+                                    });
+                                }}
+                            />
+                            <div className="h-px bg-border" />
                             <AvailabilityEditor
                                 memberId={member.id}
                                 initial={member.availability}
@@ -397,13 +487,20 @@ function MemberCard({
 
 export function MembersManager({ teamId, teamTimezone }: { teamId: string; teamTimezone: string }) {
     const [members, setMembers] = useState<Member[]>([]);
+    const [allServices, setAllServices] = useState<{ id: string; name: string; duration: number }[]>([]);
     const [loading, setLoading] = useState(true);
 
     const load = useCallback(async () => {
         setLoading(true);
-        const res = await getTeamMembers(teamId);
-        if (res.success && res.data) setMembers(res.data as Member[]);
-        else toast.error(res.message);
+        const [membersRes, servicesRes] = await Promise.all([
+            getTeamMembers(teamId),
+            getTeamServices(teamId),
+        ]);
+        if (membersRes.success && membersRes.data) setMembers(membersRes.data as Member[]);
+        else toast.error(membersRes.message);
+        if (servicesRes.success && servicesRes.data) {
+            setAllServices((servicesRes.data as any[]).map((s) => ({ id: s.id, name: s.name, duration: s.duration })));
+        }
         setLoading(false);
     }, [teamId]);
 
@@ -463,7 +560,7 @@ export function MembersManager({ teamId, teamTimezone }: { teamId: string; teamT
             {!loading && members.length > 0 && (
                 <div className="space-y-3">
                     {members.map((m) => (
-                        <MemberCard key={m.id} teamId={teamId} member={m} onUpdated={upsert} onDeleted={remove} />
+                        <MemberCard key={m.id} teamId={teamId} member={m} allServices={allServices} onUpdated={upsert} onDeleted={remove} />
                     ))}
                 </div>
             )}

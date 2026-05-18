@@ -46,6 +46,7 @@ interface Team {
     name: string;
     description: string | null;
     timezone: string;
+    members: TeamMember[];
     services: TeamService[];
 }
 
@@ -109,7 +110,9 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
 
     // ── Derivados ──
     const currentService = team.services.find((s) => s.id === selectedService);
-    const membersForService: TeamMember[] = currentService?.members.map((m) => m.teamMember) ?? [];
+    // Si el servicio tiene especialistas asignados los usa; si no, muestra todos los del equipo
+    const assignedMembers = currentService?.members.map((m) => m.teamMember) ?? [];
+    const membersForService: TeamMember[] = assignedMembers.length > 0 ? assignedMembers : team.members;
     const duration = currentService?.duration ?? 60;
     const timezone = team.timezone;
 
