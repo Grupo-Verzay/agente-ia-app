@@ -57,7 +57,7 @@ export const DataGrid = <TData, TValue>({
     onCreateClick,
 }: DataTableProps<TData, TValue>) => {
     const [sorting, setSorting] = useState<SortingState>([
-        { id: "createdAt", desc: true }
+        { id: "url", desc: false }
     ])
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
