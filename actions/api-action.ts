@@ -609,17 +609,12 @@ export async function getInstances(userId: string) {
       select: { instanceName: true, instanceId: true, instanceType: true },
     });
 
-    // 🔥 Buscar el usuario y su ApiKey asignada
     const user = await db.user.findUnique({
       where: { id: userId },
       include: { apiKey: true },
     });
 
-    if (!user || !user.apiKey) {
-      throw new Error("El usuario no tiene una ApiKey asignada.");
-    }
-
-    const { url: serverUrl } = user.apiKey;
+    const serverUrl = user?.apiKey?.url ?? null;
 
     const instances = instance.map((i) => ({ ...i, serverUrl }));
     return instances;

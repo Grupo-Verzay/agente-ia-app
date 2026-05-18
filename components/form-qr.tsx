@@ -77,18 +77,28 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorComponentProps> = ({ userId }) =>
         let mounted = true;
 
         const loadInstances = async () => {
+            if (!userId) return;
+            setError(null);
             try {
                 const instances = await getInstances(userId);
                 if (!mounted) return;
 
                 if (!Array.isArray(instances) || instances.length === 0) {
-                    setError('No se encontraron instancias para este usuario.');
+                    setError('No se encontraron instancias para este usuario. Contacta al administrador.');
+                    setLoading(false);
                     return;
                 }
 
                 const whatsappIndex = instances.findIndex(i => i.instanceType === 'Whatsapp');
                 if (whatsappIndex === -1) {
                     setError('No se encontró una instancia tipo Whatsapp para este usuario.');
+                    setLoading(false);
+                    return;
+                }
+
+                if (!instances[whatsappIndex].serverUrl) {
+                    setError('Este usuario no tiene una API Key de Evolution asignada. Contacta al administrador.');
+                    setLoading(false);
                     return;
                 }
 
@@ -104,6 +114,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorComponentProps> = ({ userId }) =>
 
             } catch (err) {
                 setError('Error al cargar instancias: ' + (err instanceof Error ? err.message : String(err)));
+                setLoading(false);
             }
         };
 

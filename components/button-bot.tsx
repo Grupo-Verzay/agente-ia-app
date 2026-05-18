@@ -68,6 +68,8 @@ const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
   }, []);
 
   const loadInstanceData = useCallback(async () => {
+    if (!userId) return;
+    setError(null);
     try {
       const instances = await getInstances(userId);
       if (!instances || instances.length === 0) {
@@ -78,8 +80,12 @@ const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
       const whatsappIndex = instances.findIndex((i) => i.instanceType === "Whatsapp");
       const selected = whatsappIndex >= 0 ? instances[whatsappIndex] : instances[0];
 
-      if (!selected?.instanceName || !selected?.instanceId || !selected?.serverUrl) {
+      if (!selected?.instanceName || !selected?.instanceId) {
         setError("Instancia incompleta: faltan datos requeridos.");
+        return;
+      }
+      if (!selected?.serverUrl) {
+        setError("Este usuario no tiene una API Key de Evolution asignada. Contacta al administrador.");
         return;
       }
 

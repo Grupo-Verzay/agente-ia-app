@@ -71,8 +71,8 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
 
     const resInstancia = await getInstancesByUserId(effectiveId)
     if (!resInstancia.success || !hasInstancia(resInstancia)) {
-        console.error("[REMINDERS_PAGE] No se encontró una API Key válida para el usuario.")
-        return <strong className="text-red-500">No se encontró una API Key válida.</strong>
+        console.error("[REMINDERS_PAGE] No se encontraron instancias activas para el usuario.")
+        return <strong className="text-red-500">No se encontró ninguna instancia activa. Crea una instancia en la página de Conexión.</strong>
     }
 
     /* Flag para comportamiento especifico del módulo de campañas */
