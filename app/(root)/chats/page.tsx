@@ -8,7 +8,6 @@ import { db } from "@/lib/db";
 import { getApiKeyById } from "@/actions/api-action";
 import {
   fetchChatsFromEvolution,
-  findMessagesByRemoteJid,
   type EvolutionMessage as EvoMsgFromAction,
   type FetchChatsResult,
 } from "@/actions/chat-actions";
@@ -85,9 +84,12 @@ export default async function ChatsPage({
       ? (await db.user.findUnique({ where: { id: effectiveOwnerId }, select: { apiKeyId: true } }))?.apiKeyId
       : user.apiKeyId;
 
-  const [resInstancias, resApikey] = await Promise.all([
+  // Fase 1: todo lo que no depende de los chats corre en paralelo
+  const [resInstancias, resApikey, workflowsResponse, quickRepliesResponse0] = await Promise.all([
     getInstancesByUserId(effectiveOwnerId),
     getApiKeyById(ownerApiKeyId),
+    getWorkFlowByUser(effectiveOwnerId),
+    getAllRRs(effectiveOwnerId),
   ]);
 
   const instancias = hasInstancias(resInstancias) ? resInstancias.data : [];
@@ -99,6 +101,7 @@ export default async function ChatsPage({
 
   const isBaileys = whatsappInstancia?.instanceType === "baileys";
 
+  // Fase 2: fetch chats (necesita instancia + apikey)
   const chatsResult: FetchChatsResult =
     whatsappInstancia && (isBaileys || apiKey)
       ? isBaileys
@@ -128,25 +131,9 @@ export default async function ChatsPage({
       ? chatsResult.data[0].remoteJid
       : requestedJid);
 
-  let initialMessages: EvoMsgFromAction[] = [];
-  if (chatsResult.success && initialSelectedJid && whatsappInstancia) {
-    const messagesResponse = isBaileys
-      ? await findMessagesFromBaileys(whatsappInstancia.instanceName, initialSelectedJid, { pageSize: 50 })
-      : apiKey
-        ? await findMessagesByRemoteJid(
-            { url: apiKey.url, key: apiKey.key },
-            whatsappInstancia.instanceName,
-            initialSelectedJid,
-            { page: 1, pageSize: 50, remoteJidAliases: initialSelectedChat?.aliases },
-          )
-        : { success: false as const, message: "Sin API Key." };
+  // initialMessages se carga en el cliente via warmMessagesAction para no bloquear el render
+  const initialMessages: EvoMsgFromAction[] = [];
 
-    if (messagesResponse.success) {
-      initialMessages = messagesResponse.data || [];
-    }
-  }
-
-  const workflowsResponse = await getWorkFlowByUser(effectiveOwnerId);
   const workflows = hasWorkflows(workflowsResponse) ? workflowsResponse.data : [];
   const workflowOptions: ChatWorkflowOption[] = workflows.map((workflow) => ({
     id: workflow.id,
@@ -154,8 +141,7 @@ export default async function ChatsPage({
     isPro: workflow.isPro,
   }));
 
-  const quickRepliesResponse = await getAllRRs(effectiveOwnerId);
-  const quickReplies = hasQuickReplies(quickRepliesResponse) ? quickRepliesResponse.data : [];
+  const quickReplies = hasQuickReplies(quickRepliesResponse0) ? quickRepliesResponse0.data : [];
   const quickReplyOptions: ChatQuickReplyOption[] = quickReplies
     .map((quickReply) => {
       const workflow = workflows.find((item) => item.id === quickReply.workflowId);
