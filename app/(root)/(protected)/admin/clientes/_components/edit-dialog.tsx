@@ -27,8 +27,9 @@ import { Switch } from "@/components/ui/switch"
 import { ApiKeyConfigurator } from "@/app/(root)/profile/_components/ApiKeyConfigurator"
 import { getIaCreditByUser } from "@/actions/actions-ia-credits"
 import { onTokensToCredits } from "@/utils/onTokensToCredits"
-import { switchInstanceAdapter } from "@/actions/instances-actions"
+import { setUserConnectionType } from "@/actions/instances-actions"
 import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 interface Props {
   openEditDialog: boolean
   setOpenEditDialog: (open: boolean) => void
@@ -69,7 +70,13 @@ export const EditDialog = ({
   const [creditUsed, setCreditUsed] = useState(0);
   const [creditHasRecord, setCreditHasRecord] = useState(false);
   const [creditLoading, setCreditLoading] = useState(false);
-  const [switchingInstance, setSwitchingInstance] = useState<string | null>(null);
+  const waInstance = (user.instancias ?? []).find(
+    (i) => i.instanceType !== 'Instagram' && i.instanceType !== 'Facebook'
+  );
+  const [connectionType, setConnectionType] = useState<'baileys' | 'Whatsapp'>(
+    waInstance?.instanceType === 'baileys' ? 'baileys' : 'Whatsapp'
+  );
+  const [applyingType, setApplyingType] = useState(false);
 
   useEffect(() => {
     if (!openEditDialog || currentUserRol === 'reseller') return;
@@ -415,47 +422,44 @@ export const EditDialog = ({
                 });
               })()}
 
-              {/* Instancias WhatsApp — solo para admins */}
-              {showAiConfig && (() => {
-                const waInstances = (user.instancias ?? []).filter(
-                  (i) => i.instanceType !== 'Instagram' && i.instanceType !== 'Facebook'
-                );
-                if (!waInstances.length) return null;
-                return (
-                  <div className="flex flex-col gap-2 pt-2 border-t">
-                    <Label className="text-xs font-semibold text-foreground">Canal WhatsApp</Label>
-                    {waInstances.map((inst) => {
-                      const isBaileys = inst.instanceType === 'baileys';
-                      const target = isBaileys ? 'Whatsapp' : 'baileys';
-                      const label = isBaileys ? 'Cambiar a Evo API' : 'Cambiar a Baileys';
-                      const loading = switchingInstance === inst.instanceName;
-                      return (
-                        <div key={inst.instanceName} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-sm font-medium">{inst.instanceName}</span>
-                            <span className={`text-xs ${isBaileys ? 'text-blue-500' : 'text-green-600'}`}>
-                              {isBaileys ? 'Baileys' : 'Evolution API'}
-                            </span>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={loading}
-                            onClick={async () => {
-                              setSwitchingInstance(inst.instanceName);
-                              await switchInstanceAdapter(inst.instanceName, target);
-                              setSwitchingInstance(null);
-                            }}
-                          >
-                            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : label}
-                          </Button>
-                        </div>
-                      );
-                    })}
+              {/* Canal WhatsApp — solo para admins */}
+              {showAiConfig && (
+                <div className="flex flex-col gap-2 pt-2 border-t">
+                  <Label className="text-xs font-semibold text-foreground">Canal WhatsApp</Label>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={connectionType}
+                      onValueChange={(v) => setConnectionType(v as 'baileys' | 'Whatsapp')}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Whatsapp">Evolution API</SelectItem>
+                        <SelectItem value="baileys">Baileys</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={applyingType}
+                      onClick={async () => {
+                        setApplyingType(true);
+                        const res = await setUserConnectionType(user.id, connectionType, user.company ?? undefined);
+                        setApplyingType(false);
+                        if (res.success) toast.success(res.message);
+                        else toast.error(res.message);
+                      }}
+                    >
+                      {applyingType ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Aplicar'}
+                    </Button>
                   </div>
-                );
-              })()}
+                  {waInstance && (
+                    <p className="text-xs text-muted-foreground">Instancia: {waInstance.instanceName}</p>
+                  )}
+                </div>
+              )}
 
             </div>
           </div>

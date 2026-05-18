@@ -223,3 +223,73 @@ export async function getInstancesByUserId(userId: string): Promise<InstanceResp
     };
   }
 }
+
+export async function setUserConnectionType(
+  userId: string,
+  targetType: 'baileys' | 'Whatsapp',
+  companyName?: string,
+): Promise<{ success: boolean; message: string }> {
+  if (!userId) return { success: false, message: 'userId requerido.' };
+
+  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
+  const secret = process.env.BAILEYS_SECRET;
+
+  try {
+    const existing = await db.instancia.findFirst({
+      where: {
+        userId,
+        NOT: { instanceType: { in: ['Instagram', 'Facebook'] } },
+      },
+    });
+
+    if (existing) {
+      if (targetType === 'baileys') {
+        await db.instancia.update({ where: { id: existing.id }, data: { instanceType: 'baileys' } });
+        if (backendUrl && secret) {
+          await fetch(`${backendUrl}/whatsapp/baileys/start/${encodeURIComponent(existing.instanceName)}`, {
+            method: 'POST', headers: { 'x-internal-secret': secret }, cache: 'no-store',
+          }).catch(() => {});
+        }
+      } else {
+        if (existing.instanceType === 'baileys' && backendUrl && secret) {
+          await fetch(`${backendUrl}/whatsapp/baileys/stop/${encodeURIComponent(existing.instanceName)}`, {
+            method: 'DELETE', headers: { 'x-internal-secret': secret }, cache: 'no-store',
+          }).catch(() => {});
+        }
+        await db.instancia.update({ where: { id: existing.id }, data: { instanceType: 'Whatsapp' } });
+      }
+    } else {
+      // Sin instancia → crear una nueva
+      const base = (companyName ?? userId)
+        .toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .slice(0, 20)
+        .replace(/^_|_$/g, '');
+      const instanceName = `${base}_${Math.random().toString(36).slice(2, 7)}`;
+
+      await db.instancia.create({
+        data: {
+          instanceName,
+          instanceType: targetType,
+          userId,
+          instanceId: `${targetType === 'baileys' ? 'baileys' : 'evo'}-${instanceName}`,
+        },
+      });
+
+      if (targetType === 'baileys' && backendUrl && secret) {
+        await fetch(`${backendUrl}/whatsapp/baileys/start/${encodeURIComponent(instanceName)}`, {
+          method: 'POST', headers: { 'x-internal-secret': secret }, cache: 'no-store',
+        }).catch(() => {});
+      }
+    }
+
+    revalidatePath('/connection');
+    const label = targetType === 'baileys' ? 'Baileys' : 'Evolution API';
+    return { success: true, message: `Canal configurado como ${label}. El cliente puede conectar desde su página de Conexión.` };
+  } catch (err) {
+    console.error('[setUserConnectionType]', err);
+    return { success: false, message: 'Error al configurar el canal.' };
+  }
+}
