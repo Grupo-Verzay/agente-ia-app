@@ -401,22 +401,43 @@ export async function getChatContactSessions(
       };
     }
 
-    const sessions = await db.session.findMany({
-      where: {
-        userId,
-        OR: [
-          { remoteJid: { in: allCandidates } },
-          { remoteJidAlt: { in: allCandidates } },
-        ],
-      },
-      include: {
-        sessionTags: {
-          include: {
-            tag: true,
+    // PostgreSQL tiene un límite de 32767 bind variables por query.
+    // Con miles de chats (cada uno con múltiples JID candidates) se supera fácilmente.
+    // Solución: dividir en lotes de 5000 candidatos y unir resultados deduplicando por ID.
+    const BATCH_SIZE = 5000;
+    const candidateBatches: string[][] = [];
+    for (let i = 0; i < allCandidates.length; i += BATCH_SIZE) {
+      candidateBatches.push(allCandidates.slice(i, i + BATCH_SIZE));
+    }
+
+    const sessionBatches = await Promise.all(
+      candidateBatches.map((batch) =>
+        db.session.findMany({
+          where: {
+            userId,
+            OR: [
+              { remoteJid: { in: batch } },
+              { remoteJidAlt: { in: batch } },
+            ],
           },
-        },
-      },
-    });
+          include: {
+            sessionTags: {
+              include: {
+                tag: true,
+              },
+            },
+          },
+        }),
+      ),
+    );
+
+    const sessionDedupeMap = new Map<number, (typeof sessionBatches)[0][0]>();
+    for (const batch of sessionBatches) {
+      for (const session of batch) {
+        sessionDedupeMap.set(session.id, session);
+      }
+    }
+    const sessions = Array.from(sessionDedupeMap.values());
 
     const sessionsByCandidate = new Map<string, SessionWithTagsRecord[]>();
     for (const session of sessions) {

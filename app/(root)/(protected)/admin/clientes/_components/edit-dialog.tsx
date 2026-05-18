@@ -422,47 +422,47 @@ export const EditDialog = ({
                 });
               })()}
 
-              {/* Canal WhatsApp — solo para admins */}
-              {showAiConfig && (
-                <div className="flex flex-col gap-2 pt-2 border-t">
-                  <Label className="text-xs font-semibold text-foreground">Canal WhatsApp</Label>
-                  <div className="flex items-center gap-2">
-                    <Select
-                      value={connectionType}
-                      onValueChange={(v) => setConnectionType(v as 'baileys' | 'Whatsapp')}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Whatsapp">Evolution API</SelectItem>
-                        <SelectItem value="baileys">Baileys</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={applyingType}
-                      onClick={async () => {
-                        setApplyingType(true);
-                        const res = await setUserConnectionType(user.id, connectionType, user.company ?? undefined);
-                        setApplyingType(false);
-                        if (res.success) toast.success(res.message);
-                        else toast.error(res.message);
-                      }}
-                    >
-                      {applyingType ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Aplicar'}
-                    </Button>
-                  </div>
-                  {waInstance && (
-                    <p className="text-xs text-muted-foreground">Instancia: {waInstance.instanceName}</p>
-                  )}
-                </div>
-              )}
-
             </div>
           </div>
+
+          {/* Canal WhatsApp — fuera del área scrollable, siempre visible */}
+          {showAiConfig && (
+            <div className="flex flex-col gap-2 py-3 border-t border-b">
+              <Label className="text-xs font-semibold text-foreground">Canal WhatsApp</Label>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={connectionType}
+                  onValueChange={(v) => setConnectionType(v as 'baileys' | 'Whatsapp')}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Whatsapp">Evolution API</SelectItem>
+                    <SelectItem value="baileys">Baileys</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={applyingType}
+                  onClick={async () => {
+                    setApplyingType(true);
+                    const res = await setUserConnectionType(user.id, connectionType, user.company ?? undefined);
+                    setApplyingType(false);
+                    if (res.success) toast.success(res.message);
+                    else toast.error(res.message);
+                  }}
+                >
+                  {applyingType ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Aplicar'}
+                </Button>
+              </div>
+              {waInstance && (
+                <p className="text-xs text-muted-foreground">Instancia: {waInstance.instanceName}</p>
+              )}
+            </div>
+          )}
 
           <DialogFooter className="pt-4 flex-row justify-between sm:justify-between">
             <Button variant="outline" type="button" onClick={() => setOpenEditDialog(false)}>Cancelar</Button>
