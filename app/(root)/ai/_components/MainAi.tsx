@@ -17,7 +17,7 @@ import {
 } from "@/types/agentAi";
 import { ProductBuilder } from "./ProductBuilder";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, MoreVertical } from "lucide-react";
+import { ArrowLeft, ArrowRight, MoreVertical, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PromptToolbar } from "./PromptToolbar";
 import {
@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { GenericDeleteDialog } from "@/components/shared/GenericDeleteDialog";
 import { deleteAgentPromptsByUserId } from "@/actions/prompt-actions";
+import { FlowGeneratorModal } from "./FlowGeneratorModal";
 
 export const TYPE_AI_LABELS = {
     business: "Perfil",
@@ -51,6 +52,7 @@ type TabKey = keyof typeof TYPE_AI_LABELS;
 
 export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     const [showAlertDialog, setShowAlertDialog] = useState(false);
+    const [showFlowGenerator, setShowFlowGenerator] = useState(false);
 
     const trainingMd = sections?.training
         ? buildTrainingMarkdown(TrainingDraftSchema.parse(sections.training))
@@ -236,8 +238,12 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                         <MoreVertical />
                                     </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent className="w-40" align="end">
+                                <DropdownMenuContent className="w-48" align="end">
                                     <DropdownMenuGroup>
+                                        <DropdownMenuItem onSelect={() => setShowFlowGenerator(true)}>
+                                            <Sparkles className="mr-2 h-4 w-4" />
+                                            Generar con IA
+                                        </DropdownMenuItem>
                                         <DropdownMenuItem onSelect={() => setShowAlertDialog(true)}>
                                             Eliminar todo
                                         </DropdownMenuItem>
@@ -396,6 +402,13 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                 itemId={(user as any).effectiveId ?? user.id}
                 mutationFn={() => deleteAgentPromptsByUserId((user as any).effectiveId ?? user.id)}
                 entityLabel="todo el auto prompt"
+            />
+
+            <FlowGeneratorModal
+                open={showFlowGenerator}
+                onOpenChange={setShowFlowGenerator}
+                promptId={promptMeta.id}
+                version={promptVersion}
             />
         </>
     );
