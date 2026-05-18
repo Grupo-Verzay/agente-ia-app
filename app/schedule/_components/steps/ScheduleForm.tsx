@@ -11,6 +11,7 @@ export const ScheduleForm = ({
     areaCode,
     phone,
     canContinueStep2,
+    loading = false,
     setNameClient,
     setAreaCode,
     setPhone,
@@ -58,8 +59,8 @@ export const ScheduleForm = ({
                     <Button variant="outline" onClick={() => setStep(2)}>
                         Atrás
                     </Button>
-                    <Button disabled={!canContinueStep2} onClick={onContinue} className="bg-green-600 hover:bg-green-700 text-white">
-                        Confirmar
+                    <Button disabled={!canContinueStep2 || loading} onClick={onContinue} className="bg-green-600 hover:bg-green-700 text-white">
+                        {loading ? "Agendando..." : "Confirmar"}
                     </Button>
                 </div>
             </CardContent>

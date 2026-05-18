@@ -60,6 +60,7 @@ export interface ScheduleFormInterface {
 
     // estado UI / validaciones
     canContinueStep2: boolean;
+    loading?: boolean;
 
     // acciones
     setNameClient: (name: string) => void;

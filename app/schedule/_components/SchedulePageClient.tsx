@@ -433,6 +433,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                             areaCode={areaCode}
                             phone={phone}
                             canContinueStep2={canContinueStep3}
+                            loading={loading}
                             setNameClient={setNameClient}
                             setAreaCode={setAreaCode}
                             setPhone={setPhone}
