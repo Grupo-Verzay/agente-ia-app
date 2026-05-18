@@ -231,13 +231,14 @@ export async function generateAgentFlow(input: {
     const { description, promptId, version } = input;
     if (!description.trim()) return { success: false, error: 'La descripción está vacía.' };
 
-    // Obtener API key usando el mismo mecanismo que el agente (defaultProviderId del usuario)
+    // Obtener API key: primero la del usuario, luego la del sistema como fallback
     const userId = (user as any).effectiveId ?? user.id;
     const aiClient = await resolveUserAiClient(userId);
-    if (!aiClient.success || !aiClient.data?.apiKey) {
-        return { success: false, error: 'No tienes una API Key configurada. Ve a Perfil → Api Key IA → Configurar.' };
+    const systemKey = process.env.OPENAI_SYSTEM_API_KEY ?? '';
+    const apiKey = aiClient.data?.apiKey || systemKey;
+    if (!apiKey) {
+        return { success: false, error: 'No tienes una API Key de OpenAI configurada. Ve a Perfil → Api Key IA → Configurar.' };
     }
-    const apiKey = aiClient.data.apiKey;
 
     // Llamar a OpenAI con JSON mode
     let raw: string;

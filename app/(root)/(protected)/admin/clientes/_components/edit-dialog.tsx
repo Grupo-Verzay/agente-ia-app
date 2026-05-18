@@ -367,9 +367,8 @@ export const EditDialog = ({
 
 
         <form action={(formData) => handleEdit(user.id, formData)}>
-          {/* Canal WhatsApp — visible al abrir, antes del scroll */}
-          {showAiConfig && (
-            <div className="flex flex-col gap-2 pb-3 mb-3 border-b">
+          {/* Canal WhatsApp — siempre visible para todos los roles de admin */}
+          <div className="flex flex-col gap-2 pb-3 mb-3 border-b">
               <Label className="text-xs font-semibold text-foreground">Canal WhatsApp</Label>
               <div className="flex items-center gap-2">
                 <Select
@@ -404,7 +403,6 @@ export const EditDialog = ({
                 <p className="text-xs text-muted-foreground">Instancia: {waInstance.instanceName}</p>
               )}
             </div>
-          )}
 
           <div className="overflow-auto max-h-[28rem] pr-2">
             <div className="grid gap-4 py-4">
