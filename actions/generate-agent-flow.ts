@@ -1,7 +1,7 @@
 'use server';
 
 import { currentUser } from '@/lib/auth';
-import { db } from '@/lib/db';
+import { resolveUserAiClient } from '@/actions/userAiconfig-actions';
 import {
     patchBusinessSection,
     patchExtrasSection,
@@ -231,20 +231,13 @@ export async function generateAgentFlow(input: {
     const { description, promptId, version } = input;
     if (!description.trim()) return { success: false, error: 'La descripción está vacía.' };
 
-    // Obtener API key OpenAI del usuario desde UserAiConfig (no confundir con apiKey de Evolution)
+    // Obtener API key usando el mismo mecanismo que el agente (defaultProviderId del usuario)
     const userId = (user as any).effectiveId ?? user.id;
-    const aiConfig = await db.userAiConfig.findFirst({
-        where: {
-            userId,
-            isActive: true,
-            provider: { name: { contains: 'openai', mode: 'insensitive' } },
-        },
-    });
-
-    const apiKey = aiConfig?.apiKey;
-    if (!apiKey) {
-        return { success: false, error: 'No tienes una API Key de OpenAI configurada. Ve a Perfil → Api Key IA → Configurar y guarda tu clave sk-...' };
+    const aiClient = await resolveUserAiClient(userId);
+    if (!aiClient.success || !aiClient.data?.apiKey) {
+        return { success: false, error: 'No tienes una API Key configurada. Ve a Perfil → Api Key IA → Configurar.' };
     }
+    const apiKey = aiClient.data.apiKey;
 
     // Llamar a OpenAI con JSON mode
     let raw: string;
