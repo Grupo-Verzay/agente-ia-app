@@ -37,43 +37,38 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
 
     const effectiveId: string = (user as any).effectiveId ?? user.id;
 
-    // Obtener API Key
+    // Obtener API Key (opcional — sin ella el módulo de recordatorios no puede enviar mensajes)
     const resApikey = await getApiKeyById(user.apiKeyId)
-    if (!resApikey.success || !hasApiKey(resApikey)) {
-        console.error("[REMINDERS_PAGE] No se encontró una API Key válida para el usuario.")
-        return <strong className="text-red-500">No se encontró una API Key válida.</strong>
-    }
+    const apiKey = hasApiKey(resApikey) ? resApikey.data : null;
 
-    // Obtener recordatorios
-    const resReminder = await getRemindersByUserId(effectiveId)
+    // Obtener recordatorios, sesiones, workflows e instancia en paralelo
+    const [resReminder, resSession, resWorkflow, resInstancia] = await Promise.all([
+        getRemindersByUserId(effectiveId),
+        getSessionsByUserId(effectiveId),
+        getWorkFlowByUser(effectiveId),
+        getInstancesByUserId(effectiveId),
+    ]);
+
     if (!resReminder.success) {
         console.error("[REMINDERS_PAGE] Error al obtener recordatorios:", resReminder.message)
         return <strong>404</strong>
     }
-    const reminders = hasReminder(resReminder) ? resReminder.data : []
-
-    // Obtener sesiones
-    const resSession = await getSessionsByUserId(effectiveId)
     if (!resSession.success) {
         console.error("[REMINDERS_PAGE] Error al obtener sesiones:", resSession.message)
         return <strong>404</strong>
     }
-    const sessions = hasSession(resSession) ? resSession.data : []
-
-    // Obtener workflows
-    const resWorkflow = await getWorkFlowByUser(effectiveId)
     if (!resWorkflow.success) {
         console.error("[REMINDERS_PAGE] Error al obtener flujos de trabajo:", resWorkflow.message)
         return <strong>404</strong>
     }
-    const workflows = hasWorkflow(resWorkflow) ? resWorkflow.data : []
-
-
-    const resInstancia = await getInstancesByUserId(effectiveId)
     if (!resInstancia.success || !hasInstancia(resInstancia)) {
         console.error("[REMINDERS_PAGE] No se encontraron instancias activas para el usuario.")
         return <strong className="text-red-500">No se encontró ninguna instancia activa. Crea una instancia en la página de Conexión.</strong>
     }
+
+    const reminders = hasReminder(resReminder) ? resReminder.data : []
+    const sessions = hasSession(resSession) ? resSession.data : []
+    const workflows = hasWorkflow(resWorkflow) ? resWorkflow.data : []
 
     /* Flag para comportamiento especifico del módulo de campañas */
     const isCampaignPage = false;
@@ -82,7 +77,7 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
         <MainSchedule
             isCampaignPage={isCampaignPage}
             user={user}
-            apiKey={resApikey.data}
+            apiKey={apiKey}
             reminders={reminders}
             leads={sessions}
             workflows={workflows}

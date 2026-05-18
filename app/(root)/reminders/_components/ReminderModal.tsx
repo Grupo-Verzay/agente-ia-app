@@ -13,7 +13,7 @@ import { ApiKey, Session, Workflow, User, Instancia } from "@prisma/client"
 
 interface ReminderModalProps {
     user: User
-    apiKey: ApiKey
+    apiKey: ApiKey | null
     leads: Session[]
     workflows: Workflow[]
     instancia: Instancia
@@ -32,8 +32,8 @@ export const ReminderModal = ({ user, apiKey, leads, workflows, instancia, isSch
             repeatType: reminderData.repeatType || '',
             instanceName: reminderData.instanceName || '',
             pushName: reminderData.pushName || '',
-            serverUrl: apiKey.url || '',
-            apikey: apiKey.key || '',
+            serverUrl: apiKey?.url || '',
+            apikey: apiKey?.key || '',
             userId: reminderData.userId || '',
             workflowId: reminderData?.workflowId || '',
             remoteJid: reminderData.remoteJid || '',
@@ -67,13 +67,18 @@ export const ReminderModal = ({ user, apiKey, leads, workflows, instancia, isSch
                                 </Button>
                             </CardHeader>
                             <CardContent className="py-0 px-6">
+                                {!apiKey && (
+                                    <p className="text-sm text-amber-500 mb-3">
+                                        No tienes una API Key asignada. Contacta al administrador para poder enviar recordatorios.
+                                    </p>
+                                )}
                                 <ScrollArea className="max-h-[34rem] overflow-y-auto">
                                 <Suspense fallback={<CreateReminderSkeleton />}>
                                     <ReminderForm
                                         instanceNameReminder={instancia.instanceName}
                                         userId={user.id}
-                                        apikey={apiKey.key}
-                                        serverUrl={apiKey.url}
+                                        apikey={apiKey?.key ?? ''}
+                                        serverUrl={apiKey?.url ?? ''}
                                         leads={leads}
                                         workflows={workflows}
                                         initialData={transformedReminder}

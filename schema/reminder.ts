@@ -74,7 +74,7 @@ export interface ReminderInterface {
 export interface MainReminderInterface {
     isCampaignPage: boolean,
     user: UserWithApiKeys,
-    apiKey: ApiKey,
+    apiKey: ApiKey | null,
     reminders: Reminders[],
     leads: Session[],
     workflows: Workflow[]
