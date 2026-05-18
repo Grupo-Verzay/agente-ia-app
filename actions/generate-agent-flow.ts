@@ -231,15 +231,19 @@ export async function generateAgentFlow(input: {
     const { description, promptId, version } = input;
     if (!description.trim()) return { success: false, error: 'La descripción está vacía.' };
 
-    // Obtener API key OpenAI del usuario
-    const userWithKey = await db.user.findUnique({
-        where: { id: (user as any).effectiveId ?? user.id },
-        include: { apiKey: true },
+    // Obtener API key OpenAI del usuario desde UserAiConfig (no confundir con apiKey de Evolution)
+    const userId = (user as any).effectiveId ?? user.id;
+    const aiConfig = await db.userAiConfig.findFirst({
+        where: {
+            userId,
+            isActive: true,
+            provider: { name: { contains: 'openai', mode: 'insensitive' } },
+        },
     });
 
-    const apiKey = userWithKey?.apiKey?.key;
+    const apiKey = aiConfig?.apiKey;
     if (!apiKey) {
-        return { success: false, error: 'No tienes una API Key de OpenAI configurada. Ve a Configuración → Evo Api y asigna una.' };
+        return { success: false, error: 'No tienes una API Key de OpenAI configurada. Ve a Perfil → Api Key IA → Configurar y guarda tu clave sk-...' };
     }
 
     // Llamar a OpenAI con JSON mode
