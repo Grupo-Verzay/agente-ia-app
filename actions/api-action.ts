@@ -266,7 +266,8 @@ export async function eliminarApiKey(id: string) {
 
 export async function obtenerApiKeys() {
   try {
-    const apiKeys = await db.apiKey.findMany({ orderBy: { url: 'asc' } });
+    const apiKeys = await db.apiKey.findMany();
+    apiKeys.sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
     return { success: true, data: apiKeys };
   } catch (error: any) {
     return { success: false, message: error.message || "Error al obtener las API Keys." };
