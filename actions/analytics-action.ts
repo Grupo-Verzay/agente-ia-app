@@ -144,6 +144,7 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
             },
             select: { amount: true, occurredAt: true, createdAt: true },
             orderBy: { occurredAt: "asc" },
+            take: 5000,
         });
 
         const totalSales = salesRaw.length;
@@ -183,6 +184,7 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
                 ...(dateFilter ? { occurredAt: dateFilter } : {}),
             },
             select: { amount: true, categoryId: true },
+            take: 5000,
         });
         const totalExpenses = expensesRaw.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);
 
@@ -221,6 +223,7 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
         const recentSessions = await db.session.findMany({
             where: { userId, createdAt: { gte: activityStart } },
             select: { createdAt: true },
+            take: 3000,
         });
 
         const dayMap: Record<string, number> = {};

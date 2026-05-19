@@ -427,6 +427,7 @@ export async function getChatContactSessions(
               },
             },
           },
+          take: 1000,
         }),
       ),
     );
@@ -884,6 +885,7 @@ export async function getSessionByRemoteJid(
           },
         },
       },
+      take: 100,
     });
 
     const preferredSession = sessions.sort((a, b) => {

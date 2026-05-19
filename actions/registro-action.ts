@@ -303,6 +303,7 @@ async function getSessionIdsByCrmFollowUpFilter(
             remoteJid: true,
             instanceId: true,
         },
+        take: 5000,
     });
 
     if (!sessions.length) return [];
@@ -876,6 +877,7 @@ export async function getCrmDashboardStatsByUserId(
         const sessions = await db.session.findMany({
             where: { userId },
             select: { remoteJid: true, instanceId: true },
+            take: 5000,
         });
 
         const uniqueSessionsMap = new Map<string, { remoteJid: string; instanceId: string }>();
