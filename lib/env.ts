@@ -48,9 +48,11 @@ const envSchema = z.object({
   }
 );
 
+const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+
 const parsed = envSchema.safeParse(process.env);
 
-if (!parsed.success) {
+if (!isBuildPhase && !parsed.success) {
   console.error("❌ Variables de entorno inválidas:");
   parsed.error.issues.forEach((issue) => {
     console.error(`  - ${issue.path.join(".")}: ${issue.message}`);
@@ -58,4 +60,4 @@ if (!parsed.success) {
   throw new Error("Variables de entorno inválidas. Revisa la configuración del servidor.");
 }
 
-export const env = parsed.data;
+export const env = (parsed.success ? parsed.data : {}) as z.infer<typeof envSchema>;
