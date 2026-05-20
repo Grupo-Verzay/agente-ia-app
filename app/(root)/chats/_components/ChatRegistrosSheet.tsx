@@ -84,6 +84,7 @@ export function ChatRegistrosSheet({
   userId,
   remoteJid,
   instanceId,
+  initialTab,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -93,12 +94,13 @@ export function ChatRegistrosSheet({
   userId: string;
   remoteJid: string;
   instanceId: string | null;
+  initialTab?: string;
 }) {
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [flujosEjecutados, setFlujosEjecutados] = useState(0);
   const [seguimientosPendientes, setSeguimientosPendientes] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("RESUMEN");
+  const [activeTab, setActiveTab] = useState(initialTab ?? "RESUMEN");
 
   const [upsertOpen, setUpsertOpen] = useState(false);
   const [upsertMode, setUpsertMode] = useState<"create" | "edit">("create");
@@ -126,8 +128,11 @@ export function ChatRegistrosSheet({
   }, [sessionId, userId, remoteJid]);
 
   useEffect(() => {
-    if (open) load();
-  }, [open, load]);
+    if (open) {
+      setActiveTab(initialTab ?? "RESUMEN");
+      load();
+    }
+  }, [open, load, initialTab]);
 
   const countByTipo = useMemo(() => {
     const counts = {} as Record<TipoRegistro, number>;

@@ -26,6 +26,7 @@ import { resolveSession } from '@/actions/advisor-assign-actions';
 import { SintesisEditDialog } from './SintesisEditDialog';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
+import { ChatSeguimientosButton } from './ChatSeguimientosButton';
 import { LeadContextSheet } from './LeadContextSheet';
 import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 import { cn } from '@/lib/utils';
@@ -322,6 +323,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 remoteJid={session.remoteJid}
                 instanceId={session.instanceId}
               />
+              <ChatSeguimientosButton
+                session={session}
+                whatsapp={displayedWhatsapp}
+                onRefresh={onSessionRefresh}
+              />
             </div>
             <div className="flex items-center gap-1.5">
               {crmBadge}
@@ -401,6 +407,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 userId={session.userId}
                 remoteJid={session.remoteJid}
                 instanceId={session.instanceId}
+              />
+              <ChatSeguimientosButton
+                session={session}
+                whatsapp={displayedWhatsapp}
+                onRefresh={onSessionRefresh}
               />
               {crmBadge}
               <ChatReminderDialog session={session!} userId={userId} />

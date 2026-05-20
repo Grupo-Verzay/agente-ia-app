@@ -34,7 +34,7 @@ import { SessionTagsCombobox } from "../../tags/components";
 import { Session, SimpleTag } from "@/types/session";
 import { SwitchAgentDisabled } from "./SwitchAgentDisabled";
 import { FlowListOrder } from "./FlowListOrder";
-import { SeguimientoBadge } from "./SeguimientoBadge";
+import { SeguimientosDetailCell } from "./SeguimientosDetailCell";
 import { EditableNameCell } from "./EditableNameCell";
 
 function DateCell({ value }: { value: string }) {
@@ -316,14 +316,11 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
           Seguimientos <ArrowUpDown className="ml-0.5 h-3 w-3" />
         </Button>
       ),
-      cell: ({ row }) => {
-        const count = (row.original.pendingSeguimientos ?? 0) as number;
-        return (
-          <div className="flex justify-center">
-            <SeguimientoBadge count={count} />
-          </div>
-        );
-      },
+      cell: ({ row }) => (
+        <div className="flex justify-center">
+          <SeguimientosDetailCell session={row.original} />
+        </div>
+      ),
     },
     {
       id: "tags",
