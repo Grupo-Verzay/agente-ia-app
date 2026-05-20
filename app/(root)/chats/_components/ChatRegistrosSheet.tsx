@@ -55,6 +55,7 @@ const NUEVO_TIPO_LABEL: Partial<Record<string, string>> = {
   PAGO:      "Nuevo Pago",
   RESERVA:   "Nueva Reserva",
   PRODUCTO:  "Nuevo Producto",
+  REPORTE:   "Nuevo Reporte",
 };
 
 const TAB_LABELS: Record<string, string> = {
@@ -65,6 +66,7 @@ const TAB_LABELS: Record<string, string> = {
   PAGO:         "Pagos",
   RESERVA:      "Reservas",
   PRODUCTO:     "Productos",
+  REPORTE:      "Reportes",
   SEGUIMIENTOS: "Seguimientos",
 };
 
@@ -381,6 +383,10 @@ export function ChatRegistrosSheet({
                           <span className="text-sm text-muted-foreground">Follow-ups IA</span>
                           <span className="text-sm font-bold">{seguimientosPendientes}</span>
                         </button>
+                        <button type="button" onClick={() => setActiveTab("REPORTE")} className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors">
+                          <span className="text-sm text-muted-foreground">Reportes</span>
+                          <span className="text-sm font-bold">{registros.filter((r) => r.tipo === "REPORTE").length}</span>
+                        </button>
                       </div>
                     </div>
 
@@ -408,7 +414,7 @@ export function ChatRegistrosSheet({
               </TabsContent>
 
               {/* TABS POR TIPO */}
-              {TIPOS.map((tipo) => (
+              {([...TIPOS, "REPORTE"] as TipoRegistro[]).map((tipo) => (
                 <TabsContent key={tipo} value={tipo} className="flex-1 min-h-0 mt-0">
                   <RegistrosTable
                     tipo={tipo}
