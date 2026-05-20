@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { X, ArrowLeft } from "lucide-react";
 import type { Registro, TipoRegistro } from "@prisma/client";
 
 import { getRegistrosBySessionId, deleteRegistro } from "@/actions/registro-action";
@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -57,8 +57,6 @@ const NUEVO_TIPO_LABEL: Partial<Record<string, string>> = {
   PRODUCTO:  "Nuevo Producto",
 };
 
-const TAB_BASE = "text-xs px-2.5 py-1.5 rounded-md font-medium data-[state=active]:shadow-none";
-
 const TAB_LABELS: Record<string, string> = {
   RESUMEN:      "Resumen",
   SOLICITUD:    "Solicitudes",
@@ -68,17 +66,6 @@ const TAB_LABELS: Record<string, string> = {
   RESERVA:      "Reservas",
   PRODUCTO:     "Productos",
   SEGUIMIENTOS: "Seguimientos",
-};
-
-const TAB_COLORS: Record<string, string> = {
-  RESUMEN:      "bg-slate-700  text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-slate-700 data-[state=active]:text-white",
-  SOLICITUD:    "bg-blue-500   text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-blue-500",
-  PEDIDO:       "bg-orange-500 text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-orange-500",
-  RECLAMO:      "bg-red-500    text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-red-500",
-  PAGO:         "bg-green-500  text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-green-500",
-  RESERVA:      "bg-teal-500   text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-teal-500",
-  PRODUCTO:     "bg-purple-500 text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-purple-500",
-  SEGUIMIENTOS: "bg-amber-500  text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-amber-500",
 };
 
 const LEAD_STATUS_LABELS: Record<string, string> = {
@@ -231,9 +218,24 @@ export function ChatRegistrosSheet({
         <DialogContent className="w-full max-w-3xl h-[85vh] flex flex-col p-0 gap-0 [&>button]:hidden">
           <DialogHeader className="px-4 pt-3 pb-3 border-b shrink-0">
             <div className="flex items-center justify-between gap-2">
-              <DialogTitle className="text-base font-semibold">
-                Registros — {sessionPushName ?? whatsapp}
-              </DialogTitle>
+              <div className="flex items-center gap-2 min-w-0">
+                {activeTab !== "RESUMEN" && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 rounded-md hover:bg-muted"
+                    onClick={() => setActiveTab("RESUMEN")}
+                    title="Volver al resumen"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                )}
+                <DialogTitle className="text-base font-semibold truncate">
+                  {activeTab === "RESUMEN"
+                    ? `Registros — ${sessionPushName ?? whatsapp}`
+                    : `${TAB_LABELS[activeTab] ?? activeTab} — ${sessionPushName ?? whatsapp}`}
+                </DialogTitle>
+              </div>
               <div className="flex items-center gap-2 shrink-0">
                 {activeTab === "RESUMEN" ? (
                   <DropdownMenu>
@@ -270,13 +272,6 @@ export function ChatRegistrosSheet({
             </div>
           ) : (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 px-4 pt-3 pb-3">
-              <TabsList className="flex gap-1 mb-3 h-auto bg-transparent p-0 w-full justify-between">
-                {(["RESUMEN", ...TIPOS, "SEGUIMIENTOS"] as string[]).map((key) => (
-                  <TabsTrigger key={key} value={key} className={`${TAB_BASE} ${TAB_COLORS[key] ?? ""}`}>
-                    {TAB_LABELS[key]}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
 
               {/* ===== RESUMEN ===== */}
               <TabsContent value="RESUMEN" className="flex-1 min-h-0 mt-0">
