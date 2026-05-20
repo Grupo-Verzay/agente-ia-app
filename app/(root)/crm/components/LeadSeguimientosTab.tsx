@@ -20,6 +20,12 @@ import {
   deleteReminder,
   type ReminderItem,
 } from "@/actions/reminders-actions";
+import {
+  getAppointmentsBySession,
+  updateAppointmentStatus,
+  type SessionAppointmentCard,
+} from "@/actions/appointments-actions";
+import type { AppointmentStatus } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -299,6 +305,99 @@ function ReminderCard({
   );
 }
 
+/* ===== SECCIÓN CITAS ===== */
+
+const APPT_STATUS_LABELS: Record<string, string> = {
+  PENDIENTE:    "Pendiente",
+  CONFIRMADA:   "Confirmada",
+  CANCELADA:    "Cancelada",
+  ATENDIDA:     "Atendida",
+  NO_ASISTIDA:  "No asistió",
+  FINALIZADO:   "Finalizado",
+  DESCARTADO:   "Descartado",
+};
+
+const APPT_STATUS_CLASSES: Record<string, string> = {
+  PENDIENTE:   "border-amber-300 bg-amber-100 text-amber-800",
+  CONFIRMADA:  "border-blue-300 bg-blue-100 text-blue-800",
+  CANCELADA:   "border-slate-300 bg-slate-200 text-slate-700",
+  ATENDIDA:    "border-emerald-300 bg-emerald-100 text-emerald-800",
+  NO_ASISTIDA: "border-rose-300 bg-rose-100 text-rose-800",
+  FINALIZADO:  "border-slate-300 bg-slate-100 text-slate-600",
+  DESCARTADO:  "border-red-300 bg-red-100 text-red-800",
+};
+
+const APPT_NEXT_STATUSES: Partial<Record<string, AppointmentStatus[]>> = {
+  PENDIENTE:  ["CONFIRMADA", "CANCELADA"],
+  CONFIRMADA: ["ATENDIDA", "NO_ASISTIDA", "CANCELADA"],
+};
+
+function AppointmentCard({
+  item,
+  userId,
+  onUpdated,
+}: {
+  item: SessionAppointmentCard;
+  userId: string;
+  onUpdated: () => void;
+}) {
+  const [updating, setUpdating] = useState(false);
+  const nextStatuses = APPT_NEXT_STATUSES[item.status] ?? [];
+
+  const handleStatus = async (status: AppointmentStatus) => {
+    setUpdating(true);
+    const result = await updateAppointmentStatus(item.id, status);
+    if (result.success) {
+      toast.success(result.message);
+      onUpdated();
+    } else {
+      toast.error(result.message);
+    }
+    setUpdating(false);
+  };
+
+  return (
+    <div className="rounded-md border border-border/70 bg-muted/20 p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge
+            variant="outline"
+            className={APPT_STATUS_CLASSES[item.status] ?? "border-slate-200 bg-slate-50 text-slate-600"}
+          >
+            {APPT_STATUS_LABELS[item.status] ?? item.status}
+          </Badge>
+          {item.serviceName && (
+            <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600 text-[11px]">
+              {item.serviceName}
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-2 grid gap-0.5 text-[11px] text-muted-foreground">
+        <span>Inicio: {formatDate(item.startTime)}</span>
+        <span>Fin: {formatDate(item.endTime)}</span>
+      </div>
+
+      {nextStatuses.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {nextStatuses.map((s) => (
+            <button
+              key={s}
+              type="button"
+              disabled={updating}
+              onClick={() => handleStatus(s)}
+              className="rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors hover:opacity-80 disabled:opacity-50 border-slate-300 bg-slate-50 text-slate-700"
+            >
+              → {APPT_STATUS_LABELS[s] ?? s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ===== COMPONENTE PRINCIPAL ===== */
 
 type BulkAction = "cancel" | "reactivate" | "deleteAllSeguimientos" | "deleteAllReminders";
@@ -319,6 +418,7 @@ export function LeadSeguimientosTab({
   const [crmItems, setCrmItems] = useState<SessionFollowUpItem[]>([]);
   const [legacyItems, setLegacyItems] = useState<LegacySeguimientoItem[]>([]);
   const [reminderItems, setReminderItems] = useState<ReminderItem[]>([]);
+  const [appointmentItems, setAppointmentItems] = useState<SessionAppointmentCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmAction, setConfirmAction] = useState<BulkAction | null>(null);
   const [pendingAction, setPendingAction] = useState<BulkAction | null>(null);
@@ -326,19 +426,22 @@ export function LeadSeguimientosTab({
   const showLegacy = mode === "all" || mode === "legacy";
   const showCrm = mode === "all" || mode === "crm";
   const showReminders = mode === "all";
+  const showAppointments = mode === "all";
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [crmResult, legacyResult, reminderResult] = await Promise.all([
+    const [crmResult, legacyResult, reminderResult, apptResult] = await Promise.all([
       getSessionCrmFollowUps(sessionId, userId),
       getSessionLegacySeguimientos(remoteJid),
       showReminders ? getRemindersByRemoteJid(userId, remoteJid) : Promise.resolve({ success: true, data: [] as ReminderItem[] }),
+      showAppointments ? getAppointmentsBySession(sessionId) : Promise.resolve({ success: true, data: [] as SessionAppointmentCard[] }),
     ]);
     if (crmResult.success && crmResult.data) setCrmItems(crmResult.data);
     if (legacyResult.success && legacyResult.data) setLegacyItems(legacyResult.data);
     if (reminderResult.success && reminderResult.data) setReminderItems(reminderResult.data);
+    if (apptResult.success && apptResult.data) setAppointmentItems(apptResult.data);
     setLoading(false);
-  }, [sessionId, userId, remoteJid, showReminders]);
+  }, [sessionId, userId, remoteJid, showReminders, showAppointments]);
 
   useEffect(() => {
     loadAll();
@@ -417,7 +520,8 @@ export function LeadSeguimientosTab({
   const isEmpty =
     (showLegacy ? legacyItems.length === 0 : true) &&
     (showCrm ? crmItems.length === 0 : true) &&
-    (showReminders ? reminderItems.length === 0 : true);
+    (showReminders ? reminderItems.length === 0 : true) &&
+    (showAppointments ? appointmentItems.length === 0 : true);
 
   const hasLegacyActions = showLegacy && legacyItems.length > 0;
   const hasReminderActions = showReminders && reminderItems.length > 0;
@@ -558,10 +662,32 @@ export function LeadSeguimientosTab({
                   </>
                 )}
 
+                {/* ===== Citas ===== */}
+                {showAppointments && (
+                  <>
+                    {(showLegacy || showReminders) && <Separator />}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">Citas</p>
+                        <Badge variant="outline" className="text-xs">{appointmentItems.length}</Badge>
+                      </div>
+                      {appointmentItems.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Sin citas agendadas.</p>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          {appointmentItems.map((item) => (
+                            <AppointmentCard key={item.id} item={item} userId={userId} onUpdated={loadAll} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
                 {/* ===== Follow-ups IA ===== */}
                 {showCrm && (
                   <>
-                    {(showLegacy || showReminders) && <Separator />}
+                    {(showLegacy || showReminders || showAppointments) && <Separator />}
                     <div className="flex flex-col gap-2">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium">Follow-ups IA</p>

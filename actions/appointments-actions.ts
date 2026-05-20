@@ -399,6 +399,35 @@ export async function getLatestAppointmentBySession(sessionId: number): Promise<
     }
 }
 
+// Obtener todas las citas de una sesión
+export async function getAppointmentsBySession(sessionId: number): Promise<{
+    success: boolean;
+    data?: SessionAppointmentCard[];
+    message?: string;
+}> {
+    try {
+        const list = await db.appointment.findMany({
+            where: { sessionId },
+            include: { service: { select: { name: true } } },
+            orderBy: { startTime: 'desc' },
+        });
+
+        return {
+            success: true,
+            data: list.map((a) => ({
+                id: a.id,
+                status: a.status,
+                startTime: a.startTime.toISOString(),
+                endTime: a.endTime.toISOString(),
+                serviceName: a.service?.name ?? null,
+            })),
+        };
+    } catch (error) {
+        console.error('Error al obtener citas por sesión:', error);
+        return { success: false, message: 'Error al obtener las citas.' };
+    }
+}
+
 // Conteos de citas por estado
 export async function getAppointmentStatusCounts(userId: string): Promise<{
     success: boolean;
