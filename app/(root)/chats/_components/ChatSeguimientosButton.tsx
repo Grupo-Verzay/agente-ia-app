@@ -45,7 +45,7 @@ export function ChatSeguimientosButton({
         userId={session.userId}
         remoteJid={session.remoteJid}
         instanceId={session.instanceId}
-        initialTab="FLUJOS"
+        initialTab="SEGUIMIENTOS"
       />
     </>
   );

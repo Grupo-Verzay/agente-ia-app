@@ -15,6 +15,11 @@ import {
   deleteAllSeguimientosByRemoteJid,
   type LegacySeguimientoItem,
 } from "@/actions/seguimientos-actions";
+import {
+  getRemindersByRemoteJid,
+  deleteReminder,
+  type ReminderItem,
+} from "@/actions/reminders-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -229,7 +234,74 @@ function CrmFollowUpCard({
   );
 }
 
+/* ===== SECCIÓN RECORDATORIOS ===== */
+
+function ReminderCard({
+  item,
+  onDeleted,
+}: {
+  item: ReminderItem;
+  onDeleted: () => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    const result = await deleteReminder(item.id);
+    if (result.success) {
+      toast.success(result.message);
+      onDeleted();
+    } else {
+      toast.error(result.message);
+    }
+    setDeleting(false);
+  };
+
+  return (
+    <div className="rounded-md border border-border/70 bg-muted/20 p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant="outline" className="border-violet-300 bg-violet-100 text-violet-800">
+            Recordatorio
+          </Badge>
+          {item.repeatType && item.repeatType !== "NONE" && (
+            <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600 text-[11px] capitalize">
+              {item.repeatType.toLowerCase()}
+            </Badge>
+          )}
+        </div>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+          disabled={deleting}
+          onClick={handleDelete}
+          title="Eliminar recordatorio"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      <p className="mt-2 text-[12px] font-medium">{item.title}</p>
+
+      <div className="mt-1 grid gap-0.5 text-[11px] text-muted-foreground">
+        {item.time && <span>Programado: {item.time}</span>}
+        {item.instanceName && <span>Instancia: {item.instanceName}</span>}
+        <span>Creado: {formatDate(item.createdAt)}</span>
+      </div>
+
+      {item.description && (
+        <p className="mt-2 whitespace-pre-wrap rounded-md bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground">
+          {item.description}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ===== COMPONENTE PRINCIPAL ===== */
+
+type BulkAction = "cancel" | "reactivate" | "deleteAllSeguimientos" | "deleteAllReminders";
 
 export function LeadSeguimientosTab({
   sessionId,
@@ -246,20 +318,27 @@ export function LeadSeguimientosTab({
 }) {
   const [crmItems, setCrmItems] = useState<SessionFollowUpItem[]>([]);
   const [legacyItems, setLegacyItems] = useState<LegacySeguimientoItem[]>([]);
+  const [reminderItems, setReminderItems] = useState<ReminderItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [confirmAction, setConfirmAction] = useState<"cancel" | "reactivate" | "deleteAllLegacy" | null>(null);
-  const [pendingAction, setPendingAction] = useState<"cancel" | "reactivate" | "deleteAllLegacy" | null>(null);
+  const [confirmAction, setConfirmAction] = useState<BulkAction | null>(null);
+  const [pendingAction, setPendingAction] = useState<BulkAction | null>(null);
+
+  const showLegacy = mode === "all" || mode === "legacy";
+  const showCrm = mode === "all" || mode === "crm";
+  const showReminders = mode === "all";
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [crmResult, legacyResult] = await Promise.all([
+    const [crmResult, legacyResult, reminderResult] = await Promise.all([
       getSessionCrmFollowUps(sessionId, userId),
       getSessionLegacySeguimientos(remoteJid),
+      showReminders ? getRemindersByRemoteJid(userId, remoteJid) : Promise.resolve({ success: true, data: [] as ReminderItem[] }),
     ]);
     if (crmResult.success && crmResult.data) setCrmItems(crmResult.data);
     if (legacyResult.success && legacyResult.data) setLegacyItems(legacyResult.data);
+    if (reminderResult.success && reminderResult.data) setReminderItems(reminderResult.data);
     setLoading(false);
-  }, [sessionId, userId, remoteJid]);
+  }, [sessionId, userId, remoteJid, showReminders]);
 
   useEffect(() => {
     loadAll();
@@ -273,20 +352,32 @@ export function LeadSeguimientosTab({
   const canCancel = Boolean(instanceId) && activeCount > 0;
   const canReactivate = Boolean(instanceId) && reactivatableCount > 0;
 
-  const showLegacy = mode === "all" || mode === "legacy";
-  const showCrm = mode === "all" || mode === "crm";
-
-  const handleBulkAction = async (action: "cancel" | "reactivate" | "deleteAllLegacy") => {
+  const handleBulkAction = async (action: BulkAction) => {
     const toastId = `seguimientos-bulk-${action}-${sessionId}`;
 
-    if (action === "deleteAllLegacy") {
-      toast.loading("Eliminando seguimientos de flujos...", { id: toastId });
+    if (action === "deleteAllSeguimientos") {
+      toast.loading("Eliminando seguimientos...", { id: toastId });
       setPendingAction(action);
       try {
         const result = await deleteAllSeguimientosByRemoteJid(remoteJid);
         if (!result.success) throw new Error(result.message);
         await loadAll();
         toast.success(result.message, { id: toastId });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "No se pudo eliminar.", { id: toastId });
+      } finally {
+        setPendingAction(null);
+      }
+      return;
+    }
+
+    if (action === "deleteAllReminders") {
+      toast.loading("Eliminando recordatorios...", { id: toastId });
+      setPendingAction(action);
+      try {
+        await Promise.all(reminderItems.map((r) => deleteReminder(r.id)));
+        await loadAll();
+        toast.success("Recordatorios eliminados.", { id: toastId });
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "No se pudo eliminar.", { id: toastId });
       } finally {
@@ -325,23 +416,36 @@ export function LeadSeguimientosTab({
 
   const isEmpty =
     (showLegacy ? legacyItems.length === 0 : true) &&
-    (showCrm ? crmItems.length === 0 : true);
+    (showCrm ? crmItems.length === 0 : true) &&
+    (showReminders ? reminderItems.length === 0 : true);
 
   const hasLegacyActions = showLegacy && legacyItems.length > 0;
+  const hasReminderActions = showReminders && reminderItems.length > 0;
   const hasCrmActions = showCrm && (canReactivate || canCancel);
-  const hasAnyBottomAction = hasLegacyActions || hasCrmActions;
+  const hasAnyBottomAction = hasLegacyActions || hasReminderActions || hasCrmActions;
 
   const bottomActions = hasAnyBottomAction ? (
-    <div className="flex gap-2 border-t pt-3 mt-2">
+    <div className="flex flex-wrap gap-2 border-t pt-3 mt-2">
       {hasLegacyActions && (
         <Button
           variant="outline"
           className="flex-1 text-sm text-destructive hover:text-destructive"
           disabled={pendingAction !== null}
-          onClick={() => setConfirmAction("deleteAllLegacy")}
+          onClick={() => setConfirmAction("deleteAllSeguimientos")}
         >
           <Trash2 className="h-4 w-4" />
-          Eliminar flujos
+          Eliminar seguimientos
+        </Button>
+      )}
+      {hasReminderActions && (
+        <Button
+          variant="outline"
+          className="flex-1 text-sm text-destructive hover:text-destructive"
+          disabled={pendingAction !== null}
+          onClick={() => setConfirmAction("deleteAllReminders")}
+        >
+          <Trash2 className="h-4 w-4" />
+          Eliminar recordatorios
         </Button>
       )}
       {showCrm && canReactivate && (
@@ -369,6 +473,33 @@ export function LeadSeguimientosTab({
     </div>
   ) : null;
 
+  const CONFIRM_CONFIG: Record<BulkAction, { title: string; description: string; label: string; tone: "default" | "destructive" }> = {
+    deleteAllSeguimientos: {
+      title: "Eliminar seguimientos",
+      description: "Se eliminarán todos los seguimientos de flujos de este lead. Esta acción no se puede deshacer.",
+      label: "Eliminar todos",
+      tone: "destructive",
+    },
+    deleteAllReminders: {
+      title: "Eliminar recordatorios",
+      description: "Se eliminarán todos los recordatorios de este lead. Esta acción no se puede deshacer.",
+      label: "Eliminar todos",
+      tone: "destructive",
+    },
+    cancel: {
+      title: "Cancelar follow-ups IA",
+      description: "Los follow-ups IA pendientes o en proceso pasarán a estado cancelado.",
+      label: "Cancelar follow-ups",
+      tone: "destructive",
+    },
+    reactivate: {
+      title: "Reactivar follow-ups IA",
+      description: "Los follow-ups IA se reprogramarán usando las reglas actuales del CRM.",
+      label: "Reactivar follow-ups",
+      tone: "default",
+    },
+  };
+
   return (
     <>
       <div className="flex flex-col h-full">
@@ -381,20 +512,20 @@ export function LeadSeguimientosTab({
               </p>
             ) : (
               <>
-                {/* ===== Seguimientos de Flujos ===== */}
+                {/* ===== Seguimientos ===== */}
                 {showLegacy && (
                   <div className="flex flex-col gap-2">
-                    {mode === "all" && (
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">Seguimientos de Flujos</p>
-                        <Badge variant="outline" className="text-xs">{legacyItems.length}</Badge>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">Seguimientos</p>
+                      <Badge variant="outline" className="text-xs">{legacyItems.length}</Badge>
+                      {legacyItems.filter((i) => i.followUpStatus === "pending").length > 0 && (
                         <span className="text-[11px] text-muted-foreground">
                           (pendientes: {legacyItems.filter((i) => i.followUpStatus === "pending").length})
                         </span>
-                      </div>
-                    )}
+                      )}
+                    </div>
                     {legacyItems.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">Sin seguimientos de flujos.</p>
+                      <p className="text-xs text-muted-foreground">Sin seguimientos.</p>
                     ) : (
                       <div className="flex flex-col gap-2">
                         {legacyItems.map((item) => (
@@ -405,30 +536,51 @@ export function LeadSeguimientosTab({
                   </div>
                 )}
 
-                {mode === "all" && showLegacy && showCrm && <Separator />}
-
-                {/* ===== Follow-ups IA (CRM) ===== */}
-                {showCrm && (
-                  <div className="flex flex-col gap-2">
-                    {mode === "all" && (
+                {/* ===== Recordatorios ===== */}
+                {showReminders && (
+                  <>
+                    {showLegacy && <Separator />}
+                    <div className="flex flex-col gap-2">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">Follow-ups IA (CRM)</p>
+                        <p className="text-sm font-medium">Recordatorios</p>
+                        <Badge variant="outline" className="text-xs">{reminderItems.length}</Badge>
+                      </div>
+                      {reminderItems.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Sin recordatorios.</p>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          {reminderItems.map((item) => (
+                            <ReminderCard key={item.id} item={item} onDeleted={loadAll} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* ===== Follow-ups IA ===== */}
+                {showCrm && (
+                  <>
+                    {(showLegacy || showReminders) && <Separator />}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">Follow-ups IA</p>
                         <Badge variant="outline" className="text-xs">{crmItems.length}</Badge>
                         {activeCount > 0 && (
                           <span className="text-[11px] text-muted-foreground">(activos: {activeCount})</span>
                         )}
                       </div>
-                    )}
-                    {crmItems.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">Sin follow-ups de IA.</p>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {crmItems.map((item) => (
-                          <CrmFollowUpCard key={item.id} item={item} userId={userId} onUpdated={loadAll} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                      {crmItems.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Sin follow-ups de IA.</p>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          {crmItems.map((item) => (
+                            <CrmFollowUpCard key={item.id} item={item} userId={userId} onUpdated={loadAll} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </>
             )}
@@ -438,36 +590,20 @@ export function LeadSeguimientosTab({
         {!isEmpty && bottomActions}
       </div>
 
-      <CrmConfirmActionDialog
-        open={confirmAction !== null}
-        onOpenChange={(open) => { if (!open) setConfirmAction(null); }}
-        title={
-          confirmAction === "deleteAllLegacy"
-            ? "Eliminar seguimientos de flujos"
-            : confirmAction === "cancel"
-            ? "Cancelar follow-ups IA"
-            : "Reactivar follow-ups IA"
-        }
-        description={
-          confirmAction === "deleteAllLegacy"
-            ? "Se eliminarán todos los seguimientos de flujos de este lead. Esta acción no se puede deshacer."
-            : confirmAction === "cancel"
-            ? "Los follow-ups IA pendientes o en proceso pasarán a estado cancelado."
-            : "Los follow-ups IA se reprogramarán usando las reglas actuales del CRM."
-        }
-        confirmLabel={
-          confirmAction === "deleteAllLegacy"
-            ? "Eliminar todos"
-            : confirmAction === "cancel"
-            ? "Cancelar follow-ups"
-            : "Reactivar follow-ups"
-        }
-        tone={confirmAction === "reactivate" ? "default" : "destructive"}
-        onConfirm={async () => {
-          if (!confirmAction) return;
-          await handleBulkAction(confirmAction);
-        }}
-      />
+      {confirmAction && (
+        <CrmConfirmActionDialog
+          open
+          onOpenChange={(open) => { if (!open) setConfirmAction(null); }}
+          title={CONFIRM_CONFIG[confirmAction].title}
+          description={CONFIRM_CONFIG[confirmAction].description}
+          confirmLabel={CONFIRM_CONFIG[confirmAction].label}
+          tone={CONFIRM_CONFIG[confirmAction].tone}
+          onConfirm={async () => {
+            if (!confirmAction) return;
+            await handleBulkAction(confirmAction);
+          }}
+        />
+      )}
     </>
   );
 }

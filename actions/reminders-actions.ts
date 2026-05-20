@@ -249,6 +249,54 @@ export async function deleteReminder(id: string): Promise<ReminderResponse> {
     }
 }
 
+export type ReminderItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  time: string | null;
+  repeatType: string | null;
+  instanceName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function getRemindersByRemoteJid(
+  userId: string,
+  remoteJid: string,
+): Promise<{ success: boolean; message: string; data?: ReminderItem[] }> {
+  try {
+    const items = await db.reminders.findMany({
+      where: { userId, remoteJid, isCampaign: false },
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        time: true,
+        repeatType: true,
+        instanceName: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    return {
+      success: true,
+      message: 'Recordatorios obtenidos correctamente.',
+      data: items.map((r) => ({
+        ...r,
+        repeatType: r.repeatType as string | null,
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+      })),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Error al obtener los recordatorios.',
+    };
+  }
+}
+
 /**
  * Actualizar un recordatorio por ID
  */

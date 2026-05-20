@@ -59,8 +59,8 @@ const TAB_LABELS: Record<string, string> = {
   PAGO:         "Pagos",
   RESERVA:      "Reservas",
   PRODUCTO:     "Productos",
-  FLUJOS:       "Flujos",
   SEGUIMIENTOS: "Seguimientos",
+  FOLLOW_UPS:   "Follow-ups IA",
 };
 
 const TAB_COLORS: Record<string, string> = {
@@ -71,8 +71,8 @@ const TAB_COLORS: Record<string, string> = {
   PAGO:         "bg-green-500  text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-green-500",
   RESERVA:      "bg-teal-500   text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-teal-500",
   PRODUCTO:     "bg-purple-500 text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-purple-500",
-  FLUJOS:       "bg-blue-600   text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-blue-600",
   SEGUIMIENTOS: "bg-amber-500  text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-amber-500",
+  FOLLOW_UPS:   "bg-blue-600   text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-blue-600",
 };
 
 export function ChatRegistrosSheet({
@@ -216,7 +216,7 @@ export function ChatRegistrosSheet({
           ) : (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 px-4 pt-3 pb-3">
               <TabsList className="flex gap-1 mb-3 h-auto bg-transparent p-0 w-full justify-between">
-                {(["RESUMEN", ...TIPOS, "FLUJOS", "SEGUIMIENTOS"] as string[]).map((key) => (
+                {(["RESUMEN", ...TIPOS, "SEGUIMIENTOS", "FOLLOW_UPS"] as string[]).map((key) => (
                   <TabsTrigger
                     key={key}
                     value={key}
@@ -237,18 +237,18 @@ export function ChatRegistrosSheet({
                       ))}
                       <button
                         type="button"
-                        onClick={() => setActiveTab("FLUJOS")}
-                        className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
-                      >
-                        <span className="text-sm text-muted-foreground">Flujos</span>
-                        <span className="text-sm font-bold">{flujosEjecutados}</span>
-                      </button>
-                      <button
-                        type="button"
                         onClick={() => setActiveTab("SEGUIMIENTOS")}
                         className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
                       >
                         <span className="text-sm text-muted-foreground">Seguimientos</span>
+                        <span className="text-sm font-bold">{flujosEjecutados}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("FOLLOW_UPS")}
+                        className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
+                      >
+                        <span className="text-sm text-muted-foreground">Follow-ups IA</span>
                         <span className="text-sm font-bold">{seguimientosPendientes}</span>
                       </button>
                     </div>
@@ -294,8 +294,8 @@ export function ChatRegistrosSheet({
                 </TabsContent>
               ))}
 
-              {/* FLUJOS */}
-              <TabsContent value="FLUJOS" className="flex-1 min-h-0 mt-0 overflow-hidden">
+              {/* SEGUIMIENTOS */}
+              <TabsContent value="SEGUIMIENTOS" className="flex-1 min-h-0 mt-0 overflow-hidden">
                 <div className="h-full flex flex-col">
                   <LeadSeguimientosTab
                     sessionId={sessionId}
@@ -307,8 +307,8 @@ export function ChatRegistrosSheet({
                 </div>
               </TabsContent>
 
-              {/* SEGUIMIENTOS */}
-              <TabsContent value="SEGUIMIENTOS" className="flex-1 min-h-0 mt-0 overflow-hidden">
+              {/* FOLLOW-UPS IA */}
+              <TabsContent value="FOLLOW_UPS" className="flex-1 min-h-0 mt-0 overflow-hidden">
                 <div className="h-full flex flex-col">
                   <LeadSeguimientosTab
                     sessionId={sessionId}
