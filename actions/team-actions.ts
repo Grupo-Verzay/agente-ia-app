@@ -27,7 +27,7 @@ type ActionResult<T = undefined> =
 async function requireOwner() {
   const user = await currentUser();
   if (!user?.id) return null;
-  if ((user as any).ownerId) return null;
+  if (user.ownerId) return null;
   return user;
 }
 
@@ -88,7 +88,7 @@ export async function toggleAdvisorAvailability(advisorId: string, available: bo
 export async function getTeamAdvisorInfos(): Promise<ActionResult<AdvisorInfo[]>> {
   const user = await currentUser();
   if (!user?.id) return { success: false, message: "No autorizado." };
-  const ownerId: string = (user as any).ownerId ?? user.id;
+  const ownerId: string = user.ownerId ?? user.id;
 
   const rows = await db.$queryRaw<AdvisorInfo[]>`
     SELECT id, name, email, advisor_role AS "advisorRole"

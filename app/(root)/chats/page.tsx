@@ -78,7 +78,7 @@ export default async function ChatsPage({
   if (!user) redirect("/login");
 
   // Si el usuario es asesor (tiene ownerId), usa los recursos del dueño
-  const effectiveOwnerId = (user as any).ownerId ?? user.id;
+  const effectiveOwnerId = user.ownerId ?? user.id;
   const ownerApiKeyId =
     effectiveOwnerId !== user.id
       ? (await db.user.findUnique({ where: { id: effectiveOwnerId }, select: { apiKeyId: true } }))?.apiKeyId
@@ -158,7 +158,7 @@ export default async function ChatsPage({
     })
     .filter((item): item is ChatQuickReplyOption => item !== null);
 
-  const advisorRole: string | null = (user as any).advisorRole ?? null;
+  const advisorRole: string | null = user.advisorRole;
   const currentAdvisorId: string = user.id;
 
   const [tagsRes, chatSessionsRes, chatPreferencesRes, advisorsRes] = await Promise.all([
@@ -197,7 +197,7 @@ export default async function ChatsPage({
     chatPreferencesRes.success ? chatPreferencesRes.data ?? {} : {};
   const advisorsFromTeam = advisorsRes.success ? advisorsRes.data ?? [] : [];
   // El dueño se incluye a sí mismo para poder autoasignarse desde el badge
-  const isOwner = !(user as any).ownerId;
+  const isOwner = !user.ownerId;
   const advisors = isOwner && user.id && user.email
     ? [{ id: user.id, name: user.name ?? null, email: user.email, advisorRole: null as string | null }, ...advisorsFromTeam]
     : advisorsFromTeam;

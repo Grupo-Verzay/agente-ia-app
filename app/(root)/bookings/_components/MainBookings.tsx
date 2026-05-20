@@ -23,7 +23,7 @@ interface Props {
 
 export const MainBookings = ({ user, team }: Props) => {
     const [tab, setTab] = useState<TabValue>('dashboard');
-    const userId: string = (user as any).effectiveId ?? user.id;
+    const userId: string = user.effectiveId ?? user.id;
 
     return (
         <div className="flex h-full w-full flex-col gap-3">

@@ -360,7 +360,7 @@ export async function getWeeklyReports(): Promise<{
         const user = await currentUser();
         if (!user?.id) return { success: false, message: "No autorizado." };
 
-        const effectiveId = (user as any).effectiveId ?? user.id;
+        const effectiveId = user.effectiveId;
 
         type RawReport = {
             id: string;
@@ -409,7 +409,7 @@ export async function generateMyWeeklyReport(): Promise<{
         const user = await currentUser();
         if (!user?.id) return { success: false, message: "No autorizado." };
 
-        const effectiveId = (user as any).effectiveId ?? user.id;
+        const effectiveId = user.effectiveId;
         const res = await generateWeeklyReportForUser(effectiveId);
         return { success: res.success, reportId: res.reportId, sent: res.sent, message: res.message };
     } catch (err) {
@@ -425,7 +425,7 @@ export async function deleteWeeklyReport(id: string): Promise<{ success: boolean
     try {
         const user = await currentUser();
         if (!user?.id) return { success: false, message: "No autorizado." };
-        const effectiveId = (user as any).effectiveId ?? user.id;
+        const effectiveId = user.effectiveId;
         await db.$executeRaw`DELETE FROM weekly_reports WHERE id = ${id} AND "userId" = ${effectiveId}`;
         return { success: true };
     } catch (err) {
@@ -438,7 +438,7 @@ export async function deleteAllWeeklyReports(): Promise<{ success: boolean; mess
     try {
         const user = await currentUser();
         if (!user?.id) return { success: false, message: "No autorizado." };
-        const effectiveId = (user as any).effectiveId ?? user.id;
+        const effectiveId = user.effectiveId;
         await db.$executeRaw`DELETE FROM weekly_reports WHERE "userId" = ${effectiveId}`;
         return { success: true };
     } catch (err) {

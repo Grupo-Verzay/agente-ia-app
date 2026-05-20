@@ -21,7 +21,7 @@ export async function getSessionsForExport(): Promise<
   const user = await currentUser();
   if (!user?.id) return { success: false, message: "No autorizado." };
 
-  const effectiveOwnerId = (user as any).ownerId ?? user.id;
+  const effectiveOwnerId = user.ownerId ?? user.id;
 
   const rows = await db.$queryRaw<{
     id: number;

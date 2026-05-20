@@ -7,7 +7,7 @@ export default async function EquipoPage() {
   const user = await currentUser();
   if (!user) redirect("/login");
 
-  if ((user as any).ownerId) redirect("/");
+  if (user.ownerId) redirect("/");
 
   const [advisorsRes, modulesRes, autoAssignRes, metricsRes] = await Promise.all([
     getTeamAdvisors(),

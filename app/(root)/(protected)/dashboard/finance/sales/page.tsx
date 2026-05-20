@@ -29,10 +29,7 @@ export default async function SalesPage() {
   const sessions = serializePrisma((sessionsRes as any)?.data || (sessionsRes as any) || []);
 
   // usar la moneda guardada en settings
-  const preferredCurrencyCode =
-    (user as any).preferredCurrencyCode ||
-    (user as any).primaryCurrencyCode || // por si antes la tenías con otro nombre
-    "COP";
+  const preferredCurrencyCode = user.preferredCurrencyCode || "COP";
 
   return (
     <div className="p-4 sm:p-6">

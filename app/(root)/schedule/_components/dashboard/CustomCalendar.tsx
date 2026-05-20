@@ -104,7 +104,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
     const [activeView, setActiveView] = useState<'agenda' | 'week' | 'month'>('agenda');
     const calendarRef = useRef<FullCalendar>(null);
     const calendarWrapRef = useRef<HTMLDivElement>(null);
-    const ownerTz = (user as any).timezone ?? 'America/Bogota';
+    const ownerTz = user.timezone ?? 'America/Bogota';
 
     // Oculta/muestra el cuerpo del calendario según el modo
     useEffect(() => {
@@ -128,7 +128,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
     }, [activeView]);
 
     const loadAppointments = useCallback(async () => {
-        const res = await getAppointmentsByUser((user as any).effectiveId ?? user.id);
+        const res = await getAppointmentsByUser(user.effectiveId ?? user.id);
         if (res.success) {
             setAppointments((res.data || []) as AppointmentWithSession[]);
             setSeguimientosMap(res.seguimientosCount ?? {});
@@ -136,7 +136,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
         } else {
             toast.error(res.message, { id: toastId });
         }
-    }, [(user as any).effectiveId ?? user.id, toastId]);
+    }, [user.effectiveId ?? user.id, toastId]);
 
     useEffect(() => {
         toast.loading("Cargando su agenda, un momento por favor...", {
@@ -193,7 +193,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
         const text = buildStatusOwnerMessage({
             appointment: currentAppointment,
             newStatus,
-            userId: (user as any).effectiveId ?? user.id
+            userId: user.effectiveId ?? user.id
         });
 
         const remoteJid = currentAppointment.session.remoteJid;

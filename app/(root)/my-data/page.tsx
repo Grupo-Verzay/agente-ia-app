@@ -57,7 +57,7 @@ export default async function MyDataPage() {
 
   if (!user) redirect('/login');
 
-  const userPlan = (user as any).plan as Plan;
+  const userPlan = user.plan;
   const hasAccess = ALLOWED_PLANS.includes(userPlan);
 
   return (

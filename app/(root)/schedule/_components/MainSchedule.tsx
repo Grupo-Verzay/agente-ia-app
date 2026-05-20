@@ -58,7 +58,7 @@ export const MainSchedule = ({
 }: MainReminderInterface) => {
     const [tab, setTab] = useState<TabValue>('dashboard');
     const [statusCounts, setStatusCounts] = useState<{ status: AppointmentStatus; count: number }[]>([]);
-    const userId: string = (user as any).effectiveId ?? user.id;
+    const userId: string = user.effectiveId ?? user.id;
 
     const loadCounts = useCallback(async () => {
         const res = await getAppointmentStatusCounts(userId);

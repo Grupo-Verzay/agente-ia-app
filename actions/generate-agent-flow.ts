@@ -233,7 +233,7 @@ export async function generateAgentFlow(input: {
 
     // La clave del sistema tiene prioridad; si no existe, se usa la del usuario
     const systemKey = process.env.OPENAI_SYSTEM_API_KEY ?? '';
-    const userId = (user as any).effectiveId ?? user.id;
+    const userId = user.effectiveId;
     const aiClient = await resolveUserAiClient(userId);
     const apiKey = systemKey || aiClient.data?.apiKey;
     if (!apiKey) {

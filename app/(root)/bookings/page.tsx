@@ -1,4 +1,4 @@
-import { currentUser } from '@/lib/auth';
+﻿import { currentUser } from '@/lib/auth';
 import { getOrCreateTeam } from '@/actions/bookings-actions';
 import { MainBookings } from './_components/MainBookings';
 
@@ -6,7 +6,7 @@ const BookingsPage = async () => {
     const user = await currentUser();
     if (!user) return null;
 
-    const effectiveId: string = (user as any).effectiveId ?? user.id;
+    const effectiveId: string = user.effectiveId;
     const res = await getOrCreateTeam(effectiveId);
 
     if (!res.success || !res.data) {

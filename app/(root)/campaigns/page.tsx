@@ -1,4 +1,4 @@
-import { currentUser } from "@/lib/auth"
+﻿import { currentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { getApiKeyById } from "@/actions/api-action"
 import { ApiKey, Instancia, Reminders, Session, Workflow } from "@prisma/client"
@@ -33,7 +33,7 @@ const CampaignsPage = async () => {
   const user = await currentUser()
   if (!user) redirect("/login")
 
-  const effectiveId = (user as any).effectiveId ?? user.id;
+  const effectiveId = user.effectiveId;
 
   // Obtener API Key
   const resApikey = await getApiKeyById(user.apiKeyId)

@@ -288,7 +288,7 @@ export async function sendManualChatPayloadAction(
   if (payload.kind === "text" && user?.id) {
     const signature = (user?.advisorSignature as string | null | undefined)?.trim();
     if (signature) {
-      const effectiveId = (user as any).effectiveId ?? user.id;
+      const effectiveId = user.effectiveId;
       const sessionRow = await db.session.findFirst({
         where: { userId: effectiveId, remoteJid },
         select: { signatureEnabled: true },
@@ -309,7 +309,7 @@ export async function sendManualChatPayloadAction(
 
   if (result.success && user?.id) {
     // Si el usuario es asesor, actualiza las sesiones del dueño
-    const effectiveOwnerId = (user as any).ownerId ?? user.id;
+    const effectiveOwnerId = user.ownerId ?? user.id;
 
     const delPhrase = (user?.delSeguimiento as string | null | undefined)?.trim();
     const isClosing = Boolean(originalText !== null && delPhrase && originalText === delPhrase);
@@ -376,7 +376,7 @@ export async function toggleSessionSignatureAction(
     };
   }
 
-  const effectiveOwnerId = (user as any).ownerId ?? user.id;
+  const effectiveOwnerId = user.ownerId ?? user.id;
 
   await db.session.updateMany({
     where: { userId: effectiveOwnerId },
@@ -399,7 +399,7 @@ export async function sendManualWorkflowAction(
   }
 
   const user = await requireCurrentUser();
-  const effectiveId = (user as any).effectiveId ?? user.id;
+  const effectiveId = user.effectiveId;
   const workflow = await db.workflow.findFirst({
     where: {
       id: workflowId,
@@ -490,7 +490,7 @@ export async function sendManualQuickReplyAction(
   }
 
   const user = await requireCurrentUser();
-  const effectiveId = (user as any).effectiveId ?? user.id;
+  const effectiveId = user.effectiveId;
   const quickReply = await db.quickReply.findFirst({
     where: {
       id: quickReplyId,

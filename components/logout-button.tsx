@@ -46,8 +46,8 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
     personalizado: '🏢 Enterprise',
   };
 
-  const isAdvisor = !!(user as any)?.ownerId;
-  const advisorRole: string | null = (user as any)?.advisorRole ?? null;
+  const isAdvisor = !!user?.ownerId;
+  const advisorRole: string | null = user?.advisorRole ?? null;
 
   const planLabel = isAdvisor
     ? advisorRole === 'administrador' ? '🛡️ Administrador' : '🕵️ Agente'

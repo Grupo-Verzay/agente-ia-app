@@ -10,7 +10,7 @@ const ToolFive = async () => {
     redirect("/login");
   }
 
-  const effectiveId = (user as any).effectiveId ?? user.id;
+  const effectiveId = user.effectiveId;
   const toolResponse = await getTools(effectiveId);
   const toolsMap: Record<string, string> = {};
 

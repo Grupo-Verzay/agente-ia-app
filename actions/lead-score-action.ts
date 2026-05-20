@@ -154,7 +154,7 @@ export async function scoreAllLeadsByUserId(): Promise<{
         const user = await currentUser();
         if (!user?.id) return { success: false, message: "No autorizado." };
 
-        const effectiveId = (user as any).effectiveId ?? user.id;
+        const effectiveId = user.effectiveId;
         const aiConfig = await getUserAiConfig(effectiveId);
         if (!aiConfig) return { success: false, message: "No hay configuración de IA activa." };
 

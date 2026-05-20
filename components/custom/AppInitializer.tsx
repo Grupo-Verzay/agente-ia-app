@@ -39,7 +39,7 @@ export default function AppInitializer({ onReseller, modules, user, navPrefs }: 
             userPlan: user.plan,
             modules,
             label: labelModule ?? '',
-            isAdvisor: !!(user as any).ownerId,
+            isAdvisor: !!user.ownerId,
         });
 
         if (!access.allowed) {

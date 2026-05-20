@@ -283,13 +283,13 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
 
     const [activeTab, setActiveTab] = useState('conexion');
     const [showMoreTabs, setShowMoreTabs] = useState(false);
-    const [voiceEnabled, setVoiceEnabled] = useState<boolean>(!!(user as any)?.enableVoiceResponses);
-    const [voiceId, setVoiceId] = useState<string>((user as any)?.voiceId ?? 'nova');
-    const [voiceModel, setVoiceModel] = useState<string>((user as any)?.voiceModel ?? 'gpt-4o-mini-tts');
-    const [voiceInstructions, setVoiceInstructions] = useState<string>((user as any)?.voiceInstructions ?? '');
-    const [ttsProvider, setTtsProvider] = useState<string>((user as any)?.ttsProvider ?? 'openai');
-    const [elApiKey, setElApiKey] = useState<string>((user as any)?.elevenLabsApiKey ?? '');
-    const [elVoiceId, setElVoiceId] = useState<string>((user as any)?.elevenLabsVoiceId ?? '');
+    const [voiceEnabled, setVoiceEnabled] = useState<boolean>(!!user?.enableVoiceResponses);
+    const [voiceId, setVoiceId] = useState<string>(user?.voiceId ?? 'nova');
+    const [voiceModel, setVoiceModel] = useState<string>(user?.voiceModel ?? 'gpt-4o-mini-tts');
+    const [voiceInstructions, setVoiceInstructions] = useState<string>(user?.voiceInstructions ?? '');
+    const [ttsProvider, setTtsProvider] = useState<string>(user?.ttsProvider ?? 'openai');
+    const [elApiKey, setElApiKey] = useState<string>(user?.elevenLabsApiKey ?? '');
+    const [elVoiceId, setElVoiceId] = useState<string>(user?.elevenLabsVoiceId ?? '');
     const [elVoices, setElVoices] = useState<{ voice_id: string; name: string; category: string }[]>([]);
     const [elVoiceSearch, setElVoiceSearch] = useState('');
     const [loadingElVoices, setLoadingElVoices] = useState(false);
@@ -919,7 +919,7 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                                             id="advisorSignature"
                                             name="advisorSignature"
                                             placeholder="— Juan Pérez | Asesor de Ventas"
-                                            value={((user as any).advisorSignature as string | null | undefined) ?? ""}
+                                            value={user.advisorSignature ?? ""}
                                             disabled={loadingField === "advisorSignature"}
                                             onChange={(e) => handleChange("advisorSignature" as any, e.target.value)}
                                             onBlur={() => handleBlur("advisorSignature" as any)}
@@ -962,7 +962,7 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                     <TabsContent value="cuenta" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             <SectionTitle>Plan y facturación</SectionTitle>
-                            <PlanBillingCard userPlan={(user as any).plan as Plan} />
+                            <PlanBillingCard userPlan={user.plan} />
                             <SectionTitle className="mt-6">Sesiones activas</SectionTitle>
                             <SesionesCard userName={user.name ?? user.email ?? ''} userEmail={user.email ?? ''} />
                         </TabPanel>

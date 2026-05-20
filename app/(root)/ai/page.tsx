@@ -1,4 +1,4 @@
-import { currentUser } from '@/lib/auth';
+﻿import { currentUser } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { SystemMessage } from '@prisma/client';
@@ -24,7 +24,7 @@ const AiPage = async ({ params, searchParams }: PageProps) => {
         redirect('/login');
     };
 
-    const effectiveId = (user as any).effectiveId ?? user.id;
+    const effectiveId = user.effectiveId;
 
     const resPromptAi = await getPromptAiByUserId(effectiveId);
     const promptAi = Array.isArray(resPromptAi.data) ? resPromptAi.data : [];

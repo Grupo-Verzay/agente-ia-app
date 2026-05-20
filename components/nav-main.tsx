@@ -23,7 +23,7 @@ export function NavMain({ user }: { user: User }) {
     const pathname = usePathname();
     const router = useRouter();
 
-    const isAdvisor = !!(user as any).ownerId;
+    const isAdvisor = !!user.ownerId;
 
     /* Aplica preferencias del usuario (displayLabel, isHidden, sortOrder) */
     const navItems = modules

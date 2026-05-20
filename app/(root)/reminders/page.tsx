@@ -1,4 +1,4 @@
-import { MainReminders } from "./_components"
+﻿import { MainReminders } from "./_components"
 import { currentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { getApiKeyById } from "@/actions/api-action"
@@ -32,7 +32,7 @@ const RemindersPage = async () => {
     const user = await currentUser()
     if (!user) redirect("/login")
 
-    const effectiveId: string = (user as any).effectiveId ?? user.id;
+    const effectiveId: string = user.effectiveId;
 
     // Obtener API Key
     const resApikey = await getApiKeyById(user.apiKeyId)

@@ -3,24 +3,55 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { isAdminLike } from "@/lib/rbac";
 import { cookies } from "next/headers";
+import type { Prisma } from "@prisma/client";
 
-// Cache para la duración de la request
-const userCache = new WeakMap<Request, Promise<any>>();
+const USER_SELECT = {
+    id: true,
+    status: true,
+    name: true,
+    email: true,
+    role: true,
+    company: true,
+    notificationNumber: true,
+    apiUrl: true,
+    apiKey: true,
+    image: true,
+    plan: true,
+    webhookUrl: true,
+    apiKeyId: true,
+    instancias: true,
+    onFacebook: true,
+    onInstagram: true,
+    meetingDuration: true,
+    timezone: true,
+    meetingUrl: true,
+    enabledSynthesizer: true,
+    enabledLeadStatusClassifier: true,
+    enabledCrmFollowUps: true,
+    advisorSignature: true,
+    delSeguimiento: true,
+    ownerId: true,
+    advisorRole: true,
+    preferredCurrencyCode: true,
+} satisfies Prisma.UserSelect;
 
-export async function currentUser(request?: Request) {
-    // Si tenemos cache para esta request, la usamos
+type DbUser = Prisma.UserGetPayload<{ select: typeof USER_SELECT }>;
+
+export type CurrentUser = DbUser & { effectiveId: string };
+
+const userCache = new WeakMap<Request, Promise<CurrentUser | null>>();
+
+export async function currentUser(request?: Request): Promise<CurrentUser | null> {
     if (request && userCache.has(request)) {
-        return userCache.get(request);
+        return userCache.get(request)!;
     }
 
     const session = await auth();
     if (!session?.user?.id) return null;
 
-    // cookie de impersonación
     const impersonateId = cookies().get("impersonate_user_id")?.value;
     const activeAccountId = cookies().get("active_account_id")?.value;
 
-    // trae el usuario real (solo para saber su role)
     const realUser = await db.user.findUnique({
         where: { id: session.user.id },
         select: { id: true, role: true },
@@ -28,12 +59,10 @@ export async function currentUser(request?: Request) {
 
     if (!realUser) return null;
 
-    // decide qué userId usar
     let effectiveUserId = realUser.id;
     if (impersonateId && isAdminLike(realUser.role)) {
         effectiveUserId = impersonateId;
     } else if (activeAccountId && activeAccountId !== realUser.id) {
-        // Verificar que sea una cuenta vinculada legítima
         try {
             const link = await db.$queryRaw<{ id: string }[]>`
                 SELECT id FROM "linked_accounts"
@@ -48,51 +77,13 @@ export async function currentUser(request?: Request) {
 
     const userPromise = db.user.findUnique({
         where: { id: effectiveUserId },
-        select: {
-            id: true,
-            status: true,
-            name: true,
-            email: true,
-            role: true,
-            company: true,
-            notificationNumber: true,
-            apiUrl: true,
-            apiKey: true,
-            image: true,
-            plan: true,
-            webhookUrl: true,
-            apiKeyId: true,
-            instancias: true,
-            onFacebook: true,
-            onInstagram: true,
-            meetingDuration: true,
-            timezone: true,
-            meetingUrl: true,
-            enabledSynthesizer: true,
-            enabledLeadStatusClassifier: true,
-            enabledCrmFollowUps: true,
-            advisorSignature: true,
-            delSeguimiento: true,
-        },
-    }).then(async (u) => {
+        select: USER_SELECT,
+    }).then(async (u): Promise<CurrentUser | null> => {
         if (!u) return null;
-        // Obtener ownerId y advisorRole via SQL raw para evitar error de schema incompleto del cliente Prisma
-        let ownerId: string | null = null;
-        let advisorRole: string | null = null;
-        try {
-            const rows = await db.$queryRaw<{ owner_id: string | null; advisor_role: string | null }[]>`
-                SELECT owner_id, advisor_role FROM "User" WHERE id = ${u.id}
-            `;
-            ownerId = rows[0]?.owner_id ?? null;
-            advisorRole = rows[0]?.advisor_role ?? null;
-        } catch {
-            // Si las columnas aún no existen, quedan null
-        }
 
-        // Si es asesor, heredar credenciales de API del dueño
-        if (ownerId) {
+        if (u.ownerId) {
             const ownerCreds = await db.user.findUnique({
-                where: { id: ownerId },
+                where: { id: u.ownerId },
                 select: {
                     apiKey: true,
                     apiKeyId: true,
@@ -104,11 +95,11 @@ export async function currentUser(request?: Request) {
                 },
             });
             if (ownerCreds) {
-                return { ...u, ...ownerCreds, ownerId, advisorRole, effectiveId: ownerId };
+                return { ...u, ...ownerCreds, effectiveId: u.ownerId };
             }
         }
 
-        return { ...u, ownerId, advisorRole, effectiveId: ownerId ?? u.id };
+        return { ...u, effectiveId: u.ownerId ?? u.id };
     });
 
     if (request) {

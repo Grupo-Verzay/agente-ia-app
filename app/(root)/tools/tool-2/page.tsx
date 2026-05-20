@@ -1,4 +1,4 @@
-import IframeRenderer from "@/components/custom/IframeRenderer";
+﻿import IframeRenderer from "@/components/custom/IframeRenderer";
 import { currentUser } from "@/lib/auth";
 import { getTools } from "@/actions/tools-action";
 import { redirect } from "next/navigation";
@@ -10,7 +10,7 @@ const ToolTwo = async () => {
     redirect("/login");
   }
 
-  const effectiveId = (user as any).effectiveId ?? user.id;
+  const effectiveId = user.effectiveId;
   const toolResponse = await getTools(effectiveId);
   const toolsMap: Record<string, string> = {};
 

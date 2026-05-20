@@ -125,7 +125,7 @@ export async function generateQRCode({ instanceName, userId }: GenerateQrInterfa
       (entry.lastIsConnected === null && !apiConnectedNow && cooldownOk)
     )
   ) {
-    const remoteJid = (user as any).notificationNumber as string | undefined;
+    const remoteJid = user.notificationNumber || undefined;
 
     if (remoteJid) {
       try {

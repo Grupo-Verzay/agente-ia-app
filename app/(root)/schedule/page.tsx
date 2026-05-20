@@ -1,4 +1,4 @@
-import { ApiKey, Instancia, Reminders, Session, Workflow } from "@prisma/client"
+﻿import { ApiKey, Instancia, Reminders, Session, Workflow } from "@prisma/client"
 
 import { currentUser } from '@/lib/auth';
 
@@ -35,7 +35,7 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
     const user = await currentUser()
     if (!user) return null;
 
-    const effectiveId: string = (user as any).effectiveId ?? user.id;
+    const effectiveId: string = user.effectiveId;
 
     // Obtener API Key (opcional — sin ella el módulo de recordatorios no puede enviar mensajes)
     const resApikey = await getApiKeyById(user.apiKeyId)

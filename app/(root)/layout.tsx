@@ -83,7 +83,7 @@ export default async function RootGroupLayout({
         }
         // Para usuarios regulares (no admin/reseller), filtrar por adminOnly y plan
         if (!isAdminOrReseller(user?.role)) {
-            const isAdvisor = !!(user as any).ownerId;
+            const isAdvisor = !!user.ownerId;
             const userPlan = user!.plan;
             modules = modules.filter(m => {
                 if (m.adminOnly) return false;

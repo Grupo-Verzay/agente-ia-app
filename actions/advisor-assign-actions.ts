@@ -16,8 +16,7 @@ export type AssignmentLogEntry = {
 async function requireOwnerOrAdmin(): Promise<{ userId: string; ownerId: string } | null> {
   const user = await currentUser();
   if (!user?.id) return null;
-  const ownerId = (user as any).ownerId ?? null;
-  const advisorRole = (user as any).advisorRole ?? null;
+  const { ownerId, advisorRole } = user;
   if (!ownerId || advisorRole === "administrador") {
     return { userId: user.id, ownerId: ownerId ?? user.id };
   }
@@ -77,7 +76,7 @@ export async function assignSessionToAdvisor(
 export async function takeSession(sessionId: number): Promise<Result> {
   const user = await currentUser();
   if (!user?.id) return { success: false, message: "No autorizado." };
-  const ownerId = (user as any).ownerId ?? null;
+  const { ownerId } = user;
   if (!ownerId) return { success: false, message: "Solo asesores pueden tomar conversaciones." };
 
   const rows = await db.$queryRaw<{ assigned_advisor_id: string | null }[]>`
@@ -121,7 +120,7 @@ export async function releaseSession(sessionId: number): Promise<Result> {
 export async function bulkAutoAssign(): Promise<Result & { assigned?: number }> {
   const user = await currentUser();
   if (!user?.id) return { success: false, message: "No autorizado." };
-  const ownerId = (user as any).ownerId ? null : user.id;
+  const ownerId = user.ownerId ? null : user.id;
   if (!ownerId) return { success: false, message: "Solo el dueño puede hacer asignación masiva." };
 
   const settings = await db.$queryRaw<{ max_chats: number }[]>`

@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { Prisma } from '@prisma/client';
+import { FinanceAccountType, FinanceTxStatus, FinanceTxType, Prisma } from '@prisma/client';
 
 type AttachmentInput = {
   url: string;
@@ -29,10 +29,9 @@ function serializeTx(tx: any) {
   };
 }
 
-// IMPORTANTE: tu enum es FinanceTxType: SALE | EXPENSE
-const SALES_TYPE = 'SALE' as any;
+const SALES_TYPE = FinanceTxType.SALE;
 
-function toDecimalOrUndefined(v: any) {
+function toDecimalOrUndefined(v: string | number | null | undefined) {
   if (v === undefined) return undefined;
   if (v === null) return new Prisma.Decimal('0');
   const s = String(v).trim();
@@ -63,7 +62,7 @@ export async function ensureFinanceSalesDefaults(userId: string): Promise<Operat
 
     if (!hasAccount) {
       await db.financeAccount.create({
-        data: { userId, name: 'Empresa', type: 'COMPANY' as any, isDefault: true },
+        data: { userId, name: 'Empresa', type: FinanceAccountType.COMPANY, isDefault: true },
       });
     }
 
@@ -81,13 +80,14 @@ export async function ensureFinanceSalesDefaults(userId: string): Promise<Operat
     });
 
     return { success: true, message: 'Defaults de ventas verificados.' };
-  } catch (error: any) {
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Error';
     console.error('ensureFinanceSalesDefaults error:', error);
-    return { success: false, message: `Defaults ventas: ${error?.message || 'Error'}` };
+    return { success: false, message: `Defaults ventas: ${msg}` };
   }
 }
 
-export async function getAllSales(userId: string): Promise<OperationResponse<any[]>> {
+export async function getAllSales(userId: string): Promise<OperationResponse<Record<string, unknown>[]>> {
   try {
     await ensureFinanceSalesDefaults(userId);
 
@@ -95,7 +95,7 @@ export async function getAllSales(userId: string): Promise<OperationResponse<any
       where: {
         userId,
         type: SALES_TYPE,
-        status: { not: 'DELETED' as any },
+        status: { not: FinanceTxStatus.DELETED },
       },
       orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
       include: {
@@ -127,7 +127,7 @@ export async function getAllSales(userId: string): Promise<OperationResponse<any
 
 export async function getSalesMeta(
   userId: string
-): Promise<OperationResponse<{ accounts: any[]; categories: any[]; currencies: any[] }>> {
+): Promise<OperationResponse<{ accounts: unknown[]; categories: unknown[]; currencies: unknown[] }>> {
   try {
     await ensureFinanceSalesDefaults(userId);
 
@@ -167,8 +167,7 @@ export async function createSale(data: {
   counterparty?: string | null;
   reference?: string | null;
 
-  // 👇 si llega desde el front lo ignoramos
-  productId?: any;
+  productId?: unknown;
 }): Promise<OperationResponse<{ id: string }>> {
   try {
     await ensureFinanceSalesDefaults(data.userId);
@@ -177,7 +176,7 @@ export async function createSale(data: {
       data: {
         userId: data.userId,
         type: SALES_TYPE,
-        status: 'ACTIVE' as any,
+        status: FinanceTxStatus.ACTIVE,
         occurredAt: data.occurredAt instanceof Date ? data.occurredAt : new Date(data.occurredAt),
         amount: new Prisma.Decimal(String(data.amount)),
         extra: toDecimalOrUndefined(data.extra) ?? new Prisma.Decimal('0'),
@@ -199,9 +198,9 @@ export async function createSale(data: {
     });
 
     return { success: true, message: 'Venta creada.', data: { id: created.id } };
-  } catch (error: any) {
+  } catch (error) {
     console.error('createSale error:', error);
-    return { success: false, message: error?.message || 'Error al crear venta.' };
+    return { success: false, message: error instanceof Error ? error.message : 'Error al crear venta.' };
   }
 }
 
@@ -226,16 +225,16 @@ export async function updateSale(
 
     // 👇 si por error te llega desde el front, lo ignoramos
     userId?: string;
-    type?: any;
-    status?: any;
-    createdAt?: any;
-    updatedAt?: any;
-    deletedAt?: any;
-    productId?: any;
+    type?: unknown;
+    status?: unknown;
+    createdAt?: unknown;
+    updatedAt?: unknown;
+    deletedAt?: unknown;
+    productId?: unknown;
   }>
 ): Promise<OperationResponse> {
   try {
-    const payload: any = {};
+    const payload: Record<string, Date | string | number | null | Prisma.Decimal> = {};
 
     if (data.occurredAt !== undefined) {
       payload.occurredAt = data.occurredAt instanceof Date ? data.occurredAt : new Date(data.occurredAt);
@@ -266,16 +265,16 @@ export async function updateSale(
         id,
         userId,
         type: SALES_TYPE,
-        status: { not: 'DELETED' as any },
+        status: { not: FinanceTxStatus.DELETED },
       },
       data: payload,
     });
 
     if (updated.count === 0) return { success: false, message: 'Venta no encontrada o no editable.' };
     return { success: true, message: 'Venta actualizada.' };
-  } catch (error: any) {
+  } catch (error) {
     console.error('updateSale error:', error);
-    return { success: false, message: error?.message || 'Error al actualizar venta.' };
+    return { success: false, message: error instanceof Error ? error.message : 'Error al actualizar venta.' };
   }
 }
 
@@ -283,7 +282,7 @@ export async function deleteSale(id: string, userId: string): Promise<OperationR
   try {
     const deleted = await db.financeTransaction.updateMany({
       where: { id, userId, type: SALES_TYPE },
-      data: { status: 'DELETED' as any, deletedAt: new Date() },
+      data: { status: FinanceTxStatus.DELETED, deletedAt: new Date() },
     });
 
     if (deleted.count === 0) return { success: false, message: 'Venta no encontrada.' };
@@ -304,7 +303,7 @@ export async function addSaleAttachments(params: {
     if (!attachments?.length) return { success: true, message: 'Sin soportes.' };
 
     const tx = await db.financeTransaction.findFirst({
-      where: { id: transactionId, userId, type: SALES_TYPE, status: { not: 'DELETED' as any } },
+      where: { id: transactionId, userId, type: SALES_TYPE, status: { not: FinanceTxStatus.DELETED } },
       select: { id: true },
     });
 

@@ -1,4 +1,4 @@
-// app/(dashboard)/products/page.tsx
+﻿// app/(dashboard)/products/page.tsx
 import { listProducts } from "@/actions/products-actions";
 import { Suspense } from "react";
 import { currentUser } from "@/lib/auth";
@@ -13,7 +13,7 @@ export default async function ProductsPage({
         redirect('/login');
     };
 
-    const effectiveId = (user as any).effectiveId ?? user.id;
+    const effectiveId = user.effectiveId;
     const q = searchParams?.q ?? "";
     const page = Number(searchParams?.page ?? 1);
     const data = await listProducts({ userId: effectiveId, q, page, perPage: 20 });

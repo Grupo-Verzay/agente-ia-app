@@ -26,10 +26,7 @@ export default async function ExpensesPage() {
   const expenses = serializePrisma(listRes.data || []);
 
   // usar la moneda guardada en settings (igual que Sales)
-  const preferredCurrencyCode =
-    (user as any).preferredCurrencyCode ||
-    (user as any).primaryCurrencyCode || // fallback por si antes existía ese campo
-    "COP";
+  const preferredCurrencyCode = user.preferredCurrencyCode || "COP";
 
   return (
     <MainExpenses

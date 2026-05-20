@@ -62,12 +62,12 @@ const ProfilePage = async () => {
     redirect('/login');
   };
 
-  const effectiveId: string = (user as any).effectiveId ?? user.id;
+  const effectiveId = user.effectiveId;
 
   // Obtener instancias, API key y prompts en paralelo
   const [resInstancias, resApikey, resPrompts] = await Promise.all([
     getInstancesByUserId(effectiveId),
-    getApiKeyById((user as any).apiKeyId),
+    getApiKeyById(user.apiKeyId),
     getPromptsByUserId(effectiveId)
   ]);
 

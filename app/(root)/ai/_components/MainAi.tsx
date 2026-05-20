@@ -167,7 +167,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                             <PromptToolbar
                                     promptId={promptMeta.id}
                                     version={promptVersion}
-                                    userId={(user as any).effectiveId ?? user.id}
+                                    userId={user.effectiveId ?? user.id}
                                     onVersionChange={setPromptVersion}
                                     onConflict={(serverState) => {
                                         const serverSections = serverState?.sections;
@@ -399,8 +399,8 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                 open={showAlertDialog}
                 setOpen={setShowAlertDialog}
                 itemName="auto prompt"
-                itemId={(user as any).effectiveId ?? user.id}
-                mutationFn={() => deleteAgentPromptsByUserId((user as any).effectiveId ?? user.id)}
+                itemId={user.effectiveId ?? user.id}
+                mutationFn={() => deleteAgentPromptsByUserId(user.effectiveId ?? user.id)}
                 entityLabel="todo el auto prompt"
             />
 
