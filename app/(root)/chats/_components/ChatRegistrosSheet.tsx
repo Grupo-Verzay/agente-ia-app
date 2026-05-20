@@ -239,7 +239,15 @@ export function ChatRegistrosSheet({
                         className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
                       >
                         <span className="text-sm text-muted-foreground">Seguimientos</span>
-                        <span className="text-sm font-bold">{flujosEjecutados + seguimientosPendientes}</span>
+                        <span className="text-sm font-bold">{flujosEjecutados}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("SEGUIMIENTOS")}
+                        className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
+                      >
+                        <span className="text-sm text-muted-foreground">Follow-ups IA</span>
+                        <span className="text-sm font-bold">{seguimientosPendientes}</span>
                       </button>
                     </div>
 
