@@ -400,7 +400,7 @@ function AppointmentCard({
 
 /* ===== COMPONENTE PRINCIPAL ===== */
 
-type BulkAction = "cancel" | "reactivate" | "deleteAllSeguimientos" | "deleteAllReminders";
+type BulkAction = "cancel" | "reactivate" | "deleteAllSeguimientos" | "deleteAllReminders" | "cancelAllCitas";
 
 export function LeadSeguimientosTab({
   sessionId,
@@ -499,6 +499,24 @@ export function LeadSeguimientosTab({
       return;
     }
 
+    if (action === "cancelAllCitas") {
+      toast.loading("Cancelando citas...", { id: toastId });
+      setPendingAction(action);
+      try {
+        const active = appointmentItems.filter(
+          (a) => !["FINALIZADO", "DESCARTADO", "CANCELADA"].includes(a.status)
+        );
+        await Promise.all(active.map((a) => updateAppointmentStatus(a.id, "CANCELADA")));
+        await loadAll();
+        toast.success("Citas canceladas.", { id: toastId });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "No se pudo cancelar.", { id: toastId });
+      } finally {
+        setPendingAction(null);
+      }
+      return;
+    }
+
     if (!instanceId) return;
     toast.loading(action === "cancel" ? "Cancelando follow-ups IA..." : "Reactivando follow-ups IA...", { id: toastId });
     setPendingAction(action);
@@ -533,57 +551,48 @@ export function LeadSeguimientosTab({
     (showReminders ? reminderItems.length === 0 : true) &&
     (showAppointments ? appointmentItems.length === 0 : true);
 
-  const hasLegacyActions = showLegacy && legacyItems.length > 0;
-  const hasReminderActions = showReminders && reminderItems.length > 0;
-  const hasCrmActions = showCrm && (canReactivate || canCancel);
-  const hasAnyBottomAction = hasLegacyActions || hasReminderActions || hasCrmActions;
+  const activeCitasCount = appointmentItems.filter(
+    (a) => !["FINALIZADO", "DESCARTADO", "CANCELADA"].includes(a.status)
+  ).length;
 
-  const bottomActions = hasAnyBottomAction ? (
-    <div className="flex flex-wrap gap-2 border-t pt-3 mt-2">
-      {hasLegacyActions && (
-        <Button
-          variant="outline"
-          className="flex-1 text-sm text-destructive hover:text-destructive"
-          disabled={pendingAction !== null}
-          onClick={() => setConfirmAction("deleteAllSeguimientos")}
-        >
-          <Trash2 className="h-4 w-4" />
-          Eliminar seguimientos
-        </Button>
-      )}
-      {hasReminderActions && (
-        <Button
-          variant="outline"
-          className="flex-1 text-sm text-destructive hover:text-destructive"
-          disabled={pendingAction !== null}
-          onClick={() => setConfirmAction("deleteAllReminders")}
-        >
-          <Trash2 className="h-4 w-4" />
-          Eliminar recordatorios
-        </Button>
-      )}
-      {showCrm && canReactivate && (
-        <Button
-          variant="outline"
-          className="flex-1 text-sm"
-          disabled={pendingAction !== null}
-          onClick={() => setConfirmAction("reactivate")}
-        >
-          <RefreshCcw className="h-4 w-4 text-emerald-500" />
-          Reactivar todos
-        </Button>
-      )}
-      {showCrm && canCancel && (
-        <Button
-          variant="outline"
-          className="flex-1 text-sm"
-          disabled={pendingAction !== null}
-          onClick={() => setConfirmAction("cancel")}
-        >
-          <XCircle className="h-4 w-4 text-rose-500" />
-          Cancelar activos
-        </Button>
-      )}
+  const bottomActions = mode === "all" ? (
+    <div className="grid grid-cols-2 gap-2 border-t pt-3 mt-2">
+      <Button
+        variant="outline"
+        className="text-sm text-destructive hover:text-destructive"
+        disabled={pendingAction !== null || legacyItems.length === 0}
+        onClick={() => setConfirmAction("deleteAllSeguimientos")}
+      >
+        <Trash2 className="h-4 w-4" />
+        Eliminar seguimientos
+      </Button>
+      <Button
+        variant="outline"
+        className="text-sm text-destructive hover:text-destructive"
+        disabled={pendingAction !== null || reminderItems.length === 0}
+        onClick={() => setConfirmAction("deleteAllReminders")}
+      >
+        <Trash2 className="h-4 w-4" />
+        Eliminar recordatorios
+      </Button>
+      <Button
+        variant="outline"
+        className="text-sm text-destructive hover:text-destructive"
+        disabled={pendingAction !== null || activeCitasCount === 0}
+        onClick={() => setConfirmAction("cancelAllCitas")}
+      >
+        <Trash2 className="h-4 w-4" />
+        Eliminar citas
+      </Button>
+      <Button
+        variant="outline"
+        className="text-sm"
+        disabled={pendingAction !== null || !canReactivate}
+        onClick={() => setConfirmAction("reactivate")}
+      >
+        <RefreshCcw className="h-4 w-4 text-emerald-500" />
+        Reactivar follow-ups IA
+      </Button>
     </div>
   ) : null;
 
@@ -598,6 +607,12 @@ export function LeadSeguimientosTab({
       title: "Eliminar recordatorios",
       description: "Se eliminarán todos los recordatorios de este lead. Esta acción no se puede deshacer.",
       label: "Eliminar todos",
+      tone: "destructive",
+    },
+    cancelAllCitas: {
+      title: "Eliminar citas",
+      description: "Se cancelarán todas las citas activas de este lead. Esta acción no se puede deshacer.",
+      label: "Cancelar citas",
       tone: "destructive",
     },
     cancel: {
