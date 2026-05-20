@@ -311,6 +311,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 remoteJid={session.remoteJid}
                 instanceId={session.instanceId}
                 flujos={session.flujos}
+                leadStatus={session.leadStatus}
+                leadScore={session.leadScore}
+                leadScoreReason={session.leadScoreReason}
+                tags={session.tags}
               />
               <ChatReminderDialog session={session!} userId={userId} />
               <ChatAppointmentStatusButton
@@ -391,6 +395,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 remoteJid={session.remoteJid}
                 instanceId={session.instanceId}
                 flujos={session.flujos}
+                leadStatus={session.leadStatus}
+                leadScore={session.leadScore}
+                leadScoreReason={session.leadScoreReason}
+                tags={session.tags}
               />
               <ChatReminderDialog session={session!} userId={userId} />
               <ChatAppointmentStatusButton

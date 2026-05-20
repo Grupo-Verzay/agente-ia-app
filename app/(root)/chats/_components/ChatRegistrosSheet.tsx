@@ -6,11 +6,15 @@ import type { Registro, TipoRegistro } from "@prisma/client";
 
 import { getRegistrosBySessionId, deleteRegistro } from "@/actions/registro-action";
 import { getSessionLegacySeguimientos } from "@/actions/seguimientos-actions";
-import { getSessionCrmFollowUps } from "@/actions/crm-follow-up-actions";
+import { getSessionCrmFollowUps, getSessionLatestSummarySnapshot } from "@/actions/crm-follow-up-actions";
+import { getRemindersByRemoteJid } from "@/actions/reminders-actions";
+import { getAppointmentsBySession } from "@/actions/appointments-actions";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -28,6 +32,9 @@ import { RegistrosTable } from "../../crm/components/RegistrosTable";
 import { RegistroUpsertDialog } from "../../crm/components/RegistroUpsertDialog";
 import { ResumeCard } from "../../crm/components/ResumeCard";
 import { LeadSeguimientosTab } from "../../crm/components/LeadSeguimientosTab";
+import type { SimpleTag } from "@/types/session";
+
+/* ===== CONSTANTES ===== */
 
 const TIPOS: TipoRegistro[] = ["SOLICITUD", "PEDIDO", "RECLAMO", "PAGO", "RESERVA", "PRODUCTO"];
 
@@ -74,6 +81,21 @@ const TAB_COLORS: Record<string, string> = {
   SEGUIMIENTOS: "bg-amber-500  text-white opacity-70 data-[state=active]:opacity-100 data-[state=active]:bg-amber-500",
 };
 
+const LEAD_STATUS_LABELS: Record<string, string> = {
+  FRIO: "Frío", TIBIO: "Tibio", CALIENTE: "Caliente",
+  FINALIZADO: "Finalizado", DESCARTADO: "Descartado",
+};
+
+const LEAD_STATUS_CLASSES: Record<string, string> = {
+  FRIO:       "border-blue-300 bg-blue-100 text-blue-800",
+  TIBIO:      "border-amber-300 bg-amber-100 text-amber-800",
+  CALIENTE:   "border-red-300 bg-red-100 text-red-800",
+  FINALIZADO: "border-emerald-300 bg-emerald-100 text-emerald-800",
+  DESCARTADO: "border-slate-300 bg-slate-200 text-slate-700",
+};
+
+/* ===== COMPONENTE ===== */
+
 export function ChatRegistrosSheet({
   open,
   onOpenChange,
@@ -85,6 +107,10 @@ export function ChatRegistrosSheet({
   instanceId,
   initialTab,
   flujos,
+  leadStatus,
+  leadScore,
+  leadScoreReason,
+  tags,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -96,10 +122,17 @@ export function ChatRegistrosSheet({
   instanceId: string | null;
   initialTab?: string;
   flujos?: string | null;
+  leadStatus?: string | null;
+  leadScore?: number | null;
+  leadScoreReason?: string | null;
+  tags?: SimpleTag[];
 }) {
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [seguimientosPendingCount, setSeguimientosPendingCount] = useState(0);
   const [seguimientosPendientes, setSeguimientosPendientes] = useState(0);
+  const [recordatoriosCount, setRecordatoriosCount] = useState(0);
+  const [citasCount, setCitasCount] = useState(0);
+  const [sintesis, setSintesis] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab ?? "RESUMEN");
 
@@ -113,18 +146,23 @@ export function ChatRegistrosSheet({
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [regResult, legacyResult, crmResult] = await Promise.all([
+    const [regResult, legacyResult, crmResult, remResult, apptResult, synResult] = await Promise.all([
       getRegistrosBySessionId(sessionId),
       getSessionLegacySeguimientos(remoteJid),
       getSessionCrmFollowUps(sessionId, userId),
+      getRemindersByRemoteJid(userId, remoteJid),
+      getAppointmentsBySession(sessionId),
+      getSessionLatestSummarySnapshot(sessionId),
     ]);
     if (regResult.success && regResult.data) setRegistros(regResult.data);
     if (legacyResult.success && legacyResult.data)
       setSeguimientosPendingCount(legacyResult.data.filter((i) => i.followUpStatus === "pending").length);
     if (crmResult.success && crmResult.data)
-      setSeguimientosPendientes(
-        crmResult.data.filter((i) => i.status === "PENDING" || i.status === "PROCESSING").length
-      );
+      setSeguimientosPendientes(crmResult.data.filter((i) => i.status === "PENDING" || i.status === "PROCESSING").length);
+    if (remResult.success && remResult.data) setRecordatoriosCount(remResult.data.length);
+    if (apptResult.success && apptResult.data)
+      setCitasCount(apptResult.data.filter((a) => !["FINALIZADO", "DESCARTADO", "CANCELADA"].includes(a.status)).length);
+    if (synResult.success && synResult.data) setSintesis(synResult.data.summarySnapshot ?? null);
     setLoading(false);
   }, [sessionId, userId, remoteJid]);
 
@@ -147,7 +185,7 @@ export function ChatRegistrosSheet({
 
   const { flujosCount, flujosNames } = useMemo(() => {
     const str = (flujos ?? "").trim();
-    if (!str || str === "-") return { flujosCount: 0, flujosNames: [] };
+    if (!str || str === "-") return { flujosCount: 0, flujosNames: [] as string[] };
     try {
       const parsed = JSON.parse(str);
       if (Array.isArray(parsed)) {
@@ -184,6 +222,8 @@ export function ChatRegistrosSheet({
     setDeletingRegistro(null);
     load();
   }
+
+  const totalSeguimientos = seguimientosPendingCount + seguimientosPendientes + recordatoriosCount + citasCount;
 
   return (
     <>
@@ -232,81 +272,141 @@ export function ChatRegistrosSheet({
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 px-4 pt-3 pb-3">
               <TabsList className="flex gap-1 mb-3 h-auto bg-transparent p-0 w-full justify-between">
                 {(["RESUMEN", ...TIPOS, "SEGUIMIENTOS"] as string[]).map((key) => (
-                  <TabsTrigger
-                    key={key}
-                    value={key}
-                    className={`${TAB_BASE} ${TAB_COLORS[key] ?? ""}`}
-                  >
+                  <TabsTrigger key={key} value={key} className={`${TAB_BASE} ${TAB_COLORS[key] ?? ""}`}>
                     {TAB_LABELS[key]}
                   </TabsTrigger>
                 ))}
               </TabsList>
 
-              {/* RESUMEN */}
+              {/* ===== RESUMEN ===== */}
               <TabsContent value="RESUMEN" className="flex-1 min-h-0 mt-0">
                 <ScrollArea className="h-full">
-                  <div className="flex flex-col gap-3 pb-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                      {TIPOS.map((tipo) => (
-                        <ResumeCard key={tipo} label={TIPO_LABELS[tipo]} value={countByTipo[tipo]} onClick={() => setActiveTab(tipo)} />
-                      ))}
-                      {flujosCount === 0 ? (
-                        <ResumeCard label="Flujos ejecutados" value={0} />
-                      ) : (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button
-                              type="button"
-                              className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 w-full text-left hover:bg-accent transition-colors cursor-pointer"
+                  <div className="flex flex-col gap-4 pb-4">
+
+                    {/* INFO DEL LEAD */}
+                    <div className="rounded-md border bg-background p-3 flex flex-col gap-2.5">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Info del lead</p>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {leadStatus && (
+                          <Badge variant="outline" className={LEAD_STATUS_CLASSES[leadStatus] ?? "border-slate-200 bg-slate-50 text-slate-600"}>
+                            {LEAD_STATUS_LABELS[leadStatus] ?? leadStatus}
+                          </Badge>
+                        )}
+                        {leadScore != null && (
+                          <span className="text-xs text-muted-foreground">
+                            Score: <span className="font-semibold text-foreground">{leadScore}</span>
+                            {leadScoreReason && <span className="ml-1 italic">— {leadScoreReason}</span>}
+                          </span>
+                        )}
+                      </div>
+
+                      {tags && tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {tags.map((tag) => (
+                            <span
+                              key={tag.id}
+                              className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border"
+                              style={tag.color ? { borderColor: `${tag.color}60`, backgroundColor: `${tag.color}20`, color: tag.color } : undefined}
                             >
-                              <span className="text-sm text-muted-foreground">Flujos ejecutados</span>
-                              <span className="text-sm font-bold">{flujosCount}</span>
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent align="start" className="w-64 p-3">
-                            <p className="text-xs font-semibold mb-2">Flujos ejecutados</p>
-                            <ul className="space-y-1">
-                              {flujosNames.map((name, i) => (
-                                <li key={i} className="text-xs text-muted-foreground flex items-center gap-1.5">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
-                                  {name}
-                                </li>
-                              ))}
-                            </ul>
-                          </PopoverContent>
-                        </Popover>
+                              {tag.name}
+                            </span>
+                          ))}
+                        </div>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("SEGUIMIENTOS")}
-                        className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
-                      >
-                        <span className="text-sm text-muted-foreground">Seguimientos</span>
-                        <span className="text-sm font-bold">{seguimientosPendingCount + seguimientosPendientes}</span>
-                      </button>
+
+                      {sintesis && (
+                        <div className="rounded-md bg-muted/40 px-2.5 py-2 text-xs text-muted-foreground whitespace-pre-wrap">
+                          {sintesis}
+                        </div>
+                      )}
+
+                      {!leadStatus && !leadScore && (!tags || tags.length === 0) && !sintesis && (
+                        <p className="text-xs text-muted-foreground">Sin información del lead aún.</p>
+                      )}
                     </div>
 
-                    {registros.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-6">
-                        Este lead aún no tiene registros.
-                      </p>
-                    ) : (
-                      <div className="flex flex-col gap-1">
-                        <p className="text-sm font-medium">Actividad reciente</p>
-                        {registros.slice(0, 5).map((r) => (
-                          <div
-                            key={r.id}
-                            className="flex items-start justify-between gap-2 rounded-md border bg-background px-2 py-1.5 text-xs"
-                          >
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-medium">{TIPO_LABELS[r.tipo as TipoRegistro]}</span>
-                              <span className="text-muted-foreground line-clamp-2">
-                                {r.resumen || r.detalles || "Sin detalles"}
-                              </span>
-                            </div>
-                          </div>
+                    <Separator />
+
+                    {/* REGISTROS CRM */}
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registros CRM</p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {TIPOS.map((tipo) => (
+                          <ResumeCard key={tipo} label={TIPO_LABELS[tipo]} value={countByTipo[tipo]} onClick={() => setActiveTab(tipo)} />
                         ))}
                       </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* AGENDA */}
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Agenda</p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {flujosCount === 0 ? (
+                          <ResumeCard label="Flujos ejecutados" value={0} />
+                        ) : (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 w-full text-left hover:bg-accent transition-colors cursor-pointer"
+                              >
+                                <span className="text-sm text-muted-foreground">Flujos ejecutados</span>
+                                <span className="text-sm font-bold">{flujosCount}</span>
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-64 p-3">
+                              <p className="text-xs font-semibold mb-2">Flujos ejecutados</p>
+                              <ul className="space-y-1">
+                                {flujosNames.map((name, i) => (
+                                  <li key={i} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+                                    {name}
+                                  </li>
+                                ))}
+                              </ul>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                        <button type="button" onClick={() => setActiveTab("SEGUIMIENTOS")} className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors">
+                          <span className="text-sm text-muted-foreground">Seguimientos</span>
+                          <span className="text-sm font-bold">{seguimientosPendingCount}</span>
+                        </button>
+                        <button type="button" onClick={() => setActiveTab("SEGUIMIENTOS")} className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors">
+                          <span className="text-sm text-muted-foreground">Recordatorios</span>
+                          <span className="text-sm font-bold">{recordatoriosCount}</span>
+                        </button>
+                        <button type="button" onClick={() => setActiveTab("SEGUIMIENTOS")} className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors">
+                          <span className="text-sm text-muted-foreground">Citas</span>
+                          <span className="text-sm font-bold">{citasCount}</span>
+                        </button>
+                        <button type="button" onClick={() => setActiveTab("SEGUIMIENTOS")} className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors">
+                          <span className="text-sm text-muted-foreground">Follow-ups IA</span>
+                          <span className="text-sm font-bold">{seguimientosPendientes}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* ACTIVIDAD RECIENTE */}
+                    {registros.length > 0 && (
+                      <>
+                        <Separator />
+                        <div className="flex flex-col gap-1.5">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actividad reciente</p>
+                          {registros.slice(0, 5).map((r) => (
+                            <div key={r.id} className="flex items-start justify-between gap-2 rounded-md border bg-background px-2 py-1.5 text-xs">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-medium">{TIPO_LABELS[r.tipo as TipoRegistro]}</span>
+                                <span className="text-muted-foreground line-clamp-2">
+                                  {r.resumen || r.detalles || "Sin detalles"}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
                 </ScrollArea>
@@ -327,7 +427,7 @@ export function ChatRegistrosSheet({
                 </TabsContent>
               ))}
 
-              {/* SEGUIMIENTOS — vista unificada: seguimientos, recordatorios, citas y follow-ups IA */}
+              {/* SEGUIMIENTOS */}
               <TabsContent value="SEGUIMIENTOS" className="flex-1 min-h-0 mt-0 overflow-hidden">
                 <div className="h-full flex flex-col">
                   <LeadSeguimientosTab

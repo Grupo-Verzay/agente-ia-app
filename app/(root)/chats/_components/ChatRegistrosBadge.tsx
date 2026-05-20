@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { ChatRegistrosSheet } from "./ChatRegistrosSheet";
+import type { SimpleTag } from "@/types/session";
 
 const TIPOS: TipoRegistro[] = ["SOLICITUD", "PEDIDO", "RECLAMO", "PAGO", "RESERVA", "PRODUCTO"];
 
@@ -38,6 +39,10 @@ export function ChatRegistrosBadge({
   remoteJid,
   instanceId,
   flujos,
+  leadStatus,
+  leadScore,
+  leadScoreReason,
+  tags,
 }: {
   sessionId: number;
   sessionPushName?: string | null;
@@ -46,6 +51,10 @@ export function ChatRegistrosBadge({
   remoteJid: string;
   instanceId: string | null;
   flujos?: string | null;
+  leadStatus?: string | null;
+  leadScore?: number | null;
+  leadScoreReason?: string | null;
+  tags?: SimpleTag[];
 }) {
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [seguimientosCount, setSeguimientosCount] = useState(0);
@@ -156,6 +165,10 @@ export function ChatRegistrosBadge({
         remoteJid={remoteJid}
         instanceId={instanceId}
         flujos={flujos}
+        leadStatus={leadStatus}
+        leadScore={leadScore}
+        leadScoreReason={leadScoreReason}
+        tags={tags}
       />
     </>
   );
