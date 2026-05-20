@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { db } from '@/lib/db';
 
@@ -11,7 +11,7 @@ export async function getFinanceAccounts(userId: string) {
     });
 
     return { success: true, data };
-  } catch (e: any) {
+  } catch (e) {
     return { success: false, message: e?.message || 'Error listando cuentas' };
   }
 }
@@ -46,7 +46,7 @@ export async function createFinanceAccount(payload: {
     });
 
     return { success: true, data: created };
-  } catch (e: any) {
+  } catch (e) {
     return { success: false, message: e?.message || 'Error creando cuenta' };
   }
 }
@@ -83,7 +83,7 @@ export async function updateFinanceAccount(
     });
 
     return { success: true, data: updated };
-  } catch (e: any) {
+  } catch (e) {
     return { success: false, message: e?.message || 'Error actualizando cuenta' };
   }
 }
@@ -120,7 +120,7 @@ export async function deleteFinanceAccount(accountId: string, userId: string) {
     }
 
     return { success: true };
-  } catch (e: any) {
+  } catch (e) {
     return { success: false, message: e?.message || 'Error eliminando cuenta' };
   }
 }

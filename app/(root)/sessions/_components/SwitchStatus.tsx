@@ -7,10 +7,12 @@ import { toast } from 'sonner';
 import { User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+type SessionLike = { id: number; [key: string]: unknown };
+
 interface Props {
   sessionId: number;
   checked: boolean;
-  mutateSessions?: (updater: (prevData: any) => any, shouldRevalidate?: boolean) => void;
+  mutateSessions?: (updater: (prevData: SessionLike[][] | undefined) => SessionLike[][] | undefined, shouldRevalidate?: boolean) => void;
 }
 
 export const SwitchStatus = ({ sessionId, checked, mutateSessions }: Props) => {
@@ -31,10 +33,10 @@ export const SwitchStatus = ({ sessionId, checked, mutateSessions }: Props) => {
       toast.success('Actualizado!', { id: toastId });
 
       if (mutateSessions) {
-        mutateSessions((prev: any) => {
+        mutateSessions((prev) => {
           if (!prev) return prev;
-          return prev.map((page: any) =>
-            page.map((session: any) => {
+          return prev.map((page) =>
+            page.map((session) => {
               if (session.id === sessionId) {
                 return { ...session, status };
               }

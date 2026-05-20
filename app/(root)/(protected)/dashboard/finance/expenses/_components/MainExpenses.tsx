@@ -1,11 +1,11 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { DataTable } from './data-table';
-import { buildExpenseColumns } from './columns';
+import { buildExpenseColumns, type ExpenseRow } from './columns';
 
 import {
   createExpense,
@@ -40,13 +40,17 @@ import {
   Trash2,
 } from 'lucide-react';
 
+type FinAccount  = { id: string; name: string; isDefault: boolean };
+type FinCategory = { id: string; name: string };
+type FinCurrency = { code: string; symbol?: string | null; name?: string | null; decimals?: number | null };
+
 type Props = {
   userId: string;
-  accounts: any[];
-  categories: any[];
-  currencies: any[];
-  expenses: any[];
-  primaryCurrencyCode: string; // moneda del user (desde settings)
+  accounts: FinAccount[];
+  categories: FinCategory[];
+  currencies: FinCurrency[];
+  expenses: ExpenseRow[];
+  primaryCurrencyCode: string;
 };
 
 type FormState = {
@@ -92,13 +96,13 @@ function guessIsPdf(mimeType?: string | null, url?: string) {
   return /\.pdf$/i.test(url);
 }
 
-function toAmountNumber(v: any): number {
+function toAmountNumber(v: string | number | null | undefined): number {
   if (v === null || v === undefined) return 0;
   const n = Number(String(v));
   return Number.isFinite(n) ? n : 0;
 }
 
-function sumByCurrency(list: any[]) {
+function sumByCurrency(list: ExpenseRow[]) {
   return list.reduce<Record<string, number>>((acc, r) => {
     const code = r.currencyCode || '—';
     const total = toAmountNumber(r.amount);
@@ -107,7 +111,7 @@ function sumByCurrency(list: any[]) {
   }, {});
 }
 
-function moneyFormat(currencies: any[], code: string, value: number) {
+function moneyFormat(currencies: FinCurrency[], code: string, value: number) {
   const meta = currencies.find((c) => c.code === code);
   const decimals = typeof meta?.decimals === 'number' ? meta.decimals : 2;
   try {
@@ -162,13 +166,13 @@ export default function MainExpenses({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const [rows, setRows] = useState<any[]>(expenses ?? []);
+  const [rows, setRows] = useState<ExpenseRow[]>(expenses ?? []);
   useEffect(() => setRows(expenses ?? []), [expenses]);
 
   const [detailOpen, setDetailOpen] = useState(false);
-  const [detailRow, setDetailRow] = useState<any | null>(null);
+  const [detailRow, setDetailRow] = useState<ExpenseRow | null>(null);
 
-  const openDetail = (row: any) => {
+  const openDetail = (row: ExpenseRow) => {
     setDetailRow(row);
     setDetailOpen(true);
   };
@@ -179,7 +183,7 @@ export default function MainExpenses({
 
   const [tab, setTab] = useState<'month' | 'total'>('month');
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<any | null>(null);
+  const [editing, setEditing] = useState<ExpenseRow | null>(null);
 
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -235,7 +239,7 @@ export default function MainExpenses({
     setOpen(true);
   };
 
-  const openEdit = (row: any) => {
+  const openEdit = (row: ExpenseRow) => {
     setEditing(row);
 
     // mantiene moneda del registro (solo lectura), si no hay, usa defaultCurrency
@@ -249,8 +253,9 @@ export default function MainExpenses({
       description: row.description ?? '',
     });
 
+    const rawAttachments = Array.isArray(row.attachments) ? (row.attachments as DraftAttachment[]) : [];
     setAttachments(
-      (row.attachments || []).map((a: any) => ({
+      rawAttachments.map((a) => ({
         id: a.id,
         url: a.url,
         fileName: a.fileName ?? null,
@@ -288,8 +293,8 @@ export default function MainExpenses({
         setAttachments((prev) => [...prev, { ...up, isNew: true }]);
       }
       toast.success('Soporte(s) subido(s)');
-    } catch (e: any) {
-      toast.error(e?.message || 'Error al subir soporte');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al subir soporte');
     } finally {
       setUploading(false);
     }
@@ -314,12 +319,12 @@ export default function MainExpenses({
         };
 
         const res = editing
-          ? await updateExpense(editing.id, userId, payload as any)
-          : await createExpense(payload as any);
+          ? await updateExpense(editing.id, userId, payload)
+          : await createExpense(payload);
 
         if (!res.success) return toast.error(res.message);
 
-        const txId = editing ? editing.id : (res as any).data?.id;
+        const txId = editing ? editing.id : res.data?.id;
 
         const newOnes = attachments.filter((a) => a.isNew);
         if (txId && newOnes.length) {
@@ -416,6 +421,11 @@ export default function MainExpenses({
     return currencies.find((c) => c.code === detailRow.currencyCode) || null;
   }, [detailRow, currencies]);
 
+  const detailAttachments = useMemo(
+    () => detailRow?.attachments ?? [],
+    [detailRow]
+  );
+
   return (
     <TooltipProvider>
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-3">
@@ -465,7 +475,7 @@ export default function MainExpenses({
               </div>
             </div>
 
-            <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="mt-2 flex flex-col flex-1 min-h-0">
+            <Tabs value={tab} onValueChange={(v) => setTab(v as 'month' | 'total')} className="mt-2 flex flex-col flex-1 min-h-0">
               <TabsList className="h-9 w-full justify-start gap-6 rounded-none bg-transparent p-0">
                 <TabsTrigger
                   value="month"
@@ -490,7 +500,7 @@ export default function MainExpenses({
 
               <TabsContent value="month" className="mt-0 flex-1 min-h-0">
                 <DataTable
-                  columns={columns as any}
+                  columns={columns}
                   data={monthRows}
                   searchKey="name"
                   searchPlaceholder="Buscar..."
@@ -500,7 +510,7 @@ export default function MainExpenses({
 
               <TabsContent value="total" className="mt-0 flex-1 min-h-0">
                 <DataTable
-                  columns={columns as any}
+                  columns={columns}
                   data={rows}
                   searchKey="name"
                   searchPlaceholder="Buscar..."
@@ -604,13 +614,13 @@ export default function MainExpenses({
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium">Soportes</p>
                     <p className="text-xs text-muted-foreground">
-                      {detailRow.attachments?.length ? `${detailRow.attachments.length} archivo(s)` : '0 archivos'}
+                      {detailAttachments.length ? `${detailAttachments.length} archivo(s)` : '0 archivos'}
                     </p>
                   </div>
 
-                  {detailRow.attachments?.length ? (
+                  {detailAttachments.length ? (
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {detailRow.attachments.map((a: any) => {
+                      {detailAttachments.map((a) => {
                         const isImg = guessIsImage(a.mimeType, a.url);
                         const isPdf = guessIsPdf(a.mimeType, a.url);
 

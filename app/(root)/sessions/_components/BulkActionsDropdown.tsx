@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { exportToExcel } from '@/helpers/exportToExcel'
 import {
@@ -38,11 +38,11 @@ type BulkActionType = 'activate' | 'deactivate' | 'deleteAll' | 'clearHistory' |
 
 interface BulkActionsDropdownProps {
     userId: string
-    onActivateAll: (userId: string) => Promise<any>
-    onDeactivateAll: (userId: string) => Promise<any>
-    onDeleteAll: (userId: string) => Promise<any>
-    onClearHistory: (userId: string) => Promise<any>
-    onClearSeguimientos: (userId: string) => Promise<any>
+    onActivateAll: (userId: string) => Promise<unknown>
+    onDeactivateAll: (userId: string) => Promise<unknown>
+    onDeleteAll: (userId: string) => Promise<unknown>
+    onClearHistory: (userId: string) => Promise<unknown>
+    onClearSeguimientos: (userId: string) => Promise<unknown>
     onSuccess?: () => void
 }
 
@@ -62,7 +62,7 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
     const actionMap: Record<BulkActionType, {
         label: string
         confirmPhrase: string
-        handler: (userId: string) => Promise<any>
+        handler: (userId: string) => Promise<unknown>
         toastId: string
     }> = {
         activate: {
@@ -165,7 +165,7 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
 
                     <DropdownMenuLabel className="flex flex-row gap-2 justify-start items-center">
                         {/* <Cog className="h-4 w-4" /> */}
-                        Gestión masiva
+                        GestiÃ³n masiva
                     </DropdownMenuLabel>
                     <DropdownMenuItem
                         onClick={() => openDialog('activate')}
@@ -215,7 +215,7 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
                 <AlertDialogContent className="text-center space-y-4">
                     <AlertDialogHeader className="space-y-2">
                         <AlertDialogTitle className="text-destructive text-xl font-bold">
-                            ¿Estás completamente seguro?
+                            Â¿EstÃ¡s completamente seguro?
                         </AlertDialogTitle>
 
                         <AlertDialogDescription className="text-sm text-muted-foreground">
@@ -225,7 +225,7 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
                             </span>
 
                             <span className="block mt-3 text-destructive font-semibold">
-                                Esta acción no se puede deshacer.
+                                Esta acciÃ³n no se puede deshacer.
                             </span>
                         </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -248,13 +248,13 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>
-                            ¿Estás seguro de que quieres ejecutar esta acción masiva?
+                            Â¿EstÃ¡s seguro de que quieres ejecutar esta acciÃ³n masiva?
                         </AlertDialogTitle>
                         <AlertDialogDescription className="space-y-2">
-                            Esta acción : "{actionType ? `"${actionMap[actionType].label}"` : ''}" <strong className="text-red-600">NO</strong> se puede deshacer.
-                            ¿Estás seguro?
+                            Esta acciÃ³n : "{actionType ? `"${actionMap[actionType].label}"` : ''}" <strong className="text-red-600">NO</strong> se puede deshacer.
+                            Â¿EstÃ¡s seguro?
                             <Input
-                                placeholder="Escribe aquí..."
+                                placeholder="Escribe aquÃ­..."
                                 value={confirmationText}
                                 onChange={(e) => setConfirmationText(e.target.value)}
                             /> 
@@ -274,3 +274,4 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
         </>
     )
 }
+

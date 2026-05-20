@@ -49,7 +49,9 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import type {
+    AnyStep,
     ElementItem,
+    ElementFunction,
     ManagementBuilderProps,
     ManagementItem,
     PedidoFunctionEl,
@@ -64,12 +66,12 @@ function isPedidoFn(el: ElementItem): el is PedidoFunctionEl {
 
 function getElementLabel(el?: ElementItem): string {
     if (!el) return "";
-    const anyEl = el as any;
+    const anyEl = el as Record<string, unknown>;
     return (
-        anyEl.label ||
-        anyEl.name ||
-        anyEl.flowName ||
-        anyEl.fn ||
+        (anyEl.label as string | undefined) ||
+        (anyEl.name as string | undefined) ||
+        (anyEl.flowName as string | undefined) ||
+        (anyEl.fn as string | undefined) ||
         (el.kind === "text" ? "Texto" : "Acción")
     );
 }
@@ -84,8 +86,8 @@ function extractTitle(txt: string) {
 
 function getStepSubtypeLabel(step: ManagementItem): string {
     const captura = (step.elements ?? []).find(
-        (el: any) => el.kind === "function" && el.fn === "captura_datos"
-    ) as any | undefined;
+        (el) => el.kind === "function" && (el as ElementFunction).fn === "captura_datos"
+    ) as PedidoFunctionEl | undefined;
     return captura?.subtype ?? step.title ?? "GESTIÓN";
 }
 
@@ -259,7 +261,7 @@ export const ManagementBuilder = ({
     }, [autosaveStatus]);
 
     const managementPreview = useMemo(() => {
-        return buildSectionedPrompt(steps as any, {
+        return buildSectionedPrompt(steps as AnyStep[], {
             mode: "management",
             emptyMessage:
                 "Aún no has agregado bloques de gestión. Usa “Agregar acción” para comenzar.",
@@ -372,8 +374,7 @@ export const ManagementBuilder = ({
             const target = (step.elements ?? []).find((e) => e.id === elId);
             if (!target) return prev;
 
-            const isFnElement =
-                (target as any)?.kind === "function" || typeof (target as any)?.fn === "string";
+            const isFnElement = target.kind === "function";
 
             if (isFnElement) {
                 return prev.filter((s) => s.id !== stepId);
@@ -415,8 +416,8 @@ export const ManagementBuilder = ({
                         elements: s.elements.map((e) =>
                             e.id === elId &&
                                 e.kind === "function" &&
-                                (e as any).fn === "ejecutar_flujo"
-                                ? { ...(e as any), flowId: flow.id, flowName: flow.name }
+                                (e as ElementFunction).fn === "ejecutar_flujo"
+                                ? { ...e, flowId: flow.id, flowName: flow.name } as ElementItem
                                 : e
                         ),
                     }
@@ -694,7 +695,7 @@ export const ManagementBuilder = ({
                                                                                             <div className="flex-1">
                                                                                                 <ElementRenderer
                                                                                                     stepId={step.id}
-                                                                                                    el={el as any}
+                                                                                                    el={el}
                                                                                                     flows={flows}
                                                                                                     removeElement={removeElement}
                                                                                                     updateText={updateText}

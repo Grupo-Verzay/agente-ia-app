@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 import { Loader2 } from "lucide-react";
@@ -181,7 +181,7 @@ export function RegistroUpsertDialog({
 
             onOpenChange(false);
             onSuccess();
-        } catch (e: any) {
+        } catch (e) {
             toast.error(e?.message || "Ocurrió un error inesperado.", { id: tId });
         } finally {
             setSaving(false);

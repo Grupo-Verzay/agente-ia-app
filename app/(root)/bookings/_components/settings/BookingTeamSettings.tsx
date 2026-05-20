@@ -69,7 +69,7 @@ export function BookingTeamSettings({ team, userId }: { team: Team; userId: stri
                 toast.success('Ajustes guardados');
                 router.refresh();
             } else {
-                toast.error((res as any).message);
+                toast.error(res.message);
             }
         } catch {
             toast.error('Error al guardar');

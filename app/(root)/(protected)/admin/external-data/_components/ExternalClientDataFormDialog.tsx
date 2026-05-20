@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -93,7 +93,7 @@ export function ExternalClientDataFormDialog({
       await upsertExternalClientData(userId, jid, data, 'manual');
       toast.success(isEditing ? 'Registro actualizado' : 'Registro creado');
       onSuccess();
-    } catch (err: any) {
+    } catch (err) {
       toast.error(err?.message ?? 'Error al guardar el registro');
     } finally {
       setIsSaving(false);

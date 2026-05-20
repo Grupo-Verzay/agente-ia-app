@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -45,7 +45,7 @@ export function ExternalClientDataDeleteDialog({
         toast.error('No se pudo eliminar el registro');
         onClose();
       }
-    } catch (err: any) {
+    } catch (err) {
       toast.error(err?.message ?? 'Error al eliminar el registro');
     } finally {
       setIsDeleting(false);

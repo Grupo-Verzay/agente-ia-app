@@ -28,11 +28,14 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import type {
+    AnyStep,
     DataSubtype,
+    ElementFunction,
     ElementItem,
     ExtraInfoBuilderProps,
     ExtraItemType,
     PedidoFunctionEl,
+    StepTraining,
 } from "@/types/agentAi";
 import type { Workflow } from "@prisma/client";
 import { buildSectionedPrompt } from "./helpers";
@@ -124,8 +127,8 @@ const PROMPT_SIGNATURE_DEFAULT =
 function isPedidoFn(el: ElementItem): el is PedidoFunctionEl {
     return (
         el.kind === "function" &&
-        (el as any).fn === "captura_datos" &&
-        (el as any).subtype === "Pedidos"
+        (el as ElementFunction).fn === "captura_datos" &&
+        ((el as ElementFunction & { subtype?: string }).subtype === "Pedidos")
     );
 }
 
@@ -231,7 +234,7 @@ export function ExtraInfoBuilder({
 
     /* ====== PREVIEW (markdown) ====== */
     const prompt = useMemo(() => {
-        return buildSectionedPrompt(items as any, {
+        return buildSectionedPrompt(items as AnyStep[], {
             emptyMessage:
                 "Aún no has agregado información extra. Usa Agregar extra para comenzar.",
             sectionLabel: (n, step) => `### EXTRA ${n} — ${(step.title || "Sin título").toUpperCase()}`,
@@ -355,8 +358,8 @@ export function ExtraInfoBuilder({
                         elements: s.elements.map((e) =>
                             e.id === elId &&
                                 e.kind === "function" &&
-                                (e as any).fn === "ejecutar_flujo"
-                                ? { ...(e as any), flowId: flow.id, flowName: flow.name }
+                                (e as ElementFunction).fn === "ejecutar_flujo"
+                                ? { ...e, flowId: flow.id, flowName: flow.name } as ElementItem
                                 : e
                         ),
                     }
@@ -646,7 +649,7 @@ export function ExtraInfoBuilder({
                                                                                                     <div className="flex-1">
                                                                                                         <ElementRenderer
                                                                                                             stepId={step.id}
-                                                                                                            el={el as any}
+                                                                                                            el={el}
                                                                                                             flows={flows}
                                                                                                             removeElement={removeElement}
                                                                                                             updateText={updateText}
@@ -671,8 +674,8 @@ export function ExtraInfoBuilder({
                                                                         </div>
                                                                         <div className="flex gap-2">
                                                                             <FunctionSelector
-                                                                                step={step as any}
-                                                                                setSteps={setItems as any}
+                                                                                step={step}
+                                                                                setSteps={setItems as React.Dispatch<React.SetStateAction<StepTraining[]>>}
                                                                                 notificationNumber={notificationNumber ?? ""}
                                                                             />
                                                                         </div>

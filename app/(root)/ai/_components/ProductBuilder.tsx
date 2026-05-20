@@ -17,11 +17,14 @@ import { FunctionSelector } from "./";
 import ElementRenderer from "./action-steeps/ElementRenderer";
 
 import type {
+    AnyStep,
+    ElementFunction,
     ElementItem,
     PedidoFunctionEl,
     ProductItemType,
     ProductBuilderProps,
     DataSubtype,
+    StepTraining,
 } from "@/types/agentAi";
 import { buildSectionedPrompt } from "./helpers";
 import {
@@ -55,7 +58,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 function isPedidoFn(el: ElementItem): el is PedidoFunctionEl {
-    return el.kind === "function" && (el as any).fn === "captura_datos" && (el as any).subtype === "Pedidos";
+    return el.kind === "function" && (el as ElementFunction).fn === "captura_datos" && ((el as ElementFunction & { subtype?: string }).subtype === "Pedidos");
 }
 
 function SortableElementRow({
@@ -176,7 +179,7 @@ export const ProductBuilder = ({
     }, [autosaveStatus]);
 
     const prompt = useMemo(() => {
-        return buildSectionedPrompt(items as any, {
+        return buildSectionedPrompt(items as AnyStep[], {
             emptyMessage: "Aún no has agregado productos. Usa “Agregar producto” para comenzar.",
             sectionLabel: (n, step) => `### PRODUCTO ${n} — ${(step.title || "Sin título").toUpperCase()}`,
             elementsLabel: (n) => `#### ELEMENTOS DEL PRODUCTO ${n}:`,
@@ -247,8 +250,8 @@ export const ProductBuilder = ({
                     ? {
                         ...s,
                         elements: s.elements.map((e) =>
-                            e.id === elId && e.kind === "function" && (e as any).fn === "ejecutar_flujo"
-                                ? { ...(e as any), flowId: flow.id, flowName: flow.name }
+                            e.id === elId && e.kind === "function" && (e as ElementFunction).fn === "ejecutar_flujo"
+                                ? { ...e, flowId: flow.id, flowName: flow.name } as ElementItem
                                 : e
                         ),
                     }
@@ -517,7 +520,7 @@ export const ProductBuilder = ({
                                                                                                     <div className="flex-1">
                                                                                                         <ElementRenderer
                                                                                                             stepId={step.id}
-                                                                                                            el={el as any}
+                                                                                                            el={el}
                                                                                                             flows={flows}
                                                                                                             removeElement={removeElement}
                                                                                                             updateText={updateText}
@@ -542,8 +545,8 @@ export const ProductBuilder = ({
                                                                     </div>
                                                                     <div className="flex gap-2">
                                                                         <FunctionSelector
-                                                                            step={step as any}
-                                                                            setSteps={setItems as any}
+                                                                            step={step}
+                                                                            setSteps={setItems as React.Dispatch<React.SetStateAction<StepTraining[]>>}
                                                                             notificationNumber={notificationNumber ?? ""}
                                                                         />
                                                                     </div>

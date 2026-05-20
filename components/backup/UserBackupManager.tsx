@@ -38,7 +38,7 @@ type BackupPreview = {
 
 function buildPreview(rawContent: string): BackupPreview | null {
   try {
-    const parsed = JSON.parse(rawContent) as any;
+    const parsed = JSON.parse(rawContent);
 
     return {
       exportedAt: parsed?.exportedAt,

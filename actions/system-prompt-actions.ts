@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { db } from '@/lib/db';
 import { z } from 'zod';
@@ -258,7 +258,7 @@ export async function upsertAgentPromptText(input: {
                 prompt,
             },
         };
-    } catch (e: any) {
+    } catch (e) {
         return { ok: false as const, error: e?.message ?? "Error al guardar el prompt." };
     }
 }
@@ -374,7 +374,7 @@ export async function publishPrompt(input: z.infer<typeof PublishSchema>) {
         }
 
         return result;
-    } catch (e: any) {
+    } catch (e) {
         const msg = e?.errors ? JSON.stringify(e.errors) : (e?.message ?? "Error al publicar prompt");
         return { ok: false, error: msg } as Fail;
     }

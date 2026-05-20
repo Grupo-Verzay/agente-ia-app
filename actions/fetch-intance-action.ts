@@ -1,4 +1,4 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 
 const FetchInstancesSchema = z.object({
     evoUrl: z.string().min(5, "La URL de evolution es obligatoria"),
@@ -74,7 +74,7 @@ export async function fetchInstanceAction(form: EvolutionSchemaType): Promise<Re
             data
         }
 
-    } catch (error: any) {
+    } catch (error) {
         return {
             success: false,
             message: `Error inesperado: ${error.message || error}`

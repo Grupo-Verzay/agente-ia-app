@@ -1,4 +1,4 @@
-// app/actions/billing-page-actions.ts
+﻿// app/actions/billing-page-actions.ts
 "use server";
 
 import { currentUser } from "@/lib/auth";
@@ -63,7 +63,7 @@ export async function getClientsWithBilling(): Promise<ResponseFormat<any[]>> {
       .map(serializeUserBilling);
 
     return { success: true, message: "Clientes cargados.", data: safeUsers };
-  } catch (e: any) {
+  } catch (e) {
     console.error("[getClientsWithBilling]", e);
     return { success: false, message: e?.message ?? "Error cargando clientes con billing." };
   }

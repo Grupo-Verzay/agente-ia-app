@@ -223,9 +223,9 @@ export async function sendAppointmentStatusNotification(
         });
         if (!appt) return;
 
-        const apiKeyUrl = (appt as any).user?.apiKey?.url;
-        const apiKeyValue = (appt as any).user?.apiKey?.key;
-        const instanceName = (appt as any).user?.instancias?.[0]?.instanceName;
+        const apiKeyUrl = appt.user?.apiKey?.url;
+        const apiKeyValue = appt.user?.apiKey?.key;
+        const instanceName = appt.user?.instancias?.[0]?.instanceName;
         const remoteJid = appt.session.remoteJid;
         if (!apiKeyUrl || !apiKeyValue || !instanceName) return;
 
@@ -233,7 +233,7 @@ export async function sendAppointmentStatusNotification(
         const { sendMessageWithHistoryAction } = await import('@/actions/chat-history/send-message-with-history-action');
 
         const message = buildStatusOwnerMessage({
-            appointment: appt as any,
+            appointment: appt as unknown as import('@/app/(root)/schedule/helpers/normalizeAppointmentsToEvents').AppointmentWithSession,
             newStatus: status,
             userId: appt.userId,
         });

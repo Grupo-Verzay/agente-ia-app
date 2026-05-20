@@ -55,9 +55,9 @@ export async function getKanbanSessionsAction(): Promise<{
                 slug: st.tag.slug,
             })),
             pendingFollowUps: s.crmFollowUps.length,
-            leadScore: (s as any).leadScore ?? null,
-            leadScoreReason: (s as any).leadScoreReason ?? null,
-            leadScoredAt: (s as any).leadScoredAt?.toISOString() ?? null,
+            leadScore: s.leadScore ?? null,
+            leadScoreReason: s.leadScoreReason ?? null,
+            leadScoredAt: s.leadScoredAt?.toISOString() ?? null,
         }));
 
         return { success: true, data: cards };

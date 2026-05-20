@@ -1,7 +1,7 @@
 // components/forms/ReminderForm.tsx
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { fmtPhone } from "@/lib/whatsapp-jid"
 import { Controller, useForm } from "react-hook-form"
 import { useMutation } from "@tanstack/react-query"
@@ -229,7 +229,7 @@ export const ReminderForm = ({
                             rows={2}
                             className="min-h-0 resize-none text-sm"
                             {...descRest}
-                            ref={(el) => { rhfRef(el); (textareaRef as any).current = el; }}
+                            ref={(el) => { rhfRef(el); (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el; }}
                         />
                     );
                 })()}

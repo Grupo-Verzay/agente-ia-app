@@ -20,7 +20,7 @@ const BookingPublicPage = async ({
     return (
         <BookingPageClient
             userId={params.userId}
-            team={teamRes.data as any}
+            team={teamRes.data}
             countries={countries}
             prefillName={searchParams.name}
             prefillPhone={searchParams.phone}

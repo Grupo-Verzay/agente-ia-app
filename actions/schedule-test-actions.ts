@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { db } from '@/lib/db';
 
@@ -34,7 +34,7 @@ export async function testScheduleHttpApi(userId: string): Promise<ScheduleHttpT
     if (!pingRes.ok) {
       return { pingOk: false, pingError: `ping status ${pingRes.status}` };
     }
-  } catch (e: any) {
+  } catch (e) {
     return { pingOk: false, pingError: e?.message ?? 'error de red' };
   }
 
@@ -45,7 +45,7 @@ export async function testScheduleHttpApi(userId: string): Promise<ScheduleHttpT
     const r = await fetch(`${baseUrl}/api/schedule/services?userId=${userId}`, { cache: 'no-store' });
     authStatus = r.status;
     authBody = await r.text();
-  } catch (e: any) {
+  } catch (e) {
     authBody = e?.message ?? 'error de red';
   }
 
@@ -60,7 +60,7 @@ export async function testScheduleHttpApi(userId: string): Promise<ScheduleHttpT
     });
     servicesStatus = r.status;
     servicesBody = await r.text();
-  } catch (e: any) {
+  } catch (e) {
     servicesError = e?.message ?? 'error de red';
   }
 
@@ -122,7 +122,7 @@ export async function testScheduleApiForUser(userId: string): Promise<ScheduleAp
       services,
       slotsToday: availability,
     };
-  } catch (error: any) {
+  } catch (error) {
     return {
       userId,
       userName: '—',

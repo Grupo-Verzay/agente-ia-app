@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { db } from "@/lib/db"; // Adjust the path if necessary
 import { GuideUrl } from "@prisma/client";
@@ -11,7 +11,7 @@ export async function getAllGuides() {
     });
 
     return { success: true, data: guides };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error.message || "Error retrieving guides." };
   }
 }
@@ -28,7 +28,7 @@ export async function getGuideById(id: string) {
     }
 
     return { success: true, data: guide };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error.message || "Error retrieving the guide." };
   }
 }
@@ -49,7 +49,7 @@ export async function createGuide(data: CreateGuideInput) {
     });
 
     return { success: true, data: newGuide };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error.message || "Error creating the guide." };
   }
 }
@@ -76,7 +76,7 @@ export async function updateGuide(data: UpdateGuideInput) {
     });
 
     return { success: true, data: updatedGuide };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error.message || "Error updating the guide." };
   }
 }
@@ -89,7 +89,7 @@ export async function deleteGuide(id: string) {
     });
 
     return { success: true, message: "Guide successfully deleted." };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error.message || "Error deleting the guide." };
   }
 }

@@ -12,14 +12,15 @@ import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, GripVertical, ChevronDown } from "lucide-react";
 
 import {
+  AnyStep,
   DataSubtype,
   ElementItem,
+  PedidoFunctionEl,
   StepTraining,
   TrainingBuilderProps,
 } from "@/types/agentAi";
 import { Workflow } from "@prisma/client";
 import { useTrainingAutosave, AutosaveStatus } from "./hooks/useTrainingAutosave";
-import { PedidoFunctionEl } from "../../../../types/agentAi";
 import { FunctionSelector } from "./";
 import ElementRenderer from "./action-steeps/ElementRenderer";
 import { buildSectionedPrompt } from "./helpers";
@@ -60,7 +61,7 @@ const WELCOME_TITLE = "Inicio Bienvenida";
 function isPedidoFn(el: ElementItem): el is PedidoFunctionEl {
   return (
     el.kind === "function" &&
-    (el as any).fn === "captura_datos"
+    el.fn === "captura_datos"
   );
 }
 
@@ -222,7 +223,7 @@ export function TrainingBuilder({
 
   /* -------------------- Construcción del trainingPrompt -------------------- */
   const trainingPrompt = useMemo(() => {
-    return buildSectionedPrompt(steps as any, {
+    return buildSectionedPrompt(steps as AnyStep[], {
       emptyMessage:
         "Aún no has agregado pasos de entrenamiento. Usa “Agregar paso” para comenzar.",
       sectionLabel: (n, step) => `### PASO ${n} — ${(step.title || "Sin título").toUpperCase()}`,

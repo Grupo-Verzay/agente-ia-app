@@ -1,4 +1,4 @@
-// app/actions/billing-preview-actions.ts
+﻿// app/actions/billing-preview-actions.ts
 "use server";
 
 import { currentUser } from "@/lib/auth";
@@ -65,7 +65,7 @@ export async function previewBillingReminderMessage(
             message: "Vista previa generada.",
             data: { text, template, daysRemaining },
         };
-    } catch (e: any) {
+    } catch (e) {
         console.error("[previewBillingReminderMessage]", e);
         return { success: false, message: e?.message ?? "Error generando vista previa." };
     }

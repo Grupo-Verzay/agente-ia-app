@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { DataTable } from '../../sales/_components/data-table'; // ajusta si cambia ruta
-import { buildAccountsColumns } from './columns';
+import { buildAccountsColumns, type AccountRow } from './columns';
 
 import {
   createFinanceAccount,
@@ -32,14 +32,26 @@ import {
   Layers,
 } from 'lucide-react';
 
+type FinCurrency = { code: string; symbol?: string | null; decimals?: number | null };
+type TxSaleRow    = { id: string; accountId: string; occurredAt: string | Date; currencyCode?: string | null; title?: string | null; amount?: string | number | null; extra?: string | number | null; discount?: string | number | null };
+type TxExpenseRow = { id: string; accountId: string; occurredAt: string | Date; currencyCode?: string | null; title?: string | null; amount?: string | number | null };
+
+type LedgerRow = {
+  id: string;
+  kind: 'SALE' | 'EXPENSE';
+  occurredAt: string | Date;
+  title: string;
+  amount: number;
+  currencyCode: string;
+  raw: unknown;
+};
+
 type Props = {
   userId: string;
-  initialAccounts: any[];
-  currencies: any[];
-
-  // para saldo y modal
-  sales: any[];
-  expenses: any[];
+  initialAccounts: AccountRow[];
+  currencies: FinCurrency[];
+  sales: TxSaleRow[];
+  expenses: TxExpenseRow[];
 };
 
 type FormState = {
@@ -63,7 +75,7 @@ function isValidISODate(v: string) {
   return !Number.isNaN(d.getTime());
 }
 
-function inInclusiveRange(occurredAt: any, fromISO: string, toISO: string) {
+function inInclusiveRange(occurredAt: string | Date | null | undefined, fromISO: string, toISO: string) {
   if (!occurredAt) return false;
 
   const t = new Date(occurredAt).getTime();
@@ -73,21 +85,21 @@ function inInclusiveRange(occurredAt: any, fromISO: string, toISO: string) {
   return t >= from && t <= to;
 }
 
-function toAmountNumber(v: any): number {
+function toAmountNumber(v: string | number | null | undefined): number {
   if (v === null || v === undefined) return 0;
   const n = Number(String(v));
   return Number.isFinite(n) ? n : 0;
 }
 
 // ventas total = amount + extra - discount
-function calcSaleTotal(row: any) {
+function calcSaleTotal(row: TxSaleRow) {
   const base = toAmountNumber(row?.amount);
   const extra = toAmountNumber(row?.extra);
   const disc = toAmountNumber(row?.discount);
   return base + extra - disc;
 }
 
-function formatMoney(currencies: any[], code: string, value: number) {
+function formatMoney(currencies: FinCurrency[], code: string, value: number) {
   const meta = currencies.find((c) => c.code === code);
   const decimals = typeof meta?.decimals === 'number' ? meta.decimals : 2;
 
@@ -114,7 +126,7 @@ export default function MainFinanceAccounts({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const [rows, setRows] = useState<any[]>(initialAccounts ?? []);
+  const [rows, setRows] = useState<AccountRow[]>(initialAccounts ?? []);
   useEffect(() => setRows(initialAccounts ?? []), [initialAccounts]);
 
   const defaultCurrencyCode = useMemo(() => {
@@ -154,7 +166,7 @@ export default function MainFinanceAccounts({
     if (rangeMode === 'all') return allRows;
 
     if (!isValidISODate(dateFrom) || !isValidISODate(dateTo)) return [];
-    return allRows.filter((s: any) => inInclusiveRange(s.occurredAt, dateFrom, dateTo));
+    return allRows.filter((s) => inInclusiveRange(s.occurredAt, dateFrom, dateTo));
   }, [sales, rangeMode, dateFrom, dateTo]);
 
   const filteredExpenses = useMemo(() => {
@@ -162,17 +174,17 @@ export default function MainFinanceAccounts({
     if (rangeMode === 'all') return allRows;
 
     if (!isValidISODate(dateFrom) || !isValidISODate(dateTo)) return [];
-    return allRows.filter((e: any) => inInclusiveRange(e.occurredAt, dateFrom, dateTo));
+    return allRows.filter((e) => inInclusiveRange(e.occurredAt, dateFrom, dateTo));
   }, [expenses, rangeMode, dateFrom, dateTo]);
 
   // -------------------------
   // Modal ledger por cuenta
   // -------------------------
   const [ledgerOpen, setLedgerOpen] = useState(false);
-  const [ledgerAccount, setLedgerAccount] = useState<any | null>(null);
+  const [ledgerAccount, setLedgerAccount] = useState<AccountRow | null>(null);
   const [ledgerTab, setLedgerTab] = useState<'all' | 'sales' | 'expenses'>('all');
 
-  const openLedger = (accountRow: any) => {
+  const openLedger = (accountRow: AccountRow) => {
     setLedgerAccount(accountRow);
     setLedgerTab('all');
     setLedgerOpen(true);
@@ -187,7 +199,7 @@ export default function MainFinanceAccounts({
   // CRUD modal (crear/editar)
   // -------------------------
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<any | null>(null);
+  const [editing, setEditing] = useState<AccountRow | null>(null);
 
   const [form, setForm] = useState<FormState>({
     name: '',
@@ -218,11 +230,11 @@ export default function MainFinanceAccounts({
     setOpen(true);
   };
 
-  const openEdit = (row: any) => {
+  const openEdit = (row: AccountRow) => {
     setEditing(row);
     setForm({
       name: row.name ?? '',
-      type: (row.type ?? 'PERSONAL') as any,
+      type: (row.type ?? 'PERSONAL') as 'PERSONAL' | 'COMPANY',
       currencyCode: row.currencyCode ?? defaultCurrencyCode,
       isDefault: !!row.isDefault,
     });
@@ -270,7 +282,7 @@ export default function MainFinanceAccounts({
     });
   };
 
-  const onSetDefault = (row: any) => {
+  const onSetDefault = (row: AccountRow) => {
     startTransition(() => {
       void (async () => {
         const res = await updateFinanceAccount(row.id, userId, { isDefault: true });
@@ -421,14 +433,14 @@ export default function MainFinanceAccounts({
       {
         accessorKey: 'occurredAt',
         header: 'Fecha',
-        cell: ({ row }: any) => (
+        cell: ({ row }: { row: { original: LedgerRow } }) => (
           <span className="text-sm">{toISODate(row.original.occurredAt)}</span>
         ),
       },
       {
         accessorKey: 'kind',
         header: 'Tipo',
-        cell: ({ row }: any) => {
+        cell: ({ row }: { row: { original: LedgerRow } }) => {
           const k = row.original.kind;
           return (
             <span className="inline-flex items-center gap-2 text-sm">
@@ -448,14 +460,14 @@ export default function MainFinanceAccounts({
       {
         accessorKey: 'title',
         header: 'Concepto',
-        cell: ({ row }: any) => (
+        cell: ({ row }: { row: { original: LedgerRow } }) => (
           <span className="truncate text-sm font-medium">{row.original.title}</span>
         ),
       },
       {
         accessorKey: 'amount',
         header: 'Monto',
-        cell: ({ row }: any) => {
+        cell: ({ row }: { row: { original: LedgerRow } }) => {
           const r = row.original;
           return (
             <div className="text-right">
@@ -582,11 +594,11 @@ export default function MainFinanceAccounts({
 
         <CardContent className="pt-0">
           <DataTable
-            columns={columns as any}
+            columns={columns}
             data={rows}
             searchKey="name"
             searchPlaceholder="Buscar cuenta..."
-            onRowClick={(row: any) => {
+            onRowClick={(row) => {
               // si están en rango/mes y el rango es inválido, no abrir
               if (!applyRangeValidation()) return;
               openLedger(row);
@@ -669,7 +681,7 @@ export default function MainFinanceAccounts({
           <Separator />
 
           {/* Tabs */}
-          <Tabs value={ledgerTab} onValueChange={(v) => setLedgerTab(v as any)} className="flex flex-col flex-1 min-h-0">
+          <Tabs value={ledgerTab} onValueChange={(v) => setLedgerTab(v as 'all' | 'sales' | 'expenses')} className="flex flex-col flex-1 min-h-0">
             <TabsList className="h-9 w-full justify-start gap-6 rounded-none bg-transparent p-0">
               <TabsTrigger
                 value="all"
@@ -704,7 +716,7 @@ export default function MainFinanceAccounts({
 
             <TabsContent value="all" className="mt-0 flex-1 min-h-0">
               <DataTable
-                columns={ledgerColumns as any}
+                columns={ledgerColumns}
                 data={ledgerRows}
                 searchKey="title"
                 searchPlaceholder="Buscar concepto..."
@@ -713,7 +725,7 @@ export default function MainFinanceAccounts({
 
             <TabsContent value="sales" className="mt-0 flex-1 min-h-0">
               <DataTable
-                columns={ledgerColumns as any}
+                columns={ledgerColumns}
                 data={ledgerRows}
                 searchKey="title"
                 searchPlaceholder="Buscar concepto..."
@@ -722,7 +734,7 @@ export default function MainFinanceAccounts({
 
             <TabsContent value="expenses" className="mt-0 flex-1 min-h-0">
               <DataTable
-                columns={ledgerColumns as any}
+                columns={ledgerColumns}
                 data={ledgerRows}
                 searchKey="title"
                 searchPlaceholder="Buscar concepto..."
@@ -767,7 +779,7 @@ export default function MainFinanceAccounts({
                 </div>
                 <Select
                   value={form.type}
-                  onValueChange={(v) => setForm((p) => ({ ...p, type: v as any }))}
+                  onValueChange={(v) => setForm((p) => ({ ...p, type: v as 'PERSONAL' | 'COMPANY' }))}
                 >
                   <SelectTrigger className="h-9 text-sm">
                     <SelectValue placeholder="Selecciona" />

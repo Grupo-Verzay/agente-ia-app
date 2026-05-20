@@ -10,7 +10,7 @@ import type {
   ChatConversationPreferenceMap,
 } from "@/types/chat";
 
-const chatConversationPreferenceTable = (db as any).chatConversationPreference as {
+const chatConversationPreferenceTable = db.chatConversationPreference as unknown as {
   findMany: (args: unknown) => Promise<
     Array<{
       remoteJid: string;

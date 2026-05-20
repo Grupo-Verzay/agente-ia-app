@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { db } from '@/lib/db';
 import { auth } from '@/auth';
@@ -19,7 +19,7 @@ export async function getFinanceCurrencies(): Promise<
     });
 
     return { success: true, message: 'Monedas obtenidas.', data: list };
-  } catch (error: any) {
+  } catch (error) {
     console.error('getFinanceCurrencies error:', error);
     return { success: false, message: 'Error al obtener monedas.' };
   }
@@ -45,7 +45,7 @@ export async function getUserFinanceSettings(): Promise<
       message: 'Settings obtenidos.',
       data: { userId: me.id, preferredCurrencyCode: me.preferredCurrencyCode ?? 'COP' },
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('getUserFinanceSettings error:', error);
     return { success: false, message: 'Error al obtener settings.' };
   }
@@ -72,7 +72,7 @@ export async function updatePreferredCurrencyCode(
     });
 
     return { success: true, message: 'Moneda actualizada.' };
-  } catch (error: any) {
+  } catch (error) {
     console.error('updatePreferredCurrencyCode error:', error);
     return { success: false, message: error?.message || 'Error al actualizar moneda.' };
   }

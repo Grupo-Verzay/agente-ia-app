@@ -11,7 +11,7 @@ export default auth((req) => {
   const currentPath = nextUrl.pathname;
   const isLoggedIn = !!req.auth;
 
-  const isTokenInvalid = (req.auth?.user as any)?.invalid === true;
+  const isTokenInvalid = (req.auth?.user as { invalid?: boolean })?.invalid === true;
   if (isLoggedIn && isTokenInvalid) {
     const loginUrl = new URL("/login", nextUrl);
     loginUrl.searchParams.set("callbackUrl", currentPath);

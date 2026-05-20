@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import Image from "next/image";
+import Image, { type ImageProps } from "next/image";
 import type { ImgHTMLAttributes } from "react";
 
 const NEXT_IMAGE_HOSTS = new Set(["medias3.verzay.co"]);
@@ -51,12 +51,12 @@ export function SafeImage({
         if (fill) {
             return (
                 <Image
-                    {...(imgProps as any)}
+                    {...(imgProps as Partial<ImageProps>)}
                     src={src}
                     alt={alt}
                     className={className}
                     style={style}
-                    onClick={onClick as any}
+                    onClick={onClick as ImageProps['onClick']}
                     sizes={sizes}
                     priority={priority}
                     quality={quality}
@@ -68,12 +68,12 @@ export function SafeImage({
 
         return (
             <Image
-                {...(imgProps as any)}
+                {...(imgProps as Partial<ImageProps>)}
                 src={src}
                 alt={alt}
                 className={className}
                 style={style}
-                onClick={onClick as any}
+                onClick={onClick as ImageProps['onClick']}
                 sizes={sizes}
                 priority={priority}
                 quality={quality}

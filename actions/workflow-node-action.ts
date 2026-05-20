@@ -1,4 +1,4 @@
-"use server"
+﻿"use server"
 import { buildLinearExecutionOrder } from "@/app/(root)/workflow/[workflowId]/helpers/buildLinearExecutionOrder";
 import { auth } from "@/auth";
 import { currentUser } from "@/lib/auth";
@@ -95,7 +95,7 @@ export async function updateNode(nodeId: string, newMessage?: string) {
       message: 'Nodo actualizado con éxito.',
       data: updatedNode,
     };
-  } catch (error: any) {
+  } catch (error) {
     return {
       success: false,
       message: 'Error al actualizar el nodo' + error?.message || error,
@@ -123,7 +123,7 @@ export async function updateNodeOrder(nodeId: string, order: number) {
       message: 'Orden del nodo actualizado con éxito.',
       data: updatedNode,
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error updateNodeOrder:", error);
     return {
       success: false,

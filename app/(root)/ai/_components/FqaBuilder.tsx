@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
-import { DataSubtype, FqaBuilderProps, PRESETS, QaItem } from "@/types/agentAi";
+import { AnyStep, DataSubtype, ElementFunction, ElementItem, FqaBuilderProps, PRESETS, QaItem, StepTraining } from "@/types/agentAi";
 import { Workflow } from "@prisma/client";
 
 import { useFaqAutosave, AutosaveStatus } from "./hooks/useFaqAutosave";
@@ -48,7 +48,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-function isPedidoFn(el: any): el is {
+function isPedidoFn(el: ElementItem): el is {
     id: string;
     kind: "function";
     fn: "captura_datos";
@@ -56,7 +56,7 @@ function isPedidoFn(el: any): el is {
     prompt?: string;
     fields?: string[];
 } {
-    return el?.kind === "function" && el?.fn === "captura_datos" && el?.subtype === "Pedidos";
+    return el.kind === "function" && (el as ElementFunction).fn === "captura_datos" && (el as ElementFunction & { subtype?: string }).subtype === "Pedidos";
 }
 
 function SortableElementRow({
@@ -175,7 +175,7 @@ export function FqaBuilder({
     }, [autosaveStatus]);
 
     const prompt = useMemo(() => {
-        return buildSectionedPrompt(items as any, {
+        return buildSectionedPrompt(items as AnyStep[], {
             emptyMessage:
                 "Aún no has agregado Preguntas. Usa “Agregar Pregunta” para comenzar.",
             sectionLabel: (n, step) => `### PREGUNTA ${n} — ${(step.title || "Sin título").toUpperCase()}`,
@@ -254,8 +254,8 @@ export function FqaBuilder({
                     ? {
                         ...s,
                         elements: s.elements.map((e) =>
-                            e.id === elId && e.kind === "function" && (e as any).fn === "ejecutar_flujo"
-                                ? { ...(e as any), flowId: flow.id, flowName: flow.name }
+                            e.id === elId && e.kind === "function" && (e as ElementFunction).fn === "ejecutar_flujo"
+                                ? { ...e, flowId: flow.id, flowName: flow.name } as ElementItem
                                 : e
                         ),
                     }
@@ -273,7 +273,7 @@ export function FqaBuilder({
                 return {
                     ...s,
                     elements: s.elements.map((e) => {
-                        if (e.id !== elId || !isPedidoFn(e)) return e as any;
+                        if (e.id !== elId || !isPedidoFn(e)) return e as ElementItem;
                         const next = new Set([...(e.fields ?? []), name]);
                         return { ...e, fields: Array.from(next) };
                     }),
@@ -289,7 +289,7 @@ export function FqaBuilder({
                 return {
                     ...s,
                     elements: s.elements.map((e) => {
-                        if (e.id !== elId || !isPedidoFn(e)) return e as any;
+                        if (e.id !== elId || !isPedidoFn(e)) return e as ElementItem;
                         return { ...e, fields: (e.fields ?? []).filter((f) => f !== field) };
                     }),
                 };
@@ -526,7 +526,7 @@ export function FqaBuilder({
                                                                                                     <div className="flex-1">
                                                                                                         <ElementRenderer
                                                                                                             stepId={step.id}
-                                                                                                            el={el as any}
+                                                                                                            el={el}
                                                                                                             flows={flows}
                                                                                                             removeElement={removeElement}
                                                                                                             updateText={updateText}
@@ -551,8 +551,8 @@ export function FqaBuilder({
                                                                         </div>
                                                                         <div className="flex gap-2">
                                                                             <FunctionSelector
-                                                                                step={step as any}
-                                                                                setSteps={setItems as any}
+                                                                                step={step}
+                                                                                setSteps={setItems as React.Dispatch<React.SetStateAction<StepTraining[]>>}
                                                                                 notificationNumber={notificationNumber ?? ""}
                                                                             />
                                                                         </div>

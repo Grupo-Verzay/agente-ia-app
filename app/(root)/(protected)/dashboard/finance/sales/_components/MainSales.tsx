@@ -1,11 +1,11 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { DataTable } from './data-table';
-import { buildSalesColumns } from './columns';
+import { buildSalesColumns, type SaleTxRow } from './columns';
 
 import {
   createSale,
@@ -51,14 +51,20 @@ import {
 
 import { cn } from '@/lib/utils';
 
+type FinAccount  = { id: string; name: string; isDefault: boolean };
+type FinCategory = { id: string; name: string };
+type FinCurrency = { code: string; symbol?: string | null; name?: string | null };
+type FinProduct  = { id: string; title: string; price?: number | string | null };
+type ContactOption = { id: number; pushName?: string | null; remoteJid: string };
+
 type Props = {
   userId: string;
-  accounts: any[];
-  categories: any[];
-  currencies: any[];
-  sales: any[];
-  products: any[];
-  primaryCurrencyCode: string; // aquí llega preferredCurrencyCode desde settings
+  accounts: FinAccount[];
+  categories: FinCategory[];
+  currencies: FinCurrency[];
+  sales: SaleTxRow[];
+  products: FinProduct[];
+  primaryCurrencyCode: string;
 };
 
 type FormState = {
@@ -114,29 +120,29 @@ function guessIsPdf(mimeType?: string | null, url?: string) {
   return /\.pdf$/i.test(url);
 }
 
-function toAmountNumber(v: any): number {
+function toAmountNumber(v: string | number | null | undefined): number {
   if (v === null || v === undefined) return 0;
   const n = Number(String(v));
   return Number.isFinite(n) ? n : 0;
 }
 
-function calcTotal(row: { amount?: any; extra?: any; discount?: any }) {
+function calcTotal(row: { amount?: string | number | null; extra?: string | number | null; discount?: string | number | null }) {
   const base = toAmountNumber(row.amount);
   const extra = toAmountNumber(row.extra);
   const disc = toAmountNumber(row.discount);
   return base + extra - disc;
 }
 
-function sumByCurrency(list: any[]) {
+function sumByCurrency(list: SaleTxRow[]) {
   return list.reduce<Record<string, number>>((acc, r) => {
     const code = r.currencyCode || '—';
-    const total = calcTotal(r);
+    const total = calcTotal(r as { amount?: string | null; extra?: string | null; discount?: string | null });
     acc[code] = (acc[code] || 0) + total;
     return acc;
   }, {});
 }
 
-function moneyFormat(currencies: any[], code: string, value: number) {
+function moneyFormat(currencies: FinCurrency[], code: string, value: number) {
   const meta = currencies.find((c) => c.code === code);
   const decimals = typeof meta?.decimals === 'number' ? meta.decimals : 2;
 
@@ -186,13 +192,13 @@ export default function MainSales({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const [rows, setRows] = useState<any[]>(sales ?? []);
+  const [rows, setRows] = useState<SaleTxRow[]>(sales ?? []);
   useEffect(() => setRows(sales ?? []), [sales]);
 
   const [detailOpen, setDetailOpen] = useState(false);
-  const [detailRow, setDetailRow] = useState<any | null>(null);
+  const [detailRow, setDetailRow] = useState<SaleTxRow | null>(null);
 
-  const openDetail = (row: any) => {
+  const openDetail = (row: SaleTxRow) => {
     setDetailRow(row);
     setDetailOpen(true);
   };
@@ -203,7 +209,7 @@ export default function MainSales({
 
   const [tab, setTab] = useState<'month' | 'total'>('month');
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<any | null>(null);
+  const [editing, setEditing] = useState<SaleTxRow | null>(null);
 
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -211,7 +217,7 @@ export default function MainSales({
   const [productOpen, setProductOpen] = useState(false);
   const [productQuery, setProductQuery] = useState('');
   const [productLoading, setProductLoading] = useState(false);
-  const [productOptions, setProductOptions] = useState<any[]>(products ?? []);
+  const [productOptions, setProductOptions] = useState<FinProduct[]>(products ?? []);
   useEffect(() => setProductOptions(products ?? []), [products]);
 
   useEffect(() => {
@@ -229,8 +235,8 @@ export default function MainSales({
             onlyActive: true,
           });
           setProductOptions(res.items || []);
-        } catch (e: any) {
-          toast.error(e?.message || 'Error buscando productos');
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : 'Error buscando productos');
         } finally {
           setProductLoading(false);
         }
@@ -243,7 +249,7 @@ export default function MainSales({
   const [contactOpen, setContactOpen] = useState(false);
   const [contactQuery, setContactQuery] = useState('');
   const [contactLoading, setContactLoading] = useState(false);
-  const [contactOptions, setContactOptions] = useState<any[]>([]);
+  const [contactOptions, setContactOptions] = useState<ContactOption[]>([]);
 
   useEffect(() => {
     if (!contactOpen) return;
@@ -254,9 +260,9 @@ export default function MainSales({
         try {
           const res = await searchSessionsByUserId(userId, contactQuery.trim());
           if (!res?.success) return toast.error(res?.message || 'No se pudieron cargar contactos');
-          setContactOptions((res as any).data || []);
-        } catch (e: any) {
-          toast.error(e?.message || 'Error buscando contactos');
+          setContactOptions(res.data || []);
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : 'Error buscando contactos');
         } finally {
           setContactLoading(false);
         }
@@ -336,33 +342,34 @@ export default function MainSales({
     setOpen(true);
   };
 
-  const openEdit = (row: any) => {
+  const openEdit = (row: SaleTxRow) => {
     setEditing(row);
 
-    const inferredProductId = row.productId ?? products.find((p) => p.title === row.title)?.id ?? null;
-    const inferredContactName = row.counterparty ?? '';
-    const inferredContactJid = row.reference ?? '';
+    const inferredProductId = (row.productId as string | null) ?? products.find((p) => p.title === row.title)?.id ?? null;
+    const inferredContactName = (row.counterparty as string) ?? '';
+    const inferredContactJid = (row.reference as string) ?? '';
 
     // mantiene moneda del registro (solo lectura)
     setForm({
-      occurredAt: toISODate(row.occurredAt),
+      occurredAt: toISODate(row.occurredAt as string),
       amount: String(row.amount ?? ''),
-      extra: String(row.extra ?? ''),
-      discount: String(row.discount ?? ''),
+      extra: String((row.extra as string | null) ?? ''),
+      discount: String((row.discount as string | null) ?? ''),
       currencyCode: row.currencyCode || defaultCurrency,
-      accountId: row.accountId,
-      categoryId: row.categoryId ?? null,
+      accountId: row.accountId as string,
+      categoryId: (row.categoryId as string | null) ?? null,
       title: row.title ?? '',
-      description: row.description ?? '',
+      description: (row.description as string | null) ?? '',
       productId: inferredProductId,
 
-      sessionId: row.sessionId ?? null,
+      sessionId: (row.sessionId as number | null) ?? null,
       contactName: inferredContactName,
       contactJid: inferredContactJid,
     });
 
+    const rawAttachments = Array.isArray(row.attachments) ? (row.attachments as DraftAttachment[]) : [];
     setAttachments(
-      (row.attachments || []).map((a: any) => ({
+      rawAttachments.map((a) => ({
         id: a.id,
         url: a.url,
         fileName: a.fileName ?? null,
@@ -400,8 +407,8 @@ export default function MainSales({
         setAttachments((prev) => [...prev, { ...up, isNew: true }]);
       }
       toast.success('Soporte(s) subido(s)');
-    } catch (e: any) {
-      toast.error(e?.message || 'Error al subir soporte');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al subir soporte');
     } finally {
       setUploading(false);
     }
@@ -435,12 +442,12 @@ export default function MainSales({
         };
 
         const res = editing
-          ? await updateSale(editing.id, userId, payload as any)
-          : await createSale(payload as any);
+          ? await updateSale(editing.id, userId, payload)
+          : await createSale(payload);
 
         if (!res.success) return toast.error(res.message);
 
-        const txId = editing ? editing.id : (res as any).data?.id;
+        const txId = editing ? editing.id : res.data?.id;
 
         const newOnes = attachments.filter((a) => a.isNew);
         if (txId && newOnes.length) {
@@ -540,6 +547,11 @@ export default function MainSales({
     return currencies.find((c) => c.code === detailRow.currencyCode) || null;
   }, [detailRow, currencies]);
 
+  const detailAttachments = useMemo(
+    () => (Array.isArray(detailRow?.attachments) ? (detailRow?.attachments as DraftAttachment[]) : []),
+    [detailRow]
+  );
+
   const detailBase = useMemo(() => toAmountNumber(detailRow?.amount), [detailRow]);
   const detailExtra = useMemo(() => toAmountNumber(detailRow?.extra), [detailRow]);
   const detailDiscount = useMemo(() => toAmountNumber(detailRow?.discount), [detailRow]);
@@ -592,7 +604,7 @@ export default function MainSales({
               </div>
             </div>
 
-            <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="mt-2 flex flex-col flex-1 min-h-0">
+            <Tabs value={tab} onValueChange={(v) => setTab(v as 'month' | 'total')} className="mt-2 flex flex-col flex-1 min-h-0">
               <TabsList className="h-9 w-full justify-start gap-6 rounded-none bg-transparent p-0">
                 <TabsTrigger
                   value="month"
@@ -617,7 +629,7 @@ export default function MainSales({
 
               <TabsContent value="month" className="mt-0 flex-1 min-h-0">
                 <DataTable
-                  columns={columns as any}
+                  columns={columns}
                   data={monthRows}
                   searchKey="title"
                   searchPlaceholder="Buscar..."
@@ -627,7 +639,7 @@ export default function MainSales({
 
               <TabsContent value="total" className="mt-0 flex-1 min-h-0">
                 <DataTable
-                  columns={columns as any}
+                  columns={columns}
                   data={rows}
                   searchKey="title"
                   searchPlaceholder="Buscar..."
@@ -767,13 +779,13 @@ export default function MainSales({
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">Soportes</p>
                 <p className="text-xs text-muted-foreground">
-                  {detailRow.attachments?.length ? `${detailRow.attachments.length} archivo(s)` : '0 archivos'}
+                  {detailAttachments.length ? `${detailAttachments.length} archivo(s)` : '0 archivos'}
                 </p>
               </div>
 
-              {detailRow.attachments?.length ? (
+              {detailAttachments.length ? (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {detailRow.attachments.map((a: any) => {
+                  {detailAttachments.map((a) => {
                     const isImg = guessIsImage(a.mimeType, a.url);
                     const isPdf = guessIsPdf(a.mimeType, a.url);
 
@@ -1012,7 +1024,7 @@ export default function MainSales({
                                   <span className="text-xs text-muted-foreground">Quitar contacto</span>
                                 </CommandItem>
 
-                                {contactOptions.map((s: any) => (
+                                {contactOptions.map((s) => (
                                   <CommandItem
                                     key={s.id}
                                     value={`${s.pushName ?? ''} ${s.remoteJid ?? ''}`}

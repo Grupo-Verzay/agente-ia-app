@@ -21,7 +21,7 @@ interface UseMediaCacheReturn {
 }
 
 function isMediaMessage(m: EvolutionMessage): boolean {
-  const body = (m.message || {}) as any;
+  const body = (m.message || {}) as import('@/actions/chat-actions').MessageContent;
   return !!(
     body.imageMessage ||
     body.videoMessage ||
@@ -32,7 +32,7 @@ function isMediaMessage(m: EvolutionMessage): boolean {
 }
 
 function hasRemoteOnlyUrl(m: EvolutionMessage): boolean {
-  const body = (m.message || {}) as any;
+  const body = (m.message || {}) as import('@/actions/chat-actions').MessageContent;
   const media =
     body.imageMessage ||
     body.videoMessage ||

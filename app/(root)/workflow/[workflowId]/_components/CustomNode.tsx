@@ -18,7 +18,7 @@ export function CustomNode({ data }: { data: CustomNodeData }) {
     return (
         <div className="relative min-w-[320px] pb-8">
             <NodeCard
-                nodes={data.nodeDB as any}
+                nodes={data.nodeDB}
                 workflowId={data.workflowId}
                 user={data.user}
                 targetHandle={

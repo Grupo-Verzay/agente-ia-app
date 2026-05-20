@@ -125,7 +125,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
         {isScheduleView ? (
           <SortableReminderList
             reminders={scheduleReminders}
-            workflows={workflows as any}
+            workflows={workflows}
           />
         ) : (
           <div className="grid grid-cols-1 gap-2 p-2 md:grid-cols-2 xl:grid-cols-3">

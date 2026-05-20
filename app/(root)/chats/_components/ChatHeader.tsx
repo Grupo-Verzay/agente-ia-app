@@ -325,7 +325,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             </div>
             <div className="flex items-center gap-1.5">
               {crmBadge}
-              <ChatReminderDialog session={session as any} userId={userId} />
+              <ChatReminderDialog session={session!} userId={userId} />
               <ChatAppointmentStatusButton
                 sessionId={session.id}
                 userId={session.userId}
@@ -403,7 +403,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 instanceId={session.instanceId}
               />
               {crmBadge}
-              <ChatReminderDialog session={session as any} userId={userId} />
+              <ChatReminderDialog session={session!} userId={userId} />
               <ChatAppointmentStatusButton
                 sessionId={session.id}
                 userId={session.userId}

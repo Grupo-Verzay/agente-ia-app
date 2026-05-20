@@ -201,16 +201,17 @@ function MemberFormDialog({
                 res = await updateTeamMember(initial!.id, values);
             }
             if (res.success && res.data) {
+                const data = res.data as Member;
                 const member: Member = {
-                    ...(initial ?? { id: (res.data as any).id, isActive: true, services: [] }),
-                    ...(res.data as any),
+                    ...(initial ?? { id: data.id, isActive: true, services: [] }),
+                    ...data,
                     availability: initial?.availability ?? [],
                 };
                 onSaved(member);
                 toast.success(mode === 'create' ? 'Especialista creado' : 'Especialista actualizado');
                 setOpen(false);
             } else {
-                toast.error((res as any).message);
+                toast.error(res.message);
             }
         } catch {
             toast.error('Error al guardar');
@@ -496,7 +497,7 @@ export function MembersManager({ teamId, teamTimezone }: { teamId: string; teamT
         if (membersRes.success && membersRes.data) setMembers(membersRes.data as Member[]);
         else toast.error(membersRes.message);
         if (servicesRes.success && servicesRes.data) {
-            setAllServices((servicesRes.data as any[]).map((s) => ({ id: s.id, name: s.name, duration: s.duration })));
+            setAllServices(servicesRes.data.map((s) => ({ id: s.id, name: s.name, duration: s.duration })));
         }
         setLoading(false);
     }, [teamId]);

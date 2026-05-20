@@ -74,7 +74,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
       try {
         const res = await switchToAccount(targetId);
         if (!res.success) {
-          toast.error((res as any).message ?? "Error al cambiar de cuenta.");
+          toast.error(res.message ?? "Error al cambiar de cuenta.");
           return;
         }
         window.location.reload();
@@ -90,7 +90,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
       try {
         const res = await addLinkedAccount(emailInput);
         if (!res.success) {
-          toast.error((res as any).message ?? "Error al vincular cuenta.");
+          toast.error(res.message ?? "Error al vincular cuenta.");
           return;
         }
         toast.success("Cuenta vinculada correctamente.");
@@ -110,7 +110,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
       try {
         const res = await removeLinkedAccount(linkedUserId);
         if (!res.success) {
-          toast.error((res as any).message ?? "Error al desvincular.");
+          toast.error(res.message ?? "Error al desvincular.");
           return;
         }
         toast.success("Cuenta desvinculada.");

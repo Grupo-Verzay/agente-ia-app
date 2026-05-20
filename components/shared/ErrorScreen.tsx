@@ -36,7 +36,7 @@ function normalizeError(e: unknown): { name?: string; message?: string; stack?: 
     if (e instanceof Error) return { name: e.name, message: e.message, stack: e.stack };
     if (typeof e === "string") return { name: "Error", message: e, stack: undefined };
     try {
-        return { name: (e as any)?.name ?? "Error", message: JSON.stringify(e), stack: undefined };
+        return { name: (e as { name?: string })?.name ?? "Error", message: JSON.stringify(e), stack: undefined };
     } catch {
         return { name: "Error", message: "Unknown error", stack: undefined };
     }

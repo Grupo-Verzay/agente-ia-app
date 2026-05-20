@@ -2,7 +2,14 @@
 "use client";
 
 import { FC } from "react";
-import { DataSubtype, PropsActionSteeps } from "@/types/agentAi";
+import {
+    DataSubtype,
+    PedidoFunctionEl,
+    PropsActionSteeps,
+    PropsConsultaDatos,
+    PropsExecuteFlow,
+    PropsNotifyAsesor,
+} from "@/types/agentAi";
 import {
     TextRuleCard,
     CapturaDatosCard,
@@ -39,7 +46,7 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     if (el.kind === "function" && el.fn === "captura_datos") {
         return (
             <CapturaDatosCard
-                el={el as any}
+                el={el as PedidoFunctionEl}
                 onRemove={() => removeElement(stepId, el.id)}
                 onAddField={(f) => addPedidoField(stepId, el.id, f)}
                 onRemoveField={(f) => removePedidoField(stepId, el.id, f)}
@@ -53,7 +60,7 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     if (el.kind === "function" && el.fn === "actualizar_datos") {
         return (
             <ActualizarDatosCard
-                el={el as any}
+                el={el as PedidoFunctionEl}
                 onRemove={() => removeElement(stepId, el.id)}
                 onAddField={(f) => addPedidoField(stepId, el.id, f)}
                 onRemoveField={(f) => removePedidoField(stepId, el.id, f)}
@@ -66,7 +73,7 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     if (el.kind === "function" && el.fn === "ejecutar_flujo") {
         return (
             <EjecutarFlujoCard
-                el={el as any}
+                el={el as PropsExecuteFlow['el']}
                 flows={flows}
                 onRemove={() => removeElement(stepId, el.id)}
                 onSelectFlow={(flow) => setFlowOnElement(stepId, el.id, flow)}
@@ -78,7 +85,7 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     if (el.kind === "function" && el.fn === "notificar_asesor") {
         return (
             <NotificarAsesorCard
-                el={el as any}
+                el={el as PropsNotifyAsesor['el']}
                 onRemove={() => removeElement(stepId, el.id)}
                 isManagement={isManagement}
             />
@@ -89,7 +96,7 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     return (
         <ConsultaDatosCard
             isManagement={isManagement}
-            el={el as any}
+            el={el as PropsConsultaDatos['el']}
             onRemove={() => removeElement(stepId, el.id)}
             onAddField={(f) => addPedidoField(stepId, el.id, f)}
             onRemoveField={(f) => removePedidoField(stepId, el.id, f)}

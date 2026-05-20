@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import type { ApiKey } from '@prisma/client';
 import { Buffer } from 'buffer';
@@ -32,28 +32,32 @@ const normalizeBaseUrl = (u: string) => {
   const x = (u || '').trim().replace(/\/+$/, '');
   return /^https?:\/\//i.test(x) ? x : `https://${x}`;
 };
-const isChatData = (x: any): x is ChatData => x && typeof x === 'object' && typeof x.remoteJid === 'string' && x.unreadCount !== undefined;
+const isChatData = (x: unknown): x is ChatData => !!x && typeof x === 'object' && typeof (x as Record<string, unknown>).remoteJid === 'string' && 'unreadCount' in x;
 const ensureArrayResponse = (p: unknown): ChatData[] => {
+  const rec = p as Record<string, unknown> | null | undefined;
   const a =
     (Array.isArray(p) && p) ||
-    ((p as any)?.data && Array.isArray((p as any).data) && (p as any).data) ||
-    ((p as any)?.chats && Array.isArray((p as any).chats) && (p as any).chats);
-  return Array.isArray(a) ? (a as any[]).filter(isChatData) : [];
+    (rec?.data && Array.isArray(rec.data) && rec.data) ||
+    (rec?.chats && Array.isArray(rec.chats) && rec.chats);
+  return Array.isArray(a) ? (a as unknown[]).filter(isChatData) : [];
 };
-const normalizeFindMessagesPayload = (p: any) => {
-  if (p?.messages?.records && Array.isArray(p.messages.records)) {
-    const m = p.messages;
-    return {
-      items: m.records as EvolutionMessage[],
-      meta: {
-        total: Number(m.total ?? 0) || undefined,
-        pages: Number(m.pages ?? 0) || undefined,
-        currentPage: Number(m.currentPage ?? 1) || undefined,
-        nextPage: m.currentPage < m.pages ? m.currentPage + 1 : null,
-      },
-    };
+const normalizeFindMessagesPayload = (p: unknown) => {
+  const rec = p as Record<string, unknown> | null | undefined;
+  if (rec?.messages && typeof rec.messages === 'object' && rec.messages !== null) {
+    const m = rec.messages as Record<string, unknown>;
+    if (m.records && Array.isArray(m.records)) {
+      return {
+        items: m.records as EvolutionMessage[],
+        meta: {
+          total: Number(m.total ?? 0) || undefined,
+          pages: Number(m.pages ?? 0) || undefined,
+          currentPage: Number(m.currentPage ?? 1) || undefined,
+          nextPage: Number(m.currentPage) < Number(m.pages) ? Number(m.currentPage) + 1 : null,
+        },
+      };
+    }
   }
-  const items = (Array.isArray(p) && p) || (p?.data && Array.isArray(p.data) && p.data) || [];
+  const items = (Array.isArray(p) && p) || (rec?.data && Array.isArray(rec.data) && rec.data) || [];
   return { items: items as EvolutionMessage[], meta: {} };
 };
 const trimText = (value?: string | null) => value?.trim() ?? '';
@@ -363,7 +367,7 @@ async function fetchMessagesForRemoteJid(
       meta,
       raw,
     };
-  } catch (e: any) {
+  } catch (e) {
     clearTimeout(t);
     return {
       success: false as const,
@@ -503,7 +507,7 @@ export type EvolutionMessage = {
   instanceId?: string;
   sessionId?: string | null;
   status?: string;
-  MessageUpdate?: Array<any>;
+  MessageUpdate?: Array<unknown>;
 };
 
 export type LastMessage = {
@@ -651,7 +655,7 @@ export async function fetchChatsFromEvolution(
     const chatData = mergeChatDataByConversation(ensureArrayResponse(raw));
     // LOG 4: Éxito
     return { success: true, message: `OK findChats ${instanceName}`, data: chatData };
-  } catch (e: any) {
+  } catch (e) {
     clearTimeout(t);
     const errMsg = e?.name === 'AbortError' ? 'Timeout de solicitud.' : `Error de red: ${e?.message || String(e)}`;
     // LOG 5: Error de red/timeout
@@ -832,7 +836,7 @@ export async function sendTextMessage(
       };
     if (!raw) return { success: false, message: 'Respuesta inválida o vacía al enviar mensaje.', remoteJid };
     return { success: true, message: `Mensaje enviado OK a ${remoteJid}`, data: raw, remoteJid };
-  } catch (e: any) {
+  } catch (e) {
     clearTimeout(t);
     return {
       success: false,
@@ -896,7 +900,7 @@ export async function sendAudio(
       };
     if (!raw) return { success: false, message: 'Respuesta inválida o vacía al enviar audio.', remoteJid };
     return { success: true, message: `Audio enviado a ${remoteJid}`, data: raw, remoteJid };
-  } catch (e: any) {
+  } catch (e) {
     clearTimeout(t);
     return {
       success: false,
@@ -994,7 +998,7 @@ export async function sendMediaByUrl(
     }
     if (!raw) return { success: false, message: 'Respuesta inválida o vacía al enviar media.', remoteJid };
     return { success: true, message: `Media (${params.mediatype}) enviada a ${remoteJid}`, data: raw, remoteJid };
-  } catch (e: any) {
+  } catch (e) {
     clearTimeout(t);
     return {
       success: false,
@@ -1058,7 +1062,7 @@ export async function getMediaBase64FromMessage(
       raw,
       messageId,
     };
-  } catch (e: any) {
+  } catch (e) {
     clearTimeout(t);
     return {
       success: false,
@@ -1093,7 +1097,7 @@ export async function sendFileBase64(
       fileName: file.name,
       caption,
     });
-  } catch (e: any) {
+  } catch (e) {
     return {
       success: false,
       message: `Error en la preparación/conversión: ${e?.message || String(e)}`,
@@ -1227,7 +1231,7 @@ export async function markMessagesAsReadByIds(
 
 
     return { success: true, message: `${count} mensajes marcados como leídos con éxito.`, raw };
-  } catch (e: any) {
+  } catch (e) {
     clearTimeout(timeout);
     const errMsg = e?.name === 'AbortError' ? 'Timeout de solicitud.' : `Error de red: ${e.message || String(e)}`;
     console.error(`[READ] 🛑 Error de red/timeout en markMessagesAsReadByIds (x${count}, JID: ${jid}): ${errMsg}`);

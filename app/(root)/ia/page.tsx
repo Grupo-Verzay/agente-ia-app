@@ -6,6 +6,7 @@ import { Workflow } from '@prisma/client';
 import { getWorkFlowByUser } from '@/actions/workflow-actions';
 import { getAgentPromptByUserAndAgentId, getOrCreatePrompt } from '@/actions/system-prompt-actions';
 import { AGENT_PROMPT_IDS } from '@/lib/agent-prompt-ids';
+import type { SectionsPromptSystem } from '@/types/agentAi';
 
 function hasWorkflow(result: { data?: Workflow[] }): result is { data: Workflow[] } {
     return !!result.data;
@@ -36,7 +37,7 @@ const ProfilePage = async () => {
             flows={workflows}
             user={user}
             promptMeta={{ id: prompt.id, version: prompt.version }}
-            sections={sections as any}
+            sections={sections as unknown as SectionsPromptSystem}
             paymentReceiptPrompt={paymentReceiptPrompt
                 ? {
                     id: paymentReceiptPrompt.id,

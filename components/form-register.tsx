@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { fullRegisterSchema } from "@/lib/zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -204,7 +205,7 @@ function Step1Fields({ form }: { form: ReturnType<typeof useForm<FormValues>> })
         control={form.control}
         name="password"
         render={({ field }) => (
-          <PasswordField field={field as any} />
+          <PasswordField field={field as React.ComponentProps<typeof Input>} />
         )}
       />
     </div>

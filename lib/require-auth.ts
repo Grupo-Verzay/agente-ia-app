@@ -11,7 +11,7 @@ export async function requireAuth() {
         select: { tokenVersion: true },
     });
 
-    const tokenVersion = (session.user as any).tokenVersion ?? 0;
+    const tokenVersion = session.user.tokenVersion ?? 0;
     const currentVersion = dbUser?.tokenVersion ?? 0;
 
     if (tokenVersion !== currentVersion) {

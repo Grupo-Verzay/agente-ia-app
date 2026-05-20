@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -57,7 +57,7 @@ export const MediaPicker: React.FC<Props> = ({ onSend, prefixForUpload = "upload
 
         const payload: OutgoingMessagePayload = {
           kind: "media",
-          mediatype: mt as any,
+          mediatype: mt as import('./attachment-menu').MediaType,
           mediaUrl: dataUrl,             // <<<<<< data URL base64
           mimetype,
           fileName: file.name,
@@ -95,7 +95,7 @@ export const MediaPicker: React.FC<Props> = ({ onSend, prefixForUpload = "upload
         setCaption("");
         setPtt(false);
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error("[MediaPicker] send error:", e);
       alert(
         useBase64

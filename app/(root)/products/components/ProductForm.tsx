@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState, useTransition } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,7 +34,7 @@ export const ProductForm = ({
             id: product?.id,
             title: product?.title ?? "",
             description: product?.description ?? "",
-            price: (product?.price as any) ?? 0,
+            price: product?.price != null ? Number(product.price) : 0,
             sku: product?.sku ?? nanoid(),
             stock: product?.stock ?? 0,
             isActive: product?.isActive ?? true,
@@ -65,7 +65,7 @@ export const ProductForm = ({
             id: product?.id,
             title: product?.title ?? "",
             description: product?.description ?? "",
-            price: (product?.price as any) ?? 0,
+            price: product?.price != null ? Number(product.price) : 0,
             sku: product?.sku ?? nanoid(),
             stock: product?.stock ?? 0,
             isActive: product?.isActive ?? true,
@@ -112,7 +112,7 @@ export const ProductForm = ({
             setImageUploaded(url);
 
             toast.success('Imagen cargada', { id: toastId });
-        } catch (error: any) {
+        } catch (error) {
             toast.error(error?.message || 'Error al subir la imagen', { id: toastId });
         }
     };

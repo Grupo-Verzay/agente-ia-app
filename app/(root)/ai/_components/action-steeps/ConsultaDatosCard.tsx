@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Trash2, X } from "lucide-react";
 import { PedidoFieldsEditor } from "../";
-import { DataSubtype, PropsConsultaDatos, SUBTYPE_OPTIONS } from "@/types/agentAi";
+import { DataSubtype, PedidoFunctionEl, PropsConsultaDatos, SUBTYPE_OPTIONS } from "@/types/agentAi";
 import {
     Select,
     SelectTrigger,
@@ -72,7 +72,7 @@ export const ConsultaDatosCard: FC<PropsConsultaDatos> = ({
             <CardContent className="p-0 m-0">
                 <div className="px-4 pb-3">
                     <PedidoFieldsEditor
-                        stepId={(el as any).stepId ?? ""}
+                        stepId={(el as PedidoFunctionEl & { stepId?: string }).stepId ?? ""}
                         elId={el.id}
                         element={el}
                         onAdd={onAddField}

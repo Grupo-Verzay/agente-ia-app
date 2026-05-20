@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -125,7 +125,7 @@ export function ApiKeyConfigurator({
             const existingCfg = dataFormatted.configs.find((c) => c.providerId === defProvId);
             if (existingCfg) {
                 form.setValue("apiKey", existingCfg.apiKey);
-                form.setValue("temperature", (existingCfg as any).temperature ?? 0);
+                form.setValue("temperature", existingCfg.temperature ?? 0);
             }
 
                     setPreviewProviderId(defProvId);
@@ -155,7 +155,7 @@ export function ApiKeyConfigurator({
 
         const cfg = settings.configs.find((c) => c.providerId === currentProviderId);
         form.setValue("apiKey", cfg?.apiKey || "");
-        form.setValue("temperature", (cfg as any)?.temperature ?? 0);
+        form.setValue("temperature", cfg?.temperature ?? 0);
 
         // actualiza preview (fuera del diálogo)
         setPreviewProviderId(currentProviderId);
@@ -212,7 +212,7 @@ export function ApiKeyConfigurator({
             }
 
             onSaved?.();
-        } catch (err: any) {
+        } catch (err) {
             toast.error(err?.message || "Error guardando configuración");
         } finally {
             setLoading(false);

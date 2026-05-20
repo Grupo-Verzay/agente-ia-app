@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState, useTransition } from "react";
 import { z } from "zod";
@@ -130,7 +130,7 @@ export function ChangeUserPasswordForm({ userId }: Props) {
                 setConfirmPassword("");
                 setFieldError({});
                 addLog("info", "Campos limpiados. Proceso terminado.");
-            } catch (e: any) {
+            } catch (e) {
                 const msg = e?.message ?? String(e);
                 addLog("error", msg);
                 toast.error(msg, { id: "chg-pass" });

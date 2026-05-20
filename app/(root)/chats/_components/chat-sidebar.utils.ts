@@ -106,7 +106,7 @@ export function lastTextFrom(chat: ChatData): {
         text = "Sticker";
         break;
       case "reactionMessage": {
-        const emoji = (msg as any)?.reactionMessage?.text;
+        const emoji = msg?.reactionMessage?.text;
         text = emoji ? `Reaccionó: ${emoji}` : "Reaccion";
         break;
       }

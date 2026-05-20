@@ -179,8 +179,8 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
         const expensesRaw = await db.financeTransaction.findMany({
             where: {
                 userId,
-                type: "EXPENSE" as any,
-                status: { not: "DELETED" as any },
+                type: "EXPENSE",
+                status: { not: "DELETED" },
                 ...(dateFilter ? { occurredAt: dateFilter } : {}),
             },
             select: { amount: true, categoryId: true },

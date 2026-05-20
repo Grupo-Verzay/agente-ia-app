@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -42,7 +42,7 @@ export async function getBillingServiceAccessSnapshot(userId?: string) {
         email: billing?.user?.email ?? null,
       },
     };
-  } catch (e: any) {
+  } catch (e) {
     return { success: false as const, message: e?.message ?? "Error calculando estado de acceso." };
   }
 }

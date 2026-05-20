@@ -17,7 +17,7 @@ function createDebounced<F extends (...args: any[]) => any>(fn: F, ms = 700) {
         t = setTimeout(() => fn(...args), ms);
     };
 
-    (debounced as any).cancel = () => {
+    (debounced as unknown as { cancel: () => void }).cancel = () => {
         if (t) clearTimeout(t);
         t = null;
     };

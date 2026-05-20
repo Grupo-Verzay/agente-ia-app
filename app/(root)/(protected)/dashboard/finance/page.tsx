@@ -83,9 +83,9 @@ export default async function FinanceHomePage() {
   const monthTx = await db.financeTransaction.findMany({
     where: {
       userId: me.id,
-      status: { not: 'DELETED' as any },
+      status: { not: 'DELETED' as const },
       occurredAt: { gte: from, lt: to },
-      type: { in: ['SALE', 'EXPENSE'] as any },
+      type: { in: ['SALE', 'EXPENSE'] as const },
     },
     select: {
       type: true,

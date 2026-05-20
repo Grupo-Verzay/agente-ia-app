@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -162,7 +162,7 @@ export function ExternalDataImportClient({ clients }: Props) {
       );
       if (waCol) setColumnName(waCol);
       toast.success(`${res.headers.length} columnas detectadas`);
-    } catch (err: any) {
+    } catch (err) {
       toast.error(err?.message ?? 'Error al previsualizar');
     } finally {
       setIsPreviewing(false);
@@ -228,7 +228,7 @@ export function ExternalDataImportClient({ clients }: Props) {
       } else {
         toast.warning(`Importación con advertencias — ${res.errors} error(es)`, { id: toastId });
       }
-    } catch (err: any) {
+    } catch (err) {
       const msg = err?.message ?? 'Error inesperado durante la importación';
       addLog(msg, 'error');
       toast.error(msg, { id: toastId });
@@ -481,7 +481,7 @@ export function ExternalDataImportClient({ clients }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-48" ref={scrollRef as any}>
+            <ScrollArea className="h-48" ref={scrollRef as React.Ref<HTMLDivElement>}>
               <div className="space-y-1.5 pr-3 font-mono text-xs">
                 {logs.map((log) => (
                   <div key={log.id} className="flex items-start gap-2">

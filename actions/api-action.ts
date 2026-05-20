@@ -1,4 +1,4 @@
-"use server"
+﻿"use server"
 
 import { db } from "@/lib/db";
 import { ApiKey } from "@prisma/client";
@@ -16,7 +16,7 @@ import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
 export async function generateQRCode({ instanceName, userId }: GenerateQrInterface): Promise<QRCodeResponse> {
   try {
     await assertUserCanUseApp(userId);
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error?.message ?? "No autorizado." };
   }
 
@@ -101,7 +101,7 @@ export async function generateQRCode({ instanceName, userId }: GenerateQrInterfa
         // lo manejamos abajo con mensaje genérico
       }
     }
-  } catch (error: any) {
+  } catch (error) {
     apiConnectedNow = false;
     failMessage =
       error?.name === 'AbortError'
@@ -227,7 +227,7 @@ export async function agregarApi(data: FormData): Promise<ClientResponse<ApiKey>
   try {
     const createdApiKey = await db.apiKey.create({ data: { url, key } })
     return { success: true, message: 'API Key agregada exitosamente', data: createdApiKey }
-  } catch (error: any) {
+  } catch (error) {
     console.error(error)
     return { success: false, message: error.message || 'Error al agregar la API Key' }
   }
@@ -245,7 +245,7 @@ export async function editarApiKey(data: FormData): Promise<ClientResponse<ApiKe
   try {
     await db.apiKey.update({ where: { id }, data: { url, key } });
     return { success: true, message: "API Key actualizada exitosamente." }
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error.message || "Error al actualizar la API Key." }
   }
 }
@@ -259,7 +259,7 @@ export async function eliminarApiKey(id: string) {
     await db.apiKey.delete({ where: { id } });
     revalidatePath('/agregar-api');
     return { success: true, message: "API Key eliminada exitosamente." }
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error.message || "Error al eliminar la API Key." }
   }
 }
@@ -269,7 +269,7 @@ export async function obtenerApiKeys() {
     const apiKeys = await db.apiKey.findMany();
     apiKeys.sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
     return { success: true, data: apiKeys };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error.message || "Error al obtener las API Keys." };
   }
 }
@@ -279,7 +279,7 @@ export async function getApiKeyById(id: string) {
     if (!id) return { success: false, message: 'Missing id' };
     const apiKey = await db.apiKey.findUnique({ where: { id } });
     return { success: true, data: apiKey };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error.message || "Error al obtener las API Keys." };
   }
 }
@@ -362,7 +362,7 @@ export async function createInstance(data: FormData) {
       revalidatePath('/agregar-api');
       return { success: true, message: "Instancia creada exitosamente.", instancia: nuevaInstancia };
     }
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error.message || "Error al crear la instancia." };
   }
 }
@@ -419,7 +419,7 @@ export async function deleteInstance(userId: string, instanceType: string = 'Wha
         deleteOptions
       );
 
-      const deleteResult = await deleteResponse.json().catch(() => ({} as any));
+      const deleteResult = await deleteResponse.json().catch(() => ({} as Record<string, unknown>));
 
       if (!deleteResponse.ok) {
         return {
@@ -441,7 +441,7 @@ export async function deleteInstance(userId: string, instanceType: string = 'Wha
     await db.instancia.delete({ where: { id: instancia.id } });
 
     return { success: true, message: "Instancia eliminada exitosamente." };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error?.message || "Error al eliminar la instancia." };
   }
 }
@@ -480,7 +480,7 @@ export async function renameInstance(userId: string, instanceType: string, newNa
 
     revalidatePath('/connection');
     return { success: true, message: "Nombre actualizado correctamente." };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error?.message || "Error al renombrar la instancia." };
   }
 }
@@ -519,7 +519,7 @@ export async function deleteInstanceInternal(
         method: 'DELETE',
         headers: { apikey: apiKey, 'Content-Type': 'application/json' },
       });
-      const deleteResult = await deleteResponse.json().catch(() => ({} as any));
+      const deleteResult = await deleteResponse.json().catch(() => ({} as Record<string, unknown>));
       if (!deleteResponse.ok) {
         return { success: false, message: deleteResult?.message || 'Error al eliminar la instancia en la API.', instanceName: null };
       }
@@ -532,7 +532,7 @@ export async function deleteInstanceInternal(
 
     await db.instancia.delete({ where: { id: instancia.id } });
     return { success: true, message: "Instancia eliminada exitosamente.", instanceName };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error?.message || "Error al eliminar la instancia.", instanceName: null };
   }
 }
@@ -587,7 +587,7 @@ export async function createInstanceInternal(
       });
       return { success: true, message: "Instancia creada exitosamente." };
     }
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, message: error?.message || "Error al crear la instancia." };
   }
 }
@@ -711,7 +711,7 @@ export async function getDataApi(userId: string, apiKeyId: string) {
         instanceId: instancia.instanceId,
       },
     };
-  } catch (error: any) {
+  } catch (error) {
     return {
       success: false,
       message: error.message || "Error al obtener datos de la API.",

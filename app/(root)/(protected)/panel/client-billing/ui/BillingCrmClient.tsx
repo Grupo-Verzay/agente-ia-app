@@ -1,4 +1,4 @@
-// app/(root)/(protected)/admin/ruta-para-listar-clientes-y-crm-pagos/ui/BillingCrmClient.tsx
+﻿// app/(root)/(protected)/admin/ruta-para-listar-clientes-y-crm-pagos/ui/BillingCrmClient.tsx
 "use client";
 
 import * as React from "react";
@@ -397,7 +397,7 @@ export function BillingCrmClient({
             toast.success(saveMessage);
             await refreshBillingForUser(u.id);
             setDialog(emptyDialog);
-        } catch (e: any) {
+        } catch (e) {
             console.error("[saveEdit]", e);
             toast.error("Error guardando cambios.");
             setDialog((s) => ({ ...s, loading: false }));

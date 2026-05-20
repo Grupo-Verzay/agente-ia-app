@@ -211,7 +211,7 @@ export function BookingsCalendar({ teamId }: { teamId: string }) {
 
             {/* Filtro */}
             <div className="flex items-center gap-2">
-                <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)}>
+                <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as AppointmentStatus | 'ALL')}>
                     <SelectTrigger className="w-44 h-8 text-xs">
                         <SelectValue placeholder="Filtrar estado" />
                     </SelectTrigger>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
@@ -196,7 +196,7 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                 setOriginalUser(prev => prev ? { ...prev, [field]: newValue } : prev);
                 toast.success('Guardado', { id: field });
             }
-        } catch (error: any) {
+        } catch (error) {
             toast.error(error?.errors?.[0]?.message || 'Error de validación', { id: field });
         } finally {
             setLoadingField(null);
@@ -261,7 +261,7 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
             if (!result.success) throw new Error(result.message);
             setUser(prev => prev ? { ...prev, image: url } : prev);
             toast.success('Avatar actualizado', { id: toastId });
-        } catch (error: any) {
+        } catch (error) {
             toast.error(error?.message || 'Error al subir el avatar', { id: toastId });
         } finally {
             setLoadingField(null);
@@ -921,8 +921,8 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                                             placeholder="— Juan Pérez | Asesor de Ventas"
                                             value={user.advisorSignature ?? ""}
                                             disabled={loadingField === "advisorSignature"}
-                                            onChange={(e) => handleChange("advisorSignature" as any, e.target.value)}
-                                            onBlur={() => handleBlur("advisorSignature" as any)}
+                                            onChange={(e) => handleChange("advisorSignature", e.target.value)}
+                                            onBlur={() => handleBlur("advisorSignature")}
                                         />
                                     </CardContent>
                                 </Card>

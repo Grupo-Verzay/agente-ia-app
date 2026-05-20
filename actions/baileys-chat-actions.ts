@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { db } from '@/lib/db';
 import type {
@@ -83,7 +83,7 @@ export async function fetchChatsFromBaileys(instanceName: string): Promise<Fetch
     });
 
     return { success: true, message: 'OK', data: chats };
-  } catch (err: any) {
+  } catch (err) {
     return { success: false, message: err?.message ?? 'Error al cargar chats Baileys.' };
   }
 }
@@ -136,7 +136,7 @@ export async function findMessagesFromBaileys(
     });
 
     return { success: true, message: 'OK', data: messages };
-  } catch (err: any) {
+  } catch (err) {
     return { success: false, message: err?.message ?? 'Error al cargar mensajes Baileys.' };
   }
 }
@@ -161,7 +161,7 @@ export async function sendBaileysTextAction(
     );
     if (!res.ok) return { success: false, message: `Error ${res.status} al enviar.`, remoteJid };
     return { success: true, message: 'Enviado.', remoteJid };
-  } catch (err: any) {
+  } catch (err) {
     return { success: false, message: err?.message ?? 'Error al enviar.', remoteJid };
   }
 }
@@ -195,7 +195,7 @@ export async function sendBaileysQuickReplyAction(
     return res.ok
       ? { success: true, message: 'Enviado.' }
       : { success: false, message: `Error ${res.status}.` };
-  } catch (err: any) {
+  } catch (err) {
     return { success: false, message: err?.message ?? 'Error al enviar respuesta rápida.' };
   }
 }

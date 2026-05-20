@@ -73,7 +73,7 @@ function mapSessionToChatContactSummary(session: Session): ChatContactSessionSum
     pushName: session.pushName,
     tags: session.tags ?? [],
     leadStatus: session.leadStatus ?? null,
-    assignedAdvisorId: (session as any).assignedAdvisorId ?? null,
+    assignedAdvisorId: session.assignedAdvisorId ?? null,
   };
 }
 

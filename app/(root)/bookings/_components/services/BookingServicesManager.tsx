@@ -178,15 +178,16 @@ function ServiceFormDialog({
                 res = await updateTeamService(initial!.id, values);
             }
             if (res.success && res.data) {
+                const data = res.data as TeamService;
                 const svc: TeamService = {
-                    ...(initial ?? { id: (res.data as any).id, isActive: true, order: 0, members: [] }),
-                    ...(res.data as any),
+                    ...(initial ?? { id: data.id, isActive: true, order: 0, members: [] }),
+                    ...data,
                 };
                 onSaved(svc);
                 toast.success(mode === 'create' ? 'Servicio creado' : 'Servicio actualizado');
                 setOpen(false);
             } else {
-                toast.error((res as any).message);
+                toast.error(res.message);
             }
         } catch {
             toast.error('Error al guardar');
@@ -411,7 +412,7 @@ export function BookingServicesManager({ teamId }: { teamId: string }) {
         if (servicesRes.success && servicesRes.data) setServices(servicesRes.data as TeamService[]);
         else toast.error(servicesRes.message);
         if (membersRes.success && membersRes.data) {
-            setAllMembers((membersRes.data as any[]).map((m) => ({ id: m.id, name: m.name, color: m.color })));
+            setAllMembers(membersRes.data.map((m) => ({ id: m.id, name: m.name, color: m.color })));
         }
         setLoading(false);
     }, [teamId]);

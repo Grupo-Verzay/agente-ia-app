@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -167,7 +167,7 @@ export const deleteWorkflow = async (id: string) => {
             message: `Flujo "${deleted.name}" eliminado correctamente.`,
             data: deleted,
         };
-    } catch (error: any) {
+    } catch (error) {
         console.error("Error al eliminar el flujo:", error);
 
         return {

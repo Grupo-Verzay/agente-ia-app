@@ -1,4 +1,4 @@
-// app/(root)/ai/_components/hooks/usePromptActions.ts
+﻿// app/(root)/ai/_components/hooks/usePromptActions.ts
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -55,7 +55,7 @@ export function usePromptActions(opts: {
             }
 
             handleOk(res.data?.prompt?.version);
-        } catch (e: any) {
+        } catch (e) {
             setError(e?.message ?? "Error al publicar.");
         } finally {
             setLoading(null);

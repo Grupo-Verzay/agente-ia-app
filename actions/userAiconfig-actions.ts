@@ -163,9 +163,9 @@ export async function getUserAiSettings(userId: string): Promise<ActionResult<Us
     getUserAiConfigs(userId),
     getUserAiDefaults(userId),
   ]);
-  if (!providersRes.success) return providersRes as any;
-  if (!configsRes.success) return configsRes as any;
-  if (!defaultsRes.success) return defaultsRes as any;
+  if (!providersRes.success) return { success: false, message: providersRes.message };
+  if (!configsRes.success) return { success: false, message: configsRes.message };
+  if (!defaultsRes.success) return { success: false, message: defaultsRes.message };
   return {
     success: true,
     message: 'ok',

@@ -10,6 +10,9 @@ import {
 } from '@/components/ui/tooltip';
 import { Pencil, Trash2, Star } from 'lucide-react';
 
+export type AccountRow = { id: string; name: string; isDefault: boolean; currencyCode?: string | null; type?: 'PERSONAL' | 'COMPANY' | null };
+type CellCtx = { row: { original: AccountRow } };
+
 export function buildAccountsColumns({
   onEdit,
   onDelete,
@@ -17,9 +20,9 @@ export function buildAccountsColumns({
   busy,
   getAccountSummary,
 }: {
-  onEdit: (row: any) => void;
+  onEdit: (row: AccountRow) => void;
   onDelete: (id: string) => void;
-  onSetDefault: (row: any) => void;
+  onSetDefault: (row: AccountRow) => void;
   busy: boolean;
   getAccountSummary: (accountId: string) => {
     salesText: string;
@@ -32,7 +35,7 @@ export function buildAccountsColumns({
     {
       accessorKey: 'name',
       header: 'Cuenta',
-      cell: ({ row }: any) => {
+      cell: ({ row }: CellCtx) => {
         const r = row.original;
 
         return (
@@ -55,7 +58,7 @@ export function buildAccountsColumns({
     {
       id: 'balance',
       header: 'Saldo',
-      cell: ({ row }: any) => {
+      cell: ({ row }: CellCtx) => {
         const r = row.original;
         const summary = getAccountSummary?.(r.id);
         const balanceText = summary?.balanceText ?? '—';
@@ -72,7 +75,7 @@ export function buildAccountsColumns({
     {
       id: 'actions',
       header: '',
-      cell: ({ row }: any) => {
+      cell: ({ row }: CellCtx) => {
         const r = row.original;
 
         return (

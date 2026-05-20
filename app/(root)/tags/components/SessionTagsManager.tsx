@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -52,12 +52,12 @@ export const SessionTagsManager = ({
     const [newTagName, setNewTagName] = useState("");
     const [newTagColor, setNewTagColor] = useState<string | null>(null);
 
-    // Edición de tag
+    // EdiciÃ³n de tag
     const [editingTagId, setEditingTagId] = useState<number | null>(null);
     const [editName, setEditName] = useState("");
     const [editColor, setEditColor] = useState<string | null>(null);
 
-    // Eliminación con confirmación
+    // EliminaciÃ³n con confirmaciÃ³n
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [tagToDelete, setTagToDelete] = useState<SimpleTag | null>(null);
 
@@ -77,7 +77,7 @@ export const SessionTagsManager = ({
                 : await assignTagToSessionAction({ userId, sessionId, tagId });
 
             if (!res.success) {
-                // revertir optimista si falló
+                // revertir optimista si fallÃ³
                 setSelectedIds((prev) =>
                     currentlySelected ? [...prev, tagId] : prev.filter((id) => id !== tagId)
                 );
@@ -108,9 +108,9 @@ export const SessionTagsManager = ({
             const newTag: SimpleTag = {
                 id: res.data.id,
                 name: res.data.name,
-                slug: (res.data as any).slug,
-                color: (res.data as any).color ?? null,
-                order: (res.data as any).order ?? 0,
+                slug: res.data!.slug,
+                color: res.data!.color ?? null,
+                order: res.data!.order ?? 0,
             };
 
             setTags((prev) => {
@@ -122,7 +122,7 @@ export const SessionTagsManager = ({
             setNewTagColor(null);
 
             toast.success("Etiqueta creada", {
-                description: `Se creó la etiqueta "${newTag.name}".`,
+                description: `Se creÃ³ la etiqueta "${newTag.name}".`,
             });
         });
     };
@@ -159,8 +159,8 @@ export const SessionTagsManager = ({
                         ? {
                             ...t,
                             name: res.data!.name,
-                            slug: (res.data as any).slug,
-                            color: (res.data as any).color ?? null,
+                            slug: res.data!.slug,
+                            color: res.data!.color ?? null,
                         }
                         : t
                 );
@@ -170,7 +170,7 @@ export const SessionTagsManager = ({
 
             setEditingTagId(null);
             toast.success("Etiqueta actualizada", {
-                description: `Se actualizó la etiqueta "${value}".`,
+                description: `Se actualizÃ³ la etiqueta "${value}".`,
             });
         });
     };
@@ -212,7 +212,7 @@ export const SessionTagsManager = ({
                     <div className="flex items-center gap-2">
                         <TagIcon className="h-4 w-4 text-muted-foreground" />
                         <h3 className="font-semibold">
-                            {hideSessionSection ? 'Gestionar etiquetas' : 'Etiquetas de la sesión'}
+                            {hideSessionSection ? 'Gestionar etiquetas' : 'Etiquetas de la sesiÃ³n'}
                         </h3>
                     </div>
                     {isPending && (
@@ -220,12 +220,12 @@ export const SessionTagsManager = ({
                     )}
                 </div>
 
-                {/* Tags asignados — solo visible cuando hay sesión activa */}
+                {/* Tags asignados â€” solo visible cuando hay sesiÃ³n activa */}
                 {!hideSessionSection && (
                     <>
                         <div className="space-y-1">
                             <p className="font-medium text-muted-foreground">
-                                Asignadas a esta sesión
+                                Asignadas a esta sesiÃ³n
                             </p>
                             <div className="flex flex-wrap gap-1.5">
                                 {tags.filter((t) => selectedIds.includes(t.id)).length === 0 ? (
@@ -299,7 +299,7 @@ export const SessionTagsManager = ({
                             disabled={isPending || !newTagName.trim()}
                             onClick={handleCreateTag}
                         >
-                            Añadir
+                            AÃ±adir
                         </Button>
                     </div>
                 </div>
@@ -307,11 +307,11 @@ export const SessionTagsManager = ({
                 {/* Lista completa de etiquetas */}
                 <div className="space-y-1">
                     <p className="font-medium text-muted-foreground">
-                        Catálogo de etiquetas
+                        CatÃ¡logo de etiquetas
                     </p>
                     {tags.length === 0 ? (
                         <span className="text-muted-foreground">
-                            Aún no hay etiquetas creadas.
+                            AÃºn no hay etiquetas creadas.
                         </span>
                     ) : (
                         <SortableTagList

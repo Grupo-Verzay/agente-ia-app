@@ -13,12 +13,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { SafeImage } from '@/components/custom/SafeImage';
 
-type ExpenseRow = {
+export type ExpenseRow = {
     id: string;
     occurredAt: string | Date;
-    amount: any;
+    amount: string | number | null;
     currencyCode: string;
     title?: string | null;
+    description?: string | null;
     counterparty?: string | null;
 
     accountId: string;
@@ -26,7 +27,7 @@ type ExpenseRow = {
 
     account?: { name: string } | null;
     category?: { name: string } | null;
-    attachments?: { url: string }[];
+    attachments?: { id?: string; url: string; fileName?: string | null; mimeType?: string | null; sizeBytes?: number | null }[];
 };
 
 function iso(d: string | Date) {

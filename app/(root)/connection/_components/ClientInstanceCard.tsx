@@ -153,7 +153,7 @@ export const ClientInstanceCard = ({
       </Card>
 
       <PromptInstanceDialog
-        platform={instanceType as any}
+        platform={instanceType ?? ''}
         open={showPromptDialog}
         setOpen={handlePromptDialogOpen}
         userId={user.id}

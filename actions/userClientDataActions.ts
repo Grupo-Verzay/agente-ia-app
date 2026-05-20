@@ -1,8 +1,8 @@
-'use server';
+﻿'use server';
 
 import { db } from '@/lib/db';
 import { UserWithPausar } from '@/lib/types';
-import { IaCredit, Pausar, User } from '@prisma/client';
+import { IaCredit, Pausar, Prisma, User } from '@prisma/client';
 import { generateQRCode, getDataApi } from "@/actions/api-action";
 import { ClientInterface } from "@/lib/types";
 import { revalidatePath } from 'next/cache';
@@ -61,7 +61,7 @@ const ensureAdminOrResellerUser = async () => {
 const ensureSelfOrAdmin = async (targetUserId: string) => {
   const me = await currentUser();
   if (!me) throw new Error("No autorizado.");
-  const effectiveId = (me as any).effectiveId ?? me.id;
+  const effectiveId = me.effectiveId ?? me.id;
   if (me.id !== targetUserId && effectiveId !== targetUserId && !isAdminOrReseller(me.role)) {
     throw new Error("No autorizado.");
   }
@@ -369,7 +369,7 @@ export async function updateUserMeetingDuration(
     }
 
     // 3) Buscar recordatorio con field === "minutes-5"
-    const reminderMinutes5 = remindersRes.data.find((r: any) => r.time === "minutes-5");
+    const reminderMinutes5 = remindersRes.data.find((r) => r.time === "minutes-5");
 
     if (!reminderMinutes5) {
       return {
@@ -645,7 +645,7 @@ export async function deleteUser(id: string) {
 
       // 8) Seguimientos (tabla sin FKs: limpiamos por señales)
       currentStep = "cleanup_seguimientos";
-      const orSeguimientos: any[] = [];
+      const orSeguimientos: Prisma.SeguimientoWhereInput[] = [];
       if (remoteJids.length) orSeguimientos.push({ remoteJid: { in: remoteJids } });
       if (instanceNames.length) orSeguimientos.push({ instancia: { in: instanceNames } });
       if (userApiKey?.key) orSeguimientos.push({ apikey: userApiKey.key });
@@ -686,7 +686,7 @@ export async function deleteUser(id: string) {
       message: "User and related data deleted successfully.",
       debugStep: currentStep,
     };
-  } catch (error: any) {
+  } catch (error) {
     const errMsg = error?.message || String(error);
     console.error("[deleteUser] ERROR", { userId: id, step: currentStep, error: errMsg });
 
@@ -749,7 +749,7 @@ export async function updateUserVoiceSettings(
         ...(ttsProvider ? { ttsProvider } : {}),
         ...(elevenLabsApiKey !== undefined ? { elevenLabsApiKey } : {}),
         ...(elevenLabsVoiceId !== undefined ? { elevenLabsVoiceId } : {}),
-      } as any,
+      } as Prisma.UserUpdateInput,
     });
 
     return { success: true, message: 'Configuración de voz actualizada.' };
@@ -779,7 +779,8 @@ export async function getElevenLabsVoices(
     }
 
     const data = await res.json();
-    const voices = (data.voices ?? []).map((v: any) => ({
+    type ElevenLabsVoiceRaw = { voice_id: string; name: string; category?: string };
+    const voices = ((data.voices ?? []) as ElevenLabsVoiceRaw[]).map((v) => ({
       voice_id: v.voice_id,
       name: v.name,
       category: v.category ?? 'premade',

@@ -27,7 +27,7 @@ const WorkflowPage = async () => {
   };
 
   const triggersRes = await getIntentTriggersByUser(user.effectiveId);
-  const triggers = (triggersRes.success ? (triggersRes as any).data ?? [] : []) as IntentTrigger[];
+  const triggers = (triggersRes.success ? triggersRes.data ?? [] : []) as IntentTrigger[];
 
   return (
     <div className="flex flex-col h-full p-4">

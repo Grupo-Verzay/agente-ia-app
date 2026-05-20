@@ -88,7 +88,7 @@ export type ClientRow = {
 
 export type BillingEditForm = {
     dueDate: string;
-    price: any;
+    price: string | number | null;
     currencyCode: string;
     paymentMethodLabel: string;
     paymentNotes: string;

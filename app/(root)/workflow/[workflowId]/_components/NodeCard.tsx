@@ -310,7 +310,7 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
     }
 
     if (isIntention) {
-      return <EmbeddingNode node={nodes as any} />;
+      return <EmbeddingNode node={nodes} />;
     }
 
     if (hasContent) {

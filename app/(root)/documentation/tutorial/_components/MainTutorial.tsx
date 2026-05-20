@@ -53,9 +53,9 @@ export const MainTutorial = ({ user }: { user: User }) => {
 
         let res;
         if (editingId) {
-            res = await updateGuide({ ...form, id: editingId } as any);
+            res = await updateGuide({ ...form, id: editingId } as Parameters<typeof updateGuide>[0]);
         } else {
-            res = await createGuide(form as any);
+            res = await createGuide(form as Parameters<typeof createGuide>[0]);
         }
 
         if (res.success) {

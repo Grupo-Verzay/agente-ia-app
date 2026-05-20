@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { db } from '@/lib/db'
 import { SystemMessage } from '@prisma/client'
@@ -36,7 +36,7 @@ export async function getPromptAiByUserId(userId: string): Promise<PromptAiRespo
             message: 'Mensajes cargados exitosamente.',
             data,
         }
-    } catch (error: any) {
+    } catch (error) {
         return {
             success: false,
             message: error.message || 'Error al obtener los mensajes.',
@@ -73,7 +73,7 @@ export async function createPromptAi(formData: PromptAiFormValues): Promise<Prom
             message: 'Mensaje del sistema agregado exitosamente.',
             data: [message],
         }
-    } catch (error: any) {
+    } catch (error) {
         return {
             success: false,
             message: error.message || 'Error al agregar el mensaje del sistema.',
@@ -109,7 +109,7 @@ export async function updatePromptAi(formData: PromptAiFormValues): Promise<Prom
             message: 'Mensaje actualizado exitosamente.',
             data: [message],
         }
-    } catch (error: any) {
+    } catch (error) {
         return {
             success: false,
             message: error.message || 'Error al actualizar el mensaje.',
@@ -124,7 +124,7 @@ export async function deletePromptAi(id: string): Promise<PromptAiResponse> {
             success: true,
             message: 'Mensaje eliminado exitosamente.',
         }
-    } catch (error: any) {
+    } catch (error) {
         return {
             success: false,
             message: error.message || 'Error al eliminar el mensaje.',

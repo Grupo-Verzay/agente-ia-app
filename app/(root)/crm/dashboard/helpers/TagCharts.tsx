@@ -195,7 +195,7 @@ export function TagDonutChart({ stats }: TagDonutChartProps) {
                         </Pie>
                         <Tooltip
                             formatter={(value, _name, props) => {
-                                const p = props as any;
+                                const p = props as { payload?: { name?: string } };
                                 return [`${value} contactos`, p.payload?.name || "Etiqueta"];
                             }}
                         />

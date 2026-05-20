@@ -17,7 +17,7 @@ export const getDayKeyBogota = (ts = Date.now()) =>
   new Date(ts).toLocaleDateString('en-CA', { timeZone: SERVER_TIME_ZONE }); // YYYY-MM-DD
 
 export const getEvoCache = (): Map<string, EvoHealthCacheEntry> => {
-  const g = globalThis as any;
+  const g = globalThis as typeof globalThis & Record<string, unknown>;
   if (!g.__EVO_HEALTH_CACHE__) g.__EVO_HEALTH_CACHE__ = new Map<string, EvoHealthCacheEntry>();
   return g.__EVO_HEALTH_CACHE__ as Map<string, EvoHealthCacheEntry>;
 };

@@ -126,7 +126,7 @@ export const ProductTable = ({
                                         >
                                             {h.isPlaceholder
                                                 ? null
-                                                : h.column.columnDef.header as any}
+                                                : flexRender(h.column.columnDef.header, h.getContext())}
                                         </th>
                                     ))}
                                 </tr>

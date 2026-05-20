@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { Prisma } from "@prisma/client";
 
@@ -132,7 +132,7 @@ async function runManualStatusSideEffects(args: {
 
 export async function getUserBillingByUserId(
     userId: string
-): Promise<ResponseFormat<any>> {
+): Promise<ResponseFormat<unknown>> {
     try {
         const me = await currentUser();
         const scopedUserId = await assertBillingScope(me ?? {}, userId);
@@ -146,7 +146,7 @@ export async function getUserBillingByUserId(
             message: billing ? "Billing encontrado." : "Cliente sin billing configurado.",
             data: serializeUserBilling(billing),
         };
-    } catch (error: any) {
+    } catch (error) {
         console.error("[getUserBillingByUserId]", error);
         return {
             success: false,
@@ -155,7 +155,7 @@ export async function getUserBillingByUserId(
     }
 }
 
-export async function getOwnBillingAction(): Promise<ResponseFormat<any>> {
+export async function getOwnBillingAction(): Promise<ResponseFormat<unknown>> {
     try {
         const me = await currentUser();
         if (!me?.id) return { success: false, message: "No autorizado." };
@@ -184,7 +184,7 @@ export async function getOwnBillingAction(): Promise<ResponseFormat<any>> {
                 updatedAt: billing.updatedAt ? billing.updatedAt.toISOString() : null,
             },
         };
-    } catch (error: any) {
+    } catch (error) {
         console.error("[getOwnBillingAction]", error);
         return { success: false, message: error?.message ?? "Error obteniendo billing." };
     }
@@ -192,7 +192,7 @@ export async function getOwnBillingAction(): Promise<ResponseFormat<any>> {
 
 export async function upsertUserBillingConfig(
     input: BillingUpsertInput
-): Promise<ResponseFormat<any>> {
+): Promise<ResponseFormat<unknown>> {
     try {
         const me = await currentUser();
         const scopedUserId = await assertBillingScope(me ?? {}, input?.userId);
@@ -239,19 +239,7 @@ export async function upsertUserBillingConfig(
 
         const billing = await db.userBilling.upsert({
             where: { userId: scopedUserId },
-            create: {
-                userId: scopedUserId,
-                price: data.price as any,
-                currencyCode: (data.currencyCode as any) ?? "COP",
-                paymentMethodLabel: (data.paymentMethodLabel as any) ?? null,
-                paymentNotes: (data.paymentNotes as any) ?? null,
-                graceDays: (data.graceDays as any) ?? 0,
-                licenseDays: (data.licenseDays as any) ?? 30,
-                serviceName: (data.serviceName as any) ?? null,
-                notifyRemoteJid: (data.notifyRemoteJid as any) ?? null,
-                serviceStartAt: (data.serviceStartAt as any) ?? null,
-                serviceEndsAt: (data.serviceEndsAt as any) ?? null,
-            },
+            create: { userId: scopedUserId, ...data } as Prisma.UserBillingUncheckedCreateInput,
             update: data,
         });
 
@@ -277,7 +265,7 @@ export async function upsertUserBillingConfig(
             message: `Billing actualizado.${suffix}`,
             data: syncResult.billing ?? billing,
         };
-    } catch (error: any) {
+    } catch (error) {
         console.error("[upsertUserBillingConfig]", error);
         return { success: false, message: error?.message ?? "Error actualizando billing." };
     }
@@ -286,7 +274,7 @@ export async function upsertUserBillingConfig(
 export async function setUserBillingDueDate(
     userId: string,
     dueDate: string | Date | null
-): Promise<ResponseFormat<any>> {
+): Promise<ResponseFormat<unknown>> {
     try {
         const me = await currentUser();
         const scopedUserId = await assertBillingScope(me ?? {}, userId);
@@ -341,7 +329,7 @@ export async function setUserBillingDueDate(
             message: "Fecha de pago actualizada.",
             data: syncResult.billing ?? billing,
         };
-    } catch (error: any) {
+    } catch (error) {
         console.error("[setUserBillingDueDate]", error);
         return { success: false, message: error?.message ?? "Error actualizando dueDate." };
     }
@@ -349,7 +337,7 @@ export async function setUserBillingDueDate(
 
 export async function markUserAsPaid(
     userId: string
-): Promise<ResponseFormat<any>> {
+): Promise<ResponseFormat<unknown>> {
     try {
         const me = await currentUser();
         const scopedUserId = await assertBillingScope(me ?? {}, userId);
@@ -394,7 +382,7 @@ export async function markUserAsPaid(
                 : "Pago registrado. Servicio activo.",
             data: sideEffects.billing,
         };
-    } catch (error: any) {
+    } catch (error) {
         console.error("[markUserAsPaid]", error);
         return { success: false, message: error?.message ?? "Error marcando pago." };
     }
@@ -402,7 +390,7 @@ export async function markUserAsPaid(
 
 export async function markUserAsUnpaid(
     userId: string
-): Promise<ResponseFormat<any>> {
+): Promise<ResponseFormat<unknown>> {
     try {
         const me = await currentUser();
         const scopedUserId = await assertBillingScope(me ?? {}, userId);
@@ -437,7 +425,7 @@ export async function markUserAsUnpaid(
                 : "Estado actualizado: NO PAGADO.",
             data: sideEffects.billing,
         };
-    } catch (error: any) {
+    } catch (error) {
         console.error("[markUserAsUnpaid]", error);
         return { success: false, message: error?.message ?? "Error marcando no pagado." };
     }
@@ -446,7 +434,7 @@ export async function markUserAsUnpaid(
 export async function suspendUserService(
     userId: string,
     reason?: string | null
-): Promise<ResponseFormat<any>> {
+): Promise<ResponseFormat<unknown>> {
     try {
         const me = await currentUser();
         const scopedUserId = await assertBillingScope(me ?? {}, userId);
@@ -490,7 +478,7 @@ export async function suspendUserService(
                 : "Servicio suspendido.",
             data: sideEffects.billing,
         };
-    } catch (error: any) {
+    } catch (error) {
         console.error("[suspendUserService]", error);
         return { success: false, message: error?.message ?? "Error suspendiendo servicio." };
     }
@@ -498,7 +486,7 @@ export async function suspendUserService(
 
 export async function activateUserService(
     userId: string
-): Promise<ResponseFormat<any>> {
+): Promise<ResponseFormat<unknown>> {
     try {
         const me = await currentUser();
         const scopedUserId = await assertBillingScope(me ?? {}, userId);
@@ -541,7 +529,7 @@ export async function activateUserService(
                 : "Servicio activado.",
             data: sideEffects.billing,
         };
-    } catch (error: any) {
+    } catch (error) {
         console.error("[activateUserService]", error);
         return { success: false, message: error?.message ?? "Error activando servicio." };
     }
@@ -567,8 +555,9 @@ export async function toggleUserStatus(
             message: enable ? "Usuario activado." : "Usuario desactivado.",
             data: { status: updated.status },
         };
-    } catch (error: any) {
+    } catch (error) {
         console.error("[toggleUserStatus]", error);
         return { success: false, message: error?.message ?? "Error actualizando estado del usuario." };
     }
 }
+

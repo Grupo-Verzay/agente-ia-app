@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -436,7 +436,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                     userId: billing.userId,
                     template,
                 });
-            } catch (error: any) {
+            } catch (error) {
                 errors++;
                 skipped.push({
                     userBillingId: candidate.id,
@@ -528,7 +528,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                 report,
             },
         };
-    } catch (error: any) {
+    } catch (error) {
         console.error("[runBillingDailyJob]", error);
 
         return {

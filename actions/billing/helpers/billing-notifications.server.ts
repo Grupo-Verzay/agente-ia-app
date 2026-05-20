@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+﻿import { Prisma } from "@prisma/client";
 
 import { sendingMessages } from "@/actions/sending-messages-actions";
 import { db } from "@/lib/db";
@@ -347,7 +347,7 @@ export async function setUserBillingWebhookEnabled(args: {
             enabled: args.enable,
             message: `Agente ${args.enable ? "activado" : "desactivado"} correctamente.`,
         };
-    } catch (error: any) {
+    } catch (error) {
         return {
             success: false,
             enabled: args.enable,

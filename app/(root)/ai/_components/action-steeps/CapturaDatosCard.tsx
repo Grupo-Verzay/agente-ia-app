@@ -79,7 +79,7 @@ export const CapturaDatosCard: FC<CapturaDatosCardProps> = ({
             <CardContent className="p-0 m-0">
                 <div className="px-4 pb-3">
                     <PedidoFieldsEditor
-                        stepId={(el as any).stepId ?? ""}
+                        stepId={(el as PedidoFunctionEl & { stepId?: string }).stepId ?? ""}
                         elId={el.id}
                         element={el}
                         onAdd={onAddField}

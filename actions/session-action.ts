@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { db } from '@/lib/db'
 import { registerSessionSchema } from '@/schema/session';
@@ -112,7 +112,7 @@ function mapSessionRecord(session: SessionWithTagsRecord): AppSession {
       name: item.tag.name,
       slug: item.tag.slug,
       color: item.tag.color,
-      order: (item.tag as any).order ?? 0,
+      order: item.tag.order ?? 0,
     })),
   };
 }
@@ -137,7 +137,7 @@ function mapChatContactSessionSummary(
     pendingSeguimientos: pendingSeguimientos ?? 0,
     seguimientosTipos: seguimientosTipos ?? [],
     latestAppointmentStatus: latestAppointmentStatus ?? null,
-    assignedAdvisorId: (session as any).assignedAdvisorId ?? null,
+    assignedAdvisorId: session.assignedAdvisorId ?? null,
   };
 }
 
@@ -314,7 +314,7 @@ export async function getSessionsByUserId(
         name: st.tag.name,
         slug: st.tag.slug,
         color: st.tag.color,
-        order: (st.tag as any).order ?? 0,
+        order: st.tag.order ?? 0,
       })),
       pendingSeguimientos: seguimientosMap.get(s.remoteJid)?.count ?? 0,
       seguimientosTipos: Object.entries(seguimientosMap.get(s.remoteJid)?.tiposMap ?? {}).map(([tipo, count]) => ({ tipo, count })),
@@ -675,7 +675,7 @@ export async function searchSessionsByUserId(
         name: st.tag.name,
         slug: st.tag.slug,
         color: st.tag.color,
-        order: (st.tag as any).order ?? 0,
+        order: st.tag.order ?? 0,
       })),
     }));
 
@@ -1034,7 +1034,7 @@ export async function getSessionsByUserIdToCRM(
         name: st.tag.name,
         slug: st.tag.slug,
         color: st.tag.color,
-        order: (st.tag as any).order ?? 0,
+        order: st.tag.order ?? 0,
       })),
     }));
 
@@ -1086,7 +1086,7 @@ export async function toggleAgentDisabled(userId: string, sessionId: number, age
     });
 
     return { success: true, message: 'Estado actualizado correctamente' };
-  } catch (error: any) {
+  } catch (error) {
     console.error("[toggleAgentDisabled]", error);
     return { success: false, message: error?.message || 'Error al actualizar' };
   }
@@ -1214,3 +1214,4 @@ export async function updateSessionLeadStatus(
     };
   }
 }
+

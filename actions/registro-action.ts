@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -389,7 +389,7 @@ export async function createRegistro(input: {
         });
 
         return { success: true, data: created };
-    } catch (e: any) {
+    } catch (e) {
         return { success: false, message: e?.message ?? "No se pudo crear el registro" };
     }
 }
@@ -457,7 +457,7 @@ export async function updateRegistro(input: {
         });
 
         return { success: true, data: updated };
-    } catch (e: any) {
+    } catch (e) {
         return { success: false, message: e?.message ?? "No se pudo actualizar el registro" };
     }
 }
@@ -469,7 +469,7 @@ export async function getRegistrosBySessionId(sessionId: number): Promise<Action
             orderBy: { createdAt: "desc" },
         });
         return { success: true, data: registros };
-    } catch (e: any) {
+    } catch (e) {
         return { success: false, message: e?.message ?? "No se pudieron cargar los registros" };
     }
 }
@@ -485,7 +485,7 @@ export async function deleteRegistro(id: number): Promise<ActionResult<true>> {
             db.registro.delete({ where: { id } }),
         ]);
         return { success: true, data: true };
-    } catch (e: any) {
+    } catch (e) {
         return { success: false, message: e?.message ?? "No se pudo eliminar el registro" };
     }
 }

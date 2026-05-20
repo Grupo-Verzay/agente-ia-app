@@ -46,7 +46,7 @@ export const EjecutarFlujoCard: FC<PropsExecuteFlow> = ({ el, flows, onRemove, o
                                     <CommandGroup>
                                         {flows.map((f) => (
                                             <CommandItem key={f.id} onSelect={() => onSelectFlow(f)}>
-                                                {"name" in f ? f.name : (f as any).name}
+                                                {f.name}
                                             </CommandItem>
                                         ))}
                                     </CommandGroup>

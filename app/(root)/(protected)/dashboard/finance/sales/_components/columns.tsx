@@ -9,13 +9,22 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 import { Pencil, Trash2, Eye } from 'lucide-react';
 
+export type SaleTxRow = {
+  id: string;
+  title?: string | null;
+  currencyCode?: string | null;
+  occurredAt?: string | null;
+  amount?: string | null;
+  [key: string]: unknown;
+};
+
 type BuildColsArgs = {
-  onEdit: (row: any) => void;
+  onEdit: (row: SaleTxRow) => void;
   onDelete: (id: string) => void;
   busy?: boolean;
 };
 
-export function buildSalesColumns({ onEdit, onDelete, busy }: BuildColsArgs): ColumnDef<any>[] {
+export function buildSalesColumns({ onEdit, onDelete, busy }: BuildColsArgs): ColumnDef<SaleTxRow>[] {
   return [
     {
       accessorKey: 'title',

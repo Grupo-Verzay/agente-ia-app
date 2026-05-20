@@ -42,10 +42,10 @@ export const WorkflowCard = ({
     const [triggerDialogOpen, setTriggerDialogOpen] = useState(false);
     const [editingTrigger, setEditingTrigger] = useState<IntentTrigger | null>(null);
 
-    const [welcomeActive, setWelcomeActive] = useState<boolean>((workflow as any).triggerOnNewSession ?? false);
+    const [welcomeActive, setWelcomeActive] = useState<boolean>(workflow.triggerOnNewSession ?? false);
     const [welcomeLoading, setWelcomeLoading] = useState(false);
 
-    const [funnelActive, setFunnelActive] = useState<boolean>((workflow as any).isFunnelStep ?? false);
+    const [funnelActive, setFunnelActive] = useState<boolean>(workflow.isFunnelStep ?? false);
 
     const handleToggleFunnel = async () => {
         const next = !funnelActive;
@@ -116,16 +116,16 @@ export const WorkflowCard = ({
         try {
             const parsed = JSON.parse(workflow.description);
             if (parsed && typeof parsed === "object") {
-                if (Array.isArray((parsed as any).keywords)) {
-                    initialKeywords = (parsed as any).keywords;
+                if (Array.isArray(parsed.keywords)) {
+                    initialKeywords = parsed.keywords;
                 } else if (
-                    typeof (parsed as any).keyword === "string" &&
-                    (parsed as any).keyword.trim()
+                    typeof parsed.keyword === "string" &&
+                    parsed.keyword.trim()
                 ) {
-                    initialKeywords = [(parsed as any).keyword];
+                    initialKeywords = [parsed.keyword];
                 }
 
-                const mt = String((parsed as any).matchType ?? "").toLowerCase();
+                const mt = String(parsed.matchType ?? "").toLowerCase();
                 if (mt === "exacta") initialMatchType = "Exacta";
                 if (mt === "contiene") initialMatchType = "Contiene";
             } else {
@@ -155,12 +155,12 @@ export const WorkflowCard = ({
         try {
             const parsed = JSON.parse(workflow.description);
             if (parsed && typeof parsed === "object") {
-                if (Array.isArray((parsed as any).keywords)) {
-                    const arr = (parsed as any).keywords as string[];
+                if (Array.isArray(parsed.keywords)) {
+                    const arr = parsed.keywords as string[];
                     return arr.length ? arr.join(", ") : "Sin palabras clave";
                 }
-                if (typeof (parsed as any).keyword === "string") {
-                    return (parsed as any).keyword || "Sin palabras clave";
+                if (typeof parsed.keyword === "string") {
+                    return parsed.keyword || "Sin palabras clave";
                 }
             }
         } catch {

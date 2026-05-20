@@ -71,7 +71,7 @@ export const LeadsManagement = ({
 
     const [registroOpen, setRegistroOpen] = useState(false);
     const [registroMode, setRegistroMode] = useState<"create" | "edit">("create");
-    const [registroTipo, setRegistroTipo] = useState<TipoRegistro>("REPORTE" as any);
+    const [registroTipo, setRegistroTipo] = useState<TipoRegistro>("REPORTE");
     const [registroEditing, setRegistroEditing] = useState<Registro | null>(null);
 
     const [deleteOpen, setDeleteOpen] = useState(false);
@@ -114,7 +114,7 @@ export const LeadsManagement = ({
 
 
     const registros = useMemo(() => {
-        const raw = (selectedSession as any)?.registros;
+        const raw = selectedSession?.registros;
         if (!raw) return [];
         return Array.isArray(raw) ? raw : [raw]; // 👈 convierte objeto único en lista
     }, [selectedSession]);
@@ -167,7 +167,7 @@ export const LeadsManagement = ({
     function openEdit(r: Registro) {
         setRegistroMode("edit");
         setRegistroEditing(r);
-        setRegistroTipo(r.tipo as any);
+        setRegistroTipo(r.tipo);
         setRegistroOpen(true);
     }
 
@@ -328,7 +328,7 @@ export const LeadsManagement = ({
                                                     variant={
                                                         getStatusBadgeVariant(
                                                             selectedSession.status
-                                                        ) as any
+                                                        )
                                                     }
                                                     className={`px-1.5 py-0 ${selectedSession.status ? 'bg-green-500' : ''}`}
                                                 >
@@ -537,7 +537,7 @@ export const LeadsManagement = ({
                                                     (r) => r.tipo === "REPORTE"
                                                 )}
                                                 whatsapp={selectedWhatsapp}
-                                                onNew={(t) => openCreate(t as any)}
+                                                onNew={(t) => openCreate(t)}
                                                 onEdit={openEdit}
                                                 onDelete={askDelete}
                                             />
@@ -553,7 +553,7 @@ export const LeadsManagement = ({
                                                     (r) => r.tipo === "SOLICITUD"
                                                 )}
                                                 whatsapp={selectedWhatsapp}
-                                                onNew={(t) => openCreate(t as any)}
+                                                onNew={(t) => openCreate(t)}
                                                 onEdit={openEdit}
                                                 onDelete={askDelete}
 
@@ -570,7 +570,7 @@ export const LeadsManagement = ({
                                                     (r) => r.tipo === "PEDIDO"
                                                 )}
                                                 whatsapp={selectedWhatsapp}
-                                                onNew={(t) => openCreate(t as any)}
+                                                onNew={(t) => openCreate(t)}
                                                 onEdit={openEdit}
                                                 onDelete={askDelete}
 
@@ -587,7 +587,7 @@ export const LeadsManagement = ({
                                                     (r) => r.tipo === "RECLAMO"
                                                 )}
                                                 whatsapp={selectedWhatsapp}
-                                                onNew={(t) => openCreate(t as any)}
+                                                onNew={(t) => openCreate(t)}
                                                 onEdit={openEdit}
                                                 onDelete={askDelete}
 
@@ -604,7 +604,7 @@ export const LeadsManagement = ({
                                                     (r) => r.tipo === "PAGO"
                                                 )}
                                                 whatsapp={selectedWhatsapp}
-                                                onNew={(t) => openCreate(t as any)}
+                                                onNew={(t) => openCreate(t)}
                                                 onEdit={openEdit}
                                                 onDelete={askDelete}
 
@@ -621,7 +621,7 @@ export const LeadsManagement = ({
                                                     (r) => r.tipo === "RESERVA"
                                                 )}
                                                 whatsapp={selectedWhatsapp}
-                                                onNew={(t) => openCreate(t as any)}
+                                                onNew={(t) => openCreate(t)}
                                                 onEdit={openEdit}
                                                 onDelete={askDelete}
 
@@ -648,7 +648,7 @@ export const LeadsManagement = ({
                                         mode={registroMode}
                                         sessionId={selectedSession.id}
                                         sessionPushName={selectedSession.pushName}
-                                        initialTipo={registroTipo as any}
+                                        initialTipo={registroTipo}
                                         registro={registroEditing}
                                         onSuccess={() => mutateSessions()}
                                     />

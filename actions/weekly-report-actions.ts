@@ -309,7 +309,7 @@ export async function generateWeeklyReportForUser(userId: string): Promise<{
             await db.$executeRaw`UPDATE weekly_reports SET sent_at = NOW() WHERE id = ${reportId}`;
             sent = true;
         } else {
-            whatsappError = `Error al enviar: ${(res as any).message ?? "respuesta inesperada del servidor"}`;
+            whatsappError = `Error al enviar: ${res.message ?? "respuesta inesperada del servidor"}`;
         }
     }
 

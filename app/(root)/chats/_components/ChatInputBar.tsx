@@ -83,7 +83,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const [isSavingSignature, setIsSavingSignature] = useState(false);
   const [isTogglingSignature, setIsTogglingSignature] = useState(false);
 
-  const signatureEnabled = (session as any)?.signatureEnabled ?? false;
+  const signatureEnabled = session?.signatureEnabled ?? false;
 
   const handlePopoverOpenChange = async (open: boolean) => {
     setIsPopoverOpen(open);

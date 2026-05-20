@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { db } from '@/lib/db';
 import { BUILTIN_TOOL_CATALOG } from '@/lib/external-data-tool-catalog';
@@ -79,7 +79,7 @@ export async function addBuiltinTool(
     });
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, error: error?.message ?? 'Error desconocido' };
   }
 }
@@ -116,7 +116,7 @@ export async function updateBuiltinTool(
     });
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, error: error?.message ?? 'Error desconocido' };
   }
 }
@@ -231,7 +231,7 @@ export async function upsertDataQueryTool(
     }
 
     return { success: true, warning };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, error: error?.message ?? 'Error desconocido' };
   }
 }
@@ -288,7 +288,7 @@ export async function applyDefaultToolConfigs(
     }
 
     return { success: true, created, skipped };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, created: 0, skipped: 0, error: error?.message ?? 'Error desconocido' };
   }
 }
@@ -311,7 +311,7 @@ export async function applyDefaultToolConfigsAllUsers(): Promise<{
     }
 
     return { success: true, totalUsers: users.length, totalCreated };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, totalUsers: 0, totalCreated: 0, error: error?.message ?? 'Error desconocido' };
   }
 }
@@ -342,7 +342,7 @@ export async function restoreToolConfigDefault(
       },
     });
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, error: error?.message ?? 'Error desconocido' };
   }
 }
@@ -362,7 +362,7 @@ export async function toggleToolConfig(
       data: { isEnabled },
     });
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, error: error?.message ?? 'Error desconocido' };
   }
 }
@@ -380,7 +380,7 @@ export async function deleteToolConfig(
       where: { userId_toolKey: { userId, toolKey } },
     });
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     return { success: false, error: error?.message ?? 'Error desconocido' };
   }
 }

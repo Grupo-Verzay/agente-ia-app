@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState, useTransition } from "react";
 import { hashAllPasswords } from "@/actions/hash-all-passwords";
@@ -48,7 +48,7 @@ export const ResetAllPasswords = () => {
                 if (res.errors?.length) {
                     res.errors.forEach((e: string) => addLog("error", e));
                 }
-            } catch (e: any) {
+            } catch (e) {
                 const msg = e?.message ?? String(e);
                 addLog("error", msg);
                 toast.error(msg, { id: "hash-all" });

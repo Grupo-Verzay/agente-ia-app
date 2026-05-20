@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Trash2, X } from "lucide-react";
 import { PedidoFieldsEditor } from "../";
-import { CapturaDatosCardProps, DataSubtype, SUBTYPE_OPTIONS } from "@/types/agentAi";
+import { CapturaDatosCardProps, DataSubtype, PedidoFunctionEl, SUBTYPE_OPTIONS } from "@/types/agentAi";
 
 // shadcn/ui Select
 import {
@@ -75,7 +75,7 @@ export const ActualizarDatosCard: FC<CapturaDatosCardProps> = ({
             <CardContent className="p-0 m-0">
                 <div className="px-4 pb-3">
                     <PedidoFieldsEditor
-                        stepId={(el as any).stepId ?? ""}
+                        stepId={(el as PedidoFunctionEl & { stepId?: string }).stepId ?? ""}
                         elId={el.id}
                         element={el}
                         onAdd={onAddField}

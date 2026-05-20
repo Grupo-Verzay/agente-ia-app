@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { db } from "@/lib/db";
 import { z } from "zod";
@@ -130,7 +130,7 @@ export async function createBaileysInstance(
 
     revalidatePath('/connection');
     return { success: true, message: 'Instancia Baileys creada. Escanea el QR para conectar.' };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[createBaileysInstance]', error);
     return { success: false, message: error?.message ?? 'Error al crear la instancia.' };
   }

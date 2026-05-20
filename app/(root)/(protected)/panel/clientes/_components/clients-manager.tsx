@@ -114,7 +114,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
             tokenVersion: 0,
             enableVoiceResponses: false,
             voiceId: 'nova',
-        } as any);
+        } as Parameters<typeof createUserWithPausar>[0]);
 
         if (result.success) {
             if (result.data?.id && apiUrl) {

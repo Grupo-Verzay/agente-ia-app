@@ -126,7 +126,7 @@ export function toUIMessages(
     let content = '';
     let media: MediaData | null = null;
     let kind: UIBubble['kind'];
-    const messageData = (m.message || {}) as any;
+    const messageData = (m.message || {}) as import('@/actions/chat-actions').MessageContent;
 
     switch (m.messageType) {
       case 'conversation':

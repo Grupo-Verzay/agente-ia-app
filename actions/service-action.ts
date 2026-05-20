@@ -120,7 +120,7 @@ export async function getServicesByUser(userId: string): Promise<ListServicesRes
     try {
         const services = await db.service.findMany({
             where: { userId },
-            orderBy: [{ order: 'asc' as any }, { createdAt: 'asc' }],
+            orderBy: [{ order: 'asc' as const }, { createdAt: 'asc' as const }],
         }).catch(() => db.service.findMany({
             where: { userId },
             orderBy: { createdAt: 'asc' },

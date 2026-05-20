@@ -1,4 +1,4 @@
-// app/(root)/ai/_components/PromptToolbar.tsx
+﻿// app/(root)/ai/_components/PromptToolbar.tsx
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
@@ -74,7 +74,7 @@ export function PromptToolbar(props: {
             });
 
             toast.success(successMessage);
-        } catch (e: any) {
+        } catch (e) {
             toast.error(e?.message ?? "No se pudo guardar");
         } finally {
             setIsManualSaving(false);

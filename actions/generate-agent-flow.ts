@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import { currentUser } from '@/lib/auth';
 import { resolveUserAiClient } from '@/actions/userAiconfig-actions';
@@ -267,7 +267,7 @@ export async function generateAgentFlow(input: {
 
         const json = await res.json();
         raw = json.choices?.[0]?.message?.content ?? '';
-    } catch (err: any) {
+    } catch (err) {
         return { success: false, error: `Error de red: ${err?.message ?? 'desconocido'}` };
     }
 

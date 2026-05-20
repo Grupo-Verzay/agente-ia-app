@@ -70,7 +70,7 @@ export async function sendChatAction(
         if (!user?.id) return { success: false, message: "auth_required" };
 
         const resolved = await resolveUserAiClient(user.id);
-        if (!resolved.success || !resolved.data) return resolved as any;
+        if (!resolved.success || !resolved.data) return { success: false, message: resolved.message };
 
         const { provider, model, apiKey } = resolved.data;
 

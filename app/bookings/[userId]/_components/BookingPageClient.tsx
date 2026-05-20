@@ -180,7 +180,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
             });
 
             if (!res.success) {
-                toast.error((res as any).message ?? 'No se pudo agendar la cita.');
+                toast.error(res.message ?? 'No se pudo agendar la cita.');
                 return;
             }
 
@@ -188,7 +188,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
             const selectedMemberData = membersForService.find((m) => m.id === selectedMember);
             sendBookingNotifications({
                 userId,
-                bookingId:          (res.data as any)?.id ?? '',
+                bookingId:          res.data?.id ?? '',
                 clientName:         nameClient.trim(),
                 clientPhone:        e164,
                 startTimeIso:       startTime,
