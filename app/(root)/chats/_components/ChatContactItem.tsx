@@ -16,7 +16,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { FlowListOrder } from "../../sessions/_components/FlowListOrder";
+import dynamic from "next/dynamic";
+
+const FlowListOrder = dynamic(
+  () => import("../../sessions/_components/FlowListOrder").then((m) => ({ default: m.FlowListOrder })),
+  { ssr: false, loading: () => null }
+);
 import { SeguimientoBadge } from "../../sessions/_components/SeguimientoBadge";
 import { LeadStatusSelect } from "./LeadStatusSelect";
 import { cn } from "@/lib/utils";

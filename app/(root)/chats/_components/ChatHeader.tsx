@@ -19,16 +19,14 @@ import type { Session, SimpleTag } from '@/types/session';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import { AdvisorAssignBadge } from './AdvisorAssignBadge';
 import { SessionTagsCombobox } from '../../tags/components';
-import { CrmFollowUpSummaryBadge } from '../../crm/dashboard/components/CrmFollowUpSummaryBadge';
 import { SwitchStatus } from '../../sessions/_components';
 import { LeadStatusSelect } from './LeadStatusSelect';
 import { resolveSession } from '@/actions/advisor-assign-actions';
 import { SintesisEditDialog } from './SintesisEditDialog';
-import { ChatReminderDialog } from './ChatReminderDialog';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
-import { ChatSeguimientosButton } from './ChatSeguimientosButton';
 import { LeadContextSheet } from './LeadContextSheet';
 import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
+import { ChatReminderDialog } from './ChatReminderDialog';
 import { cn } from '@/lib/utils';
 
 const PALETTE = ['bg-blue-500','bg-violet-500','bg-emerald-500','bg-amber-500','bg-rose-500','bg-cyan-500','bg-fuchsia-500'];
@@ -135,16 +133,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         if (!remoteJid) return;
         onSessionTagsChange?.(remoteJid, selectedIds);
       }}
-    />
-  );
-
-  const crmBadge = session && (
-    <CrmFollowUpSummaryBadge
-      summary={session.crmFollowUpSummary}
-      userId={session.userId}
-      remoteJid={session.remoteJid}
-      instanceId={session.instanceId}
-      onUpdated={onSessionRefresh}
     />
   );
 
@@ -324,14 +312,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 instanceId={session.instanceId}
                 flujos={session.flujos}
               />
-              <ChatSeguimientosButton
-                session={session}
-                whatsapp={displayedWhatsapp}
-                onRefresh={onSessionRefresh}
-              />
-            </div>
-            <div className="flex items-center gap-1.5">
-              {crmBadge}
               <ChatReminderDialog session={session!} userId={userId} />
               <ChatAppointmentStatusButton
                 sessionId={session.id}
@@ -340,6 +320,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 remoteJid={session.remoteJid}
                 instanceId={session.instanceId}
               />
+            </div>
+            <div className="flex items-center gap-1.5">
               {tagsCombobox}
             </div>
             <div className="flex items-center gap-2">
@@ -410,12 +392,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 instanceId={session.instanceId}
                 flujos={session.flujos}
               />
-              <ChatSeguimientosButton
-                session={session}
-                whatsapp={displayedWhatsapp}
-                onRefresh={onSessionRefresh}
-              />
-              {crmBadge}
               <ChatReminderDialog session={session!} userId={userId} />
               <ChatAppointmentStatusButton
                 sessionId={session.id}

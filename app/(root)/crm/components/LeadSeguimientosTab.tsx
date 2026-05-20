@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCcw, Trash2, XCircle } from "lucide-react";
+import { RefreshCcw, Trash2, XCircle, ChevronDown, ChevronRight } from "lucide-react";
 
 import {
   cancelSessionCrmFollowUps,
@@ -422,6 +422,16 @@ export function LeadSeguimientosTab({
   const [loading, setLoading] = useState(true);
   const [confirmAction, setConfirmAction] = useState<BulkAction | null>(null);
   const [pendingAction, setPendingAction] = useState<BulkAction | null>(null);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    seguimientos: true,
+    recordatorios: true,
+    citas: true,
+    followups: true,
+  });
+
+  function toggleSection(key: string) {
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
 
   const showLegacy = mode === "all" || mode === "legacy";
   const showCrm = mode === "all" || mode === "crm";
@@ -610,110 +620,112 @@ export function LeadSeguimientosTab({
         <ScrollArea className="flex-1 min-h-0">
           <div className="flex flex-col gap-4 pb-2">
 
-            {isEmpty ? (
+            {/* ===== Seguimientos ===== */}
+            {showLegacy && (
+              <div className="flex flex-col gap-1">
+                <button
+                  type="button"
+                  onClick={() => toggleSection("seguimientos")}
+                  className="flex items-center gap-2 py-1 hover:opacity-70 transition-opacity"
+                >
+                  {openSections.seguimientos ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                  <p className="text-sm font-medium">Seguimientos</p>
+                  <Badge variant="outline" className="text-xs">{legacyItems.length}</Badge>
+                  {legacyItems.filter((i) => i.followUpStatus === "pending").length > 0 && (
+                    <span className="text-[11px] text-muted-foreground">
+                      (pendientes: {legacyItems.filter((i) => i.followUpStatus === "pending").length})
+                    </span>
+                  )}
+                </button>
+                {openSections.seguimientos && (
+                  legacyItems.length === 0
+                    ? <p className="text-xs text-muted-foreground pl-5">Sin seguimientos.</p>
+                    : <div className="flex flex-col gap-2">{legacyItems.map((item) => <LegacySeguimientoCard key={item.id} item={item} onDeleted={loadAll} />)}</div>
+                )}
+              </div>
+            )}
+
+            {/* ===== Recordatorios ===== */}
+            {showReminders && (
+              <>
+                {showLegacy && <Separator />}
+                <div className="flex flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection("recordatorios")}
+                    className="flex items-center gap-2 py-1 hover:opacity-70 transition-opacity"
+                  >
+                    {openSections.recordatorios ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                    <p className="text-sm font-medium">Recordatorios</p>
+                    <Badge variant="outline" className="text-xs">{reminderItems.length}</Badge>
+                  </button>
+                  {openSections.recordatorios && (
+                    reminderItems.length === 0
+                      ? <p className="text-xs text-muted-foreground pl-5">Sin recordatorios.</p>
+                      : <div className="flex flex-col gap-2">{reminderItems.map((item) => <ReminderCard key={item.id} item={item} onDeleted={loadAll} />)}</div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* ===== Citas ===== */}
+            {showAppointments && (
+              <>
+                {(showLegacy || showReminders) && <Separator />}
+                <div className="flex flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection("citas")}
+                    className="flex items-center gap-2 py-1 hover:opacity-70 transition-opacity"
+                  >
+                    {openSections.citas ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                    <p className="text-sm font-medium">Citas</p>
+                    <Badge variant="outline" className="text-xs">{appointmentItems.length}</Badge>
+                  </button>
+                  {openSections.citas && (
+                    appointmentItems.length === 0
+                      ? <p className="text-xs text-muted-foreground pl-5">Sin citas agendadas.</p>
+                      : <div className="flex flex-col gap-2">{appointmentItems.map((item) => <AppointmentCard key={item.id} item={item} userId={userId} onUpdated={loadAll} />)}</div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* ===== Follow-ups IA ===== */}
+            {showCrm && (
+              <>
+                {(showLegacy || showReminders || showAppointments) && <Separator />}
+                <div className="flex flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection("followups")}
+                    className="flex items-center gap-2 py-1 hover:opacity-70 transition-opacity"
+                  >
+                    {openSections.followups ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                    <p className="text-sm font-medium">Follow-ups IA</p>
+                    <Badge variant="outline" className="text-xs">{crmItems.length}</Badge>
+                    {activeCount > 0 && (
+                      <span className="text-[11px] text-muted-foreground">(activos: {activeCount})</span>
+                    )}
+                  </button>
+                  {openSections.followups && (
+                    crmItems.length === 0
+                      ? <p className="text-xs text-muted-foreground pl-5">Sin follow-ups de IA.</p>
+                      : <div className="flex flex-col gap-2">{crmItems.map((item) => <CrmFollowUpCard key={item.id} item={item} userId={userId} onUpdated={loadAll} />)}</div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {isEmpty && (
               <p className="text-sm text-muted-foreground text-center py-8">
                 Este lead no tiene seguimientos registrados.
               </p>
-            ) : (
-              <>
-                {/* ===== Seguimientos ===== */}
-                {showLegacy && (
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">Seguimientos</p>
-                      <Badge variant="outline" className="text-xs">{legacyItems.length}</Badge>
-                      {legacyItems.filter((i) => i.followUpStatus === "pending").length > 0 && (
-                        <span className="text-[11px] text-muted-foreground">
-                          (pendientes: {legacyItems.filter((i) => i.followUpStatus === "pending").length})
-                        </span>
-                      )}
-                    </div>
-                    {legacyItems.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">Sin seguimientos.</p>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {legacyItems.map((item) => (
-                          <LegacySeguimientoCard key={item.id} item={item} onDeleted={loadAll} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* ===== Recordatorios ===== */}
-                {showReminders && (
-                  <>
-                    {showLegacy && <Separator />}
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">Recordatorios</p>
-                        <Badge variant="outline" className="text-xs">{reminderItems.length}</Badge>
-                      </div>
-                      {reminderItems.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">Sin recordatorios.</p>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {reminderItems.map((item) => (
-                            <ReminderCard key={item.id} item={item} onDeleted={loadAll} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* ===== Citas ===== */}
-                {showAppointments && (
-                  <>
-                    {(showLegacy || showReminders) && <Separator />}
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">Citas</p>
-                        <Badge variant="outline" className="text-xs">{appointmentItems.length}</Badge>
-                      </div>
-                      {appointmentItems.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">Sin citas agendadas.</p>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {appointmentItems.map((item) => (
-                            <AppointmentCard key={item.id} item={item} userId={userId} onUpdated={loadAll} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* ===== Follow-ups IA ===== */}
-                {showCrm && (
-                  <>
-                    {(showLegacy || showReminders || showAppointments) && <Separator />}
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">Follow-ups IA</p>
-                        <Badge variant="outline" className="text-xs">{crmItems.length}</Badge>
-                        {activeCount > 0 && (
-                          <span className="text-[11px] text-muted-foreground">(activos: {activeCount})</span>
-                        )}
-                      </div>
-                      {crmItems.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">Sin follow-ups de IA.</p>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {crmItems.map((item) => (
-                            <CrmFollowUpCard key={item.id} item={item} userId={userId} onUpdated={loadAll} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </>
             )}
           </div>
         </ScrollArea>
 
-        {!isEmpty && bottomActions}
+        {bottomActions}
       </div>
 
       {confirmAction && (

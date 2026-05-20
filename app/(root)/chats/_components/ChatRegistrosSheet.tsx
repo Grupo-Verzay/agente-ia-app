@@ -10,6 +10,7 @@ import { getSessionCrmFollowUps } from "@/actions/crm-follow-up-actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,7 +28,6 @@ import { RegistrosTable } from "../../crm/components/RegistrosTable";
 import { RegistroUpsertDialog } from "../../crm/components/RegistroUpsertDialog";
 import { ResumeCard } from "../../crm/components/ResumeCard";
 import { LeadSeguimientosTab } from "../../crm/components/LeadSeguimientosTab";
-import { FlowListOrder } from "../../sessions/_components/FlowListOrder";
 
 const TIPOS: TipoRegistro[] = ["SOLICITUD", "PEDIDO", "RECLAMO", "PAGO", "RESERVA", "PRODUCTO"];
 
@@ -145,6 +145,20 @@ export function ChatRegistrosSheet({
     return counts;
   }, [registros]);
 
+  const { flujosCount, flujosNames } = useMemo(() => {
+    const str = (flujos ?? "").trim();
+    if (!str || str === "-") return { flujosCount: 0, flujosNames: [] };
+    try {
+      const parsed = JSON.parse(str);
+      if (Array.isArray(parsed)) {
+        const names = parsed.filter((f) => !!f?.name).map((f) => String(f.name));
+        return { flujosCount: names.length, flujosNames: names };
+      }
+    } catch { /* legacy */ }
+    const names = str.split(",").map((s) => s.trim()).filter(Boolean);
+    return { flujosCount: names.length, flujosNames: names };
+  }, [flujos]);
+
   function openCreate(tipo: TipoRegistro) {
     setUpsertMode("create");
     setEditingRegistro(null);
@@ -236,12 +250,32 @@ export function ChatRegistrosSheet({
                       {TIPOS.map((tipo) => (
                         <ResumeCard key={tipo} label={TIPO_LABELS[tipo]} value={countByTipo[tipo]} onClick={() => setActiveTab(tipo)} />
                       ))}
-                      <div className="rounded-md border bg-background px-3 py-2 flex flex-col gap-1.5">
-                        <span className="text-sm text-muted-foreground">Flujos ejecutados</span>
-                        {flujos
-                          ? <FlowListOrder raw={flujos} />
-                          : <span className="text-sm font-bold">—</span>}
-                      </div>
+                      {flujosCount === 0 ? (
+                        <ResumeCard label="Flujos ejecutados" value={0} />
+                      ) : (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 w-full text-left hover:bg-accent transition-colors cursor-pointer"
+                            >
+                              <span className="text-sm text-muted-foreground">Flujos ejecutados</span>
+                              <span className="text-sm font-bold">{flujosCount}</span>
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent align="start" className="w-64 p-3">
+                            <p className="text-xs font-semibold mb-2">Flujos ejecutados</p>
+                            <ul className="space-y-1">
+                              {flujosNames.map((name, i) => (
+                                <li key={i} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+                                  {name}
+                                </li>
+                              ))}
+                            </ul>
+                          </PopoverContent>
+                        </Popover>
+                      )}
                       <button
                         type="button"
                         onClick={() => setActiveTab("SEGUIMIENTOS")}

@@ -33,7 +33,12 @@ import { deleteReminderByInstanceUserRemote } from "@/actions/seguimientos-actio
 import { SessionTagsCombobox } from "../../tags/components";
 import { Session, SimpleTag } from "@/types/session";
 import { SwitchAgentDisabled } from "./SwitchAgentDisabled";
-import { FlowListOrder } from "./FlowListOrder";
+import dynamic from "next/dynamic";
+
+const FlowListOrder = dynamic(
+  () => import("./FlowListOrder").then((m) => ({ default: m.FlowListOrder })),
+  { ssr: false, loading: () => null }
+);
 import { SeguimientosDetailCell } from "./SeguimientosDetailCell";
 import { EditableNameCell } from "./EditableNameCell";
 

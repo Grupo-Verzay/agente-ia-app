@@ -5,7 +5,10 @@ import { Plus } from "lucide-react";
 import type { Registro, TipoRegistro } from "@prisma/client";
 
 import { getRegistrosBySessionId } from "@/actions/registro-action";
-import { Badge } from "@/components/ui/badge";
+import { getSessionLegacySeguimientos } from "@/actions/seguimientos-actions";
+import { getSessionCrmFollowUps } from "@/actions/crm-follow-up-actions";
+import { getRemindersByRemoteJid } from "@/actions/reminders-actions";
+import { getAppointmentsBySession } from "@/actions/appointments-actions";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -45,23 +48,53 @@ export function ChatRegistrosBadge({
   flujos?: string | null;
 }) {
   const [registros, setRegistros] = useState<Registro[]>([]);
+  const [seguimientosCount, setSeguimientosCount] = useState(0);
+  const [recordatoriosCount, setRecordatoriosCount] = useState(0);
+  const [citasCount, setCitasCount] = useState(0);
+  const [followUpsCount, setFollowUpsCount] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const load = useCallback(async () => {
-    const result = await getRegistrosBySessionId(sessionId);
-    if (result.success && result.data) setRegistros(result.data);
-  }, [sessionId]);
+    const [regResult, segResult, remResult, apptResult, crmResult] = await Promise.all([
+      getRegistrosBySessionId(sessionId),
+      getSessionLegacySeguimientos(remoteJid),
+      getRemindersByRemoteJid(userId, remoteJid),
+      getAppointmentsBySession(sessionId),
+      getSessionCrmFollowUps(sessionId, userId),
+    ]);
+    if (regResult.success && regResult.data) setRegistros(regResult.data);
+    if (segResult.success && segResult.data)
+      setSeguimientosCount(segResult.data.filter((i) => i.followUpStatus === "pending").length);
+    if (remResult.success && remResult.data) setRecordatoriosCount(remResult.data.length);
+    if (apptResult.success && apptResult.data)
+      setCitasCount(apptResult.data.filter((a) => !["FINALIZADO", "DESCARTADO", "CANCELADA"].includes(a.status)).length);
+    if (crmResult.success && crmResult.data)
+      setFollowUpsCount(crmResult.data.filter((i) => i.status === "PENDING" || i.status === "PROCESSING").length);
+  }, [sessionId, userId, remoteJid]);
 
   useEffect(() => { load(); }, [load]);
-
-  const total = registros.length;
 
   const countByTipo = TIPOS.reduce((acc, tipo) => {
     acc[tipo] = registros.filter((r) => r.tipo === tipo).length;
     return acc;
   }, {} as Record<TipoRegistro, number>);
 
-  const withData = TIPOS.filter((t) => countByTipo[t] > 0);
+  const registrosTotal = registros.length;
+  const grandTotal = registrosTotal + seguimientosCount + recordatoriosCount + citasCount + followUpsCount;
+
+  const registrosRows = TIPOS.filter((t) => countByTipo[t] > 0).map((tipo) => ({
+    label: TIPO_LABELS[tipo],
+    count: countByTipo[tipo],
+  }));
+
+  const agendaRows = [
+    { label: "Seguimientos", count: seguimientosCount },
+    { label: "Recordatorios", count: recordatoriosCount },
+    { label: "Citas", count: citasCount },
+    { label: "Follow-ups IA", count: followUpsCount },
+  ].filter((r) => r.count > 0);
+
+  const allRows = [...registrosRows, ...agendaRows];
 
   return (
     <>
@@ -73,9 +106,9 @@ export function ChatRegistrosBadge({
             className="relative inline-flex h-7 w-7 items-center justify-center rounded-md border border-teal-300 bg-teal-100 text-teal-800 hover:bg-teal-200 focus:outline-none transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
-            {total > 0 && (
+            {grandTotal > 0 && (
               <span className="absolute -top-1.5 -right-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-teal-600 px-1 text-[9px] font-bold leading-none text-white">
-                {total}
+                {grandTotal > 99 ? "99+" : grandTotal}
               </span>
             )}
           </button>
@@ -84,18 +117,14 @@ export function ChatRegistrosBadge({
         <PopoverContent align="end" className="w-52 p-3 space-y-2">
           <p className="text-xs font-semibold">Registros del lead</p>
 
-          {total === 0 ? (
+          {allRows.length === 0 ? (
             <p className="text-xs text-muted-foreground">Sin registros aún.</p>
           ) : (
             <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
-              {withData.map((tipo) => (
+              {allRows.map((row) => (
                 <>
-                  <span key={`${tipo}-label`} className="text-muted-foreground">
-                    {TIPO_LABELS[tipo]}
-                  </span>
-                  <span key={`${tipo}-count`} className="font-medium">
-                    {countByTipo[tipo]}
-                  </span>
+                  <span key={`${row.label}-label`} className="text-muted-foreground">{row.label}</span>
+                  <span key={`${row.label}-count`} className="font-medium">{row.count}</span>
                 </>
               ))}
             </div>
@@ -109,7 +138,7 @@ export function ChatRegistrosBadge({
             onClick={() => setSheetOpen(true)}
           >
             <Plus className="h-3 w-3 mr-1" />
-            {total === 0 ? "Agregar registro" : "Ver y gestionar"}
+            {grandTotal === 0 ? "Agregar registro" : "Ver y gestionar"}
           </Button>
         </PopoverContent>
       </Popover>
