@@ -35,8 +35,8 @@ async function logAssignment(
       INSERT INTO "AssignmentLog" ("sessionId", "advisorId", "assignedBy", "action", "createdAt")
       VALUES (${sessionId}, ${advisorId}, ${assignedBy}, ${action}, NOW())
     `;
-  } catch {
-    // Non-blocking — log failure should not break the main flow
+  } catch (error) {
+    console.error("[logAssignment]", error);
   }
 }
 
@@ -220,7 +220,8 @@ export async function getAssignmentHistory(sessionId: number): Promise<Assignmen
       LIMIT 5
     `;
     return rows;
-  } catch {
+  } catch (error) {
+    console.error("[getAssignmentHistory]", error);
     return [];
   }
 }

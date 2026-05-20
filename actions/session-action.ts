@@ -1087,6 +1087,7 @@ export async function toggleAgentDisabled(userId: string, sessionId: number, age
 
     return { success: true, message: 'Estado actualizado correctamente' };
   } catch (error: any) {
+    console.error("[toggleAgentDisabled]", error);
     return { success: false, message: error?.message || 'Error al actualizar' };
   }
 }
@@ -1206,6 +1207,7 @@ export async function updateSessionLeadStatus(
 
     return { success: true, message: 'Estado del lead actualizado correctamente' };
   } catch (error) {
+    console.error("[updateSessionLeadStatus]", error);
     return {
       success: false,
       message: error instanceof Error ? error.message : 'No se pudo actualizar el estado del lead',

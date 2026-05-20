@@ -64,7 +64,9 @@ export function useAudioRecording(isSending: boolean): UseAudioRecordingReturn {
     if (rec) {
       try {
         if (rec.state !== 'inactive') rec.stop();
-      } catch {}
+      } catch (error) {
+        console.error("[cancelRecording] Error al detener MediaRecorder", error);
+      }
       mediaRecorderRef.current = null;
     }
     stopMicrophoneStream();

@@ -45,7 +45,9 @@ export const useChatStore = create<ChatStore>((set) => ({
     hideOnboardingForever: () => {
         try {
             localStorage.setItem(LS_KEY, "1");
-        } catch { }
+        } catch (error) {
+            console.error("[hideOnboardingForever] localStorage no disponible", error);
+        }
         set({ showOnboarding: false });
     },
 

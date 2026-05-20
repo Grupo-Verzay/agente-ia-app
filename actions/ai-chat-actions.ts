@@ -101,7 +101,8 @@ export async function sendChatAction(
                 },
             },
         };
-    } catch {
+    } catch (error) {
+        console.error("[sendChatAction]", error);
         return { success: false, message: "chat_action_error" };
     }
 }
