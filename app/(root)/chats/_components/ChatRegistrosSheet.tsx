@@ -27,6 +27,7 @@ import { RegistrosTable } from "../../crm/components/RegistrosTable";
 import { RegistroUpsertDialog } from "../../crm/components/RegistroUpsertDialog";
 import { ResumeCard } from "../../crm/components/ResumeCard";
 import { LeadSeguimientosTab } from "../../crm/components/LeadSeguimientosTab";
+import { FlowListOrder } from "../../sessions/_components/FlowListOrder";
 
 const TIPOS: TipoRegistro[] = ["SOLICITUD", "PEDIDO", "RECLAMO", "PAGO", "RESERVA", "PRODUCTO"];
 
@@ -83,6 +84,7 @@ export function ChatRegistrosSheet({
   remoteJid,
   instanceId,
   initialTab,
+  flujos,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -93,9 +95,10 @@ export function ChatRegistrosSheet({
   remoteJid: string;
   instanceId: string | null;
   initialTab?: string;
+  flujos?: string | null;
 }) {
   const [registros, setRegistros] = useState<Registro[]>([]);
-  const [flujosEjecutados, setFlujosEjecutados] = useState(0);
+  const [seguimientosPendingCount, setSeguimientosPendingCount] = useState(0);
   const [seguimientosPendientes, setSeguimientosPendientes] = useState(0);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab ?? "RESUMEN");
@@ -117,7 +120,7 @@ export function ChatRegistrosSheet({
     ]);
     if (regResult.success && regResult.data) setRegistros(regResult.data);
     if (legacyResult.success && legacyResult.data)
-      setFlujosEjecutados(legacyResult.data.filter((i) => i.followUpStatus === "sent").length);
+      setSeguimientosPendingCount(legacyResult.data.filter((i) => i.followUpStatus === "pending").length);
     if (crmResult.success && crmResult.data)
       setSeguimientosPendientes(
         crmResult.data.filter((i) => i.status === "PENDING" || i.status === "PROCESSING").length
@@ -233,21 +236,19 @@ export function ChatRegistrosSheet({
                       {TIPOS.map((tipo) => (
                         <ResumeCard key={tipo} label={TIPO_LABELS[tipo]} value={countByTipo[tipo]} onClick={() => setActiveTab(tipo)} />
                       ))}
+                      <div className="rounded-md border bg-background px-3 py-2 flex flex-col gap-1.5">
+                        <span className="text-sm text-muted-foreground">Flujos ejecutados</span>
+                        {flujos
+                          ? <FlowListOrder raw={flujos} />
+                          : <span className="text-sm font-bold">—</span>}
+                      </div>
                       <button
                         type="button"
                         onClick={() => setActiveTab("SEGUIMIENTOS")}
                         className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
                       >
                         <span className="text-sm text-muted-foreground">Seguimientos</span>
-                        <span className="text-sm font-bold">{flujosEjecutados}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("SEGUIMIENTOS")}
-                        className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
-                      >
-                        <span className="text-sm text-muted-foreground">Follow-ups IA</span>
-                        <span className="text-sm font-bold">{seguimientosPendientes}</span>
+                        <span className="text-sm font-bold">{seguimientosPendingCount + seguimientosPendientes}</span>
                       </button>
                     </div>
 

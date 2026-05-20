@@ -322,6 +322,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 userId={session.userId}
                 remoteJid={session.remoteJid}
                 instanceId={session.instanceId}
+                flujos={session.flujos}
               />
               <ChatSeguimientosButton
                 session={session}
@@ -407,6 +408,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 userId={session.userId}
                 remoteJid={session.remoteJid}
                 instanceId={session.instanceId}
+                flujos={session.flujos}
               />
               <ChatSeguimientosButton
                 session={session}

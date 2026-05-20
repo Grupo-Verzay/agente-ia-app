@@ -34,6 +34,7 @@ export function ChatRegistrosBadge({
   userId,
   remoteJid,
   instanceId,
+  flujos,
 }: {
   sessionId: number;
   sessionPushName?: string | null;
@@ -41,6 +42,7 @@ export function ChatRegistrosBadge({
   userId: string;
   remoteJid: string;
   instanceId: string | null;
+  flujos?: string | null;
 }) {
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -124,6 +126,7 @@ export function ChatRegistrosBadge({
         userId={userId}
         remoteJid={remoteJid}
         instanceId={instanceId}
+        flujos={flujos}
       />
     </>
   );
