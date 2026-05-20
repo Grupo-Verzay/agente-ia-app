@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -68,6 +67,16 @@ const TAB_LABELS: Record<string, string> = {
   PRODUCTO:     "Productos",
   REPORTE:      "Reportes",
   SEGUIMIENTOS: "Seguimientos",
+};
+
+const TIPO_ACCENT: Record<string, string> = {
+  SOLICITUD: "border-l-[3px] border-l-blue-400",
+  PEDIDO:    "border-l-[3px] border-l-orange-400",
+  RECLAMO:   "border-l-[3px] border-l-red-400",
+  PAGO:      "border-l-[3px] border-l-green-400",
+  RESERVA:   "border-l-[3px] border-l-teal-400",
+  PRODUCTO:  "border-l-[3px] border-l-purple-400",
+  REPORTE:   "border-l-[3px] border-l-slate-400",
 };
 
 const LEAD_STATUS_LABELS: Record<string, string> = {
@@ -278,11 +287,14 @@ export function ChatRegistrosSheet({
               {/* ===== RESUMEN ===== */}
               <TabsContent value="RESUMEN" className="flex-1 min-h-0 mt-0">
                 <ScrollArea className="h-full">
-                  <div className="flex flex-col gap-4 pb-4">
+                  <div className="flex flex-col gap-5 pb-4">
 
                     {/* INFO DEL LEAD */}
-                    <div className="rounded-md border bg-background p-3 flex flex-col gap-2.5">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Info del lead</p>
+                    <div className="rounded-md border border-border/60 bg-muted/30 p-3 flex flex-col gap-2.5 shadow-sm">
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-3 w-0.5 rounded-full bg-violet-500 shrink-0" />
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Info del lead</p>
+                      </div>
 
                       <div className="flex flex-wrap items-center gap-2">
                         {leadStatus && (
@@ -313,7 +325,7 @@ export function ChatRegistrosSheet({
                       )}
 
                       {sintesis && (
-                        <div className="rounded-md bg-muted/40 px-2.5 py-2 text-xs text-muted-foreground whitespace-pre-wrap">
+                        <div className="rounded-md bg-background/70 border border-border/40 px-2.5 py-2 text-xs text-muted-foreground whitespace-pre-wrap">
                           {sintesis}
                         </div>
                       )}
@@ -323,35 +335,43 @@ export function ChatRegistrosSheet({
                       )}
                     </div>
 
-                    <Separator />
-
                     {/* REGISTROS CRM */}
                     <div className="flex flex-col gap-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registros CRM</p>
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-3 w-0.5 rounded-full bg-blue-500 shrink-0" />
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registros CRM</p>
+                      </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {TIPOS.map((tipo) => (
-                          <ResumeCard key={tipo} label={TIPO_LABELS[tipo]} value={countByTipo[tipo]} onClick={() => setActiveTab(tipo)} />
+                          <ResumeCard
+                            key={tipo}
+                            label={TIPO_LABELS[tipo]}
+                            value={countByTipo[tipo]}
+                            onClick={() => setActiveTab(tipo)}
+                            accentClass={TIPO_ACCENT[tipo]}
+                          />
                         ))}
                       </div>
                     </div>
 
-                    <Separator />
-
                     {/* AGENDA */}
                     <div className="flex flex-col gap-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Agenda</p>
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-3 w-0.5 rounded-full bg-teal-500 shrink-0" />
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Agenda</p>
+                      </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {flujosCount === 0 ? (
-                          <ResumeCard label="Flujos ejecutados" value={0} />
+                          <ResumeCard label="Flujos ejecutados" value={0} accentClass="border-l-[3px] border-l-indigo-400" />
                         ) : (
                           <Popover>
                             <PopoverTrigger asChild>
                               <button
                                 type="button"
-                                className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 w-full text-left hover:bg-accent transition-colors cursor-pointer"
+                                className="rounded-md border border-l-[3px] border-l-indigo-400 bg-background px-3 py-2.5 flex items-center justify-between gap-2 w-full text-left hover:bg-accent transition-colors cursor-pointer shadow-sm"
                               >
                                 <span className="text-sm text-muted-foreground">Flujos ejecutados</span>
-                                <span className="text-sm font-bold">{flujosCount}</span>
+                                <span className="text-base font-bold text-foreground">{flujosCount}</span>
                               </button>
                             </PopoverTrigger>
                             <PopoverContent align="start" className="w-64 p-3">
@@ -359,7 +379,7 @@ export function ChatRegistrosSheet({
                               <ul className="space-y-1">
                                 {flujosNames.map((name, i) => (
                                   <li key={i} className="text-xs text-muted-foreground flex items-center gap-1.5">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+                                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 shrink-0" />
                                     {name}
                                   </li>
                                 ))}
@@ -367,47 +387,44 @@ export function ChatRegistrosSheet({
                             </PopoverContent>
                           </Popover>
                         )}
-                        <button type="button" onClick={() => setActiveTab("SEGUIMIENTOS")} className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors">
-                          <span className="text-sm text-muted-foreground">Seguimientos</span>
-                          <span className="text-sm font-bold">{seguimientosPendingCount}</span>
-                        </button>
-                        <button type="button" onClick={() => setActiveTab("SEGUIMIENTOS")} className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors">
-                          <span className="text-sm text-muted-foreground">Recordatorios</span>
-                          <span className="text-sm font-bold">{recordatoriosCount}</span>
-                        </button>
-                        <button type="button" onClick={() => setActiveTab("SEGUIMIENTOS")} className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors">
-                          <span className="text-sm text-muted-foreground">Citas</span>
-                          <span className="text-sm font-bold">{citasCount}</span>
-                        </button>
-                        <button type="button" onClick={() => setActiveTab("SEGUIMIENTOS")} className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors">
-                          <span className="text-sm text-muted-foreground">Follow-ups IA</span>
-                          <span className="text-sm font-bold">{seguimientosPendientes}</span>
-                        </button>
-                        <button type="button" onClick={() => setActiveTab("REPORTE")} className="rounded-md border bg-background px-3 py-2 flex items-center justify-between gap-2 hover:bg-accent transition-colors">
-                          <span className="text-sm text-muted-foreground">Reportes</span>
-                          <span className="text-sm font-bold">{registros.filter((r) => r.tipo === "REPORTE").length}</span>
-                        </button>
+                        {([
+                          { label: "Seguimientos", value: seguimientosPendingCount,  accent: "border-l-amber-400" },
+                          { label: "Recordatorios", value: recordatoriosCount,        accent: "border-l-sky-400"   },
+                          { label: "Citas",          value: citasCount,               accent: "border-l-rose-400"  },
+                          { label: "Follow-ups IA",  value: seguimientosPendientes,   accent: "border-l-emerald-400" },
+                          { label: "Reportes",       value: registros.filter((r) => r.tipo === "REPORTE").length, accent: "border-l-slate-400", tab: "REPORTE" },
+                        ] as { label: string; value: number; accent: string; tab?: string }[]).map((item) => (
+                          <button
+                            key={item.label}
+                            type="button"
+                            onClick={() => setActiveTab(item.tab ?? "SEGUIMIENTOS")}
+                            className={`rounded-md border border-l-[3px] ${item.accent} bg-background px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-accent transition-colors shadow-sm`}
+                          >
+                            <span className="text-sm text-muted-foreground">{item.label}</span>
+                            <span className={`text-base font-bold ${item.value > 0 ? "text-foreground" : "text-muted-foreground/50"}`}>{item.value}</span>
+                          </button>
+                        ))}
                       </div>
                     </div>
 
                     {/* ACTIVIDAD RECIENTE */}
                     {registros.length > 0 && (
-                      <>
-                        <Separator />
-                        <div className="flex flex-col gap-1.5">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-3 w-0.5 rounded-full bg-amber-500 shrink-0" />
                           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actividad reciente</p>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
                           {registros.slice(0, 5).map((r) => (
-                            <div key={r.id} className="flex items-start justify-between gap-2 rounded-md border bg-background px-2 py-1.5 text-xs">
-                              <div className="flex flex-col gap-0.5">
-                                <span className="font-medium">{TIPO_LABELS[r.tipo as TipoRegistro]}</span>
-                                <span className="text-muted-foreground line-clamp-2">
-                                  {r.resumen || r.detalles || "Sin detalles"}
-                                </span>
-                              </div>
+                            <div key={r.id} className={`rounded-md border ${TIPO_ACCENT[r.tipo] ?? ""} bg-background px-3 py-2 text-xs shadow-sm`}>
+                              <span className="font-medium">{TIPO_LABELS[r.tipo as TipoRegistro]}</span>
+                              <p className="text-muted-foreground line-clamp-2 mt-0.5">
+                                {r.resumen || r.detalles || "Sin detalles"}
+                              </p>
                             </div>
                           ))}
                         </div>
-                      </>
+                      </div>
                     )}
                   </div>
                 </ScrollArea>
