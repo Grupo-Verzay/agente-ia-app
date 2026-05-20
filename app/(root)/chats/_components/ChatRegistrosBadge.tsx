@@ -19,7 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { ChatRegistrosSheet } from "./ChatRegistrosSheet";
 import type { SimpleTag } from "@/types/session";
 
-const TIPOS: TipoRegistro[] = ["SOLICITUD", "PEDIDO", "RECLAMO", "PAGO", "RESERVA", "PRODUCTO"];
+const TIPOS: TipoRegistro[] = ["SOLICITUD", "PEDIDO", "RECLAMO", "PAGO", "RESERVA", "PRODUCTO", "REPORTE"];
 
 const TIPO_LABELS: Record<TipoRegistro, string> = {
   REPORTE: "Reportes",
