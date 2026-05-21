@@ -413,7 +413,7 @@ export function LeadSeguimientosTab({
   userId: string;
   remoteJid: string;
   instanceId: string | null;
-  mode?: "all" | "legacy" | "crm";
+  mode?: "all" | "legacy" | "crm" | "reminders" | "appointments";
 }) {
   const [crmItems, setCrmItems] = useState<SessionFollowUpItem[]>([]);
   const [legacyItems, setLegacyItems] = useState<LegacySeguimientoItem[]>([]);
@@ -435,8 +435,8 @@ export function LeadSeguimientosTab({
 
   const showLegacy = mode === "all" || mode === "legacy";
   const showCrm = mode === "all" || mode === "crm";
-  const showReminders = mode === "all";
-  const showAppointments = mode === "all";
+  const showReminders = mode === "all" || mode === "reminders";
+  const showAppointments = mode === "all" || mode === "appointments";
 
   const loadAll = useCallback(async () => {
     setLoading(true);

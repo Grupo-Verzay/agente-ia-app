@@ -69,6 +69,14 @@ const TAB_LABELS: Record<string, string> = {
   SEGUIMIENTOS: "Seguimientos",
 };
 
+const AGENDA_MODE_LABELS: Record<string, string> = {
+  legacy:       "Seguimientos",
+  reminders:    "Recordatorios",
+  appointments: "Citas",
+  crm:          "Follow-ups IA",
+  all:          "Agenda",
+};
+
 const TIPO_ACCENT: Record<string, string> = {
   SOLICITUD: "border-l-[3px] border-l-blue-400",
   PEDIDO:    "border-l-[3px] border-l-orange-400",
@@ -133,6 +141,12 @@ export function ChatRegistrosSheet({
   const [sintesis, setSintesis] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab ?? "RESUMEN");
+  const [agendaMode, setAgendaMode] = useState<"all" | "legacy" | "crm" | "reminders" | "appointments">("all");
+
+  const goToAgenda = (mode: "legacy" | "reminders" | "appointments" | "crm") => {
+    setAgendaMode(mode);
+    setActiveTab("SEGUIMIENTOS");
+  };
 
   const [upsertOpen, setUpsertOpen] = useState(false);
   const [upsertMode, setUpsertMode] = useState<"create" | "edit">("create");
@@ -235,7 +249,7 @@ export function ChatRegistrosSheet({
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 shrink-0 rounded-md hover:bg-muted"
-                    onClick={() => setActiveTab("RESUMEN")}
+                    onClick={() => { setActiveTab("RESUMEN"); setAgendaMode("all"); }}
                     title="Volver al resumen"
                   >
                     <ArrowLeft className="h-4 w-4" />
@@ -244,7 +258,9 @@ export function ChatRegistrosSheet({
                 <DialogTitle className="text-base font-semibold truncate">
                   {activeTab === "RESUMEN"
                     ? `Registros — ${sessionPushName ?? whatsapp}`
-                    : `${TAB_LABELS[activeTab] ?? activeTab} — ${sessionPushName ?? whatsapp}`}
+                    : activeTab === "SEGUIMIENTOS"
+                      ? `${AGENDA_MODE_LABELS[agendaMode] ?? "Agenda"} — ${sessionPushName ?? whatsapp}`
+                      : `${TAB_LABELS[activeTab] ?? activeTab} — ${sessionPushName ?? whatsapp}`}
                 </DialogTitle>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -388,16 +404,16 @@ export function ChatRegistrosSheet({
                           </Popover>
                         )}
                         {([
-                          { label: "Seguimientos", value: seguimientosPendingCount,  accent: "border-l-amber-400" },
-                          { label: "Recordatorios", value: recordatoriosCount,        accent: "border-l-sky-400"   },
-                          { label: "Citas",          value: citasCount,               accent: "border-l-rose-400"  },
-                          { label: "Follow-ups IA",  value: seguimientosPendientes,   accent: "border-l-emerald-400" },
-                          { label: "Reportes",       value: registros.filter((r) => r.tipo === "REPORTE").length, accent: "border-l-slate-400", tab: "REPORTE" },
-                        ] as { label: string; value: number; accent: string; tab?: string }[]).map((item) => (
+                          { label: "Seguimientos",  value: seguimientosPendingCount, accent: "border-l-amber-400",   agenda: "legacy"       as const },
+                          { label: "Recordatorios", value: recordatoriosCount,        accent: "border-l-sky-400",     agenda: "reminders"    as const },
+                          { label: "Citas",         value: citasCount,                accent: "border-l-rose-400",    agenda: "appointments" as const },
+                          { label: "Follow-ups IA", value: seguimientosPendientes,    accent: "border-l-emerald-400", agenda: "crm"          as const },
+                          { label: "Reportes",      value: registros.filter((r) => r.tipo === "REPORTE").length, accent: "border-l-slate-400", tab: "REPORTE" },
+                        ] as { label: string; value: number; accent: string; agenda?: "legacy" | "reminders" | "appointments" | "crm"; tab?: string }[]).map((item) => (
                           <button
                             key={item.label}
                             type="button"
-                            onClick={() => setActiveTab(item.tab ?? "SEGUIMIENTOS")}
+                            onClick={() => item.agenda ? goToAgenda(item.agenda) : setActiveTab(item.tab ?? "SEGUIMIENTOS")}
                             className={`rounded-md border border-l-[3px] ${item.accent} bg-background px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-accent transition-colors shadow-sm`}
                           >
                             <span className="text-sm text-muted-foreground">{item.label}</span>
@@ -453,7 +469,7 @@ export function ChatRegistrosSheet({
                     userId={userId}
                     remoteJid={remoteJid}
                     instanceId={instanceId}
-                    mode="all"
+                    mode={agendaMode}
                   />
                 </div>
               </TabsContent>
