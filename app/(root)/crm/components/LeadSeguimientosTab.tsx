@@ -555,47 +555,6 @@ export function LeadSeguimientosTab({
     (a) => !["FINALIZADO", "DESCARTADO", "CANCELADA"].includes(a.status)
   ).length;
 
-  const bottomActions = mode === "all" ? (
-    <div className="grid grid-cols-2 gap-2 border-t pt-3 mt-2">
-      <Button
-        variant="outline"
-        className="text-sm text-destructive hover:text-destructive"
-        disabled={pendingAction !== null || legacyItems.length === 0}
-        onClick={() => setConfirmAction("deleteAllSeguimientos")}
-      >
-        <Trash2 className="h-4 w-4" />
-        Eliminar seguimientos
-      </Button>
-      <Button
-        variant="outline"
-        className="text-sm text-destructive hover:text-destructive"
-        disabled={pendingAction !== null || reminderItems.length === 0}
-        onClick={() => setConfirmAction("deleteAllReminders")}
-      >
-        <Trash2 className="h-4 w-4" />
-        Eliminar recordatorios
-      </Button>
-      <Button
-        variant="outline"
-        className="text-sm text-destructive hover:text-destructive"
-        disabled={pendingAction !== null || activeCitasCount === 0}
-        onClick={() => setConfirmAction("cancelAllCitas")}
-      >
-        <Trash2 className="h-4 w-4" />
-        Eliminar citas
-      </Button>
-      <Button
-        variant="outline"
-        className="text-sm"
-        disabled={pendingAction !== null || !canReactivate}
-        onClick={() => setConfirmAction("reactivate")}
-      >
-        <RefreshCcw className="h-4 w-4 text-emerald-500" />
-        Reactivar follow-ups IA
-      </Button>
-    </div>
-  ) : null;
-
   const CONFIRM_CONFIG: Record<BulkAction, { title: string; description: string; label: string; tone: "default" | "destructive" }> = {
     deleteAllSeguimientos: {
       title: "Eliminar seguimientos",
@@ -638,20 +597,34 @@ export function LeadSeguimientosTab({
             {/* ===== Seguimientos ===== */}
             {showLegacy && (
               <div className="flex flex-col gap-1">
-                <button
-                  type="button"
-                  onClick={() => toggleSection("seguimientos")}
-                  className="flex items-center gap-2 py-1 hover:opacity-70 transition-opacity"
-                >
-                  {openSections.seguimientos ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-                  <p className="text-sm font-medium">Seguimientos</p>
-                  <Badge variant="outline" className="text-xs">{legacyItems.length}</Badge>
-                  {legacyItems.filter((i) => i.followUpStatus === "pending").length > 0 && (
-                    <span className="text-[11px] text-muted-foreground">
-                      (pendientes: {legacyItems.filter((i) => i.followUpStatus === "pending").length})
-                    </span>
+                <div className="flex items-center py-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection("seguimientos")}
+                    className="flex flex-1 items-center gap-2 hover:opacity-70 transition-opacity"
+                  >
+                    {openSections.seguimientos ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                    <p className="text-sm font-medium">Seguimientos</p>
+                    <Badge variant="outline" className="text-xs">{legacyItems.length}</Badge>
+                    {legacyItems.filter((i) => i.followUpStatus === "pending").length > 0 && (
+                      <span className="text-[11px] text-muted-foreground">
+                        (pendientes: {legacyItems.filter((i) => i.followUpStatus === "pending").length})
+                      </span>
+                    )}
+                  </button>
+                  {mode === "all" && legacyItems.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={pendingAction !== null}
+                      onClick={() => setConfirmAction("deleteAllSeguimientos")}
+                      className="flex items-center gap-1 text-[11px] text-destructive hover:text-destructive/80 disabled:opacity-40 transition-opacity ml-2 shrink-0"
+                      title="Eliminar todos los seguimientos"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Eliminar
+                    </button>
                   )}
-                </button>
+                </div>
                 {openSections.seguimientos && (
                   legacyItems.length === 0
                     ? <p className="text-xs text-muted-foreground pl-5">Sin seguimientos.</p>
@@ -665,15 +638,29 @@ export function LeadSeguimientosTab({
               <>
                 {showLegacy && <Separator />}
                 <div className="flex flex-col gap-1">
-                  <button
-                    type="button"
-                    onClick={() => toggleSection("recordatorios")}
-                    className="flex items-center gap-2 py-1 hover:opacity-70 transition-opacity"
-                  >
-                    {openSections.recordatorios ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-                    <p className="text-sm font-medium">Recordatorios</p>
-                    <Badge variant="outline" className="text-xs">{reminderItems.length}</Badge>
-                  </button>
+                  <div className="flex items-center py-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleSection("recordatorios")}
+                      className="flex flex-1 items-center gap-2 hover:opacity-70 transition-opacity"
+                    >
+                      {openSections.recordatorios ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                      <p className="text-sm font-medium">Recordatorios</p>
+                      <Badge variant="outline" className="text-xs">{reminderItems.length}</Badge>
+                    </button>
+                    {mode === "all" && reminderItems.length > 0 && (
+                      <button
+                        type="button"
+                        disabled={pendingAction !== null}
+                        onClick={() => setConfirmAction("deleteAllReminders")}
+                        className="flex items-center gap-1 text-[11px] text-destructive hover:text-destructive/80 disabled:opacity-40 transition-opacity ml-2 shrink-0"
+                        title="Eliminar todos los recordatorios"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Eliminar
+                      </button>
+                    )}
+                  </div>
                   {openSections.recordatorios && (
                     reminderItems.length === 0
                       ? <p className="text-xs text-muted-foreground pl-5">Sin recordatorios.</p>
@@ -688,15 +675,29 @@ export function LeadSeguimientosTab({
               <>
                 {(showLegacy || showReminders) && <Separator />}
                 <div className="flex flex-col gap-1">
-                  <button
-                    type="button"
-                    onClick={() => toggleSection("citas")}
-                    className="flex items-center gap-2 py-1 hover:opacity-70 transition-opacity"
-                  >
-                    {openSections.citas ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-                    <p className="text-sm font-medium">Citas</p>
-                    <Badge variant="outline" className="text-xs">{appointmentItems.length}</Badge>
-                  </button>
+                  <div className="flex items-center py-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleSection("citas")}
+                      className="flex flex-1 items-center gap-2 hover:opacity-70 transition-opacity"
+                    >
+                      {openSections.citas ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                      <p className="text-sm font-medium">Citas</p>
+                      <Badge variant="outline" className="text-xs">{appointmentItems.length}</Badge>
+                    </button>
+                    {mode === "all" && activeCitasCount > 0 && (
+                      <button
+                        type="button"
+                        disabled={pendingAction !== null}
+                        onClick={() => setConfirmAction("cancelAllCitas")}
+                        className="flex items-center gap-1 text-[11px] text-destructive hover:text-destructive/80 disabled:opacity-40 transition-opacity ml-2 shrink-0"
+                        title="Cancelar todas las citas activas"
+                      >
+                        <XCircle className="h-3 w-3" />
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
                   {openSections.citas && (
                     appointmentItems.length === 0
                       ? <p className="text-xs text-muted-foreground pl-5">Sin citas agendadas.</p>
@@ -711,18 +712,48 @@ export function LeadSeguimientosTab({
               <>
                 {(showLegacy || showReminders || showAppointments) && <Separator />}
                 <div className="flex flex-col gap-1">
-                  <button
-                    type="button"
-                    onClick={() => toggleSection("followups")}
-                    className="flex items-center gap-2 py-1 hover:opacity-70 transition-opacity"
-                  >
-                    {openSections.followups ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-                    <p className="text-sm font-medium">Follow-ups IA</p>
-                    <Badge variant="outline" className="text-xs">{crmItems.length}</Badge>
-                    {activeCount > 0 && (
-                      <span className="text-[11px] text-muted-foreground">(activos: {activeCount})</span>
+                  <div className="flex items-center py-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleSection("followups")}
+                      className="flex flex-1 items-center gap-2 hover:opacity-70 transition-opacity"
+                    >
+                      {openSections.followups ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                      <p className="text-sm font-medium">Follow-ups IA</p>
+                      <Badge variant="outline" className="text-xs">{crmItems.length}</Badge>
+                      {activeCount > 0 && (
+                        <span className="text-[11px] text-muted-foreground">(activos: {activeCount})</span>
+                      )}
+                    </button>
+                    {mode === "all" && (canCancel || canReactivate) && (
+                      <div className="flex items-center gap-2 ml-2 shrink-0">
+                        {canCancel && (
+                          <button
+                            type="button"
+                            disabled={pendingAction !== null}
+                            onClick={() => setConfirmAction("cancel")}
+                            className="flex items-center gap-1 text-[11px] text-destructive hover:text-destructive/80 disabled:opacity-40 transition-opacity"
+                            title="Cancelar follow-ups activos"
+                          >
+                            <XCircle className="h-3 w-3" />
+                            Cancelar
+                          </button>
+                        )}
+                        {canReactivate && (
+                          <button
+                            type="button"
+                            disabled={pendingAction !== null}
+                            onClick={() => setConfirmAction("reactivate")}
+                            className="flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-500 disabled:opacity-40 transition-opacity"
+                            title="Reactivar follow-ups"
+                          >
+                            <RefreshCcw className="h-3 w-3" />
+                            Reactivar
+                          </button>
+                        )}
+                      </div>
                     )}
-                  </button>
+                  </div>
                   {openSections.followups && (
                     crmItems.length === 0
                       ? <p className="text-xs text-muted-foreground pl-5">Sin follow-ups de IA.</p>
@@ -739,8 +770,6 @@ export function LeadSeguimientosTab({
             )}
           </div>
         </ScrollArea>
-
-        {bottomActions}
       </div>
 
       {confirmAction && (
