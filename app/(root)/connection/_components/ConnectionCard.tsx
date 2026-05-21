@@ -20,7 +20,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Loader2, Lock } from "lucide-react"
 import { SubmitHandler, useForm } from "react-hook-form"
-import { FormInstanceConnectionValues, FormInstanceConnectionSchema, sanitizeInstanceNameInput } from '@/schema/connection'
+import { FormInstanceConnectionValues, FormInstanceConnectionSchema } from '@/schema/connection'
 import { FaInstagram, FaFacebook, FaWhatsapp } from "react-icons/fa"
 import { useMemo, useCallback, useState } from "react"
 
@@ -28,8 +28,6 @@ interface MinimalUser {
     onFacebook?: boolean
     onInstagram?: boolean
 }
-
-const MAX_INSTANCE_NAME_LENGTH = 30
 
 interface ConnectionCardProps {
     user: MinimalUser
@@ -103,8 +101,6 @@ export const ConnectionCard = ({
         },
         mode: 'onSubmit',
     })
-
-    const instanceNameValue = form.watch('instanceName') ?? ''
 
     const onSubmit = useCallback<SubmitHandler<FormInstanceConnectionValues>>(
         async (values, ev) => {
@@ -189,22 +185,10 @@ export const ConnectionCard = ({
                             control={form.control}
                             name="instanceName"
                             render={({ field }) => (
-                                <FormItem>
-                                    <div className="flex items-center justify-between">
-                                        <FormLabel>Nombre de la Instancia</FormLabel>
-                                        <span className={`text-xs tabular-nums ${instanceNameValue.length >= MAX_INSTANCE_NAME_LENGTH ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
-                                            {instanceNameValue.length}/{MAX_INSTANCE_NAME_LENGTH}
-                                        </span>
-                                    </div>
+                                <FormItem className="hidden">
                                     <FormControl>
-                                        <Input
-                                            placeholder="COMPANY_SA"
-                                            maxLength={MAX_INSTANCE_NAME_LENGTH}
-                                            {...field}
-                                            onChange={e => field.onChange(sanitizeInstanceNameInput(e.target.value))}
-                                        />
+                                        <Input type="hidden" {...field} />
                                     </FormControl>
-                                    <FormMessage />
                                 </FormItem>
                             )}
                         />

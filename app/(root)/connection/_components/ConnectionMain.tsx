@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { createInstance } from '@/actions/api-action';
 import { toast } from 'sonner';
 import { ClientInstanceCard, ConnectionCard } from './';
-import { ConnectionMainInterface, FormInstanceConnectionValues } from '@/schema/connection';
+import { ConnectionMainInterface, FormInstanceConnectionValues, sanitizeInstanceName } from '@/schema/connection';
 import { PromptInstance } from '@prisma/client';
 import { checkInstanceNameExists, createBaileysInstance } from '@/actions/instances-actions';
 
@@ -18,6 +18,12 @@ export const ConnectionMain = ({
   const [loading, setLoading] = useState<boolean>(false);
   const instanceName = !instance ? '' : instance.instanceName;
   const currentInstanceInfo = instanceInfo?.find((i) => i.name === instanceName);
+
+  // Nombre de instancia derivado del campo company del usuario (no editable por el cliente)
+  const derivedInstanceName = useMemo(() =>
+    sanitizeInstanceName(user.company ?? user.id ?? 'instancia'),
+    [user.company, user.id]
+  );
 
   // Memoiza prompts para evitar recrear arrays en cada render
   const filteredPrompts: PromptInstance[] = useMemo(() => {
@@ -74,7 +80,7 @@ export const ConnectionMain = ({
       user={user}
       handleSubmit={onSubmit}
       loading={loading}
-      defaultValues={{ instanceName, instanceType: instanceType }}
+      defaultValues={{ instanceName: derivedInstanceName, instanceType: instanceType }}
       instanceType={instanceType}
       checkNameAvailable={checkNameAvailable}
     />
