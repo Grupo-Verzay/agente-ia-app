@@ -617,10 +617,10 @@ export function LeadSeguimientosTab({
                       type="button"
                       disabled={pendingAction !== null}
                       onClick={() => setConfirmAction("deleteAllSeguimientos")}
-                      className="flex items-center gap-1 text-[11px] text-destructive hover:text-destructive/80 disabled:opacity-40 transition-opacity ml-2 shrink-0"
+                      className="flex items-center gap-1.5 text-xs font-medium text-destructive border border-destructive/30 hover:bg-destructive/10 rounded px-2 py-0.5 disabled:opacity-40 transition-colors ml-2 shrink-0"
                       title="Eliminar todos los seguimientos"
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <Trash2 className="h-3.5 w-3.5" />
                       Eliminar
                     </button>
                   )}
@@ -653,10 +653,10 @@ export function LeadSeguimientosTab({
                         type="button"
                         disabled={pendingAction !== null}
                         onClick={() => setConfirmAction("deleteAllReminders")}
-                        className="flex items-center gap-1 text-[11px] text-destructive hover:text-destructive/80 disabled:opacity-40 transition-opacity ml-2 shrink-0"
+                        className="flex items-center gap-1.5 text-xs font-medium text-destructive border border-destructive/30 hover:bg-destructive/10 rounded px-2 py-0.5 disabled:opacity-40 transition-colors ml-2 shrink-0"
                         title="Eliminar todos los recordatorios"
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-3.5 w-3.5" />
                         Eliminar
                       </button>
                     )}
@@ -690,10 +690,10 @@ export function LeadSeguimientosTab({
                         type="button"
                         disabled={pendingAction !== null}
                         onClick={() => setConfirmAction("cancelAllCitas")}
-                        className="flex items-center gap-1 text-[11px] text-destructive hover:text-destructive/80 disabled:opacity-40 transition-opacity ml-2 shrink-0"
+                        className="flex items-center gap-1.5 text-xs font-medium text-destructive border border-destructive/30 hover:bg-destructive/10 rounded px-2 py-0.5 disabled:opacity-40 transition-colors ml-2 shrink-0"
                         title="Cancelar todas las citas activas"
                       >
-                        <XCircle className="h-3 w-3" />
+                        <XCircle className="h-3.5 w-3.5" />
                         Cancelar
                       </button>
                     )}
@@ -732,10 +732,10 @@ export function LeadSeguimientosTab({
                             type="button"
                             disabled={pendingAction !== null}
                             onClick={() => setConfirmAction("cancel")}
-                            className="flex items-center gap-1 text-[11px] text-destructive hover:text-destructive/80 disabled:opacity-40 transition-opacity"
+                            className="flex items-center gap-1.5 text-xs font-medium text-destructive border border-destructive/30 hover:bg-destructive/10 rounded px-2 py-0.5 disabled:opacity-40 transition-colors"
                             title="Cancelar follow-ups activos"
                           >
-                            <XCircle className="h-3 w-3" />
+                            <XCircle className="h-3.5 w-3.5" />
                             Cancelar
                           </button>
                         )}
@@ -744,10 +744,10 @@ export function LeadSeguimientosTab({
                             type="button"
                             disabled={pendingAction !== null}
                             onClick={() => setConfirmAction("reactivate")}
-                            className="flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-500 disabled:opacity-40 transition-opacity"
+                            className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 border border-emerald-500/30 hover:bg-emerald-500/10 rounded px-2 py-0.5 disabled:opacity-40 transition-colors"
                             title="Reactivar follow-ups"
                           >
-                            <RefreshCcw className="h-3 w-3" />
+                            <RefreshCcw className="h-3.5 w-3.5" />
                             Reactivar
                           </button>
                         )}
