@@ -147,26 +147,33 @@ export async function deleteSeguimientoById(id: number): Promise<SeguimientosRes
   }
 }
 
+const PROTECTED_PREFIXES = ["reminder-", "appt-confirm-", "appt-reminder-", "camping-"];
+
+function isProtectedSeguimiento(idNodo: string | null): boolean {
+  if (!idNodo) return false;
+  return PROTECTED_PREFIXES.some((p) => idNodo.startsWith(p));
+}
+
 export async function deleteAllSeguimientosByRemoteJid(remoteJid: string): Promise<SeguimientosResponse> {
   try {
-    // Solo elimina seguimientos de flujos. Excluye los de citas (appt-confirm-, reminder-)
-    // y de campañas (camping-) que tienen su propia lógica de borrado.
-    const result = await db.seguimiento.deleteMany({
-      where: {
-        remoteJid,
-        NOT: [
-          { idNodo: { startsWith: "reminder-" } },
-          { idNodo: { startsWith: "appt-confirm-" } },
-          { idNodo: { startsWith: "appt-reminder-" } },
-          { idNodo: { startsWith: "camping-" } },
-        ],
-      },
+    // NOT:[] en Prisma con columnas nullable es poco confiable; filtramos en JS.
+    const all = await db.seguimiento.findMany({
+      where: { remoteJid },
+      select: { id: true, idNodo: true },
     });
+
+    const idsToDelete = all
+      .filter((s) => !isProtectedSeguimiento(s.idNodo))
+      .map((s) => s.id);
+
+    if (idsToDelete.length === 0) {
+      return { success: true, message: "No había seguimientos de flujo para eliminar.", data: { count: 0 } };
+    }
+
+    const result = await db.seguimiento.deleteMany({ where: { id: { in: idsToDelete } } });
     return {
       success: true,
-      message: result.count > 0
-        ? `Se eliminaron ${result.count} seguimiento(s).`
-        : "No había seguimientos para eliminar.",
+      message: `Se eliminaron ${result.count} seguimiento(s).`,
       data: { count: result.count },
     };
   } catch (error) {
@@ -182,7 +189,17 @@ export async function getSessionLegacySeguimientos(
 ): Promise<{ success: boolean; message: string; data?: LegacySeguimientoItem[] }> {
   try {
     const seguimientos = await db.seguimiento.findMany({
-      where: { remoteJid },
+      where: {
+        remoteJid,
+        NOT: {
+          OR: [
+            { idNodo: { startsWith: "reminder-" } },
+            { idNodo: { startsWith: "appt-confirm-" } },
+            { idNodo: { startsWith: "appt-reminder-" } },
+            { idNodo: { startsWith: "camping-" } },
+          ],
+        },
+      },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
