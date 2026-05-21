@@ -299,6 +299,19 @@ export async function getRemindersByRemoteJid(
   }
 }
 
+export async function updateReminderBasic(
+  id: string,
+  data: { title?: string; description?: string; time?: string }
+): Promise<ReminderResponse> {
+  if (!id) return { success: false, message: "ID obligatorio." };
+  try {
+    await db.reminders.update({ where: { id }, data });
+    return { success: true, message: "Recordatorio actualizado correctamente." };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Error al actualizar." };
+  }
+}
+
 /**
  * Actualizar un recordatorio por ID
  */

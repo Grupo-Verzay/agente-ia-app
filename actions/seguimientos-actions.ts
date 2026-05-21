@@ -120,6 +120,21 @@ export type LegacySeguimientoItem = {
   updatedAt: string;
 };
 
+export async function updateSeguimientoById(
+  id: number,
+  data: { mensaje?: string; time?: string }
+): Promise<SeguimientosResponse> {
+  try {
+    const updated = await db.seguimiento.update({ where: { id }, data });
+    return { success: true, message: "Seguimiento actualizado correctamente.", data: updated };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Error al actualizar el seguimiento.",
+    };
+  }
+}
+
 export async function deleteSeguimientoById(id: number): Promise<SeguimientosResponse> {
   try {
     await db.seguimiento.delete({ where: { id } });

@@ -309,6 +309,29 @@ export async function updateAppointmentStatus(
     }
 }
 
+export async function updateAppointmentDetails(
+    id: string,
+    data: { startTime?: string; endTime?: string; serviceId?: string; timezone?: string }
+): Promise<AppointmentOperationResponse> {
+    try {
+        const updateData: Record<string, unknown> = {};
+        if (data.startTime) updateData.startTime = new Date(data.startTime);
+        if (data.endTime) updateData.endTime = new Date(data.endTime);
+        if (data.serviceId) updateData.serviceId = data.serviceId;
+        if (data.timezone) updateData.timezone = data.timezone;
+
+        const updated = await db.appointment.update({
+            where: { id },
+            data: updateData,
+            include: { service: { select: { name: true } } },
+        });
+        return { success: true, message: 'Cita actualizada correctamente.', data: updated };
+    } catch (error) {
+        console.error('Error al actualizar cita:', error);
+        return { success: false, message: 'Error al actualizar la cita.' };
+    }
+}
+
 //Eliminar una cita
 export async function deleteAppointment(id: string): Promise<AppointmentOperationResponse> {
     try {

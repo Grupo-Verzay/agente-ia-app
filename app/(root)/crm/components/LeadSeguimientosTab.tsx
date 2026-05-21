@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCcw, Trash2, XCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { RefreshCcw, Trash2, XCircle, ChevronDown, ChevronRight, Pencil, Check, X as XIcon } from "lucide-react";
 
 import {
   cancelSessionCrmFollowUps,
@@ -13,18 +13,22 @@ import {
   getSessionLegacySeguimientos,
   deleteSeguimientoById,
   deleteAllSeguimientosByRemoteJid,
+  updateSeguimientoById,
   type LegacySeguimientoItem,
 } from "@/actions/seguimientos-actions";
 import {
   getRemindersByRemoteJid,
   deleteReminder,
+  updateReminderBasic,
   type ReminderItem,
 } from "@/actions/reminders-actions";
 import {
   getAppointmentsBySession,
   updateAppointmentStatus,
+  updateAppointmentDetails,
   type SessionAppointmentCard,
 } from "@/actions/appointments-actions";
+import { getServicesByUser } from "@/actions/service-action";
 import type { AppointmentStatus } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -100,76 +104,118 @@ function toHistoryItem(item: SessionFollowUpItem): SessionCrmFollowUpHistoryItem
 function LegacySeguimientoCard({
   item,
   onDeleted,
+  onUpdated,
 }: {
   item: LegacySeguimientoItem;
   onDeleted: () => void;
+  onUpdated: () => void;
 }) {
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editMensaje, setEditMensaje] = useState(item.mensaje ?? "");
+  const [editTime, setEditTime] = useState(item.time ?? "");
+
   const statusLabel = LEGACY_STATUS_LABELS[item.followUpStatus] ?? item.followUpStatus;
   const statusClass = LEGACY_STATUS_CLASSES[item.followUpStatus] ?? "border-slate-200 bg-slate-50 text-slate-600";
 
   const handleDelete = async () => {
     setDeleting(true);
     const result = await deleteSeguimientoById(item.id);
-    if (result.success) {
-      toast.success(result.message);
-      onDeleted();
-    } else {
-      toast.error(result.message);
-    }
+    if (result.success) { toast.success(result.message); onDeleted(); }
+    else toast.error(result.message);
     setDeleting(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const result = await updateSeguimientoById(item.id, { mensaje: editMensaje, time: editTime });
+    if (result.success) { toast.success(result.message); setEditing(false); onUpdated(); }
+    else toast.error(result.message);
+    setSaving(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditMensaje(item.mensaje ?? "");
+    setEditTime(item.time ?? "");
+    setEditing(false);
   };
 
   return (
     <div className="rounded-md border border-border/70 bg-muted/20 p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge variant="outline" className={statusClass}>
-            {statusLabel}
-          </Badge>
+          <Badge variant="outline" className={statusClass}>{statusLabel}</Badge>
           {item.tipo && (
-            <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600 text-[11px]">
-              {item.tipo}
-            </Badge>
+            <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600 text-[11px]">{item.tipo}</Badge>
           )}
-          <span className="text-[11px] text-muted-foreground">
-            Intento {item.followUpAttempt} / {item.followUpMaxAttempts}
-          </span>
-          <span className="text-[11px] text-muted-foreground capitalize">
-            • Modo: {item.followUpMode}
-          </span>
+          <span className="text-[11px] text-muted-foreground">Intento {item.followUpAttempt} / {item.followUpMaxAttempts}</span>
+          <span className="text-[11px] text-muted-foreground capitalize">• Modo: {item.followUpMode}</span>
         </div>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-          disabled={deleting}
-          onClick={handleDelete}
-          title="Eliminar seguimiento"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex items-center gap-1 shrink-0">
+          {!editing && (
+            <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-blue-600"
+              onClick={() => setEditing(true)} title="Editar seguimiento">
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            disabled={deleting} onClick={handleDelete} title="Eliminar seguimiento">
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       {item.followUpGoal && (
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          <span className="font-medium">Objetivo:</span> {item.followUpGoal}
-        </p>
+        <p className="mt-2 text-[11px] text-muted-foreground"><span className="font-medium">Objetivo:</span> {item.followUpGoal}</p>
       )}
 
-      <div className="mt-2 grid gap-0.5 text-[11px] text-muted-foreground">
-        {item.time && <span>Programado: {item.time}</span>}
-        <span>Instancia: {item.instancia ?? "N/A"}</span>
-        <span>Creado: {formatDate(item.createdAt)}</span>
-      </div>
-
-      {(item.generatedMessage || item.mensaje) && (
-        <p className="mt-2 whitespace-pre-wrap rounded-md bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground">
-          {item.generatedMessage || item.mensaje}
-        </p>
+      {editing ? (
+        <div className="mt-2 flex flex-col gap-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] text-muted-foreground font-medium">Fecha/hora envío</label>
+            <input
+              type="text"
+              value={editTime}
+              onChange={(e) => setEditTime(e.target.value)}
+              placeholder="ISO o dd/MM/yyyy HH:mm"
+              className="rounded-md border border-border/70 bg-background px-2 py-1 text-xs w-full"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] text-muted-foreground font-medium">Mensaje</label>
+            <textarea
+              value={editMensaje}
+              onChange={(e) => setEditMensaje(e.target.value)}
+              rows={3}
+              className="rounded-md border border-border/70 bg-background px-2 py-1 text-xs w-full resize-none"
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancelEdit} disabled={saving}>
+              <XIcon className="h-3 w-3 mr-1" />Cancelar
+            </Button>
+            <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white" onClick={handleSave} disabled={saving}>
+              <Check className="h-3 w-3 mr-1" />Guardar
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="mt-2 grid gap-0.5 text-[11px] text-muted-foreground">
+            {item.time && <span>Programado: {item.time}</span>}
+            <span>Instancia: {item.instancia ?? "N/A"}</span>
+            <span>Creado: {formatDate(item.createdAt)}</span>
+          </div>
+          {(item.generatedMessage || item.mensaje) && (
+            <p className="mt-2 whitespace-pre-wrap rounded-md bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground">
+              {item.generatedMessage || item.mensaje}
+            </p>
+          )}
+        </>
       )}
 
-      {item.errorReason && (
+      {item.errorReason && !editing && (
         <div className="mt-2 rounded-md border border-rose-300 bg-rose-100 px-2 py-1.5">
           <p className="text-[11px] font-medium text-rose-700">Error</p>
           <p className="whitespace-pre-wrap text-xs text-rose-700">{item.errorReason}</p>
@@ -245,61 +291,121 @@ function CrmFollowUpCard({
 function ReminderCard({
   item,
   onDeleted,
+  onUpdated,
 }: {
   item: ReminderItem;
   onDeleted: () => void;
+  onUpdated: () => void;
 }) {
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editTitle, setEditTitle] = useState(item.title);
+  const [editDescription, setEditDescription] = useState(item.description ?? "");
+  const [editTime, setEditTime] = useState(item.time ?? "");
 
   const handleDelete = async () => {
     setDeleting(true);
     const result = await deleteReminder(item.id);
-    if (result.success) {
-      toast.success(result.message);
-      onDeleted();
-    } else {
-      toast.error(result.message);
-    }
+    if (result.success) { toast.success(result.message); onDeleted(); }
+    else toast.error(result.message);
     setDeleting(false);
+  };
+
+  const handleSave = async () => {
+    if (!editTitle.trim()) { toast.error("El título no puede estar vacío."); return; }
+    setSaving(true);
+    const result = await updateReminderBasic(item.id, { title: editTitle, description: editDescription, time: editTime });
+    if (result.success) { toast.success(result.message); setEditing(false); onUpdated(); }
+    else toast.error(result.message);
+    setSaving(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditTitle(item.title);
+    setEditDescription(item.description ?? "");
+    setEditTime(item.time ?? "");
+    setEditing(false);
   };
 
   return (
     <div className="rounded-md border border-border/70 bg-muted/20 p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge variant="outline" className="border-violet-300 bg-violet-100 text-violet-800">
-            Recordatorio
-          </Badge>
+          <Badge variant="outline" className="border-violet-300 bg-violet-100 text-violet-800">Recordatorio</Badge>
           {item.repeatType && item.repeatType !== "NONE" && (
             <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600 text-[11px] capitalize">
               {item.repeatType.toLowerCase()}
             </Badge>
           )}
         </div>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-          disabled={deleting}
-          onClick={handleDelete}
-          title="Eliminar recordatorio"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex items-center gap-1 shrink-0">
+          {!editing && (
+            <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-blue-600"
+              onClick={() => setEditing(true)} title="Editar recordatorio">
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            disabled={deleting} onClick={handleDelete} title="Eliminar recordatorio">
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
-      <p className="mt-2 text-[12px] font-medium">{item.title}</p>
-
-      <div className="mt-1 grid gap-0.5 text-[11px] text-muted-foreground">
-        {item.time && <span>Programado: {item.time}</span>}
-        {item.instanceName && <span>Instancia: {item.instanceName}</span>}
-        <span>Creado: {formatDate(item.createdAt)}</span>
-      </div>
-
-      {item.description && (
-        <p className="mt-2 whitespace-pre-wrap rounded-md bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground">
-          {item.description}
-        </p>
+      {editing ? (
+        <div className="mt-2 flex flex-col gap-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] text-muted-foreground font-medium">Título</label>
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="rounded-md border border-border/70 bg-background px-2 py-1 text-xs w-full"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] text-muted-foreground font-medium">Fecha/hora envío</label>
+            <input
+              type="text"
+              value={editTime}
+              onChange={(e) => setEditTime(e.target.value)}
+              placeholder="dd/MM/yyyy HH:mm"
+              className="rounded-md border border-border/70 bg-background px-2 py-1 text-xs w-full"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] text-muted-foreground font-medium">Mensaje</label>
+            <textarea
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              rows={3}
+              className="rounded-md border border-border/70 bg-background px-2 py-1 text-xs w-full resize-none"
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancelEdit} disabled={saving}>
+              <XIcon className="h-3 w-3 mr-1" />Cancelar
+            </Button>
+            <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white" onClick={handleSave} disabled={saving}>
+              <Check className="h-3 w-3 mr-1" />Guardar
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="mt-2 text-[12px] font-medium">{item.title}</p>
+          <div className="mt-1 grid gap-0.5 text-[11px] text-muted-foreground">
+            {item.time && <span>Programado: {item.time}</span>}
+            {item.instanceName && <span>Instancia: {item.instanceName}</span>}
+            <span>Creado: {formatDate(item.createdAt)}</span>
+          </div>
+          {item.description && (
+            <p className="mt-2 whitespace-pre-wrap rounded-md bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground">
+              {item.description}
+            </p>
+          )}
+        </>
       )}
     </div>
   );
@@ -332,6 +438,15 @@ const APPT_NEXT_STATUSES: Partial<Record<string, AppointmentStatus[]>> = {
   CONFIRMADA: ["ATENDIDA", "NO_ASISTIDA", "CANCELADA"],
 };
 
+function toLocalInputValue(isoString: string): string {
+  // Convierte ISO UTC → formato local para input datetime-local
+  try {
+    const d = new Date(isoString);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch { return ""; }
+}
+
 function AppointmentCard({
   item,
   userId,
@@ -342,28 +457,51 @@ function AppointmentCard({
   onUpdated: () => void;
 }) {
   const [updating, setUpdating] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editStart, setEditStart] = useState(toLocalInputValue(item.startTime));
+  const [editEnd, setEditEnd] = useState(toLocalInputValue(item.endTime));
+  const [services, setServices] = useState<{ id: string; name: string }[]>([]);
+  const [editServiceId, setEditServiceId] = useState("");
+
   const nextStatuses = APPT_NEXT_STATUSES[item.status] ?? [];
+
+  const openEdit = async () => {
+    const res = await getServicesByUser(userId);
+    if (res.success && Array.isArray(res.data)) setServices(res.data as { id: string; name: string }[]);
+    setEditStart(toLocalInputValue(item.startTime));
+    setEditEnd(toLocalInputValue(item.endTime));
+    setEditServiceId("");
+    setEditing(true);
+  };
 
   const handleStatus = async (status: AppointmentStatus) => {
     setUpdating(true);
     const result = await updateAppointmentStatus(item.id, status);
-    if (result.success) {
-      toast.success(result.message);
-      onUpdated();
-    } else {
-      toast.error(result.message);
-    }
+    if (result.success) { toast.success(result.message); onUpdated(); }
+    else toast.error(result.message);
     setUpdating(false);
+  };
+
+  const handleSave = async () => {
+    if (!editStart || !editEnd) { toast.error("Las fechas son obligatorias."); return; }
+    setSaving(true);
+    const data: { startTime?: string; endTime?: string; serviceId?: string } = {
+      startTime: new Date(editStart).toISOString(),
+      endTime: new Date(editEnd).toISOString(),
+    };
+    if (editServiceId) data.serviceId = editServiceId;
+    const result = await updateAppointmentDetails(item.id, data);
+    if (result.success) { toast.success(result.message); setEditing(false); onUpdated(); }
+    else toast.error(result.message);
+    setSaving(false);
   };
 
   return (
     <div className="rounded-md border border-border/70 bg-muted/20 p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge
-            variant="outline"
-            className={APPT_STATUS_CLASSES[item.status] ?? "border-slate-200 bg-slate-50 text-slate-600"}
-          >
+          <Badge variant="outline" className={APPT_STATUS_CLASSES[item.status] ?? "border-slate-200 bg-slate-50 text-slate-600"}>
             {APPT_STATUS_LABELS[item.status] ?? item.status}
           </Badge>
           {item.serviceName && (
@@ -372,14 +510,68 @@ function AppointmentCard({
             </Badge>
           )}
         </div>
+        {!editing && (
+          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-blue-600 shrink-0"
+            onClick={openEdit} title="Editar cita">
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
 
-      <div className="mt-2 grid gap-0.5 text-[11px] text-muted-foreground">
-        <span>Inicio: {formatDate(item.startTime)}</span>
-        <span>Fin: {formatDate(item.endTime)}</span>
-      </div>
+      {editing ? (
+        <div className="mt-2 flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] text-muted-foreground font-medium">Inicio</label>
+              <input
+                type="datetime-local"
+                value={editStart}
+                onChange={(e) => setEditStart(e.target.value)}
+                className="rounded-md border border-border/70 bg-background px-2 py-1 text-xs w-full"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] text-muted-foreground font-medium">Fin</label>
+              <input
+                type="datetime-local"
+                value={editEnd}
+                onChange={(e) => setEditEnd(e.target.value)}
+                className="rounded-md border border-border/70 bg-background px-2 py-1 text-xs w-full"
+              />
+            </div>
+          </div>
+          {services.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] text-muted-foreground font-medium">Servicio (opcional)</label>
+              <select
+                value={editServiceId}
+                onChange={(e) => setEditServiceId(e.target.value)}
+                className="rounded-md border border-border/70 bg-background px-2 py-1 text-xs w-full"
+              >
+                <option value="">— sin cambiar —</option>
+                {services.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="flex gap-2 justify-end">
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditing(false)} disabled={saving}>
+              <XIcon className="h-3 w-3 mr-1" />Cancelar
+            </Button>
+            <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white" onClick={handleSave} disabled={saving}>
+              <Check className="h-3 w-3 mr-1" />Guardar
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-2 grid gap-0.5 text-[11px] text-muted-foreground">
+          <span>Inicio: {formatDate(item.startTime)}</span>
+          <span>Fin: {formatDate(item.endTime)}</span>
+        </div>
+      )}
 
-      {nextStatuses.length > 0 && (
+      {nextStatuses.length > 0 && !editing && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {nextStatuses.map((s) => (
             <button
@@ -628,7 +820,7 @@ export function LeadSeguimientosTab({
                 {openSections.seguimientos && (
                   legacyItems.length === 0
                     ? <p className="text-xs text-muted-foreground pl-5">Sin seguimientos.</p>
-                    : <div className="flex flex-col gap-2">{legacyItems.map((item) => <LegacySeguimientoCard key={item.id} item={item} onDeleted={loadAll} />)}</div>
+                    : <div className="flex flex-col gap-2">{legacyItems.map((item) => <LegacySeguimientoCard key={item.id} item={item} onDeleted={loadAll} onUpdated={loadAll} />)}</div>
                 )}
               </div>
             )}
@@ -664,7 +856,7 @@ export function LeadSeguimientosTab({
                   {openSections.recordatorios && (
                     reminderItems.length === 0
                       ? <p className="text-xs text-muted-foreground pl-5">Sin recordatorios.</p>
-                      : <div className="flex flex-col gap-2">{reminderItems.map((item) => <ReminderCard key={item.id} item={item} onDeleted={loadAll} />)}</div>
+                      : <div className="flex flex-col gap-2">{reminderItems.map((item) => <ReminderCard key={item.id} item={item} onDeleted={loadAll} onUpdated={loadAll} />)}</div>
                   )}
                 </div>
               </>
