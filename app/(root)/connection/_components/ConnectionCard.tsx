@@ -18,7 +18,7 @@ import {
     FormMessage
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Loader2, Lock } from "lucide-react"
+import { Loader2, Lock, Info } from "lucide-react"
 import { toast } from "sonner"
 import { SubmitHandler, useForm } from "react-hook-form"
 import { FormInstanceConnectionValues, FormInstanceConnectionSchema } from '@/schema/connection'
@@ -180,11 +180,20 @@ export const ConnectionCard = ({
                             control={form.control}
                             name="instanceName"
                             render={({ field }) => (
-                                <FormItem className="hidden">
-                                    <FormControl>
-                                        <Input type="hidden" {...field} />
-                                    </FormControl>
-                                </FormItem>
+                                <>
+                                    <FormItem className="hidden">
+                                        <FormControl>
+                                            <Input type="hidden" {...field} />
+                                        </FormControl>
+                                    </FormItem>
+                                    <div className="space-y-1.5">
+                                        <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
+                                        <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                                            <span className="flex-1 font-mono text-foreground">{field.value}</span>
+                                            <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                        </div>
+                                    </div>
+                                </>
                             )}
                         />
 

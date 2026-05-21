@@ -260,26 +260,38 @@ export async function updateAppointmentStatus(
             include: { session: true },
         });
 
-        // Al cancelar: borrar solo los seguimientos de la cita.
-        // Los de agenda usan isSchedule=true en Reminders; los manuales no.
+        // Al cancelar: borrar seguimientos de la cita (appt-confirm-*, appt-reminder-*)
+        // y los legacy reminder-* que correspondan a plantillas isSchedule=true de este usuario.
         if (status === 'CANCELADA') {
             const instancia = updated.session?.instanceId;
             const remoteJid = updated.session?.remoteJid;
             if (instancia && remoteJid) {
-                const scheduleReminders = await db.reminders.findMany({
-                    where: { userId: updated.userId, isSchedule: true },
-                    select: { id: true },
+                // Formato nuevo: appt-reminder-{id} — identificación directa sin ambigüedad
+                // Formato legacy: reminder-{id} — buscar cuáles pertenecen a esta cita
+                // mediante reverse-lookup: extraer IDs de los seguimientos existentes
+                // y verificar que su Reminders padre tenga isSchedule=true para este usuario.
+                const legacyReminderSeguimientos = await db.seguimiento.findMany({
+                    where: { instancia, remoteJid, idNodo: { startsWith: 'reminder-' } },
+                    select: { idNodo: true },
                 });
-                const scheduleIdNodos = scheduleReminders.map((r) => `reminder-${r.id}`);
+                const candidateIds = legacyReminderSeguimientos
+                    .map((s) => s.idNodo?.replace(/^reminder-/, '') ?? '')
+                    .filter(Boolean);
+                const validLegacyIds = candidateIds.length > 0
+                    ? (await db.reminders.findMany({
+                        where: { id: { in: candidateIds }, userId: updated.userId, isSchedule: true },
+                        select: { id: true },
+                      })).map((r) => `reminder-${r.id}`)
+                    : [];
+
                 const orFilter = [
-                    ...(scheduleIdNodos.length > 0 ? [{ idNodo: { in: scheduleIdNodos } }] : []),
                     { idNodo: { startsWith: 'appt-confirm-' } },
+                    { idNodo: { startsWith: 'appt-reminder-' } },
+                    ...(validLegacyIds.length > 0 ? [{ idNodo: { in: validLegacyIds } }] : []),
                 ];
-                if (orFilter.length > 0) {
-                    await db.seguimiento.deleteMany({
-                        where: { instancia, remoteJid, OR: orFilter },
-                    });
-                }
+                await db.seguimiento.deleteMany({
+                    where: { instancia, remoteJid, OR: orFilter },
+                });
             }
         }
 

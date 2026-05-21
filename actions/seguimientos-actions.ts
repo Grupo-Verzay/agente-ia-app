@@ -142,6 +142,7 @@ export async function deleteAllSeguimientosByRemoteJid(remoteJid: string): Promi
         NOT: [
           { idNodo: { startsWith: "reminder-" } },
           { idNodo: { startsWith: "appt-confirm-" } },
+          { idNodo: { startsWith: "appt-reminder-" } },
           { idNodo: { startsWith: "camping-" } },
         ],
       },

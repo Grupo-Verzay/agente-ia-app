@@ -234,7 +234,7 @@ async function runPostAppointmentTasks({
 
       await db.seguimiento.create({
         data: {
-          idNodo: `reminder-${rem.id}`,
+          idNodo: `appt-reminder-${rem.id}`,
           serverurl: serverUrl,
           instancia: instanceName,
           apikey: instanceId,
