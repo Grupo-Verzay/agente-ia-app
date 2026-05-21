@@ -19,10 +19,11 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Loader2, Lock } from "lucide-react"
+import { toast } from "sonner"
 import { SubmitHandler, useForm } from "react-hook-form"
 import { FormInstanceConnectionValues, FormInstanceConnectionSchema } from '@/schema/connection'
 import { FaInstagram, FaFacebook, FaWhatsapp } from "react-icons/fa"
-import { useMemo, useCallback, useState } from "react"
+import { useMemo, useCallback } from "react"
 
 interface MinimalUser {
     onFacebook?: boolean
@@ -90,8 +91,6 @@ export const ConnectionCard = ({
     const isInstagram = type === 'instagram'
     const isFacebookOrInstagram = isFacebook || isInstagram
 
-    const [selectedAdapter, setSelectedAdapter] = useState<WhatsAppAdapter>('Whatsapp')
-
     // Hooks y Lógica
     const form = useForm<FormInstanceConnectionValues>({
         resolver: zodResolver(FormInstanceConnectionSchema),
@@ -107,20 +106,16 @@ export const ConnectionCard = ({
             if (checkNameAvailable) {
                 const exists = await checkNameAvailable(values.instanceName)
                 if (exists) {
-                    form.setError('instanceName', {
-                        type: 'manual',
-                        message: 'Este nombre ya está en uso. Elige otro.',
-                    })
+                    toast.error('El nombre de instancia ya está en uso. Contacta a tu administrador.')
                     return
                 }
             }
-            // Inyectar el adaptador seleccionado cuando es WhatsApp
             const finalValues = isWhatsapp
-                ? { ...values, instanceType: selectedAdapter }
+                ? { ...values, instanceType: 'Whatsapp' as WhatsAppAdapter }
                 : values
             handleSubmit(finalValues, ev)
         },
-        [handleSubmit, checkNameAvailable, form, isWhatsapp, selectedAdapter]
+        [handleSubmit, checkNameAvailable, isWhatsapp]
     )
 
     const isChannelEnabled = useMemo(() => {
@@ -193,50 +188,18 @@ export const ConnectionCard = ({
                             )}
                         />
 
-                        {/* Campo oculto para enviar el tipo de instancia */}
+                        {/* Campo oculto para el tipo de instancia */}
                         <FormField
                             control={form.control}
                             name="instanceType"
                             render={({ field }) => (
                                 <FormItem className="hidden">
                                     <FormControl>
-                                        <Input type="hidden" {...field} value={isWhatsapp ? selectedAdapter : instanceType} readOnly />
+                                        <Input type="hidden" {...field} value={isWhatsapp ? 'Whatsapp' : instanceType} readOnly />
                                     </FormControl>
                                 </FormItem>
                             )}
                         />
-
-                        {/* Selector de adaptador solo para WhatsApp */}
-                        {isWhatsapp && (
-                            <FormItem>
-                                <FormLabel>Conectar vía</FormLabel>
-                                <div className="flex gap-2">
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        variant={selectedAdapter === 'Whatsapp' ? 'default' : 'outline'}
-                                        className="flex-1"
-                                        onClick={() => setSelectedAdapter('Whatsapp')}
-                                    >
-                                        Evolution API
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        variant={selectedAdapter === 'baileys' ? 'default' : 'outline'}
-                                        className="flex-1"
-                                        onClick={() => setSelectedAdapter('baileys')}
-                                    >
-                                        Baileys
-                                    </Button>
-                                </div>
-                                {selectedAdapter === 'baileys' && (
-                                    <p className="text-xs text-muted-foreground">
-                                        Conexión directa sin Evolution API. Escanea el QR después de crear.
-                                    </p>
-                                )}
-                            </FormItem>
-                        )}
                     </CardContent>
 
                     <CardFooter>
