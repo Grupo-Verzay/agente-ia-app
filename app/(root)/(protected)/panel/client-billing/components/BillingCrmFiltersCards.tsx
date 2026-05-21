@@ -87,8 +87,7 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
     }, [data, soonDays]);
 
     function clearAllQuickFilters() {
-        table.getColumn("paid")?.setFilterValue(undefined);
-        table.getColumn("due")?.setFilterValue(undefined);
+        table.resetColumnFilters();
     }
 
     function setExclusiveFilter(colId: "paid" | "due", value: string) {
@@ -99,12 +98,12 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
 
         // Si ya está activo, se apaga y queda "Total"
         if (curr === value) {
-            clearAllQuickFilters();
+            table.resetColumnFilters();
             return;
         }
 
-        // Si no, limpiamos todo y activamos solo este
-        clearAllQuickFilters();
+        // Limpia TODOS los filtros de columna y aplica solo este
+        table.resetColumnFilters();
         col.setFilterValue(value);
     }
 
