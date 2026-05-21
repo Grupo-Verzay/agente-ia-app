@@ -612,7 +612,7 @@ export function LeadSeguimientosTab({
                       </span>
                     )}
                   </button>
-                  {mode === "all" && legacyItems.length > 0 && (
+                  {showLegacy && legacyItems.length > 0 && (
                     <button
                       type="button"
                       disabled={pendingAction !== null}
@@ -648,7 +648,7 @@ export function LeadSeguimientosTab({
                       <p className="text-sm font-medium">Recordatorios</p>
                       <Badge variant="outline" className="text-xs">{reminderItems.length}</Badge>
                     </button>
-                    {mode === "all" && reminderItems.length > 0 && (
+                    {showReminders && reminderItems.length > 0 && (
                       <button
                         type="button"
                         disabled={pendingAction !== null}
@@ -685,7 +685,7 @@ export function LeadSeguimientosTab({
                       <p className="text-sm font-medium">Citas</p>
                       <Badge variant="outline" className="text-xs">{appointmentItems.length}</Badge>
                     </button>
-                    {mode === "all" && activeCitasCount > 0 && (
+                    {showAppointments && activeCitasCount > 0 && (
                       <button
                         type="button"
                         disabled={pendingAction !== null}
@@ -725,7 +725,7 @@ export function LeadSeguimientosTab({
                         <span className="text-[11px] text-muted-foreground">(activos: {activeCount})</span>
                       )}
                     </button>
-                    {mode === "all" && (canCancel || canReactivate) && (
+                    {showCrm && (canCancel || canReactivate) && (
                       <div className="flex items-center gap-2 ml-2 shrink-0">
                         {canCancel && (
                           <button
