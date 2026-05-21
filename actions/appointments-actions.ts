@@ -4,7 +4,6 @@ import { db } from '@/lib/db';
 import { Appointment, AppointmentStatus } from '@prisma/client';
 import { parseISO, isBefore } from 'date-fns';
 import { registerSession } from './session-action';
-import { deleteReminderByInstanceUserRemote } from './seguimientos-actions';
 
 interface AppointmentOperationResponse {
     success: boolean;
@@ -258,43 +257,7 @@ export async function updateAppointmentStatus(
         const updated = await db.appointment.update({
             where: { id },
             data: { status },
-            include: {
-                session: true,
-            },
         });
-
-        if (status === 'CANCELADA') {
-            const userId = updated.userId;
-            const instanceName = updated.session.instanceId;
-            const remoteJid = updated.session.remoteJid;
-
-            if (instanceName && userId && remoteJid) {
-                const del = await deleteReminderByInstanceUserRemote(
-                    instanceName,
-                    userId,
-                    remoteJid
-                );
-
-                if (!del.success) {
-                    console.warn('[updateAppointmentStatus] No se pudieron eliminar seguimientos:', del.message);
-
-                    return {
-                        success: false,
-                        message: 'No se pudieron eliminar seguimientos.',
-                    };
-                }
-            } else {
-                console.warn(
-                    '[updateAppointmentStatus] Faltan datos para eliminar seguimientos:',
-                    { instanceName, userId, remoteJid }
-                );
-
-                return {
-                    success: false,
-                    message: 'Faltan datos para eliminar seguimientos.',
-                };
-            }
-        }
 
         return {
             success: true,
