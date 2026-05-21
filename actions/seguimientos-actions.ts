@@ -150,7 +150,8 @@ export async function deleteSeguimientoById(id: number): Promise<SeguimientosRes
 const PROTECTED_PREFIXES = ["reminder-", "appt-confirm-", "appt-reminder-", "camping-"];
 
 function isProtectedSeguimiento(idNodo: string | null): boolean {
-  if (!idNodo) return false;
+  // null = idNodo vacío (records viejos sin clasificar) → proteger del borrado masivo
+  if (!idNodo) return true;
   return PROTECTED_PREFIXES.some((p) => idNodo.startsWith(p));
 }
 
