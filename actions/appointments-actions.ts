@@ -260,22 +260,26 @@ export async function updateAppointmentStatus(
             include: { session: true },
         });
 
-        // Al cancelar: borrar solo los seguimientos creados automáticamente para esta cita
-        // (confirmación y recordatorios). Los seguimientos de flujos tienen idNodo distinto.
+        // Al cancelar: borrar solo los seguimientos de la cita.
+        // Los de agenda usan isSchedule=true en Reminders; los manuales no.
         if (status === 'CANCELADA') {
             const instancia = updated.session?.instanceId;
             const remoteJid = updated.session?.remoteJid;
             if (instancia && remoteJid) {
-                await db.seguimiento.deleteMany({
-                    where: {
-                        instancia,
-                        remoteJid,
-                        OR: [
-                            { idNodo: { startsWith: 'reminder-' } },
-                            { idNodo: { startsWith: 'appt-confirm-' } },
-                        ],
-                    },
+                const scheduleReminders = await db.reminders.findMany({
+                    where: { userId: updated.userId, isSchedule: true },
+                    select: { id: true },
                 });
+                const scheduleIdNodos = scheduleReminders.map((r) => `reminder-${r.id}`);
+                const orFilter = [
+                    ...(scheduleIdNodos.length > 0 ? [{ idNodo: { in: scheduleIdNodos } }] : []),
+                    { idNodo: { startsWith: 'appt-confirm-' } },
+                ];
+                if (orFilter.length > 0) {
+                    await db.seguimiento.deleteMany({
+                        where: { instancia, remoteJid, OR: orFilter },
+                    });
+                }
             }
         }
 

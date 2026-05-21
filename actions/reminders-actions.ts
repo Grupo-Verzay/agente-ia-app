@@ -234,7 +234,9 @@ export async function deleteReminder(id: string): Promise<ReminderResponse> {
     }
 
     try {
-        await db.reminders.delete({ where: { id } })
+        await db.reminders.delete({ where: { id } });
+        // Eliminar también el Seguimiento programado asociado a este recordatorio
+        await db.seguimiento.deleteMany({ where: { idNodo: `reminder-${id}` } });
 
         return {
             success: true,

@@ -134,7 +134,18 @@ export async function deleteSeguimientoById(id: number): Promise<SeguimientosRes
 
 export async function deleteAllSeguimientosByRemoteJid(remoteJid: string): Promise<SeguimientosResponse> {
   try {
-    const result = await db.seguimiento.deleteMany({ where: { remoteJid } });
+    // Solo elimina seguimientos de flujos. Excluye los de citas (appt-confirm-, reminder-)
+    // y de campañas (camping-) que tienen su propia lógica de borrado.
+    const result = await db.seguimiento.deleteMany({
+      where: {
+        remoteJid,
+        NOT: [
+          { idNodo: { startsWith: "reminder-" } },
+          { idNodo: { startsWith: "appt-confirm-" } },
+          { idNodo: { startsWith: "camping-" } },
+        ],
+      },
+    });
     return {
       success: true,
       message: result.count > 0
