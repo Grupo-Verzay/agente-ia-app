@@ -257,7 +257,27 @@ export async function updateAppointmentStatus(
         const updated = await db.appointment.update({
             where: { id },
             data: { status },
+            include: { session: true },
         });
+
+        // Al cancelar: borrar solo los seguimientos creados automáticamente para esta cita
+        // (confirmación y recordatorios). Los seguimientos de flujos tienen idNodo distinto.
+        if (status === 'CANCELADA') {
+            const instancia = updated.session?.instanceId;
+            const remoteJid = updated.session?.remoteJid;
+            if (instancia && remoteJid) {
+                await db.seguimiento.deleteMany({
+                    where: {
+                        instancia,
+                        remoteJid,
+                        OR: [
+                            { idNodo: { startsWith: 'reminder-' } },
+                            { idNodo: { startsWith: 'appt-confirm-' } },
+                        ],
+                    },
+                });
+            }
+        }
 
         return {
             success: true,
