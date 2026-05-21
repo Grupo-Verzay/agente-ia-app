@@ -142,6 +142,7 @@ export function ChatRegistrosSheet({
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab ?? "RESUMEN");
   const [agendaMode, setAgendaMode] = useState<"all" | "legacy" | "crm" | "reminders" | "appointments">("all");
+  const [sintesisExpanded, setSintesisExpanded] = useState(false);
 
   const goToAgenda = (mode: "legacy" | "reminders" | "appointments" | "crm") => {
     setAgendaMode(mode);
@@ -341,8 +342,19 @@ export function ChatRegistrosSheet({
                       )}
 
                       {sintesis && (
-                        <div className="rounded-md bg-background/70 border border-border/40 px-2.5 py-2 text-xs text-muted-foreground whitespace-pre-wrap">
-                          {sintesis}
+                        <div className="flex flex-col gap-1">
+                          <div
+                            className={`rounded-md bg-background/70 border border-border/40 px-2.5 py-2 text-xs text-muted-foreground whitespace-pre-wrap overflow-hidden transition-all duration-200 ${sintesisExpanded ? "" : "max-h-20"}`}
+                          >
+                            {sintesis}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSintesisExpanded((v) => !v)}
+                            className="self-end text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {sintesisExpanded ? "Ver menos ▲" : "Ver más ▼"}
+                          </button>
                         </div>
                       )}
 
