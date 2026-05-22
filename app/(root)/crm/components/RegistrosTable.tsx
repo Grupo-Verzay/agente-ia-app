@@ -132,7 +132,10 @@ export const RegistrosTable = ({
                                     </TableCell>
 
                                     <TableCell className="py-2 align-middle max-w-[240px]">
-                                        <span className="line-clamp-2 text-sm">
+                                        <span
+                                            className="line-clamp-2 text-sm cursor-default"
+                                            title={r.detalles || r.resumen || ""}
+                                        >
                                             {r.detalles || r.resumen || "Sin detalles"}
                                         </span>
                                     </TableCell>
