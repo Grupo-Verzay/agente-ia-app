@@ -195,7 +195,7 @@ export async function sendBaileysQuickReplyAction(
     return res.ok
       ? { success: true, message: 'Enviado.' }
       : { success: false, message: `Error ${res.status}.` };
-  } catch (err: any) {
+  } catch (err) {
     return { success: false, message: err?.message ?? 'Error al enviar respuesta rápida.' };
   }
 }
