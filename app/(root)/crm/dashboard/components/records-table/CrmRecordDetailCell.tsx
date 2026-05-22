@@ -113,12 +113,12 @@ export function CrmRecordDetailCell({
                     <TooltipContent
                         side="top"
                         align="start"
-                        className="max-w-[320px] space-y-1 rounded-xl border border-border/60 bg-background p-3 text-foreground shadow-md"
+                        className="w-96 max-h-64 overflow-y-auto space-y-1 rounded-xl border border-border/60 bg-background p-3 text-foreground shadow-md"
                     >
                         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                             Detalle
                         </p>
-                        <p className="whitespace-pre-wrap text-xs leading-relaxed">
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed">
                             {detalle}
                         </p>
                     </TooltipContent>
