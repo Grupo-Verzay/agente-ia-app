@@ -9,7 +9,7 @@ import { ProductForm } from './ProductForm'
 import { ProductTable } from './ProductTable'
 import { MainProductsProps } from '@/types/products'
 
-export const MainProducts = ({ userId, data, initialFilter = '' }: MainProductsProps) => {
+export const MainProducts = ({ userId, data, initialFilter = '', limitInfo }: MainProductsProps) => {
     const [filter, setFilter] = useState(initialFilter)
     const router = useRouter()
     const pathname = usePathname() ?? '/'
@@ -49,7 +49,14 @@ export const MainProducts = ({ userId, data, initialFilter = '' }: MainProductsP
                         onChange={(e) => setFilter(e.target.value)}
                     />
                 </div>
-                <ProductForm userId={userId} />
+                <div className="flex items-center gap-3">
+                    {limitInfo && (
+                        <span className={`text-xs font-medium ${limitInfo.reached ? 'text-destructive' : 'text-muted-foreground'}`}>
+                            {limitInfo.current}/{limitInfo.limit} productos
+                        </span>
+                    )}
+                    <ProductForm userId={userId} disabled={limitInfo?.reached} />
+                </div>
             </div>
 
             <ProductTable data={data} userId={userId} />

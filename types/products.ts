@@ -19,6 +19,13 @@ export interface ProductTableInterface {
     userId: string;
 };
 
+export interface ProductLimitInfo {
+    current: number;
+    limit: number;
+    reached: boolean;
+}
+
 export interface MainProductsProps extends ProductTableInterface {
-    initialFilter?: string
+    initialFilter?: string;
+    limitInfo?: ProductLimitInfo;
 };

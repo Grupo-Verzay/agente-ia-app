@@ -1,5 +1,5 @@
 ﻿// app/(dashboard)/products/page.tsx
-import { listProducts } from "@/actions/products-actions";
+import { listProducts, getProductLimitInfo } from "@/actions/products-actions";
 import { Suspense } from "react";
 import { currentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -16,11 +16,14 @@ export default async function ProductsPage({
     const effectiveId = user.effectiveId;
     const q = searchParams?.q ?? "";
     const page = Number(searchParams?.page ?? 1);
-    const data = await listProducts({ userId: effectiveId, q, page, perPage: 20 });
+    const [data, limitInfo] = await Promise.all([
+        listProducts({ userId: effectiveId, q, page, perPage: 20 }),
+        getProductLimitInfo(effectiveId),
+    ]);
 
     return (
         <Suspense fallback={<div>Cargando…</div>}>
-            <MainProducts data={data} userId={effectiveId} initialFilter={q} />
+            <MainProducts data={data} userId={effectiveId} initialFilter={q} limitInfo={limitInfo} />
         </Suspense>
     );
 }

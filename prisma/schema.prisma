@@ -443,6 +443,7 @@ model User {
   muteAgentResponses                 Boolean                      @default(false)
   timezone                           String?
   meetingDuration                    Int?
+  productLimit                       Int?
   onFacebook                         Boolean                      @default(false)
   onInstagram                        Boolean                      @default(false)
   aiModelId                          String?

@@ -32,4 +32,5 @@ export interface ProductFormInterface {
     userId: string;
     product?: Partial<ProductInput> & { id?: string };
     variant?: "button" | "icon";
+    disabled?: boolean;
 }

@@ -20,6 +20,7 @@ export const ProductForm = ({
     userId,
     product,
     variant = "button",
+    disabled = false,
 }: ProductFormInterface) => {
     const [open, setOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
@@ -144,7 +145,8 @@ export const ProductForm = ({
         ) : (
             <Button
                 onClick={() => setOpen(true)}
-                className=""
+                disabled={disabled}
+                title={disabled ? "Límite de productos alcanzado para tu plan" : undefined}
             >
                + Agregar producto
             </Button>

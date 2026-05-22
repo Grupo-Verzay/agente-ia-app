@@ -5,7 +5,27 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { listParams, productSchema } from "@/lib/validators/product";
 import { db } from "@/lib/db"; // tu prisma client
-import { Prisma } from "@prisma/client";
+import { Prisma, Plan } from "@prisma/client";
+
+const PLAN_PRODUCT_LIMITS: Record<Plan, number> = {
+    basico:       10,
+    intermedio:   25,
+    avanzado:     50,
+    lite:         10,
+    unico:        25,
+    enterprise:   200,
+    personalizado: 50,
+};
+
+async function getProductLimit(userId: string): Promise<number> {
+    const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { plan: true, productLimit: true },
+    });
+    if (!user) return 10;
+    if (user.productLimit != null) return user.productLimit;
+    return PLAN_PRODUCT_LIMITS[user.plan] ?? 10;
+}
 
 export async function listProducts(raw: z.input<typeof listParams>) {
     const { userId, q, page, perPage, onlyActive } = listParams.parse(raw);
@@ -44,13 +64,22 @@ export async function listProducts(raw: z.input<typeof listParams>) {
 export async function createProduct(raw: unknown) {
     const input = productSchema.omit({ id: true }).parse(raw);
 
-    // 1️⃣ Verificar si el SKU ya existe
+    // 1️⃣ Verificar límite de productos
+    const [limit, current] = await Promise.all([
+        getProductLimit(input.userId),
+        db.product.count({ where: { userId: input.userId } }),
+    ]);
+
+    if (current >= limit) {
+        throw new Error(`Límite de ${limit} productos alcanzado para tu plan.`);
+    }
+
+    // 2️⃣ Verificar si el SKU ya existe
     const existingProduct = await db.product.findFirst({
         where: { sku: input.sku, userId: input.userId },
     });
 
     if (existingProduct) {
-        // Si ya existe el SKU, lanzar un error o mensaje
         throw new Error("El SKU ya está registrado");
     }
 
@@ -100,9 +129,17 @@ export async function updateProduct(id: string, raw: unknown) {
 }
 
 export async function deleteProduct(id: string, userId: string) {
-    await db.product.delete({ where: { id } });
+    await db.product.deleteMany({ where: { id, userId } });
     revalidatePath("/products");
     return { ok: true };
+}
+
+export async function getProductLimitInfo(userId: string) {
+    const [limit, current] = await Promise.all([
+        getProductLimit(userId),
+        db.product.count({ where: { userId } }),
+    ]);
+    return { current, limit, reached: current >= limit };
 }
 
 export async function checkIfSkuExists(sku: string, userId: string) {

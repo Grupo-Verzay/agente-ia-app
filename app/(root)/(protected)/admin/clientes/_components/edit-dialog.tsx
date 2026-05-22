@@ -133,7 +133,8 @@ export const EditDialog = ({
     { id: "webhookUrl",  label: "Webhook",      defaultValue: user.webhookUrl,    readOnly: false },
     { id: "apiKeyId",    label: "Evo Api",      defaultValue: user.apiKeyId,      readOnly: false },
     { id: "apiKeyIa",    label: "Api Key IA",   defaultValue: null,               readOnly: false },
-    { id: "timezone",    label: "Zona horaria", defaultValue: user.timezone,      readOnly: false },
+    { id: "timezone",      label: "Zona horaria",    defaultValue: user.timezone,        readOnly: false },
+    { id: "productLimit",  label: "Límite productos", defaultValue: user.productLimit ?? null, readOnly: false },
   ];
 
   /* Ocultar/mostrar fields para reseller */
