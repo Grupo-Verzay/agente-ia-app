@@ -52,12 +52,12 @@ function EstadoSelect({
 
     return (
         <Select value={registro.estado ?? ""} onValueChange={handleChange} disabled={saving}>
-            <SelectTrigger className="h-7 w-[130px] text-xs">
+            <SelectTrigger className="h-8 w-[130px] text-sm">
                 <SelectValue placeholder="Estado" />
             </SelectTrigger>
             <SelectContent>
                 {options.map((op) => (
-                    <SelectItem key={op} value={op} className="text-xs">
+                    <SelectItem key={op} value={op} className="text-sm">
                         {op}
                     </SelectItem>
                 ))}
@@ -127,12 +127,12 @@ export const RegistrosTable = ({
 
                             {registros.map((r) => (
                                 <TableRow key={r.id} className="hover:bg-accent/40">
-                                    <TableCell className="py-2 align-middle whitespace-nowrap text-xs">
+                                    <TableCell className="py-2 align-middle whitespace-nowrap text-sm">
                                         {formatFecha(r.fecha || "")}
                                     </TableCell>
 
                                     <TableCell className="py-2 align-middle max-w-[240px]">
-                                        <span className="line-clamp-2 text-xs">
+                                        <span className="line-clamp-2 text-sm">
                                             {r.detalles || r.resumen || "Sin detalles"}
                                         </span>
                                     </TableCell>
