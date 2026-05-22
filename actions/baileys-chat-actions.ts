@@ -167,11 +167,26 @@ export async function sendBaileysTextAction(
 }
 
 export async function sendBaileysWorkflowAction(
-  _instanceName: string,
-  _remoteJid: string,
-  _workflowId: string,
+  instanceName: string,
+  remoteJid: string,
+  workflowId: string,
 ): Promise<ChatToolActionResult> {
-  return { success: false, message: 'Workflows manuales no disponibles en modo Baileys.' };
+  try {
+    const res = await fetch(
+      `${backendUrl()}/whatsapp/baileys/run-workflow/${encodeURIComponent(instanceName)}`,
+      {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ remoteJid, workflowId }),
+        cache: 'no-store',
+      },
+    );
+    if (!res.ok) return { success: false, message: `Error ${res.status} al ejecutar flujo.` };
+    const data = await res.json();
+    return { success: true, message: 'Flujo enviado.', data };
+  } catch (err: any) {
+    return { success: false, message: err?.message ?? 'Error al ejecutar flujo.' };
+  }
 }
 
 export async function sendBaileysQuickReplyAction(
@@ -181,21 +196,37 @@ export async function sendBaileysQuickReplyAction(
 ): Promise<ChatToolActionResult> {
   try {
     const rr = await db.quickReply.findUnique({ where: { id: quickReplyId } });
-    if (!rr?.mensaje?.trim()) return { success: false, message: 'Respuesta rápida no encontrada.' };
+    if (!rr) return { success: false, message: 'Respuesta rápida no encontrada.' };
 
-    const res = await fetch(
-      `${backendUrl()}/whatsapp/baileys/send/${encodeURIComponent(instanceName)}`,
-      {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ remoteJid, text: rr.mensaje.trim() }),
-        cache: 'no-store',
-      },
-    );
-    return res.ok
-      ? { success: true, message: 'Enviado.' }
-      : { success: false, message: `Error ${res.status}.` };
-  } catch (err) {
+    const hasText = !!rr.mensaje?.trim();
+    const hasWorkflow = !!rr.workflowId;
+
+    if (!hasText && !hasWorkflow) {
+      return { success: false, message: 'La respuesta rápida no tiene mensaje ni flujo configurado.' };
+    }
+
+    // 1. Enviar texto si existe
+    if (hasText) {
+      const res = await fetch(
+        `${backendUrl()}/whatsapp/baileys/send/${encodeURIComponent(instanceName)}`,
+        {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ remoteJid, text: rr.mensaje!.trim() }),
+          cache: 'no-store',
+        },
+      );
+      if (!res.ok) return { success: false, message: `Error ${res.status} al enviar texto.` };
+    }
+
+    // 2. Ejecutar flujo si existe
+    if (hasWorkflow) {
+      const workflowResult = await sendBaileysWorkflowAction(instanceName, remoteJid, rr.workflowId!);
+      if (!workflowResult.success) return workflowResult;
+    }
+
+    return { success: true, message: 'Respuesta rápida enviada correctamente.' };
+  } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al enviar respuesta rápida.' };
   }
 }
