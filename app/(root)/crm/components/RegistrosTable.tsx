@@ -141,7 +141,7 @@ export const RegistrosTable = ({
                                                     </span>
                                                 </TooltipTrigger>
                                                 {(r.detalles || r.resumen) && (
-                                                    <TooltipContent side="bottom" align="start" className="max-w-xs whitespace-pre-wrap text-xs">
+                                                    <TooltipContent side="bottom" align="start" className="w-96 max-h-64 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed p-3">
                                                         {r.detalles || r.resumen}
                                                     </TooltipContent>
                                                 )}
