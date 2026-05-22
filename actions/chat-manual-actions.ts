@@ -503,54 +503,71 @@ export async function sendManualQuickReplyAction(
     },
   });
 
-  const message = quickReply?.mensaje?.trim() ?? "";
-  if (!quickReply || !message) {
+  if (!quickReply) {
     return {
       success: false,
       message: "La respuesta rapida seleccionada no existe o no pertenece al usuario.",
     };
   }
 
-  const workflow = quickReply.workflowId
-    ? await db.workflow.findFirst({
-        where: {
-          id: quickReply.workflowId,
-          userId: effectiveId,
-        },
-        select: {
-          name: true,
-        },
-      })
-    : null;
+  const message = quickReply.mensaje?.trim() ?? "";
+  const hasText = message.length > 0;
+  const hasWorkflow = !!quickReply.workflowId;
 
-  const result = await sendOutgoingPayload({
-    context,
-    remoteJid,
-    payload: {
-      kind: "text",
-      text: message,
-    },
-    source: "manual_chat_quick_reply",
-    historyType: "notification",
-    metadata: {
-      quickReplyId: quickReply.id,
-      workflowId: quickReply.workflowId,
-      workflowName: workflow?.name ?? null,
-    },
-  });
-
-  if (!result.success) {
+  if (!hasText && !hasWorkflow) {
     return {
       success: false,
-      message: result.message,
+      message: "La respuesta rapida no tiene mensaje ni flujo configurado.",
     };
+  }
+
+  // 1. Enviar texto si existe
+  if (hasText) {
+    const textResult = await sendOutgoingPayload({
+      context,
+      remoteJid,
+      payload: { kind: "text", text: message },
+      source: "manual_chat_quick_reply",
+      historyType: "notification",
+      metadata: { quickReplyId: quickReply.id, workflowId: quickReply.workflowId },
+    });
+    if (!textResult.success) return textResult;
+  }
+
+  // 2. Ejecutar el flujo si existe, y registrar la intención para que el
+  //    webhook no lo vuelva a disparar cuando el cliente responda.
+  if (hasWorkflow) {
+    const workflow = await db.workflow.findFirst({
+      where: { id: quickReply.workflowId!, userId: effectiveId },
+      select: { id: true, name: true },
+    });
+
+    if (!workflow) {
+      return { success: false, message: "El flujo asociado no existe o no pertenece al usuario." };
+    }
+
+    const workflowResult = await sendManualWorkflowAction(context, remoteJid, workflow.id);
+    if (!workflowResult.success) return workflowResult;
+
+    // Registrar intención en n8nChatHistory para que hasIntentionBeenExecuted
+    // devuelva true en el webhook y no re-ejecute el flujo automáticamente.
+    const sessionHistoryId = buildChatHistorySessionId(context!.instanceName, remoteJid);
+    await db.n8nChatHistory.create({
+      data: {
+        sessionId: sessionHistoryId,
+        message: {
+          type: "intention",
+          name: workflow.name,
+          tipo: "intention",
+          executedAt: new Date().toISOString(),
+        },
+      },
+    });
   }
 
   return {
     success: true,
     message: "Respuesta rapida enviada correctamente.",
-    data: {
-      sentCount: 1,
-    },
+    data: { sentCount: 1 },
   };
 }
