@@ -344,7 +344,7 @@ export function ChatRegistrosSheet({
                       {sintesis && (
                         <div className="flex flex-col gap-1">
                           <div
-                            className={`rounded-md bg-background/70 border border-border/40 px-2.5 py-2 text-xs text-muted-foreground whitespace-pre-wrap overflow-hidden transition-all duration-200 ${sintesisExpanded ? "" : "max-h-20"}`}
+                            className={`rounded-md bg-background/70 border border-border/40 px-2.5 py-2 text-sm text-muted-foreground whitespace-pre-wrap overflow-hidden transition-all duration-200 ${sintesisExpanded ? "" : "max-h-24"}`}
                           >
                             {sintesis}
                           </div>
