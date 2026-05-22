@@ -13,7 +13,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Pencil, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { nanoid } from "nanoid";
 import { optimizeFile } from "../../workflow/[workflowId]/helpers";
 import { SafeImage } from "@/components/custom/SafeImage";
 
@@ -26,7 +25,8 @@ export const ProductForm = ({
     const [isPending, startTransition] = useTransition();
     const [isSkuDuplicate, setIsSkuDuplicate] = useState(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
-    const [imageUploaded, setImageUploaded] = useState<string | null>(null); // Para almacenar la URL de la imagen
+    const [uploadingImage, setUploadingImage] = useState(false);
+    const [priceDisplay, setPriceDisplay] = useState('');
 
     const form = useForm<ProductInput>({
         resolver: zodResolver(productSchema),
@@ -35,7 +35,7 @@ export const ProductForm = ({
             title: product?.title ?? "",
             description: product?.description ?? "",
             price: product?.price != null ? Number(product.price) : 0,
-            sku: product?.sku ?? nanoid(),
+            sku: product?.sku ?? "",
             stock: product?.stock ?? 0,
             isActive: product?.isActive ?? true,
             images: (product?.images ?? []) as string[],
@@ -66,7 +66,7 @@ export const ProductForm = ({
             title: product?.title ?? "",
             description: product?.description ?? "",
             price: product?.price != null ? Number(product.price) : 0,
-            sku: product?.sku ?? nanoid(),
+            sku: product?.sku ?? "",
             stock: product?.stock ?? 0,
             isActive: product?.isActive ?? true,
             images: (product?.images ?? []) as string[],
@@ -74,53 +74,46 @@ export const ProductForm = ({
             category: product?.category ?? "",
             tags: product?.tags ?? [],
         });
-        setImagePreview(product?.images?.[0] ?? null); // Mostrar imagen previa si existe
-        setImageUploaded(product?.images?.[0] ?? null);  // Almacenar la imagen cargada en el estado
+        setImagePreview(product?.images?.[0] ?? null);
+        const initialPrice = product?.price != null ? Number(product.price) : 0;
+        setPriceDisplay(initialPrice > 0 ? initialPrice.toLocaleString('es-CO') : '');
     }, [open, product, userId, form]);
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (!file || !userId) {
-            toast.error('No hay archivo seleccionado');
-            return;
-        }
+        if (!file || !userId) return;
 
+        setUploadingImage(true);
         const toastId = toast.loading('Subiendo imagen...');
         try {
             const content = await file.arrayBuffer();
-            const plainFile = {
-                name: file.name,
-                size: file.size,
-                type: file.type,
-                content: Array.from(new Uint8Array(content))
-            };
+            const plainFile = { name: file.name, size: file.size, type: file.type, content: Array.from(new Uint8Array(content)) };
             const optimizedFile = await optimizeFile(plainFile);
-            const optimizedBuffer = new Uint8Array(optimizedFile.buffer);
-            const blob = new Blob([optimizedBuffer], { type: optimizedFile.type });
+            const blob = new Blob([new Uint8Array(optimizedFile.buffer)], { type: optimizedFile.type });
 
             const formData = new FormData();
             formData.append('file', blob);
             formData.append('userID', userId);
 
             const res = await fetch('/api/upload-products', { method: 'POST', body: formData });
-
             if (!res.ok) throw new Error(await res.text());
-
             const { url } = await res.json();
+
             form.setValue("images", [url]);
             setImagePreview(url);
-            setImageUploaded(url);
-
             toast.success('Imagen cargada', { id: toastId });
-        } catch (error) {
-            toast.error(error?.message || 'Error al subir la imagen', { id: toastId });
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : 'Error al subir imagen';
+            toast.error(msg, { id: toastId });
+        } finally {
+            setUploadingImage(false);
+            e.target.value = '';
         }
     };
 
-    const handleImageDelete = () => {
-        form.setValue("images", []); // Limpiar el campo de imagen
-        setImagePreview(null); // Limpiar vista previa
-        setImageUploaded(null); // Limpiar URL almacenada
+    const handleImageRemove = () => {
+        form.setValue("images", []);
+        setImagePreview(null);
     };
 
     const onSubmit = form.handleSubmit(async (values) => {
@@ -166,77 +159,114 @@ export const ProductForm = ({
             }
         }}>
             <DialogTrigger asChild>{Trigger}</DialogTrigger>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>{product?.id ? "Editar producto" : "Nuevo producto"}</DialogTitle>
+                    <div className="flex items-center justify-between pr-6">
+                        <DialogTitle>{product?.id ? "Editar producto" : "Nuevo producto"}</DialogTitle>
+                        <div className="flex items-center gap-2">
+                            <Switch
+                                id="isActive"
+                                checked={form.watch("isActive")}
+                                onCheckedChange={(v) => form.setValue("isActive", v)}
+                            />
+                            <Label htmlFor="isActive" className="cursor-pointer text-sm whitespace-nowrap">
+                                {form.watch("isActive") ? "Activo" : "Inactivo"}
+                            </Label>
+                        </div>
+                    </div>
                 </DialogHeader>
                 <form onSubmit={onSubmit} className="space-y-4">
-                    <div className="flex flex-col gap-2">
-                        <Label>Nombre</Label>
-                        <Input {...form.register("title")} placeholder="Nombre del producto" />
+                    <div className="flex flex-col gap-3">
 
-                        <div className="flex flex-row justify-between gap-2">
-                            <div className="flex w-full flex-col gap-2">
+                        {/* Nombre — Precio */}
+                        <div className="flex gap-3">
+                            <div className="flex w-full flex-col gap-1.5">
+                                <Label>Nombre del producto</Label>
+                                <Input {...form.register("title")} placeholder="Nombre del producto" />
+                            </div>
+                            <div className="flex w-full flex-col gap-1.5">
                                 <Label>Precio</Label>
-                                <Input
-                                    type="number"
-                                    step="0.01"
-                                    {...form.register("price", { valueAsNumber: true })}
-                                />
-                            </div>
-
-                            <div className="flex w-full flex-col gap-2">
-                                <Label>Stock</Label>
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    {...form.register("stock", { valueAsNumber: true })}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex flex-row justify-between gap-2">
-                            <div className="flex w-full flex-col gap-2">
-                                <Label>Categoría</Label>
-                                <Input {...form.register("category")} placeholder="Categoría del producto" />
-                            </div>
-
-                            <div className="flex w-full flex-col gap-2 justify-end">
-                                <div className="flex items-center gap-2 h-10">
-                                    <Switch
-                                        id="isActive"
-                                        checked={form.watch("isActive")}
-                                        onCheckedChange={(v) => form.setValue("isActive", v)}
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                                    <Input
+                                        className="pl-6"
+                                        inputMode="numeric"
+                                        value={priceDisplay}
+                                        placeholder="0"
+                                        onChange={(e) => {
+                                            const raw = e.target.value.replace(/\D/g, '');
+                                            const num = raw ? parseInt(raw, 10) : 0;
+                                            setPriceDisplay(num > 0 ? num.toLocaleString('es-CO') : '');
+                                            form.setValue('price', num);
+                                        }}
                                     />
-                                    <Label htmlFor="isActive" className="cursor-pointer">
-                                        {form.watch("isActive") ? "Activo" : "Inactivo"}
-                                    </Label>
                                 </div>
                             </div>
                         </div>
 
-                        <Label>Descripción</Label>
-                        <Textarea rows={4} {...form.register("description")} placeholder="Detalles, características…" />
-
-                        <Label>Imagen</Label>
-                        <Input type="file" accept="image/*" onChange={handleImageUpload} />
-                        {imagePreview && (
-                            <div className="flex justify-center items-center mt-2">
-                                <SafeImage src={imagePreview} alt="Vista previa" className="w-32" />
-                                <Button type="button" variant={"destructive"} onClick={handleImageDelete} className="ml-2">
-                                    Eliminar imagen
-                                </Button>
+                        {/* Categoría — Código */}
+                        <div className="flex gap-3">
+                            <div className="flex w-full flex-col gap-1.5">
+                                <Label>Categoría</Label>
+                                <Input {...form.register("category")} placeholder="Ej: Zapatos" />
                             </div>
-                        )}
+                            <div className="flex w-full flex-col gap-1.5">
+                                <Label>Código</Label>
+                                <Input {...form.register("sku")} placeholder="Ej: SAD005" className="font-mono" />
+                            </div>
+                        </div>
 
-                        <div className="flex justify-end gap-2">
+                        {/* Descripción */}
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Descripción</Label>
+                            <Textarea rows={4} {...form.register("description")} placeholder={"Características del producto:\n- Material\n- Talla\n- Color"} />
+                        </div>
+
+                        {/* Imagen */}
+                        <div className="flex flex-col gap-1.5">
+                            <div className="relative group aspect-square w-40 mx-auto rounded-lg overflow-hidden border bg-muted flex items-center justify-center">
+                                {!imagePreview ? (
+                                    <label className="flex flex-col items-center justify-center w-full h-full cursor-pointer gap-1 text-muted-foreground hover:text-foreground transition-colors">
+                                        <span className="text-2xl leading-none">+</span>
+                                        <span className="text-xs">Subir imagen</span>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            disabled={uploadingImage}
+                                            onChange={handleImageUpload}
+                                            className="sr-only"
+                                        />
+                                    </label>
+                                ) : (
+                                    <>
+                                        <SafeImage
+                                            src={imagePreview}
+                                            alt="Vista previa"
+                                            className="max-w-full max-h-full object-contain p-1"
+                                        />
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors" />
+                                        <button
+                                            type="button"
+                                            onClick={handleImageRemove}
+                                            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <span className="bg-destructive text-destructive-foreground rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold shadow-lg">
+                                                ✕
+                                            </span>
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Acciones */}
+                        <div className="flex justify-between gap-2 pt-3 border-t">
                             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
                                 Cancelar
                             </Button>
                             <Button variant="save" type="submit" disabled={isPending}>
                                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                {product?.id ? "Guardar cambios" : "Guardar"}
+                                Guardar
                             </Button>
                         </div>
                     </div>
