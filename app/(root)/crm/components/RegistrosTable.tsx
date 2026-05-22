@@ -16,6 +16,7 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getEstadoOptions } from "../dashboard/helpers";
 import { updateRegistroEstado } from "@/actions/registro-action";
 import { toast } from "sonner";
@@ -132,12 +133,20 @@ export const RegistrosTable = ({
                                     </TableCell>
 
                                     <TableCell className="py-2 align-middle max-w-[240px]">
-                                        <span
-                                            className="line-clamp-2 text-sm cursor-default"
-                                            title={r.detalles || r.resumen || ""}
-                                        >
-                                            {r.detalles || r.resumen || "Sin detalles"}
-                                        </span>
+                                        <TooltipProvider delayDuration={300}>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <span className="line-clamp-2 text-sm cursor-default">
+                                                        {r.detalles || r.resumen || "Sin detalles"}
+                                                    </span>
+                                                </TooltipTrigger>
+                                                {(r.detalles || r.resumen) && (
+                                                    <TooltipContent side="bottom" align="start" className="max-w-xs whitespace-pre-wrap text-xs">
+                                                        {r.detalles || r.resumen}
+                                                    </TooltipContent>
+                                                )}
+                                            </Tooltip>
+                                        </TooltipProvider>
                                     </TableCell>
 
                                     <TableCell className="py-2 align-middle text-center">
