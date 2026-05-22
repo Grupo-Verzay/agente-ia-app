@@ -167,66 +167,11 @@ export async function sendBaileysTextAction(
 }
 
 export async function sendBaileysWorkflowAction(
-  instanceName: string,
-  remoteJid: string,
-  workflowId: string,
+  _instanceName: string,
+  _remoteJid: string,
+  _workflowId: string,
 ): Promise<ChatToolActionResult> {
-  try {
-    const nodes = await db.workflowNode.findMany({
-      where: { workflowId },
-      orderBy: { order: 'asc' },
-    });
-
-    console.log(`[Baileys][Workflow] workflowId=${workflowId} nodos=${nodes.length}`, nodes.map(n => ({ id: n.id, tipo: n.tipo, hasMsg: !!n.message?.trim(), hasUrl: !!n.url?.trim() })));
-
-    if (nodes.length === 0) {
-      return { success: false, message: `El flujo no tiene nodos (workflowId: ${workflowId}).` };
-    }
-
-    let sent = 0;
-    for (const node of nodes) {
-      const tipo = (node.tipo ?? '').trim().toLowerCase();
-
-      let body: Record<string, string> | null = null;
-
-      if (tipo === 'text') {
-        const text = (node.message ?? '').trim();
-        if (text) body = { remoteJid, text };
-      } else if (tipo === 'audio') {
-        const audioUrl = (node.url as string | null)?.trim();
-        if (audioUrl) body = { remoteJid, audioUrl };
-      } else if (['image', 'video', 'document'].includes(tipo)) {
-        const audioUrl = (node.url as string | null)?.trim();
-        if (audioUrl) body = { remoteJid, audioUrl };
-      }
-
-      console.log(`[Baileys][Workflow] nodo tipo=${tipo} body=${body ? JSON.stringify(body).substring(0, 80) : 'SKIPPED'}`);
-
-      if (!body) continue;
-
-      const res = await fetch(
-        `${backendUrl()}/whatsapp/baileys/send/${encodeURIComponent(instanceName)}`,
-        {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify(body),
-          cache: 'no-store',
-        },
-      );
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        console.error(`[Baileys][Workflow] Error HTTP ${res.status} enviando nodo ${node.id}: ${errText}`);
-        return { success: false, message: `Error ${res.status} enviando nodo tipo=${tipo}: ${errText}` };
-      }
-      sent++;
-    }
-
-    console.log(`[Baileys][Workflow] Completado. sent=${sent}`);
-    return { success: true, message: 'Flujo enviado.', data: { sent } };
-  } catch (err: any) {
-    console.error('[Baileys][Workflow] Excepción:', err);
-    return { success: false, message: err?.message ?? 'Error al ejecutar flujo.' };
-  }
+  return { success: false, message: 'Workflows manuales no disponibles en modo Baileys.' };
 }
 
 export async function sendBaileysQuickReplyAction(
@@ -236,36 +181,20 @@ export async function sendBaileysQuickReplyAction(
 ): Promise<ChatToolActionResult> {
   try {
     const rr = await db.quickReply.findUnique({ where: { id: quickReplyId } });
-    if (!rr) return { success: false, message: 'Respuesta rápida no encontrada.' };
+    if (!rr?.mensaje?.trim()) return { success: false, message: 'Respuesta rápida no encontrada.' };
 
-    const hasText = !!rr.mensaje?.trim();
-    const hasWorkflow = !!rr.workflowId;
-
-    if (!hasText && !hasWorkflow) {
-      return { success: false, message: 'La respuesta rápida no tiene mensaje ni flujo configurado.' };
-    }
-
-    // 1. Enviar texto si existe
-    if (hasText) {
-      const res = await fetch(
-        `${backendUrl()}/whatsapp/baileys/send/${encodeURIComponent(instanceName)}`,
-        {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({ remoteJid, text: rr.mensaje!.trim() }),
-          cache: 'no-store',
-        },
-      );
-      if (!res.ok) return { success: false, message: `Error ${res.status} al enviar texto.` };
-    }
-
-    // 2. Ejecutar flujo si existe
-    if (hasWorkflow) {
-      const workflowResult = await sendBaileysWorkflowAction(instanceName, remoteJid, rr.workflowId!);
-      if (!workflowResult.success) return workflowResult;
-    }
-
-    return { success: true, message: 'Respuesta rápida enviada correctamente.' };
+    const res = await fetch(
+      `${backendUrl()}/whatsapp/baileys/send/${encodeURIComponent(instanceName)}`,
+      {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ remoteJid, text: rr.mensaje.trim() }),
+        cache: 'no-store',
+      },
+    );
+    return res.ok
+      ? { success: true, message: 'Enviado.' }
+      : { success: false, message: `Error ${res.status}.` };
   } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al enviar respuesta rápida.' };
   }
