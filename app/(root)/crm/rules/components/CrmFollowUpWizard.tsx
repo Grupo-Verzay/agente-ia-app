@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ChevronLeft,
     ChevronRight,
+    Images,
     Loader2,
     RotateCcw,
     Settings2,
@@ -29,8 +30,10 @@ import { cn, SERVER_TIME_ZONE } from "@/lib/utils";
 import { getLeadStatusLabel } from "../../dashboard/helpers";
 import { LoadingState } from "./LoadingState";
 import { CrmWizardStep, CrmWizardStepper } from "./CrmWizardStepper";
+import { CrmFollowUpMediaLibrary } from "./CrmFollowUpMediaLibrary";
 
 type CrmFollowUpWizardProps = {
+    userId: string;
     rules: CrmFollowUpRuleConfig[];
     loading: boolean;
     timezone: string | null;
@@ -138,6 +141,7 @@ function DelayTimeInput({
 }
 
 export function CrmFollowUpWizard({
+    userId,
     rules,
     loading,
     timezone,
@@ -170,6 +174,7 @@ export function CrmFollowUpWizard({
     );
 
     const [currentStep, setCurrentStep] = useState<string>(steps[0]?.id ?? "summary");
+    const [mediaExpanded, setMediaExpanded] = useState(false);
 
     const stepIndex = steps.findIndex((step) => step.id === currentStep);
     const canGoBack = stepIndex > 0;
@@ -278,6 +283,14 @@ export function CrmFollowUpWizard({
                         </div>
 
                         <div className="flex items-center gap-3">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onResetRuleToDefault(leadStatus)}
+                            >
+                                <RotateCcw className="mr-2 h-4 w-4" />
+                                Restaurar defaults
+                            </Button>
                             <Label
                                 htmlFor={`rule-enabled-${leadStatus}`}
                                 className="text-sm"
@@ -436,16 +449,28 @@ export function CrmFollowUpWizard({
                         </div>
                     </div>
 
-                    <div className="flex justify-end">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onResetRuleToDefault(leadStatus)}
+                    <div className="space-y-3">
+                        <button
+                            type="button"
+                            onClick={() => setMediaExpanded((v) => !v)}
+                            className="flex w-full items-center gap-2 rounded-xl border border-border/70 bg-muted/20 px-4 py-3 text-sm font-medium hover:bg-muted/40 transition-colors"
                         >
-                            <RotateCcw className="mr-2 h-4 w-4" />
-                            Restaurar defaults
-                        </Button>
+                            <Images className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            <span className="flex-1 text-left">Biblioteca de remarketing</span>
+                            <span className="text-xs text-muted-foreground">
+                                {mediaExpanded ? "Ocultar" : "Gestionar archivos por estado"}
+                            </span>
+                        </button>
+
+                        {mediaExpanded && (
+                            <CrmFollowUpMediaLibrary
+                                userId={userId}
+                                leadStatus={leadStatus as any}
+                                disabled={!currentRule.enabled}
+                            />
+                        )}
                     </div>
+
                 </CardContent>
             </Card>
         );
