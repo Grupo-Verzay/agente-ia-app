@@ -172,18 +172,44 @@ export async function sendBaileysWorkflowAction(
   workflowId: string,
 ): Promise<ChatToolActionResult> {
   try {
-    const res = await fetch(
-      `${backendUrl()}/whatsapp/baileys/run-workflow/${encodeURIComponent(instanceName)}`,
-      {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ remoteJid, workflowId }),
-        cache: 'no-store',
-      },
-    );
-    if (!res.ok) return { success: false, message: `Error ${res.status} al ejecutar flujo.` };
-    const data = await res.json();
-    return { success: true, message: 'Flujo enviado.', data };
+    const nodes = await db.workflowNode.findMany({
+      where: { workflowId },
+      orderBy: { order: 'asc' },
+    });
+
+    let sent = 0;
+    for (const node of nodes) {
+      const tipo = (node.tipo ?? '').trim().toLowerCase();
+
+      let body: Record<string, string> | null = null;
+
+      if (tipo === 'text') {
+        const text = (node.message ?? '').trim();
+        if (text) body = { remoteJid, text };
+      } else if (tipo === 'audio') {
+        const audioUrl = (node.url as string | null)?.trim();
+        if (audioUrl) body = { remoteJid, audioUrl };
+      } else if (['image', 'video', 'document'].includes(tipo)) {
+        const audioUrl = (node.url as string | null)?.trim();
+        if (audioUrl) body = { remoteJid, audioUrl };
+      }
+
+      if (!body) continue;
+
+      const res = await fetch(
+        `${backendUrl()}/whatsapp/baileys/send/${encodeURIComponent(instanceName)}`,
+        {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify(body),
+          cache: 'no-store',
+        },
+      );
+      if (!res.ok) return { success: false, message: `Error ${res.status} enviando nodo ${node.id}.` };
+      sent++;
+    }
+
+    return { success: true, message: 'Flujo enviado.', data: { sent } };
   } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al ejecutar flujo.' };
   }
