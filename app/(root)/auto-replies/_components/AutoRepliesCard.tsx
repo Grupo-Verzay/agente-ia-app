@@ -122,7 +122,7 @@ export const AutoRepliesCard = ({ autoReplie, workflows }: autoReplies) => {
                             )
                         )}
 
-                        {editing ? (
+                        {!autoReplie.workflowId && (editing ? (
                             <Textarea
                                 autoFocus
                                 value={mensaje}
@@ -151,9 +151,9 @@ export const AutoRepliesCard = ({ autoReplie, workflows }: autoReplies) => {
                                 </h3>
                                 <PencilLine size={16} className="mt-0.5 shrink-0 text-blue-500" />
                             </div>
-                        )}
+                        ))}
 
-                        {!autoReplie.name && (
+                        {!!autoReplie.workflowId && (
                             <div className="flex min-w-0 items-center gap-2">
                                 <Select
                                     value={autoReplie.workflowId ?? ""}
