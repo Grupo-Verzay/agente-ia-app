@@ -194,6 +194,8 @@ export async function getSessionLegacySeguimientos(
         remoteJid,
         NOT: {
           OR: [
+            { idNodo: null },
+            { idNodo: "" },
             { idNodo: { startsWith: "reminder-" } },
             { idNodo: { startsWith: "appt-confirm-" } },
             { idNodo: { startsWith: "appt-reminder-" } },
