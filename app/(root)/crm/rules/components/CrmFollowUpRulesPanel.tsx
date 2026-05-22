@@ -299,7 +299,7 @@ export function CrmFollowUpRulesPanel({
     >
       <TabsList className="flex justify-start shrink-0">
         {availableTabs.map((tab) => (
-          <TabsTrigger key={tab.value} value={tab.value}>
+          <TabsTrigger key={tab.value} value={tab.value} className="font-semibold">
             {tab.label}
           </TabsTrigger>
         ))}

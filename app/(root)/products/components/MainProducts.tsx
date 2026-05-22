@@ -51,7 +51,7 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo }: Ma
                 </div>
                 <div className="flex items-center gap-3">
                     {limitInfo && (
-                        <span className={`text-xs font-medium ${limitInfo.reached ? 'text-destructive' : 'text-muted-foreground'}`}>
+                        <span className={`text-sm font-semibold ${limitInfo.reached ? 'text-destructive' : 'text-foreground'}`}>
                             {limitInfo.current}/{limitInfo.limit} productos
                         </span>
                     )}

@@ -37,18 +37,6 @@ export const ProductTable = ({
             cell: ({ getValue }) => `$${Number(getValue()).toLocaleString('es-CO')}`,
         },
         {
-            header: "Stock",
-            accessorKey: "stock",
-            cell: ({ getValue }) => {
-                const v = getValue() as number;
-                return (
-                    <Badge variant={v <= 0 ? "destructive" : v < 5 ? "outline" : "secondary"}>
-                        {v}
-                    </Badge>
-                );
-            },
-        },
-        {
             header: "Estado",
             accessorKey: "isActive",
             cell: ({ getValue }) => (
@@ -118,11 +106,11 @@ export const ProductTable = ({
                     <table className="w-full text-sm">
                         <thead>
                             {table.getHeaderGroups().map((hg) => (
-                                <tr key={hg.id} className="text-xs">
+                                <tr key={hg.id} className="border-b">
                                     {hg.headers.map((h) => (
                                         <th
                                             key={h.id}
-                                            className="text-left py-2 px-2 font-medium"
+                                            className="text-left py-3 px-3 text-sm font-semibold text-foreground"
                                         >
                                             {h.isPlaceholder
                                                 ? null
@@ -134,11 +122,11 @@ export const ProductTable = ({
                         </thead>
                         <tbody>
                             {table.getRowModel().rows.map((r) => (
-                                <tr key={r.id} className="border-t">
+                                <tr key={r.id} className="border-t hover:bg-muted/40 transition-colors">
                                     {r.getVisibleCells().map((c) => (
                                         <td
                                             key={c.id}
-                                            className="py-2 px-2 align-center"
+                                            className="py-3 px-3 align-middle"
                                         >
                                             {flexRender(
                                                 c.column.columnDef.cell,
@@ -153,7 +141,7 @@ export const ProductTable = ({
                                 <tr>
                                     <td
                                         colSpan={columns.length}
-                                        className="py-4 px-2 text-center text-xs text-muted-foreground"
+                                        className="py-8 px-3 text-center text-sm text-muted-foreground"
                                     >
                                         No hay productos para mostrar.
                                     </td>

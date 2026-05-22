@@ -207,11 +207,10 @@ export function CrmFollowUpMediaLibrary({ userId, leadStatus, disabled = false }
                         onChange={handleFileChange}
                         className="hidden"
                     />
-                    <div className="flex justify-center">
                     <div
                         onClick={() => !isFormDisabled && fileRef.current?.click()}
                         className={cn(
-                            "flex w-full max-w-sm cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-6 py-5 text-sm transition-all select-none",
+                            "flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-6 py-5 text-sm transition-all select-none",
                             pendingFile
                                 ? "border-green-400 bg-green-50 dark:bg-green-950/30"
                                 : "border-primary/30 bg-primary/5 hover:border-primary/60 hover:bg-primary/10",
@@ -237,7 +236,6 @@ export function CrmFollowUpMediaLibrary({ userId, leadStatus, disabled = false }
                                 <span className="text-xs text-muted-foreground">Imagen · Video · Audio · PDF</span>
                             </>
                         )}
-                    </div>
                     </div>
                 </div>
 

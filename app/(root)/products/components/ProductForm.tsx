@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Pencil, Loader2 } from "lucide-react";
+import { Pencil, Loader2, ImagePlus, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { optimizeFile } from "../../workflow/[workflowId]/helpers";
@@ -148,7 +148,7 @@ export const ProductForm = ({
                 disabled={disabled}
                 title={disabled ? "Límite de productos alcanzado para tu plan" : undefined}
             >
-               + Agregar producto
+               + Agregar
             </Button>
         );
 
@@ -161,7 +161,7 @@ export const ProductForm = ({
             }
         }}>
             <DialogTrigger asChild>{Trigger}</DialogTrigger>
-            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-lg h-[585px] flex flex-col overflow-hidden">
                 <DialogHeader>
                     <div className="flex items-center justify-between pr-6">
                         <DialogTitle>{product?.id ? "Editar producto" : "Nuevo producto"}</DialogTitle>
@@ -177,17 +177,57 @@ export const ProductForm = ({
                         </div>
                     </div>
                 </DialogHeader>
-                <form onSubmit={onSubmit} className="space-y-4">
-                    <div className="flex flex-col gap-3">
+                <form onSubmit={onSubmit} className="flex flex-col flex-1 min-h-0">
+                    <div className="flex flex-col gap-3 flex-1 overflow-y-auto px-1">
+
+                        {/* Imagen — arriba */}
+                        <div className="mx-auto w-full max-w-[220px] shrink-0">
+                            {!imagePreview ? (
+                                <label className={`flex w-full flex-col items-center justify-center gap-1.5 py-3 rounded-xl border-2 border-dashed cursor-pointer transition-all select-none
+                                    ${uploadingImage ? 'pointer-events-none opacity-50' : 'border-primary/30 bg-primary/5 hover:border-primary/60 hover:bg-primary/10'}`}>
+                                    {uploadingImage ? (
+                                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                    ) : (
+                                        <div className="rounded-xl bg-primary/10 p-2.5">
+                                            <ImagePlus className="h-6 w-6 text-primary" />
+                                        </div>
+                                    )}
+                                    <span className="font-medium text-sm text-foreground">
+                                        {uploadingImage ? 'Subiendo...' : 'Subir imagen'}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">PNG · JPG · WEBP</span>
+                                    <input type="file" accept="image/*" disabled={uploadingImage} onChange={handleImageUpload} className="sr-only" />
+                                </label>
+                            ) : (
+                                <div className="relative group w-full rounded-xl overflow-hidden">
+                                    <SafeImage src={imagePreview} alt="Vista previa" className="w-full max-h-[140px] object-contain" />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors" />
+                                    <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <label className="cursor-pointer rounded-full bg-white/90 p-2 shadow-lg hover:bg-white transition-colors" title="Cambiar imagen">
+                                            <ImagePlus className="h-4 w-4 text-foreground" />
+                                            <input type="file" accept="image/*" disabled={uploadingImage} onChange={handleImageUpload} className="sr-only" />
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={handleImageRemove}
+                                            className="rounded-full bg-destructive p-2 text-white shadow-lg hover:bg-destructive/90 transition-colors"
+                                            title="Eliminar imagen"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
                         {/* Nombre — Precio */}
                         <div className="flex gap-3">
                             <div className="flex w-full flex-col gap-1.5">
-                                <Label>Nombre del producto</Label>
-                                <Input {...form.register("title")} placeholder="Nombre del producto" />
+                                <Label className="text-sm font-semibold">Nombre</Label>
+                                <Input {...form.register("title")} placeholder="Ej: Zapatilla deportiva" />
                             </div>
                             <div className="flex w-full flex-col gap-1.5">
-                                <Label>Precio</Label>
+                                <Label className="text-sm font-semibold">Precio</Label>
                                 <div className="relative">
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
                                     <Input
@@ -209,60 +249,28 @@ export const ProductForm = ({
                         {/* Categoría — Código */}
                         <div className="flex gap-3">
                             <div className="flex w-full flex-col gap-1.5">
-                                <Label>Categoría</Label>
+                                <Label className="text-sm font-semibold">Categoría</Label>
                                 <Input {...form.register("category")} placeholder="Ej: Zapatos" />
                             </div>
                             <div className="flex w-full flex-col gap-1.5">
-                                <Label>Código</Label>
-                                <Input {...form.register("sku")} placeholder="Ej: SAD005" className="font-mono" />
+                                <Label className="text-sm font-semibold">Código</Label>
+                                <Input {...form.register("sku")} placeholder="Ej: SAD005" />
+                                {isSkuDuplicate && (
+                                    <p className="text-xs text-destructive">Este código ya está registrado.</p>
+                                )}
                             </div>
                         </div>
 
                         {/* Descripción */}
                         <div className="flex flex-col gap-1.5">
-                            <Label>Descripción</Label>
-                            <Textarea rows={4} {...form.register("description")} placeholder={"Características del producto:\n- Material\n- Talla\n- Color"} />
+                            <Label className="text-sm font-semibold">Descripción</Label>
+                            <Textarea rows={5} className="resize-none" {...form.register("description")} placeholder={"Características del producto:\n- Marca\n- Material\n- Talla\n- Color"} />
                         </div>
 
-                        {/* Imagen */}
-                        <div className="flex flex-col gap-1.5">
-                            <div className="relative group aspect-square w-40 mx-auto rounded-lg overflow-hidden border bg-muted flex items-center justify-center">
-                                {!imagePreview ? (
-                                    <label className="flex flex-col items-center justify-center w-full h-full cursor-pointer gap-1 text-muted-foreground hover:text-foreground transition-colors">
-                                        <span className="text-2xl leading-none">+</span>
-                                        <span className="text-xs">Subir imagen</span>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            disabled={uploadingImage}
-                                            onChange={handleImageUpload}
-                                            className="sr-only"
-                                        />
-                                    </label>
-                                ) : (
-                                    <>
-                                        <SafeImage
-                                            src={imagePreview}
-                                            alt="Vista previa"
-                                            className="max-w-full max-h-full object-contain p-1"
-                                        />
-                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors" />
-                                        <button
-                                            type="button"
-                                            onClick={handleImageRemove}
-                                            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <span className="bg-destructive text-destructive-foreground rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold shadow-lg">
-                                                ✕
-                                            </span>
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
+                    </div>
 
                         {/* Acciones */}
-                        <div className="flex justify-between gap-2 pt-3 border-t">
+                        <div className="flex justify-between gap-2 pt-3 mt-2 shrink-0">
                             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
                                 Cancelar
                             </Button>
@@ -271,7 +279,6 @@ export const ProductForm = ({
                                 Guardar
                             </Button>
                         </div>
-                    </div>
                 </form>
             </DialogContent>
         </Dialog>
