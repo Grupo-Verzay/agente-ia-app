@@ -398,7 +398,7 @@ export function ChatRegistrosSheet({
                                 type="button"
                                 className="rounded-md border border-l-[3px] border-l-indigo-400 bg-background px-3 py-2.5 flex items-center justify-between gap-2 w-full text-left hover:bg-accent transition-colors cursor-pointer shadow-sm"
                               >
-                                <span className="text-sm text-muted-foreground">Flujos ejecutados</span>
+                                <span className="text-sm font-medium text-muted-foreground">Flujos ejecutados</span>
                                 <span className="text-base font-bold text-foreground">{flujosCount}</span>
                               </button>
                             </PopoverTrigger>
@@ -428,7 +428,7 @@ export function ChatRegistrosSheet({
                             onClick={() => item.agenda ? goToAgenda(item.agenda) : setActiveTab(item.tab ?? "SEGUIMIENTOS")}
                             className={`rounded-md border border-l-[3px] ${item.accent} bg-background px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-accent transition-colors shadow-sm`}
                           >
-                            <span className="text-sm text-muted-foreground">{item.label}</span>
+                            <span className="text-sm font-medium text-muted-foreground">{item.label}</span>
                             <span className={`text-base font-bold ${item.value > 0 ? "text-foreground" : "text-muted-foreground/50"}`}>{item.value}</span>
                           </button>
                         ))}
