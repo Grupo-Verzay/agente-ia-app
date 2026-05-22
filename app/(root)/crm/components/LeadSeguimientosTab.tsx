@@ -14,7 +14,9 @@ import {
   deleteSeguimientoById,
   deleteAllSeguimientosByRemoteJid,
   updateSeguimientoById,
+  getAppointmentSeguimientos,
   type LegacySeguimientoItem,
+  type AppointmentSeguimientoItem,
 } from "@/actions/seguimientos-actions";
 import {
   getRemindersByRemoteJid,
@@ -413,6 +415,38 @@ function ReminderCard({
 
 /* ===== SECCIÓN CITAS ===== */
 
+const APPT_SEG_STATUS_CLASSES: Record<string, string> = {
+  pending:    "border-amber-300 bg-amber-100 text-amber-800",
+  sent:       "border-emerald-300 bg-emerald-100 text-emerald-800",
+  failed:     "border-rose-300 bg-rose-100 text-rose-800",
+  cancelled:  "border-slate-300 bg-slate-200 text-slate-700",
+  processing: "border-blue-300 bg-blue-100 text-blue-800",
+};
+
+const APPT_SEG_STATUS_LABELS: Record<string, string> = {
+  pending: "Pendiente", sent: "Enviado", failed: "Fallido",
+  cancelled: "Cancelado", processing: "Procesando",
+};
+
+function ApptSeguimientoRow({ item }: { item: AppointmentSeguimientoItem }) {
+  const statusClass = APPT_SEG_STATUS_CLASSES[item.followUpStatus] ?? "border-slate-200 bg-slate-50 text-slate-600";
+  const statusLabel = APPT_SEG_STATUS_LABELS[item.followUpStatus] ?? item.followUpStatus;
+  const msg = item.generatedMessage || item.mensaje;
+  return (
+    <div className="rounded-md border border-border/50 bg-muted/10 px-2.5 py-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Badge variant="outline" className={`text-[10px] py-0 ${statusClass}`}>{statusLabel}</Badge>
+        {item.time && (
+          <span className="text-[11px] text-muted-foreground">{formatDate(item.time)}</span>
+        )}
+      </div>
+      {msg && (
+        <p className="mt-1.5 whitespace-pre-wrap text-[11px] text-muted-foreground line-clamp-3">{msg}</p>
+      )}
+    </div>
+  );
+}
+
 const APPT_STATUS_LABELS: Record<string, string> = {
   PENDIENTE:    "Pendiente",
   CONFIRMADA:   "Confirmada",
@@ -611,6 +645,7 @@ export function LeadSeguimientosTab({
   const [legacyItems, setLegacyItems] = useState<LegacySeguimientoItem[]>([]);
   const [reminderItems, setReminderItems] = useState<ReminderItem[]>([]);
   const [appointmentItems, setAppointmentItems] = useState<SessionAppointmentCard[]>([]);
+  const [apptSeguimientos, setApptSeguimientos] = useState<AppointmentSeguimientoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmAction, setConfirmAction] = useState<BulkAction | null>(null);
   const [pendingAction, setPendingAction] = useState<BulkAction | null>(null);
@@ -632,18 +667,20 @@ export function LeadSeguimientosTab({
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [crmResult, legacyResult, reminderResult, apptResult] = await Promise.all([
+    const [crmResult, legacyResult, reminderResult, apptResult, apptSegResult] = await Promise.all([
       getSessionCrmFollowUps(sessionId, userId),
       getSessionLegacySeguimientos(remoteJid),
       showReminders ? getRemindersByRemoteJid(userId, remoteJid) : Promise.resolve({ success: true, data: [] as ReminderItem[] }),
       showAppointments ? getAppointmentsBySession(sessionId) : Promise.resolve({ success: true, data: [] as SessionAppointmentCard[] }),
+      showAppointments ? getAppointmentSeguimientos(remoteJid, instanceId) : Promise.resolve({ success: true, message: "", data: [] as AppointmentSeguimientoItem[] }),
     ]);
     if (crmResult.success && crmResult.data) setCrmItems(crmResult.data);
     if (legacyResult.success && legacyResult.data) setLegacyItems(legacyResult.data);
     if (reminderResult.success && reminderResult.data) setReminderItems(reminderResult.data);
     if (apptResult.success && apptResult.data) setAppointmentItems(apptResult.data);
+    if (apptSegResult.success && apptSegResult.data) setApptSeguimientos(apptSegResult.data);
     setLoading(false);
-  }, [sessionId, userId, remoteJid, showReminders, showAppointments]);
+  }, [sessionId, userId, remoteJid, instanceId, showReminders, showAppointments]);
 
   useEffect(() => {
     loadAll();
@@ -891,9 +928,20 @@ export function LeadSeguimientosTab({
                     )}
                   </div>
                   {openSections.citas && (
-                    appointmentItems.length === 0
-                      ? <p className="text-xs text-muted-foreground pl-5">Sin citas agendadas.</p>
-                      : <div className="flex flex-col gap-2">{appointmentItems.map((item) => <AppointmentCard key={item.id} item={item} userId={userId} onUpdated={loadAll} />)}</div>
+                    <div className="flex flex-col gap-2">
+                      {appointmentItems.length === 0
+                        ? <p className="text-xs text-muted-foreground pl-5">Sin citas agendadas.</p>
+                        : appointmentItems.map((item) => <AppointmentCard key={item.id} item={item} userId={userId} onUpdated={loadAll} />)
+                      }
+                      {apptSeguimientos.length > 0 && (
+                        <div className="mt-1 flex flex-col gap-1.5">
+                          <p className="text-[11px] font-medium text-muted-foreground pl-1 uppercase tracking-wide">
+                            Recordatorios programados ({apptSeguimientos.length})
+                          </p>
+                          {apptSeguimientos.map((s) => <ApptSeguimientoRow key={s.id} item={s} />)}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </>

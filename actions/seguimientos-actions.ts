@@ -240,6 +240,50 @@ export async function getSessionLegacySeguimientos(
   }
 }
 
+export type AppointmentSeguimientoItem = {
+  id: number;
+  idNodo: string | null;
+  mensaje: string | null;
+  generatedMessage: string | null;
+  time: string | null;
+  followUpStatus: string;
+  tipo: string | null;
+};
+
+export async function getAppointmentSeguimientos(
+  remoteJid: string,
+  instancia: string | null
+): Promise<{ success: boolean; message: string; data?: AppointmentSeguimientoItem[] }> {
+  try {
+    const items = await db.seguimiento.findMany({
+      where: {
+        remoteJid,
+        ...(instancia ? { instancia } : {}),
+        OR: [
+          { idNodo: null },
+          { idNodo: "" },
+          { idNodo: { startsWith: "appt-confirm-" } },
+          { idNodo: { startsWith: "appt-reminder-" } },
+          { idNodo: { startsWith: "reminder-" } },
+        ],
+      },
+      orderBy: { time: "asc" },
+      select: {
+        id: true,
+        idNodo: true,
+        mensaje: true,
+        generatedMessage: true,
+        time: true,
+        followUpStatus: true,
+        tipo: true,
+      },
+    });
+    return { success: true, message: "OK", data: items };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Error al obtener recordatorios de cita." };
+  }
+}
+
 /**
  * 2) Eliminar SOLO el/los recordatorio(s) que coincidan con:
  *    instanceName && userId && remoteJid
