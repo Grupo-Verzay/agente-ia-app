@@ -69,6 +69,7 @@ export type ExternalDataBuiltinToolType =
   | 'buscar_plantilla'
   | 'leer_google_sheets'
   | 'escribir_google_sheets'
+  | 'editar_google_sheets'
   | 'scrape_web';
 
 export type ExternalDataQueryToolType = 'auto_inject' | 'search_by_field';

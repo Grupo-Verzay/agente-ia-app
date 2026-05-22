@@ -1287,8 +1287,12 @@ export function ExternalDataToolConfigManagement({ clients }: Props) {
   };
 
   // ── Derived state ─────────────────────────────────────────────────────────────
-  const builtinConfigs = configs.filter((c) => c.toolCategory === 'builtin');
-  const dataQueryConfigs = configs.filter((c) => c.toolCategory === 'data_query');
+  const builtinConfigs = configs
+    .filter((c) => c.toolCategory === 'builtin')
+    .sort((a, b) => (b.isEnabled ? 1 : 0) - (a.isEnabled ? 1 : 0));
+  const dataQueryConfigs = configs
+    .filter((c) => c.toolCategory === 'data_query')
+    .sort((a, b) => (b.isEnabled ? 1 : 0) - (a.isEnabled ? 1 : 0));
   const existingBuiltinTypes = new Set(
     builtinConfigs.map((c) => c.toolType),
   );

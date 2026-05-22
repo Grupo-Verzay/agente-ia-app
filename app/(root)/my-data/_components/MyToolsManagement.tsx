@@ -694,13 +694,17 @@ export function MyToolsManagement({ userId }: Props) {
   const builtinConfigs = configs
     .filter((c) => c.toolCategory === 'builtin')
     .sort((a, b) => {
+      if (b.isEnabled !== a.isEnabled) return b.isEnabled ? 1 : -1;
       const oa = BUILTIN_TOOL_CATALOG.find(e => e.toolType === a.toolType)?.sortOrder ?? 99;
       const ob = BUILTIN_TOOL_CATALOG.find(e => e.toolType === b.toolType)?.sortOrder ?? 99;
       return oa - ob;
     });
   const dataQueryConfigs = configs
     .filter((c) => c.toolCategory === 'data_query')
-    .sort((a, b) => a.displayName.localeCompare(b.displayName, 'es'));
+    .sort((a, b) => {
+      if (b.isEnabled !== a.isEnabled) return b.isEnabled ? 1 : -1;
+      return a.displayName.localeCompare(b.displayName, 'es');
+    });
   const existingBuiltinTypes = new Set(builtinConfigs.map((c) => c.toolType));
   const enabledCount = configs.filter((c) => c.isEnabled).length;
   const hasNoConfigs = configs.length === 0 && !isLoading;

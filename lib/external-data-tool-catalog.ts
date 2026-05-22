@@ -193,6 +193,17 @@ export const BUILTIN_TOOL_CATALOG: {
     sortOrder: 15,
   },
   {
+    toolType: 'editar_google_sheets',
+    defaultKey: 'editar_google_sheets',
+    defaultDisplayName: 'Editar Google Sheets',
+    defaultDescription:
+      'Edita una fila existente en una hoja de cálculo de Google Sheets. Úsala cuando necesites actualizar datos ya registrados: cambiar estado, precio, disponibilidad u otro campo. Busca la fila por un campo clave (ej. cédula, código, correo) y actualiza los campos indicados.',
+    isCritical: false,
+    helpText:
+      'Requiere credenciales de cuenta de servicio de Google (GOOGLE_SHEETS_CREDENTIALS). El agente busca la fila por un campo clave y actualiza las columnas especificadas. Los encabezados de la hoja deben coincidir con los campos enviados.',
+    sortOrder: 16,
+  },
+  {
     toolType: 'scrape_web',
     defaultKey: 'scrape_web',
     defaultDisplayName: 'Consultar página web',
