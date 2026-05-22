@@ -177,6 +177,12 @@ export async function sendBaileysWorkflowAction(
       orderBy: { order: 'asc' },
     });
 
+    console.log(`[Baileys][Workflow] workflowId=${workflowId} nodos=${nodes.length}`, nodes.map(n => ({ id: n.id, tipo: n.tipo, hasMsg: !!n.message?.trim(), hasUrl: !!n.url?.trim() })));
+
+    if (nodes.length === 0) {
+      return { success: false, message: `El flujo no tiene nodos (workflowId: ${workflowId}).` };
+    }
+
     let sent = 0;
     for (const node of nodes) {
       const tipo = (node.tipo ?? '').trim().toLowerCase();
@@ -194,6 +200,8 @@ export async function sendBaileysWorkflowAction(
         if (audioUrl) body = { remoteJid, audioUrl };
       }
 
+      console.log(`[Baileys][Workflow] nodo tipo=${tipo} body=${body ? JSON.stringify(body).substring(0, 80) : 'SKIPPED'}`);
+
       if (!body) continue;
 
       const res = await fetch(
@@ -205,12 +213,18 @@ export async function sendBaileysWorkflowAction(
           cache: 'no-store',
         },
       );
-      if (!res.ok) return { success: false, message: `Error ${res.status} enviando nodo ${node.id}.` };
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        console.error(`[Baileys][Workflow] Error HTTP ${res.status} enviando nodo ${node.id}: ${errText}`);
+        return { success: false, message: `Error ${res.status} enviando nodo tipo=${tipo}: ${errText}` };
+      }
       sent++;
     }
 
+    console.log(`[Baileys][Workflow] Completado. sent=${sent}`);
     return { success: true, message: 'Flujo enviado.', data: { sent } };
   } catch (err: any) {
+    console.error('[Baileys][Workflow] Excepción:', err);
     return { success: false, message: err?.message ?? 'Error al ejecutar flujo.' };
   }
 }
