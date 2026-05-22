@@ -285,6 +285,7 @@ export async function updateAppointmentStatus(
                     : [];
 
                 const orFilter = [
+                    { idNodo: null },                              // registros viejos sin idNodo
                     { idNodo: { startsWith: 'appt-confirm-' } },
                     { idNodo: { startsWith: 'appt-reminder-' } },
                     ...(validLegacyIds.length > 0 ? [{ idNodo: { in: validLegacyIds } }] : []),
