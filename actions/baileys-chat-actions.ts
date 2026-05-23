@@ -114,19 +114,27 @@ export async function findMessagesFromBaileys(
     const MEDIA_TYPES = Object.keys(MEDIA_LABELS);
 
     const messages: EvolutionMessage[] = (json.messages ?? []).map((m: any) => {
-      const isMedia  = MEDIA_TYPES.includes(m.type);
+      const isMedia    = MEDIA_TYPES.includes(m.type);
+      const isReaction = m.type === 'reactionMessage';
       const mediaUrl: string | null = m.mediaUrl ?? null;
+
+      const messageType = isReaction
+        ? 'reactionMessage'
+        : isMedia && mediaUrl ? m.type : 'conversation';
+
+      const message = isReaction
+        ? { reactionMessage: { text: m.body ?? '' } }
+        : {
+            conversation: isMedia && !mediaUrl
+              ? (m.body?.trim() || MEDIA_LABELS[m.type] || '')
+              : (m.body ?? ''),
+            ...(mediaUrl ? { mediaUrl } : {}),
+          };
 
       return {
         key: { id: m.id, fromMe: m.fromMe, remoteJid: m.remoteJid },
-        // Si hay mediaUrl renderiza con UI de media; si no, muestra como texto con etiqueta
-        messageType: isMedia && mediaUrl ? m.type : 'conversation',
-        message: {
-          conversation: isMedia && !mediaUrl
-            ? (m.body?.trim() || MEDIA_LABELS[m.type] || '')
-            : (m.body ?? ''),
-          ...(mediaUrl ? { mediaUrl } : {}),
-        },
+        messageType,
+        message,
         messageTimestamp: m.timestamp
           ? Math.floor(new Date(m.timestamp).getTime() / 1000)
           : 0,
