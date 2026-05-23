@@ -182,13 +182,16 @@ export const MainSchedule = ({
 
                 {/* Ajustes */}
                 {tab === 'settings' && (
-                    <div className="h-full overflow-y-auto flex justify-center py-8 px-4">
-                        <div className="w-full max-w-lg rounded-xl border bg-card shadow-sm p-6">
-                            <UpdateMeetingDuration
-                                userId={userId}
-                                meetingDuration={user.meetingDuration ?? 60}
-                                meetingUrl={user.meetingUrl}
-                            />
+                    <div className="h-full overflow-y-auto">
+                        <div className="flex justify-center py-8 px-4">
+                            <div className="w-full max-w-lg rounded-xl border bg-card shadow-sm p-6">
+                                <UpdateMeetingDuration
+                                    userId={userId}
+                                    meetingDuration={user.meetingDuration ?? 60}
+                                    meetingUrl={user.meetingUrl}
+                                    minNoticeMinutes={user.minNoticeMinutes ?? 0}
+                                />
+                            </div>
                         </div>
                     </div>
                 )}

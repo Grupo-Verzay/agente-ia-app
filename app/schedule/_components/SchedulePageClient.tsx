@@ -411,6 +411,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                             setSelectedDateYmd={setSelectedDateYmd}
                             setSelectedSlot={setSelectedSlot}
                             setStep={setStep}
+                            minNoticeMinutes={user.minNoticeMinutes ?? 0}
                         />
                     )}
 

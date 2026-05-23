@@ -36,9 +36,10 @@ export async function getAvailableSlots(
     }
 
     try {
-        // 1) TZ del dueño
-        const user = await db.user.findUnique({ where: { id: userId }, select: { timezone: true } });
+        // 1) TZ y minNoticeMinutes del dueño
+        const user = await db.user.findUnique({ where: { id: userId }, select: { timezone: true, minNoticeMinutes: true } });
         const ownerTz = user?.timezone || serverTimeZone;
+        const minNoticeMinutes = user?.minNoticeMinutes ?? 0;
 
         // 2) Fechas locales puras (YYYY-MM-DD) en la TZ del dueño
         const selectedDayLocal = formatInTimeZone(dateYmd, ownerTz, 'yyyy-MM-dd');
@@ -77,14 +78,9 @@ export async function getAvailableSlots(
         });
         const takenRanges = appointments.map(a => ({ start: a.startTime, end: a.endTime }));
 
-        // 6) “Ahora” (UTC) solo si es hoy, para ocultar horas pasadas
-        const isToday = selectedDayLocal === todayLocal;
-        const nowUtcCutoff = isToday
-            ? fromZonedTime(
-                `${todayLocal} ${formatInTimeZone(new Date(), ownerTz, 'HH:mm:ss')}`,
-                ownerTz
-            )
-            : dayStartUtc;
+        // 6) Corte mínimo: ahora + minNoticeMinutes (aplica siempre, no solo hoy)
+        const earliestAllowed = addMinutes(new Date(), minNoticeMinutes);
+        const nowUtcCutoff = earliestAllowed > dayStartUtc ? earliestAllowed : dayStartUtc;
 
         // 7) Construcción de slots HH:mm (local dueño) → UTC
         const availableSlots: Slot[] = [];

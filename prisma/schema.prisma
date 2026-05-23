@@ -480,6 +480,7 @@ model User {
   defaultProviderId                  String?
   delayTimeGpt                       String?                      @map("delayTimeGPT")
   meetingUrl                         String?
+  minNoticeMinutes                   Int                          @default(0)
   preferredCurrencyCode              String                       @default("COP")
   tokenVersion                       Int                          @default(0)
   passPlainTxt                       String?                      @default("IA@verzay.1234")

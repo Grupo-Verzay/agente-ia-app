@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db';
 import { Appointment, AppointmentStatus } from '@prisma/client';
-import { parseISO, isBefore } from 'date-fns';
+import { addMinutes, parseISO, isBefore } from 'date-fns';
 import { registerSession } from './session-action';
 
 interface AppointmentOperationResponse {
@@ -103,6 +103,14 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
     }
 
     try {
+        // Validar tiempo mínimo de anticipación
+        const userNotice = await db.user.findUnique({ where: { id: userId }, select: { minNoticeMinutes: true } });
+        if (userNotice && userNotice.minNoticeMinutes > 0) {
+            const earliestAllowed = addMinutes(new Date(), userNotice.minNoticeMinutes);
+            if (isBefore(start, earliestAllowed)) {
+                return { success: false, message: `Debes agendar con al menos ${userNotice.minNoticeMinutes} minutos de anticipación.` };
+            }
+        }
         let sessionId = requestedSessionId;
 
         if (sessionId) {

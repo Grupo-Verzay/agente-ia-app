@@ -342,7 +342,8 @@ export const updateClientData = async (userId: string, formData: FormData) => {
 export async function updateUserMeetingDuration(
   userId: string,
   meetingDuration: number,
-  meetingUrl?: string
+  meetingUrl?: string,
+  minNoticeMinutes?: number
 ): Promise<ClientResponse> {
   try {
     await ensureSelfOrAdmin(userId);
@@ -378,12 +379,13 @@ export async function updateUserMeetingDuration(
       };
     }
 
-    // 4) Actualizar duración + meetingUrl del usuario
+    // 4) Actualizar duración + meetingUrl + minNoticeMinutes del usuario
     await db.user.update({
       where: { id: userId },
       data: {
         meetingDuration,
         meetingUrl: url,
+        ...(minNoticeMinutes !== undefined && { minNoticeMinutes: Math.max(0, minNoticeMinutes) }),
       },
     });
 
