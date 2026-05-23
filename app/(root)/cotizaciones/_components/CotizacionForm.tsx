@@ -252,7 +252,7 @@ export function CotizacionForm({ userId, products, cotizacion, onClose }: Props)
           </div>
 
           {/* Acciones */}
-          <div className="flex justify-end gap-2 pt-1 border-t">
+          <div className="flex justify-between gap-2 pt-1 border-t">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
