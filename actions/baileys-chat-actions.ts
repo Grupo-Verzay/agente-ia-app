@@ -183,10 +183,30 @@ export async function sendBaileysTextAction(
   remoteJid: string,
   payload: BaileysOutgoingPayload,
 ): Promise<SendMessageResult> {
-  if (payload.kind !== 'text') {
-    return { success: false, message: 'Solo texto soportado en Baileys por ahora.', remoteJid };
-  }
   try {
+    if (payload.kind === 'media') {
+      const res = await fetch(
+        `${backendUrl()}/whatsapp/baileys/send-media/${encodeURIComponent(instanceName)}`,
+        {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            remoteJid,
+            mediatype: payload.mediatype,
+            mediaUrl: payload.mediaUrl,
+            mimetype: payload.mimetype,
+            fileName: payload.fileName,
+            caption: payload.caption,
+            ptt: payload.ptt ?? false,
+          }),
+          cache: 'no-store',
+        },
+      );
+      if (!res.ok) return { success: false, message: `Error ${res.status} al enviar media.`, remoteJid };
+      return { success: true, message: 'Enviado.', remoteJid };
+    }
+
+    // Texto
     const res = await fetch(
       `${backendUrl()}/whatsapp/baileys/send/${encodeURIComponent(instanceName)}`,
       {
