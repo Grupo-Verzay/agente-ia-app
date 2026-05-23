@@ -88,6 +88,22 @@ export async function fetchChatsFromBaileys(instanceName: string): Promise<Fetch
   }
 }
 
+const MIME_FROM_EXT: Record<string, string> = {
+  pdf: 'application/pdf',
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+  mp4: 'video/mp4', mov: 'video/quicktime', avi: 'video/x-msvideo',
+  ogg: 'audio/ogg', mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  xls: 'application/vnd.ms-excel', csv: 'text/csv',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  doc: 'application/msword', zip: 'application/zip', rar: 'application/x-rar-compressed',
+};
+
+function inferMimeFromUrl(url: string): string {
+  const ext = (url.split('.').pop() ?? '').toLowerCase().split('?')[0];
+  return MIME_FROM_EXT[ext] ?? 'application/octet-stream';
+}
+
 export async function findMessagesFromBaileys(
   instanceName: string,
   remoteJid: string,
@@ -122,14 +138,27 @@ export async function findMessagesFromBaileys(
         ? 'reactionMessage'
         : isMedia && mediaUrl ? m.type : 'conversation';
 
-      const message = isReaction
-        ? { reactionMessage: { text: m.body ?? '' } }
-        : {
-            conversation: isMedia && !mediaUrl
-              ? (m.body?.trim() || MEDIA_LABELS[m.type] || '')
-              : (m.body ?? ''),
-            ...(mediaUrl ? { mediaUrl } : {}),
-          };
+      let message: Record<string, any>;
+      if (isReaction) {
+        message = { reactionMessage: { text: m.body ?? '' } };
+      } else if (m.type === 'documentMessage' && mediaUrl) {
+        // Incluir estructura documentMessage para que extractMediaInfo obtenga mimetype y caption
+        message = {
+          documentMessage: {
+            mimetype: inferMimeFromUrl(mediaUrl),
+            caption: m.body || undefined,
+            fileName: m.body || undefined,
+          },
+          mediaUrl,
+        };
+      } else {
+        message = {
+          conversation: isMedia && !mediaUrl
+            ? (m.body?.trim() || MEDIA_LABELS[m.type] || '')
+            : (m.body ?? ''),
+          ...(mediaUrl ? { mediaUrl } : {}),
+        };
+      }
 
       return {
         key: { id: m.id, fromMe: m.fromMe, remoteJid: m.remoteJid },
