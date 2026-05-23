@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Clock } from 'lucide-react';
 import {
     Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription,
 } from '@/components/ui/form';
@@ -35,12 +36,14 @@ interface Team {
     description: string | null;
     timezone: string;
     isActive: boolean;
+    minNoticeMinutes: number;
 }
 
 const settingsSchema = z.object({
-    name:        z.string().min(2, 'El nombre es obligatorio'),
-    description: z.string().optional(),
-    timezone:    z.string().min(1, 'Selecciona una zona horaria'),
+    name:               z.string().min(2, 'El nombre es obligatorio'),
+    description:        z.string().optional(),
+    timezone:           z.string().min(1, 'Selecciona una zona horaria'),
+    minNoticeMinutes:   z.coerce.number().min(0).max(10080),
 });
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
@@ -55,9 +58,10 @@ export function BookingTeamSettings({ team, userId }: { team: Team; userId: stri
     const form = useForm<SettingsFormValues>({
         resolver: zodResolver(settingsSchema),
         defaultValues: {
-            name:        team.name,
-            description: team.description ?? '',
-            timezone:    team.timezone,
+            name:               team.name,
+            description:        team.description ?? '',
+            timezone:           team.timezone,
+            minNoticeMinutes:   team.minNoticeMinutes,
         },
     });
 
@@ -153,6 +157,30 @@ export function BookingTeamSettings({ team, userId }: { team: Team; userId: stri
                                     </Select>
                                     <FormDescription className="text-xs">
                                         Zona horaria en la que se muestran los horarios a tus clientes.
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )} />
+                            <FormField control={form.control} name="minNoticeMinutes" render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="flex items-center gap-1.5">
+                                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                                        Tiempo mínimo de anticipación
+                                    </FormLabel>
+                                    <div className="flex items-center gap-3">
+                                        <FormControl>
+                                            <Input
+                                                type="number"
+                                                min={0}
+                                                max={10080}
+                                                className="w-28"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <span className="text-sm text-muted-foreground">minutos</span>
+                                    </div>
+                                    <FormDescription className="text-xs">
+                                        Mínimo de minutos de antelación para que un cliente pueda agendar. Ej: 60 = no permite citas en menos de 1 hora.
                                     </FormDescription>
                                     <FormMessage />
                                 </FormItem>

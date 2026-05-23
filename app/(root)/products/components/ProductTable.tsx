@@ -39,6 +39,18 @@ export const ProductTable = ({
             ),
         },
         {
+            header: "Stock",
+            accessorKey: "stock",
+            cell: ({ getValue }) => {
+                const v = getValue() as number;
+                return (
+                    <span className={v === 0 ? 'text-destructive font-medium' : ''}>
+                        {v}
+                    </span>
+                );
+            },
+        },
+        {
             header: "Estado",
             accessorKey: "isActive",
             cell: ({ getValue }) => (

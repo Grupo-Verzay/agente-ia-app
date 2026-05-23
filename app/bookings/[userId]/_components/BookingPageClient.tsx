@@ -48,6 +48,7 @@ interface Team {
     name: string;
     description: string | null;
     timezone: string;
+    minNoticeMinutes: number;
     members: TeamMember[];
     services: TeamService[];
 }
@@ -127,7 +128,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
         setSlots([]);
         setSelectedSlot(null);
         (async () => {
-            const res = await getAvailableBookingSlots(selectedMember, selectedDateYmd, duration, timezone);
+            const res = await getAvailableBookingSlots(selectedMember, selectedDateYmd, duration, timezone, team.minNoticeMinutes);
             if (res.success) setSlots(res.data ?? []);
             else toast.error(res.message ?? 'Error al cargar horarios');
             setLoadingSlots(false);
@@ -286,6 +287,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
                         setSelectedDateYmd={setSelectedDateYmd}
                         setSelectedSlot={setSelectedSlot}
                         setStep={setStep}
+                        minNoticeMinutes={team.minNoticeMinutes}
                     />
                 )}
 

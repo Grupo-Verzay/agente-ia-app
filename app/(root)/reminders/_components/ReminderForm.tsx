@@ -13,6 +13,7 @@ import { formValuesReminderSchema, ReminderInterface, reminderSchema, repeatType
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
     AlertDialog,
@@ -210,7 +211,7 @@ export const ReminderForm = ({
 
     return (
         <>
-            <form onSubmit={handleSubmit(onSubmit, onError)} className="flex flex-col gap-2 pr-2 min-h-[21rem]">
+            <form onSubmit={handleSubmit(onSubmit, onError)} className="flex flex-col flex-1 min-h-0 h-full">
                 {/* Campos ocultos */}
                 <>
                     {["userId", "remoteJid", "instanceName", "pushName", "workflowId", "apikey", "serverUrl"].map((name) => (
@@ -218,21 +219,28 @@ export const ReminderForm = ({
                     ))}
                 </>
 
-                <Input placeholder="Título" className="h-8 text-sm" {...register("title")} />
-                {errors.title && <p className="text-xs text-red-500">{errors.title.message}</p>}
+                <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto px-1 pb-1">
 
-                {(() => {
-                    const { ref: rhfRef, ...descRest } = register("description");
-                    return (
-                        <Textarea
-                            placeholder="Descripción"
-                            rows={2}
-                            className="min-h-0 resize-none text-sm"
-                            {...descRest}
-                            ref={(el) => { rhfRef(el); (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el; }}
-                        />
-                    );
-                })()}
+                <div className="flex flex-col gap-1.5">
+                    <Label className="text-sm font-semibold">Título</Label>
+                    <Input placeholder="Ej: Recordatorio cita" {...register("title")} />
+                    {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
+                </div>
+
+                <div className="flex flex-col gap-1.5 flex-1 min-h-0">
+                    <Label className="text-sm font-semibold">Mensaje</Label>
+                    {(() => {
+                        const { ref: rhfRef, ...descRest } = register("description");
+                        return (
+                            <Textarea
+                                placeholder="Hola @client_name, te recordamos que..."
+                                className="resize-none text-sm flex-1 min-h-[80px]"
+                                {...descRest}
+                                ref={(el) => { rhfRef(el); (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el; }}
+                            />
+                        );
+                    })()}
+                </div>
                 {isCampaignPage && (
                     <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[11px] text-muted-foreground">Variables:</span>
@@ -266,29 +274,35 @@ export const ReminderForm = ({
                 {errors.time && <p className="text-xs text-red-500">{errors.time.message}</p>}
 
                 {!isSchedule &&
-                    <Controller
-                        control={control}
-                        name="repeatType"
-                        render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
-                                <SelectTrigger className="h-8 text-sm">
-                                    <SelectValue placeholder="Seleccionar" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {repeatTypes.map((rt) => (
-                                        <SelectItem key={rt.value} value={rt.value}>
-                                            {rt.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
-                    />
+                    <div className="flex flex-col gap-1.5">
+                        <Label className="text-sm font-semibold">Repetición</Label>
+                        <Controller
+                            control={control}
+                            name="repeatType"
+                            render={({ field }) => (
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <SelectTrigger className="text-sm">
+                                        <SelectValue placeholder="Seleccionar" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {repeatTypes.map((rt) => (
+                                            <SelectItem key={rt.value} value={rt.value}>
+                                                {rt.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        />
+                    </div>
                 }
 
                 {!isSchedule &&
                     <>
-                        <Input type="number" placeholder="Cada cuántos (días/meses...)" className="h-8 text-sm" {...register("repeatEvery")} />
+                        <div className="flex flex-col gap-1.5">
+                            <Label className="text-sm font-semibold">Repetir cada</Label>
+                            <Input type="number" placeholder="Ej: 7 (días/meses...)" className="text-sm" {...register("repeatEvery")} />
+                        </div>
 
                         {leads && (isCampaignPage ?
                             <div className="space-y-1.5">
@@ -358,12 +372,14 @@ export const ReminderForm = ({
                     </>
                 }
 
-                <div className="flex justify-between gap-2 pt-1 mt-auto">
-                    <Button type="button" variant="outline" className="h-8 text-sm" onClick={onCancel}>
+                </div>
+
+                <div className="flex justify-between gap-2 pt-3 mt-2 shrink-0 pb-3">
+                    <Button type="button" variant="secondary" onClick={onCancel}>
                         Cancelar
                     </Button>
-                    <Button type="submit" disabled={mutation.isPending} className="h-8 text-sm">
-                        {mutation.isPending ? "Guardando..." : isEdit ? `Actualizar ${modalTitle}` : `Crear ${modalTitle}`}
+                    <Button type="submit" variant="save" disabled={mutation.isPending}>
+                        {mutation.isPending ? "Guardando..." : isEdit ? "Actualizar" : `Crear ${modalTitle}`}
                     </Button>
                 </div>
             </form>

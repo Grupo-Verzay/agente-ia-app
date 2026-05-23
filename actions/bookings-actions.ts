@@ -74,7 +74,7 @@ export async function getOrCreateTeam(userId: string) {
 
 export async function updateTeam(
     teamId: string,
-    data: { name?: string; description?: string; timezone?: string; isActive?: boolean },
+    data: { name?: string; description?: string; timezone?: string; isActive?: boolean; minNoticeMinutes?: number },
 ): Promise<OpResult<{ id: string }>> {
     try {
         const updated = await db.team.update({ where: { id: teamId }, data, select: { id: true } });
@@ -292,6 +292,14 @@ export async function createBookingAppointment(input: CreateBookingInput) {
     }
 
     try {
+        // Validar tiempo mínimo de anticipación
+        const team = await db.team.findUnique({ where: { id: teamId }, select: { minNoticeMinutes: true } });
+        if (team && team.minNoticeMinutes > 0) {
+            const earliestAllowed = addMinutes(new Date(), team.minNoticeMinutes);
+            if (isBefore(start, earliestAllowed)) {
+                return { success: false, message: `Debes agendar con al menos ${team.minNoticeMinutes} minutos de anticipación.` };
+            }
+        }
         const overlap = await db.bookingAppointment.findFirst({
             where: {
                 teamMemberId,
@@ -360,12 +368,15 @@ export async function getAvailableBookingSlots(
     ymd: string,           // "yyyy-MM-dd" en timezone del team
     durationMinutes: number,
     teamTimezone: string,
+    minNoticeMinutes: number = 0,
 ): Promise<{ success: boolean; message?: string; data?: BookingSlot[] }> {
     try {
         // Obtener disponibilidad del miembro para ese día de la semana
         const [year, month, day] = ymd.split('-').map(Number);
         const localMidnight = new Date(year, month - 1, day, 0, 0, 0, 0);
         const dayOfWeek = localMidnight.getDay();
+        // Tiempo mínimo de anticipación: no mostrar slots antes de (ahora + minNoticeMinutes)
+        const earliestAllowed = addMinutes(new Date(), minNoticeMinutes);
 
         const availability = await db.teamMemberAvailability.findMany({
             where: { teamMemberId: memberId, dayOfWeek },
@@ -408,7 +419,7 @@ export async function getAvailableBookingSlots(
                     (appt) => isBefore(cursor, appt.endTime) && isAfter(slotEnd, appt.startTime),
                 );
 
-                if (!busy) {
+                if (!busy && !isBefore(cursor, earliestAllowed)) {
                     const localStart = toZonedTime(cursor, teamTimezone);
                     slots.push({
                         startTime: cursor.toISOString(),
@@ -439,6 +450,7 @@ export async function getPublicTeamData(userId: string) {
                 name: true,
                 description: true,
                 timezone: true,
+                minNoticeMinutes: true,
                 // Todos los miembros activos del equipo (fallback cuando un servicio no tiene asignados)
                 members: {
                     where: { isActive: true },

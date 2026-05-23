@@ -4,7 +4,6 @@
 import { AnimatePresence, motion } from "framer-motion"
 import { useReminderDialogStore, closeDialog } from "@/stores"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import { Suspense } from "react"
@@ -53,8 +52,8 @@ export const ReminderModal = ({ user, apiKey, leads, workflows, instancia, isSch
                         transition={{ duration: 0.2 }}
                         className="w-full max-w-[33rem] p-2"
                     >
-                        <Card className="relative shadow-2xl border-border rounded-md bg-background">
-                            <CardHeader className="flex items-center justify-between flex-row pb-2">
+                        <Card className="relative shadow-2xl border-border rounded-md bg-background h-[585px] flex flex-col overflow-hidden">
+                            <CardHeader className="flex items-center justify-between flex-row pb-2 shrink-0">
                                 <CardTitle className="text-lg font-semibold leading-none tracking-tight">
                                     {openDialog === 'edit' ? `Editar ${modalTitle}` : `Crear ${modalTitle}`}
                                 </CardTitle>
@@ -66,13 +65,12 @@ export const ReminderModal = ({ user, apiKey, leads, workflows, instancia, isSch
                                     <X className="w-5 h-5" />
                                 </Button>
                             </CardHeader>
-                            <CardContent className="py-0 px-6">
+                            <CardContent className="pt-0 pb-0 px-6 flex-1 min-h-0 flex flex-col">
                                 {!apiKey && (
-                                    <p className="text-sm text-amber-500 mb-3">
+                                    <p className="text-sm text-amber-500 mb-3 shrink-0">
                                         No tienes una API Key asignada. Contacta al administrador para poder enviar recordatorios.
                                     </p>
                                 )}
-                                <ScrollArea className="max-h-[34rem] overflow-y-auto">
                                 <Suspense fallback={<CreateReminderSkeleton />}>
                                     <ReminderForm
                                         instanceNameReminder={instancia.instanceName}
@@ -87,7 +85,6 @@ export const ReminderModal = ({ user, apiKey, leads, workflows, instancia, isSch
                                         isSchedule={isSchedule}
                                     />
                                 </Suspense>
-                                </ScrollArea>
                             </CardContent>
                         </Card>
                     </motion.div>

@@ -1,4 +1,4 @@
-import { format, isBefore, startOfDay } from "date-fns";
+import { addMinutes, format, isBefore, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,9 +9,14 @@ interface Props {
     setSelectedDateYmd: (ymd: string) => void;
     setSelectedSlot: (slot: string | null) => void;
     setStep: (step: number) => void;
+    minNoticeMinutes?: number;
 }
 
-export function DateStep({ selectedDate, setSelectedDate, setSelectedDateYmd, setSelectedSlot, setStep }: Props) {
+export function DateStep({ selectedDate, setSelectedDate, setSelectedDateYmd, setSelectedSlot, setStep, minNoticeMinutes = 0 }: Props) {
+    // Fecha mínima disponible: si minNoticeMinutes desplaza al día siguiente, bloquea hoy también
+    const earliestAllowed = addMinutes(new Date(), minNoticeMinutes);
+    const minDate = startOfDay(earliestAllowed);
+
     return (
         <Card className="border-muted/50">
             <CardHeader className="pb-2">
@@ -42,7 +47,7 @@ export function DateStep({ selectedDate, setSelectedDate, setSelectedDateYmd, se
                             day_outside: "text-muted-foreground opacity-50",
                             day_disabled: "text-muted-foreground opacity-50 cursor-not-allowed",
                         }}
-                        disabled={(date) => isBefore(startOfDay(date), startOfDay(new Date()))}
+                        disabled={(date) => isBefore(startOfDay(date), minDate)}
                     />
                 </div>
                 <div className="flex justify-between gap-2">

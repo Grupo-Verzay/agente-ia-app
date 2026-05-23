@@ -177,21 +177,21 @@ function ServiceFormDialog({
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>{trigger ?? <Button size="sm">+ Nuevo</Button>}</DialogTrigger>
-            <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
+            <DialogContent className="sm:max-w-lg h-[585px] flex flex-col overflow-hidden">
+                <DialogHeader className="shrink-0">
                     <DialogTitle>{title}</DialogTitle>
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
 
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)}>
-                        <div className="overflow-auto max-h-[28rem] pr-2 space-y-4 py-2">
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+                        <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto px-1 pb-1">
                         <FormField
                             control={form.control}
                             name="name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Nombre del servicio</FormLabel>
+                                    <FormLabel className="text-sm font-semibold">Nombre del servicio</FormLabel>
                                     <FormControl>
                                         <Input placeholder="Ej: Asesoría técnica" {...field} />
                                     </FormControl>
@@ -204,12 +204,12 @@ function ServiceFormDialog({
                             control={form.control}
                             name="messageText"
                             render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Mensaje automático para WhatsApp</FormLabel>
-                                    <FormControl>
+                                <FormItem className="flex flex-col flex-1 min-h-0">
+                                    <FormLabel className="text-sm font-semibold">Mensaje automático para WhatsApp</FormLabel>
+                                    <FormControl className="flex-1 min-h-0">
                                         <Textarea
                                             placeholder="Ej: ¡Hola! Gracias por agendar. Te atenderemos puntualmente en tu cita."
-                                            className="min-h-[110px]"
+                                            className="flex-1 min-h-[80px] resize-none text-sm"
                                             {...field}
                                         />
                                     </FormControl>
@@ -222,15 +222,15 @@ function ServiceFormDialog({
                         />
                         </div>
 
-                        <DialogFooter>
-                            <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={submitting}>
+                        <div className="flex justify-between gap-2 pt-3 mt-2 shrink-0 pb-3">
+                            <Button type="button" variant="secondary" onClick={() => setOpen(false)} disabled={submitting}>
                                 Cancelar
                             </Button>
                             <Button variant="save" type="submit" disabled={submitting}>
                                 {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                                Guardar
+                                {mode === "edit" ? "Actualizar" : "Guardar"}
                             </Button>
-                        </DialogFooter>
+                        </div>
                     </form>
                 </Form>
             </DialogContent>

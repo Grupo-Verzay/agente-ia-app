@@ -95,7 +95,7 @@ export const UpdateMeetingDuration = ({
 
             <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-1.5">
-                    <label htmlFor="duration" className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                    <label htmlFor="duration" className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                         <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                         Duración de la reunión
                     </label>
@@ -118,7 +118,7 @@ export const UpdateMeetingDuration = ({
                 </div>
 
                 <div className="space-y-1.5">
-                    <label htmlFor="meetingUrl" className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                    <label htmlFor="meetingUrl" className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                         <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
                         Enlace de reunión virtual
                     </label>
@@ -132,11 +132,10 @@ export const UpdateMeetingDuration = ({
                     <p className="text-xs text-muted-foreground">Zoom, Google Meet, Skype u otra plataforma de videoconferencia</p>
                 </div>
 
-                <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center justify-between gap-2 pt-12">
                     <Button
                         type="button"
-                        variant="outline"
-                        size="sm"
+                        variant="secondary"
                         onClick={handleCancel}
                         disabled={loading}
                     >
@@ -144,11 +143,10 @@ export const UpdateMeetingDuration = ({
                     </Button>
                     <Button
                         type="submit"
-                        size="sm"
+                        variant="save"
                         disabled={loading}
-                        className="bg-green-600 hover:bg-green-700 text-white"
                     >
-                        {loading ? "Guardando..." : "Guardar cambios"}
+                        {loading ? "Guardando..." : "Guardar"}
                     </Button>
                 </div>
             </form>

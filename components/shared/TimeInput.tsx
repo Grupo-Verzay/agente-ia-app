@@ -77,11 +77,14 @@ export function TimeInput({ onChange, className, onBlur, currentValue }: TimeInp
     }
 
     return (
-        <div className={cn(className)}>
-            <Label className="text-xs">Duración de retraso. Máximo 365 días</Label>
-            <div className="flex flex-row gap-2 mt-[4px]">
+        <div className={cn("flex flex-col gap-1.5", className)}>
+            <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">Duración de retraso</Label>
+                <span className="text-xs text-muted-foreground">Máximo 365 días</span>
+            </div>
+            <div className="flex gap-2">
                 <Select value={unit} onValueChange={handleUnitChange}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="flex-1 text-sm">
                         <SelectValue placeholder="Selecciona unidad" />
                     </SelectTrigger>
                     <SelectContent>
@@ -94,6 +97,7 @@ export function TimeInput({ onChange, className, onBlur, currentValue }: TimeInp
                 <Input
                     type="number"
                     min={0}
+                    className="flex-1 text-sm"
                     value={value}
                     onBlur={handleLocalUnBlur}
                     onChange={(e) => {
