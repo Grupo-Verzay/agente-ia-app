@@ -34,7 +34,9 @@ export const ProductTable = ({
         {
             header: "Precio",
             accessorKey: "price",
-            cell: ({ getValue }) => `$${Number(getValue()).toLocaleString('es-CO')}`,
+            cell: ({ getValue }) => (
+                <span className="whitespace-nowrap">{`$${Number(getValue()).toLocaleString('es-CO')}`}</span>
+            ),
         },
         {
             header: "Estado",
@@ -51,9 +53,10 @@ export const ProductTable = ({
             cell: ({ getValue }) => getValue() || "—",
         },
         {
-            header: "Imagen",
+            header: () => <span className="block text-center">Imagen</span>,
+            id: "imagen",
             cell: ({ row }) => (
-                <div>
+                <div className="flex justify-center">
                     {row.original.images.length > 0 ? (
                         <SafeImage
                             src={row.original.images[0]}
@@ -63,14 +66,14 @@ export const ProductTable = ({
                             className="w-16 h-16 object-cover rounded"
                         />
                     ) : (
-                        "—"
+                        <span className="text-muted-foreground">—</span>
                     )}
                 </div>
             ),
         },
         {
             id: "actions",
-            header: "",
+            header: "Acciones",
             cell: ({ row }) => (
                 <div className="flex gap-2 justify-end">
                     <ProductForm
@@ -111,6 +114,11 @@ export const ProductTable = ({
                                         <th
                                             key={h.id}
                                             className="text-left py-3 px-3 text-sm font-semibold text-foreground"
+                                            style={
+                                                h.column.id === "imagen" ? { width: 160, minWidth: 160 } :
+                                                h.column.id === "actions" ? { width: 88, minWidth: 88 } :
+                                                undefined
+                                            }
                                         >
                                             {h.isPlaceholder
                                                 ? null
@@ -127,6 +135,11 @@ export const ProductTable = ({
                                         <td
                                             key={c.id}
                                             className="py-3 px-3 align-middle"
+                                            style={
+                                                c.column.id === "imagen" ? { width: 160, minWidth: 160 } :
+                                                c.column.id === "actions" ? { width: 88, minWidth: 88 } :
+                                                undefined
+                                            }
                                         >
                                             {flexRender(
                                                 c.column.columnDef.cell,

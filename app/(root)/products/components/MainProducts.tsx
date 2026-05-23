@@ -2,7 +2,7 @@
 
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Search, Package } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { ProductForm } from './ProductForm'
@@ -51,7 +51,8 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo }: Ma
                 </div>
                 <div className="flex items-center gap-3">
                     {limitInfo && (
-                        <span className={`text-sm font-semibold ${limitInfo.reached ? 'text-destructive' : 'text-foreground'}`}>
+                        <span className={`flex items-center gap-1.5 text-sm font-semibold ${limitInfo.reached ? 'text-destructive' : 'text-foreground'}`}>
+                            <Package className="h-4 w-4" />
                             {limitInfo.current}/{limitInfo.limit} productos
                         </span>
                     )}
