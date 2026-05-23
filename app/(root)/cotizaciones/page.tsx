@@ -11,7 +11,7 @@ export default async function CotizacionesPage() {
   const userId = user.effectiveId;
   const [cotizaciones, productsData] = await Promise.all([
     listCotizaciones(userId),
-    listProducts({ userId, page: 1, perPage: 200, onlyActive: true }),
+    listProducts({ userId, page: 1, perPage: 100, onlyActive: true }),
   ]);
 
   return (
