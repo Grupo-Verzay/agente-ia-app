@@ -214,4 +214,26 @@ export const BUILTIN_TOOL_CATALOG: {
       'Permite al agente leer el contenido de cualquier página web pública: sitios HTML estáticos, páginas de precios, fichas técnicas, blogs, etc. No funciona con páginas que requieren login ni con aplicaciones de una sola página (SPA/React). Devuelve el texto limpio extraído de la página.',
     sortOrder: 15,
   },
+  {
+    toolType: 'consultar_inventario',
+    defaultKey: 'consultar_inventario',
+    defaultDisplayName: 'Consultar inventario',
+    defaultDescription:
+      'Consulta el stock disponible de los productos. Úsala cuando el cliente pregunte si hay existencias de un producto o cuántas unidades quedan. Puedes buscar por nombre o pedir todo el inventario.',
+    isCritical: false,
+    helpText:
+      'Devuelve nombre, precio y stock de los productos activos. Si el stock es 0 lo indica como sin stock. Ideal para negocios con inventario propio.',
+    sortOrder: 17,
+  },
+  {
+    toolType: 'crear_cotizacion',
+    defaultKey: 'crear_cotizacion',
+    defaultDisplayName: 'Crear cotización',
+    defaultDescription:
+      'Genera una cotización formal con los productos/servicios que el cliente solicita. Úsala cuando el cliente pida un presupuesto, cotización o lista de precios para comprar. Requiere el nombre del cliente y los ítems con cantidad y precio unitario.',
+    isCritical: false,
+    helpText:
+      'Crea un registro de cotización en la app con estado "borrador". El agente puede generarla directamente desde el chat y el equipo la verá en /cotizaciones.',
+    sortOrder: 18,
+  },
 ];

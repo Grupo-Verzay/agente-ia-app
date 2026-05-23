@@ -70,7 +70,9 @@ export type ExternalDataBuiltinToolType =
   | 'leer_google_sheets'
   | 'escribir_google_sheets'
   | 'editar_google_sheets'
-  | 'scrape_web';
+  | 'scrape_web'
+  | 'consultar_inventario'
+  | 'crear_cotizacion';
 
 export type ExternalDataQueryToolType = 'auto_inject' | 'search_by_field';
 
