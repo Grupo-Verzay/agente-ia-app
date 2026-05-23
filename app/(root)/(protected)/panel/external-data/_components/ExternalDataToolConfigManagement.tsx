@@ -220,7 +220,10 @@ const BUILTIN_TYPE_LABELS: Record<ExternalDataBuiltinToolType, string> = {
   buscar_plantilla: 'Buscar plantilla',
   leer_google_sheets: 'Google Sheets (leer)',
   escribir_google_sheets: 'Google Sheets (guardar)',
+  editar_google_sheets: 'Google Sheets (editar)',
   scrape_web: 'Consultar web',
+  consultar_inventario: 'Consultar inventario',
+  crear_cotizacion: 'Crear cotización',
 };
 
 function ToolCard({
