@@ -907,7 +907,7 @@ export function ChatsClient({
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-400 text-xs font-bold text-white">▼</span>
                 <div>
                   <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Más opciones</p>
-                  <p className="text-[11px] text-muted-foreground">Archivados y eliminados</p>
+                  <p className="text-[11px] text-muted-foreground">Chats archivados y eliminados</p>
                 </div>
               </div>
             </div>
