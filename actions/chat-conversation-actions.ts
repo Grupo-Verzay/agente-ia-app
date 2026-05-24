@@ -111,14 +111,14 @@ async function upsertPreference(
 }
 
 export async function getChatConversationPreferencesByUserId(
-  userId: string,
+  _userId?: string,
 ): Promise<ChatPreferenceResponse<ChatConversationPreferenceMap>> {
   try {
-    const parsedUserId = z.string().trim().min(1).parse(userId);
-    await assertAuthorized(parsedUserId);
+    const user = await currentUser();
+    if (!user?.id) throw new Error("No autorizado.");
 
     const preferences = await chatConversationPreferenceTable.findMany({
-      where: { userId: parsedUserId },
+      where: { userId: user.id },
     });
 
     const data = preferences.reduce<ChatConversationPreferenceMap>((acc, item) => {
