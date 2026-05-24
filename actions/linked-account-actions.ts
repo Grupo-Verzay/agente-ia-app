@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { cookies } from "next/headers";
+import type { Instancia } from "@prisma/client";
 
 type Result<T = undefined> =
   | { success: true; data?: T; warning?: string }
@@ -165,4 +166,48 @@ export async function removeLinkedAccount(linkedUserId: string): Promise<Result>
   }
 
   return { success: true };
+}
+
+export type LinkedAccountInstances = {
+  linkedUserId: string;
+  company: string;
+  instances: Instancia[];
+};
+
+export async function getLinkedAccountsInstances(
+  masterUserId: string,
+): Promise<{ success: true; data: LinkedAccountInstances[] } | { success: false; message: string }> {
+  if (!masterUserId) return { success: true, data: [] };
+
+  try {
+    type LinkedRow = { linkedUserId: string; company: string };
+    const linkedRows = await db.$queryRaw<LinkedRow[]>`
+      SELECT la."linked_user_id" AS "linkedUserId", u.company
+      FROM "linked_accounts" la
+      JOIN "User" u ON u.id = la."linked_user_id"
+      WHERE la."master_user_id" = ${masterUserId}
+    `;
+
+    if (linkedRows.length === 0) return { success: true, data: [] };
+
+    const linkedIds = linkedRows.map((r) => r.linkedUserId);
+
+    const instances = await db.instancia.findMany({
+      where: {
+        userId: { in: linkedIds },
+        instanceType: { in: ["Whatsapp", "baileys"] },
+      },
+    });
+
+    const data: LinkedAccountInstances[] = linkedRows.map((row) => ({
+      linkedUserId: row.linkedUserId,
+      company: row.company,
+      instances: instances.filter((inst) => inst.userId === row.linkedUserId),
+    }));
+
+    return { success: true, data };
+  } catch (error) {
+    console.error("[getLinkedAccountsInstances]", error);
+    return { success: true, data: [] };
+  }
 }

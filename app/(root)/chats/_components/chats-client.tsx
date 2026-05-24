@@ -52,6 +52,19 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
 
 type ApiKeyData = { url: string; key: string };
 
+export type InstanceActionSet = {
+  instanceName: string;
+  instanceType?: string;
+  warmMessages: (
+    remoteJid: string,
+    opts?: { page?: number; pageSize?: number; remoteJidAliases?: string[] },
+  ) => Promise<FindMessagesResult>;
+  sendText: (remoteJid: string, payload: OutgoingMessagePayload) => Promise<SendMessageResult>;
+  sendWorkflow: (remoteJid: string, workflowId: string) => Promise<ChatToolActionResult>;
+  sendQuickReply: (remoteJid: string, quickReplyId: number) => Promise<ChatToolActionResult>;
+  refetchChats: () => Promise<FetchChatsResult>;
+};
+
 function buildChatContactDescriptors(chats: ChatData[]): ChatContactDescriptor[] {
   return chats
     .filter((chat) => chat.remoteJid && chat.remoteJid !== "status@broadcast")
@@ -90,7 +103,7 @@ function filterChatList(result: FetchChatsResult): FetchChatsResult {
 
 interface ChatsClientProps {
   userId: string;
-  instancias?: { instanceName: string; instanceId: string; instanceType?: string | null }[];
+  instancias?: { instanceName: string; instanceId: string; instanceType?: string | null; linkedUserId?: string; company?: string }[];
   chatsResult: FetchChatsResult;
   initialChatPreferences: ChatConversationPreferenceMap;
   initialChatSessions: ChatContactSessionMap;
@@ -115,6 +128,7 @@ interface ChatsClientProps {
   ) => Promise<ChatToolActionResult>;
   refetchChatsAction: () => Promise<FetchChatsResult>;
   apiKeyData?: ApiKeyData;
+  instanceActionSets?: InstanceActionSet[];
   allTags: SimpleTag[];
   workflows: ChatWorkflowOption[];
   quickReplies: ChatQuickReplyOption[];
@@ -149,6 +163,7 @@ export function ChatsClient({
   transferSessionAction,
   instanceName,
   apiKeyData,
+  instanceActionSets,
   allTags,
   workflows,
   quickReplies,
@@ -167,6 +182,9 @@ export function ChatsClient({
       : undefined;
 
   const [selectedJid, setSelectedJid] = useState(initialSelectedJid || "");
+  const [selectedInstanceName, setSelectedInstanceName] = useState<string | null>(null);
+  const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentChatsResult, setCurrentChatsResult] = useState(normalizedInitialChatsResult);
   const [chatPreferences, setChatPreferences] =
     useState<ChatConversationPreferenceMap>(initialChatPreferences);
@@ -201,6 +219,7 @@ export function ChatsClient({
   const inFlightRef = useRef(false);
   const backoffRef = useRef(0);
   const messagesRef = useRef<EvolutionMessage[]>(initialMessages || []);
+  const activeActionSetRef = useRef<InstanceActionSet | null>(null);
   const BASE_INTERVAL = 2000;
   const MAX_BACKOFF = 30000;
 
@@ -220,6 +239,27 @@ export function ChatsClient({
     if (!currentChatsResult.success) return currentChatsResult;
     return { ...currentChatsResult, data: contacts };
   }, [currentChatsResult, contacts]);
+
+  const channelCounts = useMemo((): Record<string, number> => {
+    if (!currentChatsResult.success) return {};
+    const counts: Record<string, number> = {};
+    for (const chat of currentChatsResult.data) {
+      if (chat.instanceName) {
+        counts[chat.instanceName] = (counts[chat.instanceName] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [currentChatsResult]);
+
+  const filteredSidebarResult = useMemo((): FetchChatsResult => {
+    if (!selectedChannel || !sidebarResult.success) return sidebarResult;
+    return {
+      ...sidebarResult,
+      data: sidebarResult.data.filter(
+        (c) => !c.instanceName || c.instanceName === selectedChannel,
+      ),
+    };
+  }, [sidebarResult, selectedChannel]);
 
   const visibleContacts = useMemo(
     () =>
@@ -315,8 +355,18 @@ export function ChatsClient({
     [userId],
   );
 
+  const refetchAllInstances = useCallback(async (): Promise<FetchChatsResult> => {
+    if (!instanceActionSets?.length) return refetchChatsAction();
+    const results = await Promise.allSettled(instanceActionSets.map((s) => s.refetchChats()));
+    const allChats: ChatData[] = [];
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value.success) allChats.push(...r.value.data);
+    }
+    return { success: true, message: "OK", data: allChats };
+  }, [instanceActionSets, refetchChatsAction]);
+
   const refreshSidebarData = useCallback(async () => {
-    const chatRefreshResult = await refetchChatsAction();
+    const chatRefreshResult = await refetchAllInstances();
     if (!chatRefreshResult.success) return;
 
     const filtered = filterChatList(chatRefreshResult);
@@ -325,7 +375,7 @@ export function ChatsClient({
     if (filtered.success) {
       await refreshChatSessions(filtered.data);
     }
-  }, [refetchChatsAction, refreshChatSessions]);
+  }, [refetchAllInstances, refreshChatSessions]);
 
   const applyChatPreference = useCallback((preference: ChatConversationPreference) => {
     setChatPreferences((previous) => ({
@@ -452,7 +502,12 @@ export function ChatsClient({
       inFlightRef.current = true;
 
       try {
-        const result = await warmMessagesAction(remoteJid, {
+        const activeSet = activeActionSetRef.current;
+        const effectiveWarmMessages = activeSet?.warmMessages ?? warmMessagesAction;
+        const effectiveInstanceName = activeSet?.instanceName ?? instanceName;
+        const effectiveApiKeyData = activeSet?.instanceType === "baileys" ? undefined : apiKeyData;
+
+        const result = await effectiveWarmMessages(remoteJid, {
           page: 1,
           pageSize: 50,
           remoteJidAliases,
@@ -467,10 +522,10 @@ export function ChatsClient({
               pages: result.pages,
               currentPage: result.currentPage,
               nextPage: result.nextPage,
-              instanceName,
+              instanceName: effectiveInstanceName,
               remoteJid,
               remoteJidAliases,
-              apiKeyData,
+              apiKeyData: effectiveApiKeyData,
             });
           }
           backoffRef.current = 0;
@@ -493,33 +548,48 @@ export function ChatsClient({
   );
 
   const handleSelectFromSidebar = useCallback(
-    async (remoteJid: string) => {
+    async (remoteJid: string, contactInstanceName?: string) => {
       if (!remoteJid) {
         setSelectedJid("");
+        setSelectedInstanceName(null);
         setMessages([]);
         setIsSidebarVisible(true);
+        activeActionSetRef.current = null;
         return;
       }
       const selectedContact = contacts.find(
+        (contact) =>
+          (contactInstanceName ? contact.instanceName === contactInstanceName : true) &&
+          (contact.remoteJid === remoteJid || contact.aliases?.includes(remoteJid)),
+      ) ?? contacts.find(
         (contact) => contact.remoteJid === remoteJid || contact.aliases?.includes(remoteJid),
       );
       const remoteJidAliases = selectedContact?.aliases;
 
+      const actionSet =
+        instanceActionSets?.find((s) => s.instanceName === selectedContact?.instanceName) ?? null;
+      activeActionSetRef.current = actionSet;
+
+      const effectiveInstanceName = selectedContact?.instanceName ?? instanceName;
+      const effectiveApiKeyData = actionSet?.instanceType === "baileys" ? undefined : apiKeyData;
+      const effectiveWarmMessages = actionSet?.warmMessages ?? warmMessagesAction;
+
       if (selectedJid !== remoteJid) setSelectedJid(remoteJid);
+      setSelectedInstanceName(selectedContact?.instanceName ?? null);
       if (isSidebarVisible) setIsSidebarVisible(false);
 
       setInfo((currentInfo) => ({
         ...(currentInfo ?? {}),
-        instanceName,
+        instanceName: effectiveInstanceName,
         remoteJid,
         remoteJidAliases,
-        apiKeyData,
+        apiKeyData: effectiveApiKeyData,
       }));
       setLoading(true);
       setMessages([]);
 
       try {
-        const result = await warmMessagesAction(remoteJid, {
+        const result = await effectiveWarmMessages(remoteJid, {
           page: 1,
           pageSize: 50,
           remoteJidAliases,
@@ -532,35 +602,35 @@ export function ChatsClient({
             pages: result.pages,
             currentPage: result.currentPage,
             nextPage: result.nextPage,
-            instanceName,
+            instanceName: effectiveInstanceName,
             remoteJid,
             remoteJidAliases,
-            apiKeyData,
+            apiKeyData: effectiveApiKeyData,
           });
         } else {
           setMessages([]);
           setInfo((currentInfo) => ({
             ...(currentInfo ?? {}),
-            instanceName,
+            instanceName: effectiveInstanceName,
             remoteJid,
             remoteJidAliases,
-            apiKeyData,
+            apiKeyData: effectiveApiKeyData,
           }));
         }
       } catch {
         setMessages([]);
         setInfo((currentInfo) => ({
           ...(currentInfo ?? {}),
-          instanceName,
+          instanceName: effectiveInstanceName,
           remoteJid,
           remoteJidAliases,
-          apiKeyData,
+          apiKeyData: effectiveApiKeyData,
         }));
       } finally {
         setLoading(false);
       }
     },
-    [apiKeyData, contacts, instanceName, isSidebarVisible, selectedJid, warmMessagesAction],
+    [apiKeyData, contacts, instanceActionSets, instanceName, isSidebarVisible, selectedJid, warmMessagesAction],
   );
 
   const handleSendAny = useCallback(
@@ -569,7 +639,7 @@ export function ChatsClient({
         throw new Error("No hay un chat seleccionado para enviar el mensaje.");
       }
 
-      const result = await sendAnyAction(selectedJid, payload);
+      const result = await (activeActionSetRef.current?.sendText ?? sendAnyAction)(selectedJid, payload);
       if (!result.success) {
         throw new Error(result.message || "No se pudo enviar el mensaje.");
       }
@@ -592,7 +662,7 @@ export function ChatsClient({
         throw new Error("No hay un chat seleccionado para enviar el workflow.");
       }
 
-      const result = await sendWorkflowAction(selectedJid, workflowId);
+      const result = await (activeActionSetRef.current?.sendWorkflow ?? sendWorkflowAction)(selectedJid, workflowId);
       if (!result.success) {
         throw new Error(result.message || "No se pudo enviar el workflow.");
       }
@@ -617,7 +687,7 @@ export function ChatsClient({
         throw new Error("No hay un chat seleccionado para enviar la respuesta rapida.");
       }
 
-      const result = await sendQuickReplyAction(selectedJid, quickReplyId);
+      const result = await (activeActionSetRef.current?.sendQuickReply ?? sendQuickReplyAction)(selectedJid, quickReplyId);
       if (!result.success) {
         throw new Error(result.message || "No se pudo enviar la respuesta rapida.");
       }
@@ -729,7 +799,7 @@ export function ChatsClient({
     const loop = async () => {
       if (stopped) return;
 
-      const result = await refetchChatsAction();
+      const result = await refetchAllInstances();
       if (result.success) {
         const filtered = filterChatList(result);
         setCurrentChatsResult(filtered);
@@ -749,7 +819,7 @@ export function ChatsClient({
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-  }, [normalizedInitialChatsResult.success, refetchChatsAction, refreshChatSessions]);
+  }, [normalizedInitialChatsResult.success, refetchAllInstances, refreshChatSessions]);
 
   useEffect(() => {
     if (pollingRef.current) {
@@ -809,6 +879,18 @@ export function ChatsClient({
     selectedJid,
   ]);
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try { await refreshSidebarData(); } finally { setIsRefreshing(false); }
+  };
+
+  const handleChannelChange = (channel: string | null) => {
+    setSelectedChannel(channel);
+    setSelectedJid("");
+    setSelectedInstanceName(null);
+    setMessages([]);
+  };
+
   return (
     <div className="flex h-full overflow-hidden rounded-lg border border-border shadow-sm">
       <div
@@ -830,13 +912,18 @@ export function ChatsClient({
           onRestoreChat={handleRestoreChat}
           onSelectRemoteJid={handleSelectFromSidebar}
           onTogglePin={handleToggleChatPin}
-          result={sidebarResult}
+          result={filteredSidebarResult}
           selectedJid={selectedJid}
+          selectedInstanceName={selectedInstanceName}
           advisors={advisors}
           advisorRole={advisorRole}
           currentAdvisorId={currentAdvisorId}
           instancias={instancias}
-          currentInstanceName={instanceName}
+          selectedChannel={selectedChannel}
+          channelCounts={channelCounts}
+          onChannelChange={handleChannelChange}
+          onRefresh={handleRefresh}
+          isRefreshing={isRefreshing}
           onAssignAdvisor={
             assignAdvisorAction || takeSessionAction || releaseSessionAction || transferSessionAction
               ? (remoteJid, advisorId) => handleAssignAdvisor(remoteJid, advisorId)

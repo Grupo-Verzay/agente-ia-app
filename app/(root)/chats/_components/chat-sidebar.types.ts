@@ -16,6 +16,7 @@ export type SidebarContact = {
   pinnedAtMs: number;
   timestamp: string;
   ts: number;
+  instanceName?: string;
 };
 
 export type TabKey = "all" | "mine" | "dm" | "groups" | "archived" | "deleted";

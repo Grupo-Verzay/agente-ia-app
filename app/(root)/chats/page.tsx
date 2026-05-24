@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { getApiKeyById } from "@/actions/api-action";
 import {
   fetchChatsFromEvolution,
+  type ChatData,
   type EvolutionMessage as EvoMsgFromAction,
   type FetchChatsResult,
 } from "@/actions/chat-actions";
@@ -33,7 +34,8 @@ import { listTagsAction } from "@/actions/tag-actions";
 import { getWorkFlowByUser } from "@/actions/workflow-actions";
 import { getTeamAdvisorInfos } from "@/actions/team-actions";
 import { assignSessionToAdvisor, takeSession, releaseSession, transferSession } from "@/actions/advisor-assign-actions";
-import { ChatsClient } from "./_components/chats-client";
+import { getLinkedAccountsInstances } from "@/actions/linked-account-actions";
+import { ChatsClient, type InstanceActionSet } from "./_components/chats-client";
 import { normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
 import type {
   ChatQuickReplyOption,
@@ -85,34 +87,153 @@ export default async function ChatsPage({
       : user.apiKeyId;
 
   // Fase 1: todo lo que no depende de los chats corre en paralelo
-  const [resInstancias, resApikey, workflowsResponse, quickRepliesResponse0] = await Promise.all([
+  const [resInstancias, resApikey, workflowsResponse, quickRepliesResponse0, linkedAccountsRes] = await Promise.all([
     getInstancesByUserId(effectiveOwnerId),
-    getApiKeyById(ownerApiKeyId),
+    getApiKeyById(ownerApiKeyId ?? ''),
     getWorkFlowByUser(effectiveOwnerId),
     getAllRRs(effectiveOwnerId),
+    getLinkedAccountsInstances(user.sessionUserId),
   ]);
 
-  const instancias = hasInstancias(resInstancias) ? resInstancias.data : [];
+  const ownInstancias = hasInstancias(resInstancias) ? resInstancias.data : [];
+  const linkedAccountsData = linkedAccountsRes.success ? linkedAccountsRes.data : [];
+
+  // Agregar instancias de cuentas vinculadas (mismo servidor Evolution → misma API Key)
+  const linkedInstancias = linkedAccountsData
+    .flatMap((la) => la.instances)
+    .filter((li) => !ownInstancias.some((oi) => oi.instanceName === li.instanceName));
+
+  const instancias = [...ownInstancias, ...linkedInstancias];
+
+  // Meta enriquecida para la UI (incluye info de cuenta vinculada)
+  const instanciasMeta = [
+    ...ownInstancias.map((i) => ({
+      instanceName: i.instanceName,
+      instanceId: i.instanceId,
+      instanceType: i.instanceType,
+    })),
+    ...linkedAccountsData.flatMap((la) =>
+      la.instances
+        .filter((li) => !ownInstancias.some((oi) => oi.instanceName === li.instanceName))
+        .map((li) => ({
+          instanceName: li.instanceName,
+          instanceId: li.instanceId,
+          instanceType: li.instanceType,
+          linkedUserId: la.linkedUserId,
+          company: la.company || li.instanceName,
+        })),
+    ),
+  ];
+
   const requestedInstance = searchParams?.instance;
   const whatsappInstancia = requestedInstance
     ? (instancias.find((i) => i.instanceName === requestedInstance) ?? pickWhatsappOrNull(instancias))
     : pickWhatsappOrNull(instancias);
   const apiKey = hasApikey(resApikey) ? resApikey.data : null;
 
-  const isBaileys = whatsappInstancia?.instanceType === "baileys";
+  // Fase 2: fetch chats de TODAS las instancias de mensajería en paralelo
+  type FetchPlan = { instancia: Instancia; isBaileys: boolean };
+  const fetchPlans: FetchPlan[] = instancias
+    .filter(
+      (inst) =>
+        inst.instanceType === "Whatsapp" ||
+        inst.instanceType === "baileys" ||
+        inst.instanceType == null,
+    )
+    .filter((inst) => inst.instanceType === "baileys" || !!apiKey)
+    .map((inst) => ({ instancia: inst, isBaileys: inst.instanceType === "baileys" }));
 
-  // Fase 2: fetch chats (necesita instancia + apikey)
-  const chatsResult: FetchChatsResult =
-    whatsappInstancia && (isBaileys || apiKey)
-      ? isBaileys
-        ? await fetchChatsFromBaileys(whatsappInstancia.instanceName)
-        : await fetchChatsFromEvolution(apiKey!, whatsappInstancia.instanceName)
-      : {
-          success: false,
-          message: !whatsappInstancia
-            ? "No se encontró una instancia WhatsApp válida."
-            : "No hay API Key configurada.",
-        };
+  let chatsResult: FetchChatsResult;
+  let instanceActionSets: InstanceActionSet[] = [];
+
+  if (fetchPlans.length === 0) {
+    chatsResult = {
+      success: false,
+      message:
+        instancias.filter(
+          (i) =>
+            i.instanceType === "Whatsapp" ||
+            i.instanceType === "baileys" ||
+            i.instanceType == null,
+        ).length === 0
+          ? "No se encontró una instancia WhatsApp válida."
+          : "No hay API Key configurada.",
+    };
+  } else {
+    const allFetchResults = await Promise.allSettled(
+      fetchPlans.map((plan) =>
+        plan.isBaileys
+          ? fetchChatsFromBaileys(plan.instancia.instanceName)
+          : fetchChatsFromEvolution(apiKey!, plan.instancia.instanceName),
+      ),
+    );
+
+    const allChats: ChatData[] = [];
+    let hasAnySuccess = false;
+    for (const r of allFetchResults) {
+      if (r.status === "fulfilled" && r.value.success) {
+        allChats.push(...r.value.data);
+        hasAnySuccess = true;
+      }
+    }
+
+    // Deduplicate:
+    // - Groups (@g.us): by remoteJid only — same group appears in multiple instances, show once
+    // - 1-on-1 chats: by (instanceName, remoteJid) — keep separate per instance
+    // Sort by most recent message first so we keep the freshest entry when deduplicating
+    allChats.sort((a, b) => {
+      const ta = (a.lastMessage?.messageTimestamp ?? 0);
+      const tb = (b.lastMessage?.messageTimestamp ?? 0);
+      return tb - ta;
+    });
+    const seenGroups = new Set<string>();
+    const seenChats = new Set<string>();
+    const dedupedChats = allChats.filter((chat) => {
+      if (chat.remoteJid.endsWith('@g.us')) {
+        if (seenGroups.has(chat.remoteJid)) return false;
+        seenGroups.add(chat.remoteJid);
+        return true;
+      }
+      const key = `${chat.instanceName ?? ''}:${chat.remoteJid}`;
+      if (seenChats.has(key)) return false;
+      seenChats.add(key);
+      return true;
+    });
+
+    chatsResult = hasAnySuccess
+      ? { success: true, message: "OK", data: dedupedChats }
+      : { success: false, message: "No se pudieron cargar los chats." };
+
+    instanceActionSets = fetchPlans.map((plan) => {
+      const inst = plan.instancia;
+      const isBaileysInst = plan.isBaileys;
+      const instActionCtx =
+        !isBaileysInst && apiKey
+          ? { apiKeyData: { url: apiKey.url, key: apiKey.key }, instanceName: inst.instanceName }
+          : null;
+      return {
+        instanceName: inst.instanceName,
+        instanceType: inst.instanceType ?? undefined,
+        warmMessages: isBaileysInst
+          ? findMessagesFromBaileys.bind(null, inst.instanceName)
+          : warmChatMessagesAction.bind(null, instActionCtx),
+        sendText: isBaileysInst
+          ? sendBaileysTextAction.bind(null, inst.instanceName)
+          : sendManualChatPayloadAction.bind(null, instActionCtx),
+        sendWorkflow: isBaileysInst
+          ? sendBaileysWorkflowAction.bind(null, inst.instanceName)
+          : sendManualWorkflowAction.bind(null, instActionCtx),
+        sendQuickReply: isBaileysInst
+          ? sendBaileysQuickReplyAction.bind(null, inst.instanceName)
+          : sendManualQuickReplyAction.bind(null, instActionCtx),
+        refetchChats: isBaileysInst
+          ? fetchChatsFromBaileys.bind(null, inst.instanceName)
+          : refetchChatsManualAction.bind(null, instActionCtx),
+      } satisfies InstanceActionSet;
+    });
+  }
+
+  const isBaileys = whatsappInstancia?.instanceType === "baileys";
 
   const requestedJid = searchParams?.jid
     ? normalizeWhatsAppConversationJid(searchParams.jid) || searchParams.jid
@@ -231,7 +352,7 @@ export default async function ChatsPage({
   return (
     <ChatsClient
       userId={effectiveOwnerId}
-      instancias={instancias}
+      instancias={instanciasMeta}
       chatsResult={chatsResult}
       initialChatPreferences={initialChatPreferences}
       initialChatSessions={initialChatSessions}
@@ -244,6 +365,7 @@ export default async function ChatsPage({
       sendQuickReplyAction={sendQuickReplyAction}
       refetchChatsAction={refetchChatsAction}
       apiKeyData={apiKey ? { url: apiKey.url, key: apiKey.key } : undefined}
+      instanceActionSets={instanceActionSets}
       allTags={allTags}
       workflows={workflowOptions}
       quickReplies={quickReplyOptions}
