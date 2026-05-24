@@ -273,7 +273,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 rounded-full hover:bg-muted text-green-600 hover:text-green-700"
+                  className="h-7 w-7 rounded-md border border-green-300 bg-green-100 text-green-700 hover:bg-green-200 hover:text-green-800"
                   onClick={handleCall}
                   title="Llamar por WhatsApp"
                 >
@@ -378,7 +378,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 rounded-full hover:bg-muted text-green-600 hover:text-green-700"
+                className="h-7 w-7 rounded-md border border-green-300 bg-green-100 text-green-700 hover:bg-green-200 hover:text-green-800"
                 onClick={handleCall}
                 title="Llamar por WhatsApp"
               >
