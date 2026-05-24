@@ -265,6 +265,11 @@ export function ChatSidebar({
     }
   }, [selectedJid]);
 
+  const handleTabChange = useCallback((newTab: TabKey) => {
+    setTab(newTab);
+    void onSelectRemoteJid?.("");
+  }, [onSelectRemoteJid]);
+
   const toggleTagFilter = useCallback((tagId: number) => {
     setSelectedTagIds((prev) => {
       if (prev.has(tagId)) return new Set();
@@ -422,7 +427,7 @@ export function ChatSidebar({
             )}
           </div>
 
-          <ChatTabBar tab={tab} onTabChange={setTab} tabCounts={tabCounts} showMine={!!currentAdvisorId} />
+          <ChatTabBar tab={tab} onTabChange={handleTabChange} tabCounts={tabCounts} showMine={!!currentAdvisorId} />
         </div>
 
         <div role="list" className="flex-1 space-y-1 overflow-y-auto p-1">

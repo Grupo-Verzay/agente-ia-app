@@ -494,6 +494,12 @@ export function ChatsClient({
 
   const handleSelectFromSidebar = useCallback(
     async (remoteJid: string) => {
+      if (!remoteJid) {
+        setSelectedJid("");
+        setMessages([]);
+        setIsSidebarVisible(true);
+        return;
+      }
       const selectedContact = contacts.find(
         (contact) => contact.remoteJid === remoteJid || contact.aliases?.includes(remoteJid),
       );
@@ -804,7 +810,7 @@ export function ChatsClient({
   ]);
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex h-full overflow-hidden rounded-lg border border-border shadow-sm">
       <div
         className={`${
           isSidebarVisible
@@ -872,24 +878,37 @@ export function ChatsClient({
             }
           />
         ) : (
-          <div className="hidden sm:flex h-full flex-1 flex-col items-center justify-center gap-4 bg-muted/20 select-none">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+          <div className="hidden sm:flex h-full flex-1 flex-col items-center justify-center gap-5 select-none border-l border-border bg-muted/10 px-8">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/15 ring-8 ring-primary/5">
               <svg viewBox="0 0 24 24" fill="none" className="h-10 w-10 text-primary" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 9.75a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 0 1 .778-.332 48.294 48.294 0 0 0 5.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
               </svg>
             </div>
             <div className="text-center">
-              <h2 className="text-xl font-semibold text-foreground">Tus conversaciones</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Selecciona un chat de la lista para comenzar</p>
+              <h2 className="text-xl font-bold text-foreground">Tus conversaciones</h2>
+              <p className="mt-1.5 text-sm text-muted-foreground">Selecciona un chat de la lista para comenzar</p>
             </div>
-            <div className="flex flex-col items-center gap-2 mt-2">
-              <div className="flex items-center gap-3 rounded-lg border bg-background px-4 py-2 text-xs text-muted-foreground shadow-sm">
-                <span className="font-mono rounded bg-muted px-1.5 py-0.5 text-[11px]">Mías</span>
-                <span>Ver conversaciones asignadas a ti</span>
+            <div className="flex flex-col gap-2.5 w-full max-w-xs">
+              <div className="flex items-center gap-3 rounded-xl border border-violet-200 bg-violet-50 dark:border-violet-800/50 dark:bg-violet-950/30 px-4 py-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-500 text-[10px] font-bold text-white">M</span>
+                <div>
+                  <p className="text-xs font-semibold text-violet-700 dark:text-violet-400">Pestaña Mías</p>
+                  <p className="text-[11px] text-muted-foreground">Conversaciones asignadas a ti</p>
+                </div>
               </div>
-              <div className="flex items-center gap-3 rounded-lg border bg-background px-4 py-2 text-xs text-muted-foreground shadow-sm">
-                <span className="font-mono rounded bg-muted px-1.5 py-0.5 text-[11px]">▼</span>
-                <span>Acceder a archivados y eliminados</span>
+              <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-800/50 dark:bg-blue-950/30 px-4 py-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">T</span>
+                <div>
+                  <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">Pestaña Todos</p>
+                  <p className="text-[11px] text-muted-foreground">Todas las conversaciones activas</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/30 px-4 py-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-400 text-xs font-bold text-white">▼</span>
+                <div>
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Más opciones</p>
+                  <p className="text-[11px] text-muted-foreground">Archivados y eliminados</p>
+                </div>
               </div>
             </div>
           </div>
