@@ -127,7 +127,7 @@ export function AdvisorAssignBadge({
           'inline-flex items-center justify-center font-semibold text-white shrink-0',
           isPill
             ? cn('h-6 rounded-full px-1.5 text-[10px]', assigned ? colorFor(assignedAdvisorId!) : 'bg-muted text-muted-foreground')
-            : cn('h-6 w-6 rounded-full text-xs', assigned ? colorFor(assignedAdvisorId!) : 'bg-muted text-muted-foreground'),
+            : cn('h-7 w-7 rounded-full text-xs', assigned ? colorFor(assignedAdvisorId!) : 'bg-muted text-muted-foreground'),
         )}
         title={assigned ? (assigned.name ?? assigned.email) : 'Asignado'}
       >
@@ -152,11 +152,11 @@ export function AdvisorAssignBadge({
                   'font-semibold text-white',
                   isPill
                     ? cn('h-6 rounded-full px-1.5 text-[10px]', colorFor(assigned.id))
-                    : cn('h-6 w-6 rounded-full text-xs', colorFor(assigned.id)),
+                    : cn('h-7 w-7 rounded-full text-xs', colorFor(assigned.id)),
                 )
               : cn(
                   'border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-primary hover:text-primary',
-                  isPill ? 'h-6 rounded-full px-1 gap-0.5 text-[10px]' : 'h-6 w-6 rounded-full',
+                  isPill ? 'h-6 rounded-full px-1 gap-0.5 text-[10px]' : 'h-7 w-7 rounded-full',
                 ),
           )}
         >
