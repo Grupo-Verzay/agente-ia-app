@@ -277,7 +277,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   onClick={handleCall}
                   title="Llamar por WhatsApp"
                 >
-                  <Phone className="h-4 w-4" />
+                  <Phone className="h-5 w-5" />
                 </Button>
                 {advisorBadge}
                 <Button
@@ -382,7 +382,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 onClick={handleCall}
                 title="Llamar por WhatsApp"
               >
-                <Phone className="h-4 w-4" />
+                <Phone className="h-5 w-5" />
               </Button>
               {advisorBadge}
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
