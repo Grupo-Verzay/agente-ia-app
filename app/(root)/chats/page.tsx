@@ -125,11 +125,7 @@ export default async function ChatsPage({
         )
       : undefined;
 
-  const initialSelectedJid =
-    initialSelectedChat?.remoteJid ||
-    (chatsResult.success && chatsResult.data.length > 0
-      ? chatsResult.data[0].remoteJid
-      : requestedJid);
+  const initialSelectedJid = initialSelectedChat?.remoteJid ?? requestedJid;
 
   // initialMessages se carga en el cliente via warmMessagesAction para no bloquear el render
   const initialMessages: EvoMsgFromAction[] = [];

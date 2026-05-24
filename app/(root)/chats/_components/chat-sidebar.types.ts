@@ -1,4 +1,3 @@
-import type { LucideIcon } from "lucide-react";
 import type { ChatContactSessionMap } from "@/types/session";
 
 export type SidebarContact = {
@@ -19,14 +18,13 @@ export type SidebarContact = {
   ts: number;
 };
 
-export type TabKey = "all" | "dm" | "groups" | "archived" | "deleted";
+export type TabKey = "all" | "mine" | "dm" | "groups" | "archived" | "deleted";
 
 export type TabCounts = Record<TabKey, number>;
 
 export type TabConfig = {
   key: TabKey;
   label: string;
-  Icon: LucideIcon | null;
   color: string;
   count: number;
 };

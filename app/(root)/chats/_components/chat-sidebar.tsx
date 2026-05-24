@@ -92,7 +92,7 @@ export function ChatSidebar({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [q, setQ] = useState("");
-  const [tab, setTab] = useState<TabKey>("all");
+  const [tab, setTab] = useState<TabKey>(currentAdvisorId ? "mine" : "all");
   const [deleteTarget, setDeleteTarget] = useState<SidebarContact | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
   const [advisorFilter, setAdvisorFilter] = useState<string | null>(null); // null=todos, 'unassigned'=sin asignar, id=asesor específico
@@ -165,6 +165,13 @@ export function ChatSidebar({
       });
   }, [chatPreferences, chatSessions, isMessageSeen, result, selectedJid]);
 
+  const myChats = useMemo(() => {
+    if (!currentAdvisorId) return [];
+    return contacts
+      .filter((c) => !c.isDeleted && !c.isArchived && c.chatSession?.assignedAdvisorId === currentAdvisorId)
+      .sort((a, b) => b.ts - a.ts);
+  }, [contacts, currentAdvisorId]);
+
   const advisorCounts = useMemo(() => {
     const active = contacts.filter((c) => !c.isDeleted && !c.isArchived);
     const countMap: Record<string, number> = {};
@@ -184,12 +191,13 @@ export function ChatSidebar({
     const active = contacts.filter((c) => !c.isDeleted && !c.isArchived);
     return {
       all: active.length,
+      mine: myChats.length,
       dm: active.filter((c) => !c.isGroup).length,
       groups: active.filter((c) => c.isGroup).length,
       archived: contacts.filter((c) => !c.isDeleted && c.isArchived).length,
       deleted: contacts.filter((c) => c.isDeleted).length,
     };
-  }, [contacts]);
+  }, [contacts, myChats]);
 
   const deletedContacts = useMemo(() => {
     let list = contacts.filter((c) => c.isDeleted);
@@ -216,6 +224,7 @@ export function ChatSidebar({
       list = list.filter((c) => !c.isArchived);
       if (tab === "dm") list = list.filter((c) => !c.isGroup);
       if (tab === "groups") list = list.filter((c) => c.isGroup);
+      if (tab === "mine") list = list.filter((c) => c.chatSession?.assignedAdvisorId === currentAdvisorId);
     }
 
     if (q.trim()) {
@@ -413,7 +422,7 @@ export function ChatSidebar({
             )}
           </div>
 
-          <ChatTabBar tab={tab} onTabChange={setTab} tabCounts={tabCounts} />
+          <ChatTabBar tab={tab} onTabChange={setTab} tabCounts={tabCounts} showMine={!!currentAdvisorId} />
         </div>
 
         <div role="list" className="flex-1 space-y-1 overflow-y-auto p-1">
