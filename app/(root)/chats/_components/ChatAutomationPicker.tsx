@@ -78,9 +78,8 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
       <PopoverTrigger asChild>
         <Button
           type="button"
-          size="icon"
-          variant="outline"
-          className="rounded-full"
+          variant="ghost"
+          className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted p-0 shrink-0"
           title="Enviar workflow o respuesta rapida"
           aria-label="Enviar workflow o respuesta rapida"
         >

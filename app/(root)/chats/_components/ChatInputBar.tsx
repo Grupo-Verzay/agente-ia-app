@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { ArrowRight, Check, Mic, PenLine, Send, SendIcon, Trash2, X } from 'lucide-react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { ArrowRight, Check, Mic, PenLine, Send, SendIcon, SmilePlus, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ import {
   toggleSessionSignatureAction,
   updateAdvisorSignatureAction,
 } from '@/actions/chat-manual-actions';
+import { EmojiPickerPanel } from './EmojiPickerPanel';
 import type { ComposeMedia } from './attachment-menu';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
 import type { Session } from '@/types/session';
@@ -79,6 +80,34 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
 }) => {
   const [signatureText, setSignatureText] = useState('');
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const emojiRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!emojiOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) {
+        setEmojiOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [emojiOpen]);
+
+  const insertEmoji = useCallback((emoji: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart ?? input.length;
+    const end = textarea.selectionEnd ?? input.length;
+    const newValue = input.slice(0, start) + emoji + input.slice(end);
+    const syntheticEvent = { target: { value: newValue } } as React.ChangeEvent<HTMLTextAreaElement>;
+    onInputChange(syntheticEvent);
+    setEmojiOpen(false);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+    }, 0);
+  }, [input, onInputChange, textareaRef]);
   const [isLoadingSignature, setIsLoadingSignature] = useState(false);
   const [isSavingSignature, setIsSavingSignature] = useState(false);
   const [isTogglingSignature, setIsTogglingSignature] = useState(false);
@@ -245,16 +274,16 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
                     variant="ghost"
                     size="icon"
                     className={cn(
-                      'h-7 w-7 rounded-full shrink-0 transition-colors',
+                      'h-8 w-8 rounded-full shrink-0 transition-colors',
                       signatureEnabled
                         ? 'bg-blue-100 text-blue-600 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300'
-                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300',
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted',
                     )}
                     title={signatureEnabled ? 'Firma activa' : 'Configurar firma del asesor'}
                     aria-label="Firma del asesor"
                     type="button"
                   >
-                    <PenLine className="w-3.5 h-3.5" />
+                    <PenLine className="w-4 h-4" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent side="top" align="start" className="w-72 p-3 space-y-3">
@@ -303,6 +332,28 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           />
 
           <AttachmentMenu onComposeMediaChange={onComposeMediaChange} maxBase64MB={8} />
+
+          {/* Emoji picker — izquierda, junto a adjuntos */}
+          {!isRecording && !isPreviewingAudio && (
+            <div className="relative" ref={emojiRef}>
+              <Button
+                onClick={() => setEmojiOpen((v) => !v)}
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 rounded-full shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                aria-label="Emojis"
+                title="Emojis"
+                type="button"
+              >
+                <SmilePlus className="w-4 h-4" />
+              </Button>
+              {emojiOpen && (
+                <div className="absolute bottom-9 left-0 z-50">
+                  <EmojiPickerPanel onSelect={insertEmoji} />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Sugerencias slash */}

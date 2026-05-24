@@ -116,12 +116,11 @@ export function AttachmentMenu({
       <Button
         type="button"
         variant="ghost"
-        size="icon"
         onClick={toggle}
-        className="text-gray-600 dark:text-gray-300 hover:text-gray-900"
+        className="h-8 w-8 rounded-full p-0 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted"
         aria-label="Adjuntar"
       >
-        <Paperclip className="w-5 h-5" />
+        <Paperclip className="w-4 h-4" />
       </Button>
 
       {/* Popover simple */}
