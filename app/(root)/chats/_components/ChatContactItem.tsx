@@ -31,6 +31,17 @@ import type { LeadStatus } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { AdvisorAssignBadge } from "./AdvisorAssignBadge";
 
+const INSTANCE_COLORS = ["bg-violet-500","bg-blue-500","bg-emerald-500","bg-orange-500","bg-pink-500","bg-cyan-500","bg-amber-500"];
+function instanceColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff;
+  return INSTANCE_COLORS[h % INSTANCE_COLORS.length];
+}
+function shortInstanceLabel(name: string): string {
+  const parts = name.split("_");
+  return parts.length === 1 ? name.slice(0, 6) : parts[parts.length - 1];
+}
+
 const APPT_DOT: Record<string, string> = {
   PENDIENTE:   'bg-yellow-500',
   CONFIRMADA:  'bg-green-500',
@@ -55,7 +66,7 @@ type ChatContactItemProps = {
   contact: SidebarContact;
   onArchive: (id: string, isArchived: boolean) => void;
   onDeleteRequest: (contact: SidebarContact) => void;
-  onSelect: (id: string, lastMessageId: string) => void;
+  onSelect: (id: string, lastMessageId: string, instanceName?: string) => void;
   onTogglePin: (id: string, isPinned: boolean) => void;
   onLeadStatusChange?: (remoteJid: string, status: LeadStatus | null) => void;
   selected: boolean;
@@ -63,6 +74,7 @@ type ChatContactItemProps = {
   advisorRole?: string | null;
   currentAdvisorId?: string;
   onAssignAdvisor?: (remoteJid: string, advisorId: string | null) => Promise<void>;
+  showInstanceBadge?: boolean;
 };
 
 export function ChatContactItem({
@@ -77,6 +89,7 @@ export function ChatContactItem({
   advisorRole,
   currentAdvisorId,
   onAssignAdvisor,
+  showInstanceBadge = false,
 }: ChatContactItemProps) {
   const IconComponent = getIconForMessageType(contact.messageType);
   const isUnread = contact.isUnreadLocal;
@@ -156,7 +169,7 @@ export function ChatContactItem({
       <div className="flex items-start gap-2">
         <button
           type="button"
-          onClick={() => onSelect(contact.id, contact.lastMessageId)}
+          onClick={() => onSelect(contact.id, contact.lastMessageId, contact.instanceName)}
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
           <div className="relative">
@@ -206,9 +219,26 @@ export function ChatContactItem({
                 )}
                 <span>{contact.lastMessage || "-"}</span>
               </div>
-              {isUnread && (
-                <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-primary" />
-              )}
+              <div className="flex shrink-0 items-center gap-1">
+                {showInstanceBadge && contact.instanceName && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="flex items-center gap-0.5 rounded bg-muted/80 px-1 py-0.5 text-[9px] font-medium leading-3 text-muted-foreground cursor-default">
+                          <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${instanceColor(contact.instanceName)}`} />
+                          {shortInstanceLabel(contact.instanceName)}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" sideOffset={6} className="z-[9999]">
+                        <p className="text-xs font-semibold">{contact.instanceName}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+                {isUnread && (
+                  <span className="inline-block h-2 w-2 rounded-full bg-primary" />
+                )}
+              </div>
             </div>
           </div>
         </button>

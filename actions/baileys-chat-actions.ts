@@ -79,6 +79,8 @@ export async function fetchChatsFromBaileys(instanceName: string): Promise<Fetch
         updatedAt: c.lastMessageAt ?? undefined,
         lastMessage,
         senderPn,
+        instanceName,
+        instanceType: 'baileys' as const,
       } satisfies ChatData;
     });
 

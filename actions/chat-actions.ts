@@ -548,6 +548,8 @@ export type ChatData = {
   lastMessage: LastMessage | null;
   unreadCount: number;
   isSaved?: number | boolean;
+  instanceName?: string;
+  instanceType?: string;
 };
 type ChatArray = ChatData[];
 
@@ -652,7 +654,8 @@ export async function fetchChatsFromEvolution(
       return { success: false, message: 'Respuesta inválida o vacía.' };
     }
 
-    const chatData = mergeChatDataByConversation(ensureArrayResponse(raw));
+    const chatData = mergeChatDataByConversation(ensureArrayResponse(raw))
+      .map(c => ({ ...c, instanceName, instanceType: 'evolution' as const }));
     // LOG 4: Éxito
     return { success: true, message: `OK findChats ${instanceName}`, data: chatData };
   } catch (e) {

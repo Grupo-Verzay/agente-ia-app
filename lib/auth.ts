@@ -37,7 +37,7 @@ const USER_SELECT = {
 
 type DbUser = Prisma.UserGetPayload<{ select: typeof USER_SELECT }>;
 
-export type CurrentUser = DbUser & { effectiveId: string };
+export type CurrentUser = DbUser & { effectiveId: string; sessionUserId: string };
 
 const userCache = new WeakMap<Request, Promise<CurrentUser | null>>();
 
@@ -95,11 +95,11 @@ export async function currentUser(request?: Request): Promise<CurrentUser | null
                 },
             });
             if (ownerCreds) {
-                return { ...u, ...ownerCreds, effectiveId: u.ownerId };
+                return { ...u, ...ownerCreds, effectiveId: u.ownerId, sessionUserId: realUser.id };
             }
         }
 
-        return { ...u, effectiveId: u.ownerId ?? u.id };
+        return { ...u, effectiveId: u.ownerId ?? u.id, sessionUserId: realUser.id };
     });
 
     if (request) {

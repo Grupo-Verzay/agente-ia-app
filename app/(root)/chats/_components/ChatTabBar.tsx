@@ -52,7 +52,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false }: Ch
                 className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none text-white"
                 style={{ background: isActive ? "rgba(255,255,255,0.3)" : color }}
               >
-                {count > 99 ? "99+" : count}
+                {count}
               </span>
             )}
           </button>
