@@ -273,11 +273,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 rounded-full hover:bg-muted text-green-600 hover:text-green-700"
+                  className="h-7 w-7 rounded-full bg-green-100 dark:bg-green-950/40 text-green-600 hover:bg-green-200 dark:hover:bg-green-900/50"
                   onClick={handleCall}
                   title="Llamar por WhatsApp"
                 >
-                  <Phone className="h-6 w-6" />
+                  <Phone className="h-4 w-4" />
                 </Button>
                 {advisorBadge}
                 <Button
@@ -378,11 +378,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 rounded-full hover:bg-muted text-green-600 hover:text-green-700"
+                className="h-7 w-7 rounded-full bg-green-100 dark:bg-green-950/40 text-green-600 hover:bg-green-200 dark:hover:bg-green-900/50"
                 onClick={handleCall}
                 title="Llamar por WhatsApp"
               >
-                <Phone className="h-6 w-6" />
+                <Phone className="h-4 w-4" />
               </Button>
               {advisorBadge}
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
