@@ -18,10 +18,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Obtener TODOS los seguimientos pendientes con apikey que parece un UUID (incorrecto)
+  // Buscar seguimientos con UUID como apikey (pending O failed)
   const seguimientos = await db.seguimiento.findMany({
     where: {
-      followUpStatus: 'pending',
+      followUpStatus: { in: ['pending', 'failed'] },
       instancia: { not: null },
     },
     select: {
@@ -30,24 +30,23 @@ export async function POST(request: Request) {
       apikey: true,
       idNodo: true,
       time: true,
+      followUpStatus: true,
     },
   })
 
-  // Filtrar solo los que tienen UUID como apikey
   const withBadKey = seguimientos.filter(
     (s) => s.apikey && UUID_RE.test(s.apikey.trim()),
   )
 
   const log: string[] = []
-  log.push(`Seguimientos pendientes totales: ${seguimientos.length}`)
-  log.push(`Con UUID como apikey (incorrecto): ${withBadKey.length}`)
+  log.push(`Seguimientos con UUID como apikey: ${withBadKey.length} (de ${seguimientos.length} totales)`)
 
   if (withBadKey.length === 0) {
-    log.push('\nResultado: 0 corregidos, 0 sin cambios')
+    log.push('\nResultado: 0 corregidos')
     return NextResponse.json({ ok: true, updated: 0, skipped: 0, log })
   }
 
-  // Agrupar por instancia para minimizar queries a BD
+  // Agrupar por instancia
   const byInstancia = new Map<string, typeof withBadKey>()
   for (const seg of withBadKey) {
     const key = seg.instancia ?? ''
@@ -58,6 +57,7 @@ export async function POST(request: Request) {
 
   let totalUpdated = 0
   let totalSkipped = 0
+  const now = new Date().toISOString()
 
   for (const [instanceName, segs] of Array.from(byInstancia.entries())) {
     const instancia = await db.instancia.findFirst({
@@ -66,40 +66,52 @@ export async function POST(request: Request) {
     })
 
     if (!instancia) {
-      log.push(`⚠️  Instancia no encontrada: ${instanceName} — omitiendo ${segs.length} registros`)
+      log.push(`⚠️  Instancia no encontrada: ${instanceName} — omitiendo ${segs.length}`)
       totalSkipped += segs.length
       continue
     }
 
     const user = await db.user.findUnique({
       where: { id: instancia.userId },
-      select: {
-        apiKey: { select: { key: true } },
-      },
+      select: { apiKey: { select: { key: true } } },
     })
 
     const correctKey = user?.apiKey?.key?.trim()
     if (!correctKey) {
-      log.push(`⚠️  Sin API key para instancia ${instanceName} (userId=${instancia.userId}) — omitiendo ${segs.length} registros`)
+      log.push(`⚠️  Sin API key para ${instanceName} — omitiendo ${segs.length}`)
       totalSkipped += segs.length
       continue
     }
 
-    const result = await db.seguimiento.updateMany({
-      where: { id: { in: segs.map((s: { id: number }) => s.id) } },
-      data: { apikey: correctKey },
-    })
+    // Los failed en el pasado: corregir apikey + resetear a pending con time=ahora para reenvío inmediato
+    const failedPast = segs.filter(
+      (s: { followUpStatus: string; time: string | null }) =>
+        s.followUpStatus === 'failed' && s.time != null && new Date(s.time) < new Date(),
+    )
+    const rest = segs.filter(
+      (s: { id: number }) => !failedPast.find((f: { id: number }) => f.id === s.id),
+    )
 
-    log.push(`🔧 ${instanceName}: ${result.count} registros corregidos`)
-    totalUpdated += result.count
+    if (failedPast.length > 0) {
+      await db.seguimiento.updateMany({
+        where: { id: { in: failedPast.map((s: { id: number }) => s.id) } },
+        data: { apikey: correctKey, followUpStatus: 'pending', followUpAttempt: 0, time: now },
+      })
+      log.push(`🔁 ${instanceName}: ${failedPast.length} registros failed → reseteados a pending para reenvío`)
+      totalUpdated += failedPast.length
+    }
+
+    if (rest.length > 0) {
+      await db.seguimiento.updateMany({
+        where: { id: { in: rest.map((s: { id: number }) => s.id) } },
+        data: { apikey: correctKey },
+      })
+      log.push(`🔧 ${instanceName}: ${rest.length} registros pending corregidos`)
+      totalUpdated += rest.length
+    }
   }
 
-  log.push(`\nResultado: ${totalUpdated} corregidos, ${totalSkipped} sin cambios`)
+  log.push(`\nResultado: ${totalUpdated} corregidos/reseteados, ${totalSkipped} sin cambios`)
 
-  return NextResponse.json({
-    ok: true,
-    updated: totalUpdated,
-    skipped: totalSkipped,
-    log,
-  })
+  return NextResponse.json({ ok: true, updated: totalUpdated, skipped: totalSkipped, log })
 }
