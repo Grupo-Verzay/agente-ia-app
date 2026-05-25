@@ -11,19 +11,18 @@ function isAuthorized(request: Request): boolean {
   return secret === expected
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export async function POST(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Obtener todos los seguimientos de citas pendientes con apikey posiblemente incorrecto
+  // Obtener TODOS los seguimientos pendientes con apikey que parece un UUID (incorrecto)
   const seguimientos = await db.seguimiento.findMany({
     where: {
-      OR: [
-        { idNodo: { startsWith: 'appt-confirm-' } },
-        { idNodo: { startsWith: 'appt-reminder-' } },
-      ],
       followUpStatus: 'pending',
+      instancia: { not: null },
     },
     select: {
       id: true,
@@ -34,12 +33,23 @@ export async function POST(request: Request) {
     },
   })
 
+  // Filtrar solo los que tienen UUID como apikey
+  const withBadKey = seguimientos.filter(
+    (s) => s.apikey && UUID_RE.test(s.apikey.trim()),
+  )
+
   const log: string[] = []
-  log.push(`Seguimientos de citas pendientes encontrados: ${seguimientos.length}`)
+  log.push(`Seguimientos pendientes totales: ${seguimientos.length}`)
+  log.push(`Con UUID como apikey (incorrecto): ${withBadKey.length}`)
+
+  if (withBadKey.length === 0) {
+    log.push('\nResultado: 0 corregidos, 0 sin cambios')
+    return NextResponse.json({ ok: true, updated: 0, skipped: 0, log })
+  }
 
   // Agrupar por instancia para minimizar queries a BD
-  const byInstancia = new Map<string, typeof seguimientos>()
-  for (const seg of seguimientos) {
+  const byInstancia = new Map<string, typeof withBadKey>()
+  for (const seg of withBadKey) {
     const key = seg.instancia ?? ''
     if (!key) continue
     if (!byInstancia.has(key)) byInstancia.set(key, [])
@@ -52,7 +62,7 @@ export async function POST(request: Request) {
   for (const [instanceName, segs] of Array.from(byInstancia.entries())) {
     const instancia = await db.instancia.findFirst({
       where: { instanceName },
-      select: { userId: true, instanceId: true },
+      select: { userId: true },
     })
 
     if (!instancia) {
@@ -75,23 +85,13 @@ export async function POST(request: Request) {
       continue
     }
 
-    // Solo actualizar los que tienen un apikey diferente al correcto
-    const toUpdate = segs.filter((s: { apikey: string | null }) => s.apikey?.trim() !== correctKey)
-
-    if (toUpdate.length === 0) {
-      log.push(`✅ ${instanceName}: todos los registros ya tienen la API key correcta (${segs.length})`)
-      totalSkipped += segs.length
-      continue
-    }
-
     const result = await db.seguimiento.updateMany({
-      where: { id: { in: toUpdate.map((s: { id: number }) => s.id) } },
+      where: { id: { in: segs.map((s: { id: number }) => s.id) } },
       data: { apikey: correctKey },
     })
 
-    log.push(`🔧 ${instanceName}: ${result.count} registros corregidos (de ${segs.length})`)
+    log.push(`🔧 ${instanceName}: ${result.count} registros corregidos`)
     totalUpdated += result.count
-    totalSkipped += segs.length - result.count
   }
 
   log.push(`\nResultado: ${totalUpdated} corregidos, ${totalSkipped} sin cambios`)
