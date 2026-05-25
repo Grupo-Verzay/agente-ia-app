@@ -20,6 +20,8 @@ import type {
 } from "@/actions/chat-actions";
 import { ChatMain } from "./chat-main";
 import { ChatSidebar } from "./chat-sidebar";
+import { NewConversationDialog } from "./NewConversationDialog";
+import { fmtPhone } from "@/lib/whatsapp-jid";
 import type { OutgoingMessagePayload } from "./chat-main";
 import type {
   ChatConversationPreference,
@@ -185,6 +187,8 @@ export function ChatsClient({
   const [selectedInstanceName, setSelectedInstanceName] = useState<string | null>(null);
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [composeInitialContact, setComposeInitialContact] = useState<{ jid: string; name: string; phone: string } | undefined>();
   const [currentChatsResult, setCurrentChatsResult] = useState(normalizedInitialChatsResult);
   const [chatPreferences, setChatPreferences] =
     useState<ChatConversationPreferenceMap>(initialChatPreferences);
@@ -891,7 +895,18 @@ export function ChatsClient({
     setMessages([]);
   };
 
+  const handleNewMessageForContact = useCallback(() => {
+    if (!selectedJid) return;
+    const contact = currentContact;
+    const session = currentContactSession;
+    const name = session?.pushName?.trim() || contact?.pushName?.trim() || selectedJid;
+    const phone = fmtPhone(selectedJid) || selectedJid;
+    setComposeInitialContact({ jid: selectedJid, name, phone });
+    setIsComposeOpen(true);
+  }, [selectedJid, currentContact, currentContactSession]);
+
   return (
+    <>
     <div className="flex h-full overflow-hidden rounded-lg border border-border shadow-sm">
       <div
         className={`${
@@ -924,6 +939,7 @@ export function ChatsClient({
           onChannelChange={handleChannelChange}
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
+          onCompose={instanceActionSets && instanceActionSets.length > 0 ? () => setIsComposeOpen(true) : undefined}
           onAssignAdvisor={
             assignAdvisorAction || takeSessionAction || releaseSessionAction || transferSessionAction
               ? (remoteJid, advisorId) => handleAssignAdvisor(remoteJid, advisorId)
@@ -963,6 +979,7 @@ export function ChatsClient({
                 ? (advisorId) => handleAssignAdvisor(selectedJid, advisorId)
                 : undefined
             }
+            onNewMessage={instanceActionSets && instanceActionSets.length > 0 ? handleNewMessageForContact : undefined}
           />
         ) : (
           <div className="hidden sm:flex h-full flex-1 flex-col items-center justify-center gap-5 select-none border-l border-border bg-muted/10 px-8">
@@ -1002,5 +1019,17 @@ export function ChatsClient({
         )}
       </div>
     </div>
+
+    {instanceActionSets && instanceActionSets.length > 0 && (
+      <NewConversationDialog
+        open={isComposeOpen}
+        onClose={() => { setIsComposeOpen(false); setComposeInitialContact(undefined); }}
+        instancias={instancias}
+        instanceActionSets={instanceActionSets}
+        contacts={currentChatsResult.success ? currentChatsResult.data : []}
+        initialContact={composeInitialContact}
+      />
+    )}
+    </>
   );
 }

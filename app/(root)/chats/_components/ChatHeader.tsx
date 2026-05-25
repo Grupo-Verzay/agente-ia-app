@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus } from 'lucide-react';
+import { ArrowRight, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, SquarePen } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -59,6 +59,7 @@ interface ChatHeaderProps {
   advisorRole?: string | null;
   assignedAdvisorId?: string | null;
   onAssignAdvisor?: (advisorId: string | null) => Promise<void>;
+  onNewMessage?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -79,6 +80,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   advisorRole,
   assignedAdvisorId,
   onAssignAdvisor,
+  onNewMessage,
 }) => {
   const initialSelectedTagIds = session?.tags?.map((t) => t?.id).filter(Boolean) ?? [];
   const [resolving, setResolving] = useState(false);
@@ -170,6 +172,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-52 p-1" align="end">
+        {onNewMessage && (
+          <>
+            <DropdownMenuItem
+              onSelect={onNewMessage}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <SquarePen className="h-3.5 w-3.5 shrink-0" />
+              Nuevo mensaje
+            </DropdownMenuItem>
+            <div className="my-1 border-t border-border/50" />
+          </>
+        )}
         {/* Tomar — para agentes/admins cuando la sesión está sin asignar */}
         {canTake && (
           <DropdownMenuItem

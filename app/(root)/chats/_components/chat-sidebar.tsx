@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
-import { Inbox, Trash2, Users, UserX, Check } from "lucide-react";
+import { Inbox, Trash2, Users, UserX, Check, SquarePen } from "lucide-react";
 import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
@@ -72,6 +72,7 @@ type ChatSidebarProps = {
   onChannelChange?: (channel: string | null) => void;
   onRefresh?: () => Promise<void>;
   isRefreshing?: boolean;
+  onCompose?: () => void;
 };
 
 export function ChatSidebar({
@@ -97,6 +98,7 @@ export function ChatSidebar({
   onChannelChange,
   onRefresh,
   isRefreshing,
+  onCompose,
 }: ChatSidebarProps) {
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<TabKey>(currentAdvisorId ? "mine" : "all");
@@ -324,6 +326,16 @@ export function ChatSidebar({
               onRefresh={onRefresh}
               isRefreshing={isRefreshing}
             />
+            {onCompose && (
+              <button
+                type="button"
+                onClick={onCompose}
+                title="Nuevo mensaje"
+                className="shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                <SquarePen className="h-3.5 w-3.5" />
+              </button>
+            )}
             {allTags.length > 0 && (
               <TagFilterPanel
                 tags={allTags}

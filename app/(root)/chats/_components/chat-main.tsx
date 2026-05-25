@@ -55,6 +55,7 @@ type ChatMainProps = {
   advisorRole?: string | null;
   assignedAdvisorId?: string | null;
   onAssignAdvisor?: (advisorId: string | null) => Promise<void>;
+  onNewMessage?: () => void;
 };
 
 export const ChatMain: React.FC<ChatMainProps> = ({
@@ -77,6 +78,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   advisorRole,
   assignedAdvisorId,
   onAssignAdvisor,
+  onNewMessage,
 }) => {
   /* ─── Refs ─── */
   const listRef = useRef<HTMLDivElement>(null);
@@ -294,6 +296,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         advisorRole={advisorRole}
         assignedAdvisorId={assignedAdvisorId}
         onAssignAdvisor={onAssignAdvisor}
+        onNewMessage={onNewMessage}
       />
 
       <ContactEditDialog
