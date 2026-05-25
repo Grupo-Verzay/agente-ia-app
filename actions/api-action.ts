@@ -419,9 +419,9 @@ export async function deleteInstance(userId: string, instanceType: string = 'Wha
         deleteOptions
       );
 
-      const deleteResult = await deleteResponse.json().catch(() => ({} as Record<string, unknown>));
-
-      if (!deleteResponse.ok) {
+      // 404 significa que la instancia ya no existe en Evolution — continuar y borrar de BD
+      if (!deleteResponse.ok && deleteResponse.status !== 404) {
+        const deleteResult = await deleteResponse.json().catch(() => ({} as Record<string, unknown>));
         return {
           success: false,
           message: deleteResult?.message || 'Error al eliminar la instancia en la API.',
@@ -519,8 +519,9 @@ export async function deleteInstanceInternal(
         method: 'DELETE',
         headers: { apikey: apiKey, 'Content-Type': 'application/json' },
       });
-      const deleteResult = await deleteResponse.json().catch(() => ({} as Record<string, unknown>));
-      if (!deleteResponse.ok) {
+      // 404 significa que la instancia ya no existe en Evolution — continuar y borrar de BD
+      if (!deleteResponse.ok && deleteResponse.status !== 404) {
+        const deleteResult = await deleteResponse.json().catch(() => ({} as Record<string, unknown>));
         return { success: false, message: deleteResult?.message || 'Error al eliminar la instancia en la API.', instanceName: null };
       }
     }
