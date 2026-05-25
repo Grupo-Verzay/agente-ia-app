@@ -17,7 +17,7 @@ import {
 } from "@/types/agentAi";
 import { ProductBuilder } from "./ProductBuilder";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, MoreVertical, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, MoreVertical, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PromptToolbar } from "./PromptToolbar";
 import {
@@ -244,7 +244,8 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                             <Sparkles className="mr-2 h-4 w-4" />
                                             Generar con IA
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => setShowAlertDialog(true)}>
+                                        <DropdownMenuItem onSelect={() => setShowAlertDialog(true)} className="text-destructive focus:text-destructive">
+                                            <Trash2 className="mr-2 h-4 w-4" />
                                             Eliminar todo
                                         </DropdownMenuItem>
                                     </DropdownMenuGroup>
