@@ -122,13 +122,13 @@ async function runPostAppointmentTasks({
   ]);
 
   const apiKey = user?.apiKeyId
-    ? await db.apiKey.findUnique({ where: { id: user.apiKeyId }, select: { url: true } })
+    ? await db.apiKey.findUnique({ where: { id: user.apiKeyId }, select: { url: true, key: true } })
     : null;
 
   console.log(`[schedule/notification] messageText=${!!service?.messageText} apiKey=${!!apiKey?.url} instance=${!!instance?.instanceId} apiKeyId=${user?.apiKeyId ?? 'null'} reminders=${reminders.length}`);
 
-  if (!apiKey?.url || !instance?.instanceId) {
-    console.warn(`[schedule/notification] Sin apiKey o instancia — abortando tareas post-cita`);
+  if (!apiKey?.url || !apiKey?.key || !instance?.instanceId) {
+    console.warn(`[schedule/notification] Sin apiKey (url+key) o instancia — abortando tareas post-cita`);
     return;
   }
 
@@ -136,7 +136,7 @@ async function runPostAppointmentTasks({
   const rawUrl = apiKey.url.replace(/^https?:\/\//, '').replace(/\/+$/, '');
   const serverUrl = `https://${rawUrl}`;
   const sendTextUrl = `${serverUrl}/message/sendText/${instanceName}`;
-  const instanceId = instance.instanceId;
+  const evolutionApiKey = apiKey.key;
 
   // Detectar timezone del cliente por código de país del teléfono
   const clientTimezone = getTimezoneFromPhone(phone, timezone);
@@ -149,7 +149,7 @@ async function runPostAppointmentTasks({
         idNodo: `appt-confirm-${serviceId}`,
         serverurl: serverUrl,
         instancia: instanceName,
-        apikey: instanceId,
+        apikey: evolutionApiKey,
         remoteJid: phone,
         mensaje: confirmMessage,
         tipo: 'text',
@@ -192,7 +192,7 @@ async function runPostAppointmentTasks({
         const result = await sendMessageWithHistoryAction({
           instanceName,
           url: sendTextUrl,
-          apikey: instanceId,
+          apikey: evolutionApiKey,
           remoteJid: ownerJid,
           message: ownerText,
           historyType: 'notification',
@@ -237,7 +237,7 @@ async function runPostAppointmentTasks({
           idNodo: `appt-reminder-${rem.id}`,
           serverurl: serverUrl,
           instancia: instanceName,
-          apikey: instanceId,
+          apikey: evolutionApiKey,
           remoteJid: phone,
           mensaje,
           tipo: 'text',
