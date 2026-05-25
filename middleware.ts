@@ -5,6 +5,7 @@ const authRoutes = ["/login", "/register"];
 const apiAuthPrefix = "/api/auth";
 const apiCronPrefix = "/api/cron";
 const apiSchedulePrefix = "/api/schedule";
+const apiAdminPrefix = "/api/admin";
 
 export default auth((req) => {
   const { nextUrl } = req;
@@ -28,6 +29,7 @@ export default auth((req) => {
   if (currentPath.startsWith(apiAuthPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiCronPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiSchedulePrefix)) return NextResponse.next();
+  if (currentPath.startsWith(apiAdminPrefix)) return NextResponse.next();
   if (publicRoutes.includes(currentPath)) return NextResponse.next();
 
   if (isLoggedIn && authRoutes.includes(currentPath)) {
