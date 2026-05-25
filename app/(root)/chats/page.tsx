@@ -186,17 +186,12 @@ export default async function ChatsPage({
       const tb = (b.lastMessage?.messageTimestamp ?? 0);
       return tb - ta;
     });
-    const seenGroups = new Set<string>();
-    const seenChats = new Set<string>();
+    // Deduplicate all chats by remoteJid — same contact appearing in multiple instances
+    // shows only once (the entry with the most recent message, already sorted above).
+    const seenJids = new Set<string>();
     const dedupedChats = allChats.filter((chat) => {
-      if (chat.remoteJid.endsWith('@g.us')) {
-        if (seenGroups.has(chat.remoteJid)) return false;
-        seenGroups.add(chat.remoteJid);
-        return true;
-      }
-      const key = `${chat.instanceName ?? ''}:${chat.remoteJid}`;
-      if (seenChats.has(key)) return false;
-      seenChats.add(key);
+      if (seenJids.has(chat.remoteJid)) return false;
+      seenJids.add(chat.remoteJid);
       return true;
     });
 

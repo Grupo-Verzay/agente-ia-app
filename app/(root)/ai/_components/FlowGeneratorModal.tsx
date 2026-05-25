@@ -51,22 +51,21 @@ export function FlowGeneratorModal({ open, onOpenChange, promptId, version }: Fl
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="sm:max-w-xl h-[585px] flex flex-col overflow-hidden">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Sparkles className="h-5 w-5 text-primary" />
                         Generar flujo con IA
                     </DialogTitle>
                     <DialogDescription>
-                        Describe tu negocio y la IA configurará automáticamente todos los apartados del agente.
-                        Usa tu propia API Key de OpenAI (gpt-4o-mini).
+                        Pega aquí toda la información de tu negocio: descripción, catálogo de productos o servicios, precios, horarios, políticas y protocolos de atención. La IA generará el flujo completo y guardará el detalle como base de conocimiento del agente.
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3 flex-1 overflow-hidden">
                     <textarea
-                        className="w-full min-h-[180px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
-                        placeholder={`Ejemplo:\nSoy una pizzería en Medellín llamada "La Forza". Atendemos de lunes a sábado de 11am a 10pm y domingos de 12pm a 8pm. Manejamos domicilios y recogidas. Nuestros productos principales son pizzas personales ($18.000), medianas ($35.000) y familiares ($55.000). Los clientes pueden hacer pedidos, consultar el menú y pedir el domicilio.`}
+                        className="w-full flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                        placeholder={`Pega aquí toda la información de tu negocio.\n\nEjemplo:\nSoy Cursos Javeriano, academia de capacitación en Barquisimeto registrada en el MPPE. Ofrecemos cursos de mecánica, estética, electricidad, computación e idiomas. Inscripción $3, clase $8-10, certificado $7 (legalizable). Pagos por Pago Móvil BNC 0191, cédula 20017685, tel. 0424-543-02-56.\n\nCursos disponibles:\n- Barbería: $3 inscripción | 8 clases | $8/clase...\n- Mecánica Diesel: $3 inscripción | 10 clases | $10/clase...\n...`}
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         disabled={loading}

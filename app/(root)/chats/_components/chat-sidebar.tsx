@@ -174,9 +174,8 @@ export function ChatSidebar({
       .filter((() => {
         const seen = new Set<string>();
         return (c: SidebarContact) => {
-          const key = `${c.instanceName ?? ''}:${c.id}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
+          if (seen.has(c.id)) return false;
+          seen.add(c.id);
           return true;
         };
       })());
@@ -431,7 +430,7 @@ export function ChatSidebar({
           ) : result.success && filtered.length > 0 ? (
             filtered.map((contact) => (
               <ChatContactItem
-                key={`${contact.instanceName ?? ''}:${contact.id}`}
+                key={contact.id}
                 contact={contact}
                 selected={selectedJid === contact.id && (selectedInstanceName == null || contact.instanceName === selectedInstanceName)}
                 onSelect={handleSelectJid}
