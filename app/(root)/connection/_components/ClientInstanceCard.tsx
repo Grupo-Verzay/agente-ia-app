@@ -13,6 +13,7 @@ import { deleteInstance } from '@/actions/api-action';
 import { ClientInstanceCardProps } from '@/schema/connection';
 import { PromptInstanceDialog } from './PromptInstanceDialog';
 import { RenameInstanceDialog } from './RenameInstanceDialog';
+import { RecreateInstanceDialog } from './RecreateInstanceDialog';
 
 interface SocialIconSelectorProps {
   instanceType?: string;
@@ -65,6 +66,7 @@ export const ClientInstanceCard = ({
   prompts,
 }: ClientInstanceCardProps) => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showRecreateDialog, setShowRecreateDialog] = useState(false);
   const [showPromptDialog, setShowPromptDialog] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [_clickCount, setClickCount] = useState(0);
@@ -100,6 +102,7 @@ export const ClientInstanceCard = ({
             <ConnectionActions
               handleDelete={() => setShowDeleteDialog(true)}
               handleRename={() => setShowRenameDialog(true)}
+              handleRecreate={instanceType === 'Whatsapp' ? () => setShowRecreateDialog(true) : undefined}
               handlePrompt={instanceType !== 'Whatsapp' ? () => setShowPromptDialog(true) : undefined}
             />
           </div>
@@ -166,6 +169,13 @@ export const ClientInstanceCard = ({
         userId={user.id}
         instanceType={instanceType}
         currentName={intanceName}
+      />
+
+      <RecreateInstanceDialog
+        open={showRecreateDialog}
+        setOpen={setShowRecreateDialog}
+        userId={user.id}
+        instanceType={instanceType ?? 'Whatsapp'}
       />
 
       <GenericDeleteDialog

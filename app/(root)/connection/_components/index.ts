@@ -4,4 +4,5 @@ export * from './ConnectionCard';
 export * from './ConnectionActions';
 export * from './PromptInstanceDialog';
 export * from './RenameInstanceDialog';
+export * from './RecreateInstanceDialog';
 export * from './BaileysInstanceCard';

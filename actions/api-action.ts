@@ -414,19 +414,12 @@ export async function deleteInstance(userId: string, instanceType: string = 'Wha
         },
       };
 
-      const deleteResponse = await fetch(
+      await fetch(
         `https://${serverUrl}/instance/delete/${instanceName}`,
         deleteOptions
-      );
-
-      // 404 significa que la instancia ya no existe en Evolution — continuar y borrar de BD
-      if (!deleteResponse.ok && deleteResponse.status !== 404) {
-        const deleteResult = await deleteResponse.json().catch(() => ({} as Record<string, unknown>));
-        return {
-          success: false,
-          message: deleteResult?.message || 'Error al eliminar la instancia en la API.',
-        };
-      }
+      ).catch(() => null);
+      // Ignorar errores de la API — la instancia puede estar en estado roto;
+      // lo importante es limpiar el registro en BD para permitir recrearla.
     }
 
     // 3. Eliminar la instancia de la base de datos
@@ -443,6 +436,77 @@ export async function deleteInstance(userId: string, instanceType: string = 'Wha
     return { success: true, message: "Instancia eliminada exitosamente." };
   } catch (error) {
     return { success: false, message: error?.message || "Error al eliminar la instancia." };
+  }
+}
+
+export async function forceRecreateInstance(userId: string, instanceType: string = 'Whatsapp') {
+  try {
+    await assertUserCanUseApp(userId);
+
+    const instanciaActiva = await checkActiveInstance(userId, instanceType);
+    if (!instanciaActiva) {
+      return { success: false, message: "No se encontró una instancia activa para recrear." };
+    }
+
+    const instanceName = instanciaActiva.instanceName;
+
+    if (isWhatsappLike(instanceType)) {
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        include: { apiKey: true },
+      });
+
+      if (!user || !user.apiKey) {
+        return { success: false, message: "El usuario no tiene una ApiKey asignada." };
+      }
+
+      const { key: apiKey, url: serverUrl } = user.apiKey;
+
+      // 1. Logout + eliminar en Evolution (ignorar errores — la instancia puede estar rota)
+      await fetch(`https://${serverUrl}/instance/logout/${instanceName}`, {
+        method: 'DELETE',
+        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+      }).catch(() => null);
+
+      await fetch(`https://${serverUrl}/instance/delete/${instanceName}`, {
+        method: 'DELETE',
+        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+      }).catch(() => null);
+
+      // 2. Eliminar de BD
+      await db.instancia.deleteMany({ where: { instanceName, instanceType } });
+
+      // 3. Crear nueva instancia en Evolution
+      const createResponse = await fetch(`https://${serverUrl}/instance/create`, {
+        method: 'POST',
+        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instanceName, qrcode: true, integration: 'WHATSAPP-BAILEYS' }),
+      }).catch(() => null);
+
+      if (!createResponse?.ok) {
+        // BD limpia pero Evolution falló — el usuario verá el formulario de creación manual
+        revalidatePath('/profile');
+        return { success: true, message: "Instancia eliminada. Usa el formulario para crear una nueva y escanear el QR." };
+      }
+
+      const apiResult = await createResponse.json().catch(() => ({}));
+      const instanceId = apiResult?.hash;
+
+      if (!instanceId) {
+        revalidatePath('/profile');
+        return { success: true, message: "Instancia eliminada. Usa el formulario para crear una nueva y escanear el QR." };
+      }
+
+      // 4. Guardar nueva instancia en BD
+      await db.instancia.create({
+        data: { instanceName, instanceType, userId, instanceId },
+      });
+    }
+
+    revalidatePath('/profile');
+    return { success: true, message: "Instancia recreada exitosamente. Escanea el QR para reconectar WhatsApp." };
+  } catch (error) {
+    return { success: false, message: error?.message || "Error al recrear la instancia." };
   }
 }
 
@@ -515,15 +579,11 @@ export async function deleteInstanceInternal(
         headers: { apikey: apiKey, 'Content-Type': 'application/json' },
       }).catch(() => {});
 
-      const deleteResponse = await fetch(`https://${serverUrl}/instance/delete/${instanceName}`, {
+      await fetch(`https://${serverUrl}/instance/delete/${instanceName}`, {
         method: 'DELETE',
         headers: { apikey: apiKey, 'Content-Type': 'application/json' },
-      });
-      // 404 significa que la instancia ya no existe en Evolution — continuar y borrar de BD
-      if (!deleteResponse.ok && deleteResponse.status !== 404) {
-        const deleteResult = await deleteResponse.json().catch(() => ({} as Record<string, unknown>));
-        return { success: false, message: deleteResult?.message || 'Error al eliminar la instancia en la API.', instanceName: null };
-      }
+      }).catch(() => null);
+      // Ignorar errores de la API — continuar siempre para limpiar el registro en BD.
     }
 
     const instancia = await db.instancia.findFirst({ where: { instanceName, instanceType } });
