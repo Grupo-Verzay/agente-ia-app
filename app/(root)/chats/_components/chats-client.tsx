@@ -89,6 +89,8 @@ function mapSessionToChatContactSummary(session: Session): ChatContactSessionSum
     tags: session.tags ?? [],
     leadStatus: session.leadStatus ?? null,
     assignedAdvisorId: session.assignedAdvisorId ?? null,
+    status: session.status,
+    agentDisabled: session.agentDisabled,
   };
 }
 
@@ -335,8 +337,8 @@ export function ChatsClient({
     messagesRef.current = messages;
   }, [messages]);
 
-  // Notificaciones en tiempo real para asesores (browser notification + sonido + badge en título)
-  useAdvisorNotifications(chatSessions, currentAdvisorId, advisorRole);
+  // Notificaciones: nuevas asignaciones para asesores + mensajes nuevos con agente inactivo
+  const { pendingUnreadJids } = useAdvisorNotifications(chatSessions, currentAdvisorId, advisorRole, currentChatsResult, selectedJid);
 
   const toggleSidebarVisibility = useCallback(() => {
     setIsSidebarVisible((previous) => !previous);
@@ -939,6 +941,7 @@ export function ChatsClient({
           onChannelChange={handleChannelChange}
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
+          inactiveAgentUnreadJids={pendingUnreadJids}
           onCompose={instanceActionSets && instanceActionSets.length > 0 ? () => setIsComposeOpen(true) : undefined}
           onAssignAdvisor={
             assignAdvisorAction || takeSessionAction || releaseSessionAction || transferSessionAction

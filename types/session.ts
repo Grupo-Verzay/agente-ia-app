@@ -88,6 +88,8 @@ export type ChatContactSessionSummary = {
   seguimientosTipos?: { tipo: string; count: number }[];
   latestAppointmentStatus?: AppointmentStatus | null;
   assignedAdvisorId?: string | null;
+  status?: boolean;
+  agentDisabled?: boolean;
 };
 
 export type ChatContactSessionMap = Record<string, ChatContactSessionSummary>;

@@ -138,6 +138,8 @@ function mapChatContactSessionSummary(
     seguimientosTipos: seguimientosTipos ?? [],
     latestAppointmentStatus: latestAppointmentStatus ?? null,
     assignedAdvisorId: session.assignedAdvisorId ?? null,
+    status: mappedSession.status,
+    agentDisabled: mappedSession.agentDisabled,
   };
 }
 

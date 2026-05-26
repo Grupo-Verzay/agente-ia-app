@@ -73,6 +73,7 @@ type ChatSidebarProps = {
   onRefresh?: () => Promise<void>;
   isRefreshing?: boolean;
   onCompose?: () => void;
+  inactiveAgentUnreadJids?: Set<string>;
 };
 
 export function ChatSidebar({
@@ -99,6 +100,7 @@ export function ChatSidebar({
   onRefresh,
   isRefreshing,
   onCompose,
+  inactiveAgentUnreadJids,
 }: ChatSidebarProps) {
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<TabKey>(currentAdvisorId ? "mine" : "all");
@@ -145,8 +147,9 @@ export function ChatSidebar({
           ? isMessageSeen(chat.remoteJid, lastMsgData.id)
           : false;
         const hasUnreadFromServer = (chat.unreadCount ?? 0) > 0;
+        const hasLocalPending = inactiveAgentUnreadJids?.has(chat.remoteJid) ?? false;
         const isRead =
-          wasSeenPreviously || lastMsgData.fromMe || isSelected || !hasUnreadFromServer;
+          wasSeenPreviously || lastMsgData.fromMe || isSelected || (!hasUnreadFromServer && !hasLocalPending);
         const preference = chatPreferences[chat.remoteJid];
 
         return {
@@ -160,7 +163,7 @@ export function ChatSidebar({
           timestamp: formatTimeFromEpoch(chat.lastMessage?.messageTimestamp),
           ts,
           isGroup: isGroupJid(chat.remoteJid),
-          isUnreadLocal: Boolean(lastMsgData.id) && !isRead,
+          isUnreadLocal: (Boolean(lastMsgData.id) || hasLocalPending) && !isRead,
           isPinned: Boolean(preference?.isPinned),
           pinnedAtMs: preference?.pinnedAt ? new Date(preference.pinnedAt).getTime() : 0,
           isArchived: Boolean(preference?.isArchived),
@@ -181,7 +184,7 @@ export function ChatSidebar({
           return true;
         };
       })());
-  }, [chatPreferences, chatSessions, isMessageSeen, result, selectedJid]);
+  }, [chatPreferences, chatSessions, inactiveAgentUnreadJids, isMessageSeen, result, selectedJid]);
 
   const myChats = useMemo(() => {
     if (!currentAdvisorId) return [];
