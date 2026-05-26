@@ -42,12 +42,27 @@ async function resolveServiceId(userId: string, serviceId: string): Promise<stri
   });
   if (svc) return svc.id;
 
-  // Fallback: coincidencia insensible a mayúsculas Y acentos (ej: "Asesoria" → "Asesoría")
+  // Normaliza: quita acentos, minúsculas, convierte slugs (guiones/guiones_bajos → espacios)
+  // Cubre el caso donde el LLM inventa "acido_hialuronico" o "botox" en vez del UUID real
   const normalize = (s: string) =>
-    s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    s.normalize('NFD').replace(/\p{Mn}/gu, '').toLowerCase().replace(/[_-]+/g, ' ').trim();
+
   const all = await db.service.findMany({ where: { userId }, select: { id: true, name: true } });
-  const match = all.find(s => normalize(s.name) === normalize(serviceId));
-  return match?.id ?? null;
+  const normalizedInput = normalize(serviceId);
+
+  // 1. Match exacto normalizado (nombre del servicio == slug enviado)
+  const exact = all.find(s => normalize(s.name) === normalizedInput);
+  if (exact) return exact.id;
+
+  // 2. El nombre del servicio empieza con el slug (ej: "botox" → "Botox Facial")
+  const startsWith = all.find(s => normalize(s.name).startsWith(normalizedInput + ' '));
+  if (startsWith) return startsWith.id;
+
+  // 3. El slug empieza con el nombre del servicio (ej: "acido_hialuronico_labios" → "Ácido Hialurónico")
+  const nameIsPrefix = all.find(s => normalizedInput.startsWith(normalize(s.name) + ' '));
+  if (nameIsPrefix) return nameIsPrefix.id;
+
+  return null;
 }
 
 function normalizeTimeToSeconds(timeStr: string): number {
