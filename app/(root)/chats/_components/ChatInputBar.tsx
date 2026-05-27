@@ -153,6 +153,36 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     }
   };
 
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageItem = Array.from(e.clipboardData.items).find((item) =>
+      item.type.startsWith('image/'),
+    );
+    if (!imageItem) return;
+
+    e.preventDefault();
+    const file = imageItem.getAsFile();
+    if (!file) return;
+
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error('La imagen es demasiado grande (máximo 8 MB).');
+      return;
+    }
+
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result));
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+
+    onComposeMediaChange({
+      mediatype: 'image',
+      dataUrl,
+      mimeType: file.type || 'image/png',
+      fileName: file.name || `imagen-${Date.now()}.png`,
+    });
+  }, [onComposeMediaChange]);
+
   const isPreviewingAudio = recordedAudio !== null && !isRecording;
   const isInputActive = !isRecording && !isPreviewingAudio && !isSending;
   const isSendButtonVisible = isInputActive && (input.trim().length > 0 || !!composeMedia);
@@ -386,6 +416,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           value={input}
           onChange={onInputChange}
           onKeyDown={onKeyPress}
+          onPaste={handlePaste}
           disabled={!isInputActive}
           rows={1}
           aria-label="Escribe tu mensaje"
