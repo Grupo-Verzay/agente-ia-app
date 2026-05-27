@@ -4,6 +4,24 @@ import { useEffect, useRef, useState } from "react";
 import type { ChatContactSessionMap } from "@/types/session";
 import type { FetchChatsResult } from "@/actions/chat-actions";
 
+async function showNotification(title: string, options: NotificationOptions): Promise<void> {
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  try {
+    const n = new Notification(title, options);
+    setTimeout(() => n.close(), 7000);
+  } catch {
+    // Mobile Chrome (Android) requires ServiceWorkerRegistration.showNotification()
+    if ("serviceWorker" in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        await reg.showNotification(title, options);
+      } catch {
+        // Service worker not available
+      }
+    }
+  }
+}
+
 function playNotificationSound() {
   try {
     const ctx = new AudioContext();
@@ -101,14 +119,13 @@ export function useAdvisorNotifications(
     // Detectar sesiones quitadas (estaban en prevMyIds pero ya no están en las mías)
     if (prevMyIdsRef.current) {
       const removedIds = Array.from(prevMyIdsRef.current).filter((id) => !currentMyIds.has(id));
-      if (removedIds.length > 0 && typeof Notification !== "undefined" && Notification.permission === "granted") {
+      if (removedIds.length > 0) {
         removedIds.forEach((id) => {
-          const n = new Notification("Conversación reasignada", {
+          void showNotification("Conversación reasignada", {
             body: "Te quitaron una conversación.",
             icon: "/favicon.ico",
             tag: `advisor-removed-${id}`,
           });
-          setTimeout(() => n.close(), 7000);
         });
       }
     }
@@ -123,18 +140,15 @@ export function useAdvisorNotifications(
       pendingCountRef.current += newSessions.length;
       playNotificationSound();
 
-      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-        newSessions.forEach((session) => {
-          if (!session) return;
-          const name = session.pushName?.trim() || session.remoteJid;
-          const n = new Notification("Nueva conversación asignada", {
-            body: name,
-            icon: "/favicon.ico",
-            tag: `advisor-assign-${session.id}`,
-          });
-          setTimeout(() => n.close(), 7000);
+      newSessions.forEach((session) => {
+        if (!session) return;
+        const name = session.pushName?.trim() || session.remoteJid;
+        void showNotification("Nueva conversación asignada", {
+          body: name,
+          icon: "/favicon.ico",
+          tag: `advisor-assign-${session.id}`,
         });
-      }
+      });
 
       if (originalTitleRef.current) {
         document.title = `(${pendingCountRef.current}) ${originalTitleRef.current}`;
@@ -196,19 +210,16 @@ export function useAdvisorNotifications(
 
     playNotificationSound();
 
-    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-      for (const chat of reallNew) {
-        const name =
-          chatSessions[chat.remoteJid]?.pushName?.trim() ||
-          chat.pushName?.trim() ||
-          chat.remoteJid;
-        const n = new Notification("Nuevo mensaje", {
-          body: name,
-          icon: "/favicon.ico",
-          tag: `new-msg-${chat.remoteJid}`,
-        });
-        setTimeout(() => n.close(), 7000);
-      }
+    for (const chat of reallNew) {
+      const name =
+        chatSessions[chat.remoteJid]?.pushName?.trim() ||
+        chat.pushName?.trim() ||
+        chat.remoteJid;
+      void showNotification("Nuevo mensaje", {
+        body: name,
+        icon: "/favicon.ico",
+        tag: `new-msg-${chat.remoteJid}`,
+      });
     }
 
     pendingCountRef.current += reallNew.length;
