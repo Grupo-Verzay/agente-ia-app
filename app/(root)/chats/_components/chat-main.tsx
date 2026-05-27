@@ -89,6 +89,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState('');
   const [composeMedia, setComposeMedia] = useState<ComposeMedia | null>(null);
+  const [replyTo, setReplyTo] = useState<UIBubble | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [tempMessage, setTempMessage] = useState<UIBubble | null>(null);
   const [isContactEditorOpen, setIsContactEditorOpen] = useState(false);
@@ -196,6 +197,10 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     let content = '';
     let media: MediaData | undefined;
 
+    const quotedMessage = replyTo
+      ? { key: { id: replyTo.id }, message: { conversation: replyTo.content } }
+      : undefined;
+
     if (recordedAudio) {
       payload = {
         kind: 'media',
@@ -203,6 +208,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         mediaUrl: recordedAudio.base64Pure,
         mimetype: recordedAudio.mimetype,
         ptt: true,
+        quotedMessage,
       };
       media = {
         type: 'audio',
@@ -219,6 +225,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         mimetype: composeMedia.mimeType,
         fileName: composeMedia.fileName,
         caption,
+        quotedMessage,
       };
       content = caption;
       media = {
@@ -232,12 +239,13 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     } else {
       const text = input.trim();
       if (!text) return;
-      payload = { kind: 'text', text };
+      payload = { kind: 'text', text, quotedMessage };
       content = text;
       setInput('');
     }
 
     if (!payload) return;
+    setReplyTo(null);
 
     const tempMsg: UIBubble = {
       id: `temp-${Date.now()}`,
@@ -260,7 +268,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       setIsSending(false);
       setTempMessage(null);
     }
-  }, [recordedAudio, composeMedia, input, onSend, clearRecordedAudio, mutateSessionStatus]);
+  }, [replyTo, recordedAudio, composeMedia, input, onSend, clearRecordedAudio, mutateSessionStatus]);
 
   const handleKeyPress = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -318,11 +326,13 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         loading={loading}
         listRef={listRef}
         tempMessage={tempMessage}
+        onSetReplyTo={setReplyTo}
       />
 
       <ChatInputBar
         input={input}
         composeMedia={composeMedia}
+        replyTo={replyTo}
         isRecording={isRecording}
         recordSecs={recordSecs}
         recordedAudio={recordedAudio}
@@ -337,6 +347,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onKeyPress={handleKeyPress}
         onComposeMediaChange={handleComposeMediaChange}
         onClearComposeMedia={handleClearComposeMedia}
+        onClearReplyTo={() => setReplyTo(null)}
         onStartRecording={startRecording}
         onStopRecordingAndPreview={stopRecordingAndPreview}
         onCancelRecording={cancelRecording}

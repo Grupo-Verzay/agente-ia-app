@@ -22,12 +22,13 @@ import { EmojiPickerPanel } from './EmojiPickerPanel';
 import type { ComposeMedia } from './attachment-menu';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
 import type { Session } from '@/types/session';
-import type { RecordedAudioData } from './chat-message-types';
+import type { RecordedAudioData, UIBubble } from './chat-message-types';
 import { SwitchStatus } from '../../sessions/_components';
 
 interface ChatInputBarProps {
   input: string;
   composeMedia: ComposeMedia | null;
+  replyTo: UIBubble | null;
   isRecording: boolean;
   recordSecs: number;
   recordedAudio: RecordedAudioData | null;
@@ -42,6 +43,7 @@ interface ChatInputBarProps {
   onKeyPress: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onComposeMediaChange: (media: ComposeMedia | null) => void;
   onClearComposeMedia: () => void;
+  onClearReplyTo: () => void;
   onStartRecording: () => void;
   onStopRecordingAndPreview: () => void;
   onCancelRecording: () => void;
@@ -55,6 +57,7 @@ interface ChatInputBarProps {
 export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   input,
   composeMedia,
+  replyTo,
   isRecording,
   recordSecs,
   recordedAudio,
@@ -69,6 +72,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   onKeyPress,
   onComposeMediaChange,
   onClearComposeMedia,
+  onClearReplyTo,
   onStartRecording,
   onStopRecordingAndPreview,
   onCancelRecording,
@@ -189,6 +193,30 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
 
   return (
     <div className="p-3 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+      {/* Preview de respuesta a un mensaje */}
+      {replyTo && (
+        <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-lg border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/50">
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+              {replyTo.sender === 'user' ? 'Tú' : 'Contacto'}
+            </div>
+            <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
+              {replyTo.media
+                ? `[${replyTo.media.type}]${replyTo.content ? ` ${replyTo.content}` : ''}`
+                : replyTo.content || ''}
+            </div>
+          </div>
+          <button
+            onClick={onClearReplyTo}
+            type="button"
+            aria-label="Cancelar respuesta"
+            className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Previsualización de adjunto */}
       {composeMedia && (
         <div className="mb-2 flex items-center gap-2">

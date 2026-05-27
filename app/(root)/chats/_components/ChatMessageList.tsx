@@ -121,6 +121,7 @@ interface ChatMessageListProps {
   loading?: boolean;
   listRef: React.RefObject<HTMLDivElement>;
   tempMessage: UIBubble | null;
+  onSetReplyTo?: (bubble: UIBubble) => void;
 }
 
 export const ChatMessageList: React.FC<ChatMessageListProps> = ({
@@ -128,6 +129,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
   loading,
   listRef,
   tempMessage,
+  onSetReplyTo,
 }) => {
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   const bgStyle = isDark ? WA_STYLE_DARK : WA_STYLE_LIGHT;
@@ -187,6 +189,8 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
             media={item.message.media}
             status={item.message.status}
             kind={item.message.kind}
+            quotedMessage={item.message.quotedMessage}
+            onReply={onSetReplyTo ? () => onSetReplyTo(item.message) : undefined}
           />
         ),
       )}

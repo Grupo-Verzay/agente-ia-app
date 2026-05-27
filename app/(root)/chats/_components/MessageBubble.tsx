@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Check, CheckCheck, CircleAlert, Clock } from 'lucide-react';
+import { Check, CheckCheck, CircleAlert, Clock, Reply } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MediaRenderer } from './MediaRenderer';
 import { CHAT_TIME_FORMATTER, initialFromName } from './chat-message-utils';
@@ -67,6 +67,8 @@ interface MessageBubbleProps {
   media?: MediaData;
   status?: MessageDeliveryState;
   kind?: UIBubble['kind'];
+  quotedMessage?: UIBubble['quotedMessage'];
+  onReply?: () => void;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -77,6 +79,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   media,
   status,
   kind,
+  quotedMessage,
+  onReply,
 }) => {
   const showAvatar = !isUserMessage;
 
@@ -164,8 +168,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-xl rounded-tl-sm self-start';
   const contentClass = isUserMessage ? 'text-white' : 'text-gray-800 dark:text-gray-100';
 
+  const replyBtn = onReply && (
+    <button
+      onClick={onReply}
+      type="button"
+      title="Responder"
+      aria-label="Responder"
+      className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
+    >
+      <Reply className="w-3.5 h-3.5" />
+    </button>
+  );
+
   return (
-    <div className={cn('flex items-end gap-1 my-1', isUserMessage ? 'justify-end' : 'justify-start')}>
+    <div className={cn('flex items-end gap-1 my-1 group', isUserMessage ? 'justify-end' : 'justify-start')}>
       {showAvatar && (
         <div className="mr-1">
           <Avatar className="w-7 h-7">
@@ -174,7 +190,23 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </Avatar>
         </div>
       )}
+      {!isUserMessage && replyBtn}
       <div className={cn('px-2 pt-2 pb-5 break-words relative inline-block max-w-[90%] sm:max-w-[70%]', bubbleClass)}>
+        {quotedMessage && (
+          <div className={cn(
+            'mb-1.5 px-2 py-1.5 rounded-lg border-l-4 text-xs cursor-default',
+            isUserMessage
+              ? 'border-white/60 bg-white/15 text-white/90'
+              : 'border-gray-400 dark:border-gray-500 bg-black/8 dark:bg-white/10 text-gray-700 dark:text-gray-300',
+          )}>
+            <span className="font-semibold block mb-0.5">
+              {quotedMessage.sender === 'user' ? 'Tú' : 'Contacto'}
+            </span>
+            <span className="block truncate max-w-[220px]">
+              {quotedMessage.mediaType ? `[${quotedMessage.mediaType}]${quotedMessage.content ? ` ${quotedMessage.content}` : ''}` : quotedMessage.content}
+            </span>
+          </div>
+        )}
         {media && <MediaRenderer media={media} />}
         {message && (
           <div className={cn(contentClass, 'pr-10')}>
@@ -183,6 +215,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
         <div className="absolute right-2 bottom-1">{timeAndStatus}</div>
       </div>
+      {isUserMessage && replyBtn}
     </div>
   );
 };

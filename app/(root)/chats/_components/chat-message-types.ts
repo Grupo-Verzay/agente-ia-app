@@ -66,6 +66,7 @@ export type UIBubble = {
   media?: MediaData;
   status?: MessageDeliveryState;
   kind?: 'sticker' | 'reaction';
+  quotedMessage?: { id: string; content: string; sender: 'user' | 'other'; mediaType?: string };
 };
 
 export type RecordedAudioData = {
