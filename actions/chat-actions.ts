@@ -626,20 +626,12 @@ export async function fetchChatsFromEvolution(
 
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
 
-
-  console.log(`[FETCH_CHATS_DIAG] URL="${endpoint}" instance="${instanceName}"`);
-
   try {
     // Intento POST, luego fallback a GET
     let res = await doRequest(endpoint, key, ctrl.signal, 'POST');
-    console.log(`[FETCH_CHATS_DIAG] POST status=${res.status} ok=${res.ok}`);
 
     if (!res.ok && (res.status === 404 || res.status === 405)) {
-      // Leer y loggear el body del POST antes de descartarlo
-      const postBody = await res.text().catch(() => '(unreadable)');
-      console.warn(`[FETCH_CHATS_DIAG] POST body: ${postBody.slice(0, 400)}`);
       res = await doRequest(endpoint, key, ctrl.signal, 'GET');
-      console.log(`[FETCH_CHATS_DIAG] GET status=${res.status} ok=${res.ok}`);
     }
 
     clearTimeout(t);
@@ -647,13 +639,11 @@ export async function fetchChatsFromEvolution(
 
     if (!res.ok) {
       const status = res.status;
-      const rawRec = raw as Record<string, unknown> | null;
-      const nestedMsg = Array.isArray(rawRec?.response?.message)
-        ? (rawRec!.response as { message: unknown[] }).message[0]
-        : undefined;
-      const msg = (raw?.message as string) || (nestedMsg as string) || `Error ${status} en la API.`;
+      const msg = (raw?.message as string) || `Error ${status} en la API.`;
       console.error(`[SERVER/FETCH] ❌ ERROR API (Status ${status}): ${msg}`);
-      console.error(`[FETCH_CHATS_DIAG] RAW body: ${JSON.stringify(raw).slice(0, 600)}`);
+      if (raw) {
+        console.error(`[SERVER/FETCH] 📄 Respuesta RAW del error: ${safeJsonPreview(raw, 500)}`);
+      }
       return { success: false, message: msg };
     }
 
