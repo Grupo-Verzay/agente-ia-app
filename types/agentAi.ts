@@ -880,6 +880,14 @@ export type BuildCfg = {
     includeSignature?: boolean; // default: false
     /** Separador entre firma y pasos */
     signatureSeparator?: string; // default: "\n\n---\n\n"
+    /**
+     * Modo de renderizado:
+     * - "full": título + mainMessage + todos los elementos (Training)
+     * - "answer": título + mainMessage como respuesta directa, sin elementos (FAQ)
+     * - "qa": título + solo elementos de texto, sin mainMessage ni funciones (Productos/Extras)
+     * - "management": título + todos los elementos, sin mainMessage (Gestión)
+     */
+    renderMode?: "full" | "answer" | "qa" | "management";
 };
 
 export type ManagementItem = {

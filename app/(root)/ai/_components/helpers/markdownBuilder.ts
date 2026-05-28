@@ -7,6 +7,7 @@ const DEFAULTS: Required<Omit<BuildCfg, "sectionPrefix">> & { sectionPrefix: str
     flowBehaviorText: flowBehaviorText,
     includeSignature: false,
     signatureSeparator: "\n\n---\n\n",
+    renderMode: "full" as const,
 };
 
 function trim(s?: string | null) {
@@ -77,6 +78,7 @@ export function buildSectionedMarkdown(
         flowBehaviorText,
         includeSignature,
         signatureSeparator,
+        renderMode,
     } = { ...DEFAULTS, ...(cfg || {}) };
 
     const steps: Step[] = Array.isArray(src) ? src : (src?.steps ?? []);
@@ -91,8 +93,45 @@ export function buildSectionedMarkdown(
 
     // Secciones
     const sections = steps.map((s, idx) => {
-        const head =
-            `### ${sectionPrefix} ${idx + 1}` + (nonEmpty(s.title) ? `: ${s.title}` : "");
+        const n = idx + 1;
+
+        if (renderMode === "answer") {
+            // FAQ: título (pregunta) + mainMessage (respuesta directa)
+            // Si mainMessage está vacío, cae atrás a elementos de texto como fallback
+            const head = nonEmpty(s.title) ? `### ${n}. ${s.title}` : `### ${n}.`;
+            if (nonEmpty(s.mainMessage)) {
+                return [head, s.mainMessage!].join("\n\n");
+            }
+            // Fallback para datos anteriores que tenían la respuesta en elementos
+            const textBody = (s.elements ?? [])
+                .filter((el) => (el as AnyElement).kind === "text")
+                .flatMap((el) => renderElement(el as AnyElement, flowBehaviorText))
+                .filter(Boolean);
+            return [head, ...textBody].join("\n\n");
+        }
+
+        if (renderMode === "qa") {
+            // Productos / Extras: título + solo elementos de texto (sin mainMessage, sin funciones)
+            const head = nonEmpty(s.title) ? `### ${n}. ${s.title}` : `### ${n}.`;
+            const body = (s.elements ?? [])
+                .filter((el) => (el as AnyElement).kind === "text")
+                .flatMap((el) => renderElement(el as AnyElement, flowBehaviorText))
+                .filter(Boolean);
+            return [head, ...body].join("\n\n");
+        }
+
+        if (renderMode === "management") {
+            // Título + todos los elementos, sin mainMessage
+            const head = `### ${sectionPrefix} ${n}` + (nonEmpty(s.title) ? `: ${s.title}` : "");
+            const body: string[] = [];
+            for (const el of s.elements ?? []) {
+                body.push(...renderElement(el as AnyElement, flowBehaviorText));
+            }
+            return [head, ...body.filter(Boolean)].join("\n\n");
+        }
+
+        // "full" — comportamiento original
+        const head = `### ${sectionPrefix} ${n}` + (nonEmpty(s.title) ? `: ${s.title}` : "");
         const body: string[] = [];
         if (nonEmpty(s.mainMessage)) body.push(s.mainMessage!);
         for (const el of s.elements ?? []) {

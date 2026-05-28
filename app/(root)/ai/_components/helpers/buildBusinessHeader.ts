@@ -17,10 +17,18 @@ export function buildBusinessHeader(business: z.infer<typeof BusinessDraftSchema
     if (nonEmpty(business.instagram)) lines.push(`* **Instagram:** ${business.instagram}`);
     if (nonEmpty(business.tiktok)) lines.push(`* **TikTok:** ${business.tiktok}`);
     if (nonEmpty(business.youtube)) lines.push(`* **YouTube:** ${business.youtube}`);
-    if (nonEmpty(business.notas)) {
-        lines.push('');
-        lines.push('### NOTAS ADICIONALES\n');
-        lines.push(business.notas ? business.notas.trim() : '');
-    }
     return lines.join('\n');
+}
+
+/** Renderiza el bloque de identidad del agente (va al inicio del prompt).
+ *  Elimina cualquier sección de motor que pudiera estar en notas de datos anteriores,
+ *  ya que el motor se genera programáticamente al final del prompt compuesto.
+ */
+export function buildIdentityBlock(business: z.infer<typeof BusinessDraftSchema>): string | null {
+    const raw = business.notas?.trim();
+    if (!raw) return null;
+    // Quitar bloque de motor si existe (datos viejos lo tenían en notas)
+    const identity = raw.replace(/#{1,3}\s*🔒\s*MOTOR[\s\S]*/i, '').trim();
+    if (!identity) return null;
+    return `## IDENTIDAD\n\n${identity}`;
 }
