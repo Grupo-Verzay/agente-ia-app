@@ -30,7 +30,7 @@ export function buildProductsMarkdown(products: z.infer<typeof ProductsDraftSche
 export function buildTrainingMarkdown(training: z.infer<typeof TrainingDraftSchema>): string {
     const stepsMd = buildSectionedMarkdown(training, FULL_CFG);
     const motorMd = buildMotorFromTrainingSteps(training?.steps ?? []);
-    return [stepsMd, motorMd].filter(Boolean).join('\n\n');
+    return [stepsMd, motorMd].filter(Boolean).join('\n\n---\n\n');
 }
 
 export function buildManagementMarkdown(management: z.infer<typeof ManagementDraftSchema>): string {
