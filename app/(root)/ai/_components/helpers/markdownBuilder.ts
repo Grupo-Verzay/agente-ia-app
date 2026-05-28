@@ -120,16 +120,20 @@ export function buildSectionedMarkdown(
         if (renderMode === "answer") {
             const head = nonEmpty(s.title) ? `### ${n}. ${s.title}` : `### ${n}.`;
             const label = resolveLabel(n);
+            const body: string[] = [];
             if (nonEmpty(s.mainMessage)) {
                 const labelLine = label ? `* **${label}**` : "";
-                return [head, labelLine, s.mainMessage!].filter(Boolean).join("\n\n");
+                if (labelLine) body.push(labelLine);
+                body.push(s.mainMessage!);
             }
-            // Fallback para datos anteriores que tenían la respuesta en elementos
-            const textBody = (s.elements ?? [])
-                .filter((el) => (el as AnyElement).kind === "text")
-                .flatMap((el) => renderElement(el as AnyElement, flowBehaviorText))
-                .filter(Boolean);
-            return [head, ...textBody].join("\n\n");
+            const els = s.elements ?? [];
+            if (els.length > 0) {
+                body.push(`#### ELEMENTOS:`);
+                els.forEach((el, idx) => {
+                    body.push(...renderElement(el as AnyElement, flowBehaviorText, idx + 1));
+                });
+            }
+            return [head, ...body].filter(Boolean).join("\n\n");
         }
 
         if (renderMode === "qa") {
@@ -149,8 +153,12 @@ export function buildSectionedMarkdown(
             if (label && nonEmpty(s.mainMessage)) {
                 body.push(`* **${label}**\n${s.mainMessage!}`);
             }
-            for (const el of s.elements ?? []) {
-                body.push(...renderElement(el as AnyElement, flowBehaviorText));
+            const mgmtEls = s.elements ?? [];
+            if (mgmtEls.length > 0) {
+                body.push(`#### ELEMENTOS:`);
+                mgmtEls.forEach((el, idx) => {
+                    body.push(...renderElement(el as AnyElement, flowBehaviorText, idx + 1));
+                });
             }
             return [head, ...body.filter(Boolean)].join("\n\n");
         }
