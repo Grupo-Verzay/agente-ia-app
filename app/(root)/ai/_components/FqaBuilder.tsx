@@ -118,11 +118,12 @@ export function FqaBuilder({
     version,
     onVersionChange,
     onConflict,
-    initialItems = [],
+    initialItems,
     flows = [],
     notificationNumber,
     registerSaveHandler
 }: FqaBuilderProps) {
+    // Compute initial state once (auto-init for new agents where initialItems === undefined)
     const [items, setItems] = useState<QaItem[]>(
         Array.isArray(initialItems) && initialItems.length > 0 ? initialItems : []
     );

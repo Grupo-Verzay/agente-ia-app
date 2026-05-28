@@ -121,11 +121,12 @@ export const ProductBuilder = ({
     version,
     onVersionChange,
     onConflict,
-    initialItems = [],
+    initialItems,
     flows = [],
     notificationNumber,
     registerSaveHandler
 }: ProductBuilderProps) => {
+    // Compute initial state once (auto-init for new agents where initialItems === undefined)
     const [items, setItems] = useState<ProductItemType[]>(
         Array.isArray(initialItems) && initialItems.length > 0
             ? (initialItems as ProductItemType[])

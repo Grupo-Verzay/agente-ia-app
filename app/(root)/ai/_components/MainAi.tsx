@@ -310,7 +310,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 onConflict={() => {
                                     setValues((prev) => ({ ...prev, training: prev.training }));
                                 }}
-                                initialSteps={sections?.training?.steps ?? []}
+                                initialSteps={sections?.training?.steps}
                                 registerSaveHandler={(fn) => registerSaveHandler("training", fn)}
                             />
                         </TabsContent>
@@ -327,7 +327,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 onConflict={() => {
                                     setValues((prev) => ({ ...prev, faq: prev.faq }));
                                 }}
-                                initialItems={sections?.faq?.steps ?? []}
+                                initialItems={sections?.faq?.steps}
                                 registerSaveHandler={(fn) => registerSaveHandler("faq", fn)}
                             />
                         </TabsContent>
@@ -344,7 +344,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 onConflict={() => {
                                     setValues((prev) => ({ ...prev, products: prev.products }));
                                 }}
-                                initialItems={sections?.products?.steps ?? []}
+                                initialItems={sections?.products?.steps}
                                 registerSaveHandler={(fn) => registerSaveHandler("products", fn)}
                             />
                         </TabsContent>
