@@ -190,7 +190,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </Avatar>
         </div>
       )}
-      {!isUserMessage && replyBtn}
+      {isUserMessage && replyBtn}
       <div className={cn('px-2 pt-2 pb-5 break-words relative inline-block max-w-[90%] sm:max-w-[70%]', bubbleClass)}>
         {quotedMessage && (
           <div className={cn(
@@ -215,7 +215,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
         <div className="absolute right-2 bottom-1">{timeAndStatus}</div>
       </div>
-      {isUserMessage && replyBtn}
+      {!isUserMessage && replyBtn}
     </div>
   );
 };
