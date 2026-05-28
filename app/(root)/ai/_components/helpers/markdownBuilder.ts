@@ -22,7 +22,7 @@ function renderElement(el: AnyElement, behaviorText: string, k?: number): string
 
     if (el.kind === "text") {
         if (nonEmpty(el.text)) {
-            out.push(k !== undefined ? `- (${k}) **REGLA/PARÁMETRO:** — ${el.text!}\n` : el.text!);
+            out.push(k !== undefined ? `- (${k}) **REGLA/PARÁMETRO:** — ${el.text!}` : el.text!);
         }
         return out;
     }
