@@ -97,7 +97,11 @@ export function buildSectionedMarkdown(
         includeSignature,
         signatureSeparator,
         renderMode,
+        mainMessageLabel,
     } = { ...DEFAULTS, ...(cfg || {}) };
+
+    const resolveLabel = (n: number) =>
+        typeof mainMessageLabel === "function" ? mainMessageLabel(n) : (mainMessageLabel ?? "");
 
     const steps: Step[] = Array.isArray(src) ? src : (src?.steps ?? []);
 
@@ -114,11 +118,11 @@ export function buildSectionedMarkdown(
         const n = idx + 1;
 
         if (renderMode === "answer") {
-            // FAQ: título (pregunta) + mainMessage (respuesta directa)
-            // Si mainMessage está vacío, cae atrás a elementos de texto como fallback
             const head = nonEmpty(s.title) ? `### ${n}. ${s.title}` : `### ${n}.`;
+            const label = resolveLabel(n);
             if (nonEmpty(s.mainMessage)) {
-                return [head, s.mainMessage!].join("\n\n");
+                const labelLine = label ? `* **${label}**` : "";
+                return [head, labelLine, s.mainMessage!].filter(Boolean).join("\n\n");
             }
             // Fallback para datos anteriores que tenían la respuesta en elementos
             const textBody = (s.elements ?? [])
@@ -139,9 +143,12 @@ export function buildSectionedMarkdown(
         }
 
         if (renderMode === "management") {
-            // Título + todos los elementos, sin mainMessage
             const head = `### ${sectionPrefix} ${n}` + (nonEmpty(s.title) ? `: ${s.title}` : "");
             const body: string[] = [];
+            const label = resolveLabel(n);
+            if (label && nonEmpty(s.mainMessage)) {
+                body.push(`* **${label}**\n${s.mainMessage!}`);
+            }
             for (const el of s.elements ?? []) {
                 body.push(...renderElement(el as AnyElement, flowBehaviorText));
             }

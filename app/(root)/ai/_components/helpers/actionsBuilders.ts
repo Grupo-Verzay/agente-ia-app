@@ -3,17 +3,19 @@ import { z } from "zod";
 import { buildSectionedMarkdown } from "./markdownBuilder";
 import { ExtrasDraftSchema, FaqDraftSchema, flowBehaviorText, ProductsDraftSchema, TrainingDraftSchema, ManagementDraftSchema } from "@/types/agentAi";
 
-// FAQ: título (pregunta) + mainMessage como respuesta directa
-const FAQ_CFG = { joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "answer" as const };
-// Productos y Extras: solo título + elementos de texto (sin mainMessage ni funciones)
-const QA_CFG = { joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "qa" as const };
-// Gestión: título + llamadas a funciones, sin mainMessage
-const MGMT_CFG = { sectionPrefix: "Gestión", joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "management" as const };
-// Inicio/Training: modo completo (mainMessage + elementos)
+// FAQ: título + label + mainMessage como respuesta directa
+const FAQ_CFG = { joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "answer" as const, mainMessageLabel: (n: number) => `OBJETIVO/RESPUESTA PRINCIPAL DE LA PREGUNTA ${n}:` };
+// Productos: título + label + mainMessage (ficha técnica)
+const PRODUCTS_CFG = { joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "answer" as const, mainMessageLabel: (n: number) => `OBJETIVO/RESPUESTA PRINCIPAL DEL PRODUCTO ${n}:` };
+// Extras: título + label + mainMessage
+const EXTRAS_CFG = { joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "answer" as const, mainMessageLabel: (n: number) => `OBJETIVO/RESPUESTA PRINCIPAL DEL EXTRA ${n}:` };
+// Gestión: título + label objetivo + elementos
+const MGMT_CFG = { sectionPrefix: "Gestión", joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "management" as const, mainMessageLabel: (n: number) => `OBJETIVO PRINCIPAL DE LA GESTIÓN ${n}:` };
+// Inicio/Training: modo completo (mainMessage + elementos numerados)
 const FULL_CFG = { sectionPrefix: "PASO", joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "full" as const };
 
 export function buildExtrasMarkdown(extras: z.infer<typeof ExtrasDraftSchema>): string {
-    return buildSectionedMarkdown(extras, FAQ_CFG);
+    return buildSectionedMarkdown(extras, EXTRAS_CFG);
 }
 
 export function buildFaqMarkdown(faq: z.infer<typeof FaqDraftSchema>): string {
@@ -21,7 +23,7 @@ export function buildFaqMarkdown(faq: z.infer<typeof FaqDraftSchema>): string {
 }
 
 export function buildProductsMarkdown(products: z.infer<typeof ProductsDraftSchema>): string {
-    return buildSectionedMarkdown(products, FAQ_CFG);
+    return buildSectionedMarkdown(products, PRODUCTS_CFG);
 }
 
 export function buildTrainingMarkdown(training: z.infer<typeof TrainingDraftSchema>): string {
