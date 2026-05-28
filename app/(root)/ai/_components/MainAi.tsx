@@ -2,6 +2,7 @@
 "use client";
 
 import { ChangeEvent, useCallback, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { BusinessPromptBuilder, ExtraInfoBuilder, FqaBuilder, PromptPreview, TrainingBuilder } from "./";
 import { buildPrompt } from "./helpers";
@@ -17,8 +18,9 @@ import {
 } from "@/types/agentAi";
 import { ProductBuilder } from "./ProductBuilder";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, MoreVertical, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, History, MessageSquare, MoreVertical, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PromptToolbar } from "./PromptToolbar";
 import {
     buildExtrasMarkdown,
@@ -38,6 +40,8 @@ import {
 import { GenericDeleteDialog } from "@/components/shared/GenericDeleteDialog";
 import { deleteAgentPromptsByUserId } from "@/actions/prompt-actions";
 import { FlowGeneratorModal } from "./FlowGeneratorModal";
+import { VersionHistoryPanel } from "./VersionHistoryPanel";
+import { ChatSimulatorModal } from "./ChatSimulatorModal";
 
 export const TYPE_AI_LABELS = {
     business: "Perfil",
@@ -48,11 +52,23 @@ export const TYPE_AI_LABELS = {
     management: "Gestion",
 } as const;
 
+const CADENA_PHASES: Record<keyof typeof TYPE_AI_LABELS, string> = {
+    business:   "Base transversal · Datos del negocio y contexto del agente",
+    training:   "Fase 1 · Conexión — Saludo, presentación y apertura",
+    faq:        "Fases 2-3 · Averiguación + Diagnóstico — Calificación secuencial",
+    products:   "Fase 4 · Exposición — Catálogo, precios y propuesta de valor",
+    more:       "Fase 5 · Negociación — Objeciones, Q&A y casos especiales",
+    management: "Fases 6-7 · Acuerdo + Postventa — Cierre, herramientas y seguimiento",
+};
+
 type TabKey = keyof typeof TYPE_AI_LABELS;
 
 export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
+    const router = useRouter();
     const [showAlertDialog, setShowAlertDialog] = useState(false);
     const [showFlowGenerator, setShowFlowGenerator] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
+    const [showSimulator, setShowSimulator] = useState(false);
 
     const trainingMd = sections?.training
         ? buildTrainingMarkdown(TrainingDraftSchema.parse(sections.training))
@@ -93,6 +109,13 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
 
     const [values, setValues] = useState<BusinessValues>({ ...initialValues, ...hydrated });
     const [activeTab, setActiveTab] = useState<TabKey>("business");
+
+    // Firma state (lifted from ExtraInfoBuilder so UI lives in Perfil)
+    const _initialFirmaText = sections?.extras?.firmaText ?? "";
+    const _firmaMatch = _initialFirmaText.match(/@([a-zA-Z0-9_]+)/);
+    const _initialSignatureName = _firmaMatch ? _firmaMatch[1] : sections?.extras?.firmaName ?? "";
+    const [signatureName, setSignatureName] = useState<string>(_initialSignatureName);
+    const [firmaEnabled, setFirmaEnabled] = useState<boolean>(_initialSignatureName.trim().length > 0);
     const [promptVersion, setPromptVersion] = useState<number>(promptMeta.version);
     const scrollRef = useRef<HTMLDivElement>(null);
     const saveHandlersRef = useRef<Record<string, () => Promise<void>>>({});
@@ -125,7 +148,24 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
         });
     };
 
-    const prompt = useMemo(() => buildPrompt(values), [values]);
+    const prompt = useMemo(
+        () => buildPrompt(values, { enabled: firmaEnabled, name: signatureName }),
+        [values, firmaEnabled, signatureName]
+    );
+
+    const completedTabs = useMemo((): Set<TabKey> => {
+        const done = new Set<TabKey>();
+        if (values.nombre?.trim() || values.sector?.trim()) done.add("business");
+        if (values.training?.trim()) done.add("training");
+        if (values.faq?.trim()) done.add("faq");
+        if (values.products?.trim()) done.add("products");
+        if (values.more?.trim()) done.add("more");
+        if (values.management?.trim()) done.add("management");
+        return done;
+    }, [values]);
+
+    const completionCount = completedTabs.size;
+    const totalTabs = Object.keys(TYPE_AI_LABELS).length;
 
     return (
         <>
@@ -148,22 +188,35 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 "sm:overflow-visible sm:justify-start sm:flex-wrap"
                             )}
                         >
+                            <TooltipProvider delayDuration={400}>
                             {(Object.keys(TYPE_AI_LABELS) as TabKey[]).map((key) => (
-                                <button
-                                    key={key}
-                                    onClick={() => handleTabClick(key)}
-                                    className={cn(
-                                        "px-4 py-2 rounded-t-md font-medium text-sm border-b-2 transition-colors duration-150 whitespace-nowrap",
-                                        activeTab === key
-                                            ? "border-primary text-primary"
-                                            : "border-transparent text-muted-foreground hover:text-foreground"
-                                    )}
-                                    aria-pressed={activeTab === key}
-                                    aria-label={`Cambiar a ${TYPE_AI_LABELS[key]}`}
-                                >
-                                    {TYPE_AI_LABELS[key]}
-                                </button>
+                                <Tooltip key={key}>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={() => handleTabClick(key)}
+                                            className={cn(
+                                                "px-4 py-2 rounded-t-md font-medium text-sm border-b-2 transition-colors duration-150 whitespace-nowrap",
+                                                activeTab === key
+                                                    ? "border-primary text-primary"
+                                                    : "border-transparent text-muted-foreground hover:text-foreground"
+                                            )}
+                                            aria-pressed={activeTab === key}
+                                            aria-label={`Cambiar a ${TYPE_AI_LABELS[key]}`}
+                                        >
+                                            <span className="flex items-center gap-1.5">
+                                                {TYPE_AI_LABELS[key]}
+                                                {completedTabs.has(key) && (
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                                )}
+                                            </span>
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" className="max-w-[260px] text-center text-xs">
+                                        {CADENA_PHASES[key]}
+                                    </TooltipContent>
+                                </Tooltip>
                             ))}
+                            </TooltipProvider>
                             <PromptToolbar
                                     promptId={promptMeta.id}
                                     version={promptVersion}
@@ -232,6 +285,15 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                     onManualSave={handleManualSaveCurrent}
                                 />
 
+                            <Button
+                                variant="outline"
+                                className="gap-2 h-9"
+                                onClick={() => setShowSimulator(true)}
+                            >
+                                <MessageSquare className="h-4 w-4 text-emerald-500" />
+                                <span className="hidden sm:inline">Simular</span>
+                            </Button>
+
                             <DropdownMenu modal={false}>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="outline" aria-label="Open menu" size="icon">
@@ -243,6 +305,10 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                         <DropdownMenuItem onSelect={() => setShowFlowGenerator(true)}>
                                             <Sparkles className="mr-2 h-4 w-4" />
                                             Generar con IA
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={() => setShowHistory(true)}>
+                                            <History className="mr-2 h-4 w-4" />
+                                            Historial de versiones
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onSelect={() => setShowAlertDialog(true)} className="text-destructive focus:text-destructive">
                                             <Trash2 className="mr-2 h-4 w-4" />
@@ -262,6 +328,18 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                             <ArrowRight />
                         </Button>
                     </div>
+                    {/* Barra de progreso global */}
+                    <div className="px-3 pb-1.5 flex items-center gap-2">
+                        <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
+                            <div
+                                className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                                style={{ width: `${(completionCount / totalTabs) * 100}%` }}
+                            />
+                        </div>
+                        <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+                            {completionCount}/{totalTabs}
+                        </span>
+                    </div>
                 </div>
 
                 <div className="flex flex-row w-full gap-2 flex-1 min-h-0">
@@ -274,6 +352,10 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 promptId={promptMeta.id}
                                 version={promptVersion}
                                 onVersionChange={setPromptVersion}
+                                firmaEnabled={firmaEnabled}
+                                signatureName={signatureName}
+                                onFirmaEnabledChange={setFirmaEnabled}
+                                onSignatureNameChange={setSignatureName}
                                 onConflict={(serverState) => {
                                     const business = serverState?.sections?.business ?? {};
                                     setValues((prev) => ({
@@ -367,6 +449,10 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                     firmaText: sections?.extras?.firmaText ?? undefined,
                                     firmaName: sections?.extras?.firmaName ?? undefined,
                                 }}
+                                firmaEnabled={firmaEnabled}
+                                signatureName={signatureName}
+                                onFirmaEnabledChange={setFirmaEnabled}
+                                onSignatureNameChange={setSignatureName}
                                 registerSaveHandler={(fn) => registerSaveHandler("more", fn)}
                             />
                         </TabsContent>
@@ -410,6 +496,19 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                 onOpenChange={setShowFlowGenerator}
                 promptId={promptMeta.id}
                 version={promptVersion}
+            />
+            <VersionHistoryPanel
+                open={showHistory}
+                onOpenChange={setShowHistory}
+                promptId={promptMeta.id}
+                currentVersion={promptVersion}
+                onRestored={() => { setShowHistory(false); router.refresh(); }}
+            />
+            <ChatSimulatorModal
+                open={showSimulator}
+                onOpenChange={setShowSimulator}
+                promptId={promptMeta.id}
+                businessName={promptMeta.businessName ?? ""}
             />
         </>
     );

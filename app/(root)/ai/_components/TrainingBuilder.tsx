@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
@@ -9,13 +9,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, GripVertical, ChevronDown } from "lucide-react";
+import { Plus, Trash2, GripVertical, ChevronDown, Copy } from "lucide-react";
+import { StepTemplatePicker } from "./StepTemplatePicker";
 
 import {
   AnyStep,
   DataSubtype,
   ElementItem,
   PedidoFunctionEl,
+  RoutingRule,
   StepTraining,
   TrainingBuilderProps,
 } from "@/types/agentAi";
@@ -228,8 +230,18 @@ export function TrainingBuilder({
 
   // acordeón: IDs de pasos expandidos (por defecto todos)
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(
-    () => new Set(_initSteps.map((s) => s.id))
+    () => _initSteps.length <= 1 ? new Set(_initSteps.map((s) => s.id)) : new Set<string>()
   );
+
+  const [expandedMotor, setExpandedMotor] = useState<Set<string>>(new Set());
+  const toggleMotor = useCallback((id: string) => {
+    setExpandedMotor((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const toggleStep = useCallback((id: string) => {
     setExpandedSteps((prev) => {
@@ -282,12 +294,12 @@ export function TrainingBuilder({
   /* -------------------- Construcción del trainingPrompt -------------------- */
   const trainingPrompt = useMemo(() => {
     return buildSectionedPrompt(steps as AnyStep[], {
-      emptyMessage:
-        "Aún no has agregado pasos de entrenamiento. Usa “Agregar paso” para comenzar.",
-      sectionLabel: (n, step) => `### PASO ${n} — ${(step.title || "Sin título").toUpperCase()}`,
-      elementsLabel: (n) => `#### ELEMENTOS DEL PASO ${n}:`,
-      mainMessageLabel: (n) => `OBJETIVO/RESPUESTA PRINCIPAL DEL PASO ${n}:`,
+      emptyMessage: "Aun no has agregado pasos de entrenamiento. Usa Agregar paso para comenzar.",
+      sectionLabel: (n: number, step: AnyStep) => `### PASO ${n} - ${(step.title || "Sin titulo").toUpperCase()}`,
+      elementsLabel: (n: number) => `#### ELEMENTOS DEL PASO ${n}:`,
+      mainMessageLabel: (n: number) => `OBJETIVO/RESPUESTA PRINCIPAL DEL PASO ${n}:`,
       joinSeparator: "\n",
+      showMotorFlujo: true,
     });
   }, [steps]);
 
@@ -336,6 +348,24 @@ export function TrainingBuilder({
 
   const removeStep = (stepId: string) => {
     setSteps((prev) => prev.filter((s) => s.id !== stepId));
+  };
+
+  const duplicateStep = (stepId: string) => {
+    setSteps((prev) => {
+      const idx = prev.findIndex((s) => s.id === stepId);
+      if (idx < 0) return prev;
+      const original = prev[idx];
+      const copy: StepTraining = {
+        ...original,
+        id: nanoid(),
+        title: `${original.title} (COPIA)`,
+        elements: original.elements.map((el) => ({ ...el, id: nanoid() })),
+      };
+      const next = [...prev];
+      next.splice(idx + 1, 0, copy);
+      setExpandedSteps((es) => new Set([...es, copy.id]));
+      return next;
+    });
   };
 
   const updateStepTitle = (stepId: string, title: string) => {
@@ -422,6 +452,31 @@ export function TrainingBuilder({
           }),
         };
       })
+    );
+  };
+
+  const updateStepVariable = (stepId: string, value: string) => {
+    setSteps((prev) => prev.map((s) => s.id === stepId ? { ...s, variableQueRecoge: value } : s));
+  };
+
+  const updateStepCondicion = (stepId: string, value: string) => {
+    setSteps((prev) => prev.map((s) => s.id === stepId ? { ...s, condicionParaAvanzar: value } : s));
+  };
+
+  const updateRoutingRules = (stepId: string, elId: string, rules: RoutingRule[]) => {
+    setSteps((prev) =>
+      prev.map((s) =>
+        s.id === stepId
+          ? {
+              ...s,
+              elements: s.elements.map((e) =>
+                e.id === elId && e.kind === "function" && e.fn === "enrutamiento"
+                  ? { ...e, rules }
+                  : e
+              ),
+            }
+          : s
+      )
     );
   };
 
@@ -542,8 +597,8 @@ export function TrainingBuilder({
 
       <CardContent className="space-y-4">
         {steps.length === 0 ? (
-          <div className="text-center text-sm text-muted-foreground py-10">
-            No has creado pasos. Crea tu primer paso con “Agregar paso”.
+          <div className="text-center text-sm text-muted-foreground py-2">
+            No has creado pasos. Crea tu primer paso con Agregar paso.
           </div>
         ) : (
           <DndContext
@@ -620,9 +675,8 @@ export function TrainingBuilder({
                                 )}
                               </div>
 
-                              {/* Derecha: chevron + eliminar */}
+                              {/* Derecha: chevron + duplicar + eliminar */}
                               <div className="flex items-center gap-1 shrink-0">
-                                {/* Chevron toggle */}
                                 <button
                                   type="button"
                                   className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
@@ -631,9 +685,19 @@ export function TrainingBuilder({
                                 >
                                   <ChevronDown
                                     className="h-4 w-4 transition-transform duration-200"
-                                    style={{ transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                                    style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
                                   />
                                 </button>
+                                {!lockWelcome && (
+                                  <button
+                                    type="button"
+                                    className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+                                    onClick={() => duplicateStep(step.id)}
+                                    title="Duplicar paso"
+                                  >
+                                    <Copy className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
                               </div>
 
                               {/* Eliminar */}
@@ -680,9 +744,11 @@ export function TrainingBuilder({
                               <div className="overflow-hidden">
                                 <CardContent className="space-y-3 pt-0 pb-3 px-0">
                                   <div className="pl-10 pr-3 space-y-2">
-                                    <label className="text-sm font-semibold">
-                                      {`Objetivo/respuesta principal del paso ${idx + 1}`}
-                                    </label>
+                                    <StepTemplatePicker
+                                      label={`Objetivo/respuesta principal del paso ${idx + 1}`}
+                                      disabled={step.title === WELCOME_TITLE}
+                                      onApply={(content) => updateStepMainMessage(step.id, content)}
+                                    />
                                     <Textarea
                                       value={step.mainMessage}
                                       onChange={(e) => updateStepMainMessage(step.id, e.target.value)}
@@ -690,6 +756,42 @@ export function TrainingBuilder({
                                       className="min-h-[32px]"
                                       disabled={step.title === WELCOME_TITLE}
                                     />
+                                  </div>
+
+                                  {/* Motor de Flujo */}
+                                  <div className="pl-10 pr-3">
+                                    <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/10 px-3 py-2 space-y-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleMotor(step.id)}
+                                        className="flex items-center justify-between w-full"
+                                      >
+                                        <p className="text-xs font-semibold text-foreground/60 uppercase tracking-widest">Motor de Flujo</p>
+                                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                      </button>
+                                      {expandedMotor.has(step.id) && (
+                                        <div className="grid grid-cols-2 gap-3">
+                                          <div className="space-y-1.5">
+                                            <label className="text-xs font-medium text-foreground/70">Variable que recoge</label>
+                                            <Input
+                                              value={step.variableQueRecoge ?? ""}
+                                              onChange={(e) => updateStepVariable(step.id, e.target.value)}
+                                              placeholder="ej: nombre_usuario"
+                                              className="h-8 text-sm"
+                                            />
+                                          </div>
+                                          <div className="space-y-1.5">
+                                            <label className="text-xs font-medium text-foreground/70">Condicion para avanzar</label>
+                                            <Input
+                                              value={step.condicionParaAvanzar ?? ""}
+                                              onChange={(e) => updateStepCondicion(step.id, e.target.value)}
+                                              placeholder="ej: datos completos"
+                                              className="h-8 text-sm"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
 
                                   <Separator />
@@ -728,6 +830,8 @@ export function TrainingBuilder({
                                                       addPedidoField={addPedidoField}
                                                       removePedidoField={removePedidoField}
                                                       onSubtypeChange={onSubtypeChange}
+                                                      steps={steps}
+                                                      updateRoutingRules={updateRoutingRules}
                                                     />
                                                   </div>
                                                 </div>
@@ -749,6 +853,7 @@ export function TrainingBuilder({
                                         step={step}
                                         setSteps={setSteps}
                                         notificationNumber={notificationNumber ?? ""}
+                                        steps={steps}
                                       />
                                     </div>
                                   </div>
@@ -768,9 +873,7 @@ export function TrainingBuilder({
       </CardContent>
 
       {steps.length > 0 && (
-        <CardFooter className="pb-2 flex items-center justify-between gap-2 flex-row">
-          <CardTitle className="text-base uppercase">Entrenamiento</CardTitle>
-
+        <CardFooter className="pb-2 flex justify-end">
           <Button size="sm" onClick={addStep} className="gap-2">
             <Plus className="w-4 h-4" />
             Agregar paso

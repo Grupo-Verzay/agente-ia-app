@@ -5,9 +5,10 @@ import { ChangeEvent, useEffect, useMemo, useState, useCallback } from "react";
 import { nanoid } from "nanoid";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, GripVertical, ChevronDown } from "lucide-react";
+import { Plus, Trash2, GripVertical, ChevronDown, Copy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { StepTemplatePicker } from "./StepTemplatePicker";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
@@ -129,7 +130,7 @@ export function FqaBuilder({
     );
     const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
     const [expandedItems, setExpandedItems] = useState<Set<string>>(
-        () => new Set((Array.isArray(initialItems) ? initialItems : []).map((s: any) => s.id))
+        () => { const src = Array.isArray(initialItems) ? initialItems : []; return src.length <= 1 ? new Set(src.map((s: any) => s.id)) : new Set<string>(); }
     );
 
     const toggleItem = useCallback((id: string) => {
@@ -216,6 +217,18 @@ export function FqaBuilder({
     };
 
     const removeItem = (id: string) => setItems((prev) => prev.filter((i) => i.id !== id));
+
+    const duplicateItem = (id: string) => {
+        setItems((prev) => {
+            const idx = prev.findIndex((i) => i.id === id);
+            if (idx < 0) return prev;
+            const copy = { ...prev[idx], id: nanoid(), title: `${prev[idx].title} (COPIA)`, elements: prev[idx].elements.map((el: any) => ({ ...el, id: nanoid() })) };
+            const next = [...prev];
+            next.splice(idx + 1, 0, copy);
+            setExpandedItems((es) => new Set([...es, copy.id]));
+            return next;
+        });
+    };
 
     const updateTitle = (id: string, v: string) =>
         setItems((prev) => prev.map((it) => (it.id === id ? { ...it, title: v.toUpperCase() } : it)));
@@ -389,7 +402,7 @@ export function FqaBuilder({
 
                 <CardContent className="space-y-4">
                     {items.length === 0 ? (
-                        <div className="text-center text-sm text-muted-foreground py-8">
+                        <div className="text-center text-sm text-muted-foreground py-2">
                             No has creado Preguntas. Crea tu primera Pregunta con &quot;Agregar Pregunta&quot;.
                         </div>
                     ) : (
@@ -448,8 +461,16 @@ export function FqaBuilder({
                                                                 >
                                                                     <ChevronDown
                                                                         className="h-4 w-4 transition-transform duration-200"
-                                                                        style={{ transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                                                                        style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
                                                                     />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+                                                                    title="Duplicar pregunta"
+                                                                    onClick={() => duplicateItem(step.id)}
+                                                                >
+                                                                    <Copy className="h-3.5 w-3.5" />
                                                                 </button>
                                                                 <AlertDialog>
                                                                     <AlertDialogTrigger asChild>
@@ -493,7 +514,11 @@ export function FqaBuilder({
                                                             <div className="overflow-hidden">
                                                                 <CardContent className="space-y-3 px-0 pb-4 pt-0">
                                                                     <div className="px-6 space-y-2">
-                                                                        <label className="text-sm font-semibold">{`Objetivo/respuesta principal de la pregunta ${idx + 1}`}</label>
+                                                                        <StepTemplatePicker
+                                                                            label={`Objetivo/respuesta principal de la pregunta ${idx + 1}`}
+                                                                            filterCategories={["Averiguación", "Diagnóstico"]}
+                                                                            onApply={(content) => updateMain(step.id, content)}
+                                                                        />
                                                                         <Textarea
                                                                             value={step.mainMessage ?? ""}
                                                                             onChange={(e) => updateMain(step.id, e.target.value)}
@@ -573,8 +598,7 @@ export function FqaBuilder({
                 </CardContent>
 
                 {items.length > 0 && (
-                    <CardFooter className="pb-2 flex items-center justify-between gap-2 flex-row">
-                        <CardTitle className="text-base uppercase">Preguntas</CardTitle>
+                    <CardFooter className="pb-2 flex justify-end">
                         <Button size="sm" onClick={addFaq} className="gap-2">
                             <Plus className="w-4 h-4" />
                             Agregar Pregunta

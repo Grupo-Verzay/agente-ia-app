@@ -4,6 +4,7 @@
 import { FC } from "react";
 import {
     DataSubtype,
+    ElementRouting,
     PedidoFunctionEl,
     PropsActionSteeps,
     PropsConsultaDatos,
@@ -17,6 +18,7 @@ import {
     EjecutarFlujoCard,
     NotificarAsesorCard,
     ConsultaDatosCard,
+    RoutingCard,
 } from "./";
 
 const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
@@ -31,6 +33,8 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
     onSubtypeChange,
     isManagement,
     onAddRule,
+    steps,
+    updateRoutingRules,
 }) => {
     if (el.kind === "text") {
         return (
@@ -92,6 +96,18 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
         );
     }
 
+    if (el.kind === "function" && el.fn === "enrutamiento") {
+        return (
+            <RoutingCard
+                el={el as ElementRouting}
+                onRemove={() => removeElement(stepId, el.id)}
+                steps={steps ?? []}
+                onUpdateRules={(rules) => updateRoutingRules?.(stepId, el.id, rules)}
+                isManagement={isManagement}
+            />
+        );
+    }
+
     // consulta_datos (fallback)
     return (
         <ConsultaDatosCard
@@ -100,7 +116,7 @@ const ElementRenderer: FC<PropsActionSteeps & { onAddRule?: () => void }> = ({
             onRemove={() => removeElement(stepId, el.id)}
             onAddField={(f) => addPedidoField(stepId, el.id, f)}
             onRemoveField={(f) => removePedidoField(stepId, el.id, f)}
-            onSubtypeChange={(subtype: DataSubtype) => onSubtypeChange(stepId, el.id, subtype)} // Pasando stepId
+            onSubtypeChange={(subtype: DataSubtype) => onSubtypeChange(stepId, el.id, subtype)}
         />
     );
 };

@@ -380,6 +380,58 @@ export async function publishPrompt(input: z.infer<typeof PublishSchema>) {
     }
 }
 
+/** Lista las revisiones de un prompt, ordenadas de la más reciente a la más antigua. */
+export async function listPromptRevisions(promptId: string) {
+    try {
+        const revisions = await db.agentPromptRevision.findMany({
+            where: { promptId },
+            orderBy: { revisionNumber: "desc" },
+            select: {
+                id: true,
+                revisionNumber: true,
+                publishedAt: true,
+                notes: true,
+                publishedBy: true,
+            },
+            take: 20,
+        });
+        return { ok: true as const, data: revisions };
+    } catch (e) {
+        return { ok: false as const, error: "No se pudieron cargar las revisiones" };
+    }
+}
+
+/** Restaura una revisión: copia sectionsSnapshot al draft del AgentPrompt. */
+export async function restoreRevision(input: {
+    promptId: string;
+    revisionNumber: number;
+    revalidate?: string;
+}) {
+    try {
+        const { promptId, revisionNumber, revalidate } = input;
+
+        const revision = await db.agentPromptRevision.findUnique({
+            where: { promptId_revisionNumber: { promptId, revisionNumber } },
+        });
+
+        if (!revision) return { ok: false as const, error: "Revisión no encontrada" };
+
+        await db.agentPrompt.update({
+            where: { id: promptId },
+            data: {
+                sections: revision.sectionsSnapshot as any,
+                status: "draft",
+            },
+        });
+
+        if (revalidate) revalidatePath(revalidate);
+
+        return { ok: true as const };
+    } catch (e) {
+        return { ok: false as const, error: "No se pudo restaurar la revisión" };
+    }
+}
+
 export async function patchManagementSection(input: {
     promptId: string;
     version: number;

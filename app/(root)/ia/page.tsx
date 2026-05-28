@@ -36,7 +36,7 @@ const ProfilePage = async () => {
         <MainAi
             flows={workflows}
             user={user}
-            promptMeta={{ id: prompt.id, version: prompt.version }}
+            promptMeta={{ id: prompt.id, version: prompt.version, businessName: prompt.businessName }}
             sections={sections as unknown as SectionsPromptSystem}
             paymentReceiptPrompt={paymentReceiptPrompt
                 ? {

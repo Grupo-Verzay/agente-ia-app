@@ -9,7 +9,9 @@ import {
     patchManagementSection,
     patchProductsSection,
     patchTrainingSection,
+    publishPrompt,
 } from './system-prompt-actions';
+import { db } from '@/lib/db';
 import { randomUUID } from 'crypto';
 
 const CONSTRUCTOR_SYSTEM_PROMPT = `Eres un arquitecto de agentes conversacionales determinísticos para la plataforma Agente IA (agente.ia-app.com). Generas flujos blindados que ejecutan como reloj suizo y conversan como persona.
@@ -185,18 +187,27 @@ OBLIGATORIO:
   Imperfección humana: frases cortas + una más larga. Cierres cálidos: "¡Listo {nombre}! 🔥"
 
 Ejemplo correcto:
-  "📚 *Cursos Javeriano*\n\n¡Hola! Soy Javier, tu asesor. ¿Qué curso te interesa? 😊"
+  "[EMOJI] *[Nombre Negocio]*\n\n¡Hola! Soy [Nombre Agente], tu asesor. ¿En qué te puedo ayudar? 😊"
 
 Ejemplo incorrecto:
   "Bienvenido al sistema. Gracias por contactarnos. ¿En qué podemos servirle?"
 
 ════════════════════════════════════════
-REGLAS DE IDs
+REGLAS DE IDs Y TÍTULOS
 ════════════════════════════════════════
 
 Steps por sección: "step-1", "step-2"... (reinicia en cada sección)
 Elements: "el-{stepN}-{elM}" (ej: "el-1-1", "el-2-1")
 flowId, notificationNumber: SIEMPRE null
+
+REGLA DE TÍTULOS — IRROMPIBLE:
+El campo "title" de CADA step DEBE estar en MAYÚSCULAS, sin excepción.
+  ✅ "title": "BIENVENIDA"
+  ✅ "title": "SERVICIOS DE BELLEZA"
+  ✅ "title": "¿CUÁNTO CUESTA?"
+  ✅ "title": "RESERVA DE CITA"
+  ❌ "title": "Bienvenida"
+  ❌ "title": "Servicios de belleza"
 
 ════════════════════════════════════════
 CUÁNDO USAR CADA SECCIÓN
@@ -263,9 +274,9 @@ management (GESTIÓN): Captura + notificación. Uno por tipo. NUNCA dejar mainMe
 mainMessage:
   "📌 DISPARADOR: usuario quiere inscribirse o pide info sobre inscripción.\n✅ ACCIÓN: Ejecutar elemento (1) captura_datos → elemento (2) notificar_asesor → elemento (3) cierre.\n💾 WhatsApp y Fecha: automáticos. NO solicitar."
 elements: [
-  { "kind": "function", "fn": "captura_datos", "subtype": "Solicitudes", "prompt": "para procesar tu inscripción necesito algunos datos 😊", "fields": ["nombre", "cedula", "curso_interes", "horario_preferido"] },
+  { "kind": "function", "fn": "captura_datos", "subtype": "Solicitudes", "prompt": "para procesar tu solicitud necesito algunos datos 😊", "fields": ["nombre", "telefono", "servicio_interes"] },
   { "kind": "function", "fn": "notificar_asesor", "notificationNumber": null },
-  { "kind": "text", "text": "📚 *Cursos Javeriano*\n¡Listo {nombre}! Tu solicitud quedó registrada. Un asesor te contactará pronto. 🎓" }
+  { "kind": "text", "text": "[EMOJI] *[Nombre Negocio]*\n¡Listo {nombre}! Tu solicitud quedó registrada. Un asesor te contactará pronto. ✅" }
 ]
 
 ══════ EJEMPLO INCORRECTO DE GESTIÓN (PROHIBIDO) ══════
@@ -305,13 +316,28 @@ El usuario puede enviarte un párrafo corto o un documento completo con catálog
    faq: MÍNIMO 3 steps. PROHIBIDO faq.steps vacío si el negocio tiene precios, horarios o políticas.
    products: MÍNIMO 1 step por producto/categoría. PROHIBIDO products.steps vacío si hay catálogo.
 
-La respuesta es ÚNICAMENTE el JSON. Sin comentarios, sin markdown, sin texto adicional.`;
+La respuesta es ÚNICAMENTE el JSON. Sin comentarios, sin markdown, sin texto adicional.
+
+════════════════════════════════════════
+REGLA DE COBERTURA TOTAL — IRROMPIBLE
+════════════════════════════════════════
+
+ANTES de cerrar el JSON, verifica mentalmente que:
+✅ Cada curso/servicio con nombre propio → tiene su step en products (con precio y detalles)
+✅ Cada precio, duración, forma de pago mencionada → aparece en faq O en el text del step de products
+✅ Cada política (certificados, requisitos, condiciones) → tiene su step en faq
+✅ Cada proceso de inscripción/pedido/reserva → tiene su step en management con fields específicos
+✅ products.steps, faq.steps, management.steps NUNCA están vacíos si la info existe en la descripción
+✅ La cantidad de steps en products IGUALA la cantidad de cursos/servicios/categorías mencionadas
+
+Si detectas que omitiste algún dato, agrégalo antes de responder.`;
 
 function assignRealIds(steps: any[]): any[] {
-    return (steps ?? []).map((step, si) => ({
+    return (steps ?? []).map((step) => ({
         ...step,
         id: randomUUID(),
-        elements: (step.elements ?? []).map((el: any, ei: number) => ({
+        title: typeof step.title === 'string' ? step.title.toUpperCase() : step.title,
+        elements: (step.elements ?? []).map((el: any) => ({
             ...el,
             id: randomUUID(),
         })),
@@ -321,6 +347,261 @@ function assignRealIds(steps: any[]): any[] {
 export type GenerateFlowResult =
     | { success: true }
     | { success: false; error: string };
+
+export type GeneratedSections = {
+    business: any;
+    training: { steps: any[] };
+    faq: { steps: any[] };
+    products: { steps: any[] };
+    extras: { firmaEnabled: boolean; firmaText: string; firmaName: string; steps: any[] };
+    management: { steps: any[] };
+};
+
+export type PrepareResult =
+    | { ok: true; sections: GeneratedSections; newVersion: number }
+    | { ok: false; error: string };
+
+/** Paso 1: Lee la versión real del DB, guarda revisión y devuelve la versión siguiente. */
+export async function autoSaveBeforeGenerate(input: {
+    promptId: string;
+}): Promise<{ ok: true; newVersion: number } | { ok: false; error: string }> {
+    const user = await currentUser();
+    if (!user) return { ok: false, error: 'No autenticado.' };
+
+    const { promptId } = input;
+
+    // Leer versión real del DB verificando que pertenece al usuario autenticado
+    const current = await db.agentPrompt.findUnique({
+        where: { id: promptId, userId: user.effectiveId },
+        select: { version: true },
+    });
+    if (!current) return { ok: false, error: 'Prompt no encontrado.' };
+
+    const saved = await publishPrompt({
+        promptId,
+        version: current.version,
+        publishedBy: user.effectiveId,
+        note: 'Auto-guardado antes de generar',
+        revalidate: undefined,
+    });
+
+    const newVersion = saved.ok ? (saved.data?.prompt?.version ?? current.version + 1) : current.version + 1;
+    return { ok: true, newVersion };
+}
+
+/** Helper interno: una llamada a OpenAI con JSON mode. */
+async function callOpenAI(apiKey: string, userContent: string): Promise<{ ok: true; data: any } | { ok: false; error: string }> {
+    try {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'gpt-4o',
+                response_format: { type: 'json_object' },
+                temperature: 0.6,
+                max_tokens: 16384,
+                messages: [
+                    { role: 'system', content: CONSTRUCTOR_SYSTEM_PROMPT },
+                    { role: 'user', content: userContent },
+                ],
+            }),
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            return { ok: false, error: `Error OpenAI ${res.status}: ${err?.error?.message ?? 'desconocido'}` };
+        }
+        const json = await res.json();
+        const raw = json.choices?.[0]?.message?.content ?? '';
+        try {
+            return { ok: true, data: JSON.parse(raw) };
+        } catch {
+            return { ok: false, error: 'El modelo no devolvió JSON válido. Intenta de nuevo.' };
+        }
+    } catch (err) {
+        return { ok: false, error: `Error de red: ${(err as any)?.message ?? 'desconocido'}` };
+    }
+}
+
+/**
+ * Paso 2: Dos llamadas paralelas a OpenAI — cada una con su propio presupuesto de tokens.
+ * Llamada A → business + training + faq
+ * Llamada B → products + extras + management
+ * El resultado se fusiona en un único objeto GeneratedSections.
+ */
+export async function generateFlowSections(input: {
+    description: string;
+}): Promise<{ ok: true; sections: GeneratedSections } | { ok: false; error: string }> {
+    const user = await currentUser();
+    if (!user) return { ok: false, error: 'No autenticado.' };
+
+    const { description } = input;
+    if (!description.trim()) return { ok: false, error: 'La descripción está vacía.' };
+
+    const systemKey = process.env.OPENAI_SYSTEM_API_KEY ?? '';
+    const aiClient = await resolveUserAiClient(user.effectiveId);
+    const apiKey = systemKey || aiClient.data?.apiKey;
+    if (!apiKey) {
+        return { ok: false, error: 'No tienes una API Key de OpenAI configurada. Ve a Perfil → Api Key IA → Configurar.' };
+    }
+
+    const base = `INFORMACIÓN DEL NEGOCIO — USA TODO SIN EXCEPCIÓN:\n\n${description.trim()}`;
+
+    const antiContamination = `
+⚠️ REGLA ABSOLUTA — DATOS DEL OUTPUT:
+• Los ejemplos del sistema son solo guías de FORMATO. PROHIBIDO copiar nombres, datos o emojis de los ejemplos.
+• Nombre del negocio, nombre del agente y datos de contacto → EXCLUSIVAMENTE del texto proporcionado arriba.
+• Si el texto no menciona nombre de agente → firmaEnabled: false, firmaName: "".
+• TODOS los títulos de steps → SIEMPRE en MAYÚSCULAS (ver REGLA DE TÍTULOS).
+• Servicios/productos: generar step aunque el precio no esté completamente especificado — poner lo que haya.`;
+
+    // Llamada A: perfil + flujo de inicio + FAQ
+    const msgA = `${base}
+${antiContamination}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TAREA A — GENERA ÚNICAMENTE: "business", "training", "faq"
+Para "products", "extras", "management": devolver vacíos (steps: []).
+
+BUSINESS: Extrae TODOS los datos disponibles (nombre real del negocio, sector exacto, ubicación, horarios, contacto, redes, métodos de pago → estos últimos van en business.notas dentro del motor).
+TRAINING: Flujo conversacional adaptado al tipo de negocio. Paso 1 bienvenida + Paso 2 captura de interés + más pasos si el negocio lo requiere.
+  El nombre del negocio y tono de voz en los textos deben coincidir EXACTAMENTE con el texto proporcionado.
+  "title" de cada step SIEMPRE en MAYÚSCULAS (ej: "BIENVENIDA", "INTERÉS DEL CLIENTE").
+FAQ: MÍNIMO 5 preguntas. Cubre CADA precio, horario, método de pago, política, requisito o certificado mencionado.
+  Las respuestas deben usar los datos reales del negocio (precios exactos, métodos de pago reales, etc.).
+  "title" de cada step SIEMPRE en MAYÚSCULAS (ej: "¿CUÁNTO CUESTA?", "¿CÓMO SE PAGA?").
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+    // Llamada B: catálogo + extras + gestión
+    const msgB = `${base}
+${antiContamination}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TAREA B — GENERA ÚNICAMENTE: "products", "extras", "management"
+Para "business", "training", "faq": devolver vacíos.
+
+PRODUCTS: Un step por CADA servicio, curso o producto mencionado (NO agrupar si hay ≤ 15 ítems).
+  Si el texto menciona N servicios → genera EXACTAMENTE N steps. Contar todos los servicios del texto antes de generar.
+  Cada step incluye: nombre exacto, precio real (si lo hay), duración/sesiones si aplica, detalles relevantes del texto.
+  "title" SIEMPRE en MAYÚSCULAS.
+  PROHIBIDO omitir un solo servicio que aparezca en el texto. Si un servicio tiene variantes (ej: corte dama / corte caballero) → un step por variante.
+  AUDITORÍA: contar ítems en el texto → esa misma cantidad en products.steps.
+
+EXTRAS: firmaEnabled=true SOLO si el texto menciona nombre de agente/asesor. Generar siempre "Fuera de horario" y "Despedida" con tono del negocio.
+
+MANAGEMENT: OBLIGATORIO — NUNCA dejar management.steps vacío. Analiza el tipo de negocio e infiere los procesos necesarios:
+  • Estética/spa/salón de belleza → "Reserva de cita" (subtype: Citas, fields: nombre, servicio, fecha_preferida, hora_preferida)
+  • Academia/cursos → "Inscripción" (subtype: Solicitudes, fields: nombre, cedula, curso_interes, horario_preferido)
+  • Restaurante/delivery → "Pedido" (subtype: Pedidos, fields: nombre, direccion, pedido, metodo_pago)
+  • Clínica/médico → "Cita médica" (subtype: Citas, fields: nombre, motivo_consulta, fecha_preferida)
+  • Tienda/comercio → "Consulta de producto" (subtype: Solicitudes, fields: nombre, producto_interes, telefono)
+  Genera steps para TODOS los procesos que apliquen al negocio. Fields siempre específicos al negocio real.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+    // Ejecutar ambas llamadas en paralelo
+    const [resA, resB] = await Promise.all([
+        callOpenAI(apiKey, msgA),
+        callOpenAI(apiKey, msgB),
+    ]);
+
+    if (!resA.ok) return { ok: false, error: resA.error };
+    if (!resB.ok) return { ok: false, error: resB.error };
+
+    const genA = resA.data;
+    const genB = resB.data;
+
+    const sections: GeneratedSections = {
+        business: genA.business ?? {},
+        training: { steps: assignRealIds(genA.training?.steps) },
+        faq:      { steps: assignRealIds(genA.faq?.steps) },
+        products: { steps: assignRealIds(genB.products?.steps) },
+        extras: {
+            firmaEnabled: genB.extras?.firmaEnabled ?? false,
+            firmaText:    genB.extras?.firmaText ?? '',
+            firmaName:    genB.extras?.firmaName ?? '',
+            steps:        assignRealIds(genB.extras?.steps),
+        },
+        management: { steps: assignRealIds(genB.management?.steps) },
+    };
+
+    return { ok: true, sections };
+}
+
+/**
+ * Aplica todas las secciones generadas en una sola actualización atómica,
+ * leyendo la versión actual del DB al momento de escribir.
+ * Evita conflictos causados por autosaves que corren mientras GPT-4o genera.
+ */
+export async function applyAllGeneratedSections(input: {
+    promptId: string;
+    sections: GeneratedSections;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+    try {
+        const user = await currentUser();
+        if (!user) return { ok: false, error: 'No autenticado.' };
+
+        const { promptId, sections } = input;
+
+        // Verificar que el prompt pertenece al usuario antes de sobrescribir
+        const owns = await db.agentPrompt.findUnique({
+            where: { id: promptId, userId: user.effectiveId },
+            select: { id: true },
+        });
+        if (!owns) return { ok: false, error: 'Prompt no encontrado.' };
+
+        // Validar schemas antes de escribir
+        const {
+            BusinessDraftSchema,
+            TrainingDraftSchema,
+            FaqDraftSchema,
+            ProductsDraftSchema,
+            ExtrasDraftSchema,
+            ManagementDraftSchema,
+        } = await import('@/types/agentAi');
+
+        const validBusiness    = BusinessDraftSchema.parse(sections.business);
+        const validTraining    = TrainingDraftSchema.parse(sections.training);
+        const validFaq         = FaqDraftSchema.parse(sections.faq);
+        const validProducts    = ProductsDraftSchema.parse(sections.products);
+        const validExtras      = ExtrasDraftSchema.parse(sections.extras);
+        const validManagement  = ManagementDraftSchema.parse(sections.management);
+
+        const newSections = {
+            business:   validBusiness,
+            training:   validTraining,
+            faq:        validFaq,
+            products:   validProducts,
+            extras:     validExtras,
+            management: validManagement,
+        };
+
+        await db.agentPrompt.update({
+            where: { id: promptId },
+            data: {
+                sections: newSections as any,
+                businessName:   validBusiness.nombre || null,
+                businessSector: validBusiness.sector || null,
+                version: { increment: 1 },
+                status: 'draft',
+            },
+        });
+
+        return { ok: true };
+    } catch (e: any) {
+        return { ok: false, error: e?.message ?? 'Error al aplicar las secciones generadas.' };
+    }
+}
+
+/** @deprecated Usa autoSaveBeforeGenerate + generateFlowSections + applyAllGeneratedSections por separado. */
+export async function prepareAndGenerateFlow(input: {
+    description: string;
+    promptId: string;
+    version: number;
+}): Promise<PrepareResult> {
+    const save = await autoSaveBeforeGenerate({ promptId: input.promptId });
+    const gen  = await generateFlowSections({ description: input.description });
+    if (!gen.ok) return { ok: false, error: gen.error };
+    return { ok: true, sections: gen.sections, newVersion: save.ok ? save.newVersion : input.version };
+}
 
 export async function generateAgentFlow(input: {
     description: string;

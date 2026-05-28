@@ -8,8 +8,6 @@ import {
     Command,
     CommandGroup,
     CommandItem,
-    CommandEmpty,
-    CommandInput,
     CommandList,
 } from "@/components/ui/command";
 
@@ -39,6 +37,7 @@ type Props = FunctionSelectorInterface & {
     onCreateBlock?: (el: ElementItem) => void;
     showRule?: boolean;
     showAction?: boolean;
+    steps?: Array<{ id: string; title?: string }>;
 };
 
 export const FunctionSelector = ({
@@ -49,6 +48,7 @@ export const FunctionSelector = ({
     onCreateBlock,
     showRule = true,
     showAction = true,
+    steps = [],
 }: Props) => {
     const isRoot = !step; // sin step => modo raíz
     const [openRoot, setOpenRoot] = useState(false);
@@ -128,6 +128,13 @@ export const FunctionSelector = ({
         notificationNumber: notificationNumber ?? null,
     });
 
+    const makeRouting = () => ({
+        id: nanoid(),
+        kind: "function" as const,
+        fn: "enrutamiento" as const,
+        rules: [],
+    });
+
     /** Inserta en step o crea bloque (raíz) */
     const insertOrCreate = useCallback((el: ElementItem) => {
         if (step && setSteps) {
@@ -157,6 +164,9 @@ export const FunctionSelector = ({
     const addFunctionNotificar = () =>
         insertOrCreate(makeNotificar() as ElementItem);
 
+    const addRouting = () =>
+        insertOrCreate(makeRouting() as ElementItem);
+
     /* Open/close control para ambos modos */
     const open = isRoot ? openRoot : !!step?.openPicker;
     const onOpenChange = (o: boolean) => {
@@ -179,21 +189,19 @@ export const FunctionSelector = ({
                         {/* Botón visible en ambos modos */}
                         <Button
                             type="button"
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            size="sm"
+                            className="gap-2"
                             onClick={() => onOpenChange(true)}
                         >
-                            <Zap className="mr-2 h-4 w-4" />
-                            {isManagement ? "Agregar acción" : "Agregar acción"}
+                            <Zap className="h-4 w-4" />
+                            Agregar acción
                         </Button>
                     </PopoverTrigger>
 
-                    <PopoverContent className="p-0 w-[320px]" align="end">
+                    <PopoverContent className="p-0 w-[220px]" align="end" side="bottom">
                         <Command>
-                            <CommandInput placeholder="Buscar opción…" />
                             <CommandList>
-                                <CommandEmpty>Sin coincidencias…</CommandEmpty>
-
-                                <CommandGroup heading="Acciones">
+                                <CommandGroup heading="ACCIONES">
                                     {/* Gestión: captura/consulta/actualizar */}
                                     {isManagement && (
                                         <>
@@ -209,23 +217,29 @@ export const FunctionSelector = ({
                                         </>
                                     )}
 
-                                    {/* No gestión: ejecutar flujo / notificar */}
+                                    {/* No gestión: enrutamiento / ejecutar flujo / notificar */}
                                     {!isManagement && (
                                         <>
+                                            <CommandItem onSelect={addRouting}>
+                                                <span className="flex items-center gap-2">🔀 Enrutamiento</span>
+                                            </CommandItem>
                                             <CommandItem onSelect={addFunctionEjecutarFlujo}>
-                                                Ejecutar flujo
+                                                <span className="flex items-center gap-2">⚡ Ejecutar flujo</span>
                                             </CommandItem>
                                             <CommandItem onSelect={addFunctionNotificar}>
-                                                Notificar asesor
+                                                <span className="flex items-center gap-2">🔔 Notificar asesor</span>
                                             </CommandItem>
                                         </>
                                     )}
-
-                                    {/* Texto/regla: solo tiene sentido si hay step; en raíz podría crear bloque con texto si lo deseas */}
-                                    {step && (
-                                        <CommandItem onSelect={addText}>Agregar regla</CommandItem>
-                                    )}
                                 </CommandGroup>
+
+                                {step && (
+                                    <CommandGroup heading="TEXTO">
+                                        <CommandItem onSelect={addText}>
+                                            <span className="flex items-center gap-2">📝 Agregar regla</span>
+                                        </CommandItem>
+                                    </CommandGroup>
+                                )}
                             </CommandList>
                         </Command>
                     </PopoverContent>

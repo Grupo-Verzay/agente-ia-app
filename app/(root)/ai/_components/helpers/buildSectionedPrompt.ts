@@ -216,6 +216,25 @@ function formatElement(el: AnyEl, k: number, flowBehaviorText: string, cfg: Prom
                 return out;
             }
 
+            case "enrutamiento": {
+                const routing = el as unknown as { fn: "enrutamiento"; rules: Array<{ id: string; keywords: string; targetStepName: string }> };
+                const activeRules = (routing.rules ?? []).filter((r) => r.keywords && r.targetStepName);
+                if (activeRules.length === 0) return out;
+
+                out.push(`\n🔀 REGLA DE ENRUTAMIENTO POR CAMPAÑA`);
+                out.push(`CONDICIÓN: Se evalúa solo en el PRIMER mensaje del chat (current_step == 1).`);
+                out.push(`ACCIÓN: Analizar el primer mensaje y enrutar según coincidencia de palabra clave:\n`);
+                activeRules.forEach((rule) => {
+                    const kws = rule.keywords.split(",").map((k) => `"${k.trim()}"`).filter((k) => k !== '""').join(" / ");
+                    out.push(`   • Contiene ${kws}`);
+                    out.push(`     → OMITIR BIENVENIDA → Ir a PASO: ${rule.targetStepName.toUpperCase()}\n`);
+                });
+                out.push(`FALLBACK: Si el mensaje NO coincide con ninguna palabra clave`);
+                out.push(`   → NO enrutar → devolver control al Objetivo principal (ejecutar BIENVENIDA normal).`);
+                out.push(`PRIORIDAD: Esta regla se evalúa ANTES de la lógica de BIENVENIDA del Objetivo principal.\n`);
+                return out;
+            }
+
             default:
                 return out;
         }
@@ -312,6 +331,34 @@ export function buildSectionedPrompt(items: AnyStep[], cfg: PromptBuildConfig): 
             blocks.push("---");
         }
     });
+
+    // Motor de Flujo
+    if (cfg.showMotorFlujo && items.length > 0) {
+        const hasAnyMotor = items.some((s) => s.variableQueRecoge?.trim() || s.condicionParaAvanzar?.trim());
+        if (hasAnyMotor) {
+            const rows = items.map((s, i) => {
+                const n = i + 1;
+                const nombre = (s.title || `Paso ${n}`).toUpperCase();
+                const variable = s.variableQueRecoge?.trim() || "—";
+                const condicion = s.condicionParaAvanzar?.trim() || "—";
+                return `| ${n} | ${nombre} | ${variable} | ${condicion} |`;
+            });
+
+            blocks.push(
+                [
+                    `\n---`,
+                    `## MOTOR DE FLUJO (SECUENCIA DETERMINÍSTICA)`,
+                    `| PASO | NOMBRE | VARIABLE QUE RECOGE | CONDICIÓN PARA AVANZAR |`,
+                    `|------|--------|---------------------|------------------------|`,
+                    ...rows,
+                    `\n**Reglas del motor:**`,
+                    `- Avanza al siguiente paso SOLO cuando se cumple la condición.`,
+                    `- Si la condición no se cumple, permanece en el paso actual.`,
+                    `- Registra la variable en memoria antes de avanzar.`,
+                ].join("\n")
+            );
+        }
+    }
 
     return blocks.join(joinSep);
 }

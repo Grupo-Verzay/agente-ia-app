@@ -43,6 +43,8 @@ export const TrainingDraftSchema = z.object({
             id: z.string(),
             title: z.string().optional(),
             mainMessage: z.string().optional().default(""),
+            variableQueRecoge: z.string().optional().default(""),
+            condicionParaAvanzar: z.string().optional().default(""),
             elements: z.array(
                 z.union([
                     z.object({
@@ -59,18 +61,21 @@ export const TrainingDraftSchema = z.object({
                             "notificar_asesor",
                             "consulta_datos",
                             "actualizar_datos",
+                            "enrutamiento",
                         ]),
-                        // ⬇️ refuerza el enum como en el type
                         subtype: z
                             .enum(["Solicitudes", "Reclamos", "Pedidos", "Reservas", "Citas"])
                             .optional(),
                         prompt: z.string().optional(),
                         fields: z.array(z.string()).optional(),
-
-                        // ⬇️ acepta null | string (coincide con tus types)
                         flowId: z.string().nullable().optional(),
                         flowName: z.string().nullable().optional(),
                         notificationNumber: z.string().nullable().optional(),
+                        rules: z.array(z.object({
+                            id: z.string(),
+                            keywords: z.string().default(""),
+                            targetStepName: z.string().default(""),
+                        })).optional().default([]),
                     }),
                 ])
             ).default([]),
@@ -100,18 +105,21 @@ export const FaqDraftSchema = z.object({
                             "notificar_asesor",
                             "consulta_datos",
                             "actualizar_datos",
+                            "enrutamiento",
                         ]),
-                        // ⬇️ refuerza el enum como en el type
                         subtype: z
                             .enum(["Solicitudes", "Reclamos", "Pedidos", "Reservas", "Citas"])
                             .optional(),
                         prompt: z.string().optional(),
                         fields: z.array(z.string()).optional(),
-
-                        // ⬇️ acepta null | string (coincide con tus types)
                         flowId: z.string().nullable().optional(),
                         flowName: z.string().nullable().optional(),
                         notificationNumber: z.string().nullable().optional(),
+                        rules: z.array(z.object({
+                            id: z.string(),
+                            keywords: z.string().default(""),
+                            targetStepName: z.string().default(""),
+                        })).optional().default([]),
                     }),
                 ])
             ).default([]),
@@ -141,18 +149,21 @@ export const ProductsDraftSchema = z.object({
                             "notificar_asesor",
                             "consulta_datos",
                             "actualizar_datos",
+                            "enrutamiento",
                         ]),
-                        // ⬇️ refuerza el enum como en el type
                         subtype: z
                             .enum(["Solicitudes", "Reclamos", "Pedidos", "Reservas", "Citas"])
                             .optional(),
                         prompt: z.string().optional(),
                         fields: z.array(z.string()).optional(),
-
-                        // ⬇️ acepta null | string (coincide con tus types)
                         flowId: z.string().nullable().optional(),
                         flowName: z.string().nullable().optional(),
                         notificationNumber: z.string().nullable().optional(),
+                        rules: z.array(z.object({
+                            id: z.string(),
+                            keywords: z.string().default(""),
+                            targetStepName: z.string().default(""),
+                        })).optional().default([]),
                     }),
                 ])
             ).default([]),
@@ -185,18 +196,21 @@ export const ExtrasDraftSchema = z.object({
                             "notificar_asesor",
                             "consulta_datos",
                             "actualizar_datos",
+                            "enrutamiento",
                         ]),
-                        // ⬇️ refuerza el enum como en el type
                         subtype: z
                             .enum(["Solicitudes", "Reclamos", "Pedidos", "Reservas", "Citas"])
                             .optional(),
                         prompt: z.string().optional(),
                         fields: z.array(z.string()).optional(),
-
-                        // ⬇️ acepta null | string (coincide con tus types)
                         flowId: z.string().nullable().optional(),
                         flowName: z.string().nullable().optional(),
                         notificationNumber: z.string().nullable().optional(),
+                        rules: z.array(z.object({
+                            id: z.string(),
+                            keywords: z.string().default(""),
+                            targetStepName: z.string().default(""),
+                        })).optional().default([]),
                     }),
                 ])
             ).default([]),
@@ -226,18 +240,21 @@ export const ManagementDraftSchema = z.object({
                             "notificar_asesor",
                             "consulta_datos",
                             "actualizar_datos",
+                            "enrutamiento",
                         ]),
-                        // ⬇️ refuerza el enum como en el type
                         subtype: z
                             .enum(["Solicitudes", "Reclamos", "Pedidos", "Reservas", "Citas"])
                             .optional(),
                         prompt: z.string().optional(),
                         fields: z.array(z.string()).optional(),
-
-                        // ⬇️ acepta null | string (coincide con tus types)
                         flowId: z.string().nullable().optional(),
                         flowName: z.string().nullable().optional(),
                         notificationNumber: z.string().nullable().optional(),
+                        rules: z.array(z.object({
+                            id: z.string(),
+                            keywords: z.string().default(""),
+                            targetStepName: z.string().default(""),
+                        })).optional().default([]),
                     }),
                 ])
             ).default([]),
@@ -420,7 +437,7 @@ export type SectionsPromptSystem = {
 export interface MainAiInterface {
     flows: Workflow[];
     user: UserWithApiKeys;
-    promptMeta: { id: string; version: number };
+    promptMeta: { id: string; version: number; businessName?: string | null };
     paymentReceiptPrompt?: {
         id: string;
         version: number;
@@ -485,6 +502,10 @@ export type BusinessPromptBuilderProps = BusinessBuilderInterface & {
     onVersionChange: (v: number) => void;
     onConflict?: (serverState: any) => void;
     registerSaveHandler?: (fn: () => Promise<void>) => void;
+    firmaEnabled: boolean;
+    signatureName: string;
+    onFirmaEnabledChange: (v: boolean) => void;
+    onSignatureNameChange: (v: string) => void;
 };
 
 export interface PromptPreviewInterface {
@@ -525,7 +546,9 @@ export type StepTraining = {
     title?: string;
     mainMessage?: string;
     elements: ElementItem[];
-    openPicker?: boolean; // UI state por paso
+    openPicker?: boolean;
+    variableQueRecoge?: string;
+    condicionParaAvanzar?: string;
 };
 
 export type PedidoFunctionEl = ElementFunction & {
@@ -591,7 +614,20 @@ export type ElementFunction =
         prompt: string;
     };
 
-export type ElementItem = ElementText | ElementFunction;
+export type RoutingRule = {
+    id: string;
+    keywords: string;
+    targetStepName: string;
+};
+
+export type ElementRouting = {
+    id: string;
+    kind: "function";
+    fn: "enrutamiento";
+    rules: RoutingRule[];
+};
+
+export type ElementItem = ElementText | ElementFunction | ElementRouting;
 
 export const CAPTURE_SNIPPETS: Record<
     "Solicitudes" | "Reclamos" | "Pedidos" | "Reservas" | "Citas",
@@ -694,14 +730,19 @@ export interface ExtraInfoBuilderProps {
     onConflict?: (serverState: any) => void;
     registerSaveHandler?: (fn: () => Promise<void>) => void;
     initialExtras?: { items?: Array<any>; firmaEnabled?: boolean; firmaText?: string, firmaName?: string };
+    firmaEnabled: boolean;
+    signatureName: string;
+    onFirmaEnabledChange: (v: boolean) => void;
+    onSignatureNameChange: (v: string) => void;
 }
 
 export interface FunctionSelectorInterface {
-    step?: any; // existente (bloque destino)
+    step?: any;
     setSteps?: React.Dispatch<React.SetStateAction<StepTraining[]>>
     notificationNumber: string;
     isManagement?: boolean;
     onCreateBlock?: (el: ElementItem) => void;
+    steps?: Array<{ id: string; title?: string }>;
 }
 
 export type Mode = "faq" | "products" | "extras";
@@ -779,7 +820,17 @@ export type PropsActionSteeps = {
     addPedidoField: (stepId: string, elId: string, field: string) => void;
     removePedidoField: (stepId: string, elId: string, field: string) => void;
     onSubtypeChange: (stepId: string, elId: string, subtype: DataSubtype) => void;
-    isManagement?: boolean
+    isManagement?: boolean;
+    steps?: Array<{ id: string; title?: string }>;
+    updateRoutingRules?: (stepId: string, elId: string, rules: RoutingRule[]) => void;
+};
+
+export type PropsRouting = {
+    el: ElementRouting;
+    onRemove: () => void;
+    steps: Array<{ id: string; title?: string }>;
+    onUpdateRules: (rules: RoutingRule[]) => void;
+    isManagement?: boolean;
 };
 
 export type TextElement = {
@@ -791,13 +842,14 @@ export type TextElement = {
 export type FnCommon = {
     id: string;
     kind: "function";
-    fn: "captura_datos" | "ejecutar_flujo" | "notificar_asesor" | "consulta_datos" | "actualizar_datos";
+    fn: "captura_datos" | "ejecutar_flujo" | "notificar_asesor" | "consulta_datos" | "actualizar_datos" | "enrutamiento";
     subtype?: "Solicitudes" | "Reclamos" | "Pedidos" | "Reservas" | "Citas";
     prompt?: string;
     fields?: string[];
     flowId?: string | null;
     flowName?: string | null;
     notificationNumber?: string | null;
+    rules?: RoutingRule[];
 };
 
 export type AnyElement = TextElement | FnCommon;
@@ -866,7 +918,7 @@ export const notifyPrompt = `**Función**: Ejecuta la tool 'Notificacion Asesor'
 export type AnyEl = {
     kind: "text" | "function";
     text?: string;
-    fn?: "captura_datos" | "ejecutar_flujo" | "notificar_asesor" | "consulta_datos" | "actualizar_datos";
+    fn?: "captura_datos" | "ejecutar_flujo" | "notificar_asesor" | "consulta_datos" | "actualizar_datos" | "enrutamiento";
     subtype?: string;
     prompt?: string;
     fields?: string[];
@@ -882,6 +934,8 @@ export type AnyStep = {
     title?: string;
     mainMessage?: string;
     elements?: AnyEl[];
+    variableQueRecoge?: string;
+    condicionParaAvanzar?: string;
 };
 
 export type FirmaOpts = {
@@ -915,4 +969,6 @@ export type PromptBuildConfig = {
     managementObjective?: string;
 
     __managementIndex?: number;
+
+    showMotorFlujo?: boolean;
 };

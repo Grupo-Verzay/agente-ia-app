@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Trash2, Plus, PenSquare, GripVertical, ChevronDown } from "lucide-react";
+import { Trash2, Plus, PenSquare, GripVertical, ChevronDown, Copy } from "lucide-react";
+import { StepTemplatePicker } from "./StepTemplatePicker";
 
 import { useExtrasAutosave, AutosaveStatus } from "./hooks/useExtrasAutosave"; // 👈 actualizado
 import { FunctionSelector } from "./FunctionSelector";
@@ -112,7 +113,7 @@ function SortableItemCard({
 
 /* ========= Firma por defecto ========= */
 const PROMPT_SIGNATURE_DEFAULT =
-    "### IDENTIDAD DEL AGENTE\n" +
+    "### FIRMA DEL AGENTE\n" +
     "* **Nombre:** *“@signature_name”*.\n" +
     "* **Firma obligatoria:** Cada mensaje debe iniciar con `*“@signature_name”*` — NUNCA al final.\n" +
     "* **Siempre pon la firma:** *“@signature_name”* al inicio de cada mensaje o respuesta que le des al usuario. Esto permite mantener una identidad clara del agente y una conversación ordenada.\n\n" +
@@ -143,7 +144,11 @@ export function ExtraInfoBuilder({
     initialExtras,
     flows = [],
     notificationNumber,
-    registerSaveHandler
+    registerSaveHandler,
+    firmaEnabled,
+    signatureName,
+    onFirmaEnabledChange,
+    onSignatureNameChange,
 }: ExtraInfoBuilderProps & { flows?: Workflow[] }) {
     /* ====== Estado: pasos (antes "items") ====== */
     const [items, setItems] = useState<ExtraItemType[]>(
@@ -151,22 +156,6 @@ export function ExtraInfoBuilder({
             ? (initialExtras.items as ExtraItemType[])
             : []
     );
-
-    /* ====== Estado: firma ====== */
-    const userSignaturePrompt =
-        initialExtras?.firmaText === ""
-            ? PROMPT_SIGNATURE_DEFAULT
-            : initialExtras?.firmaText ?? PROMPT_SIGNATURE_DEFAULT;
-
-    const [firmaEnabled, setFirmaEnabled] = useState<boolean>(
-        initialExtras?.firmaEnabled ?? false
-    );
-
-    const match = userSignaturePrompt.match(/@([a-zA-Z0-9_]+)/);
-    const initialSignatureName = match
-        ? match[1]
-        : initialExtras?.firmaName ?? "Asistente virtual";
-    const [signatureName, setSignatureName] = useState<string>(initialSignatureName);
 
     const firmaText = useMemo(
         () => PROMPT_SIGNATURE_DEFAULT.replaceAll("@signature_name", signatureName),
@@ -176,7 +165,7 @@ export function ExtraInfoBuilder({
     const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
 
     const [expandedItems, setExpandedItems] = useState<Set<string>>(
-        () => new Set((initialExtras?.items ?? []).map((s: any) => s.id))
+        () => { const src = initialExtras?.items ?? []; return src.length <= 1 ? new Set(src.map((s: any) => s.id)) : new Set<string>(); }
     );
 
     const toggleItem = useCallback((id: string) => {
@@ -196,11 +185,12 @@ export function ExtraInfoBuilder({
         (serverState: any) => {
             const s = serverState?.sections?.extras ?? {};
             setItems((s.steps ?? []) as ExtraItemType[]);
-            setFirmaEnabled(Boolean(s.firmaEnabled));
 
             const savedText = s.firmaText ?? PROMPT_SIGNATURE_DEFAULT;
             const m = savedText.match(/@([a-zA-Z0-9_]+)/);
-            setSignatureName(m ? m[1] : s.firmaName ?? "Asistente virtual");
+            const resolvedName = m ? m[1] : s.firmaName ?? "";
+            onSignatureNameChange(resolvedName);
+            onFirmaEnabledChange(resolvedName.trim().length > 0);
 
             onConflict?.(serverState);
         },
@@ -241,9 +231,8 @@ export function ExtraInfoBuilder({
             elementsLabel: (n) => `#### ELEMENTOS DEL EXTRA ${n}:`,
             mainMessageLabel: (n) => `OBJETIVO/RESPUESTA PRINCIPAL DEL EXTRA ${n}:`,
             joinSeparator: "\n",
-            firma: { enabled: !!firmaEnabled, text: String(firmaText || "") },
         });
-    }, [items, firmaEnabled, firmaText]);
+    }, [items]);
 
     /* ====== SYNC con padre (values.more) y compat onChange ====== */
     useEffect(() => {
@@ -263,7 +252,7 @@ export function ExtraInfoBuilder({
             } as ChangeEvent<HTMLTextAreaElement>);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [prompt, items, firmaEnabled, firmaText, signatureName]);
+    }, [prompt, items]);
 
     /* ====== Mutadores de ITEM (paso extra) ====== */
     const sensors = useSensors(
@@ -311,6 +300,18 @@ export function ExtraInfoBuilder({
 
     const removeItem = (id: string) =>
         setItems((p) => p.filter((x) => x.id !== id));
+
+    const duplicateItem = (id: string) => {
+        setItems((prev) => {
+            const idx = prev.findIndex((i) => i.id === id);
+            if (idx < 0) return prev;
+            const copy = { ...prev[idx], id: nanoid(), title: `${prev[idx].title} (COPIA)`, elements: prev[idx].elements.map((el: any) => ({ ...el, id: nanoid() })) };
+            const next = [...prev];
+            next.splice(idx + 1, 0, copy);
+            setExpandedItems((es) => new Set([...es, copy.id]));
+            return next;
+        });
+    };
 
     const toggleOpen = (id: string, v?: boolean) =>
         setItems((prev) =>
@@ -452,67 +453,30 @@ export function ExtraInfoBuilder({
                         </span>
                     )}
                 </div>
-                {items.length > 1 && (
-                    <button
-                        type="button"
-                        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors rounded"
-                        onClick={expandedItems.size === 0 ? expandAll : collapseAll}
-                    >
-                        {expandedItems.size === 0 ? "Expandir todo" : "Colapsar todo"}
-                    </button>
-                )}
+                <div className="flex items-center gap-2">
+                    {items.length > 1 && (
+                        <button
+                            type="button"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors rounded"
+                            onClick={expandedItems.size === 0 ? expandAll : collapseAll}
+                        >
+                            {expandedItems.size === 0 ? "Expandir todo" : "Colapsar todo"}
+                        </button>
+                    )}
+                    {items.length < 1 && (
+                        <Button size="sm" onClick={addItem} className="gap-2">
+                            <Plus className="w-4 h-4" />
+                            Agregar extra
+                        </Button>
+                    )}
+                </div>
             </CardHeader>
 
             <>
-                {/* ====== Bloque Firma ====== */}
-                <div className="pb-2 px-6">
-                    <Card className="bg-muted/20 border-muted/60">
-                        <CardHeader className="py-3 flex-row items-center justify-between">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <CardTitle className="text-sm font-semibold shrink-0">Firma</CardTitle>
-                                {firmaEnabled && (
-                                    <Input
-                                        placeholder="Ej. Asistente Virtual"
-                                        value={signatureName}
-                                        onChange={(e) => setSignatureName(e.target.value)}
-                                        className="h-8 w-1/2"
-                                    />
-                                )}
-                            </div>
-                            {firmaEnabled ? (
-                                <Button variant="destructive" size="icon" onClick={() => setFirmaEnabled(false)}>
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            ) : (
-                                <Button variant="secondary" size="sm" onClick={() => setFirmaEnabled(true)}>
-                                    <PenSquare className="h-4 w-4 mr-1" />
-                                    Agregar firma
-                                </Button>
-                            )}
-                        </CardHeader>
-                        {firmaEnabled && (
-                            <Textarea
-                                className="min-h-[32px] text-xs opacity-80 hidden"
-                                readOnly
-                                value={firmaText}
-                            />
-                        )}
-                    </Card>
-
-                    {items.length < 1 && (
-                        <div className="flex w-full justify-end">
-                            <Button size="sm" onClick={addItem} className="gap-2">
-                                <Plus className="w-4 h-4" />
-                                Agregar extra
-                            </Button>
-                        </div>
-                    )}
-                </div>
-
                 {/* ====== Pasos/Items extra ====== */}
                 <CardContent className="space-y-3">
                     {items.length === 0 ? (
-                        <div className="text-center text-sm text-muted-foreground py-8">
+                        <div className="text-center text-sm text-muted-foreground py-2">
                             No has creado ningún extra. Crea tu primer extra con Agregar extra.
                         </div>
                     ) : (
@@ -571,8 +535,16 @@ export function ExtraInfoBuilder({
                                                                 >
                                                                     <ChevronDown
                                                                         className="h-4 w-4 transition-transform duration-200"
-                                                                        style={{ transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                                                                        style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
                                                                     />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+                                                                    onClick={() => duplicateItem(step.id)}
+                                                                    title="Duplicar extra"
+                                                                >
+                                                                    <Copy className="h-3.5 w-3.5" />
                                                                 </button>
                                                                 <AlertDialog>
                                                                     <AlertDialogTrigger asChild>
@@ -616,7 +588,11 @@ export function ExtraInfoBuilder({
                                                             <div className="overflow-hidden">
                                                                 <CardContent className="space-y-3 px-0 pb-4 pt-0">
                                                                     <div className="px-6 space-y-2">
-                                                                        <label className="text-sm font-semibold">{`Objetivo/respuesta principal del extra ${idx + 1}`}</label>
+                                                                        <StepTemplatePicker
+                                                                            label={`Objetivo/respuesta principal del extra ${idx + 1}`}
+                                                                            filterCategories={["Negociación"]}
+                                                                            onApply={(content) => updateMain(step.id, content)}
+                                                                        />
                                                                         <Textarea
                                                                             value={step.mainMessage ?? ""}
                                                                             onChange={(e) => updateMain(step.id, e.target.value)}
@@ -695,9 +671,7 @@ export function ExtraInfoBuilder({
                 </CardContent>
             </>
             {items.length > 0 && (
-                <CardFooter className="pb-2 flex items-center justify-between gap-2 flex-row">
-                    <CardTitle className="text-base uppercase">Extras</CardTitle>
-
+                <CardFooter className="pb-2 flex justify-end">
                     <Button size="sm" onClick={addItem} className="gap-2">
                         <Plus className="w-4 h-4" />
                         Agregar extra
