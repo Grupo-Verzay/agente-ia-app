@@ -33,26 +33,26 @@ function renderElement(el: AnyElement, behaviorText: string, k?: number): string
         case "captura_datos": {
             const prompt = trim(el.prompt);
             const fields = el.fields ?? [];
-            out.push(`${prefix}**FUNCIÓN**: captura_datos\n${prompt || ""}\nCampos: ${fields.join(", ")}`);
+            out.push(`${prefix}> **FUNCIÓN**: captura_datos\n${prompt || ""}\nCampos: ${fields.join(", ")}`);
             return out;
         }
         case "ejecutar_flujo": {
             const flow = el.flowName || el.flowId || "";
-            out.push(`${prefix}**FUNCIÓN**: Ejecuta el flujo '${flow}'`, behaviorText);
+            out.push(`${prefix}> **FUNCIÓN**: Ejecuta el flujo '${flow}'`, behaviorText);
             return out;
         }
         case "notificar_asesor": {
-            out.push(`${prefix}${notifyPrompt}`);
+            out.push(`${prefix}> ${notifyPrompt}`);
             return out;
         }
         case "consulta_datos": {
             const prompt = trim(el.prompt);
-            out.push(`> **FUNCIÓN**: consulta_datos\n${prompt || ""}`);
+            out.push(`${prefix}> **FUNCIÓN**: consulta_datos\n${prompt || ""}`);
             return out;
         }
         case "actualizar_datos": {
             const prompt = trim(el.prompt);
-            out.push(`> **FUNCIÓN**: actualizar_datos\n${prompt || ""}`);
+            out.push(`${prefix}> **FUNCIÓN**: actualizar_datos\n${prompt || ""}`);
             return out;
         }
         case "enrutamiento": {
