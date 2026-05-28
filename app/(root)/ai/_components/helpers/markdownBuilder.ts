@@ -158,8 +158,9 @@ export function buildSectionedMarkdown(
                 : `### ${sectionPrefix} ${n}`;
             const body: string[] = [];
             const label = resolveLabel(n);
-            if (label && nonEmpty(s.mainMessage)) {
-                body.push(`* **${label}**\n${s.mainMessage!}`);
+            if (nonEmpty(s.mainMessage)) {
+                if (label) body.push(`* **${label}**`);
+                body.push(s.mainMessage!);
             }
             const mgmtEls = s.elements ?? [];
             if (mgmtEls.length > 0) {

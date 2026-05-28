@@ -14,47 +14,47 @@ export function composePromptFromSections(sections: z.infer<typeof SectionsDraft
     // 1. Datos del negocio
     out.push(buildBusinessHeader(sections.business));
 
-    // 2. Inicio / Bienvenida (modo completo: mainMessage + elementos)
-    const trainingMd = buildTrainingMarkdown(sections.training);
-    if (nonEmpty(trainingMd)) {
-        out.push('## INICIO\n');
-        out.push(trainingMd);
-    }
-
-    // 3. Preguntas & Respuestas (solo título + respuesta)
-    const faqMd = buildFaqMarkdown(sections.faq);
-    if (nonEmpty(faqMd)) {
-        out.push('\n## PREGUNTAS & RESPUESTAS\n');
-        out.push(faqMd);
-    }
-
-    // 4. Catálogo / Productos (solo título + descripción)
-    const prodMd = buildProductsMarkdown(sections.products);
-    if (nonEmpty(prodMd)) {
-        out.push('\n## CATÁLOGO / PRODUCTOS\n');
-        out.push(prodMd);
-    }
-
-    // 5. Extras (solo título + contenido)
-    const extrasMd = buildExtrasMarkdown(sections.extras);
-    if (nonEmpty(extrasMd)) {
-        out.push('\n## EXTRAS\n');
-        out.push(extrasMd);
-    }
-
-    // 6. Gestión (título + llamadas a funciones, sin mainMessage)
-    if (sections.management?.steps?.length) {
-        const managementMd = buildManagementMarkdown(sections.management);
-        if (nonEmpty(managementMd)) {
-            out.push('\n## GESTIÓN\n');
-            out.push(managementMd);
-        }
-    }
-
-    // 7. Firma del agente (si está habilitada)
+    // 2. Firma del agente — justo después de datos del negocio
     const firmaText = sections.extras?.firmaText?.trim();
     if (sections.extras?.firmaEnabled && firmaText) {
         out.push('\n---\n\n' + firmaText);
+    }
+
+    // 3. Inicio / Bienvenida
+    const trainingMd = buildTrainingMarkdown(sections.training);
+    if (nonEmpty(trainingMd)) {
+        out.push('\n---\n\n## INICIO\n');
+        out.push(trainingMd);
+    }
+
+    // 4. Preguntas & Respuestas
+    const faqMd = buildFaqMarkdown(sections.faq);
+    if (nonEmpty(faqMd)) {
+        out.push('\n---\n\n## PREGUNTAS & RESPUESTAS\n');
+        out.push(faqMd);
+    }
+
+    // 5. Catálogo / Productos
+    const prodMd = buildProductsMarkdown(sections.products);
+    if (nonEmpty(prodMd)) {
+        out.push('\n---\n\n## CATÁLOGO / PRODUCTOS\n');
+        out.push(prodMd);
+    }
+
+    // 6. Extras
+    const extrasMd = buildExtrasMarkdown(sections.extras);
+    if (nonEmpty(extrasMd)) {
+        out.push('\n---\n\n## EXTRAS\n');
+        out.push(extrasMd);
+    }
+
+    // 7. Gestión
+    if (sections.management?.steps?.length) {
+        const managementMd = buildManagementMarkdown(sections.management);
+        if (nonEmpty(managementMd)) {
+            out.push('\n---\n\n## GESTIÓN\n');
+            out.push(managementMd);
+        }
     }
 
     return out.join('\n');

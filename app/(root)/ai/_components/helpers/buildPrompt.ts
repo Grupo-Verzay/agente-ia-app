@@ -23,14 +23,17 @@ export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name:
     add(lines, "* **Instagram:**", v.instagram);
     add(lines, "* **TikTok:**", v.tiktok);
     add(lines, "* **YouTube:**", v.youtube);
-    lines.push(`\n---\n`);
+    if (firma?.enabled && firma.name.trim()) {
+        lines.push("\n---\n\n" + buildFirmaBlock(firma.name));
+    }
+
     if (v.training?.trim()) {
-        lines.push("## INICIO\n");
+        lines.push("\n---\n\n## INICIO\n");
         lines.push(v.training.trim());
     }
 
     if (v.faq?.trim()) {
-        lines.push("\n## PREGUNTAS & RESPUESTAS\n");
+        lines.push("\n---\n\n## PREGUNTAS & RESPUESTAS\n");
         lines.push(v.faq.trim());
     }
 
@@ -47,10 +50,6 @@ export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name:
     if (v.management?.trim()) {
         lines.push("\n---\n\n## GESTIÓN\n");
         lines.push(v.management.trim());
-    }
-
-    if (firma?.enabled && firma.name.trim()) {
-        lines.push("\n---\n\n" + buildFirmaBlock(firma.name));
     }
 
     return lines.join("\n");
