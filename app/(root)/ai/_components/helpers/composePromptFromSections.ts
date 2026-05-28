@@ -58,5 +58,11 @@ export function composePromptFromSections(sections: z.infer<typeof SectionsDraft
         out.push('\n' + motorMd);
     }
 
+    // 8. Firma del agente (si está habilitada)
+    const firmaText = sections.extras?.firmaText?.trim();
+    if (sections.extras?.firmaEnabled && firmaText) {
+        out.push('\n---\n\n' + firmaText);
+    }
+
     return out.join('\n');
 }
