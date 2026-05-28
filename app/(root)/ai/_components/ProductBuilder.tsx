@@ -384,7 +384,7 @@ export const ProductBuilder = ({
 
             <CardContent className="space-y-3">
                 {items.length === 0 ? (
-                    <div className="text-center text-sm text-muted-foreground py-8">
+                    <div className="text-center text-sm text-muted-foreground py-2">
                         No has creado productos. Crea tu primer producto con &quot;Agregar producto&quot;.
                     </div>
                 ) : (

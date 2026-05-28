@@ -332,5 +332,33 @@ export function buildSectionedPrompt(items: AnyStep[], cfg: PromptBuildConfig): 
         }
     });
 
+    // Motor de Flujo
+    if (cfg.showMotorFlujo && items.length > 0) {
+        const hasAnyMotor = items.some((s) => s.variableQueRecoge?.trim() || s.condicionParaAvanzar?.trim());
+        if (hasAnyMotor) {
+            const rows = items.map((s, i) => {
+                const n = i + 1;
+                const nombre = (s.title || `Paso ${n}`).toUpperCase();
+                const variable = s.variableQueRecoge?.trim() || "—";
+                const condicion = s.condicionParaAvanzar?.trim() || "—";
+                return `| ${n} | ${nombre} | ${variable} | ${condicion} |`;
+            });
+
+            blocks.push(
+                [
+                    `\n---`,
+                    `## MOTOR DE FLUJO (SECUENCIA DETERMINÍSTICA)`,
+                    `| PASO | NOMBRE | VARIABLE QUE RECOGE | CONDICIÓN PARA AVANZAR |`,
+                    `|------|--------|---------------------|------------------------|`,
+                    ...rows,
+                    `\n**Reglas del motor:**`,
+                    `- Avanza al siguiente paso SOLO cuando se cumple la condición.`,
+                    `- Si la condición no se cumple, permanece en el paso actual.`,
+                    `- Registra la variable en memoria antes de avanzar.`,
+                ].join("\n")
+            );
+        }
+    }
+
     return blocks.join(joinSep);
 }

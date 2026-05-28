@@ -43,6 +43,8 @@ export const TrainingDraftSchema = z.object({
             id: z.string(),
             title: z.string().optional(),
             mainMessage: z.string().optional().default(""),
+            variableQueRecoge: z.string().optional().default(""),
+            condicionParaAvanzar: z.string().optional().default(""),
             elements: z.array(
                 z.union([
                     z.object({
@@ -540,7 +542,9 @@ export type StepTraining = {
     title?: string;
     mainMessage?: string;
     elements: ElementItem[];
-    openPicker?: boolean; // UI state por paso
+    openPicker?: boolean;
+    variableQueRecoge?: string;
+    condicionParaAvanzar?: string;
 };
 
 export type PedidoFunctionEl = ElementFunction & {
@@ -922,6 +926,8 @@ export type AnyStep = {
     title?: string;
     mainMessage?: string;
     elements?: AnyEl[];
+    variableQueRecoge?: string;
+    condicionParaAvanzar?: string;
 };
 
 export type FirmaOpts = {
@@ -955,4 +961,6 @@ export type PromptBuildConfig = {
     managementObjective?: string;
 
     __managementIndex?: number;
+
+    showMotorFlujo?: boolean;
 };

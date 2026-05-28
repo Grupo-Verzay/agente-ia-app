@@ -512,7 +512,7 @@ export function ExtraInfoBuilder({
                 {/* ====== Pasos/Items extra ====== */}
                 <CardContent className="space-y-3">
                     {items.length === 0 ? (
-                        <div className="text-center text-sm text-muted-foreground py-8">
+                        <div className="text-center text-sm text-muted-foreground py-2">
                             No has creado ningún extra. Crea tu primer extra con Agregar extra.
                         </div>
                     ) : (

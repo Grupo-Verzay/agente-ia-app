@@ -389,7 +389,7 @@ export function FqaBuilder({
 
                 <CardContent className="space-y-4">
                     {items.length === 0 ? (
-                        <div className="text-center text-sm text-muted-foreground py-8">
+                        <div className="text-center text-sm text-muted-foreground py-2">
                             No has creado Preguntas. Crea tu primera Pregunta con &quot;Agregar Pregunta&quot;.
                         </div>
                     ) : (

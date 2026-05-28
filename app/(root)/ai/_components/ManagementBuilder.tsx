@@ -557,7 +557,7 @@ export const ManagementBuilder = ({
 
             <CardContent className="space-y-3">
                 {steps.length === 0 ? (
-                    <div className="text-center text-sm text-muted-foreground py-8">
+                    <div className="text-center text-sm text-muted-foreground py-2">
                         No has agregado bloques de gestión. Usa &quot;Agregar acción&quot; para comenzar.
                     </div>
                 ) : (
