@@ -20,7 +20,14 @@ export function composePromptFromSections(sections: z.infer<typeof SectionsDraft
         out.push('\n---\n\n' + firmaText);
     }
 
-    // 3. Inicio / Bienvenida
+    // 3. Notas adicionales del negocio
+    const notas = sections.business?.notas?.trim();
+    if (notas) {
+        out.push('\n---\n\n## 📌 NOTAS ADICIONALES\n');
+        out.push(notas);
+    }
+
+    // 4. Inicio / Bienvenida
     const trainingMd = buildTrainingMarkdown(sections.training);
     if (nonEmpty(trainingMd)) {
         out.push('\n---\n\n## 👋 FLUJO DE INICIO Y BIENVENIDA\n');

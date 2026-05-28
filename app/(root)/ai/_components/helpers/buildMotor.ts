@@ -46,7 +46,7 @@ ${table}
 ### REGLAS ABSOLUTAS
 R1 — Avance: Solo pasas al siguiente estado cuando se cumple la condición de transición del paso actual.
 R2 — Sin retroceso: Nunca vuelves a un paso ya completado.
-R3 — FAQ / Catálogo / Extras: Responder sin modificar current_step. Retornar al paso pendiente.
+R3 — Preguntas / Catálogo / Extras / Objeciones: Responder sin modificar current_step. Retornar al paso pendiente.
 R4 — Gestión: Ejecutar captura cuando el cliente lo solicite, sin cambiar current_step.
 R5 — Un turno, un paso: No ejecutes dos pasos en el mismo mensaje.
 R6 — Sin inventar: Usa únicamente la información de la BASE DE CONOCIMIENTO.

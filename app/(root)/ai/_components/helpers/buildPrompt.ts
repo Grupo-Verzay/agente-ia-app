@@ -27,6 +27,11 @@ export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name:
         lines.push("\n---\n\n" + buildFirmaBlock(firma.name));
     }
 
+    if (v.notas?.trim()) {
+        lines.push("\n---\n\n## 📌 NOTAS ADICIONALES\n");
+        lines.push(v.notas.trim());
+    }
+
     if (v.training?.trim()) {
         lines.push("\n---\n\n## 👋 FLUJO DE INICIO Y BIENVENIDA\n");
         lines.push(v.training.trim());
