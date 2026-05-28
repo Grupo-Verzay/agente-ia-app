@@ -1,5 +1,5 @@
 import z from "zod";
-import { buildBusinessHeader, buildIdentityBlock } from "./buildBusinessHeader";
+import { buildBusinessHeader } from "./buildBusinessHeader";
 import { nonEmpty } from "./nonEmpty";
 import { SectionsDraftSchema } from "@/types/agentAi";
 import { buildExtrasMarkdown, buildFaqMarkdown, buildManagementMarkdown, buildProductsMarkdown, buildTrainingMarkdown } from "./actionsBuilders";
@@ -12,42 +12,38 @@ export function composePromptFromSections(sections: z.infer<typeof SectionsDraft
 
     const out: string[] = [];
 
-    // 1. Identidad del agente (notas) — va siempre al inicio
-    const identityBlock = buildIdentityBlock(sections.business);
-    if (identityBlock) out.push(identityBlock);
-
-    // 2. Datos del negocio
+    // 1. Datos del negocio
     out.push(buildBusinessHeader(sections.business));
 
-    // 3. Inicio / Bienvenida (modo completo: mainMessage + elementos)
+    // 2. Inicio / Bienvenida (modo completo: mainMessage + elementos)
     const trainingMd = buildTrainingMarkdown(sections.training);
     if (nonEmpty(trainingMd)) {
         out.push('## INICIO\n');
         out.push(trainingMd);
     }
 
-    // 4. Preguntas & Respuestas (solo título + respuesta)
+    // 3. Preguntas & Respuestas (solo título + respuesta)
     const faqMd = buildFaqMarkdown(sections.faq);
     if (nonEmpty(faqMd)) {
         out.push('\n## PREGUNTAS & RESPUESTAS\n');
         out.push(faqMd);
     }
 
-    // 5. Catálogo / Productos (solo título + descripción)
+    // 4. Catálogo / Productos (solo título + descripción)
     const prodMd = buildProductsMarkdown(sections.products);
     if (nonEmpty(prodMd)) {
         out.push('\n## CATÁLOGO / PRODUCTOS\n');
         out.push(prodMd);
     }
 
-    // 6. Extras (solo título + contenido)
+    // 5. Extras (solo título + contenido)
     const extrasMd = buildExtrasMarkdown(sections.extras);
     if (nonEmpty(extrasMd)) {
         out.push('\n## EXTRAS\n');
         out.push(extrasMd);
     }
 
-    // 7. Gestión (título + llamadas a funciones, sin mainMessage)
+    // 6. Gestión (título + llamadas a funciones, sin mainMessage)
     if (sections.management?.steps?.length) {
         const managementMd = buildManagementMarkdown(sections.management);
         if (nonEmpty(managementMd)) {
@@ -56,7 +52,7 @@ export function composePromptFromSections(sections: z.infer<typeof SectionsDraft
         }
     }
 
-    // 8. Motor de Flujo Determinista — siempre al final, construido desde los pasos de INICIO
+    // 7. Motor de Flujo Determinista — siempre al final, construido desde los pasos de INICIO
     const motorMd = buildMotorFromTrainingSteps(sections.training?.steps ?? []);
     if (nonEmpty(motorMd)) {
         out.push('\n' + motorMd);

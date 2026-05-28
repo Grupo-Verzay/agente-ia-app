@@ -24,15 +24,6 @@ export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name:
     //   return `Completa al menos el nombre del negocio para generar el prompt.`;
     // }
 
-    if (v.notas?.trim()) {
-        const identity = v.notas.trim().replace(/#{1,3}\s*🔒\s*MOTOR[\s\S]*/i, "").trim();
-        if (identity) {
-            lines.push("## IDENTIDAD\n");
-            lines.push(identity);
-            lines.push(`\n---\n`);
-        }
-    }
-
     lines.push(`## DATOS DEL NEGOCIO\n`);
     lines.push(`* **Nombre:** ${v.nombre.trim()}`);
 
