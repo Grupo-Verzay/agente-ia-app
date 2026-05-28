@@ -23,7 +23,7 @@ export function composePromptFromSections(sections: z.infer<typeof SectionsDraft
     // 3. Inicio / Bienvenida
     const trainingMd = buildTrainingMarkdown(sections.training);
     if (nonEmpty(trainingMd)) {
-        out.push('\n---\n\n## 👋 INICIO / BIENVENIDA\n');
+        out.push('\n---\n\n## 👋 FLUJO DE INICIO Y BIENVENIDA\n');
         out.push(trainingMd);
     }
 

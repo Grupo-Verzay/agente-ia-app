@@ -28,7 +28,7 @@ export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name:
     }
 
     if (v.training?.trim()) {
-        lines.push("\n---\n\n## 👋 INICIO / BIENVENIDA\n");
+        lines.push("\n---\n\n## 👋 FLUJO DE INICIO Y BIENVENIDA\n");
         lines.push(v.training.trim());
     }
 
