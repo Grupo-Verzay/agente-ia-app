@@ -8,8 +8,6 @@ import {
     Command,
     CommandGroup,
     CommandItem,
-    CommandEmpty,
-    CommandInput,
     CommandList,
 } from "@/components/ui/command";
 
@@ -199,13 +197,10 @@ export const FunctionSelector = ({
                         </Button>
                     </PopoverTrigger>
 
-                    <PopoverContent className="p-0 w-[320px]" align="end">
+                    <PopoverContent className="p-0 w-[220px]" align="end" side="bottom">
                         <Command>
-                            <CommandInput placeholder="Buscar opción…" />
                             <CommandList>
-                                <CommandEmpty>Sin coincidencias…</CommandEmpty>
-
-                                <CommandGroup heading="Acciones">
+                                <CommandGroup heading="ACCIONES">
                                     {/* Gestión: captura/consulta/actualizar */}
                                     {isManagement && (
                                         <>
@@ -221,26 +216,29 @@ export const FunctionSelector = ({
                                         </>
                                     )}
 
-                                    {/* No gestión: ejecutar flujo / notificar / enrutamiento */}
+                                    {/* No gestión: enrutamiento / ejecutar flujo / notificar */}
                                     {!isManagement && (
                                         <>
+                                            <CommandItem onSelect={addRouting}>
+                                                <span className="flex items-center gap-2">🔀 Enrutamiento</span>
+                                            </CommandItem>
                                             <CommandItem onSelect={addFunctionEjecutarFlujo}>
-                                                Ejecutar flujo
+                                                <span className="flex items-center gap-2">⚡ Ejecutar flujo</span>
                                             </CommandItem>
                                             <CommandItem onSelect={addFunctionNotificar}>
-                                                Notificar asesor
-                                            </CommandItem>
-                                            <CommandItem onSelect={addRouting}>
-                                                Enrutamiento por campaña
+                                                <span className="flex items-center gap-2">🔔 Notificar asesor</span>
                                             </CommandItem>
                                         </>
                                     )}
-
-                                    {/* Texto/regla: solo tiene sentido si hay step; en raíz podría crear bloque con texto si lo deseas */}
-                                    {step && (
-                                        <CommandItem onSelect={addText}>Agregar regla</CommandItem>
-                                    )}
                                 </CommandGroup>
+
+                                {step && (
+                                    <CommandGroup heading="TEXTO">
+                                        <CommandItem onSelect={addText}>
+                                            <span className="flex items-center gap-2">📝 Agregar regla</span>
+                                        </CommandItem>
+                                    </CommandGroup>
+                                )}
                             </CommandList>
                         </Command>
                     </PopoverContent>
