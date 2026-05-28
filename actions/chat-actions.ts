@@ -1242,3 +1242,66 @@ export async function markMessagesAsReadByIds(
     };
   }
 }
+
+export async function sendReaction(
+  apiKeyData: Pick<ApiKey, 'url' | 'key'>,
+  instanceName: string,
+  remoteJid: string,
+  messageId: string,
+  fromMe: boolean,
+  emoji: string,
+): Promise<{ success: boolean; message: string }> {
+  const { url: baseUrlRaw, key } = apiKeyData;
+  if (!baseUrlRaw || !key || !instanceName) return { success: false, message: 'Parámetros faltantes.' };
+  const endpoint = `${normalizeBaseUrl(baseUrlRaw)}/message/sendReaction/${encodeURIComponent(instanceName)}`;
+  const body = { key: { remoteJid, fromMe, id: messageId }, reaction: emoji };
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', apikey: key },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    const raw = await res.json().catch(() => null);
+    if (!res.ok) return { success: false, message: (raw?.message as string) || `Error ${res.status}` };
+    return { success: true, message: 'Reacción enviada.' };
+  } catch (e: unknown) {
+    clearTimeout(t);
+    const err = e as { name?: string; message?: string };
+    return { success: false, message: err?.name === 'AbortError' ? 'Timeout.' : `Error de red: ${err?.message || String(e)}` };
+  }
+}
+
+export async function deleteMessage(
+  apiKeyData: Pick<ApiKey, 'url' | 'key'>,
+  instanceName: string,
+  remoteJid: string,
+  messageId: string,
+  fromMe: boolean,
+): Promise<{ success: boolean; message: string }> {
+  const { url: baseUrlRaw, key } = apiKeyData;
+  if (!baseUrlRaw || !key || !instanceName) return { success: false, message: 'Parámetros faltantes.' };
+  const endpoint = `${normalizeBaseUrl(baseUrlRaw)}/message/delete/${encodeURIComponent(instanceName)}`;
+  const body = { id: messageId, remoteJid, fromMe };
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const res = await fetch(endpoint, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', apikey: key },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    const raw = await res.json().catch(() => null);
+    if (!res.ok) return { success: false, message: (raw?.message as string) || `Error ${res.status}` };
+    return { success: true, message: 'Mensaje eliminado.' };
+  } catch (e: unknown) {
+    clearTimeout(t);
+    const err = e as { name?: string; message?: string };
+    return { success: false, message: err?.name === 'AbortError' ? 'Timeout.' : `Error de red: ${err?.message || String(e)}` };
+  }
+}

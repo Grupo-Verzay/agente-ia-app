@@ -122,6 +122,9 @@ interface ChatMessageListProps {
   listRef: React.RefObject<HTMLDivElement>;
   tempMessage: UIBubble | null;
   onSetReplyTo?: (bubble: UIBubble) => void;
+  onCopyMessage?: (bubble: UIBubble) => void;
+  onReactMessage?: (bubble: UIBubble, emoji: string) => void;
+  onDeleteMessage?: (bubble: UIBubble) => void;
 }
 
 export const ChatMessageList: React.FC<ChatMessageListProps> = ({
@@ -130,6 +133,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
   listRef,
   tempMessage,
   onSetReplyTo,
+  onCopyMessage,
+  onReactMessage,
+  onDeleteMessage,
 }) => {
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   const bgStyle = isDark ? WA_STYLE_DARK : WA_STYLE_LIGHT;
@@ -191,6 +197,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
             kind={item.message.kind}
             quotedMessage={item.message.quotedMessage}
             onReply={onSetReplyTo ? () => onSetReplyTo(item.message) : undefined}
+            onCopy={onCopyMessage ? () => onCopyMessage(item.message) : undefined}
+            onReact={onReactMessage ? (emoji) => onReactMessage(item.message, emoji) : undefined}
+            onDelete={onDeleteMessage ? () => onDeleteMessage(item.message) : undefined}
           />
         ),
       )}

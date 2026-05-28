@@ -6,6 +6,7 @@ import { Check, CheckCheck, CircleAlert, Clock, Reply } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MediaRenderer } from './MediaRenderer';
 import { CHAT_TIME_FORMATTER, initialFromName } from './chat-message-utils';
+import { MessageContextMenu } from './MessageContextMenu';
 import type { MediaData, MessageDeliveryState, UIBubble } from './chat-message-types';
 
 /* ─── ExpandableText ─── */
@@ -69,6 +70,9 @@ interface MessageBubbleProps {
   kind?: UIBubble['kind'];
   quotedMessage?: UIBubble['quotedMessage'];
   onReply?: () => void;
+  onCopy?: () => void;
+  onReact?: (emoji: string) => void;
+  onDelete?: () => void;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -81,6 +85,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   kind,
   quotedMessage,
   onReply,
+  onCopy,
+  onReact,
+  onDelete,
 }) => {
   const showAvatar = !isUserMessage;
 
@@ -180,6 +187,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     </button>
   );
 
+  const contextMenu = onCopy && onReact && (
+    <MessageContextMenu
+      isUserMessage={isUserMessage}
+      onCopy={onCopy}
+      onReact={onReact}
+      onDelete={onDelete}
+    />
+  );
+
   return (
     <div className={cn('flex items-end gap-1 my-1 group', isUserMessage ? 'justify-end' : 'justify-start')}>
       {showAvatar && (
@@ -191,6 +207,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </div>
       )}
       {isUserMessage && replyBtn}
+      {isUserMessage && contextMenu}
       <div className={cn('px-2 pt-2 pb-5 break-words relative inline-block max-w-[90%] sm:max-w-[70%]', bubbleClass)}>
         {quotedMessage && (
           <div className={cn(
@@ -216,6 +233,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         <div className="absolute right-2 bottom-1">{timeAndStatus}</div>
       </div>
       {!isUserMessage && replyBtn}
+      {!isUserMessage && contextMenu}
     </div>
   );
 };

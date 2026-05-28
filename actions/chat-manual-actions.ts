@@ -13,6 +13,8 @@ import {
   findMessagesByRemoteJid,
   sendMediaByUrl,
   sendTextMessage,
+  sendReaction,
+  deleteMessage,
 } from "./chat-actions";
 import { getExecutionNodesForWorkflow } from "./workflow-node-action";
 
@@ -570,4 +572,30 @@ export async function sendManualQuickReplyAction(
     message: "Respuesta rapida enviada correctamente.",
     data: { sentCount: 1 },
   };
+}
+
+export async function reactToMessageAction(
+  context: ChatActionContext,
+  remoteJid: string,
+  messageId: string,
+  fromMe: boolean,
+  emoji: string,
+): Promise<{ success: boolean; message: string }> {
+  if (!hasReadyContext(context)) return { success: false, message: "Sin instancia configurada." };
+  await requireCurrentUser();
+  return sendReaction(context.apiKeyData, context.instanceName, remoteJid, messageId, fromMe, emoji);
+}
+
+export async function deleteMessageAction(
+  context: ChatActionContext,
+  remoteJid: string,
+  messageId: string,
+  fromMe: boolean,
+): Promise<{ success: boolean; message: string }> {
+  if (!hasReadyContext(context)) return { success: false, message: "Sin instancia configurada." };
+  const user = await requireCurrentUser();
+  if (user.role !== "admin" && user.role !== "super_admin") {
+    return { success: false, message: "Solo los administradores pueden eliminar mensajes." };
+  }
+  return deleteMessage(context.apiKeyData, context.instanceName, remoteJid, messageId, fromMe);
 }

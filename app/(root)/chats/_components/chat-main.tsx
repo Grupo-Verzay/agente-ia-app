@@ -14,6 +14,7 @@ import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } f
 import type { Session, SimpleTag } from '@/types/session';
 import type { AdvisorInfo } from '@/actions/team-actions';
 
+import { reactToMessageAction, deleteMessageAction } from '@/actions/chat-manual-actions';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatInputBar } from './ChatInputBar';
@@ -90,6 +91,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [slashQuery, setSlashQuery] = useState('');
   const [composeMedia, setComposeMedia] = useState<ComposeMedia | null>(null);
   const [replyTo, setReplyTo] = useState<UIBubble | null>(null);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const [isSending, setIsSending] = useState(false);
   const [tempMessage, setTempMessage] = useState<UIBubble | null>(null);
   const [isContactEditorOpen, setIsContactEditorOpen] = useState(false);
@@ -141,8 +143,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const reversed = useMemo(() => messages.slice().reverse(), [messages]);
   const uiMessages = useMemo(() => {
     void mediaCacheTick;
-    return toUIMessages(reversed, header.avatarSrc, mediaCacheRef.current);
-  }, [reversed, header.avatarSrc, mediaCacheTick, mediaCacheRef]);
+    const all = toUIMessages(reversed, header.avatarSrc, mediaCacheRef.current);
+    return deletedIds.size > 0 ? all.filter((m) => !deletedIds.has(m.id)) : all;
+  }, [reversed, header.avatarSrc, mediaCacheTick, mediaCacheRef, deletedIds]);
 
   /* ─── Auto scroll to bottom ─── */
   const scrollToBottom = useCallback(() => {
@@ -190,6 +193,43 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     if (!slashOpen) return [];
     return quickReplies.filter((qr) => qr.name && qr.name.toLowerCase().startsWith(slashQuery));
   }, [slashOpen, slashQuery, quickReplies]);
+
+  /* ─── Message actions ─── */
+  const handleCopyMessage = useCallback((bubble: UIBubble) => {
+    const text = bubble.media
+      ? `[${bubble.media.type}]${bubble.content ? ` ${bubble.content}` : ''}`
+      : bubble.content;
+    void navigator.clipboard.writeText(text).then(() => toast.success('Copiado al portapapeles.'));
+  }, []);
+
+  const handleReactMessage = useCallback(async (bubble: UIBubble, emoji: string) => {
+    if (!info?.apiKeyData || !info.instanceName || !info.remoteJid) return;
+    const result = await reactToMessageAction(
+      { apiKeyData: info.apiKeyData, instanceName: info.instanceName },
+      info.remoteJid,
+      bubble.id,
+      bubble.sender === 'user',
+      emoji,
+    );
+    if (!result.success) toast.error(result.message);
+  }, [info]);
+
+  const handleDeleteMessage = useCallback(async (bubble: UIBubble) => {
+    if (!info?.apiKeyData || !info.instanceName || !info.remoteJid) return;
+    setDeletedIds((prev) => new Set(prev).add(bubble.id));
+    const result = await deleteMessageAction(
+      { apiKeyData: info.apiKeyData, instanceName: info.instanceName },
+      info.remoteJid,
+      bubble.id,
+      bubble.sender === 'user',
+    );
+    if (!result.success) {
+      setDeletedIds((prev) => { const next = new Set(prev); next.delete(bubble.id); return next; });
+      toast.error(result.message);
+    } else {
+      toast.success('Mensaje eliminado.');
+    }
+  }, [info]);
 
   /* ─── Send ─── */
   const sendNow = useCallback(async () => {
@@ -327,6 +367,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         listRef={listRef}
         tempMessage={tempMessage}
         onSetReplyTo={setReplyTo}
+        onCopyMessage={handleCopyMessage}
+        onReactMessage={handleReactMessage}
+        onDeleteMessage={!advisorRole || advisorRole === 'administrador' ? handleDeleteMessage : undefined}
       />
 
       <ChatInputBar
