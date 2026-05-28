@@ -98,10 +98,14 @@ export function buildSectionedMarkdown(
         signatureSeparator,
         renderMode,
         mainMessageLabel,
+        elementsLabel,
     } = { ...DEFAULTS, ...(cfg || {}) };
 
     const resolveLabel = (n: number) =>
         typeof mainMessageLabel === "function" ? mainMessageLabel(n) : (mainMessageLabel ?? "");
+
+    const resolveElementsLabel = (n: number) =>
+        typeof elementsLabel === "function" ? elementsLabel(n) : (elementsLabel ?? "ELEMENTOS:");
 
     const steps: Step[] = Array.isArray(src) ? src : (src?.steps ?? []);
 
@@ -128,7 +132,7 @@ export function buildSectionedMarkdown(
             }
             const els = s.elements ?? [];
             if (els.length > 0) {
-                body.push(`#### ELEMENTOS:`);
+                body.push(`#### ${resolveElementsLabel(n)}`);
                 els.forEach((el, idx) => {
                     body.push(...renderElement(el as AnyElement, flowBehaviorText, idx + 1));
                 });
@@ -155,7 +159,7 @@ export function buildSectionedMarkdown(
             }
             const mgmtEls = s.elements ?? [];
             if (mgmtEls.length > 0) {
-                body.push(`#### ELEMENTOS:`);
+                body.push(`#### ${resolveElementsLabel(n)}`);
                 mgmtEls.forEach((el, idx) => {
                     body.push(...renderElement(el as AnyElement, flowBehaviorText, idx + 1));
                 });
@@ -169,7 +173,7 @@ export function buildSectionedMarkdown(
         if (nonEmpty(s.mainMessage)) body.push(s.mainMessage!);
         const els = s.elements ?? [];
         if (els.length > 0) {
-            body.push(`#### ELEMENTOS DEL PASO ${n}:`);
+            body.push(`#### ${resolveElementsLabel(n)}`);
             els.forEach((el, idx) => {
                 body.push(...renderElement(el as AnyElement, flowBehaviorText, idx + 1));
             });
