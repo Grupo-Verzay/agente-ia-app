@@ -10,7 +10,7 @@ const QA_CFG = { joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "qa
 // Gestión: título + llamadas a funciones, sin mainMessage
 const MGMT_CFG = { sectionPrefix: "Gestión", joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "management" as const };
 // Inicio/Training: modo completo (mainMessage + elementos)
-const FULL_CFG = { sectionPrefix: "Paso", joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "full" as const };
+const FULL_CFG = { sectionPrefix: "PASO", joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "full" as const };
 
 export function buildExtrasMarkdown(extras: z.infer<typeof ExtrasDraftSchema>): string {
     return buildSectionedMarkdown(extras, FAQ_CFG);
