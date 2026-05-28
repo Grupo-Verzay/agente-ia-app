@@ -38,7 +38,7 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
     const effectiveId: string = user.effectiveId;
 
     // Obtener API Key (opcional — sin ella el módulo de recordatorios no puede enviar mensajes)
-    const resApikey = await getApiKeyById(user.apiKeyId)
+    const resApikey = user.apiKeyId ? await getApiKeyById(user.apiKeyId) : { data: null };
     const apiKey = hasApiKey(resApikey) ? resApikey.data : null;
 
     // Obtener recordatorios, sesiones, workflows e instancia en paralelo
@@ -66,7 +66,7 @@ const SchedulePage = async ({ params }: { params: { userId: string } }) => {
         return <strong className="text-red-500">No se encontró ninguna instancia activa. Crea una instancia en la página de Conexión.</strong>
     }
 
-    const reminders = hasReminder(resReminder) ? resReminder.data : []
+    const reminders = Array.isArray(resReminder.data) ? (resReminder.data as Reminders[]) : []
     const sessions = hasSession(resSession) ? resSession.data : []
     const workflows = hasWorkflow(resWorkflow) ? resWorkflow.data : []
 

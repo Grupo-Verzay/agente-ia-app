@@ -30,7 +30,9 @@ const SchedulePage = async ({ params, searchParams }: { params: { userId: string
         return <strong>404</strong>
     }
 
-    const reminders = hasReminder(resReminder) ? resReminder.data.filter((r: Reminders) => r.isSchedule === true) : [];
+    const reminders = Array.isArray(resReminder.data)
+        ? (resReminder.data as Reminders[]).filter((r) => r.isSchedule === true)
+        : [];
 
     const countries = await getCountryCodes();
 
