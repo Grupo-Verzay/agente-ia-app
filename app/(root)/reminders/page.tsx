@@ -35,7 +35,7 @@ const RemindersPage = async () => {
     const effectiveId: string = user.effectiveId;
 
     // Obtener API Key
-    const resApikey = await getApiKeyById(user.apiKeyId)
+    const resApikey = user.apiKeyId ? await getApiKeyById(user.apiKeyId) : { success: false, data: null };
     if (!resApikey.success || !hasApiKey(resApikey)) {
         console.error("[REMINDERS_PAGE] No se encontró una API Key válida para el usuario.")
         return <strong className="text-red-500">No se encontró una API Key válida.</strong>
@@ -47,7 +47,7 @@ const RemindersPage = async () => {
         console.error("[REMINDERS_PAGE] Error al obtener recordatorios:", resReminder.message)
         return <strong>404</strong>
     }
-    const reminders = hasReminder(resReminder) ? resReminder.data : []
+    const reminders = Array.isArray(resReminder.data) ? (resReminder.data as Reminders[]) : []
 
     // Obtener sesiones
     const resSession = await getSessionsByUserId(effectiveId)
