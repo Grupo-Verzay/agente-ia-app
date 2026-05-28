@@ -13,7 +13,7 @@ const EXTRAS_CFG = { sectionPrefix: "EXTRA", joinSeparator: "\n\n---\n\n", flowB
 // Gestión: título + label objetivo + elementos
 const MGMT_CFG = { sectionPrefix: "GESTIÓN", joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "management" as const, mainMessageLabel: (n: number) => `OBJETIVO PRINCIPAL DE LA GESTIÓN ${n}:`, elementsLabel: (n: number) => `ELEMENTOS DE LA GESTIÓN ${n}:` };
 // Inicio/Training: modo completo (mainMessage + elementos numerados)
-const FULL_CFG = { sectionPrefix: "PASO", joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "full" as const, elementsLabel: (n: number) => `ELEMENTOS DEL PASO ${n}:` };
+const FULL_CFG = { sectionPrefix: "PASO", joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "full" as const, mainMessageLabel: (n: number) => `OBJETIVO/RESPUESTA PRINCIPAL DEL PASO ${n}:`, elementsLabel: (n: number) => `ELEMENTOS DEL PASO ${n}:` };
 
 export function buildExtrasMarkdown(extras: z.infer<typeof ExtrasDraftSchema>): string {
     return buildSectionedMarkdown(extras, EXTRAS_CFG);

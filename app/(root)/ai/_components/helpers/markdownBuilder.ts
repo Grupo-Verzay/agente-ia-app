@@ -175,7 +175,11 @@ export function buildSectionedMarkdown(
         // "full" — Training: mainMessage + elementos numerados con etiquetas
         const head = `### ${sectionPrefix} ${n}` + (nonEmpty(s.title) ? `: ${s.title}` : "");
         const body: string[] = [];
-        if (nonEmpty(s.mainMessage)) body.push(s.mainMessage!);
+        const fullLabel = resolveLabel(n);
+        if (nonEmpty(s.mainMessage)) {
+            if (fullLabel) body.push(`* **${fullLabel}**`);
+            body.push(s.mainMessage!);
+        }
         const els = s.elements ?? [];
         if (els.length > 0) {
             body.push(`#### ${resolveElementsLabel(n)}`);
