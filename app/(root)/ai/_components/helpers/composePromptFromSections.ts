@@ -37,7 +37,7 @@ export function composePromptFromSections(sections: z.infer<typeof SectionsDraft
     // 5. Catálogo / Productos
     const prodMd = buildProductsMarkdown(sections.products);
     if (nonEmpty(prodMd)) {
-        out.push('\n---\n\n## 💎 PRODUCTOS Y SERVICIOS\n');
+        out.push('\n---\n\n## 💎 CATÁLOGO DE: PRODUCTOS Y SERVICIOS\n');
         out.push(prodMd);
     }
 

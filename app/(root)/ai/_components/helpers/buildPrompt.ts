@@ -38,7 +38,7 @@ export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name:
     }
 
     if (v.products?.trim()) {
-        lines.push("\n---\n\n## 💎 PRODUCTOS Y SERVICIOS\n");
+        lines.push("\n---\n\n## 💎 CATÁLOGO DE: PRODUCTOS Y SERVICIOS\n");
         lines.push(v.products.trim());
     }
 
