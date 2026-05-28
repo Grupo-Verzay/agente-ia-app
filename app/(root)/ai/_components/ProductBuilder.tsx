@@ -18,7 +18,6 @@ import { FunctionSelector } from "./";
 import ElementRenderer from "./action-steeps/ElementRenderer";
 
 import type {
-    AnyStep,
     ElementFunction,
     ElementItem,
     PedidoFunctionEl,
@@ -27,7 +26,7 @@ import type {
     DataSubtype,
     StepTraining,
 } from "@/types/agentAi";
-import { buildSectionedPrompt } from "./helpers";
+import { buildProductsMarkdown } from "./helpers/actionsBuilders";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -180,15 +179,7 @@ export const ProductBuilder = ({
         }
     }, [autosaveStatus]);
 
-    const prompt = useMemo(() => {
-        return buildSectionedPrompt(items as AnyStep[], {
-            emptyMessage: "Aún no has agregado productos. Usa “Agregar producto” para comenzar.",
-            sectionLabel: (n, step) => `### PRODUCTO ${n} — ${(step.title || "Sin título").toUpperCase()}`,
-            elementsLabel: (n) => `#### ELEMENTOS DEL PRODUCTO ${n}:`,
-            mainMessageLabel: (n) => `OBJETIVO/RESPUESTA PRINCIPAL DEL PRODUCTO ${n}:`,
-            joinSeparator: "\n",
-        });
-    }, [items]);
+    const prompt = useMemo(() => buildProductsMarkdown({ steps: items as any }), [items]);
 
     useEffect(() => {
         const first = items[0];

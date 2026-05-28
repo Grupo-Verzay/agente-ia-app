@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import type {
-    AnyStep,
     DataSubtype,
     ElementFunction,
     ElementItem,
@@ -39,7 +38,8 @@ import type {
     StepTraining,
 } from "@/types/agentAi";
 import type { Workflow } from "@prisma/client";
-import { buildSectionedPrompt } from "./helpers";
+import { buildExtrasMarkdown } from "./helpers/actionsBuilders";
+import { buildFirmaBlock } from "./helpers/firmaTemplate";
 
 import {
     DndContext,
@@ -111,18 +111,6 @@ function SortableItemCard({
     );
 }
 
-/* ========= Firma por defecto ========= */
-const PROMPT_SIGNATURE_DEFAULT =
-    "### FIRMA DEL AGENTE\n" +
-    "* **Nombre:** *“@signature_name”*.\n" +
-    "* **Firma obligatoria:** Cada mensaje debe iniciar con `*“@signature_name”*` — NUNCA al final.\n" +
-    "* **Siempre pon la firma:** *“@signature_name”* al inicio de cada mensaje o respuesta que le des al usuario. Esto permite mantener una identidad clara del agente y una conversación ordenada.\n\n" +
-    "### Ejemplo de uso real:\n\n" +
-    "**Usuario:**\n" +
-    "¿Quien eres?\n\n" +
-    "**Respuesta del agente:**\n" +
-    "@signature_name\n" +
-    "Soy un asistente virtual. ¿En qué puedo ayudarte hoy?";
 
 /* ========= type-guard para captura_datos:Pedidos ========= */
 function isPedidoFn(el: ElementItem): el is PedidoFunctionEl {
@@ -158,7 +146,7 @@ export function ExtraInfoBuilder({
     );
 
     const firmaText = useMemo(
-        () => PROMPT_SIGNATURE_DEFAULT.replaceAll("@signature_name", signatureName),
+        () => buildFirmaBlock(signatureName),
         [signatureName]
     );
 
@@ -186,7 +174,7 @@ export function ExtraInfoBuilder({
             const s = serverState?.sections?.extras ?? {};
             setItems((s.steps ?? []) as ExtraItemType[]);
 
-            const savedText = s.firmaText ?? PROMPT_SIGNATURE_DEFAULT;
+            const savedText = s.firmaText ?? "";
             const m = savedText.match(/@([a-zA-Z0-9_]+)/);
             const resolvedName = m ? m[1] : s.firmaName ?? "";
             onSignatureNameChange(resolvedName);
@@ -223,16 +211,7 @@ export function ExtraInfoBuilder({
     }, [autosaveStatus]);
 
     /* ====== PREVIEW (markdown) ====== */
-    const prompt = useMemo(() => {
-        return buildSectionedPrompt(items as AnyStep[], {
-            emptyMessage:
-                "Aún no has agregado información extra. Usa Agregar extra para comenzar.",
-            sectionLabel: (n, step) => `### EXTRA ${n} — ${(step.title || "Sin título").toUpperCase()}`,
-            elementsLabel: (n) => `#### ELEMENTOS DEL EXTRA ${n}:`,
-            mainMessageLabel: (n) => `OBJETIVO/RESPUESTA PRINCIPAL DEL EXTRA ${n}:`,
-            joinSeparator: "\n",
-        });
-    }, [items]);
+    const prompt = useMemo(() => buildExtrasMarkdown({ steps: items } as any), [items]);
 
     /* ====== SYNC con padre (values.more) y compat onChange ====== */
     useEffect(() => {

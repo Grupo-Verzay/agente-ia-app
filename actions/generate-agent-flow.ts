@@ -2,6 +2,7 @@
 
 import { currentUser } from '@/lib/auth';
 import { resolveUserAiClient } from '@/actions/userAiconfig-actions';
+import { WELCOME_MAIN_MESSAGE, WELCOME_TITLE } from '@/app/(root)/ai/_components/helpers/trainingDefaults';
 import {
     patchBusinessSection,
     patchExtrasSection,
@@ -110,26 +111,6 @@ mainMessage:
   "🔒 GATE: current_step == 2 AND nombre != null\n✅ OBLIGATORIO: Preguntar el interés del cliente antes de cualquier otra acción.\n❌ PROHIBIDO: Avanzar sin capturar el interés. Asumir el servicio sin que el cliente lo diga.\n🖥 EMIT LITERAL: Emitir elemento (2). Esperar respuesta.\n➡️ TRANSICIÓN: Si usuario menciona un servicio o interés específico → guardar 'interes = valor' → current_step = 3.\n⚠️ EXCEPCIÓN: Si el interés no es claro → reformular Paso 2 con pregunta más concreta."
 
 ════════════════════════════════════════
-CAMPO business.notas — IDENTIDAD Y VOZ
-════════════════════════════════════════
-
-business.notas contiene ÚNICAMENTE la identidad del agente y su guía de voz.
-❌ PROHIBIDO en notas: motor de flujo, tabla de transición, reglas, Q&A, políticas, catálogos.
-   El MOTOR DE FLUJO se construye automáticamente desde los pasos de INICIO. No lo incluyas aquí.
-
-Estructura EXACTA para business.notas:
-
-## 🧠 IDENTIDAD
-Eres [nombre del agente], [rol] de [nombre del negocio]. [1-2 frases de personalidad adaptada al sector y región.]
-Firma al inicio de cada mensaje: "[EMOJI *Nombre Negocio*]"
-
-## 🤝 GUÍA DE VOZ
-Conectores: "Listo", "Anotado", "Va", "Ya queda", "Perfecto" — variar entre turnos.
-PROHIBIDO: "Gracias por contactarnos" · "Estamos para servirle" · "Un momento procesando" · frases corporativas.
-Tono regional: [venezolano / colombiano / mexicano / neutro — según el negocio detectado].
-Variables: usar {nombre} en los emits cuando ya fue capturado.
-
-════════════════════════════════════════
 PRINCIPIOS DETERMINÍSTICOS
 ════════════════════════════════════════
 
@@ -199,7 +180,7 @@ faq (PREGUNTAS): Q&A sin modificar current_step.
   ❌ PROHIBIDO dejar faq.steps = [] si el negocio tiene horarios, precios, políticas, certificados, requisitos o cualquier pregunta típica de clientes.
   OBLIGATORIO: generar mínimo 3-5 preguntas frecuentes basadas en la información disponible.
   Fuentes típicas: ¿Cuánto cuesta?, ¿Qué horarios hay?, ¿Es obligatorio el certificado?, ¿Cómo pago?, ¿Dónde están ubicados?, ¿Cuántas clases tiene el curso?, políticas, reglamento.
-  mainMessage: La respuesta directa y humanizada a la pregunta. Incluye TODOS los datos relevantes (precios exactos, horarios, requisitos, políticas). Sin emojis ancla, sin formato gate, sin instrucciones al modelo.
+  mainMessage: La respuesta directa y humanizada a la pregunta. Incluye TODOS los datos relevantes (precios exactos, horarios, requisitos, políticas). Usa 1-2 emojis naturales (los que usaría una persona del negocio). Sin formato gate, sin instrucciones al modelo.
   elements: [] — PROHIBIDO añadir elementos. La respuesta va ÍNTEGRAMENTE en mainMessage.
 
 products (PRODUCTOS): Catálogo.
@@ -266,13 +247,7 @@ El usuario puede enviarte un párrafo corto o un documento completo con catálog
 
 1. Extrae datos del negocio para "business" (nombre, sector, ubicación, horarios, contacto).
 2. Genera la estructura de flujo completa usando toda la información disponible.
-3. En business.notas: ÚNICAMENTE la identidad y voz del agente:
-   ## 🧠 IDENTIDAD
-   [Quién es el agente, para qué negocio, personalidad adaptada al sector]
-   ## 🤝 GUÍA DE VOZ
-   [Tono, estilo de comunicación, frases características del negocio]
-   ⚠️ NO incluyas MOTOR DE FLUJO ni tabla de transición — se genera automáticamente desde los pasos de INICIO.
-   PROHIBIDO poner Q&A, políticas o catálogos en notas — eso va en faq/products/management.
+3. business.notas debe quedar vacío (""). La identidad del agente la gestiona el sistema.
 4. Si hay catálogo: genera un step en "products" por cada producto o categoría relevante.
 5. Si hay FAQs, políticas o protocolos: genera steps en "faq" con la respuesta completa en mainMessage.
 6. Aplica humanización en TODOS los textos (mainMessage de faq, elements[kind="text"].text de lo demás).
@@ -432,7 +407,7 @@ ${antiContamination}
 TAREA A — GENERA ÚNICAMENTE: "business", "training", "faq"
 Para "products", "extras", "management": devolver vacíos (steps: []).
 
-BUSINESS: Extrae TODOS los datos disponibles (nombre real del negocio, sector exacto, ubicación, horarios, contacto, redes, métodos de pago → estos últimos van en business.notas dentro del motor).
+BUSINESS: Extrae TODOS los datos disponibles (nombre real del negocio, sector exacto, ubicación, horarios, contacto, redes). business.notas = "" siempre.
 TRAINING: Flujo conversacional adaptado al tipo de negocio. Paso 1 bienvenida + Paso 2 captura de interés + más pasos si el negocio lo requiere.
   El nombre del negocio y tono de voz en los textos deben coincidir EXACTAMENTE con el texto proporcionado.
   "title" de cada step SIEMPRE en MAYÚSCULAS (ej: "BIENVENIDA", "INTERÉS DEL CLIENTE").
@@ -479,9 +454,17 @@ MANAGEMENT: OBLIGATORIO — NUNCA dejar management.steps vacío. Analiza el tipo
     const genA = resA.data;
     const genB = resB.data;
 
+    const trainingSteps = assignRealIds(genA.training?.steps);
+
+    // Paso 1 (BIENVENIDA) siempre usa el template canónico — nunca el generado por la IA
+    if (trainingSteps.length > 0) {
+        trainingSteps[0].title       = WELCOME_TITLE;
+        trainingSteps[0].mainMessage = WELCOME_MAIN_MESSAGE;
+    }
+
     const sections: GeneratedSections = {
         business: genA.business ?? {},
-        training: { steps: assignRealIds(genA.training?.steps) },
+        training: { steps: trainingSteps },
         faq:      { steps: assignRealIds(genA.faq?.steps) },
         products: { steps: assignRealIds(genB.products?.steps) },
         extras: {

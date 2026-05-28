@@ -1,21 +1,6 @@
 import { BusinessValues } from "@/types/agentAi";
 import { addPromptItem as add } from "./";
-
-const FIRMA_TEMPLATE =
-    "### FIRMA DEL AGENTE\n" +
-    "* **Nombre:** *@name*.\n" +
-    "* **Firma obligatoria:** Cada mensaje debe iniciar con `*@name*` — NUNCA al final.\n" +
-    "* **Siempre pon la firma:** *@name* al inicio de cada mensaje o respuesta que le des al usuario. Esto permite mantener una identidad clara del agente y una conversación ordenada.\n\n" +
-    "### Ejemplo de uso real:\n\n" +
-    "**Usuario:**\n" +
-    "¿Quien eres?\n\n" +
-    "**Respuesta del agente:**\n" +
-    "@name\n" +
-    "Soy un asistente virtual. ¿En qué puedo ayudarte hoy?";
-
-function buildFirmaBlock(name: string): string {
-    return FIRMA_TEMPLATE.replaceAll("@name", name.trim());
-}
+import { buildFirmaBlock } from "./firmaTemplate";
 
 export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name: string }): string => {
     const lines: string[] = [];
@@ -24,7 +9,7 @@ export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name:
     //   return `Completa al menos el nombre del negocio para generar el prompt.`;
     // }
 
-    lines.push(`## DATOS DEL NEGOCIO\n`);
+    lines.push(`## 🏢 DATOS DEL NEGOCIO\n`);
     lines.push(`* **Nombre:** ${v.nombre.trim()}`);
 
     add(lines, "* **Sector/Rubro:**", v.sector);
@@ -38,41 +23,33 @@ export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name:
     add(lines, "* **Instagram:**", v.instagram);
     add(lines, "* **TikTok:**", v.tiktok);
     add(lines, "* **YouTube:**", v.youtube);
-    // lines.push(`\n---\n`);
-    // lines.push(`${STARTING_INSTRUCTION}`);
-    lines.push(`\n---\n`);
-    if (v.notas?.trim()) {
-        lines.push("### NOTAS ADICIONALES\n");
-        lines.push(v.notas.trim());
-        lines.push(`\n---\n`);
+    if (firma?.enabled && firma.name.trim()) {
+        lines.push("\n---\n\n" + buildFirmaBlock(firma.name));
     }
+
     if (v.training?.trim()) {
-        lines.push("## INICIO\n");
+        lines.push("\n---\n\n## 👋 FLUJO DE INICIO Y BIENVENIDA\n");
         lines.push(v.training.trim());
     }
 
     if (v.faq?.trim()) {
-        lines.push("\n## PREGUNTAS & RESPUESTAS\n");
+        lines.push("\n---\n\n## ❓ PREGUNTAS & RESPUESTAS\n");
         lines.push(v.faq.trim());
     }
 
     if (v.products?.trim()) {
-        lines.push("\n---\n\n## CATÁLOGO / PRODUCTOS\n");
+        lines.push("\n---\n\n## 💎 CATÁLOGO DE: PRODUCTOS Y SERVICIOS\n");
         lines.push(v.products.trim());
     }
 
     if (v.more?.trim()) {
-        lines.push("\n---\n\n## EXTRAS\n");
+        lines.push("\n---\n\n## ⚖️ EXTRAS / OBJECIONES\n");
         lines.push(v.more.trim());
     }
 
     if (v.management?.trim()) {
-        lines.push("\n---\n\n## GESTIÓN\n");
+        lines.push("\n---\n\n## 📦 GESTIÓN / CIERRE\n");
         lines.push(v.management.trim());
-    }
-
-    if (firma?.enabled && firma.name.trim()) {
-        lines.push("\n---\n\n" + buildFirmaBlock(firma.name));
     }
 
     return lines.join("\n");

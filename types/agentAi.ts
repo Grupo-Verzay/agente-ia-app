@@ -888,6 +888,10 @@ export type BuildCfg = {
      * - "management": título + todos los elementos, sin mainMessage (Gestión)
      */
     renderMode?: "full" | "answer" | "qa" | "management";
+    /** Etiqueta para el mainMessage en modos "answer" y "management". Ej: (n) => `OBJETIVO/RESPUESTA PRINCIPAL DE LA PREGUNTA ${n}:` */
+    mainMessageLabel?: string | ((n: number) => string);
+    /** Etiqueta del encabezado de elementos. Ej: (n) => `ELEMENTOS DEL PRODUCTO ${n}:` */
+    elementsLabel?: string | ((n: number) => string);
 };
 
 export type ManagementItem = {
