@@ -39,6 +39,7 @@ type Props = FunctionSelectorInterface & {
     onCreateBlock?: (el: ElementItem) => void;
     showRule?: boolean;
     showAction?: boolean;
+    steps?: Array<{ id: string; title?: string }>;
 };
 
 export const FunctionSelector = ({
@@ -49,6 +50,7 @@ export const FunctionSelector = ({
     onCreateBlock,
     showRule = true,
     showAction = true,
+    steps = [],
 }: Props) => {
     const isRoot = !step; // sin step => modo raíz
     const [openRoot, setOpenRoot] = useState(false);
@@ -128,6 +130,13 @@ export const FunctionSelector = ({
         notificationNumber: notificationNumber ?? null,
     });
 
+    const makeRouting = () => ({
+        id: nanoid(),
+        kind: "function" as const,
+        fn: "enrutamiento" as const,
+        rules: [],
+    });
+
     /** Inserta en step o crea bloque (raíz) */
     const insertOrCreate = useCallback((el: ElementItem) => {
         if (step && setSteps) {
@@ -156,6 +165,9 @@ export const FunctionSelector = ({
         insertOrCreate(makeEjecutarFlujo() as ElementItem);
     const addFunctionNotificar = () =>
         insertOrCreate(makeNotificar() as ElementItem);
+
+    const addRouting = () =>
+        insertOrCreate(makeRouting() as ElementItem);
 
     /* Open/close control para ambos modos */
     const open = isRoot ? openRoot : !!step?.openPicker;
@@ -209,7 +221,7 @@ export const FunctionSelector = ({
                                         </>
                                     )}
 
-                                    {/* No gestión: ejecutar flujo / notificar */}
+                                    {/* No gestión: ejecutar flujo / notificar / enrutamiento */}
                                     {!isManagement && (
                                         <>
                                             <CommandItem onSelect={addFunctionEjecutarFlujo}>
@@ -217,6 +229,9 @@ export const FunctionSelector = ({
                                             </CommandItem>
                                             <CommandItem onSelect={addFunctionNotificar}>
                                                 Notificar asesor
+                                            </CommandItem>
+                                            <CommandItem onSelect={addRouting}>
+                                                Enrutamiento por campaña
                                             </CommandItem>
                                         </>
                                     )}

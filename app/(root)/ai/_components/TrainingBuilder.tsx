@@ -16,6 +16,7 @@ import {
   DataSubtype,
   ElementItem,
   PedidoFunctionEl,
+  RoutingRule,
   StepTraining,
   TrainingBuilderProps,
 } from "@/types/agentAi";
@@ -425,6 +426,23 @@ export function TrainingBuilder({
     );
   };
 
+  const updateRoutingRules = (stepId: string, elId: string, rules: RoutingRule[]) => {
+    setSteps((prev) =>
+      prev.map((s) =>
+        s.id === stepId
+          ? {
+              ...s,
+              elements: s.elements.map((e) =>
+                e.id === elId && e.kind === "function" && e.fn === "enrutamiento"
+                  ? { ...e, rules }
+                  : e
+              ),
+            }
+          : s
+      )
+    );
+  };
+
   const onSubtypeChange = (stepId: string, elId: string, subtype: DataSubtype) => {
     setSteps((prev) =>
       prev.map((s) =>
@@ -728,6 +746,8 @@ export function TrainingBuilder({
                                                       addPedidoField={addPedidoField}
                                                       removePedidoField={removePedidoField}
                                                       onSubtypeChange={onSubtypeChange}
+                                                      steps={steps}
+                                                      updateRoutingRules={updateRoutingRules}
                                                     />
                                                   </div>
                                                 </div>
@@ -749,6 +769,7 @@ export function TrainingBuilder({
                                         step={step}
                                         setSteps={setSteps}
                                         notificationNumber={notificationNumber ?? ""}
+                                        steps={steps}
                                       />
                                     </div>
                                   </div>
