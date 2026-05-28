@@ -200,7 +200,7 @@ faq (PREGUNTAS): Q&A sin modificar current_step.
   ❌ PROHIBIDO dejar faq.steps = [] si el negocio tiene horarios, precios, políticas, certificados, requisitos o cualquier pregunta típica de clientes.
   OBLIGATORIO: generar mínimo 3-5 preguntas frecuentes basadas en la información disponible.
   Fuentes típicas: ¿Cuánto cuesta?, ¿Qué horarios hay?, ¿Es obligatorio el certificado?, ¿Cómo pago?, ¿Dónde están ubicados?, ¿Cuántas clases tiene el curso?, políticas, reglamento.
-  mainMessage: La respuesta directa y humanizada a la pregunta. Incluye TODOS los datos relevantes (precios exactos, horarios, requisitos, políticas). Sin emojis ancla, sin formato gate, sin instrucciones al modelo.
+  mainMessage: La respuesta directa y humanizada a la pregunta. Incluye TODOS los datos relevantes (precios exactos, horarios, requisitos, políticas). Usa 1-2 emojis naturales (los que usaría una persona del negocio). Sin formato gate, sin instrucciones al modelo.
   elements: [] — PROHIBIDO añadir elementos. La respuesta va ÍNTEGRAMENTE en mainMessage.
 
 products (PRODUCTOS): Catálogo.

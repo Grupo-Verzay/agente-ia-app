@@ -12,13 +12,13 @@ import { StepTemplatePicker } from "./StepTemplatePicker";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
-import { AnyStep, DataSubtype, ElementFunction, ElementItem, FqaBuilderProps, PRESETS, QaItem, StepTraining } from "@/types/agentAi";
+import { DataSubtype, ElementFunction, ElementItem, FqaBuilderProps, PRESETS, QaItem, StepTraining } from "@/types/agentAi";
 import { Workflow } from "@prisma/client";
 
 import { useFaqAutosave, AutosaveStatus } from "./hooks/useFaqAutosave";
 import { FunctionSelector } from "./";
 import ElementRenderer from "./action-steeps/ElementRenderer";
-import { buildSectionedPrompt } from "./helpers";
+import { buildFaqMarkdown } from "./helpers/actionsBuilders";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -176,16 +176,7 @@ export function FqaBuilder({
         }
     }, [autosaveStatus]);
 
-    const prompt = useMemo(() => {
-        return buildSectionedPrompt(items as AnyStep[], {
-            emptyMessage:
-                "Aún no has agregado Preguntas. Usa “Agregar Pregunta” para comenzar.",
-            sectionLabel: (n, step) => `### PREGUNTA ${n} — ${(step.title || "Sin título").toUpperCase()}`,
-            elementsLabel: (n) => `#### ELEMENTOS DE LA PREGUNTA ${n}:`,
-            mainMessageLabel: (n) => `OBJETIVO/RESPUESTA PRINCIPAL DE LA PREGUNTA ${n}:`,
-            joinSeparator: "\n",
-        });
-    }, [items]);
+    const prompt = useMemo(() => buildFaqMarkdown({ steps: items as any }), [items]);
 
     useEffect(() => {
         if (values.faq !== prompt) {

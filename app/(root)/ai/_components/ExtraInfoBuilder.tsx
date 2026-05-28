@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import type {
-    AnyStep,
     DataSubtype,
     ElementFunction,
     ElementItem,
@@ -39,7 +38,7 @@ import type {
     StepTraining,
 } from "@/types/agentAi";
 import type { Workflow } from "@prisma/client";
-import { buildSectionedPrompt } from "./helpers";
+import { buildExtrasMarkdown } from "./helpers/actionsBuilders";
 
 import {
     DndContext,
@@ -223,16 +222,7 @@ export function ExtraInfoBuilder({
     }, [autosaveStatus]);
 
     /* ====== PREVIEW (markdown) ====== */
-    const prompt = useMemo(() => {
-        return buildSectionedPrompt(items as AnyStep[], {
-            emptyMessage:
-                "Aún no has agregado información extra. Usa Agregar extra para comenzar.",
-            sectionLabel: (n, step) => `### EXTRA ${n} — ${(step.title || "Sin título").toUpperCase()}`,
-            elementsLabel: (n) => `#### ELEMENTOS DEL EXTRA ${n}:`,
-            mainMessageLabel: (n) => `OBJETIVO/RESPUESTA PRINCIPAL DEL EXTRA ${n}:`,
-            joinSeparator: "\n",
-        });
-    }, [items]);
+    const prompt = useMemo(() => buildExtrasMarkdown({ steps: items } as any), [items]);
 
     /* ====== SYNC con padre (values.more) y compat onChange ====== */
     useEffect(() => {

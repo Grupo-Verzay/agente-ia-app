@@ -25,7 +25,7 @@ import { Workflow } from "@prisma/client";
 import { useTrainingAutosave, AutosaveStatus } from "./hooks/useTrainingAutosave";
 import { FunctionSelector } from "./";
 import ElementRenderer from "./action-steeps/ElementRenderer";
-import { buildSectionedPrompt } from "./helpers";
+import { buildTrainingMarkdown } from "./helpers/actionsBuilders";
 
 import {
   AlertDialog,
@@ -247,16 +247,7 @@ export function TrainingBuilder({
   const firstStep = steps[0];
 
   /* -------------------- Construcción del trainingPrompt -------------------- */
-  const trainingPrompt = useMemo(() => {
-    return buildSectionedPrompt(steps as AnyStep[], {
-      emptyMessage: "Aun no has agregado pasos de entrenamiento. Usa Agregar paso para comenzar.",
-      sectionLabel: (n: number, step: AnyStep) => `### PASO ${n} - ${(step.title || "Sin titulo").toUpperCase()}`,
-      elementsLabel: (n: number) => `#### ELEMENTOS DEL PASO ${n}:`,
-      mainMessageLabel: (n: number) => `OBJETIVO/RESPUESTA PRINCIPAL DEL PASO ${n}:`,
-      joinSeparator: "\n",
-      showMotorFlujo: true,
-    });
-  }, [steps]);
+  const trainingPrompt = useMemo(() => buildTrainingMarkdown({ steps: steps as any }), [steps]);
 
   /* --------- Propagar cambios: onChange (compat) + values.training --------- */
   useEffect(() => {

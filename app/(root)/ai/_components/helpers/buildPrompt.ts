@@ -24,6 +24,15 @@ export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name:
     //   return `Completa al menos el nombre del negocio para generar el prompt.`;
     // }
 
+    if (v.notas?.trim()) {
+        const identity = v.notas.trim().replace(/#{1,3}\s*🔒\s*MOTOR[\s\S]*/i, "").trim();
+        if (identity) {
+            lines.push("## IDENTIDAD\n");
+            lines.push(identity);
+            lines.push(`\n---\n`);
+        }
+    }
+
     lines.push(`## DATOS DEL NEGOCIO\n`);
     lines.push(`* **Nombre:** ${v.nombre.trim()}`);
 
@@ -38,14 +47,7 @@ export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name:
     add(lines, "* **Instagram:**", v.instagram);
     add(lines, "* **TikTok:**", v.tiktok);
     add(lines, "* **YouTube:**", v.youtube);
-    // lines.push(`\n---\n`);
-    // lines.push(`${STARTING_INSTRUCTION}`);
     lines.push(`\n---\n`);
-    if (v.notas?.trim()) {
-        lines.push("### NOTAS ADICIONALES\n");
-        lines.push(v.notas.trim());
-        lines.push(`\n---\n`);
-    }
     if (v.training?.trim()) {
         lines.push("## INICIO\n");
         lines.push(v.training.trim());

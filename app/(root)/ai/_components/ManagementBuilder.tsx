@@ -56,9 +56,8 @@ import type {
     ManagementItem,
     PedidoFunctionEl,
     DataSubtype,
-    AnyEl,
 } from "@/types/agentAi";
-import { buildSectionedPrompt, transformSubtype } from "./helpers";
+import { buildManagementMarkdown } from "./helpers/actionsBuilders";
 
 function isPedidoFn(el: ElementItem): el is PedidoFunctionEl {
     return el.kind === "function";
@@ -260,59 +259,7 @@ export const ManagementBuilder = ({
         }
     }, [autosaveStatus]);
 
-    const managementPreview = useMemo(() => {
-        return buildSectionedPrompt(steps as AnyStep[], {
-            mode: "management",
-            emptyMessage:
-                "Aún no has agregado bloques de gestión. Usa “Agregar acción” para comenzar.",
-
-            sectionLabel: (_n, step) => {
-                const gestion = step.title || "Gestión sin nombre";
-
-                const captura = (step.elements || []).find(
-                    (el: AnyEl) => el.kind === "function" && el.fn === "captura_datos"
-                ) as AnyEl | undefined;
-
-                const rawSubtype = captura?.subtype ?? "";
-                const subtype = transformSubtype(rawSubtype);
-
-                const pluralMap: Record<string, string> = {
-                    solicitud: "Solicitudes",
-                    pedido: "Pedidos",
-                    reserva: "Reservas",
-                    reclamo: "Reclamos",
-                    cita: "Citas",
-                };
-
-                const etiqueta = subtype ? pluralMap[subtype] ?? subtype : "Gestión";
-
-                const generoMap: Record<string, { articulo: string; label: string }> = {
-                    solicitud: { articulo: "una", label: "solicitud" },
-                    reserva: { articulo: "una", label: "reserva" },
-                    cita: { articulo: "una", label: "cita" },
-                    pedido: { articulo: "un", label: "pedido" },
-                    reclamo: { articulo: "un", label: "reclamo" },
-                };
-
-                const info = subtype
-                    ? generoMap[subtype] ?? { articulo: "una", label: subtype }
-                    : { articulo: "una", label: "gestión" };
-
-                const objetivo = (step.mainMessage ?? "").trim() || gestion;
-
-                return [
-                    `### GESTIÓN ${_n} — ${etiqueta.toUpperCase()}`,
-                    `* **Objetivo principal de la gestión:** ${_n}`,
-                    `Cuando un usuario desee realizar ${info.articulo} **${info.label}**\n`,
-                ].join("\n");
-            },
-
-            elementsLabel: (_n) => `#### ELEMENTOS DE LA GESTIÓN ${_n}`,
-            mainMessageLabel: "OBJETIVO/RESPUESTA PRINCIPAL DE LA GESTIÓN:",
-            joinSeparator: "\n",
-            appointmentUrl,
-        });
-    }, [steps, appointmentUrl]);
+    const managementPreview = useMemo(() => buildManagementMarkdown({ steps: steps as any }), [steps]);
 
     useEffect(() => {
         const first = steps[0];
