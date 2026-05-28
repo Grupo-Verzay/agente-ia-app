@@ -23,28 +23,28 @@ export function composePromptFromSections(sections: z.infer<typeof SectionsDraft
     // 3. Inicio / Bienvenida
     const trainingMd = buildTrainingMarkdown(sections.training);
     if (nonEmpty(trainingMd)) {
-        out.push('\n---\n\n## INICIO\n');
+        out.push('\n---\n\n## 👋 INICIO / BIENVENIDA\n');
         out.push(trainingMd);
     }
 
     // 4. Preguntas & Respuestas
     const faqMd = buildFaqMarkdown(sections.faq);
     if (nonEmpty(faqMd)) {
-        out.push('\n---\n\n## PREGUNTAS & RESPUESTAS\n');
+        out.push('\n---\n\n## ❓ PREGUNTAS & RESPUESTAS\n');
         out.push(faqMd);
     }
 
     // 5. Catálogo / Productos
     const prodMd = buildProductsMarkdown(sections.products);
     if (nonEmpty(prodMd)) {
-        out.push('\n---\n\n## CATÁLOGO / PRODUCTOS\n');
+        out.push('\n---\n\n## 💎 PRODUCTOS Y SERVICIOS\n');
         out.push(prodMd);
     }
 
     // 6. Extras
     const extrasMd = buildExtrasMarkdown(sections.extras);
     if (nonEmpty(extrasMd)) {
-        out.push('\n---\n\n## EXTRAS\n');
+        out.push('\n---\n\n## ⚖️ EXTRAS / OBJECIONES\n');
         out.push(extrasMd);
     }
 
@@ -52,7 +52,7 @@ export function composePromptFromSections(sections: z.infer<typeof SectionsDraft
     if (sections.management?.steps?.length) {
         const managementMd = buildManagementMarkdown(sections.management);
         if (nonEmpty(managementMd)) {
-            out.push('\n---\n\n## GESTIÓN\n');
+            out.push('\n---\n\n## 📦 GESTIÓN / CIERRE\n');
             out.push(managementMd);
         }
     }

@@ -4,7 +4,7 @@ import { BusinessDraftSchema } from "@/types/agentAi";
 
 export function buildBusinessHeader(business: z.infer<typeof BusinessDraftSchema>): string {
     const lines: string[] = [];
-    lines.push(`## DATOS DEL NEGOCIO\n`);
+    lines.push(`## 🏢 DATOS DEL NEGOCIO\n`);
     lines.push(`* **Nombre:** ${nonEmpty(business.nombre)}`);
     if (nonEmpty(business.sector)) lines.push(`* **Sector/Rubro:** ${business.sector}`);
     if (nonEmpty(business.ubicacion)) lines.push(`* **Ubicación/Dirección:** ${business.ubicacion}`);

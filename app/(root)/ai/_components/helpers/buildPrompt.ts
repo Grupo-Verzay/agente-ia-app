@@ -9,7 +9,7 @@ export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name:
     //   return `Completa al menos el nombre del negocio para generar el prompt.`;
     // }
 
-    lines.push(`## DATOS DEL NEGOCIO\n`);
+    lines.push(`## 🏢 DATOS DEL NEGOCIO\n`);
     lines.push(`* **Nombre:** ${v.nombre.trim()}`);
 
     add(lines, "* **Sector/Rubro:**", v.sector);
@@ -28,27 +28,27 @@ export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name:
     }
 
     if (v.training?.trim()) {
-        lines.push("\n---\n\n## INICIO\n");
+        lines.push("\n---\n\n## 👋 INICIO / BIENVENIDA\n");
         lines.push(v.training.trim());
     }
 
     if (v.faq?.trim()) {
-        lines.push("\n---\n\n## PREGUNTAS & RESPUESTAS\n");
+        lines.push("\n---\n\n## ❓ PREGUNTAS & RESPUESTAS\n");
         lines.push(v.faq.trim());
     }
 
     if (v.products?.trim()) {
-        lines.push("\n---\n\n## CATÁLOGO / PRODUCTOS\n");
+        lines.push("\n---\n\n## 💎 PRODUCTOS Y SERVICIOS\n");
         lines.push(v.products.trim());
     }
 
     if (v.more?.trim()) {
-        lines.push("\n---\n\n## EXTRAS\n");
+        lines.push("\n---\n\n## ⚖️ EXTRAS / OBJECIONES\n");
         lines.push(v.more.trim());
     }
 
     if (v.management?.trim()) {
-        lines.push("\n---\n\n## GESTIÓN\n");
+        lines.push("\n---\n\n## 📦 GESTIÓN / CIERRE\n");
         lines.push(v.management.trim());
     }
 

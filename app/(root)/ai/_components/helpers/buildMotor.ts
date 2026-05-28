@@ -37,7 +37,7 @@ export function buildMotorFromTrainingSteps(steps: Step[]): string {
         `| FIN | — | Paso P${steps.length} completado |`,
     ].join('\n');
 
-    return `## 🔒 MOTOR DE FLUJO DETERMINISTA
+    return `## 🔒 MOTOR FLUJO DETERMINISTA
 Estado interno: **current_step** — inicia en P1 en cada conversación nueva.
 
 ### TABLA DE TRANSICIÓN
