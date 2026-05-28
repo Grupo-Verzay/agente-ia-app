@@ -189,11 +189,12 @@ export const FunctionSelector = ({
                         {/* Botón visible en ambos modos */}
                         <Button
                             type="button"
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            size="sm"
+                            className="gap-2"
                             onClick={() => onOpenChange(true)}
                         >
-                            <Zap className="mr-2 h-4 w-4" />
-                            {isManagement ? "Agregar acción" : "Agregar acción"}
+                            <Zap className="h-4 w-4" />
+                            Agregar acción
                         </Button>
                     </PopoverTrigger>
 

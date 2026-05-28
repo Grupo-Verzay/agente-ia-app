@@ -57,7 +57,11 @@ export const BusinessPromptBuilder = ({
     version,
     onVersionChange,
     onConflict,
-    registerSaveHandler
+    registerSaveHandler,
+    firmaEnabled,
+    signatureName,
+    onFirmaEnabledChange,
+    onSignatureNameChange,
 }: BusinessPromptBuilderProps) => {
     const [selectedFields, setSelectedFields] = useState<string[]>([]);
     const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
@@ -336,7 +340,64 @@ export const BusinessPromptBuilder = ({
                                 )}
                             </div>
 
-                            {/* Notas */}
+                            <Separator />
+
+                            {/* Firma + Campos adicionales en grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <Card className="bg-muted/20 border-muted/60">
+                                    <CardContent className="py-3 px-4 space-y-2">
+                                        <span className="text-sm font-semibold">Firma del agente</span>
+                                        <Input
+                                            placeholder="Ej. Asistente Virtual"
+                                            value={signatureName}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                onSignatureNameChange(val);
+                                                onFirmaEnabledChange(val.trim().length > 0);
+                                            }}
+                                            className="h-8"
+                                        />
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="bg-muted/20 border-muted/60">
+                                    <CardContent className="py-3 px-4 space-y-2">
+                                        <span className="text-sm font-semibold">Campos adicionales</span>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" role="combobox" className="justify-between w-full">
+                                                    Seleccionar campos...
+                                                    <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="p-0 w-[280px]">
+                                                <Command>
+                                                    <CommandInput placeholder="Buscar campo..." />
+                                                    <CommandList>
+                                                        <CommandGroup>
+                                                            {optionalFields.map((field) => {
+                                                                const added = isAdded(field.value as keyof FormValues);
+                                                                return (
+                                                                    <CommandItem
+                                                                        key={field.value}
+                                                                        onSelect={() => toggleField(field.value)}
+                                                                        aria-selected={added}
+                                                                    >
+                                                                        <Check className={cn("mr-2 h-4 w-4", added ? "opacity-100" : "opacity-0")} />
+                                                                        {field.label}
+                                                                    </CommandItem>
+                                                                );
+                                                            })}
+                                                        </CommandGroup>
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            {/* Notas — siempre al final */}
                             {shouldShow("notas") && (
                                 <FormField control={form.control} name="notas" render={({ field }) => (
                                     <Card className="bg-muted/20 border-muted/60">
@@ -356,43 +417,6 @@ export const BusinessPromptBuilder = ({
                                     </Card>
                                 )} />
                             )}
-
-                            <Separator />
-
-                            {/* Selector de Campos Adicionales */}
-                            <div className="flex flex-col gap-2">
-                                <span className="text-sm font-semibold">Campos adicionales</span>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button variant="outline" role="combobox" className="justify-between">
-                                            Seleccionar campos...
-                                            <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="p-0 w-[280px]">
-                                        <Command>
-                                            <CommandInput placeholder="Buscar campo..." />
-                                            <CommandList>
-                                                <CommandGroup>
-                                                    {optionalFields.map((field) => {
-                                                        const added = isAdded(field.value as keyof FormValues);
-                                                        return (
-                                                            <CommandItem
-                                                                key={field.value}
-                                                                onSelect={() => toggleField(field.value)}
-                                                                aria-selected={added}
-                                                            >
-                                                                <Check className={cn("mr-2 h-4 w-4", added ? "opacity-100" : "opacity-0")} />
-                                                                {field.label}
-                                                            </CommandItem>
-                                                        );
-                                                    })}
-                                                </CommandGroup>
-                                            </CommandList>
-                                        </Command>
-                                    </PopoverContent>
-                                </Popover>
-                            </div>
 
                         </form>
                     </Form>

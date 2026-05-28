@@ -437,7 +437,7 @@ export type SectionsPromptSystem = {
 export interface MainAiInterface {
     flows: Workflow[];
     user: UserWithApiKeys;
-    promptMeta: { id: string; version: number };
+    promptMeta: { id: string; version: number; businessName?: string | null };
     paymentReceiptPrompt?: {
         id: string;
         version: number;
@@ -502,6 +502,10 @@ export type BusinessPromptBuilderProps = BusinessBuilderInterface & {
     onVersionChange: (v: number) => void;
     onConflict?: (serverState: any) => void;
     registerSaveHandler?: (fn: () => Promise<void>) => void;
+    firmaEnabled: boolean;
+    signatureName: string;
+    onFirmaEnabledChange: (v: boolean) => void;
+    onSignatureNameChange: (v: string) => void;
 };
 
 export interface PromptPreviewInterface {
@@ -726,6 +730,10 @@ export interface ExtraInfoBuilderProps {
     onConflict?: (serverState: any) => void;
     registerSaveHandler?: (fn: () => Promise<void>) => void;
     initialExtras?: { items?: Array<any>; firmaEnabled?: boolean; firmaText?: string, firmaName?: string };
+    firmaEnabled: boolean;
+    signatureName: string;
+    onFirmaEnabledChange: (v: boolean) => void;
+    onSignatureNameChange: (v: string) => void;
 }
 
 export interface FunctionSelectorInterface {

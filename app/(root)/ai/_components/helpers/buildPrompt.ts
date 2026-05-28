@@ -1,7 +1,23 @@
 import { BusinessValues } from "@/types/agentAi";
 import { addPromptItem as add } from "./";
 
-export const buildPrompt = (v: BusinessValues): string => {
+const FIRMA_TEMPLATE =
+    "### FIRMA DEL AGENTE\n" +
+    "* **Nombre:** *@name*.\n" +
+    "* **Firma obligatoria:** Cada mensaje debe iniciar con `*@name*` — NUNCA al final.\n" +
+    "* **Siempre pon la firma:** *@name* al inicio de cada mensaje o respuesta que le des al usuario. Esto permite mantener una identidad clara del agente y una conversación ordenada.\n\n" +
+    "### Ejemplo de uso real:\n\n" +
+    "**Usuario:**\n" +
+    "¿Quien eres?\n\n" +
+    "**Respuesta del agente:**\n" +
+    "@name\n" +
+    "Soy un asistente virtual. ¿En qué puedo ayudarte hoy?";
+
+function buildFirmaBlock(name: string): string {
+    return FIRMA_TEMPLATE.replaceAll("@name", name.trim());
+}
+
+export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name: string }): string => {
     const lines: string[] = [];
 
     // if (!v.nombre?.trim()) {
@@ -53,6 +69,10 @@ export const buildPrompt = (v: BusinessValues): string => {
     if (v.management?.trim()) {
         lines.push("\n---\n\n## GESTIÓN\n");
         lines.push(v.management.trim());
+    }
+
+    if (firma?.enabled && firma.name.trim()) {
+        lines.push("\n---\n\n" + buildFirmaBlock(firma.name));
     }
 
     return lines.join("\n");

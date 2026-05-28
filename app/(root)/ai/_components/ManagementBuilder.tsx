@@ -16,7 +16,7 @@ import ElementRenderer from "./action-steeps/ElementRenderer";
 import { FunctionSelector } from "./FunctionSelector";
 import { PromptFragment } from "./helpers/prompt-fragments";
 import { getUserAppointmentUrl } from "@/actions/userClientDataActions";
-import { GripVertical, ChevronDown, Trash2 } from "lucide-react";
+import { GripVertical, ChevronDown, Trash2, Copy } from "lucide-react";
 
 import {
     AlertDialog,
@@ -171,7 +171,7 @@ export const ManagementBuilder = ({
     const [appointmentUrl, setAppointmentUrl] = useState<string>("");
 
     const [expandedSteps, setExpandedSteps] = useState<Set<string>>(
-        () => new Set((Array.isArray(initialItems) ? initialItems : []).map((s: any) => s.id))
+        () => { const src = Array.isArray(initialItems) ? initialItems : []; return src.length <= 1 ? new Set(src.map((s: any) => s.id)) : new Set<string>(); }
     );
 
     const toggleStep = useCallback((id: string) => {
@@ -359,6 +359,18 @@ export const ManagementBuilder = ({
 
     const removeStep = (id: string) =>
         setSteps((prev) => prev.filter((s) => s.id !== id));
+
+    const duplicateStep = (id: string) => {
+        setStepsAuto((prev) => {
+            const idx = prev.findIndex((s) => s.id === id);
+            if (idx < 0) return prev;
+            const copy = { ...prev[idx], id: nanoid(), title: `${prev[idx].title} (COPIA)`, elements: prev[idx].elements.map((el: any) => ({ ...el, id: nanoid() })) };
+            const next = [...prev];
+            next.splice(idx + 1, 0, copy);
+            setExpandedSteps((es) => new Set([...es, copy.id]));
+            return next;
+        });
+    };
 
     const updateTitle = (id: string, v: string) =>
         setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, title: v.toUpperCase() } : s)));
@@ -615,7 +627,7 @@ export const ManagementBuilder = ({
                                                             )}
                                                         </div>
 
-                                                        {/* Chevron + eliminar */}
+                                                        {/* Chevron + duplicar + eliminar */}
                                                         <div className="flex items-center gap-1 shrink-0">
                                                             <button
                                                                 type="button"
@@ -625,8 +637,16 @@ export const ManagementBuilder = ({
                                                             >
                                                                 <ChevronDown
                                                                     className="h-4 w-4 transition-transform duration-200"
-                                                                    style={{ transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                                                                    style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
                                                                 />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+                                                                onClick={() => duplicateStep(step.id)}
+                                                                title="Duplicar gestión"
+                                                            >
+                                                                <Copy className="h-3.5 w-3.5" />
                                                             </button>
 
                                                             <AlertDialog>
@@ -672,7 +692,7 @@ export const ManagementBuilder = ({
                                                         <div className="overflow-hidden">
                                                             <CardContent className="space-y-3 pt-0 pb-3 px-3">
                                                                 {!step.elements || step.elements.length === 0 ? (
-                                                                    <div className="text-center text-sm text-muted-foreground py-4">
+                                                                    <div className="text-center text-sm text-muted-foreground py-2">
                                                                         No hay elementos en esta gestión. Agrega funciones o textos usando los botones de abajo.
                                                                     </div>
                                                                 ) : (
@@ -759,8 +779,7 @@ export const ManagementBuilder = ({
             </CardContent>
 
             {steps.length > 0 && (
-                <CardFooter className="pb-2 flex items-center justify-between gap-2 flex-row">
-                    <CardTitle className="text-base uppercase">Gestión</CardTitle>
+                <CardFooter className="pb-2 flex justify-end">
                     <FunctionSelector
                         notificationNumber={notificationNumber ?? ""}
                         isManagement={true}
