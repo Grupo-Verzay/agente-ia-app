@@ -1,6 +1,7 @@
 // builders.ts
 import { z } from "zod";
 import { buildSectionedMarkdown } from "./markdownBuilder";
+import { buildMotorFromTrainingSteps } from "./buildMotor";
 import { ExtrasDraftSchema, FaqDraftSchema, flowBehaviorText, ProductsDraftSchema, TrainingDraftSchema, ManagementDraftSchema } from "@/types/agentAi";
 
 // FAQ: título + label + mainMessage como respuesta directa
@@ -27,7 +28,9 @@ export function buildProductsMarkdown(products: z.infer<typeof ProductsDraftSche
 }
 
 export function buildTrainingMarkdown(training: z.infer<typeof TrainingDraftSchema>): string {
-    return buildSectionedMarkdown(training, FULL_CFG);
+    const stepsMd = buildSectionedMarkdown(training, FULL_CFG);
+    const motorMd = buildMotorFromTrainingSteps(training?.steps ?? []);
+    return [stepsMd, motorMd].filter(Boolean).join('\n\n');
 }
 
 export function buildManagementMarkdown(management: z.infer<typeof ManagementDraftSchema>): string {

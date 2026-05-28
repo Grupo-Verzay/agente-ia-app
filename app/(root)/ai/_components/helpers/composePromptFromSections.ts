@@ -3,7 +3,6 @@ import { buildBusinessHeader } from "./buildBusinessHeader";
 import { nonEmpty } from "./nonEmpty";
 import { SectionsDraftSchema } from "@/types/agentAi";
 import { buildExtrasMarkdown, buildFaqMarkdown, buildManagementMarkdown, buildProductsMarkdown, buildTrainingMarkdown } from "./actionsBuilders";
-import { buildMotorFromTrainingSteps } from "./buildMotor";
 
 export function composePromptFromSections(sections: z.infer<typeof SectionsDraftSchema>): string {
     if (!nonEmpty(sections.business?.nombre)) {
@@ -52,13 +51,7 @@ export function composePromptFromSections(sections: z.infer<typeof SectionsDraft
         }
     }
 
-    // 7. Motor de Flujo Determinista — siempre al final, construido desde los pasos de INICIO
-    const motorMd = buildMotorFromTrainingSteps(sections.training?.steps ?? []);
-    if (nonEmpty(motorMd)) {
-        out.push('\n' + motorMd);
-    }
-
-    // 8. Firma del agente (si está habilitada)
+    // 7. Firma del agente (si está habilitada)
     const firmaText = sections.extras?.firmaText?.trim();
     if (sections.extras?.firmaEnabled && firmaText) {
         out.push('\n---\n\n' + firmaText);
