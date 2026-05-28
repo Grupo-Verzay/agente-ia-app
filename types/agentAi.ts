@@ -917,11 +917,11 @@ export type ManagementBuilderProps = {
     notificationNumber?: string
 };
 
-export const flowBehaviorText = `* **Comportamiento obligatorio:** 
+export const flowBehaviorText = `* **COMPORTAMIENTO OBLIGATORIO:**
   1. Tras ejecutar un flujo, responde **únicamente** lo indicado en **Regla/parámetro**.
   2. Si **no hay una orden clara**, formula una **pregunta contextual** para guiar al usuario al siguiente paso lógico de la conversación. **No añadas texto innecesario.**`
 export const notifyPrompt = `**Función**: Ejecuta la tool 'Notificacion Asesor'
-* **Comportamiento obligatorio:**
+* **COMPORTAMIENTO OBLIGATORIO:**
   1. Después de ejecutar la tool, tu única respuesta es la que se te indique en **Regla/parámetro**.
   2. Si **no hay una orden clara**, envía el siguiente **mensaje de confirmación** al usuario:
 📝 ¡He *notificado* al area encargada!
