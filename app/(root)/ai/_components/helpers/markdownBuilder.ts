@@ -122,7 +122,9 @@ export function buildSectionedMarkdown(
         const n = idx + 1;
 
         if (renderMode === "answer") {
-            const head = nonEmpty(s.title) ? `### ${n}. ${s.title}` : `### ${n}.`;
+            const head = nonEmpty(s.title)
+                ? `### ${sectionPrefix} ${n} — (${s.title})`
+                : `### ${sectionPrefix} ${n}`;
             const label = resolveLabel(n);
             const body: string[] = [];
             if (nonEmpty(s.mainMessage)) {
@@ -151,7 +153,9 @@ export function buildSectionedMarkdown(
         }
 
         if (renderMode === "management") {
-            const head = `### ${sectionPrefix} ${n}` + (nonEmpty(s.title) ? `: ${s.title}` : "");
+            const head = nonEmpty(s.title)
+                ? `### ${sectionPrefix} ${n} — (${s.title})`
+                : `### ${sectionPrefix} ${n}`;
             const body: string[] = [];
             const label = resolveLabel(n);
             if (label && nonEmpty(s.mainMessage)) {
