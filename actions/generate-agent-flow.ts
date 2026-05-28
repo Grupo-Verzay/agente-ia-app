@@ -2,6 +2,7 @@
 
 import { currentUser } from '@/lib/auth';
 import { resolveUserAiClient } from '@/actions/userAiconfig-actions';
+import { WELCOME_MAIN_MESSAGE, WELCOME_TITLE } from '@/app/(root)/ai/_components/helpers/trainingDefaults';
 import {
     patchBusinessSection,
     patchExtrasSection,
@@ -479,9 +480,17 @@ MANAGEMENT: OBLIGATORIO — NUNCA dejar management.steps vacío. Analiza el tipo
     const genA = resA.data;
     const genB = resB.data;
 
+    const trainingSteps = assignRealIds(genA.training?.steps);
+
+    // Paso 1 (BIENVENIDA) siempre usa el template canónico — nunca el generado por la IA
+    if (trainingSteps.length > 0) {
+        trainingSteps[0].title       = WELCOME_TITLE;
+        trainingSteps[0].mainMessage = WELCOME_MAIN_MESSAGE;
+    }
+
     const sections: GeneratedSections = {
         business: genA.business ?? {},
-        training: { steps: assignRealIds(genA.training?.steps) },
+        training: { steps: trainingSteps },
         faq:      { steps: assignRealIds(genA.faq?.steps) },
         products: { steps: assignRealIds(genB.products?.steps) },
         extras: {
