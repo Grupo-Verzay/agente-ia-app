@@ -142,16 +142,6 @@ export function buildSectionedMarkdown(
             return [head, ...body].filter(Boolean).join("\n\n");
         }
 
-        if (renderMode === "qa") {
-            // Productos / Extras: título + solo elementos de texto (sin mainMessage, sin funciones)
-            const head = nonEmpty(s.title) ? `### ${n}. ${s.title}` : `### ${n}.`;
-            const body = (s.elements ?? [])
-                .filter((el) => (el as AnyElement).kind === "text")
-                .flatMap((el) => renderElement(el as AnyElement, flowBehaviorText))
-                .filter(Boolean);
-            return [head, ...body].join("\n\n");
-        }
-
         if (renderMode === "management") {
             const head = nonEmpty(s.title)
                 ? `### ${sectionPrefix} ${n} — (${s.title})`
