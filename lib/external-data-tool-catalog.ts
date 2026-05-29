@@ -22,7 +22,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'Notificacion_Asesor',
     defaultDisplayName: 'Notificación al asesor',
     defaultDescription:
-      'Utiliza esta **tool** para notificar al asesor humano cuando el cliente lo solicite explícitamente, cuando exista un registro guardado (solicitud/pedido/cita/pago/reclamo), o cuando el cliente envíe una **Imagen de comprobante de pago que requiere validación.**. Consulta las reglas completas en [3.1] del sistema antes de ejecutar.',
+      'Utiliza esta **tool** para notificar al asesor humano cuando el cliente lo solicite explícitamente, hayan (solicitudes complejas, dudas de pago o agendamiento), exista un registro guardado (solicitud/pedido/cita/pago/reclamo), o cuando el cliente envíe una **Imagen de comprobante de pago que requiere validación**. Consulta las reglas completas en [3.1] del sistema antes de ejecutar.',
     isCritical: true,
     helpText:
       'Envía una notificación interna al equipo de soporte cuando el cliente lo necesita. Recomendado tener siempre habilitada.',
