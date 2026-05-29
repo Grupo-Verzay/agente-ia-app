@@ -640,6 +640,17 @@ export const CAPTURE_SNIPPETS: Record<
     Citas: "URL de agendamiento",
 };
 
+export const CAPTURA_MAIN_MESSAGES: Record<
+    "Solicitudes" | "Reclamos" | "Pedidos" | "Reservas" | "Citas",
+    string
+> = {
+    Solicitudes: "Cuando un usuario exprese una solicitud, recopila todos los datos **uno a uno** o **en una sola toma si el usuario los da completos** de la siguiente manera:",
+    Reclamos: "Cuando un usuario exprese una queja o problema, debes recopilar los datos **uno a uno** o **en una sola toma si el usuario los da completos** de la siguiente manera:",
+    Pedidos: "Cuando un usuario exprese realizar un **pedido**, recopila todos los datos **uno a uno** o **en una sola toma si el usuario los da completos** de la siguiente manera:",
+    Reservas: "Cuando un usuario exprese una reserva, recopila todos los datos **uno a uno** o **en una sola toma si el usuario los da completos** de la siguiente manera:",
+    Citas: "Cuando un usuario exprese agendar una **cita**",
+};
+
 export const CONSULTA_DATOS_SNIPPET = `**Consultar Productos**. Si no hay un flujo activo y el usuario pregunta por un producto, ejecuta esta herramienta.
 - *Disparadores:* “imagen”, “foto”, “video”, “pdf”, “documento”, “ver”, “ver el producto”, “muéstrame”, “catálogo”.`
 

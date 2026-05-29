@@ -48,7 +48,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { CAPTURE_SNIPPETS } from "@/types/agentAi";
+import { CAPTURE_SNIPPETS, CAPTURA_MAIN_MESSAGES } from "@/types/agentAi";
 import type {
     AnyStep,
     ElementItem,
@@ -303,11 +303,16 @@ export const ManagementBuilder = ({
             element = { ...element, prompt: appointmentUrl } as ElementItem;
         }
         const title = (getElementLabel(element) || "Bloque").toUpperCase();
+        const fe2 = element as ElementFunction;
+        const autoMainMessage =
+            element.kind === "function" && fe2.fn === "captura_datos" && (element as any).subtype
+                ? CAPTURA_MAIN_MESSAGES[(element as any).subtype as keyof typeof CAPTURA_MAIN_MESSAGES] ?? ""
+                : "";
         const newId = nanoid();
         const newStep: ManagementItem = {
             id: newId,
             title,
-            mainMessage: "",
+            mainMessage: autoMainMessage,
             elements: [element],
             openPicker: false,
         };
