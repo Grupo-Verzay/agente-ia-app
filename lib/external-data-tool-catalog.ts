@@ -175,7 +175,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'leer_google_sheets',
     defaultDisplayName: 'Leer Google Sheets',
     defaultDescription:
-      'Lee datos de una hoja de cálculo pública de Google Sheets. Úsala cuando el cliente pregunte por información que está en una hoja de cálculo: precios, inventario, horarios, listas, etc. La hoja debe estar compartida como "Cualquiera con el enlace puede ver".',
+      'Lee datos de una hoja de cálculo pública de Google Sheets. Úsala cuando el cliente pregunte por información relacionada que está en la hoja de cálculo como: precios, inventario, listas, etc. Retornar TODAS las filas coincidentes. La hoja está compartida como "Cualquiera con el enlace puede ver".\n\nEntregar la información correspondiente con el formato único establecido. NO agregues columna ni valor — devuelve todas las filas con los precios, inventario, listas, etc. disponibles tal como están en la hoja.\n\nDevuelve TODAS las filas disponibles con la información que encuentres (pueden ser entre 1 y 12 filas). Mostrar TODAS las filas devueltas sin recortar. NO limitar a 3. PROHIBIDO inventar datos.',
     isCritical: false,
     helpText:
       'El agente puede consultar cualquier Google Sheet público en tiempo real. Requiere la URL completa de la hoja. Devuelve hasta 10 filas con todos los campos. Ideal para precios, inventarios o datos que cambian frecuentemente.',
