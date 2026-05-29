@@ -33,7 +33,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'Ejecutar_Flujos',
     defaultDisplayName: 'Ejecutar flujos automatizados',
     defaultDescription:
-      'Siempre consulta y ejecuta si existen flujos disponibles en la base de datos que correspondan a la solicitud del usuario. Si se encuentra un flujo, se ejecuta. Si no hay flujos, la IA continúa la conversación normalmente.',
+      'Siempre consulta y ejecuta esta **tool** si existen flujos disponibles en la base de datos que correspondan a la solicitud del usuario. Si se encuentra un flujo, se ejecuta. Si no hay flujos, la IA continúa la conversación normalmente.',
     isCritical: true,
     helpText:
       'Permite al agente disparar flujos automatizados configurados en el sistema. Es crítica para el funcionamiento de la automatización.',
