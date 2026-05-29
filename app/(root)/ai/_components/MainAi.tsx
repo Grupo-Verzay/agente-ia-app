@@ -164,6 +164,26 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
         return done;
     }, [values]);
 
+    const tabCounts = useMemo((): Record<TabKey, number> => {
+        const businessFields = [
+            sections?.business?.nombre, sections?.business?.sector,
+            sections?.business?.ubicacion, sections?.business?.horarios,
+            sections?.business?.maps, sections?.business?.telefono,
+            sections?.business?.email, sections?.business?.sitio,
+            sections?.business?.facebook, sections?.business?.instagram,
+            sections?.business?.tiktok, sections?.business?.youtube,
+            sections?.business?.notas,
+        ];
+        return {
+            business: businessFields.filter((f) => f?.trim()).length,
+            training: sections?.training?.steps?.length ?? 0,
+            faq: sections?.faq?.steps?.length ?? 0,
+            products: sections?.products?.steps?.length ?? 0,
+            more: sections?.extras?.steps?.length ?? 0,
+            management: sections?.management?.steps?.length ?? 0,
+        };
+    }, [sections]);
+
     const completionCount = completedTabs.size;
     const totalTabs = Object.keys(TYPE_AI_LABELS).length;
 
@@ -205,6 +225,11 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                         >
                                             <span className="flex items-center gap-1.5">
                                                 {TYPE_AI_LABELS[key]}
+                                                {tabCounts[key] > 0 && (
+                                                    <span className="text-[10px] font-semibold leading-none bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                                                        {tabCounts[key]}
+                                                    </span>
+                                                )}
                                                 {completedTabs.has(key) && (
                                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
                                                 )}
