@@ -1177,17 +1177,19 @@ export async function updateSessionLeadStatus(
       },
     });
 
-    // Si se marca como DESCARTADO manualmente → cancelar todos los seguimientos pendientes
+    // Si se marca como DESCARTADO → eliminar todos los seguimientos, recordatorios y follow-ups
     if (isDescartado) {
-      await db.crmFollowUp.updateMany({
-        where: { sessionId, status: 'PENDING' },
-        data: { status: 'CANCELLED', cancelledAt: new Date() },
-      });
+      // Eliminar CRM follow-ups
+      await db.crmFollowUp.deleteMany({ where: { sessionId } });
 
+      // Eliminar todos los seguimientos (mensajes programados) del contacto
       if (session.remoteJid) {
-        await db.seguimiento.updateMany({
-          where: { remoteJid: session.remoteJid, followUpStatus: 'pending' },
-          data: { followUpStatus: 'cancelled' },
+        await db.seguimiento.deleteMany({ where: { remoteJid: session.remoteJid } });
+
+        // Limpiar referencias de seguimientos en la sesión
+        await db.session.update({
+          where: { id: sessionId },
+          data: { seguimientos: null, inactividad: null },
         });
       }
 
