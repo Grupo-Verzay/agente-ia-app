@@ -43,7 +43,7 @@ export const BUILTIN_TOOL_CATALOG: {
     toolType: 'listar_workflows',
     defaultKey: 'listar_workflows',
     defaultDisplayName: 'Listar flujos disponibles',
-    defaultDescription: 'Devuelve todos los flujos disponibles para este usuario.',
+    defaultDescription: 'Devuelve todos los **flujos** disponibles para este cliente.',
     isCritical: true,
     helpText:
       'Permite al agente conocer qué flujos automáticos están disponibles antes de ejecutarlos.',
