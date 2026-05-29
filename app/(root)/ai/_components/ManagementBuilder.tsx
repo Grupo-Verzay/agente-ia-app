@@ -456,7 +456,10 @@ export const ManagementBuilder = ({
                     : CAPTURE_SNIPPETS[subtype];
                 return {
                     ...s,
-                    ...(isCaptura ? { title: subtype.toUpperCase() } : {}),
+                    ...(isCaptura ? {
+                        title: subtype.toUpperCase(),
+                        mainMessage: CAPTURA_MAIN_MESSAGES[subtype] ?? s.mainMessage,
+                    } : {}),
                     elements: s.elements.map((el) =>
                         el.id === elementId
                             ? { ...el, subtype, ...(isCaptura ? { prompt: newPrompt } : {}) }
