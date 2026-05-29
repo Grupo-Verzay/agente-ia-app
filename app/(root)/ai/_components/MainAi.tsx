@@ -230,9 +230,6 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                                         {tabCounts[key]}
                                                     </span>
                                                 )}
-                                                {completedTabs.has(key) && (
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-                                                )}
                                             </span>
                                         </button>
                                     </TooltipTrigger>
