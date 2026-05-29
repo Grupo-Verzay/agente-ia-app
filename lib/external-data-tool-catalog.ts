@@ -131,7 +131,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'etiquetar_contacto',
     defaultDisplayName: 'Etiquetar contacto',
     defaultDescription:
-      'Aplica una etiqueta al contacto actual según el contexto de la conversación. Úsala cuando identifiques el estado o interés del cliente: "interesado", "cliente activo", "soporte pendiente", "no interesado", etc.',
+      'Aplica una etiqueta al contacto tan pronto identifiques su intención o interés — no esperes al final de la conversación.\n\n**ETIQUETAS DISPONIBLES** (elige la más específica):\n- "interesado": preguntó por precios, disponibilidad o quiere más info de un producto/servicio.\n- "listo_para_comprar": pidió agendar, cotizar o tiene intención de cerrar.\n- "no_interesado": descartó explícitamente el servicio.\n- "soporte_pendiente": tiene un problema o queja activa.\n\n**REGLAS:**\n- Usa SIEMPRE una de estas etiquetas cuando se cumpla la condición, sin importar si el cliente lo dijo explícitamente o se infiere del contexto.\n- Si mencionó su sector/rubro, inclúyelo en la etiqueta: "interesado_estetica", "listo_para_comprar_restaurante", etc.\n- Usa "sin_etiqueta" SOLO si no hay ningún indicio de intención.',
     isCritical: false,
     helpText:
       'Crea y asigna etiquetas al contacto automáticamente. Si la etiqueta no existe, se crea. Útil para segmentar contactos desde la conversación.',
