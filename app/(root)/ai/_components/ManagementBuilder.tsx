@@ -48,6 +48,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+import { CAPTURE_SNIPPETS } from "@/types/agentAi";
 import type {
     AnyStep,
     ElementItem,
@@ -69,6 +70,7 @@ function getElementLabel(el?: ElementItem): string {
     return (
         (anyEl.label as string | undefined) ||
         (anyEl.name as string | undefined) ||
+        (anyEl.subtype as string | undefined) ||
         (anyEl.flowName as string | undefined) ||
         (anyEl.fn as string | undefined) ||
         (el.kind === "text" ? "Texto" : "Acción")
@@ -193,7 +195,23 @@ export const ManagementBuilder = ({
         const fetchUrl = async () => {
             try {
                 const url = await getUserAppointmentUrl();
-                if (!cancelled) setAppointmentUrl(url || "");
+                if (!cancelled) {
+                    setAppointmentUrl(url || "");
+                    if (url) {
+                        setSteps((prev) =>
+                            prev.map((s) => ({
+                                ...s,
+                                elements: s.elements.map((el) => {
+                                    const fe = el as ElementFunction;
+                                    if (el.kind === "function" && fe.fn === "captura_datos" && (el as any).subtype === "Citas") {
+                                        return { ...el, prompt: url };
+                                    }
+                                    return el;
+                                }),
+                            }))
+                        );
+                    }
+                }
             } catch {
                 if (!cancelled) setAppointmentUrl("");
             }
@@ -279,7 +297,11 @@ export const ManagementBuilder = ({
     }, [managementPreview, steps]);
 
     const createStepFromElement = (el: ElementItem) => {
-        const element: ElementItem = { ...el, id: el.id ?? nanoid() };
+        let element: ElementItem = { ...el, id: el.id ?? nanoid() };
+        const fe = element as ElementFunction;
+        if (element.kind === "function" && fe.fn === "captura_datos" && (element as any).subtype === "Citas" && appointmentUrl) {
+            element = { ...element, prompt: appointmentUrl } as ElementItem;
+        }
         const title = (getElementLabel(element) || "Bloque").toUpperCase();
         const newId = nanoid();
         const newStep: ManagementItem = {
@@ -420,16 +442,23 @@ export const ManagementBuilder = ({
 
     const onSubtypeChange = (stepId: string, elementId: string, subtype: DataSubtype) => {
         setSteps((prev) =>
-            prev.map((s) =>
-                s.id === stepId
-                    ? {
-                        ...s,
-                        elements: s.elements.map((el) =>
-                            el.id === elementId ? { ...el, subtype } : el
-                        ),
-                    }
-                    : s
-            )
+            prev.map((s) => {
+                if (s.id !== stepId) return s;
+                const changedEl = s.elements.find((el) => el.id === elementId);
+                const isCaptura = changedEl?.kind === "function" && (changedEl as ElementFunction).fn === "captura_datos";
+                const newPrompt = subtype === "Citas" && appointmentUrl
+                    ? appointmentUrl
+                    : CAPTURE_SNIPPETS[subtype];
+                return {
+                    ...s,
+                    ...(isCaptura ? { title: subtype.toUpperCase() } : {}),
+                    elements: s.elements.map((el) =>
+                        el.id === elementId
+                            ? { ...el, subtype, ...(isCaptura ? { prompt: newPrompt } : {}) }
+                            : el
+                    ),
+                };
+            })
         );
     };
 
