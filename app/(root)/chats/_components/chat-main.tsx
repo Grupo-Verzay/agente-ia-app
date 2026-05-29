@@ -15,9 +15,11 @@ import type { Session, SimpleTag } from '@/types/session';
 import type { AdvisorInfo } from '@/actions/team-actions';
 
 import { reactToMessageAction, deleteMessageAction } from '@/actions/chat-manual-actions';
+import { generateSuggestedReplyAction } from '@/actions/ai-suggested-reply-action';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatInputBar } from './ChatInputBar';
+import { SuggestedReplyBar } from './SuggestedReplyBar';
 import { ContactEditDialog } from './ContactEditDialog';
 import { useChatSession } from './hooks/useChatSession';
 import { useAudioRecording } from './hooks/useAudioRecording';
@@ -96,6 +98,12 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [tempMessage, setTempMessage] = useState<UIBubble | null>(null);
   const [isContactEditorOpen, setIsContactEditorOpen] = useState(false);
 
+  /* ─── AI suggested reply state ─── */
+  const [suggestion, setSuggestion] = useState('');
+  const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
+  const [suggestionError, setSuggestionError] = useState(false);
+  const lastTriggerIdRef = useRef<string | null>(null);
+
   /* ─── Custom hooks ─── */
   const {
     session,
@@ -163,6 +171,45 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 160) + 'px';
   }, [input]);
+
+  /* ─── AI suggested reply ─── */
+  const generateSuggestion = useCallback(async () => {
+    if (!userId || messages.length === 0) return;
+    setSuggestion('');
+    setSuggestionError(false);
+    setIsGeneratingSuggestion(true);
+    try {
+      const result = await generateSuggestedReplyAction({
+        userId,
+        messages,
+        contactName: header.name || null,
+      });
+      if (result.success && result.data?.reply) {
+        setSuggestion(result.data.reply);
+      } else {
+        setSuggestionError(true);
+      }
+    } catch {
+      setSuggestionError(true);
+    } finally {
+      setIsGeneratingSuggestion(false);
+    }
+  }, [userId, messages, header.name]);
+
+  // Usar ref para el useEffect para evitar dependencia circular con generateSuggestion
+  const generateSuggestionRef = useRef(generateSuggestion);
+  generateSuggestionRef.current = generateSuggestion;
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const latest = messages[0];
+    const latestId = latest.key?.id || latest.id || String(latest.messageTimestamp ?? '');
+    if (latest.key?.fromMe === false && latestId !== lastTriggerIdRef.current) {
+      lastTriggerIdRef.current = latestId;
+      void generateSuggestionRef.current();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
   /* ─── Compose handlers ─── */
   const handleComposeMediaChange = useCallback((m: ComposeMedia | null) => {
@@ -286,6 +333,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
 
     if (!payload) return;
     setReplyTo(null);
+    setSuggestion('');
+    setSuggestionError(false);
 
     const tempMsg: UIBubble = {
       id: `temp-${Date.now()}`,
@@ -372,6 +421,24 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onDeleteMessage={!advisorRole || advisorRole === 'administrador' ? handleDeleteMessage : undefined}
       />
 
+      <SuggestedReplyBar
+        suggestion={suggestion}
+        isLoading={isGeneratingSuggestion}
+        hasError={suggestionError}
+        onUse={(text) => {
+          setInput(text);
+          setSuggestion('');
+          setSuggestionError(false);
+          textareaRef.current?.focus();
+        }}
+        onRegenerate={() => void generateSuggestion()}
+        onDismiss={() => {
+          setSuggestion('');
+          setSuggestionError(false);
+          setIsGeneratingSuggestion(false);
+        }}
+      />
+
       <ChatInputBar
         input={input}
         composeMedia={composeMedia}
@@ -399,6 +466,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onSendQuickReply={onSendQuickReply}
         onSendWorkflow={onSendWorkflow}
         onSessionMutate={mutateSessionStatus}
+        onGenerateSuggestion={() => void generateSuggestion()}
       />
     </div>
   );

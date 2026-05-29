@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ArrowRight, Check, Mic, PenLine, Send, SendIcon, SmilePlus, Trash2, X } from 'lucide-react';
+import { ArrowRight, Check, Mic, PenLine, Send, SendIcon, SmilePlus, Sparkles, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +52,7 @@ interface ChatInputBarProps {
   onSendQuickReply: (quickReplyId: number) => Promise<ChatToolActionResult>;
   onSendWorkflow: (workflowId: string) => Promise<ChatToolActionResult>;
   onSessionMutate: () => void;
+  onGenerateSuggestion?: () => void;
 }
 
 export const ChatInputBar: React.FC<ChatInputBarProps> = ({
@@ -81,6 +82,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   onSendQuickReply,
   onSendWorkflow,
   onSessionMutate,
+  onGenerateSuggestion,
 }) => {
   const [signatureText, setSignatureText] = useState('');
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
@@ -390,6 +392,21 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           />
 
           <AttachmentMenu onComposeMediaChange={onComposeMediaChange} maxBase64MB={8} />
+
+          {/* Sugerencia IA */}
+          {!isRecording && !isPreviewingAudio && onGenerateSuggestion && (
+            <Button
+              onClick={onGenerateSuggestion}
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 rounded-full shrink-0 text-violet-500 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950"
+              aria-label="Generar respuesta sugerida con IA"
+              title="Generar sugerencia con IA"
+              type="button"
+            >
+              <Sparkles className="w-4 h-4" />
+            </Button>
+          )}
 
           {/* Emoji picker — izquierda, junto a adjuntos */}
           {!isRecording && !isPreviewingAudio && (
