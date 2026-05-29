@@ -157,25 +157,26 @@ async function runPostAppointmentTasks({
   const clientTimezone = getTimezoneFromPhone(phone, timezone);
 
   // 1. Confirmación del servicio al cliente via seguimiento (mismo mecanismo que confirm-appointment)
-  if (service?.messageText) {
-    const confirmMessage = formatReminderMessage(service.messageText, pushName, startTime, timezone, slotDuration, clientTimezone);
-    db.seguimiento.create({
-      data: {
-        idNodo: `appt-confirm-${serviceId}`,
-        serverurl: serverUrl,
-        instancia: instanceName,
-        apikey: evolutionApiKey,
-        remoteJid: phone,
-        mensaje: confirmMessage,
-        tipo: 'text',
-        time: '10',
-      },
-    }).then(() => {
-      console.log(`[schedule/notification] Seguimiento de confirmación creado para ${phone}`);
-    }).catch(err => {
-      console.error(`[schedule/notification] Error creando seguimiento de confirmación: ${err}`);
-    });
-  }
+  // Usa el mensaje del servicio si está configurado; de lo contrario, envía un mensaje genérico.
+  const confirmRawText = service?.messageText?.trim()
+    || `📝 ¡Tu cita ha sido registrada! Un asesor se pondrá en contacto contigo a la brevedad.`;
+  const confirmMessage = formatReminderMessage(confirmRawText, pushName, startTime, timezone, slotDuration, clientTimezone);
+  db.seguimiento.create({
+    data: {
+      idNodo: `appt-confirm-${serviceId}`,
+      serverurl: serverUrl,
+      instancia: instanceName,
+      apikey: evolutionApiKey,
+      remoteJid: phone,
+      mensaje: confirmMessage,
+      tipo: 'text',
+      time: '10',
+    },
+  }).then(() => {
+    console.log(`[schedule/notification] Seguimiento de confirmación creado para ${phone}`);
+  }).catch(err => {
+    console.error(`[schedule/notification] Error creando seguimiento de confirmación: ${err}`);
+  });
 
   // 2. Notificar al asesor/dueño (igual que el flujo público)
   const ownerPhones: string[] = [];

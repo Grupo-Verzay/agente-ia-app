@@ -284,24 +284,10 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
     };
 
     const scheduleAndNotify = async () => {
-        if (!user.apiKey || !primaryInstance) return toast.info("Campos incompletos o vacíos");
+        if (!primaryInstance) return toast.info("No se encontró instancia configurada.");
         if (!selectedService) return toast.info("Debes seleccionar un servicio");
 
         const normalizedClientName = nameClient.trim();
-        const urlevo = user.apiKey.url;
-        const apikey = primaryInstance.instanceId;
-        const url = `https://${urlevo}/message/sendText/${instanceName}`;
-        const currentService = user.services.find((s) => s.id === selectedService);
-        // Usar timezone derivado del indicativo seleccionado para el mensaje al cliente
-        const clientTimezoneForMsg = getTimezoneFromPhone(areaCode, timezone);
-        const text = formatServiceMessage(currentService?.messageText, {
-            nameClient: normalizedClientName,
-            selectedDate,
-            selectedSlot,
-            timezone: clientTimezoneForMsg,
-            slotDuration,
-        });
-
         const e164 = normalizeToE164(areaCode, phone);
         if (!e164) {
             toast.error("Número de WhatsApp inválido. Verifica el país y el número.");
@@ -310,32 +296,48 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
 
         const remoteJid = toRemoteJid(e164);
 
+        // Capturar antes de handleConfirmAppointment(), que internamente llama resetForm()
+        // y borra selectedDate / selectedSlot del estado.
+        const confirmUrl = user.apiKey
+            ? `https://${user.apiKey.url}/message/sendText/${instanceName}`
+            : null;
+        const confirmApikey = primaryInstance.instanceId;
+        const clientTimezoneForMsg = getTimezoneFromPhone(areaCode, timezone);
+        const confirmText = confirmUrl
+            ? formatServiceMessage(
+                user.services.find((s) => s.id === selectedService)?.messageText,
+                { nameClient: normalizedClientName, selectedDate, selectedSlot, timezone: clientTimezoneForMsg, slotDuration },
+              )
+            : null;
+
         try {
             const appointmentCreated = await handleConfirmAppointment();
             if (!appointmentCreated) return;
 
-            const result = await sendMessageWithHistoryAction({
-                instanceName,
-                url,
-                apikey,
-                remoteJid,
-                message: text,
-                historyType: "notification",
-                additionalKwargs: {
-                    source: "SchedulePageClient",
-                    recipient: "client",
-                    serviceId: selectedService,
-                },
-            });
+            if (confirmUrl && confirmText) {
+                const result = await sendMessageWithHistoryAction({
+                    instanceName,
+                    url: confirmUrl,
+                    apikey: confirmApikey,
+                    remoteJid,
+                    message: confirmText,
+                    historyType: "notification",
+                    additionalKwargs: {
+                        source: "SchedulePageClient",
+                        recipient: "client",
+                        serviceId: selectedService,
+                    },
+                });
 
-            if (result.success) toast.success(result.message);
-            else {
-                toast.info("No se envió el mensaje de notificación");
-                console.error(`Error SchedulePageClient: ${result.message}`);
+                if (result.success) toast.success(result.message);
+                else {
+                    toast.info("No se envió el mensaje de notificación");
+                    console.error(`Error SchedulePageClient: ${result.message}`);
+                }
             }
         } catch (error) {
             console.error("Error en notificación:", error);
-            toast.error("Ocurrió un error al intentar notificar la cita.");
+            toast.error("Ocurrió un error al intentar agendar la cita.");
         }
     };
 
