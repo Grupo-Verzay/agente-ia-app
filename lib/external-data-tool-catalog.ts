@@ -208,7 +208,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'scrape_web',
     defaultDisplayName: 'Consultar página web',
     defaultDescription:
-      'Extrae y lee el contenido de texto de una URL pública (página web, blog, ficha de producto, etc.). Úsala cuando el cliente pida información que está en una página web específica o cuando necesites consultar datos de una fuente externa en tiempo real.',
+      'Extrae y lee el contenido de texto de una **URL pública** (página web, blog, ficha de producto, etc.). Úsala cuando el cliente pida información que está en una página web específica o cuando necesites consultar datos de una fuente externa en tiempo real. **Solo si la URL es válida y accesible públicamente** — no intentes con URLs internas, privadas o que requieran login.',
     isCritical: false,
     helpText:
       'Permite al agente leer el contenido de cualquier página web pública: sitios HTML estáticos, páginas de precios, fichas técnicas, blogs, etc. No funciona con páginas que requieren login ni con aplicaciones de una sola página (SPA/React). Devuelve el texto limpio extraído de la página.',
