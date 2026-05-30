@@ -153,7 +153,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'crear_recordatorio',
     defaultDisplayName: 'Crear recordatorio',
     defaultDescription:
-      'Programa un recordatorio para hacer seguimiento a este contacto en una fecha y hora específicas. Úsala cuando el cliente pida que lo contacten más tarde o cuando sea necesario retomar la conversación.',
+      'Programa un **recordatorio para hacer seguimiento** a este contacto en una **fecha y hora específicas**. Úsala cuando el cliente pida que lo contacten más tarde o cuando sea necesario retomar la conversación.',
     isCritical: false,
     helpText:
       'Crea un recordatorio vinculado al contacto y a la instancia de WhatsApp. Se puede usar para agendar seguimientos automáticos.',
@@ -164,7 +164,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'buscar_plantilla',
     defaultDisplayName: 'Buscar plantilla de mensaje',
     defaultDescription:
-      'Busca en el catálogo de plantillas de mensajes predefinidas por nombre, categoría o descripción. Úsala cuando necesites encontrar un texto o respuesta estándar para una situación común.',
+      'Busca en el **catálogo de plantillas** de **mensajes predefinidas por nombre**, categoría o descripción. Úsala cuando necesites **encontrar un texto o respuesta** estándar para una situación común.',
     isCritical: false,
     helpText:
       'Permite al agente encontrar plantillas de mensajes configuradas en el sistema. Útil para mantener consistencia en las respuestas frecuentes.',
