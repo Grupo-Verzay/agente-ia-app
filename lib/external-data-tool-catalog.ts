@@ -54,7 +54,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'buscar_producto',
     defaultDisplayName: 'Buscar producto',
     defaultDescription:
-      'Busca un producto del catálogo por nombre, categoría o SKU. Úsala cuando el cliente pregunte por un producto específico, su precio, disponibilidad o características. El resultado incluye nombre, precio, stock, categoría, descripción e imágenes del producto (campo images[]). Si el producto tiene imágenes, el sistema las enviará automáticamente al cliente.',
+      'Busca un **producto del catálogo por nombre, categoría o SKU**. Úsala cuando el cliente pregunte por un **producto específico**, su precio, disponibilidad o características. El resultado incluye nombre, precio, stock, categoría, descripción e imágenes del producto (campo images[]). Si el producto tiene imágenes, el sistema las enviará automáticamente al cliente.',
     isCritical: true,
     helpText:
       'Permite al agente consultar el catálogo de productos en tiempo real. Retorna nombre, precio, stock, categoría y URLs de imágenes. Las imágenes se envían vía /api/send-media.',
