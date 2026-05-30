@@ -329,6 +329,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 leadScore={session.leadScore}
                 leadScoreReason={session.leadScoreReason}
                 tags={session.tags}
+                sessionSeguimientos={session.seguimientos}
               />
               <ChatReminderDialog session={session!} userId={userId} />
               <ChatAppointmentStatusButton
@@ -413,6 +414,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 leadScore={session.leadScore}
                 leadScoreReason={session.leadScoreReason}
                 tags={session.tags}
+                sessionSeguimientos={session.seguimientos}
               />
               <ChatReminderDialog session={session!} userId={userId} />
               <ChatAppointmentStatusButton

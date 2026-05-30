@@ -67,6 +67,7 @@ const TAB_LABELS: Record<string, string> = {
   PRODUCTO:     "Productos",
   REPORTE:      "Reportes",
   SEGUIMIENTOS: "Seguimientos",
+  NOTAS_IA:     "Notas IA",
 };
 
 const AGENDA_MODE_LABELS: Record<string, string> = {
@@ -117,6 +118,7 @@ export function ChatRegistrosSheet({
   leadScore,
   leadScoreReason,
   tags,
+  sessionSeguimientos,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -132,6 +134,7 @@ export function ChatRegistrosSheet({
   leadScore?: number | null;
   leadScoreReason?: string | null;
   tags?: SimpleTag[];
+  sessionSeguimientos?: string | null;
 }) {
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [seguimientosPendingCount, setSeguimientosPendingCount] = useState(0);
@@ -209,6 +212,16 @@ export function ChatRegistrosSheet({
     const names = str.split(",").map((s) => s.trim()).filter(Boolean);
     return { flujosCount: names.length, flujosNames: names };
   }, [flujos]);
+
+  const notasIa = useMemo(() => {
+    return (sessionSeguimientos ?? "")
+      .split("\n")
+      .map((line) => {
+        const match = line.match(/^\[(.+?)\]\s(.+)$/);
+        return match ? { timestamp: match[1], text: match[2] } : null;
+      })
+      .filter((n): n is { timestamp: string; text: string } => n !== null);
+  }, [sessionSeguimientos]);
 
   function openCreate(tipo: TipoRegistro) {
     setUpsertMode("create");
@@ -308,17 +321,17 @@ export function ChatRegistrosSheet({
 
                     {/* INFO DEL LEAD */}
                     <div className="rounded-md border border-border/60 bg-muted/30 p-3 flex flex-col gap-2.5 shadow-sm">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="h-3 w-0.5 rounded-full bg-violet-500 shrink-0" />
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Info del lead</p>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
                         {leadStatus && (
                           <Badge variant="outline" className={LEAD_STATUS_CLASSES[leadStatus] ?? "border-slate-200 bg-slate-50 text-slate-600"}>
                             {LEAD_STATUS_LABELS[leadStatus] ?? leadStatus}
                           </Badge>
                         )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
                         {leadScore != null && (
                           <span className="text-xs text-muted-foreground">
                             Score: <span className="font-semibold text-foreground">{leadScore}</span>
@@ -436,14 +449,14 @@ export function ChatRegistrosSheet({
                     </div>
 
                     {/* ACTIVIDAD RECIENTE */}
-                    {registros.length > 0 && (
+                    {registros.some((r) => r.tipo !== "REPORTE") && (
                       <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-1.5">
                           <span className="h-3 w-0.5 rounded-full bg-amber-500 shrink-0" />
                           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actividad reciente</p>
                         </div>
                         <div className="flex flex-col gap-1.5">
-                          {registros.slice(0, 5).map((r) => (
+                          {registros.filter((r) => r.tipo !== "REPORTE").slice(0, 5).map((r) => (
                             <div key={r.id} className={`rounded-md border ${TIPO_ACCENT[r.tipo] ?? ""} bg-background px-3 py-2 text-xs shadow-sm`}>
                               <span className="font-medium">{TIPO_LABELS[r.tipo as TipoRegistro]}</span>
                               <p className="text-muted-foreground line-clamp-2 mt-0.5">
@@ -454,6 +467,23 @@ export function ChatRegistrosSheet({
                         </div>
                       </div>
                     )}
+
+                    {/* NOTAS IA */}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-3 w-0.5 rounded-full bg-fuchsia-500 shrink-0" />
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notas IA</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("NOTAS_IA")}
+                        className="rounded-md border border-l-[3px] border-l-fuchsia-400 bg-background px-3 py-2.5 flex items-center justify-between gap-2 w-full text-left hover:bg-accent transition-colors shadow-sm"
+                      >
+                        <span className="text-sm font-medium text-muted-foreground">Notas registradas</span>
+                        <span className={`text-base font-bold ${notasIa.length > 0 ? "text-foreground" : "text-muted-foreground/50"}`}>{notasIa.length}</span>
+                      </button>
+                    </div>
+
                   </div>
                 </ScrollArea>
               </TabsContent>
@@ -484,6 +514,24 @@ export function ChatRegistrosSheet({
                     mode={agendaMode}
                   />
                 </div>
+              </TabsContent>
+
+              {/* NOTAS IA */}
+              <TabsContent value="NOTAS_IA" className="flex-1 min-h-0 mt-0">
+                <ScrollArea className="h-full">
+                  <div className="flex flex-col gap-2 pb-4">
+                    {notasIa.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-6 text-center">El agente no ha registrado notas aún.</p>
+                    ) : (
+                      notasIa.map((nota, i) => (
+                        <div key={i} className="rounded-md border border-l-[3px] border-l-fuchsia-400 bg-background px-3 py-2.5 shadow-sm">
+                          <p className="text-[11px] text-muted-foreground mb-1">{nota.timestamp}</p>
+                          <p className="text-sm text-foreground">{nota.text}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
               </TabsContent>
             </Tabs>
           )}

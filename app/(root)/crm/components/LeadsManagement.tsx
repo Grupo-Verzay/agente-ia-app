@@ -382,7 +382,7 @@ export const LeadsManagement = ({
 
                                     {/* Tabs de registros */}
                                     <Tabs defaultValue="RESUMEN" className="flex flex-col min-h-0">
-                                        <TabsList className="flex w-full flex-wrap gap-1 mb-2 overflow-x-auto md:grid md:grid-cols-8">
+                                        <TabsList className="flex w-full flex-wrap gap-1 mb-2 overflow-x-auto md:grid md:grid-cols-9">
                                             <TabsTrigger value="RESUMEN" className="px-2">
                                                 Resumen
                                             </TabsTrigger>
@@ -436,6 +436,12 @@ export const LeadsManagement = ({
                                             </TabsTrigger>
                                             <TabsTrigger value="SEGUIMIENTOS" className="px-2">
                                                 Seguimientos
+                                            </TabsTrigger>
+                                            <TabsTrigger value="NOTAS_IA" className="px-2">
+                                                Notas IA{" "}
+                                                {(selectedSession.seguimientos ?? '').split('\n').some(l => /^\[.+?\]\s.+$/.test(l)) && (
+                                                    <span className="ml-1 text-violet-500">✦</span>
+                                                )}
                                             </TabsTrigger>
                                         </TabsList>
 
@@ -638,6 +644,39 @@ export const LeadsManagement = ({
                                                 remoteJid={selectedSession.remoteJid}
                                                 instanceId={selectedSession.instanceId}
                                             />
+                                        </TabsContent>
+
+                                        <TabsContent
+                                            value="NOTAS_IA"
+                                            className="flex-1 min-h-0 mt-0"
+                                        >
+                                            <ScrollArea className="h-full rounded-md">
+                                                {(() => {
+                                                    const notas = (selectedSession.seguimientos ?? '')
+                                                        .split('\n')
+                                                        .map(line => {
+                                                            const match = line.match(/^\[(.+?)\]\s(.+)$/);
+                                                            return match ? { timestamp: match[1], text: match[2] } : null;
+                                                        })
+                                                        .filter(Boolean) as { timestamp: string; text: string }[];
+
+                                                    return notas.length > 0 ? (
+                                                        <div className="flex flex-col gap-2 p-1">
+                                                            {notas.map((nota, i) => (
+                                                                <div key={i} className="rounded-lg border border-violet-100 bg-violet-50 dark:bg-violet-950/20 dark:border-violet-900 px-3 py-2">
+                                                                    <p className="text-[10px] text-violet-400 mb-0.5">{nota.timestamp}</p>
+                                                                    <p className="text-sm text-foreground leading-snug">{nota.text}</p>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-col items-center justify-center h-32 gap-2 text-muted-foreground">
+                                                            <span className="text-2xl">✦</span>
+                                                            <p className="text-sm">El agente no ha registrado notas aún.</p>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </ScrollArea>
                                         </TabsContent>
                                     </Tabs>
 

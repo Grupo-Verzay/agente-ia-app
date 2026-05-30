@@ -43,6 +43,7 @@ export function ChatRegistrosBadge({
   leadScore,
   leadScoreReason,
   tags,
+  sessionSeguimientos,
 }: {
   sessionId: number;
   sessionPushName?: string | null;
@@ -55,6 +56,7 @@ export function ChatRegistrosBadge({
   leadScore?: number | null;
   leadScoreReason?: string | null;
   tags?: SimpleTag[];
+  sessionSeguimientos?: string | null;
 }) {
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [seguimientosCount, setSeguimientosCount] = useState(0);
@@ -169,6 +171,7 @@ export function ChatRegistrosBadge({
         leadScore={leadScore}
         leadScoreReason={leadScoreReason}
         tags={tags}
+        sessionSeguimientos={sessionSeguimientos}
       />
     </>
   );
