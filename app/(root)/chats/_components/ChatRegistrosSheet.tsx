@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { X, ArrowLeft } from "lucide-react";
+import { X, ArrowLeft, Loader2, Pencil } from "lucide-react";
 import type { Registro, TipoRegistro } from "@prisma/client";
+import { toast } from "sonner";
 
 import { getRegistrosBySessionId, deleteRegistro } from "@/actions/registro-action";
 import { getSessionLegacySeguimientos } from "@/actions/seguimientos-actions";
-import { getSessionCrmFollowUps, getSessionLatestSummarySnapshot } from "@/actions/crm-follow-up-actions";
+import { getSessionCrmFollowUps, getSessionLatestSummarySnapshot, updateFollowUpSummarySnapshot, createManualSynthesis } from "@/actions/crm-follow-up-actions";
 import { getRemindersByRemoteJid } from "@/actions/reminders-actions";
 import { getAppointmentsBySession } from "@/actions/appointments-actions";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -160,6 +162,12 @@ export function ChatRegistrosSheet({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingRegistro, setDeletingRegistro] = useState<Registro | null>(null);
 
+  const [followUpId, setFollowUpId] = useState<string | null>(null);
+  const [hasFollowUp, setHasFollowUp] = useState(false);
+  const [sintesisEditing, setSintesisEditing] = useState(false);
+  const [sintesisDraft, setSintesisDraft] = useState("");
+  const [sintesisSaving, setSintesisSaving] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     const [regResult, legacyResult, crmResult, remResult, apptResult, synResult] = await Promise.all([
@@ -178,13 +186,21 @@ export function ChatRegistrosSheet({
     if (remResult.success && remResult.data) setRecordatoriosCount(remResult.data.length);
     if (apptResult.success && apptResult.data)
       setCitasCount(apptResult.data.filter((a) => !["FINALIZADO", "DESCARTADO", "CANCELADA"].includes(a.status)).length);
-    if (synResult.success && synResult.data) setSintesis(synResult.data.summarySnapshot ?? null);
+    if (synResult.success && synResult.data) {
+      setSintesis(synResult.data.summarySnapshot ?? null);
+      setFollowUpId(synResult.data.id ?? null);
+      setHasFollowUp(true);
+    } else {
+      setHasFollowUp(false);
+      setFollowUpId(null);
+    }
     setLoading(false);
   }, [sessionId, userId, remoteJid]);
 
   useEffect(() => {
     if (open) {
       setActiveTab(initialTab ?? "RESUMEN");
+      setSintesisEditing(false);
       load();
     }
   }, [open, load, initialTab]);
@@ -222,6 +238,28 @@ export function ChatRegistrosSheet({
       })
       .filter((n): n is { timestamp: string; text: string } => n !== null);
   }, [sessionSeguimientos]);
+
+  async function handleSintesisSave() {
+    setSintesisSaving(true);
+    try {
+      if (hasFollowUp && followUpId) {
+        const res = await updateFollowUpSummarySnapshot(followUpId, sintesisDraft);
+        if (res.success) { setSintesis(sintesisDraft); setSintesisEditing(false); toast.success("Síntesis actualizada"); }
+        else toast.error(res.message);
+      } else {
+        const res = await createManualSynthesis(sessionId, sintesisDraft);
+        if (res.success && res.data) {
+          setSintesis(sintesisDraft);
+          setFollowUpId(res.data.id);
+          setHasFollowUp(true);
+          setSintesisEditing(false);
+          toast.success("Síntesis guardada");
+        } else toast.error(res.message);
+      }
+    } finally {
+      setSintesisSaving(false);
+    }
+  }
 
   function openCreate(tipo: TipoRegistro) {
     setUpsertMode("create");
@@ -329,6 +367,13 @@ export function ChatRegistrosSheet({
                             {LEAD_STATUS_LABELS[leadStatus] ?? leadStatus}
                           </Badge>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => { setSintesisDraft(sintesis ?? ""); setSintesisEditing(true); }}
+                          className="ml-auto text-sm text-blue-500 hover:text-blue-700 transition-colors flex items-center gap-1"
+                        >
+                          <Pencil className="h-3 w-3" /> Editar
+                        </button>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2">
@@ -354,7 +399,24 @@ export function ChatRegistrosSheet({
                         </div>
                       )}
 
-                      {sintesis && (
+                      {sintesisEditing ? (
+                        <div className="flex flex-col gap-2">
+                          <Textarea
+                            value={sintesisDraft}
+                            onChange={(e) => setSintesisDraft(e.target.value)}
+                            placeholder="Escribe la síntesis del lead..."
+                            rows={4}
+                            className="resize-y min-h-[80px] text-sm"
+                          />
+                          <div className="flex items-center justify-between">
+                            <button type="button" onClick={() => setSintesisEditing(false)} disabled={sintesisSaving} className="text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors">Cancelar</button>
+                            <button type="button" onClick={handleSintesisSave} disabled={sintesisSaving || !sintesisDraft.trim()} className="text-sm font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-40 transition-colors flex items-center gap-1">
+                              {sintesisSaving && <Loader2 className="h-3 w-3 animate-spin" />}
+                              Guardar
+                            </button>
+                          </div>
+                        </div>
+                      ) : sintesis ? (
                         <div className="flex flex-col gap-1">
                           <div
                             className={`rounded-md bg-background/70 border border-border/40 px-2.5 py-2 text-sm text-muted-foreground whitespace-pre-wrap overflow-hidden transition-all duration-200 ${sintesisExpanded ? "" : "max-h-24"}`}
@@ -364,12 +426,12 @@ export function ChatRegistrosSheet({
                           <button
                             type="button"
                             onClick={() => setSintesisExpanded((v) => !v)}
-                            className="self-end text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                            className="self-end text-xs text-muted-foreground hover:text-foreground transition-colors mt-2"
                           >
                             {sintesisExpanded ? "Ver menos ▲" : "Ver más ▼"}
                           </button>
                         </div>
-                      )}
+                      ) : null}
 
                       {!leadStatus && !leadScore && (!tags || tags.length === 0) && !sintesis && (
                         <p className="text-xs text-muted-foreground">Sin información del lead aún.</p>
@@ -469,19 +531,32 @@ export function ChatRegistrosSheet({
                     )}
 
                     {/* NOTAS IA */}
-                    <div className="flex flex-col gap-2">
+                    <div className="rounded-md border border-border/60 bg-muted/30 p-3 flex flex-col gap-2.5 shadow-sm">
                       <div className="flex items-center gap-1.5">
                         <span className="h-3 w-0.5 rounded-full bg-fuchsia-500 shrink-0" />
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notas IA</p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("NOTAS_IA")}
-                        className="rounded-md border border-l-[3px] border-l-fuchsia-400 bg-background px-3 py-2.5 flex items-center justify-between gap-2 w-full text-left hover:bg-accent transition-colors shadow-sm"
-                      >
-                        <span className="text-sm font-medium text-muted-foreground">Notas registradas</span>
-                        <span className={`text-base font-bold ${notasIa.length > 0 ? "text-foreground" : "text-muted-foreground/50"}`}>{notasIa.length}</span>
-                      </button>
+                      {notasIa.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">El agente no ha registrado notas aún.</p>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          {notasIa.slice(0, 3).map((nota, i) => (
+                            <div key={i} className="rounded-md border border-l-[3px] border-l-fuchsia-400 bg-background px-3 py-2 shadow-sm">
+                              <p className="text-[11px] text-muted-foreground mb-0.5">{nota.timestamp}</p>
+                              <p className="text-xs text-foreground">{nota.text}</p>
+                            </div>
+                          ))}
+                          {notasIa.length > 3 && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab("NOTAS_IA")}
+                              className="self-end text-xs text-fuchsia-600 hover:text-fuchsia-700 transition-colors mt-1"
+                            >
+                              Ver todas ({notasIa.length}) ▼
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                   </div>
