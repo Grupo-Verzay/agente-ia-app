@@ -93,6 +93,10 @@ export function ChatRegistrosBadge({
   const registrosTotal = registros.length;
   const grandTotal = registrosTotal + seguimientosCount + recordatoriosCount + citasCount + followUpsCount;
 
+  const notasIaCount = (sessionSeguimientos ?? "")
+    .split("\n")
+    .filter((line) => /^\[.+?\]\s.+$/.test(line)).length;
+
   const registrosRows = TIPOS.filter((t) => countByTipo[t] > 0).map((tipo) => ({
     label: TIPO_LABELS[tipo],
     count: countByTipo[tipo],
@@ -121,6 +125,9 @@ export function ChatRegistrosBadge({
               <span className="absolute -top-1.5 -right-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-teal-600 px-1 text-[9px] font-bold leading-none text-white">
                 {grandTotal > 99 ? "99+" : grandTotal}
               </span>
+            )}
+            {notasIaCount > 0 && (
+              <span className="absolute -bottom-1 -left-1 h-2.5 w-2.5 rounded-full bg-fuchsia-500 ring-1 ring-white" />
             )}
           </button>
         </PopoverTrigger>
