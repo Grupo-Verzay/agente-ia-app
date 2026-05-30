@@ -109,7 +109,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'consultar_datos_cliente',
     defaultDisplayName: 'Consultar datos del cliente',
     defaultDescription:
-      'Consulta el perfil externo del cliente actual: cédula, correo, servicio contratado, monto, sector, convenio u otros campos configurados. Úsala cuando el cliente pregunte por su información de cuenta, servicio o datos personales registrados.',
+      'Consulta **automáticamente los datos externos del cliente actual** usando su número de WhatsApp — sin necesidad de pedirle ningún dato. Úsala siempre antes de solicitar cédula u otro identificador, cuando el cliente pregunte por **su propia información:** cuenta, servicio contratado, saldo u otros campos cargados en el sistema. **Si no retorna datos, el cliente no está registrado en el sistema**.',
     isCritical: false,
     helpText:
       'Busca en datos externos el registro asociado al número de WhatsApp del cliente que está escribiendo. Requiere que el cliente tenga datos cargados.',
@@ -120,7 +120,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'buscar_cliente_por_dato',
     defaultDisplayName: 'Buscar cliente por dato',
     defaultDescription:
-      'Busca la información de un cliente a partir de un dato conocido (cédula, RIF, correo, etc.). Solo consulta datos del usuario actual, nunca información de otros clientes.',
+      'Busca en los **datos externos cargados** a partir de un **campo y valor que proporciona el cliente** (ej: CEDULA, CORREO, REFERENCIA). Úsala cuando el cliente dé un **identificador específico** y necesites encontrar su registro. El nombre del campo debe ir **en MAYÚSCULAS** y coincidir exactamente con el encabezado de la tabla. Si no retorna datos, el cliente no está registrado en el sistema.',
     isCritical: false,
     helpText:
       'Permite al agente buscar por cualquier campo del registro externo. Útil cuando el cliente pregunta por datos de un tercero proporcionando su cédula u otro identificador.',
@@ -186,7 +186,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'escribir_google_sheets',
     defaultDisplayName: 'Guardar en Google Sheets',
     defaultDescription:
-      'Guarda datos en una hoja de cálculo de Google Sheets vía un webhook de Google Apps Script. Úsala cuando el usuario quiera registrar información (leads, solicitudes, formularios, etc.) o cuando se deba guardar datos recopilados en la conversación.',
+      'Guarda una nueva fila de datos en una hoja de Google Sheets configurada. Úsala cuando **necesites registrar información** recopilada en la conversación: leads, solicitudes, pagos, formularios, etc. Los campos enviados **deben coincidir exactamente con los encabezados** de la hoja — no inventes columnas que no existen. El Sheet destino se toma de la configuración de la herramienta.',
     isCritical: false,
     helpText:
       'Requiere crear un Google Apps Script en la hoja destino y publicarlo como web app. El agente envía los datos como un objeto JSON y el script los escribe como una nueva fila. Los campos deben coincidir con los encabezados de la hoja.',
@@ -197,7 +197,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'editar_google_sheets',
     defaultDisplayName: 'Editar Google Sheets',
     defaultDescription:
-      'Edita una fila existente en una hoja de cálculo de Google Sheets. Úsala cuando necesites actualizar datos ya registrados: cambiar estado, precio, disponibilidad u otro campo. Busca la fila por un campo clave (ej. cédula, código, correo) y actualiza los campos indicados.',
+      'Edita una **fila existente** en una hoja de cálculo de Google Sheets. Úsala cuando **necesites actualizar datos** ya registrados: **cambiar estado, precio, disponibilidad u otro campo**. Busca la fila por un campo clave (ej. cédula, código, correo) y **actualiza los campos indicados**.',
     isCritical: false,
     helpText:
       'Requiere credenciales de cuenta de servicio de Google (GOOGLE_SHEETS_CREDENTIALS). El agente busca la fila por un campo clave y actualiza las columnas especificadas. Los encabezados de la hoja deben coincidir con los campos enviados.',
@@ -219,7 +219,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'consultar_inventario',
     defaultDisplayName: 'Consultar inventario',
     defaultDescription:
-      'Consulta el stock disponible de los productos. Úsala cuando el cliente pregunte si hay existencias de un producto o cuántas unidades quedan. Puedes buscar por nombre o pedir todo el inventario.',
+      'Consulta el **stock disponible de los productos**. Úsala cuando el cliente pregunte **si hay existencias de un producto** o **cuántas unidades quedan**. Puedes buscar por nombre o pedir todo el inventario.',
     isCritical: false,
     helpText:
       'Devuelve nombre, precio y stock de los productos activos. Si el stock es 0 lo indica como sin stock. Ideal para negocios con inventario propio.',
@@ -230,7 +230,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'crear_cotizacion',
     defaultDisplayName: 'Crear cotización',
     defaultDescription:
-      'Genera una cotización formal con los productos/servicios que el cliente solicita. Úsala cuando el cliente pida un presupuesto, cotización o lista de precios para comprar. Requiere el nombre del cliente y los ítems con cantidad y precio unitario.',
+      'Genera una **cotización formal con los productos/servicios** que el cliente solicita. Úsala cuando el cliente pida un **presupuesto, cotización o lista de precios para comprar**. Requiere el **nombre del cliente y los ítems con cantidad y precio unitario**.',
     isCritical: false,
     helpText:
       'Crea un registro de cotización en la app con estado "borrador". El agente puede generarla directamente desde el chat y el equipo la verá en /cotizaciones.',
