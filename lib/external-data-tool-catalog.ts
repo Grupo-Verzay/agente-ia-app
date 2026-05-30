@@ -76,7 +76,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'listar_servicios_agenda',
     defaultDisplayName: 'Listar servicios de agenda',
     defaultDescription:
-      'Lista los servicios disponibles para agendar una cita. Úsala al inicio del flujo de agendamiento, cuando el cliente quiera reservar una cita o pregunte qué servicios se pueden agendar. Retorna id y nombre de cada servicio.',
+      'Lista los **servicios disponibles** para agendar una cita. Úsala al inicio del flujo de agendamiento, cuando el cliente **quiera reservar una cita** o pregunte qué **servicios se pueden agendar**. Retorna id y nombre de cada servicio.',
     isCritical: false,
     helpText:
       'Llama a GET /api/schedule/services?userId={userId}. Devuelve la lista de servicios configurados por el usuario para su agenda.',
