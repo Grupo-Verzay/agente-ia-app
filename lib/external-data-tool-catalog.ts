@@ -87,7 +87,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'consultar_slots_disponibles',
     defaultDisplayName: 'Consultar horarios disponibles',
     defaultDescription:
-      'Consulta los horarios libres para una fecha específica. Úsala después de que el cliente haya elegido un servicio y proporcione una fecha. Requiere: fecha en formato YYYY-MM-DD. Retorna una lista de slots con startTime y endTime en UTC.',
+      'Consulta los **horarios libres para una fecha específica**. Úsala después de que el cliente haya elegido un servicio y proporcione una fecha. El cliente puede expresar la fecha de forma natural ("mañana", "el martes", "en 3 días", "a las 10", "10 am", "5 de la tarde", "5:00 pm") — convierte **siempre la fecha a formato YYYY-MM-DD** y la **hora a formato HH:MM (24h)** antes de llamar esta tool. Retorna una lista de slots con startTime y endTime en UTC.',
     isCritical: false,
     helpText:
       'Llama a GET /api/schedule/slots?userId={userId}&date={YYYY-MM-DD}. Usa la disponibilidad configurada del usuario y descuenta citas ya registradas.',
