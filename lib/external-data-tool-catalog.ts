@@ -65,7 +65,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'listar_productos',
     defaultDisplayName: 'Listar productos disponibles',
     defaultDescription:
-      'Lista todos los productos activos del catálogo con nombre, precio, categoría, stock e imágenes. Úsala cuando el cliente quiera ver qué productos están disponibles o pida el catálogo completo. Cada producto incluye un campo images[] con URLs de sus imágenes, que el sistema enviará al cliente automáticamente.',
+      'Lista **todos los productos** activos del catálogo con nombre, precio, categoría, stock e imágenes. Úsala cuando el cliente quiera ver qué productos están disponibles o pida el catálogo completo. Cada producto incluye un campo images[] con **URLs de sus imágenes**, que el sistema enviará al cliente automáticamente.',
     isCritical: true,
     helpText:
       'Devuelve el catálogo completo de productos activos incluyendo imágenes. Las imágenes de cada producto se envían vía /api/send-media. Recomendado cuando tienes pocos productos.',
