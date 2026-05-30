@@ -1,6 +1,6 @@
 "use client";
 
-import { FC } from "react";
+import { FC, useState } from "react";
 import { nanoid } from "nanoid";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ export const RoutingCard: FC<PropsRouting> = ({
     onUpdateRules,
     isManagement,
 }) => {
+    const [expanded, setExpanded] = useState(false);
     const otherSteps = steps.filter((s) => s.title && s.title.trim() !== "");
 
     const addRule = () => {
@@ -59,7 +60,11 @@ export const RoutingCard: FC<PropsRouting> = ({
     return (
         <Card className="bg-muted/20 border-muted/60">
             <CardHeader className="py-3 flex-row items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+                <button
+                    type="button"
+                    onClick={() => setExpanded((v) => !v)}
+                    className="flex items-center gap-2 flex-1 min-w-0"
+                >
                     <GitBranch className="h-4 w-4 text-blue-500 shrink-0" />
                     <CardTitle className="text-sm font-semibold uppercase tracking-wide">
                         Enrutamiento por paso
@@ -69,7 +74,8 @@ export const RoutingCard: FC<PropsRouting> = ({
                             {el.rules.length}
                         </Badge>
                     )}
-                </div>
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground ml-auto transition-transform ${expanded ? "rotate-180" : ""}`} />
+                </button>
                 {!isManagement && (
                     <Button
                         variant="secondary"
@@ -82,7 +88,7 @@ export const RoutingCard: FC<PropsRouting> = ({
                 )}
             </CardHeader>
 
-            <CardContent className="space-y-3 pt-0">
+            {expanded && <CardContent className="space-y-3 pt-0">
                 <div className="flex items-start gap-2 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 px-3 py-2">
                     <Info className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
                     <p className="text-sm text-blue-700 dark:text-blue-300 leading-relaxed">
@@ -193,7 +199,7 @@ export const RoutingCard: FC<PropsRouting> = ({
                     Agregar regla
                 </Button>
                 </div>
-            </CardContent>
+            </CardContent>}
         </Card>
     );
 };
