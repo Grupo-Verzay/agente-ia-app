@@ -102,7 +102,6 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [suggestion, setSuggestion] = useState('');
   const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
   const [suggestionError, setSuggestionError] = useState(false);
-  const lastTriggerIdRef = useRef<string | null>(null);
 
   /* ─── Custom hooks ─── */
   const {
@@ -196,20 +195,6 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     }
   }, [userId, messages, header.name]);
 
-  // Usar ref para el useEffect para evitar dependencia circular con generateSuggestion
-  const generateSuggestionRef = useRef(generateSuggestion);
-  generateSuggestionRef.current = generateSuggestion;
-
-  useEffect(() => {
-    if (messages.length === 0) return;
-    const latest = messages[0];
-    const latestId = latest.key?.id || latest.id || String(latest.messageTimestamp ?? '');
-    if (latest.key?.fromMe === false && latestId !== lastTriggerIdRef.current) {
-      lastTriggerIdRef.current = latestId;
-      void generateSuggestionRef.current();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages]);
 
   /* ─── Compose handlers ─── */
   const handleComposeMediaChange = useCallback((m: ComposeMedia | null) => {

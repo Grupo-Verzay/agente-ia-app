@@ -20,7 +20,20 @@ export function SuggestedReplyBar({
   onRegenerate,
   onDismiss,
 }: SuggestedReplyBarProps) {
-  if (!isLoading && !suggestion && !hasError) return null;
+  if (!isLoading && !suggestion && !hasError) {
+    return (
+      <div className="flex items-center px-3 py-1.5 border-t bg-muted/20">
+        <button
+          type="button"
+          onClick={onRegenerate}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-violet-600 transition-colors"
+        >
+          <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+          Sugerir respuesta
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-start gap-2 px-3 py-2 border-t bg-muted/40 text-sm">
