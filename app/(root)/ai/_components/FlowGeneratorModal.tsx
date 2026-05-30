@@ -236,9 +236,11 @@ export function FlowGeneratorModal({ open, onOpenChange, promptId, version }: Pr
 
                 {/* Footer */}
                 <DialogFooter className="px-6 pb-5 pt-3 border-t shrink-0 gap-2">
-                    <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={isRunning}>
-                        {stage === "done" ? "Cerrar" : "Cancelar"}
-                    </Button>
+                    {stage !== "done" && (
+                        <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={isRunning}>
+                            Cancelar
+                        </Button>
+                    )}
                     {(stage === "idle") && (
                         <Button onClick={handleGenerate} disabled={!description.trim()}>
                             <Sparkles className="mr-2 h-4 w-4" />
