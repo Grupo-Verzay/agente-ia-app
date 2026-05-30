@@ -118,7 +118,7 @@ export function FlowGeneratorModal({ open, onOpenChange, promptId, version }: Pr
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogContent className="sm:max-w-lg h-[630px] flex flex-col overflow-hidden p-0">
+            <DialogContent className="sm:max-w-lg h-[585px] flex flex-col overflow-hidden p-0">
 
                 {/* Header */}
                 <DialogHeader className="px-6 pt-5 pb-4 border-b shrink-0">
