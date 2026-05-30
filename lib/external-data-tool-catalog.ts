@@ -98,7 +98,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'crear_cita',
     defaultDisplayName: 'Crear cita',
     defaultDescription:
-      'Crea una cita en la agenda del usuario. Úsala únicamente después de confirmar con el cliente: servicio, fecha y hora. Los datos del cliente (nombre y teléfono) los obtienes del contexto de la conversación. Valida disponibilidad y evita solapamientos automáticamente.',
+      'Crea una cita en la agenda del usuario. Úsala únicamente después de confirmar con el cliente: **servicio, fecha y hora**. Los datos del cliente (nombre y teléfono) los obtienes del contexto de la conversación. Convierte **siempre la fecha a formato YYYY-MM-DD** y la **hora a formato HH:MM (24h)** antes de llamar esta tool. **Valida disponibilidad y evita solapamientos automáticamente**.',
     isCritical: false,
     helpText:
       'Llama a POST /api/schedule/appointment. Requiere: userId, serviceId, pushName, phone (remoteJid), instanceName, startTime (ISO UTC), endTime (ISO UTC), timezone.',
