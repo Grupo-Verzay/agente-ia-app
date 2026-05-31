@@ -338,35 +338,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <Power className="h-3.5 w-3.5" />
               </Button>
 
-              {/* Separador */}
-              <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
-
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-full shrink-0 bg-green-100 dark:bg-green-950/40 text-green-600 hover:bg-green-200 dark:hover:bg-green-900/50"
-                onClick={handleCall}
-                title="Llamar por WhatsApp"
-              >
-                <Phone className="h-3.5 w-3.5" />
-              </Button>
-              {advisorBadge}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-full shrink-0 hover:bg-muted"
-                onClick={onOpenContactEditor}
-                title="Editar contacto"
-              >
-                <PencilLine className="h-3.5 w-3.5" />
-              </Button>
+              {sessionActions}
 
               {/* Separador */}
               <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
 
-              <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               <ChatRegistrosBadge
                 sessionId={session.id}
                 sessionPushName={session.pushName}
@@ -382,8 +358,23 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 sessionSeguimientos={session.seguimientos}
               />
               <ChatReminderDialog session={session!} userId={userId} />
+              <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               {tagsCombobox}
-              {sessionActions}
+
+              {/* Separador */}
+              <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
+
+              {advisorBadge}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-full shrink-0 hover:bg-muted"
+                onClick={onOpenContactEditor}
+                title="Editar contacto"
+              >
+                <PencilLine className="h-3.5 w-3.5" />
+              </Button>
             </div>
           </div>
         )}
