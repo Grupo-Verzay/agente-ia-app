@@ -251,73 +251,40 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   return (
     <div className="border-b border-border/40 bg-gradient-to-r from-background to-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/50 z-10">
       {/* ── Mobile ── */}
-      <div className="md:hidden p-3 space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-start gap-2 min-w-0 flex-1">
-            <Button
-              onClick={onBackToList}
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 rounded-full hover:bg-muted flex-shrink-0 -ml-1"
-              title="Volver"
-              aria-label="Volver"
-            >
-              <ArrowRight className="w-4 h-4 rotate-180" />
-            </Button>
+      <div className="md:hidden px-3 py-2 space-y-2">
+        {/* Fila única: volver + avatar + nombre + activa + acciones */}
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={onBackToList}
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 rounded-full hover:bg-muted flex-shrink-0 -ml-1"
+            title="Volver"
+            aria-label="Volver"
+          >
+            <ArrowRight className="w-4 h-4 rotate-180" />
+          </Button>
 
-            <Avatar className="w-12 h-12 ring-2 ring-border flex-shrink-0">
-              <AvatarImage src={header.avatarSrc || '/default-avatar.png'} />
-              <AvatarFallback className="font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
-            </Avatar>
+          <Avatar className="w-8 h-8 ring-2 ring-border flex-shrink-0">
+            <AvatarImage src={header.avatarSrc || '/default-avatar.png'} />
+            <AvatarFallback className="text-xs font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
+          </Avatar>
 
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                {header.isPinned && (
-                  <Pin className="h-3.5 w-3.5 fill-current text-amber-500 flex-shrink-0" />
-                )}
-                <h2 className="truncate text-sm font-bold leading-tight">{displayedContactName}</h2>
-              </div>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">{displayedWhatsapp}</p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1">
+              {header.isPinned && (
+                <Pin className="h-3 w-3 fill-current text-amber-500 flex-shrink-0" />
+              )}
+              <h2 className="truncate text-sm font-bold leading-tight">{displayedContactName}</h2>
             </div>
           </div>
 
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {session && (
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 rounded-full bg-green-100 dark:bg-green-950/40 text-green-600 hover:bg-green-200 dark:hover:bg-green-900/50"
-                  onClick={handleCall}
-                  title="Llamar por WhatsApp"
-                >
-                  <Phone className="h-4 w-4" />
-                </Button>
-                {advisorBadge}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 rounded-full hover:bg-muted"
-                  onClick={onOpenContactEditor}
-                  title="Editar"
-                >
-                  <PencilLine className="h-3.5 w-3.5" />
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {session ? (
-          <div className="space-y-1.5 pl-14">
-            {/* Fila: toggle herramientas + Acciones */}
-            <div className="flex items-center justify-between">
+          {session ? (
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => setMobileToolsOpen((v) => !v)}
-                className="flex items-center gap-1.5 rounded-md"
+                className="flex items-center gap-1 rounded-md"
               >
                 <Badge variant="outline" className={`${sessionStatusTone} text-xs py-0.5`}>
                   {session.status ? 'Activa' : 'Pausada'}
@@ -331,40 +298,60 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               </button>
               {lifecycleButton}
             </div>
+          ) : (
+            <span className="text-xs text-muted-foreground flex-shrink-0">Sin sesión</span>
+          )}
+        </div>
 
-            {/* Herramientas expandibles — una sola fila */}
-            {mobileToolsOpen && (
-              <div className="flex items-center gap-1.5">
-                <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
-                <ChatRegistrosBadge
-                  sessionId={session.id}
-                  sessionPushName={session.pushName}
-                  whatsapp={displayedWhatsapp}
-                  userId={session.userId}
-                  remoteJid={session.remoteJid}
-                  instanceId={session.instanceId}
-                  flujos={session.flujos}
-                  leadStatus={session.leadStatus}
-                  leadScore={session.leadScore}
-                  leadScoreReason={session.leadScoreReason}
-                  tags={session.tags}
-                  sessionSeguimientos={session.seguimientos}
-                />
-                <ChatReminderDialog session={session!} userId={userId} />
-                {tagsCombobox}
-                <SwitchStatus
-                  key={`${session.id}-${session.status ? 'on' : 'off'}`}
-                  checked={session.status ?? false}
-                  sessionId={session.id ?? -1}
-                  mutateSessions={onSessionMutate}
-                />
-                {sessionActions}
-              </div>
-            )}
-
+        {/* Herramientas expandibles */}
+        {session && mobileToolsOpen && (
+          <div className="flex items-center gap-1.5 flex-wrap pl-10">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full bg-green-100 dark:bg-green-950/40 text-green-600 hover:bg-green-200 dark:hover:bg-green-900/50"
+              onClick={handleCall}
+              title="Llamar por WhatsApp"
+            >
+              <Phone className="h-4 w-4" />
+            </Button>
+            {advisorBadge}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full hover:bg-muted"
+              onClick={onOpenContactEditor}
+              title="Editar contacto"
+            >
+              <PencilLine className="h-3.5 w-3.5" />
+            </Button>
+            <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
+            <ChatRegistrosBadge
+              sessionId={session.id}
+              sessionPushName={session.pushName}
+              whatsapp={displayedWhatsapp}
+              userId={session.userId}
+              remoteJid={session.remoteJid}
+              instanceId={session.instanceId}
+              flujos={session.flujos}
+              leadStatus={session.leadStatus}
+              leadScore={session.leadScore}
+              leadScoreReason={session.leadScoreReason}
+              tags={session.tags}
+              sessionSeguimientos={session.seguimientos}
+            />
+            <ChatReminderDialog session={session!} userId={userId} />
+            {tagsCombobox}
+            <SwitchStatus
+              key={`${session.id}-${session.status ? 'on' : 'off'}`}
+              checked={session.status ?? false}
+              sessionId={session.id ?? -1}
+              mutateSessions={onSessionMutate}
+            />
+            {sessionActions}
           </div>
-        ) : (
-          <div className="pl-14 text-xs text-muted-foreground">Sin sesión CRM sincronizada</div>
         )}
       </div>
 
