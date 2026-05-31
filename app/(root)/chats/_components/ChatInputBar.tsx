@@ -317,7 +317,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       )}
 
       {/* Input + botones */}
-      <div className="relative flex flex-nowrap gap-2">
+      <div className="relative flex flex-nowrap items-end gap-2">
         <div className="relative flex flex-nowrap z-10 items-center justify-center">
           {/* Firma + SwitchStatus — solo desktop */}
           <div className="pr-2 md:flex hidden items-center gap-1">
@@ -482,8 +482,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           ref={textareaRef}
           placeholder={
             composeMedia
-              ? 'Añade un texto o pie de foto (opcional)...'
-              : 'Escribe un mensaje... (/ para atajos)'
+              ? 'Pie de foto (opcional)...'
+              : 'Escribe... (/ atajos)'
           }
           value={input}
           onChange={onInputChange}
