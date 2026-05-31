@@ -361,18 +361,20 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <div className="flex items-center gap-1.5">
                   {tagsCombobox}
                 </div>
+                <div className="flex items-center gap-2">
+                  <SwitchStatus
+                    key={`${session.id}-${session.status ? 'on' : 'off'}`}
+                    checked={session.status ?? false}
+                    sessionId={session.id ?? -1}
+                    mutateSessions={onSessionMutate}
+                  />
+                  {sessionActions}
+                </div>
               </div>
             )}
 
-            {/* Controles de sesión — siempre visibles */}
+            {/* Solo Acciones — siempre visible */}
             <div className="flex items-center gap-2">
-              <SwitchStatus
-                key={`${session.id}-${session.status ? 'on' : 'off'}`}
-                checked={session.status ?? false}
-                sessionId={session.id ?? -1}
-                mutateSessions={onSessionMutate}
-              />
-              {sessionActions}
               {lifecycleButton}
             </div>
           </div>

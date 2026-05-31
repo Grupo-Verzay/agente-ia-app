@@ -500,7 +500,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           )}
         />
 
-        <div className="absolute right-1.5 flex items-center gap-1 bottom-1.5 flex-col sm:flex-row">
+        <div className="absolute right-1.5 flex flex-row items-center gap-1 bottom-1.5">
           {!isPreviewingAudio && (
             <Button
               onClick={() => (isRecording ? onStopRecordingAndPreview() : onStartRecording())}
