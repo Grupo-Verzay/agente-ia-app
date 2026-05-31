@@ -103,17 +103,17 @@ export function ChatContactItem({
 
   const badgeItems: React.ReactNode[] = [];
 
-  if (contact.chatSession) {
+  if (contact.chatSession?.leadStatus) {
     badgeItems.push(
       <LeadStatusSelect
         key="status"
         sessionId={contact.chatSession.id}
-        currentStatus={contact.chatSession.leadStatus ?? null}
+        currentStatus={contact.chatSession.leadStatus}
         onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus)}
       />
     );
   }
-  if (advisors && advisors.length > 0 && contact.chatSession) {
+  if (advisors && advisors.length > 0 && contact.chatSession?.assignedAdvisorId) {
     badgeItems.push(
       <AdvisorAssignBadge
         key="advisor"
