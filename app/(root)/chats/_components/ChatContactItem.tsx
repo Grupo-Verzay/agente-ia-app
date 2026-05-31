@@ -127,19 +127,6 @@ export function ChatContactItem({
       />
     );
   }
-  if (contact.chatSession?.tags && contact.chatSession.tags.length > 0) {
-    badgeItems.push(
-      <div key="tags" className="flex items-center gap-0.5">
-        {contact.chatSession.tags.map((tag) => (
-          <Tag
-            key={tag.id}
-            className="h-3.5 w-3.5 shrink-0"
-            style={{ color: tag.color ?? undefined }}
-          />
-        ))}
-      </div>
-    );
-  }
   if (contact.chatSession?.flujos) {
     badgeItems.push(<FlowListOrder key="flow" raw={contact.chatSession.flujos} />);
   }
@@ -170,6 +157,28 @@ export function ChatContactItem({
       </TooltipProvider>
     );
   }
+  if (contact.chatSession?.tags && contact.chatSession.tags.length > 0) {
+    badgeItems.push(
+      <div key="tags" className="flex items-center gap-0.5">
+        {contact.chatSession.tags.map((tag) => (
+          <TooltipProvider key={tag.id}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Tag
+                  className="h-3.5 w-3.5 shrink-0 cursor-default"
+                  style={{ color: tag.color ?? undefined }}
+                />
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6} className="z-[9999]">
+                <p className="text-xs">{tag.name}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ))}
+      </div>
+    );
+  }
+
   const visibleBadges = badgeItems.slice(0, MAX_BADGES);
   const hiddenCount = badgeItems.length - MAX_BADGES;
 
