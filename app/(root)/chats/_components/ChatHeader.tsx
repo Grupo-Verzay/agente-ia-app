@@ -332,47 +332,33 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               {lifecycleButton}
             </div>
 
-            {/* Herramientas expandibles */}
+            {/* Herramientas expandibles — una sola fila */}
             {mobileToolsOpen && (
-              <div className="space-y-1.5">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
-                  <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
-                  <ChatRegistrosBadge
-                    sessionId={session.id}
-                    sessionPushName={session.pushName}
-                    whatsapp={displayedWhatsapp}
-                    userId={session.userId}
-                    remoteJid={session.remoteJid}
-                    instanceId={session.instanceId}
-                    flujos={session.flujos}
-                    leadStatus={session.leadStatus}
-                    leadScore={session.leadScore}
-                    leadScoreReason={session.leadScoreReason}
-                    tags={session.tags}
-                    sessionSeguimientos={session.seguimientos}
-                  />
-                  <ChatReminderDialog session={session!} userId={userId} />
-                  <ChatAppointmentStatusButton
-                    sessionId={session.id}
-                    userId={session.userId}
-                    pushName={session.pushName}
-                    remoteJid={session.remoteJid}
-                    instanceId={session.instanceId}
-                  />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {tagsCombobox}
-                </div>
-                <div className="flex items-center gap-2">
-                  <SwitchStatus
-                    key={`${session.id}-${session.status ? 'on' : 'off'}`}
-                    checked={session.status ?? false}
-                    sessionId={session.id ?? -1}
-                    mutateSessions={onSessionMutate}
-                  />
-                  {sessionActions}
-                </div>
+              <div className="flex items-center gap-1.5">
+                <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
+                <ChatRegistrosBadge
+                  sessionId={session.id}
+                  sessionPushName={session.pushName}
+                  whatsapp={displayedWhatsapp}
+                  userId={session.userId}
+                  remoteJid={session.remoteJid}
+                  instanceId={session.instanceId}
+                  flujos={session.flujos}
+                  leadStatus={session.leadStatus}
+                  leadScore={session.leadScore}
+                  leadScoreReason={session.leadScoreReason}
+                  tags={session.tags}
+                  sessionSeguimientos={session.seguimientos}
+                />
+                <ChatReminderDialog session={session!} userId={userId} />
+                {tagsCombobox}
+                <SwitchStatus
+                  key={`${session.id}-${session.status ? 'on' : 'off'}`}
+                  checked={session.status ?? false}
+                  sessionId={session.id ?? -1}
+                  mutateSessions={onSessionMutate}
+                />
+                {sessionActions}
               </div>
             )}
 
