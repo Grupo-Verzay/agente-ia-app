@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, CalendarClock, Check, MoreVertical, Pin, Trash2, Users } from "lucide-react";
+import { Archive, CalendarClock, Check, MoreVertical, Pin, Tag, Trash2, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -128,17 +128,17 @@ export function ChatContactItem({
     );
   }
   if (contact.chatSession?.tags && contact.chatSession.tags.length > 0) {
-    for (const tag of contact.chatSession.tags) {
-      badgeItems.push(
-        <span
-          key={`tag-${tag.id}`}
-          className="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium leading-none"
-          style={tag.color ? { borderColor: `${tag.color}50`, color: tag.color, background: `${tag.color}15` } : undefined}
-        >
-          {tag.name}
-        </span>
-      );
-    }
+    badgeItems.push(
+      <div key="tags" className="flex items-center gap-0.5">
+        {contact.chatSession.tags.map((tag) => (
+          <Tag
+            key={tag.id}
+            className="h-3.5 w-3.5 shrink-0"
+            style={{ color: tag.color ?? undefined }}
+          />
+        ))}
+      </div>
+    );
   }
   if (contact.chatSession?.flujos) {
     badgeItems.push(<FlowListOrder key="flow" raw={contact.chatSession.flujos} />);
