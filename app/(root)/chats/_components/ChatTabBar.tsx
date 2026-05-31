@@ -16,6 +16,7 @@ type ChatTabBarProps = {
   tab: TabKey;
   tabCounts: TabCounts;
   showMine?: boolean;
+  rightSlot?: React.ReactNode;
 };
 
 const MAIN_TABS: { key: TabKey; label: string; Icon: ComponentType<{ className?: string }>; color: string }[] = [
@@ -24,7 +25,7 @@ const MAIN_TABS: { key: TabKey; label: string; Icon: ComponentType<{ className?:
   { key: "groups", label: "Grupos", Icon: Users,     color: "#28A745" },
 ];
 
-export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false }: ChatTabBarProps) {
+export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot }: ChatTabBarProps) {
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
   const isOverflowActive = tab === "archived" || tab === "deleted";
 
@@ -58,6 +59,8 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false }: Ch
           </button>
         );
       })}
+
+      {rightSlot}
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
