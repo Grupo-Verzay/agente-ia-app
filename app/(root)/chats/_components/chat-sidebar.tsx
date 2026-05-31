@@ -436,14 +436,6 @@ export function ChatSidebar({
                 <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
               )}
             </button>
-            {allTags.length > 0 && (
-              <TagFilterPanel
-                tags={allTags}
-                selectedTagIds={selectedTagIds}
-                onToggleTag={toggleTagFilter}
-                onClearFilter={() => setSelectedTagIds(new Set())}
-              />
-            )}
             {showAdvisorFilter && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -503,7 +495,19 @@ export function ChatSidebar({
             )}
           </div>
 
-          <ChatTabBar tab={tab} onTabChange={handleTabChange} tabCounts={tabCounts} showMine={!!currentAdvisorId} />
+          <div className="flex items-center gap-1">
+            <div className="flex-1 min-w-0">
+              <ChatTabBar tab={tab} onTabChange={handleTabChange} tabCounts={tabCounts} showMine={!!currentAdvisorId} />
+            </div>
+            {allTags.length > 0 && (
+              <TagFilterPanel
+                tags={allTags}
+                selectedTagIds={selectedTagIds}
+                onToggleTag={toggleTagFilter}
+                onClearFilter={() => setSelectedTagIds(new Set())}
+              />
+            )}
+          </div>
 
           {selectedJids.size > 0 && (
             <BulkActionBar
