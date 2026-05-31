@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, CalendarClock, MoreVertical, Pin, Trash2, Users } from "lucide-react";
+import { Archive, CalendarClock, Check, MoreVertical, Pin, Trash2, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -75,6 +75,8 @@ type ChatContactItemProps = {
   currentAdvisorId?: string;
   onAssignAdvisor?: (remoteJid: string, advisorId: string | null) => Promise<void>;
   showInstanceBadge?: boolean;
+  isChecked?: boolean;
+  onToggleSelect?: (id: string) => void;
 };
 
 export function ChatContactItem({
@@ -90,6 +92,8 @@ export function ChatContactItem({
   currentAdvisorId,
   onAssignAdvisor,
   showInstanceBadge = false,
+  isChecked,
+  onToggleSelect,
 }: ChatContactItemProps) {
   const IconComponent = getIconForMessageType(contact.messageType);
   const isUnread = contact.isUnreadLocal;
@@ -156,34 +160,82 @@ export function ChatContactItem({
   const visibleBadges = badgeItems.slice(0, MAX_BADGES);
   const hiddenCount = badgeItems.length - MAX_BADGES;
 
+  const selectionMode = isChecked !== undefined;
+
   return (
     <div
       role="listitem"
       data-chat-id={contact.id}
       className={cn(
         "group rounded-xl border p-2 transition hover:bg-accent hover:text-accent-foreground",
-        selected ? "border-primary bg-primary/10" : "border-transparent",
+        selected && !selectionMode ? "border-primary bg-primary/10" : "border-transparent",
+        selectionMode && isChecked && "border-primary/40 bg-primary/5",
       )}
       aria-current={selected ? "true" : "false"}
     >
       <div className="flex items-start gap-2">
+        {/* Avatar / checkbox toggle */}
         <button
           type="button"
-          onClick={() => onSelect(contact.id, contact.lastMessageId, contact.instanceName)}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onToggleSelect) {
+              onToggleSelect(contact.id);
+            } else {
+              onSelect(contact.id, contact.lastMessageId, contact.instanceName);
+            }
+          }}
+          className="relative shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
-          <div className="relative">
-            <Avatar className="h-10 w-10 ring-2 ring-background group-hover:ring-accent">
-              <AvatarImage src={contact.avatarSrc} alt={contact.name || "Contacto"} />
-              <AvatarFallback>
-                {contact.name?.charAt(0)?.toUpperCase() || "?"}
-              </AvatarFallback>
-            </Avatar>
-            {contact.isGroup && (
-              <Users className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-background/90 p-[2px] text-muted-foreground ring-1 ring-border" />
+          <Avatar
+            className={cn(
+              "h-10 w-10 ring-2 ring-background group-hover:ring-accent transition-opacity",
+              selectionMode && "opacity-30",
+              !selectionMode && onToggleSelect && "group-hover:opacity-30",
             )}
-          </div>
+          >
+            <AvatarImage src={contact.avatarSrc} alt={contact.name || "Contacto"} />
+            <AvatarFallback>
+              {contact.name?.charAt(0)?.toUpperCase() || "?"}
+            </AvatarFallback>
+          </Avatar>
+          {contact.isGroup && !selectionMode && (
+            <Users className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-background/90 p-[2px] text-muted-foreground ring-1 ring-border" />
+          )}
+          {/* Checkbox overlay */}
+          {onToggleSelect && (
+            <span
+              className={cn(
+                "absolute inset-0 flex items-center justify-center rounded-full transition-opacity",
+                selectionMode ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+              )}
+            >
+              <span
+                className={cn(
+                  "h-6 w-6 rounded-full border-2 flex items-center justify-center transition-colors",
+                  isChecked
+                    ? "border-primary bg-primary"
+                    : "border-muted-foreground/50 bg-background/80",
+                )}
+              >
+                {isChecked && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
+              </span>
+            </span>
+          )}
+        </button>
 
+        {/* Content area */}
+        <button
+          type="button"
+          onClick={() => {
+            if (selectionMode && onToggleSelect) {
+              onToggleSelect(contact.id);
+            } else {
+              onSelect(contact.id, contact.lastMessageId, contact.instanceName);
+            }
+          }}
+          className="flex min-w-0 flex-1 items-start text-left"
+        >
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
@@ -243,50 +295,53 @@ export function ChatContactItem({
           </div>
         </button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0 rounded-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault();
-                onTogglePin(contact.id, !contact.isPinned);
-              }}
-            >
-              <Pin className="h-4 w-4" />
-              {contact.isPinned ? "Desanclar chat" : "Anclar chat"}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault();
-                onArchive(contact.id, !contact.isArchived);
-              }}
-            >
-              <Archive className="h-4 w-4" />
-              {contact.isArchived ? "Restaurar chat" : "Archivar chat"}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-red-600 focus:text-red-600"
-              onSelect={(e) => {
-                e.preventDefault();
-                onDeleteRequest(contact);
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-              Eliminar chat
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Dropdown menu — hidden in selection mode */}
+        {!selectionMode && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 rounded-full"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  onTogglePin(contact.id, !contact.isPinned);
+                }}
+              >
+                <Pin className="h-4 w-4" />
+                {contact.isPinned ? "Desanclar chat" : "Anclar chat"}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  onArchive(contact.id, !contact.isArchived);
+                }}
+              >
+                <Archive className="h-4 w-4" />
+                {contact.isArchived ? "Restaurar chat" : "Archivar chat"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-red-600 focus:text-red-600"
+                onSelect={(e) => {
+                  e.preventDefault();
+                  onDeleteRequest(contact);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Eliminar chat
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       {visibleBadges.length > 0 && (

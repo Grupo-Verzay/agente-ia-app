@@ -1,6 +1,16 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Inbox, Trash2, Users, UserX, Check, SquarePen } from "lucide-react";
 import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
@@ -39,6 +49,7 @@ import { ChatContactItem } from "./ChatContactItem";
 import { DeletedContactItem } from "./DeletedContactItem";
 import { ChatEmptyState } from "./ChatEmptyState";
 import { DeleteChatDialog } from "./DeleteChatDialog";
+import { BulkActionBar } from "./BulkActionBar";
 import {
   epochToMs,
   formatTimeFromEpoch,
@@ -74,6 +85,11 @@ type ChatSidebarProps = {
   isRefreshing?: boolean;
   onCompose?: () => void;
   inactiveAgentUnreadJids?: Set<string>;
+  onBulkArchive?: (remoteJids: string[], archived: boolean) => Promise<void>;
+  onBulkDelete?: (remoteJids: string[]) => Promise<void>;
+  onBulkPin?: (remoteJids: string[], isPinned: boolean) => Promise<void>;
+  onBulkAssignAdvisor?: (remoteJids: string[], advisorId: string | null) => Promise<void>;
+  onBulkAddTag?: (remoteJids: string[], tagId: number) => Promise<void>;
 };
 
 export function ChatSidebar({
@@ -101,12 +117,19 @@ export function ChatSidebar({
   isRefreshing,
   onCompose,
   inactiveAgentUnreadJids,
+  onBulkArchive,
+  onBulkDelete,
+  onBulkPin,
+  onBulkAssignAdvisor,
+  onBulkAddTag,
 }: ChatSidebarProps) {
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<TabKey>(currentAdvisorId ? "mine" : "all");
   const [deleteTarget, setDeleteTarget] = useState<SidebarContact | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
   const [advisorFilter, setAdvisorFilter] = useState<string | null>(null); // null=todos, 'unassigned'=sin asignar, id=asesor específico
+  const [selectedJids, setSelectedJids] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   const isOwnerOrAdmin = advisorRole !== "agente";
   const showAdvisorFilter = isOwnerOrAdmin && (advisors?.length ?? 0) > 0;
@@ -306,6 +329,59 @@ export function ChatSidebar({
     [markMessageAsSeen, onSelectRemoteJid],
   );
 
+  const toggleSelectJid = useCallback((jid: string) => {
+    setSelectedJids((prev) => {
+      const next = new Set(prev);
+      if (next.has(jid)) { next.delete(jid); } else { next.add(jid); }
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => setSelectedJids(new Set()), []);
+
+  const selectAll = useCallback(() => {
+    const visibleIds = (tab === "deleted" ? deletedContacts : filtered).map((c) => c.id);
+    setSelectedJids((prev) => {
+      if (prev.size === visibleIds.length && visibleIds.every((id) => prev.has(id))) {
+        return new Set();
+      }
+      return new Set(visibleIds);
+    });
+  }, [tab, filtered, deletedContacts]);
+
+  const selectedJidsArray = useMemo(() => Array.from(selectedJids), [selectedJids]);
+
+  const handleBulkArchive = useCallback(async (archived: boolean) => {
+    if (!onBulkArchive || selectedJidsArray.length === 0) return;
+    await onBulkArchive(selectedJidsArray, archived);
+    clearSelection();
+  }, [onBulkArchive, selectedJidsArray, clearSelection]);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (!onBulkDelete || selectedJidsArray.length === 0) return;
+    await onBulkDelete(selectedJidsArray);
+    setBulkDeleteOpen(false);
+    clearSelection();
+  }, [onBulkDelete, selectedJidsArray, clearSelection]);
+
+  const handleBulkPin = useCallback(async (isPinned: boolean) => {
+    if (!onBulkPin || selectedJidsArray.length === 0) return;
+    await onBulkPin(selectedJidsArray, isPinned);
+    clearSelection();
+  }, [onBulkPin, selectedJidsArray, clearSelection]);
+
+  const handleBulkAssignAdvisor = useCallback(async (advisorId: string | null) => {
+    if (!onBulkAssignAdvisor || selectedJidsArray.length === 0) return;
+    await onBulkAssignAdvisor(selectedJidsArray, advisorId);
+    clearSelection();
+  }, [onBulkAssignAdvisor, selectedJidsArray, clearSelection]);
+
+  const handleBulkAddTag = useCallback(async (tagId: number) => {
+    if (!onBulkAddTag || selectedJidsArray.length === 0) return;
+    await onBulkAddTag(selectedJidsArray, tagId);
+    clearSelection();
+  }, [onBulkAddTag, selectedJidsArray, clearSelection]);
+
   const emptyMessage =
     tab === "archived"
       ? "No hay chats archivados que coincidan con el filtro."
@@ -421,6 +497,23 @@ export function ChatSidebar({
           </div>
 
           <ChatTabBar tab={tab} onTabChange={handleTabChange} tabCounts={tabCounts} showMine={!!currentAdvisorId} />
+
+          {selectedJids.size > 0 && (
+            <BulkActionBar
+              count={selectedJids.size}
+              totalCount={tab === "deleted" ? deletedContacts.length : filtered.length}
+              onClear={clearSelection}
+              onSelectAll={selectAll}
+              onArchive={handleBulkArchive}
+              onDelete={() => setBulkDeleteOpen(true)}
+              onPin={onBulkPin ? handleBulkPin : undefined}
+              onAssignAdvisor={onBulkAssignAdvisor ? handleBulkAssignAdvisor : undefined}
+              onAddTag={onBulkAddTag && allTags.length > 0 ? handleBulkAddTag : undefined}
+              advisors={advisors}
+              advisorRole={advisorRole}
+              allTags={allTags}
+            />
+          )}
         </div>
 
         <div role="list" className="flex-1 space-y-1 overflow-y-auto p-1">
@@ -458,6 +551,8 @@ export function ChatSidebar({
                 currentAdvisorId={currentAdvisorId}
                 onAssignAdvisor={onAssignAdvisor}
                 showInstanceBadge={instancias.length > 1 && !selectedChannel}
+                isChecked={selectedJids.size > 0 ? selectedJids.has(contact.id) : undefined}
+                onToggleSelect={toggleSelectJid}
               />
             ))
           ) : (
@@ -474,6 +569,26 @@ export function ChatSidebar({
         onConfirm={(id) => void onDeleteChat?.(id)}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={(open) => !open && setBulkDeleteOpen(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar chats de tu bandeja</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`Se ocultarán ${selectedJids.size} chat${selectedJids.size !== 1 ? "s" : ""} de tu bandeja principal. Esta acción no elimina mensajes del proveedor.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => void handleBulkDelete()}
+            >
+              Eliminar {selectedJids.size} chat{selectedJids.size !== 1 ? "s" : ""}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

@@ -242,3 +242,102 @@ export async function restoreChatConversationAction(
     };
   }
 }
+
+const bulkBaseSchema = z.object({
+  userId: z.string().trim().min(1),
+  remoteJids: z.array(z.string().trim().min(1)).min(1),
+});
+
+export async function bulkArchiveChatsAction(
+  input: z.infer<typeof bulkBaseSchema> & { archived: boolean },
+): Promise<ChatPreferenceResponse<ChatConversationPreference[]>> {
+  try {
+    const parsed = bulkBaseSchema.parse(input);
+    await assertAuthorized(parsed.userId);
+
+    const results = await Promise.all(
+      parsed.remoteJids.map((remoteJid) =>
+        upsertPreference(parsed.userId, remoteJid, {
+          archivedAt: input.archived ? new Date() : null,
+          deletedAt: null,
+        }),
+      ),
+    );
+
+    return {
+      success: true,
+      message: input.archived
+        ? `${results.length} chat${results.length !== 1 ? "s" : ""} archivado${results.length !== 1 ? "s" : ""}.`
+        : `${results.length} chat${results.length !== 1 ? "s" : ""} desarchivado${results.length !== 1 ? "s" : ""}.`,
+      data: results,
+    };
+  } catch (error) {
+    console.error("[bulkArchiveChatsAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudieron archivar los chats.",
+    };
+  }
+}
+
+export async function bulkDeleteChatsAction(
+  input: z.infer<typeof bulkBaseSchema>,
+): Promise<ChatPreferenceResponse<ChatConversationPreference[]>> {
+  try {
+    const parsed = bulkBaseSchema.parse(input);
+    await assertAuthorized(parsed.userId);
+
+    const results = await Promise.all(
+      parsed.remoteJids.map((remoteJid) =>
+        upsertPreference(parsed.userId, remoteJid, {
+          pinnedAt: null,
+          archivedAt: null,
+          deletedAt: new Date(),
+        }),
+      ),
+    );
+
+    return {
+      success: true,
+      message: `${results.length} chat${results.length !== 1 ? "s" : ""} eliminado${results.length !== 1 ? "s" : ""} de tu bandeja.`,
+      data: results,
+    };
+  } catch (error) {
+    console.error("[bulkDeleteChatsAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudieron eliminar los chats.",
+    };
+  }
+}
+
+export async function bulkPinChatsAction(
+  input: z.infer<typeof bulkBaseSchema> & { isPinned: boolean },
+): Promise<ChatPreferenceResponse<ChatConversationPreference[]>> {
+  try {
+    const parsed = bulkBaseSchema.parse(input);
+    await assertAuthorized(parsed.userId);
+
+    const results = await Promise.all(
+      parsed.remoteJids.map((remoteJid) =>
+        upsertPreference(parsed.userId, remoteJid, {
+          pinnedAt: input.isPinned ? new Date() : null,
+        }),
+      ),
+    );
+
+    return {
+      success: true,
+      message: input.isPinned
+        ? `${results.length} chat${results.length !== 1 ? "s" : ""} anclado${results.length !== 1 ? "s" : ""}.`
+        : `${results.length} chat${results.length !== 1 ? "s" : ""} desanclado${results.length !== 1 ? "s" : ""}.`,
+      data: results,
+    };
+  } catch (error) {
+    console.error("[bulkPinChatsAction]", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "No se pudo actualizar el anclado de los chats.",
+    };
+  }
+}

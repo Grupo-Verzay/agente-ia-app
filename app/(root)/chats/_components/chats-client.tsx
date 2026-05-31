@@ -3,11 +3,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  bulkArchiveChatsAction,
+  bulkDeleteChatsAction,
+  bulkPinChatsAction,
   deleteChatConversationAction,
   restoreChatConversationAction,
   setChatArchivedAction,
   toggleChatPinAction,
 } from "@/actions/chat-conversation-actions";
+import { assignSessionToAdvisor } from "@/actions/advisor-assign-actions";
+import { assignTagToSessionAction } from "@/actions/tag-actions";
 import { getChatContactSessions } from "@/actions/session-action";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { useAdvisorNotifications } from "@/hooks/chats/useAdvisorNotifications";
@@ -798,6 +803,150 @@ export function ChatsClient({
     [applyChatPreference, userId],
   );
 
+  const handleBulkArchive = useCallback(
+    async (remoteJids: string[], archived: boolean) => {
+      const result = await bulkArchiveChatsAction({ userId, remoteJids, archived });
+      if (!result.success || !result.data) {
+        toast.error(result.message || "No se pudieron archivar los chats.");
+        return;
+      }
+      setChatPreferences((prev) => {
+        const next = { ...prev };
+        for (const pref of result.data!) next[pref.remoteJid] = pref;
+        return next;
+      });
+      if (archived && remoteJids.includes(selectedJid)) {
+        setSelectedJid("");
+        setMessages([]);
+        setInfo(undefined);
+      }
+      toast.success(result.message);
+    },
+    [userId, selectedJid],
+  );
+
+  const handleBulkDelete = useCallback(
+    async (remoteJids: string[]) => {
+      const result = await bulkDeleteChatsAction({ userId, remoteJids });
+      if (!result.success || !result.data) {
+        toast.error(result.message || "No se pudieron eliminar los chats.");
+        return;
+      }
+      setChatPreferences((prev) => {
+        const next = { ...prev };
+        for (const pref of result.data!) next[pref.remoteJid] = pref;
+        return next;
+      });
+      if (remoteJids.includes(selectedJid)) {
+        setSelectedJid("");
+        setMessages([]);
+        setInfo(undefined);
+      }
+      toast.success(result.message);
+    },
+    [userId, selectedJid],
+  );
+
+  const handleBulkPin = useCallback(
+    async (remoteJids: string[], isPinned: boolean) => {
+      const result = await bulkPinChatsAction({ userId, remoteJids, isPinned });
+      if (!result.success || !result.data) {
+        toast.error(result.message || "No se pudo actualizar el anclado.");
+        return;
+      }
+      setChatPreferences((prev) => {
+        const next = { ...prev };
+        for (const pref of result.data!) next[pref.remoteJid] = pref;
+        return next;
+      });
+      toast.success(result.message);
+    },
+    [userId],
+  );
+
+  const handleBulkAssignAdvisor = useCallback(
+    async (remoteJids: string[], advisorId: string | null) => {
+      const sessionIds = remoteJids
+        .map((jid) => chatSessions[jid]?.id)
+        .filter((id): id is number => id !== undefined);
+
+      if (sessionIds.length === 0) {
+        toast.error("Ninguno de los chats seleccionados tiene sesión CRM.");
+        return;
+      }
+
+      const results = await Promise.allSettled(
+        sessionIds.map((sessionId) => assignSessionToAdvisor(sessionId, advisorId)),
+      );
+
+      const failed = results.filter((r) => r.status === "rejected" || (r.status === "fulfilled" && !r.value.success)).length;
+
+      if (failed > 0) {
+        toast.error(`${failed} asignación${failed !== 1 ? "es" : ""} fallida${failed !== 1 ? "s" : ""}.`);
+      }
+
+      const ok = sessionIds.length - failed;
+      if (ok > 0) {
+        setChatSessions((prev) => {
+          const next = { ...prev };
+          for (const jid of remoteJids) {
+            if (next[jid]) next[jid] = { ...next[jid]!, assignedAdvisorId: advisorId };
+          }
+          return next;
+        });
+        if (advisorId) {
+          const name = advisors?.find((a) => a.id === advisorId)?.name ?? "Asesor";
+          toast.success(`${ok} chat${ok !== 1 ? "s" : ""} asignado${ok !== 1 ? "s" : ""} a ${name}.`);
+        } else {
+          toast.success(`Asignación removida en ${ok} chat${ok !== 1 ? "s" : ""}.`);
+        }
+      }
+    },
+    [chatSessions, advisors],
+  );
+
+  const handleBulkAddTag = useCallback(
+    async (remoteJids: string[], tagId: number) => {
+      const sessionPairs = remoteJids
+        .map((jid) => ({ jid, sessionId: chatSessions[jid]?.id }))
+        .filter((p): p is { jid: string; sessionId: number } => p.sessionId !== undefined);
+
+      if (sessionPairs.length === 0) {
+        toast.error("Ninguno de los chats seleccionados tiene sesión CRM.");
+        return;
+      }
+
+      const results = await Promise.allSettled(
+        sessionPairs.map(({ sessionId }) =>
+          assignTagToSessionAction({ userId, sessionId, tagId }),
+        ),
+      );
+
+      const failed = results.filter((r) => r.status === "rejected" || (r.status === "fulfilled" && !r.value.success)).length;
+      const ok = sessionPairs.length - failed;
+
+      if (failed > 0) toast.error(`${failed} etiqueta${failed !== 1 ? "s" : ""} no se pudo${failed !== 1 ? "ieron" : ""} aplicar.`);
+
+      if (ok > 0) {
+        const tag = allTags.find((t) => t.id === tagId);
+        setChatSessions((prev) => {
+          const next = { ...prev };
+          for (const { jid } of sessionPairs) {
+            const session = next[jid];
+            if (!session) continue;
+            const hasTag = session.tags?.some((t) => t.id === tagId);
+            if (!hasTag && tag) {
+              next[jid] = { ...session, tags: [...(session.tags ?? []), tag] };
+            }
+          }
+          return next;
+        });
+        toast.success(`Etiqueta aplicada a ${ok} chat${ok !== 1 ? "s" : ""}.`);
+      }
+    },
+    [userId, chatSessions, allTags],
+  );
+
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -948,6 +1097,15 @@ export function ChatsClient({
               ? (remoteJid, advisorId) => handleAssignAdvisor(remoteJid, advisorId)
               : undefined
           }
+          onBulkArchive={handleBulkArchive}
+          onBulkDelete={handleBulkDelete}
+          onBulkPin={handleBulkPin}
+          onBulkAssignAdvisor={
+            advisorRole !== "agente" && advisors && advisors.length > 0
+              ? handleBulkAssignAdvisor
+              : undefined
+          }
+          onBulkAddTag={allTags.length > 0 ? handleBulkAddTag : undefined}
         />
       </div>
 
