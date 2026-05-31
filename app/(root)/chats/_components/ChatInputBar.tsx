@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ArrowRight, Check, Mic, MoreHorizontal, PenLine, Send, SendIcon, SmilePlus, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowRight, Check, Mic, Plus, PenLine, Send, SendIcon, SmilePlus, Sparkles, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -401,7 +401,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             aria-label="Herramientas de mensaje"
             onClick={() => setInputMenuOpen((v) => !v)}
           >
-            {inputMenuOpen ? <X className="w-4 h-4" /> : <MoreHorizontal className="w-4 h-4" />}
+            {inputMenuOpen ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
           </Button>
 
           {/* Los 4 botones de acción:
