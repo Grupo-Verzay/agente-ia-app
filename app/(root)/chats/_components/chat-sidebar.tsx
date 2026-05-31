@@ -420,22 +420,6 @@ export function ChatSidebar({
                 <SquarePen className="h-3.5 w-3.5" />
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => setUnreadOnly((v) => !v)}
-              title={unreadOnly ? "Mostrando no leídos — clic para ver todos" : "Filtrar no leídos"}
-              className={cn(
-                "relative shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
-                unreadOnly
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-              )}
-            >
-              <MessageCircle className="h-3.5 w-3.5" />
-              {unreadOnly && (
-                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
-              )}
-            </button>
             {showAdvisorFilter && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -508,6 +492,8 @@ export function ChatSidebar({
                 onClearFilter={() => setSelectedTagIds(new Set())}
               />
             ) : null}
+            unreadOnly={unreadOnly}
+            onToggleUnread={() => setUnreadOnly((v) => !v)}
           />
 
           {selectedJids.size > 0 && (
