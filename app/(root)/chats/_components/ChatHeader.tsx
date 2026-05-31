@@ -250,7 +250,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   );
 
   return (
-    <div className="border-b border-border/40 bg-gradient-to-r from-background to-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/50 z-10">
+    <div className="sticky top-0 z-10 border-b border-border/40 bg-gradient-to-r from-background to-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/50">
       {/* ── Mobile ── */}
       <div className="md:hidden px-3 py-2 space-y-2">
         {/* Fila única: volver + avatar + nombre + activa + acciones */}
