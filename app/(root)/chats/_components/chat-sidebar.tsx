@@ -11,7 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Inbox, Trash2, Users, UserX, Check, SquarePen } from "lucide-react";
+import { Inbox, Trash2, Users, UserX, Check, SquarePen, MessageCircle } from "lucide-react";
 import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
@@ -128,6 +128,7 @@ export function ChatSidebar({
   const [deleteTarget, setDeleteTarget] = useState<SidebarContact | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
   const [advisorFilter, setAdvisorFilter] = useState<string | null>(null); // null=todos, 'unassigned'=sin asignar, id=asesor específico
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [selectedJids, setSelectedJids] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
@@ -294,12 +295,16 @@ export function ChatSidebar({
       list = list.filter((c) => c.chatSession?.assignedAdvisorId === advisorFilter);
     }
 
+    if (unreadOnly) {
+      list = list.filter((c) => c.isUnreadLocal);
+    }
+
     return list.slice().sort((a, b) => {
       if (a.isPinned !== b.isPinned) return Number(b.isPinned) - Number(a.isPinned);
       if (a.pinnedAtMs !== b.pinnedAtMs) return b.pinnedAtMs - a.pinnedAtMs;
       return b.ts - a.ts;
     });
-  }, [contacts, q, selectedTagIds, tab, advisorFilter, currentAdvisorId]);
+  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, currentAdvisorId]);
 
   React.useEffect(() => {
     if (selectedJid) {
@@ -415,6 +420,22 @@ export function ChatSidebar({
                 <SquarePen className="h-3.5 w-3.5" />
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setUnreadOnly((v) => !v)}
+              title={unreadOnly ? "Mostrando no leídos — clic para ver todos" : "Filtrar no leídos"}
+              className={cn(
+                "relative shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
+                unreadOnly
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+              )}
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              {unreadOnly && (
+                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
+              )}
+            </button>
             {allTags.length > 0 && (
               <TagFilterPanel
                 tags={allTags}
