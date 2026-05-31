@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ArrowRight, Check, Mic, PenLine, Send, SendIcon, SmilePlus, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowRight, Check, Mic, MoreHorizontal, PenLine, Send, SendIcon, SmilePlus, Sparkles, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -87,6 +87,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const [signatureText, setSignatureText] = useState('');
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [inputMenuOpen, setInputMenuOpen] = useState(false);
   const emojiRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -317,7 +318,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
 
       {/* Input + botones */}
       <div className="relative flex flex-nowrap gap-2">
-        <div className="relative flex flex-nowrap z-10 items-center justify-center flex-col sm:flex-row">
+        <div className="relative flex flex-nowrap z-10 items-center justify-center">
+          {/* Firma + SwitchStatus — solo desktop */}
           <div className="pr-2 md:flex hidden items-center gap-1">
             {session && (
               <SwitchStatus
@@ -384,51 +386,76 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               </Popover>
             )}
           </div>
-          <ChatAutomationPicker
-            quickReplies={quickReplies}
-            workflows={workflows}
-            onSendQuickReply={onSendQuickReply}
-            onSendWorkflow={onSendWorkflow}
-          />
 
-          <AttachmentMenu onComposeMediaChange={onComposeMediaChange} maxBase64MB={8} />
+          {/* Botón toggle — solo móvil */}
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className={cn(
+              'sm:hidden h-8 w-8 rounded-full shrink-0 transition-colors',
+              inputMenuOpen
+                ? 'bg-muted text-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+            )}
+            aria-label="Herramientas de mensaje"
+            onClick={() => setInputMenuOpen((v) => !v)}
+          >
+            {inputMenuOpen ? <X className="w-4 h-4" /> : <MoreHorizontal className="w-4 h-4" />}
+          </Button>
 
-          {/* Sugerencia IA */}
-          {!isRecording && !isPreviewingAudio && onGenerateSuggestion && (
-            <Button
-              onClick={onGenerateSuggestion}
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 rounded-full shrink-0 text-violet-500 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950"
-              aria-label="Generar respuesta sugerida con IA"
-              title="Generar sugerencia con IA"
-              type="button"
-            >
-              <Sparkles className="w-4 h-4" />
-            </Button>
-          )}
-
-          {/* Emoji picker — izquierda, junto a adjuntos */}
-          {!isRecording && !isPreviewingAudio && (
-            <div className="relative" ref={emojiRef}>
+          {/* Los 4 botones de acción:
+              - Móvil: ocultos por defecto, se muestran como panel flotante cuando inputMenuOpen
+              - Desktop (sm+): siempre visibles en fila */}
+          <div
+            className={cn(
+              'items-center gap-1',
+              inputMenuOpen
+                ? 'absolute bottom-full left-0 mb-2 z-50 flex flex-col rounded-xl border border-border bg-popover p-2 shadow-lg'
+                : 'hidden sm:flex',
+            )}
+          >
+            <ChatAutomationPicker
+              quickReplies={quickReplies}
+              workflows={workflows}
+              onSendQuickReply={onSendQuickReply}
+              onSendWorkflow={onSendWorkflow}
+            />
+            <AttachmentMenu onComposeMediaChange={onComposeMediaChange} maxBase64MB={8} />
+            {!isRecording && !isPreviewingAudio && onGenerateSuggestion && (
               <Button
-                onClick={() => setEmojiOpen((v) => !v)}
+                onClick={() => { onGenerateSuggestion(); setInputMenuOpen(false); }}
                 size="icon"
                 variant="ghost"
-                className="h-8 w-8 rounded-full shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-                aria-label="Emojis"
-                title="Emojis"
+                className="h-8 w-8 rounded-full shrink-0 text-violet-500 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950"
+                aria-label="Generar respuesta sugerida con IA"
+                title="Generar sugerencia con IA"
                 type="button"
               >
-                <SmilePlus className="w-4 h-4" />
+                <Sparkles className="w-4 h-4" />
               </Button>
-              {emojiOpen && (
-                <div className="absolute bottom-9 left-0 z-50">
-                  <EmojiPickerPanel onSelect={insertEmoji} />
-                </div>
-              )}
-            </div>
-          )}
+            )}
+            {!isRecording && !isPreviewingAudio && (
+              <div className="relative" ref={emojiRef}>
+                <Button
+                  onClick={() => setEmojiOpen((v) => !v)}
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 rounded-full shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                  aria-label="Emojis"
+                  title="Emojis"
+                  type="button"
+                >
+                  <SmilePlus className="w-4 h-4" />
+                </Button>
+                {emojiOpen && (
+                  <div className="absolute bottom-9 left-0 z-50">
+                    <EmojiPickerPanel onSelect={insertEmoji} />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Sugerencias slash */}

@@ -84,6 +84,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 }) => {
   const initialSelectedTagIds = session?.tags?.map((t) => t?.id).filter(Boolean) ?? [];
   const [resolving, setResolving] = useState(false);
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
 
   const isAgent = !!advisorRole;
   const isOwnerLike = !advisorRole || advisorRole === 'administrador';
@@ -310,39 +311,60 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </div>
 
         {session ? (
-          <div className="space-y-2 pl-14">
-            <div className="flex flex-wrap items-center gap-1.5">
+          <div className="space-y-1.5 pl-14">
+            {/* Botón toggle herramientas */}
+            <button
+              type="button"
+              onClick={() => setMobileToolsOpen((v) => !v)}
+              className="flex items-center gap-1.5 rounded-md"
+            >
               <Badge variant="outline" className={`${sessionStatusTone} text-xs py-0.5`}>
                 {session.status ? 'Activa' : 'Pausada'}
               </Badge>
-              <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
-              <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
-              <ChatRegistrosBadge
-                sessionId={session.id}
-                sessionPushName={session.pushName}
-                whatsapp={displayedWhatsapp}
-                userId={session.userId}
-                remoteJid={session.remoteJid}
-                instanceId={session.instanceId}
-                flujos={session.flujos}
-                leadStatus={session.leadStatus}
-                leadScore={session.leadScore}
-                leadScoreReason={session.leadScoreReason}
-                tags={session.tags}
-                sessionSeguimientos={session.seguimientos}
+              <ChevronDown
+                className={cn(
+                  'h-3 w-3 text-muted-foreground transition-transform duration-200',
+                  mobileToolsOpen && 'rotate-180',
+                )}
               />
-              <ChatReminderDialog session={session!} userId={userId} />
-              <ChatAppointmentStatusButton
-                sessionId={session.id}
-                userId={session.userId}
-                pushName={session.pushName}
-                remoteJid={session.remoteJid}
-                instanceId={session.instanceId}
-              />
-            </div>
-            <div className="flex items-center gap-1.5">
-              {tagsCombobox}
-            </div>
+            </button>
+
+            {/* Herramientas expandibles */}
+            {mobileToolsOpen && (
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
+                  <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
+                  <ChatRegistrosBadge
+                    sessionId={session.id}
+                    sessionPushName={session.pushName}
+                    whatsapp={displayedWhatsapp}
+                    userId={session.userId}
+                    remoteJid={session.remoteJid}
+                    instanceId={session.instanceId}
+                    flujos={session.flujos}
+                    leadStatus={session.leadStatus}
+                    leadScore={session.leadScore}
+                    leadScoreReason={session.leadScoreReason}
+                    tags={session.tags}
+                    sessionSeguimientos={session.seguimientos}
+                  />
+                  <ChatReminderDialog session={session!} userId={userId} />
+                  <ChatAppointmentStatusButton
+                    sessionId={session.id}
+                    userId={session.userId}
+                    pushName={session.pushName}
+                    remoteJid={session.remoteJid}
+                    instanceId={session.instanceId}
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {tagsCombobox}
+                </div>
+              </div>
+            )}
+
+            {/* Controles de sesión — siempre visibles */}
             <div className="flex items-center gap-2">
               <SwitchStatus
                 key={`${session.id}-${session.status ? 'on' : 'off'}`}
