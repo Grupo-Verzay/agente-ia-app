@@ -467,26 +467,18 @@ export function ChatSidebar({
                   <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                     Filtrar por asesor
                   </p>
-                  <DropdownMenuItem
-                    onSelect={() => setAdvisorFilter(null)}
-                    className="flex items-center justify-between gap-2 cursor-pointer"
-                  >
+                  <DropdownMenuItem onSelect={() => setAdvisorFilter(null)} className="flex items-center justify-between gap-2 cursor-pointer">
                     <span className="text-sm">Todos</span>
                     {advisorFilter === null && <Check className="h-3.5 w-3.5 text-primary" />}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onSelect={() => setAdvisorFilter(advisorFilter === 'unassigned' ? null : 'unassigned')}
-                    className="flex items-center justify-between gap-2 cursor-pointer"
-                  >
+                  <DropdownMenuItem onSelect={() => setAdvisorFilter(advisorFilter === 'unassigned' ? null : 'unassigned')} className="flex items-center justify-between gap-2 cursor-pointer">
                     <span className="flex items-center gap-2 text-sm">
                       <UserX className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       Sin asignar
                     </span>
                     <span className="flex items-center gap-1">
-                      {advisorCounts.unassigned > 0 && (
-                        <span className="text-[10px] text-muted-foreground">{advisorCounts.unassigned}</span>
-                      )}
+                      {advisorCounts.unassigned > 0 && <span className="text-[10px] text-muted-foreground">{advisorCounts.unassigned}</span>}
                       {advisorFilter === 'unassigned' && <Check className="h-3.5 w-3.5 text-primary" />}
                     </span>
                   </DropdownMenuItem>
@@ -494,19 +486,13 @@ export function ChatSidebar({
                     const count = advisorCounts.countMap[a.id] ?? 0;
                     const isActive = advisorFilter === a.id;
                     return (
-                      <DropdownMenuItem
-                        key={a.id}
-                        onSelect={() => setAdvisorFilter(isActive ? null : a.id)}
-                        className="flex items-center justify-between gap-2 cursor-pointer"
-                      >
+                      <DropdownMenuItem key={a.id} onSelect={() => setAdvisorFilter(isActive ? null : a.id)} className="flex items-center justify-between gap-2 cursor-pointer">
                         <span className="flex items-center gap-2 text-sm">
                           <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', colorFor(a.id))} />
                           <span className="truncate">{a.name ?? a.email}</span>
                         </span>
                         <span className="flex items-center gap-1">
-                          {count > 0 && (
-                            <span className="text-[10px] text-muted-foreground">{count > 99 ? '99+' : count}</span>
-                          )}
+                          {count > 0 && <span className="text-[10px] text-muted-foreground">{count > 99 ? '99+' : count}</span>}
                           {isActive && <Check className="h-3.5 w-3.5 text-primary" />}
                         </span>
                       </DropdownMenuItem>
