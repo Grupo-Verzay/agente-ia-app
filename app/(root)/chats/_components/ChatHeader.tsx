@@ -313,7 +313,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         {session ? (
           <div className="space-y-1.5 pl-14">
             {/* Fila: toggle herramientas + Acciones */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setMobileToolsOpen((v) => !v)}
