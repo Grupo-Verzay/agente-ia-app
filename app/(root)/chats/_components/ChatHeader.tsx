@@ -312,22 +312,25 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
         {session ? (
           <div className="space-y-1.5 pl-14">
-            {/* Botón toggle herramientas */}
-            <button
-              type="button"
-              onClick={() => setMobileToolsOpen((v) => !v)}
-              className="flex items-center gap-1.5 rounded-md"
-            >
-              <Badge variant="outline" className={`${sessionStatusTone} text-xs py-0.5`}>
-                {session.status ? 'Activa' : 'Pausada'}
-              </Badge>
-              <ChevronDown
-                className={cn(
-                  'h-3 w-3 text-muted-foreground transition-transform duration-200',
-                  mobileToolsOpen && 'rotate-180',
-                )}
-              />
-            </button>
+            {/* Fila: toggle herramientas + Acciones */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMobileToolsOpen((v) => !v)}
+                className="flex items-center gap-1.5 rounded-md"
+              >
+                <Badge variant="outline" className={`${sessionStatusTone} text-xs py-0.5`}>
+                  {session.status ? 'Activa' : 'Pausada'}
+                </Badge>
+                <ChevronDown
+                  className={cn(
+                    'h-3 w-3 text-muted-foreground transition-transform duration-200',
+                    mobileToolsOpen && 'rotate-180',
+                  )}
+                />
+              </button>
+              {lifecycleButton}
+            </div>
 
             {/* Herramientas expandibles */}
             {mobileToolsOpen && (
@@ -373,10 +376,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               </div>
             )}
 
-            {/* Solo Acciones — siempre visible */}
-            <div className="flex items-center gap-2">
-              {lifecycleButton}
-            </div>
           </div>
         ) : (
           <div className="pl-14 text-xs text-muted-foreground">Sin sesión CRM sincronizada</div>
