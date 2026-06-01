@@ -288,9 +288,6 @@ export function ChatContactItem({
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-                {isStarred && (
-                  <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" />
-                )}
                 {contact.isPinned && (
                   <Pin className="h-3.5 w-3.5 shrink-0 fill-current text-amber-500" />
                 )}
@@ -346,6 +343,23 @@ export function ChatContactItem({
             </div>
           </div>
         </button>
+
+        {/* Botón estrella — visible al hover o cuando está destacado */}
+        {onToggleStar && !selectionMode && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleStar(contact.id); }}
+            className={cn(
+              "shrink-0 h-7 w-7 flex items-center justify-center rounded-full transition-all",
+              isStarred
+                ? "opacity-100 text-amber-400"
+                : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-amber-400",
+            )}
+            title={isStarred ? "Quitar destacado" : "Destacar"}
+          >
+            <Star className={cn("h-3.5 w-3.5", isStarred && "fill-amber-400")} />
+          </button>
+        )}
 
         {/* Dropdown menu — hidden in selection mode */}
         {!selectionMode && (
