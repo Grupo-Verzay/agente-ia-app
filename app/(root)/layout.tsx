@@ -121,7 +121,7 @@ export default async function RootGroupLayout({
             <AppInitializer onReseller={onReseller} modules={modules} user={user} navPrefs={navPrefs} />
             <SidebarProvider defaultOpen={defaultOpen}>
                 <AppSidebar user={user} />
-                <SidebarInset className="h-screen flex flex-col min-w-0 overflow-x-hidden">
+                <SidebarInset className="h-screen h-[100dvh] flex flex-col min-w-0 overflow-x-hidden">
                     <Breadcrumbs />
                     <main className={`flex-1 flex flex-col overflow-hidden overflow-x-hidden p-4 ${themeClass}`}>
                         <PanelAwareTabNav tabs={panelTabs} excludePanelRoutes />

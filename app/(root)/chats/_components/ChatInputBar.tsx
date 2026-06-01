@@ -262,14 +262,14 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           ) : (
             /* 2-4 imágenes: grilla simétrica */
             <div className={cn(
-              "grid gap-2",
+              "grid gap-1.5",
               composeMediaList.length === 2 && "grid-cols-2",
               composeMediaList.length === 3 && "grid-cols-3",
               composeMediaList.length === 4 && "grid-cols-2",
             )}>
               {composeMediaList.map((m, i) => (
-                <div key={i} className="relative overflow-hidden rounded-lg border border-border aspect-square bg-muted/30">
-                  <SafeImage src={m.dataUrl} alt={m.fileName} fill sizes="150px" className="object-cover" />
+                <div key={i} className="relative h-14 overflow-hidden rounded-md border border-border bg-muted/30">
+                  <SafeImage src={m.dataUrl} alt={m.fileName} fill sizes="120px" className="object-cover" />
                   <button
                     onClick={() => onRemoveComposeMedia(i)}
                     aria-label="Quitar imagen"
