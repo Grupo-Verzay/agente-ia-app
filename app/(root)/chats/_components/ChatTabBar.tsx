@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentType } from "react";
-import { Inbox, Users, UserCheck, Archive, Trash2, ChevronDown, MessageCircle, Check, Star } from "lucide-react";
+import { Inbox, Users, UserCheck, Archive, Trash2, ChevronDown, Lock, MessageCircle, Check, Star } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +21,8 @@ type ChatTabBarProps = {
   onToggleUnread?: () => void;
   starredOnly?: boolean;
   onToggleStarred?: () => void;
+  notesOnly?: boolean;
+  onToggleNotes?: () => void;
 };
 
 const MAIN_TABS: { key: TabKey; label: string; Icon: ComponentType<{ className?: string }>; color: string }[] = [
@@ -29,9 +31,9 @@ const MAIN_TABS: { key: TabKey; label: string; Icon: ComponentType<{ className?:
   { key: "groups", label: "Grupos", Icon: Users,     color: "#28A745" },
 ];
 
-export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, starredOnly, onToggleStarred }: ChatTabBarProps) {
+export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, starredOnly, onToggleStarred, notesOnly, onToggleNotes }: ChatTabBarProps) {
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
-  const isOverflowActive = tab === "archived" || tab === "deleted" || unreadOnly || starredOnly;
+  const isOverflowActive = tab === "archived" || tab === "deleted" || unreadOnly || starredOnly || notesOnly;
 
   return (
     <div className="flex flex-row gap-2 items-center justify-between overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -105,7 +107,19 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
               {starredOnly && <Check className="h-3.5 w-3.5 text-primary" />}
             </DropdownMenuItem>
           )}
-          {(onToggleStarred || onToggleUnread) && (
+          {onToggleNotes && (
+            <DropdownMenuItem
+              onSelect={onToggleNotes}
+              className="flex items-center justify-between gap-2 cursor-pointer"
+            >
+              <span className="flex items-center gap-2 text-sm">
+                <Lock className={cn("h-3.5 w-3.5 shrink-0", notesOnly ? "text-amber-500" : "text-muted-foreground")} />
+                Con notas
+              </span>
+              {notesOnly && <Check className="h-3.5 w-3.5 text-primary" />}
+            </DropdownMenuItem>
+          )}
+          {(onToggleStarred || onToggleUnread || onToggleNotes) && (
             <div className="my-1 border-t border-border/50" />
           )}
           <DropdownMenuItem

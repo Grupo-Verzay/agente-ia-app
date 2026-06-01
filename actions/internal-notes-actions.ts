@@ -93,6 +93,20 @@ export async function getInternalNotesBySessionAction(
   }
 }
 
+export async function getSessionIdsWithNotesAction(): Promise<number[]> {
+  try {
+    const user = await assertAuthorized();
+    const rows = await (db as any).internalNote.findMany({
+      where: { session: { userId: user.id } },
+      select: { sessionId: true },
+      distinct: ['sessionId'],
+    });
+    return rows.map((r: { sessionId: number }) => r.sessionId);
+  } catch {
+    return [];
+  }
+}
+
 export async function deleteInternalNoteAction(
   noteId: number,
 ): Promise<{ success: boolean; message: string }> {

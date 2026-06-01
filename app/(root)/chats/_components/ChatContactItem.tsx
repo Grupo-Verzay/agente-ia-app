@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, CalendarClock, Check, CheckCircle, Copy, MailOpen, MailX, MoreVertical, PencilLine, Pin, Star, Tag, Trash2, UserCheck, Users } from "lucide-react";
+import { Archive, CalendarClock, Check, CheckCircle, Copy, Lock, MailOpen, MailX, MoreVertical, PencilLine, Pin, Star, Tag, Trash2, UserCheck, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -88,6 +88,7 @@ type ChatContactItemProps = {
   onRenameRequest?: (contact: SidebarContact) => void;
   isStarred?: boolean;
   onToggleStar?: (id: string) => void;
+  hasNotes?: boolean;
 };
 
 export function ChatContactItem({
@@ -113,6 +114,7 @@ export function ChatContactItem({
   onRenameRequest,
   isStarred,
   onToggleStar,
+  hasNotes,
 }: ChatContactItemProps) {
   const IconComponent = getIconForMessageType(contact.messageType);
   const isUnread = contact.isUnreadLocal;
@@ -176,6 +178,23 @@ export function ChatContactItem({
       </TooltipProvider>
     );
   }
+  if (hasNotes) {
+    badgeItems.push(
+      <TooltipProvider key="notes">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex items-center gap-1 h-6 rounded-full border border-amber-300 bg-amber-50 px-1.5 dark:border-amber-700 dark:bg-amber-950">
+              <Lock className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={6} className="z-[9999]">
+            <p className="text-xs font-semibold">Tiene notas internas</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
   if (contact.chatSession?.tags && contact.chatSession.tags.length > 0) {
     const tags = contact.chatSession.tags;
     badgeItems.push(

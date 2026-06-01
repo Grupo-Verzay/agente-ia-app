@@ -17,6 +17,7 @@ export type SidebarContact = {
   timestamp: string;
   ts: number;
   instanceName?: string;
+  hasNotes?: boolean;
 };
 
 export type TabKey = "all" | "mine" | "dm" | "groups" | "archived" | "deleted";

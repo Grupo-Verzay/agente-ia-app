@@ -3,6 +3,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { resolveSession } from "@/actions/advisor-assign-actions";
+import { getSessionIdsWithNotesAction } from "@/actions/internal-notes-actions";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
 import { updateLeadPushNameAction } from "@/actions/registro-action";
 import {
@@ -150,6 +151,8 @@ export function ChatSidebar({
   const [renameTarget, setRenameTarget] = useState<SidebarContact | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [renameLoading, setRenameLoading] = useState(false);
+  const [notedSessionIds, setNotedSessionIds] = useState<Set<number>>(new Set());
+  const [notesOnly, setNotesOnly] = useState(false);
 
   const isOwnerOrAdmin = advisorRole !== "agente";
   const showAdvisorFilter = isOwnerOrAdmin && (advisors?.length ?? 0) > 0;
@@ -228,6 +231,7 @@ export function ChatSidebar({
           isArchived: Boolean(preference?.isArchived),
           isDeleted: Boolean(preference?.isDeleted),
           instanceName: chat.instanceName,
+          hasNotes: notedSessionIds.has(chatSessions[chat.remoteJid]?.id ?? -1),
         } satisfies SidebarContact;
       })
       .sort((a, b) => {
@@ -243,7 +247,7 @@ export function ChatSidebar({
           return true;
         };
       })());
-  }, [chatPreferences, chatSessions, forcedUnreadJids, inactiveAgentUnreadJids, isMessageSeen, result, selectedJid]);
+  }, [chatPreferences, chatSessions, forcedUnreadJids, inactiveAgentUnreadJids, isMessageSeen, notedSessionIds, result, selectedJid]);
 
   const myChats = useMemo(() => {
     if (!currentAdvisorId) return [];
@@ -340,12 +344,16 @@ export function ChatSidebar({
       list = list.filter((c) => starredJids.has(c.id));
     }
 
+    if (notesOnly) {
+      list = list.filter((c) => c.hasNotes);
+    }
+
     return list.slice().sort((a, b) => {
       if (a.isPinned !== b.isPinned) return Number(b.isPinned) - Number(a.isPinned);
       if (a.pinnedAtMs !== b.pinnedAtMs) return b.pinnedAtMs - a.pinnedAtMs;
       return b.ts - a.ts;
     });
-  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, starredOnly, starredJids, currentAdvisorId]);
+  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, starredOnly, notesOnly, starredJids, currentAdvisorId]);
 
   React.useEffect(() => {
     if (selectedJid) {
@@ -363,6 +371,10 @@ export function ChatSidebar({
   }, []);
 
   React.useEffect(() => {
+    getSessionIdsWithNotesAction().then((ids) => setNotedSessionIds(new Set(ids)));
+  }, []);
+
+  React.useEffect(() => {
     try { localStorage.setItem("starredChats", JSON.stringify(starredJidsArray)); } catch {}
   }, [starredJidsArray]);
 
@@ -376,6 +388,7 @@ export function ChatSidebar({
     setTab(newTab);
     setUnreadOnly(false);
     setStarredOnly(false);
+    setNotesOnly(false);
     setSelectedTagIds(new Set());
     void onSelectRemoteJid?.("");
   }, [onSelectRemoteJid]);
@@ -590,6 +603,8 @@ export function ChatSidebar({
             onToggleUnread={() => setUnreadOnly((v) => !v)}
             starredOnly={starredOnly}
             onToggleStarred={() => setStarredOnly((v) => !v)}
+            notesOnly={notesOnly}
+            onToggleNotes={() => setNotesOnly((v) => !v)}
           />
 
           {selectedJids.size > 0 && (
@@ -655,6 +670,7 @@ export function ChatSidebar({
                 onRenameRequest={(contact) => { setRenameDraft(contact.name); setRenameTarget(contact); }}
                 isStarred={starredJids.has(contact.id)}
                 onToggleStar={toggleStarred}
+                hasNotes={contact.hasNotes}
               />
             ))
           ) : (
