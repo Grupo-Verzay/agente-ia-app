@@ -372,6 +372,17 @@ model InternalNote {
   @@map("internal_notes")
 }
 
+model UserTaskType {
+  id      Int    @id @default(autoincrement())
+  ownerId String
+  name    String
+  order   Int    @default(0)
+
+  @@unique([ownerId, name])
+  @@index([ownerId])
+  @@map("user_task_types")
+}
+
 model Task {
   id             Int       @id @default(autoincrement())
   ownerId        String

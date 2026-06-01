@@ -20,6 +20,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { themeClass } from "@/types/generic";
 import { ChatWidget } from "./ai-chat/components";
 import { ChatOnboardingModal } from "@/components/shared/ChatOnboardingModal";
+import { TaskNotificationProvider } from "@/components/providers/TaskNotificationProvider";
 import type { UserNavPref } from "@/types/nav-preference";
 
 export default async function RootGroupLayout({
@@ -129,6 +130,7 @@ export default async function RootGroupLayout({
                     </main>
                     <ChatWidget />
                     <ChatOnboardingModal />
+                    <TaskNotificationProvider />
                 </SidebarInset>
             </SidebarProvider>
         </>

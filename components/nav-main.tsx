@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
+import { useTaskStore } from '@/stores/useTaskStore';
 
 import { canAccessRoute } from '@/utils/access';
 import { PremiumModule } from './shared/PremiumModule';
@@ -22,6 +23,7 @@ export function NavMain({ user }: { user: User }) {
     const { modules, navPrefs, setLabelModule, labelModule, setCanvaUrl } = useModuleStore();
     const pathname = usePathname();
     const router = useRouter();
+    const taskPendingCount = useTaskStore((s) => s.pendingCount);
 
     const isAdvisor = !!user.ownerId;
 
@@ -97,6 +99,11 @@ export function NavMain({ user }: { user: User }) {
                                     <ChevronRight className="invisible ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                                     {route === '/profile' && <ChevronRight />}
                                     {requiresPremium && <PremiumModule />}
+                                    {route === '/tareas' && taskPendingCount > 0 && (
+                                        <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white leading-none">
+                                            {taskPendingCount > 99 ? '99+' : taskPendingCount}
+                                        </span>
+                                    )}
                                 </SidebarMenuButton>
 
                             </SidebarMenuItem>

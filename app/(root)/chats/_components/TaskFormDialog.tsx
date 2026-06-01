@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ClipboardList, Loader2 } from "lucide-react";
+import { Check, ClipboardList, Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,10 +20,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 import { TASK_TYPES, type TaskData } from "@/lib/task-types";
 import {
   createTaskAction,
+  createCustomTaskTypeAction,
+  deleteCustomTaskTypeAction,
   getAdvisorsForTaskAction,
+  getCustomTaskTypesAction,
 } from "@/actions/task-actions";
 import type { Session } from "@/types/session";
 
@@ -49,6 +54,11 @@ export function TaskFormDialog({
   const [saving, setSaving] = useState(false);
 
   const [type, setType] = useState<string>("Seguimiento");
+  const [sendWhatsApp, setSendWhatsApp] = useState(true);
+  const [customTypes, setCustomTypes] = useState<string[]>([]);
+  const [addingType, setAddingType] = useState(false);
+  const [newTypeName, setNewTypeName] = useState("");
+  const newTypeRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date();
@@ -61,8 +71,12 @@ export function TaskFormDialog({
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    getAdvisorsForTaskAction().then((res) => {
-      if (res.success && res.data) setAdvisors(res.data);
+    Promise.all([
+      getAdvisorsForTaskAction(),
+      getCustomTaskTypesAction(),
+    ]).then(([advisorsRes, types]) => {
+      if (advisorsRes.success && advisorsRes.data) setAdvisors(advisorsRes.data);
+      setCustomTypes(types);
       setLoading(false);
     });
   }, [open]);
@@ -70,6 +84,30 @@ export function TaskFormDialog({
   useEffect(() => {
     if (open) setAssignedToId(currentUserId);
   }, [open, currentUserId]);
+
+  const handleAddType = async () => {
+    const name = newTypeName.trim();
+    if (!name) return;
+    const res = await createCustomTaskTypeAction(name);
+    if (res.success) {
+      setCustomTypes((prev) => [...prev, name]);
+      setType(name);
+      setAddingType(false);
+      setNewTypeName("");
+    } else {
+      toast.error(res.message);
+    }
+  };
+
+  const handleDeleteCustomType = async (t: string) => {
+    const res = await deleteCustomTaskTypeAction(t);
+    if (res.success) {
+      setCustomTypes((prev) => prev.filter((c) => c !== t));
+      if (type === t) setType("Seguimiento");
+    } else {
+      toast.error(res.message);
+    }
+  };
 
   const handleSave = async () => {
     if (!title.trim()) { toast.error("Escribe una descripción para la tarea."); return; }
@@ -86,6 +124,7 @@ export function TaskFormDialog({
       title: title.trim(),
       type,
       dueDate: new Date(dueDate).toISOString(),
+      sendWhatsApp,
     });
     setSaving(false);
 
@@ -115,7 +154,7 @@ export function TaskFormDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col flex-1 min-h-0 space-y-3 overflow-y-auto py-1">
+        <div className="flex flex-col flex-1 min-h-0 space-y-3 overflow-y-auto py-1 px-1">
           {/* Tipo */}
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">TIPO</label>
@@ -124,9 +163,56 @@ export function TaskFormDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TASK_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                {[...TASK_TYPES, ...customTypes].map((t) => (
+                  <SelectItem key={t} value={t} className="group pr-1">
+                    <div className="flex items-center justify-between gap-2 w-full">
+                      <span>{t}</span>
+                      {customTypes.includes(t) && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); void handleDeleteCustomType(t); }}
+                          className="ml-2 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  </SelectItem>
                 ))}
+                {/* Agregar tipo */}
+                {addingType ? (
+                  <div className="flex items-center gap-1 px-2 py-1.5">
+                    <Input
+                      ref={newTypeRef}
+                      value={newTypeName}
+                      onChange={(e) => setNewTypeName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); void handleAddType(); }
+                        if (e.key === "Escape") { setAddingType(false); setNewTypeName(""); }
+                      }}
+                      placeholder="Nombre del tipo..."
+                      className="h-7 text-xs flex-1"
+                      autoFocus
+                    />
+                    <button type="button" onClick={() => void handleAddType()}
+                      className="flex h-6 w-6 items-center justify-center rounded text-emerald-600 hover:bg-emerald-50">
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                    <button type="button" onClick={() => { setAddingType(false); setNewTypeName(""); }}
+                      className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setAddingType(true); setTimeout(() => newTypeRef.current?.focus(), 50); }}
+                    className="flex w-full items-center gap-1.5 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-sm transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Agregar tipo
+                  </button>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -176,6 +262,18 @@ export function TaskFormDialog({
               </Select>
             )}
           </div>
+        </div>
+
+        {/* Recordatorio WhatsApp */}
+        <div className="flex items-center gap-2 py-1 px-1">
+          <Checkbox
+            id="wa-reminder"
+            checked={sendWhatsApp}
+            onCheckedChange={(v) => setSendWhatsApp(!!v)}
+          />
+          <label htmlFor="wa-reminder" className="text-xs text-muted-foreground cursor-pointer select-none">
+            Enviar recordatorio por WhatsApp al asesor asignado
+          </label>
         </div>
 
         <DialogFooter className="gap-2">

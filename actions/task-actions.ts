@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { format } from "date-fns";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 
@@ -40,6 +41,7 @@ const createSchema = z.object({
   title: z.string().trim().min(1),
   type: z.string().min(1),
   dueDate: z.string().min(1),
+  sendWhatsApp: z.boolean().optional(),
 });
 
 export async function createTaskAction(
@@ -65,6 +67,53 @@ export async function createTaskAction(
         createdById: user.id,
       },
     });
+
+    // Recordatorio WhatsApp al asesor asignado
+    if (parsed.sendWhatsApp) {
+      try {
+        const [advisor, instance] = await Promise.all([
+          db.user.findUnique({
+            where: { id: parsed.assignedToId },
+            select: { notificationNumber: true },
+          }),
+          (db as any).instancia.findFirst({
+            where: {
+              userId: ownerId,
+              instanceType: { in: ["Whatsapp", null] },
+            },
+            select: { instanceName: true, apiKeyId: true },
+          }),
+        ]);
+
+        const phone = advisor?.notificationNumber?.replace(/\D/g, "");
+        const apiKey = instance?.apiKeyId
+          ? await db.apiKey.findUnique({
+              where: { id: instance.apiKeyId },
+              select: { key: true, url: true },
+            })
+          : null;
+
+        if (phone && phone.length >= 7 && instance && apiKey) {
+          const contact = parsed.contactName ? ` con ${parsed.contactName}` : "";
+          const msg = `📋 *Recordatorio de tarea*\n\n*${parsed.type}:* ${parsed.title}${contact}\n🕐 ${format(new Date(parsed.dueDate), "dd/MM/yyyy HH:mm")}`;
+          await db.seguimiento.create({
+            data: {
+              remoteJid: `${phone}@s.whatsapp.net`,
+              instancia: instance.instanceName,
+              apikey: apiKey.key,
+              serverurl: apiKey.url,
+              mensaje: msg,
+              time: format(new Date(parsed.dueDate), "dd/MM/yyyy HH:mm"),
+              tipo: "task-reminder",
+              followUpStatus: "pending",
+              idNodo: `task-reminder-${Date.now()}`,
+            },
+          });
+        }
+      } catch (waError) {
+        console.warn("[createTaskAction] WhatsApp reminder failed:", waError);
+      }
+    }
 
     return { success: true, message: "Tarea creada.", data: toTaskData(task) };
   } catch (error) {
@@ -164,5 +213,52 @@ export async function getAdvisorsForTaskAction(): Promise<{
   } catch (error) {
     console.error("[getAdvisorsForTaskAction]", error);
     return { success: false };
+  }
+}
+
+export async function getCustomTaskTypesAction(): Promise<string[]> {
+  try {
+    const user = await getAuth();
+    const ownerId = user.ownerId ?? user.id;
+    const rows = await (db as any).userTaskType.findMany({
+      where: { ownerId },
+      orderBy: { order: "asc" },
+    });
+    return rows.map((r: any) => r.name as string);
+  } catch {
+    return [];
+  }
+}
+
+export async function createCustomTaskTypeAction(
+  name: string,
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const user = await getAuth();
+    const ownerId = user.ownerId ?? user.id;
+    const trimmed = name.trim();
+    if (!trimmed) return { success: false, message: "El nombre no puede estar vacío." };
+
+    const count = await (db as any).userTaskType.count({ where: { ownerId } });
+    await (db as any).userTaskType.create({
+      data: { ownerId, name: trimmed, order: count },
+    });
+    return { success: true, message: "Tipo creado." };
+  } catch (error: any) {
+    if (error?.code === "P2002") return { success: false, message: "Ese tipo ya existe." };
+    return { success: false, message: "Error al crear el tipo." };
+  }
+}
+
+export async function deleteCustomTaskTypeAction(
+  name: string,
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const user = await getAuth();
+    const ownerId = user.ownerId ?? user.id;
+    await (db as any).userTaskType.deleteMany({ where: { ownerId, name } });
+    return { success: true, message: "Tipo eliminado." };
+  } catch {
+    return { success: false, message: "Error al eliminar el tipo." };
   }
 }
