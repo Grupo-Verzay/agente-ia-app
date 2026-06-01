@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ClipboardList, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -101,7 +102,7 @@ export function TaskFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md h-[585px] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4 text-primary" />
@@ -114,7 +115,7 @@ export function TaskFormDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3 py-1">
+        <div className="flex flex-col flex-1 min-h-0 space-y-3 overflow-y-auto py-1">
           {/* Tipo */}
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">TIPO</label>
@@ -131,15 +132,14 @@ export function TaskFormDialog({
           </div>
 
           {/* Descripción */}
-          <div className="space-y-1">
+          <div className="flex flex-col flex-1 min-h-0 space-y-1">
             <label className="text-xs font-medium text-muted-foreground">DESCRIPCIÓN</label>
-            <Input
+            <Textarea
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ej: Llamar para confirmar reunión"
-              className="h-9"
+              placeholder="Ej: Llamar para confirmar reunión, enviar propuesta, etc."
+              className="flex-1 min-h-[120px] resize-none"
               autoFocus
-              onKeyDown={(e) => { if (e.key === "Enter") void handleSave(); }}
             />
           </div>
 
