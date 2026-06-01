@@ -471,13 +471,6 @@ export function ChatContactItem({
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              {/* Destacar */}
-              {onToggleStar && (
-                <DropdownMenuItem onSelect={() => onToggleStar(contact.id)}>
-                  <Star className={cn("h-4 w-4", isStarred && "fill-amber-400 text-amber-400")} />
-                  {isStarred ? "Quitar destacado" : "Destacar chat"}
-                </DropdownMenuItem>
-              )}
               {/* 7-8. Anclar / Archivar */}
               <DropdownMenuItem onSelect={() => onTogglePin(contact.id, !contact.isPinned)}>
                 <Pin className="h-4 w-4" />

@@ -81,18 +81,6 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-44 p-1">
-          {onToggleStarred && (
-            <DropdownMenuItem
-              onSelect={onToggleStarred}
-              className="flex items-center justify-between gap-2 cursor-pointer"
-            >
-              <span className="flex items-center gap-2 text-sm">
-                <Star className={cn("h-3.5 w-3.5 shrink-0", starredOnly ? "fill-amber-400 text-amber-400" : "text-muted-foreground")} />
-                Destacados
-              </span>
-              {starredOnly && <Check className="h-3.5 w-3.5 text-primary" />}
-            </DropdownMenuItem>
-          )}
           {onToggleUnread && (
             <DropdownMenuItem
               onSelect={onToggleUnread}
@@ -103,6 +91,18 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
                 No leídos
               </span>
               {unreadOnly && <Check className="h-3.5 w-3.5 text-primary" />}
+            </DropdownMenuItem>
+          )}
+          {onToggleStarred && (
+            <DropdownMenuItem
+              onSelect={onToggleStarred}
+              className="flex items-center justify-between gap-2 cursor-pointer"
+            >
+              <span className="flex items-center gap-2 text-sm">
+                <Star className={cn("h-3.5 w-3.5 shrink-0", starredOnly ? "fill-amber-400 text-amber-400" : "text-muted-foreground")} />
+                Destacados
+              </span>
+              {starredOnly && <Check className="h-3.5 w-3.5 text-primary" />}
             </DropdownMenuItem>
           )}
           {(onToggleStarred || onToggleUnread) && (
