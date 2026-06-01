@@ -4,26 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 
-export type TaskStatus = "pending" | "done" | "cancelled";
-
-export { TASK_TYPES, type TaskType } from "@/lib/task-types";
-
-export type TaskData = {
-  id: number;
-  ownerId: string;
-  assignedToId: string;
-  assignedToName: string | null;
-  sessionId: number | null;
-  contactName: string | null;
-  contactJid: string | null;
-  title: string;
-  type: string;
-  dueDate: string;
-  result: string | null;
-  status: TaskStatus;
-  createdById: string;
-  createdAt: string;
-};
+import type { TaskData, TaskStatus } from "@/lib/task-types";
 
 async function getAuth() {
   const user = await currentUser();

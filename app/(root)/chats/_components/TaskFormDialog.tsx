@@ -19,11 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TASK_TYPES } from "@/lib/task-types";
+import { TASK_TYPES, type TaskData } from "@/lib/task-types";
 import {
   createTaskAction,
   getAdvisorsForTaskAction,
-  type TaskData,
 } from "@/actions/task-actions";
 import type { Session } from "@/types/session";
 

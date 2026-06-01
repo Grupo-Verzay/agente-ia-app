@@ -14,11 +14,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import type { TaskData } from "@/lib/task-types";
 import {
   getMyTasksAction,
   completeTaskAction,
   cancelTaskAction,
-  type TaskData,
 } from "@/actions/task-actions";
 import { TaskFormDialog } from "../../chats/_components/TaskFormDialog";
 
