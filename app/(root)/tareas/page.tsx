@@ -9,7 +9,7 @@ export default async function TareasPage() {
   if (!user) redirect("/login");
 
   return (
-    <div className="flex h-full flex-col p-4">
+    <div className="flex h-full flex-col">
       <TasksClient userId={user.id} userName={user.name} />
     </div>
   );
