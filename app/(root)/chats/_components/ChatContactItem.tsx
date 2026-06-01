@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, CalendarClock, Check, CheckCircle, Copy, MailOpen, MailX, MoreVertical, PencilLine, Pin, Tag, Trash2, UserCheck, Users } from "lucide-react";
+import { Archive, CalendarClock, Check, CheckCircle, Copy, MailOpen, MailX, MoreVertical, PencilLine, Pin, Star, Tag, Trash2, UserCheck, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -86,6 +86,8 @@ type ChatContactItemProps = {
   onResolve?: (id: string) => void;
   onAssignTag?: (remoteJid: string, tagId: number) => void;
   onRenameRequest?: (contact: SidebarContact) => void;
+  isStarred?: boolean;
+  onToggleStar?: (id: string) => void;
 };
 
 export function ChatContactItem({
@@ -109,6 +111,8 @@ export function ChatContactItem({
   onResolve,
   onAssignTag,
   onRenameRequest,
+  isStarred,
+  onToggleStar,
 }: ChatContactItemProps) {
   const IconComponent = getIconForMessageType(contact.messageType);
   const isUnread = contact.isUnreadLocal;
@@ -284,6 +288,9 @@ export function ChatContactItem({
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+                {isStarred && (
+                  <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" />
+                )}
                 {contact.isPinned && (
                   <Pin className="h-3.5 w-3.5 shrink-0 fill-current text-amber-500" />
                 )}
@@ -450,6 +457,13 @@ export function ChatContactItem({
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
+              {/* Destacar */}
+              {onToggleStar && (
+                <DropdownMenuItem onSelect={() => onToggleStar(contact.id)}>
+                  <Star className={cn("h-4 w-4", isStarred && "fill-amber-400 text-amber-400")} />
+                  {isStarred ? "Quitar destacado" : "Destacar chat"}
+                </DropdownMenuItem>
+              )}
               {/* 7-8. Anclar / Archivar */}
               <DropdownMenuItem onSelect={() => onTogglePin(contact.id, !contact.isPinned)}>
                 <Pin className="h-4 w-4" />

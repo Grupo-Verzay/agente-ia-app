@@ -145,6 +145,8 @@ export function ChatSidebar({
   const [selectedJids, setSelectedJids] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [forcedUnreadJids, setForcedUnreadJids] = useState<Set<string>>(new Set());
+  const [starredJidsArray, setStarredJidsArray] = useState<string[]>([]);
+  const [starredOnly, setStarredOnly] = useState(false);
   const [renameTarget, setRenameTarget] = useState<SidebarContact | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [renameLoading, setRenameLoading] = useState(false);
@@ -332,12 +334,16 @@ export function ChatSidebar({
       list = list.filter((c) => c.isUnreadLocal);
     }
 
+    if (starredOnly) {
+      list = list.filter((c) => starredJids.has(c.id));
+    }
+
     return list.slice().sort((a, b) => {
       if (a.isPinned !== b.isPinned) return Number(b.isPinned) - Number(a.isPinned);
       if (a.pinnedAtMs !== b.pinnedAtMs) return b.pinnedAtMs - a.pinnedAtMs;
       return b.ts - a.ts;
     });
-  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, currentAdvisorId]);
+  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, starredOnly, starredJids, currentAdvisorId]);
 
   React.useEffect(() => {
     if (selectedJid) {
@@ -347,9 +353,29 @@ export function ChatSidebar({
     }
   }, [selectedJid]);
 
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem("starredChats");
+      if (stored) setStarredJidsArray(JSON.parse(stored) as string[]);
+    } catch {}
+  }, []);
+
+  React.useEffect(() => {
+    try { localStorage.setItem("starredChats", JSON.stringify(starredJidsArray)); } catch {}
+  }, [starredJidsArray]);
+
+  const starredJids = React.useMemo(() => new Set(starredJidsArray), [starredJidsArray]);
+
+  const toggleStarred = useCallback((jid: string) => {
+    setStarredJidsArray((prev) =>
+      prev.includes(jid) ? prev.filter((id) => id !== jid) : [...prev, jid]
+    );
+  }, []);
+
   const handleTabChange = useCallback((newTab: TabKey) => {
     setTab(newTab);
     setUnreadOnly(false);
+    setStarredOnly(false);
     setSelectedTagIds(new Set());
     void onSelectRemoteJid?.("");
   }, [onSelectRemoteJid]);
@@ -562,6 +588,8 @@ export function ChatSidebar({
             ) : null}
             unreadOnly={unreadOnly}
             onToggleUnread={() => setUnreadOnly((v) => !v)}
+            starredOnly={starredOnly}
+            onToggleStarred={() => setStarredOnly((v) => !v)}
           />
 
           {selectedJids.size > 0 && (
@@ -625,6 +653,8 @@ export function ChatSidebar({
                 onResolve={handleResolve}
                 onAssignTag={handleAssignTag}
                 onRenameRequest={(contact) => { setRenameDraft(contact.name); setRenameTarget(contact); }}
+                isStarred={starredJids.has(contact.id)}
+                onToggleStar={toggleStarred}
               />
             ))
           ) : (
