@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, CalendarClock, Check, CheckCircle, MailOpen, MailX, MoreVertical, PencilLine, Pin, Tag, Trash2, UserCheck, Users } from "lucide-react";
+import { Archive, CalendarClock, Check, CheckCircle, Copy, MailOpen, MailX, MoreVertical, PencilLine, Pin, Tag, Trash2, UserCheck, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -355,7 +355,7 @@ export function ChatContactItem({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              {/* Leído / No leído */}
+              {/* 1. Marcar como leído / no leído */}
               {contact.isUnreadLocal ? (
                 <DropdownMenuItem onSelect={() => onMarkRead?.(contact.id)}>
                   <MailOpen className="h-4 w-4" />
@@ -367,7 +367,7 @@ export function ChatContactItem({
                   Marcar como no leído
                 </DropdownMenuItem>
               )}
-              {/* Resolver */}
+              {/* 2. Marcar como resuelto */}
               {contact.chatSession && onResolve && (
                 <DropdownMenuItem onSelect={() => onResolve(contact.id)}>
                   <CheckCircle className="h-4 w-4" />
@@ -375,34 +375,7 @@ export function ChatContactItem({
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              {/* Asignar etiqueta */}
-              {onAssignTag && allTags && allTags.length > 0 && (
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <Tag className="h-4 w-4" />
-                    Asignar etiqueta
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="w-44">
-                    {allTags.map((tag) => {
-                      const hasTag = contact.chatSession?.tags?.some((t) => t.id === tag.id);
-                      return (
-                        <DropdownMenuItem
-                          key={tag.id}
-                          onSelect={() => onAssignTag(contact.id, tag.id)}
-                          className="flex items-center justify-between gap-2"
-                        >
-                          <span className="flex items-center gap-2 text-sm">
-                            <span className="h-2 w-2 rounded-full shrink-0" style={{ background: tag.color ?? undefined }} />
-                            {tag.name}
-                          </span>
-                          {hasTag && <Check className="h-3.5 w-3.5 text-primary" />}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              )}
-              {/* Asignar agente */}
+              {/* 3. Asignar agente */}
               {onAssignAdvisor && advisors && advisors.length > 0 && (
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
@@ -429,7 +402,47 @@ export function ChatContactItem({
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
               )}
-              {/* Cambiar nombre */}
+              {/* 4. Asignar etiqueta */}
+              {onAssignTag && allTags && allTags.length > 0 && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Tag className="h-4 w-4" />
+                    Asignar etiqueta
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-44">
+                    {allTags.map((tag) => {
+                      const hasTag = contact.chatSession?.tags?.some((t) => t.id === tag.id);
+                      return (
+                        <DropdownMenuItem
+                          key={tag.id}
+                          onSelect={() => onAssignTag(contact.id, tag.id)}
+                          className="flex items-center justify-between gap-2"
+                        >
+                          <span className="flex items-center gap-2 text-sm">
+                            <span className="h-2 w-2 rounded-full shrink-0" style={{ background: tag.color ?? undefined }} />
+                            {tag.name}
+                          </span>
+                          {hasTag && <Check className="h-3.5 w-3.5 text-primary" />}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
+              <DropdownMenuSeparator />
+              {/* 5. Copiar número */}
+              {!contact.isGroup && (
+                <DropdownMenuItem
+                  onSelect={() => {
+                    const phone = contact.id.split("@")[0];
+                    void navigator.clipboard.writeText(`+${phone}`);
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                  Copiar número
+                </DropdownMenuItem>
+              )}
+              {/* 6. Cambiar nombre */}
               {onRenameRequest && contact.chatSession && (
                 <DropdownMenuItem onSelect={() => onRenameRequest(contact)}>
                   <PencilLine className="h-4 w-4" />
@@ -437,7 +450,7 @@ export function ChatContactItem({
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              {/* Pin / Archive */}
+              {/* 7-8. Anclar / Archivar */}
               <DropdownMenuItem onSelect={() => onTogglePin(contact.id, !contact.isPinned)}>
                 <Pin className="h-4 w-4" />
                 {contact.isPinned ? "Desanclar chat" : "Anclar chat"}
@@ -447,6 +460,7 @@ export function ChatContactItem({
                 {contact.isArchived ? "Restaurar chat" : "Archivar chat"}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              {/* 9. Eliminar */}
               <DropdownMenuItem
                 className="text-red-600 focus:text-red-600"
                 onSelect={() => onDeleteRequest(contact)}
