@@ -296,7 +296,7 @@ export function AgendaKanban({
         <TooltipProvider delayDuration={120}>
             <div className="flex flex-col gap-3 min-w-0 w-full h-full">
                 {/* Board card */}
-                <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0 rounded-xl border-2 border-border/70 bg-card/50 p-4 shadow-md">
+                <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0">
                     {/* Toolbar */}
                     <div className="flex items-center gap-2 min-w-0 flex-wrap">
                         <div className="relative flex-1 sm:flex-none sm:w-72 min-w-0">

@@ -155,7 +155,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
       {/* Header fijo */}
       <div className="sticky top-0 z-1">
         <div className="flex justify-between items-center">
-          <div className="container-stats flex flex-1 gap-4 overflow-x-auto mb-2 p-2">
+          <div className="container-stats flex flex-1 gap-4 overflow-x-auto mb-2">
             <FilterLeadsByStats
               stats={stats}
               filter={filter}
@@ -166,7 +166,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
             />
           </div>
         </div>
-        <div className="flex flex-1 justify-between p-2">
+        <div className="flex flex-1 justify-between">
           <Input
             placeholder="Buscar por nombre o número..."
             value={search}

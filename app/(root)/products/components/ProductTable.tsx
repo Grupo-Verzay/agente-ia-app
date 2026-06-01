@@ -115,9 +115,9 @@ export const ProductTable = ({
     });
 
     return (
-        <Card>
-            <CardContent className="p-2">
-                <div className="w-full overflow-x-auto">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-border">
+            <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+                <div className="w-full flex-1 overflow-auto">
                     <table className="w-full text-sm">
                         <thead>
                             {table.getHeaderGroups().map((hg) => (

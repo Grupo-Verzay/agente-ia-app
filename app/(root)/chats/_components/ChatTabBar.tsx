@@ -39,7 +39,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
   const isOverflowActive = tab === "archived" || tab === "deleted" || unreadOnly || starredOnly || notesOnly;
 
   return (
-    <div className="flex flex-row gap-2 items-center justify-between overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex flex-row items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-2 sm:justify-between">
       {visibleTabs.map(({ key, label, Icon, color }) => {
         const count = tabCounts[key];
         const isActive = tab === key;

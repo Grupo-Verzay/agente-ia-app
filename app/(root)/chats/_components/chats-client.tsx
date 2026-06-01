@@ -1058,13 +1058,13 @@ export function ChatsClient({
 
   return (
     <>
-    <div className="flex h-full overflow-hidden rounded-lg border border-border shadow-sm">
+    <div data-full-bleed className="flex h-full w-full overflow-hidden">
       <div
         className={`${
           isSidebarVisible
             ? "w-full sm:w-80 md:w-96"
             : "hidden sm:w-80 md:block md:w-96"
-        } h-full flex-shrink-0 border-r transition-all duration-300 ${
+        } h-full flex-shrink-0 transition-all duration-300 sm:border-r ${
           !isSidebarVisible ? "hidden" : ""
         }`}
       >

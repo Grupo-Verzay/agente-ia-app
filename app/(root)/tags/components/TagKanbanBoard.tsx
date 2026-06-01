@@ -488,7 +488,7 @@ export function TagKanbanBoard({
     const isFiltered = searchQuery || selectedScoreRanges.size > 0;
 
     return (
-        <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0 rounded-xl border-2 border-border/70 bg-card/50 p-4 shadow-md">
+        <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0">
             {/* Toolbar: búsqueda + etiquetas + contador + botones */}
             <div className="flex items-center gap-2 min-w-0">
                 <div className="relative w-72 shrink-0">

@@ -63,7 +63,7 @@ export function TagsPageClient({
 
     return (
         <TooltipProvider delayDuration={120}>
-            <div className="flex h-full min-w-0 w-full flex-col gap-2">
+            <div data-full-bleed className="flex h-full min-w-0 w-full flex-col gap-2">
                 {/* Top 4 metric cards por conteo */}
                 {view === 'kanban' && (
                     <div className="flex flex-wrap gap-3">

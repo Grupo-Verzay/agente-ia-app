@@ -25,7 +25,15 @@ export interface ProductLimitInfo {
     reached: boolean;
 }
 
+export interface ProductStats {
+    total: number;
+    active: number;
+    outOfStock: number;
+    availableSlots: number;
+}
+
 export interface MainProductsProps extends ProductTableInterface {
     initialFilter?: string;
     limitInfo?: ProductLimitInfo;
+    stats: ProductStats;
 };

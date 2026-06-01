@@ -142,6 +142,22 @@ export async function getProductLimitInfo(userId: string) {
     return { current, limit, reached: current >= limit };
 }
 
+export async function getProductStats(userId: string) {
+    const [limit, total, active, outOfStock] = await Promise.all([
+        getProductLimit(userId),
+        db.product.count({ where: { userId } }),
+        db.product.count({ where: { userId, isActive: true } }),
+        db.product.count({ where: { userId, stock: { lte: 0 } } }),
+    ]);
+
+    return {
+        total,
+        active,
+        outOfStock,
+        availableSlots: Math.max(0, limit - total),
+    };
+}
+
 export async function checkIfSkuExists(sku: string, userId: string) {
     const existingProduct = await db.product.findFirst({
         where: { sku, userId },

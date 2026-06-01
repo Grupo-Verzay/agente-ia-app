@@ -324,7 +324,7 @@ function KanbanView({ tasks, allTypes, onComplete, onCancel }: {
   ];
 
   return (
-    <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0 rounded-xl border-2 border-border/70 bg-card/50 p-4 shadow-md">
+    <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0">
       <div className="overflow-x-auto w-full flex-1 min-h-0 pb-3">
         <div className="flex gap-3 h-full" style={{ width: "max-content", minWidth: "100%" }}>
           {columns.map(({ type, items }) => {

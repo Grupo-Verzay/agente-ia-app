@@ -513,9 +513,9 @@ export function ChatSidebar({
 
   return (
     <>
-      <aside className="flex h-full w-full max-w-[700px] flex-col border-r bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/50 xs:min-w-[200px]">
-        <div className="sticky top-0 z-10 space-y-2 border-b bg-background/80 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="flex items-center gap-2">
+      <aside className="flex h-full w-full max-w-[700px] flex-col bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/50 xs:min-w-[200px] sm:border-r">
+        <div className="sticky top-0 z-10 space-y-1.5 border-b bg-background/80 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:space-y-2 sm:px-3">
+          <div className="flex min-w-0 items-center gap-1 sm:gap-2">
             <ChatSearchBar
               value={q}
               onChange={setQ}
@@ -532,7 +532,7 @@ export function ChatSidebar({
                 type="button"
                 onClick={onCompose}
                 title="Nuevo mensaje"
-                className="shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground sm:h-8 sm:w-8"
               >
                 <SquarePen className="h-3.5 w-3.5" />
               </button>
@@ -544,7 +544,7 @@ export function ChatSidebar({
                     type="button"
                     title="Filtrar por asesor"
                     className={cn(
-                      'relative shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors',
+                      'relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors sm:h-8 sm:w-8',
                       advisorFilter !== null
                         ? 'border-primary bg-primary/10 text-primary'
                         : 'border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground'

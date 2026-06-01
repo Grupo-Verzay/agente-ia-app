@@ -236,7 +236,9 @@ export function ChatContactItem({
       data-chat-id={contact.id}
       className={cn(
         "group rounded-xl border p-2 transition hover:bg-accent hover:text-accent-foreground",
-        selected && !selectionMode ? "border-primary bg-primary/10" : "border-transparent",
+        selected && !selectionMode
+          ? "-mx-1 rounded-none border-transparent bg-primary/10 px-3 sm:mx-0 sm:rounded-xl sm:border-primary sm:px-2"
+          : "border-transparent",
         selectionMode && isChecked && "border-primary/40 bg-primary/5",
       )}
       aria-current={selected ? "true" : "false"}
