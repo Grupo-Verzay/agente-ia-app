@@ -336,6 +336,8 @@ export function ChatSidebar({
 
   const handleTabChange = useCallback((newTab: TabKey) => {
     setTab(newTab);
+    setUnreadOnly(false);
+    setSelectedTagIds(new Set());
     void onSelectRemoteJid?.("");
   }, [onSelectRemoteJid]);
 
