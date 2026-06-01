@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, SquarePen, Power } from 'lucide-react';
+import { ArrowRight, ClipboardList, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, SquarePen, Power } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,7 @@ import { ChatRegistrosBadge } from './ChatRegistrosBadge';
 import { LeadContextSheet } from './LeadContextSheet';
 import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 import { ChatReminderDialog } from './ChatReminderDialog';
+import { TaskFormDialog } from './TaskFormDialog';
 import { cn } from '@/lib/utils';
 
 const PALETTE = ['bg-blue-500','bg-violet-500','bg-emerald-500','bg-amber-500','bg-rose-500','bg-cyan-500','bg-fuchsia-500'];
@@ -86,6 +87,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const [resolving, setResolving] = useState(false);
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [sessionStatusLoading, setSessionStatusLoading] = useState(false);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
 
   const isAgent = !!advisorRole;
   const isOwnerLike = !advisorRole || advisorRole === 'administrador';
@@ -358,6 +360,16 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 sessionSeguimientos={session.seguimientos}
               />
               <ChatReminderDialog session={session!} userId={userId} />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                onClick={() => setTaskDialogOpen(true)}
+                title="Nueva tarea"
+              >
+                <ClipboardList className="h-3.5 w-3.5" />
+              </Button>
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               {tagsCombobox}
 
@@ -438,6 +450,16 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 sessionSeguimientos={session.seguimientos}
               />
               <ChatReminderDialog session={session!} userId={userId} />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                onClick={() => setTaskDialogOpen(true)}
+                title="Nueva tarea"
+              >
+                <ClipboardList className="h-3.5 w-3.5" />
+              </Button>
               <ChatAppointmentStatusButton
                 sessionId={session.id}
                 userId={session.userId}
@@ -458,6 +480,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           Sin sesión CRM sincronizada
         </div>
       )}
+
+      <TaskFormDialog
+        open={taskDialogOpen}
+        onOpenChange={setTaskDialogOpen}
+        session={session}
+        currentUserId={userId}
+      />
     </div>
   );
 };
