@@ -35,7 +35,7 @@ export function TagFilterPanel({
           aria-label="Filtrar por etiquetas"
           title="Filtrar por etiquetas"
           className={cn(
-            "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors",
+            "relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors",
             filterCount > 0
               ? "border-primary bg-primary/10 text-primary"
               : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
@@ -43,7 +43,7 @@ export function TagFilterPanel({
         >
           <Filter className="h-3.5 w-3.5" />
           {filterCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-primary-foreground">
+            <span className="absolute -right-1 -top-1 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-[7px] font-bold text-primary-foreground">
               {filterCount}
             </span>
           )}
