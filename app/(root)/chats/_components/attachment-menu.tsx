@@ -28,7 +28,7 @@ export function AttachmentMenu({
   onComposeMediaChange,
   maxBase64MB = 8,
 }: {
-  onComposeMediaChange: (m: ComposeMedia | null) => void;
+  onComposeMediaChange?: (m: ComposeMedia | null) => void;
   maxBase64MB?: number;
 }) {
   const [open, setOpen] = useState(false);
@@ -56,7 +56,7 @@ export function AttachmentMenu({
           );
         }
         const dataUrl = await readFileAsDataUrl(file);
-        onComposeMediaChange({
+        onComposeMediaChange?.({
           mediatype,
           dataUrl,
           mimeType: file.type || "application/octet-stream",

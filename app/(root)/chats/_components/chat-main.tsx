@@ -97,7 +97,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [input, setInput] = useState('');
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState('');
-  const [composeMedia, setComposeMedia] = useState<ComposeMedia | null>(null);
+  const [composeMediaList, setComposeMediaList] = useState<ComposeMedia[]>([]);
   const [replyTo, setReplyTo] = useState<UIBubble | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const [isSending, setIsSending] = useState(false);
@@ -265,12 +265,14 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   }, []);
 
   /* ─── Compose handlers ─── */
-  const handleComposeMediaChange = useCallback((m: ComposeMedia | null) => {
-    setComposeMedia(m);
-    if (m) setInput('');
+  const handleAddComposeMedia = useCallback((m: ComposeMedia) => {
+    setComposeMediaList((prev) => prev.length >= 4 ? prev : [...prev, m]);
+    setInput('');
   }, []);
 
-  const handleClearComposeMedia = useCallback(() => setComposeMedia(null), []);
+  const handleRemoveComposeMedia = useCallback((index: number) => {
+    setComposeMediaList((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
@@ -356,26 +358,45 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         mimeType: recordedAudio.mimetype,
       };
       clearRecordedAudio();
-    } else if (composeMedia) {
+    } else if (composeMediaList.length > 0) {
+      const listToSend = [...composeMediaList];
       const caption = input.trim() || '';
-      payload = {
-        kind: 'media',
-        mediatype: composeMedia.mediatype,
-        mediaUrl: composeMedia.dataUrl,
-        mimetype: composeMedia.mimeType,
-        fileName: composeMedia.fileName,
-        caption,
-        quotedMessage,
-      };
-      content = caption;
-      media = {
-        type: composeMedia.mediatype,
-        url: composeMedia.dataUrl,
-        mimeType: composeMedia.mimeType,
-        caption,
-      };
       setInput('');
-      setComposeMedia(null);
+      setComposeMediaList([]);
+      setReplyTo(null);
+      setSuggestion('');
+      setSuggestionError(false);
+      setIsSending(true);
+      setTempMessage({
+        id: `temp-${Date.now()}`,
+        sender: 'user',
+        content: caption,
+        avatarSrc: '/user-avatar.png',
+        ts: Date.now(),
+        media: { type: listToSend[0].mediatype, url: listToSend[0].dataUrl, mimeType: listToSend[0].mimeType, caption },
+        status: 'sending',
+      });
+      try {
+        for (let i = 0; i < listToSend.length; i++) {
+          const m = listToSend[i];
+          await onSend({
+            kind: 'media',
+            mediatype: m.mediatype,
+            mediaUrl: m.dataUrl,
+            mimetype: m.mimeType,
+            fileName: m.fileName,
+            caption: i === 0 ? caption : '',
+            quotedMessage: i === 0 ? quotedMessage : undefined,
+          });
+        }
+        mutateSessionStatus();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'No se pudo enviar el mensaje.');
+      } finally {
+        setIsSending(false);
+        setTempMessage(null);
+      }
+      return;
     } else {
       const text = input.trim();
       if (!text) return;
@@ -410,7 +431,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       setIsSending(false);
       setTempMessage(null);
     }
-  }, [replyTo, recordedAudio, composeMedia, input, onSend, clearRecordedAudio, mutateSessionStatus]);
+  }, [replyTo, recordedAudio, composeMediaList, input, onSend, clearRecordedAudio, mutateSessionStatus]);
 
   const handleKeyPress = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -499,7 +520,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
 
       <ChatInputBar
         input={input}
-        composeMedia={composeMedia}
+        composeMediaList={composeMediaList}
         replyTo={replyTo}
         isRecording={isRecording}
         recordSecs={recordSecs}
@@ -513,8 +534,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         slashSuggestions={slashSuggestions}
         onInputChange={handleInputChange}
         onKeyPress={handleKeyPress}
-        onComposeMediaChange={handleComposeMediaChange}
-        onClearComposeMedia={handleClearComposeMedia}
+        onAddComposeMedia={handleAddComposeMedia}
+        onRemoveComposeMedia={handleRemoveComposeMedia}
         onClearReplyTo={() => setReplyTo(null)}
         onStartRecording={startRecording}
         onStopRecordingAndPreview={stopRecordingAndPreview}

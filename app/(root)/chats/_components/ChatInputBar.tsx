@@ -27,7 +27,7 @@ import { SwitchStatus } from '../../sessions/_components';
 
 interface ChatInputBarProps {
   input: string;
-  composeMedia: ComposeMedia | null;
+  composeMediaList: ComposeMedia[];
   replyTo: UIBubble | null;
   isRecording: boolean;
   recordSecs: number;
@@ -41,8 +41,8 @@ interface ChatInputBarProps {
   slashSuggestions: ChatQuickReplyOption[];
   onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onKeyPress: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
-  onComposeMediaChange: (media: ComposeMedia | null) => void;
-  onClearComposeMedia: () => void;
+  onAddComposeMedia: (media: ComposeMedia) => void;
+  onRemoveComposeMedia: (index: number) => void;
   onClearReplyTo: () => void;
   onStartRecording: () => void;
   onStopRecordingAndPreview: () => void;
@@ -60,7 +60,7 @@ interface ChatInputBarProps {
 
 export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   input,
-  composeMedia,
+  composeMediaList,
   replyTo,
   isRecording,
   recordSecs,
@@ -74,8 +74,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   slashSuggestions,
   onInputChange,
   onKeyPress,
-  onComposeMediaChange,
-  onClearComposeMedia,
+  onAddComposeMedia,
+  onRemoveComposeMedia,
   onClearReplyTo,
   onStartRecording,
   onStopRecordingAndPreview,
@@ -181,6 +181,11 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       return;
     }
 
+    if (composeMediaList.length >= 4) {
+      toast.error('Máximo 4 imágenes por mensaje.');
+      return;
+    }
+
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const fr = new FileReader();
       fr.onload = () => resolve(String(fr.result));
@@ -188,17 +193,17 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       fr.readAsDataURL(file);
     });
 
-    onComposeMediaChange({
+    onAddComposeMedia({
       mediatype: 'image',
       dataUrl,
       mimeType: file.type || 'image/png',
       fileName: file.name || `imagen-${Date.now()}.png`,
     });
-  }, [onComposeMediaChange]);
+  }, [composeMediaList.length, onAddComposeMedia]);
 
   const isPreviewingAudio = recordedAudio !== null && !isRecording;
   const isInputActive = !isRecording && !isPreviewingAudio && !isSending;
-  const isSendButtonVisible = isInputActive && (input.trim().length > 0 || !!composeMedia);
+  const isSendButtonVisible = isInputActive && (input.trim().length > 0 || composeMediaList.length > 0);
 
   const handleSendNote = async () => {
     if (!onSendNote || !input.trim()) return;
@@ -236,41 +241,47 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         </div>
       )}
 
-      {/* Previsualización de adjunto */}
-      {composeMedia && (
-        <div className="mb-2 flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2">
-          {/* Miniatura */}
-          {composeMedia.mediatype === 'image' ? (
-            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border bg-white dark:bg-gray-800">
-              <SafeImage
-                src={composeMedia.dataUrl}
-                alt={composeMedia.fileName}
-                fill
-                sizes="40px"
-                className="object-cover"
-              />
+      {/* Previsualización de adjuntos */}
+      {composeMediaList.length > 0 && (
+        <div className="mb-2">
+          {composeMediaList.length === 1 ? (
+            /* 1 imagen: fila con nombre y X roja */
+            <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2">
+              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border bg-white dark:bg-gray-800">
+                <SafeImage src={composeMediaList[0].dataUrl} alt={composeMediaList[0].fileName} fill sizes="40px" className="object-cover" />
+              </div>
+              <div className="min-w-0 flex-1 text-xs">
+                <div className="truncate font-medium">{composeMediaList[0].fileName}</div>
+                <div className="text-muted-foreground">{composeMediaList[0].mimeType}</div>
+              </div>
+              <button onClick={() => onRemoveComposeMedia(0)} aria-label="Quitar adjunto" type="button"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition-colors hover:bg-red-600">
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
           ) : (
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-white dark:bg-gray-800">
-              <span className="truncate px-1 text-center text-[9px] font-medium uppercase text-muted-foreground">
-                {composeMedia.mimeType?.split('/')[1]?.slice(0, 4) || 'file'}
-              </span>
+            /* 2-4 imágenes: grilla simétrica */
+            <div className={cn(
+              "grid gap-2",
+              composeMediaList.length === 2 && "grid-cols-2",
+              composeMediaList.length === 3 && "grid-cols-3",
+              composeMediaList.length === 4 && "grid-cols-2",
+            )}>
+              {composeMediaList.map((m, i) => (
+                <div key={i} className="relative overflow-hidden rounded-lg border border-border aspect-square bg-muted/30">
+                  <SafeImage src={m.dataUrl} alt={m.fileName} fill sizes="150px" className="object-cover" />
+                  <button
+                    onClick={() => onRemoveComposeMedia(i)}
+                    aria-label="Quitar imagen"
+                    type="button"
+                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white shadow-md transition-colors hover:bg-red-600"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
-          {/* Info */}
-          <div className="min-w-0 flex-1 text-xs">
-            <div className="truncate font-medium">{composeMedia.fileName}</div>
-            <div className="text-muted-foreground">{composeMedia.mimeType}</div>
-          </div>
-          {/* Botón quitar */}
-          <button
-            onClick={onClearComposeMedia}
-            aria-label="Quitar adjunto"
-            type="button"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition-colors hover:bg-red-600"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
         </div>
       )}
 
@@ -433,7 +444,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               onSendQuickReply={onSendQuickReply}
               onSendWorkflow={onSendWorkflow}
             />
-            <AttachmentMenu onComposeMediaChange={onComposeMediaChange} maxBase64MB={8} />
+            <AttachmentMenu onComposeMediaChange={composeMediaList.length < 4 ? (m) => m && onAddComposeMedia(m) : undefined} maxBase64MB={8} />
             {onToggleNoteMode && session && !isRecording && !isPreviewingAudio && (
               <Button
                 type="button"
@@ -511,7 +522,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         <Textarea
           ref={textareaRef}
           placeholder={
-            composeMedia
+            composeMediaList.length > 0
               ? 'Pie de foto (opcional)...'
               : noteMode
                 ? 'Nota interna (solo visible para el equipo)...'
