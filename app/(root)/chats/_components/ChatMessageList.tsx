@@ -5,6 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MessageBubble } from './MessageBubble';
+import { InternalNoteBubble } from './InternalNoteBubble';
 import { ConversationDateBadge } from './ConversationDateBadge';
 import { getCalendarDayKey, formatConversationDateLabel } from './chat-message-utils';
 import type { UIBubble } from './chat-message-types';
@@ -125,6 +126,7 @@ interface ChatMessageListProps {
   onCopyMessage?: (bubble: UIBubble) => void;
   onReactMessage?: (bubble: UIBubble, emoji: string) => void;
   onDeleteMessage?: (bubble: UIBubble) => void;
+  onDeleteNote?: (noteId: number) => Promise<void>;
 }
 
 export const ChatMessageList: React.FC<ChatMessageListProps> = ({
@@ -136,6 +138,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
   onCopyMessage,
   onReactMessage,
   onDeleteMessage,
+  onDeleteNote,
 }) => {
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   const bgStyle = isDark ? WA_STYLE_DARK : WA_STYLE_LIGHT;
@@ -185,6 +188,20 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
           <ConversationDateBadge key={item.id} label={item.label} />
         ) : item.message.status === 'sending' ? (
           <SendingMessageSkeleton key={item.id} tempMessage={item.message} />
+        ) : item.message.isNote ? (
+          <InternalNoteBubble
+            key={item.id}
+            content={item.message.content}
+            authorName={item.message.noteAuthorName ?? null}
+            authorEmail={item.message.noteAuthorEmail ?? ''}
+            timestamp={item.message.ts ? new Date(item.message.ts).toISOString() : new Date().toISOString()}
+            isOwn={item.message.sender === 'user'}
+            onDelete={
+              item.message.noteId !== undefined && onDeleteNote
+                ? () => void onDeleteNote(item.message.noteId!)
+                : undefined
+            }
+          />
         ) : (
           <MessageBubble
             key={item.id}

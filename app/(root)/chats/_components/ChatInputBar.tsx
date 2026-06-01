@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ArrowRight, Check, Mic, Plus, PenLine, Send, SendIcon, SmilePlus, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowRight, Check, Lock, Mic, Plus, PenLine, Send, SendIcon, SmilePlus, Sparkles, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,6 +53,9 @@ interface ChatInputBarProps {
   onSendWorkflow: (workflowId: string) => Promise<ChatToolActionResult>;
   onSessionMutate: () => void;
   onGenerateSuggestion?: () => void;
+  noteMode?: boolean;
+  onToggleNoteMode?: () => void;
+  onSendNote?: (content: string) => Promise<void>;
 }
 
 export const ChatInputBar: React.FC<ChatInputBarProps> = ({
@@ -83,6 +86,9 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   onSendWorkflow,
   onSessionMutate,
   onGenerateSuggestion,
+  noteMode = false,
+  onToggleNoteMode,
+  onSendNote,
 }) => {
   const [signatureText, setSignatureText] = useState('');
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
@@ -194,8 +200,18 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const isInputActive = !isRecording && !isPreviewingAudio && !isSending;
   const isSendButtonVisible = isInputActive && (input.trim().length > 0 || !!composeMedia);
 
+  const handleSendNote = async () => {
+    if (!onSendNote || !input.trim()) return;
+    await onSendNote(input.trim());
+  };
+
   return (
-    <div className="p-3 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+    <div className={cn(
+      "p-3 border-t dark:border-gray-700 transition-colors",
+      noteMode
+        ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
+        : "bg-gray-50 dark:bg-gray-900",
+    )}>
       {/* Preview de respuesta a un mensaje */}
       {replyTo && (
         <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-lg border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/50">
@@ -422,6 +438,24 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               onSendWorkflow={onSendWorkflow}
             />
             <AttachmentMenu onComposeMediaChange={onComposeMediaChange} maxBase64MB={8} />
+            {onToggleNoteMode && session && !isRecording && !isPreviewingAudio && (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={() => { onToggleNoteMode(); setInputMenuOpen(false); }}
+                className={cn(
+                  'h-8 w-8 rounded-full shrink-0 transition-colors',
+                  noteMode
+                    ? 'bg-amber-100 text-amber-600 hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-400'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+                )}
+                aria-label="Nota interna"
+                title={noteMode ? 'Desactivar nota interna' : 'Nota interna'}
+              >
+                <Lock className="w-4 h-4" />
+              </Button>
+            )}
             {!isRecording && !isPreviewingAudio && onGenerateSuggestion && (
               <Button
                 onClick={() => { onGenerateSuggestion(); setInputMenuOpen(false); }}
@@ -483,7 +517,9 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           placeholder={
             composeMedia
               ? 'Pie de foto (opcional)...'
-              : 'Escribe... (/ atajos)'
+              : noteMode
+                ? 'Nota interna (solo visible para el equipo)...'
+                : 'Escribe... (/ atajos)'
           }
           value={input}
           onChange={onInputChange}
@@ -493,10 +529,12 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           rows={1}
           aria-label="Escribe tu mensaje"
           className={cn(
-            'min-h-10 bg-white dark:bg-gray-800 dark:text-white rounded-xl border border-gray-200 dark:border-gray-700 w-full shadow-sm',
+            'min-h-10 rounded-xl w-full shadow-sm',
             'pl-4 pr-24 py-2 resize-none overflow-y-auto text-sm leading-relaxed',
             'transition-[height] duration-100 ease-out',
-            'focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none',
+            noteMode
+              ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100 border border-amber-300 dark:border-amber-700 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none'
+              : 'bg-white dark:bg-gray-800 dark:text-white border border-gray-200 dark:border-gray-700 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none',
           )}
         />
 
@@ -519,15 +557,18 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             </Button>
           )}
           <Button
-            onClick={onSend}
+            onClick={noteMode ? () => void handleSendNote() : onSend}
             size="icon"
-            className="h-7 w-7 rounded-full bg-blue-500 hover:bg-blue-600 shrink-0"
-            aria-label="Enviar"
-            title="Enviar"
-            disabled={!isPreviewingAudio && !isSendButtonVisible}
+            className={cn(
+              "h-7 w-7 rounded-full shrink-0",
+              noteMode ? "bg-amber-500 hover:bg-amber-600" : "bg-blue-500 hover:bg-blue-600",
+            )}
+            aria-label={noteMode ? "Guardar nota" : "Enviar"}
+            title={noteMode ? "Guardar nota interna" : "Enviar"}
+            disabled={noteMode ? !input.trim() : (!isPreviewingAudio && !isSendButtonVisible)}
             type="button"
           >
-            <SendIcon className="w-3.5 h-3.5 text-white" />
+            {noteMode ? <Lock className="w-3.5 h-3.5 text-white" /> : <SendIcon className="w-3.5 h-3.5 text-white" />}
           </Button>
         </div>
       </div>

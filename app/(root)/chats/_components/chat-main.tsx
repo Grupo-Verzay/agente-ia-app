@@ -16,6 +16,12 @@ import type { AdvisorInfo } from '@/actions/team-actions';
 
 import { reactToMessageAction, deleteMessageAction } from '@/actions/chat-manual-actions';
 import { generateSuggestedReplyAction } from '@/actions/ai-suggested-reply-action';
+import {
+  createInternalNoteAction,
+  deleteInternalNoteAction,
+  getInternalNotesBySessionAction,
+  type InternalNoteData,
+} from '@/actions/internal-notes-actions';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatInputBar } from './ChatInputBar';
@@ -98,6 +104,10 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [tempMessage, setTempMessage] = useState<UIBubble | null>(null);
   const [isContactEditorOpen, setIsContactEditorOpen] = useState(false);
 
+  /* ─── Note mode state ─── */
+  const [noteMode, setNoteMode] = useState(false);
+  const [notes, setNotes] = useState<InternalNoteData[]>([]);
+
   /* ─── AI suggested reply state ─── */
   const [suggestion, setSuggestion] = useState('');
   const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
@@ -154,6 +164,38 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     return deletedIds.size > 0 ? all.filter((m) => !deletedIds.has(m.id)) : all;
   }, [reversed, header.avatarSrc, mediaCacheTick, mediaCacheRef, deletedIds]);
 
+  /* ─── Load notes when session changes ─── */
+  useEffect(() => {
+    if (!session?.id) return;
+    let cancelled = false;
+    getInternalNotesBySessionAction(session.id).then((res) => {
+      if (!cancelled && res.success && res.data) setNotes(res.data);
+    });
+    return () => { cancelled = true; };
+  }, [session?.id]);
+
+  /* ─── Convert notes to UIBubbles and merge with messages ─── */
+  const noteBubbles = useMemo<UIBubble[]>(
+    () =>
+      notes.map((n) => ({
+        id: `note-${n.id}`,
+        sender: n.authorId === userId ? ('user' as const) : ('other' as const),
+        content: n.content,
+        ts: new Date(n.createdAt).getTime(),
+        isNote: true,
+        noteAuthorName: n.authorName,
+        noteAuthorEmail: n.authorEmail,
+        noteId: n.id,
+      })),
+    [notes, userId],
+  );
+
+  const allMessages = useMemo<UIBubble[]>(() => {
+    const combined = [...uiMessages, ...noteBubbles];
+    combined.sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0));
+    return combined;
+  }, [uiMessages, noteBubbles]);
+
   /* ─── Auto scroll to bottom ─── */
   const scrollToBottom = useCallback(() => {
     const el = listRef.current;
@@ -161,7 +203,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   }, []);
   useLayoutEffect(() => {
     scrollToBottom();
-  }, [uiMessages.length, tempMessage, scrollToBottom]);
+  }, [allMessages.length, tempMessage, scrollToBottom]);
 
   /* ─── Textarea auto-resize ─── */
   useEffect(() => {
@@ -195,6 +237,32 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     }
   }, [userId, messages, header.name]);
 
+
+  /* ─── Note handlers ─── */
+  const handleToggleNoteMode = useCallback(() => setNoteMode((v) => !v), []);
+
+  const handleSendNote = useCallback(
+    async (content: string) => {
+      if (!session?.id) return;
+      const res = await createInternalNoteAction({ sessionId: session.id, content });
+      if (res.success && res.data) {
+        setNotes((prev) => [...prev, res.data!]);
+        setInput('');
+      } else {
+        toast.error(res.message);
+      }
+    },
+    [session?.id],
+  );
+
+  const handleDeleteNote = useCallback(async (noteId: number) => {
+    const res = await deleteInternalNoteAction(noteId);
+    if (res.success) {
+      setNotes((prev) => prev.filter((n) => n.id !== noteId));
+    } else {
+      toast.error(res.message);
+    }
+  }, []);
 
   /* ─── Compose handlers ─── */
   const handleComposeMediaChange = useCallback((m: ComposeMedia | null) => {
@@ -352,10 +420,14 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       }
       if (!isRecording && !recordedAudio && e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        void sendNow();
+        if (noteMode) {
+          void handleSendNote(input.trim());
+        } else {
+          void sendNow();
+        }
       }
     },
-    [sendNow, isRecording, recordedAudio, slashOpen],
+    [sendNow, handleSendNote, isRecording, recordedAudio, slashOpen, noteMode, input],
   );
 
   return (
@@ -396,7 +468,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       />
 
       <ChatMessageList
-        uiMessages={uiMessages}
+        uiMessages={allMessages}
         loading={loading}
         listRef={listRef}
         tempMessage={tempMessage}
@@ -404,6 +476,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onCopyMessage={handleCopyMessage}
         onReactMessage={handleReactMessage}
         onDeleteMessage={!advisorRole || advisorRole === 'administrador' ? handleDeleteMessage : undefined}
+        onDeleteNote={handleDeleteNote}
       />
 
       <SuggestedReplyBar
@@ -452,6 +525,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onSendWorkflow={onSendWorkflow}
         onSessionMutate={mutateSessionStatus}
         onGenerateSuggestion={() => void generateSuggestion()}
+        noteMode={noteMode}
+        onToggleNoteMode={handleToggleNoteMode}
+        onSendNote={handleSendNote}
       />
     </div>
   );

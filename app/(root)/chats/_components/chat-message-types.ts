@@ -67,6 +67,11 @@ export type UIBubble = {
   status?: MessageDeliveryState;
   kind?: 'sticker' | 'reaction';
   quotedMessage?: { id: string; content: string; sender: 'user' | 'other'; mediaType?: string };
+  // Nota interna
+  isNote?: boolean;
+  noteAuthorName?: string | null;
+  noteAuthorEmail?: string;
+  noteId?: number;
 };
 
 export type RecordedAudioData = {
