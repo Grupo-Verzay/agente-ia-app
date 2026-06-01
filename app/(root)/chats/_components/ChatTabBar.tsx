@@ -86,37 +86,37 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
           {onToggleUnread && (
             <DropdownMenuItem
               onSelect={onToggleUnread}
-              className="flex items-center justify-between gap-2 cursor-pointer"
+              className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
             >
-              <span className="flex items-center gap-2 text-sm">
-                <MessageCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="flex items-center gap-1.5 text-xs">
+                <MessageCircle className="h-3 w-3 text-muted-foreground shrink-0" />
                 No leídos
               </span>
-              {unreadOnly && <Check className="h-3.5 w-3.5 text-primary" />}
+              {unreadOnly && <Check className="h-3 w-3 text-primary" />}
             </DropdownMenuItem>
           )}
           {onToggleStarred && (
             <DropdownMenuItem
               onSelect={onToggleStarred}
-              className="flex items-center justify-between gap-2 cursor-pointer"
+              className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
             >
-              <span className="flex items-center gap-2 text-sm">
-                <Star className={cn("h-3.5 w-3.5 shrink-0", starredOnly ? "fill-amber-400 text-amber-400" : "text-muted-foreground")} />
+              <span className="flex items-center gap-1.5 text-xs">
+                <Star className={cn("h-3 w-3 shrink-0", starredOnly ? "fill-amber-400 text-amber-400" : "text-muted-foreground")} />
                 Destacados
               </span>
-              {starredOnly && <Check className="h-3.5 w-3.5 text-primary" />}
+              {starredOnly && <Check className="h-3 w-3 text-primary" />}
             </DropdownMenuItem>
           )}
           {onToggleNotes && (
             <DropdownMenuItem
               onSelect={onToggleNotes}
-              className="flex items-center justify-between gap-2 cursor-pointer"
+              className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
             >
-              <span className="flex items-center gap-2 text-sm">
-                <Lock className={cn("h-3.5 w-3.5 shrink-0", notesOnly ? "text-amber-500" : "text-muted-foreground")} />
+              <span className="flex items-center gap-1.5 text-xs">
+                <Lock className={cn("h-3 w-3 shrink-0", notesOnly ? "text-amber-500" : "text-muted-foreground")} />
                 Con notas
               </span>
-              {notesOnly && <Check className="h-3.5 w-3.5 text-primary" />}
+              {notesOnly && <Check className="h-3 w-3 text-primary" />}
             </DropdownMenuItem>
           )}
           {(onToggleStarred || onToggleUnread || onToggleNotes) && (
@@ -124,10 +124,10 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
           )}
           <DropdownMenuItem
             onSelect={() => onTabChange("archived")}
-            className="flex items-center justify-between gap-2 cursor-pointer"
+            className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
           >
-            <span className="flex items-center gap-2 text-sm">
-              <Archive className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="flex items-center gap-1.5 text-xs">
+              <Archive className="h-3 w-3 text-muted-foreground shrink-0" />
               Archivados
             </span>
             {tabCounts.archived > 0 && (
@@ -136,10 +136,10 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => onTabChange("deleted")}
-            className="flex items-center justify-between gap-2 cursor-pointer"
+            className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
           >
-            <span className="flex items-center gap-2 text-sm">
-              <Trash2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="flex items-center gap-1.5 text-xs">
+              <Trash2 className="h-3 w-3 text-muted-foreground shrink-0" />
               Eliminados
             </span>
             {tabCounts.deleted > 0 && (
