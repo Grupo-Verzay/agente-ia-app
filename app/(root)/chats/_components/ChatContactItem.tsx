@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, CalendarClock, Check, CheckCircle, MailOpen, MailX, MoreVertical, Pin, Tag, Trash2, UserCheck, Users } from "lucide-react";
+import { Archive, CalendarClock, Check, CheckCircle, MailOpen, MailX, MoreVertical, PencilLine, Pin, Tag, Trash2, UserCheck, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -85,6 +85,7 @@ type ChatContactItemProps = {
   onMarkUnread?: (id: string) => void;
   onResolve?: (id: string) => void;
   onAssignTag?: (remoteJid: string, tagId: number) => void;
+  onRenameRequest?: (contact: SidebarContact) => void;
 };
 
 export function ChatContactItem({
@@ -107,6 +108,7 @@ export function ChatContactItem({
   onMarkUnread,
   onResolve,
   onAssignTag,
+  onRenameRequest,
 }: ChatContactItemProps) {
   const IconComponent = getIconForMessageType(contact.messageType);
   const isUnread = contact.isUnreadLocal;
@@ -426,6 +428,13 @@ export function ChatContactItem({
                     ))}
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+              )}
+              {/* Cambiar nombre */}
+              {onRenameRequest && contact.chatSession && (
+                <DropdownMenuItem onSelect={() => onRenameRequest(contact)}>
+                  <PencilLine className="h-4 w-4" />
+                  Cambiar nombre
+                </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
               {/* Pin / Archive */}

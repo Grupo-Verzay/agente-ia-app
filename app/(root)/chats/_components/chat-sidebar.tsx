@@ -4,6 +4,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { resolveSession } from "@/actions/advisor-assign-actions";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
+import { updateLeadPushNameAction } from "@/actions/registro-action";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,6 +15,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Inbox, Trash2, Users, UserX, Check, SquarePen, MessageCircle } from "lucide-react";
 import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
@@ -135,6 +145,9 @@ export function ChatSidebar({
   const [selectedJids, setSelectedJids] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [forcedUnreadJids, setForcedUnreadJids] = useState<Set<string>>(new Set());
+  const [renameTarget, setRenameTarget] = useState<SidebarContact | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [renameLoading, setRenameLoading] = useState(false);
 
   const isOwnerOrAdmin = advisorRole !== "agente";
   const showAdvisorFilter = isOwnerOrAdmin && (advisors?.length ?? 0) > 0;
@@ -409,6 +422,23 @@ export function ChatSidebar({
     clearSelection();
   }, [onBulkAddTag, selectedJidsArray, clearSelection]);
 
+  const handleRenameSubmit = useCallback(async () => {
+    if (!renameTarget) return;
+    const session = chatSessions[renameTarget.id];
+    if (!session?.id) { toast.error("Sin sesión CRM para renombrar."); return; }
+    const name = renameDraft.trim();
+    if (!name) { toast.error("El nombre no puede estar vacío."); return; }
+    setRenameLoading(true);
+    const res = await updateLeadPushNameAction({ sessionId: session.id, pushName: name });
+    setRenameLoading(false);
+    if (res.success) {
+      toast.success("Nombre actualizado.");
+      setRenameTarget(null);
+    } else {
+      toast.error(res.message ?? "Error al actualizar.");
+    }
+  }, [renameTarget, renameDraft, chatSessions]);
+
   const handleResolve = useCallback(async (remoteJid: string) => {
     const session = chatSessions[remoteJid];
     if (!session?.id) { toast.error("Sin sesión CRM para resolver."); return; }
@@ -594,6 +624,7 @@ export function ChatSidebar({
                 onMarkUnread={(id) => markMessageAsUnseen(id)}
                 onResolve={handleResolve}
                 onAssignTag={handleAssignTag}
+                onRenameRequest={(contact) => { setRenameDraft(contact.name); setRenameTarget(contact); }}
               />
             ))
           ) : (
@@ -610,6 +641,27 @@ export function ChatSidebar({
         onConfirm={(id) => void onDeleteChat?.(id)}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      <Dialog open={!!renameTarget} onOpenChange={(open) => !open && setRenameTarget(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Cambiar nombre del contacto</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameDraft}
+            onChange={(e) => setRenameDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void handleRenameSubmit(); }}
+            placeholder="Nombre del contacto"
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameTarget(null)}>Cancelar</Button>
+            <Button onClick={() => void handleRenameSubmit()} disabled={renameLoading}>
+              {renameLoading ? "Guardando..." : "Guardar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={bulkDeleteOpen} onOpenChange={(open) => !open && setBulkDeleteOpen(false)}>
         <AlertDialogContent>
