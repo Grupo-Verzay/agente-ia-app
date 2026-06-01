@@ -158,24 +158,32 @@ export function ChatContactItem({
     );
   }
   if (contact.chatSession?.tags && contact.chatSession.tags.length > 0) {
+    const tags = contact.chatSession.tags;
     badgeItems.push(
-      <div key="tags" className="flex items-center gap-0.5">
-        {contact.chatSession.tags.map((tag) => (
-          <TooltipProvider key={tag.id}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Tag
-                  className="h-3.5 w-3.5 shrink-0 cursor-default"
-                  style={{ color: tag.color ?? undefined }}
-                />
-              </TooltipTrigger>
-              <TooltipContent side="top" sideOffset={6} className="z-[9999]">
-                <p className="text-xs">{tag.name}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ))}
-      </div>
+      <TooltipProvider key="tags">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex">
+              <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-violet-300 bg-violet-100 px-2 text-xs font-medium text-violet-800 dark:border-violet-700 dark:bg-violet-950 dark:text-violet-300">
+                <Tag className="h-3 w-3 shrink-0" />
+                {tags.length}
+              </span>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={6} className="z-[9999] max-w-[280px]">
+            <div className="space-y-1">
+              <div className="text-xs font-bold">Etiquetas</div>
+              <ul className="list-disc pl-4 text-xs space-y-0.5">
+                {tags.map((tag) => (
+                  <li key={tag.id} style={{ color: tag.color ?? undefined }}>
+                    {tag.name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
 
