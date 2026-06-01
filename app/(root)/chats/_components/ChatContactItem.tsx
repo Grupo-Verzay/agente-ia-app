@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, CalendarClock, Check, MoreVertical, Pin, Tag, Trash2, Users } from "lucide-react";
+import { Archive, CalendarClock, Check, CheckCircle, MailOpen, MailX, MoreVertical, Pin, Tag, Trash2, UserCheck, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,6 +8,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -27,7 +30,7 @@ import { LeadStatusSelect } from "./LeadStatusSelect";
 import { cn } from "@/lib/utils";
 import { getIconForMessageType } from "./chat-sidebar.utils";
 import type { SidebarContact } from "./chat-sidebar.types";
-import type { LeadStatus } from "@/types/session";
+import type { LeadStatus, SimpleTag } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { AdvisorAssignBadge } from "./AdvisorAssignBadge";
 
@@ -77,6 +80,11 @@ type ChatContactItemProps = {
   showInstanceBadge?: boolean;
   isChecked?: boolean;
   onToggleSelect?: (id: string) => void;
+  allTags?: SimpleTag[];
+  onMarkRead?: (id: string) => void;
+  onMarkUnread?: (id: string) => void;
+  onResolve?: (id: string) => void;
+  onAssignTag?: (remoteJid: string, tagId: number) => void;
 };
 
 export function ChatContactItem({
@@ -94,6 +102,11 @@ export function ChatContactItem({
   showInstanceBadge = false,
   isChecked,
   onToggleSelect,
+  allTags,
+  onMarkRead,
+  onMarkUnread,
+  onResolve,
+  onAssignTag,
 }: ChatContactItemProps) {
   const IconComponent = getIconForMessageType(contact.messageType);
   const isUnread = contact.isUnreadLocal;
@@ -339,32 +352,95 @@ export function ChatContactItem({
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem
-                onSelect={(e) => {
-                  e.preventDefault();
-                  onTogglePin(contact.id, !contact.isPinned);
-                }}
-              >
+            <DropdownMenuContent align="end" className="w-52">
+              {/* Leído / No leído */}
+              {contact.isUnreadLocal ? (
+                <DropdownMenuItem onSelect={() => onMarkRead?.(contact.id)}>
+                  <MailOpen className="h-4 w-4" />
+                  Marcar como leído
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onSelect={() => onMarkUnread?.(contact.id)}>
+                  <MailX className="h-4 w-4" />
+                  Marcar como no leído
+                </DropdownMenuItem>
+              )}
+              {/* Resolver */}
+              {contact.chatSession && onResolve && (
+                <DropdownMenuItem onSelect={() => onResolve(contact.id)}>
+                  <CheckCircle className="h-4 w-4" />
+                  Marcar como resuelto
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              {/* Asignar etiqueta */}
+              {onAssignTag && allTags && allTags.length > 0 && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Tag className="h-4 w-4" />
+                    Asignar etiqueta
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-44">
+                    {allTags.map((tag) => {
+                      const hasTag = contact.chatSession?.tags?.some((t) => t.id === tag.id);
+                      return (
+                        <DropdownMenuItem
+                          key={tag.id}
+                          onSelect={() => onAssignTag(contact.id, tag.id)}
+                          className="flex items-center justify-between gap-2"
+                        >
+                          <span className="flex items-center gap-2 text-sm">
+                            <span className="h-2 w-2 rounded-full shrink-0" style={{ background: tag.color ?? undefined }} />
+                            {tag.name}
+                          </span>
+                          {hasTag && <Check className="h-3.5 w-3.5 text-primary" />}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
+              {/* Asignar agente */}
+              {onAssignAdvisor && advisors && advisors.length > 0 && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <UserCheck className="h-4 w-4" />
+                    Asignar agente
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-48">
+                    <DropdownMenuItem onSelect={() => onAssignAdvisor(contact.id, null)}>
+                      <span className="text-sm text-muted-foreground">Sin asignar</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {advisors.map((a) => (
+                      <DropdownMenuItem
+                        key={a.id}
+                        onSelect={() => onAssignAdvisor(contact.id, a.id)}
+                        className="flex items-center justify-between gap-2"
+                      >
+                        <span className="truncate text-sm">{a.name ?? a.email}</span>
+                        {contact.chatSession?.assignedAdvisorId === a.id && (
+                          <Check className="h-3.5 w-3.5 text-primary shrink-0" />
+                        )}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
+              <DropdownMenuSeparator />
+              {/* Pin / Archive */}
+              <DropdownMenuItem onSelect={() => onTogglePin(contact.id, !contact.isPinned)}>
                 <Pin className="h-4 w-4" />
                 {contact.isPinned ? "Desanclar chat" : "Anclar chat"}
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={(e) => {
-                  e.preventDefault();
-                  onArchive(contact.id, !contact.isArchived);
-                }}
-              >
+              <DropdownMenuItem onSelect={() => onArchive(contact.id, !contact.isArchived)}>
                 <Archive className="h-4 w-4" />
                 {contact.isArchived ? "Restaurar chat" : "Archivar chat"}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-red-600 focus:text-red-600"
-                onSelect={(e) => {
-                  e.preventDefault();
-                  onDeleteRequest(contact);
-                }}
+                onSelect={() => onDeleteRequest(contact)}
               >
                 <Trash2 className="h-4 w-4" />
                 Eliminar chat

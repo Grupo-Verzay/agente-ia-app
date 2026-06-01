@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { resolveSession } from "@/actions/advisor-assign-actions";
+import { assignTagToSessionAction } from "@/actions/tag-actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -146,6 +149,13 @@ export function ChatSidebar({
         const filtered = prev.filter((m) => m.userId !== remoteJid);
         return [...filtered, { userId: remoteJid, messageId } satisfies MessageRecord];
       });
+    },
+    [setSeenMessages],
+  );
+
+  const markMessageAsUnseen = useCallback(
+    (remoteJid: string) => {
+      setSeenMessages((prev) => prev.filter((m) => m.userId !== remoteJid));
     },
     [setSeenMessages],
   );
@@ -387,6 +397,22 @@ export function ChatSidebar({
     clearSelection();
   }, [onBulkAddTag, selectedJidsArray, clearSelection]);
 
+  const handleResolve = useCallback(async (remoteJid: string) => {
+    const session = chatSessions[remoteJid];
+    if (!session?.id) { toast.error("Sin sesión CRM para resolver."); return; }
+    const res = await resolveSession(session.id);
+    if (res.success) toast.success("Conversación resuelta.");
+    else toast.error(res.message ?? "Error al resolver.");
+  }, [chatSessions]);
+
+  const handleAssignTag = useCallback(async (remoteJid: string, tagId: number) => {
+    const session = chatSessions[remoteJid];
+    if (!session?.id) { toast.error("Sin sesión CRM para etiquetar."); return; }
+    const res = await assignTagToSessionAction({ userId: session.userId, sessionId: session.id, tagId });
+    if (res.success) toast.success("Etiqueta asignada.");
+    else toast.error(res.message ?? "Error al asignar etiqueta.");
+  }, [chatSessions]);
+
   const emptyMessage =
     tab === "archived"
       ? "No hay chats archivados que coincidan con el filtro."
@@ -551,6 +577,11 @@ export function ChatSidebar({
                 showInstanceBadge={instancias.length > 1 && !selectedChannel}
                 isChecked={selectedJids.size > 0 ? selectedJids.has(contact.id) : undefined}
                 onToggleSelect={toggleSelectJid}
+                allTags={allTags}
+                onMarkRead={(id) => { const c = filtered.find((x) => x.id === id); if (c?.lastMessageId) markMessageAsSeen(id, c.lastMessageId); }}
+                onMarkUnread={(id) => markMessageAsUnseen(id)}
+                onResolve={handleResolve}
+                onAssignTag={handleAssignTag}
               />
             ))
           ) : (
