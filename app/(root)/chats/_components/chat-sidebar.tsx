@@ -293,6 +293,8 @@ export function ChatSidebar({
     return list.slice().sort((a, b) => b.ts - a.ts);
   }, [contacts, q]);
 
+  const starredJids = React.useMemo(() => new Set(starredJidsArray), [starredJidsArray]);
+
   const filtered = useMemo(() => {
     if (tab === "deleted") return [];
 
@@ -363,8 +365,6 @@ export function ChatSidebar({
   React.useEffect(() => {
     try { localStorage.setItem("starredChats", JSON.stringify(starredJidsArray)); } catch {}
   }, [starredJidsArray]);
-
-  const starredJids = React.useMemo(() => new Set(starredJidsArray), [starredJidsArray]);
 
   const toggleStarred = useCallback((jid: string) => {
     setStarredJidsArray((prev) =>
