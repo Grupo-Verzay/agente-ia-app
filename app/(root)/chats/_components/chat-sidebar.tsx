@@ -134,6 +134,7 @@ export function ChatSidebar({
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [selectedJids, setSelectedJids] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [forcedUnreadJids, setForcedUnreadJids] = useState<Set<string>>(new Set());
 
   const isOwnerOrAdmin = advisorRole !== "agente";
   const showAdvisorFilter = isOwnerOrAdmin && (advisors?.length ?? 0) > 0;
@@ -149,6 +150,12 @@ export function ChatSidebar({
         const filtered = prev.filter((m) => m.userId !== remoteJid);
         return [...filtered, { userId: remoteJid, messageId } satisfies MessageRecord];
       });
+      setForcedUnreadJids((prev) => {
+        if (!prev.has(remoteJid)) return prev;
+        const next = new Set(prev);
+        next.delete(remoteJid);
+        return next;
+      });
     },
     [setSeenMessages],
   );
@@ -156,6 +163,7 @@ export function ChatSidebar({
   const markMessageAsUnseen = useCallback(
     (remoteJid: string) => {
       setSeenMessages((prev) => prev.filter((m) => m.userId !== remoteJid));
+      setForcedUnreadJids((prev) => new Set([...prev, remoteJid]));
     },
     [setSeenMessages],
   );
@@ -182,8 +190,10 @@ export function ChatSidebar({
           : false;
         const hasUnreadFromServer = (chat.unreadCount ?? 0) > 0;
         const hasLocalPending = inactiveAgentUnreadJids?.has(chat.remoteJid) ?? false;
+        const isForcedUnread = forcedUnreadJids.has(chat.remoteJid);
         const isRead =
-          wasSeenPreviously || lastMsgData.fromMe || isSelected || (!hasUnreadFromServer && !hasLocalPending);
+          !isForcedUnread &&
+          (wasSeenPreviously || lastMsgData.fromMe || isSelected || (!hasUnreadFromServer && !hasLocalPending));
         const preference = chatPreferences[chat.remoteJid];
 
         return {
@@ -218,7 +228,7 @@ export function ChatSidebar({
           return true;
         };
       })());
-  }, [chatPreferences, chatSessions, inactiveAgentUnreadJids, isMessageSeen, result, selectedJid]);
+  }, [chatPreferences, chatSessions, forcedUnreadJids, inactiveAgentUnreadJids, isMessageSeen, result, selectedJid]);
 
   const myChats = useMemo(() => {
     if (!currentAdvisorId) return [];
