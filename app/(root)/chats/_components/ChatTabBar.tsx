@@ -19,10 +19,13 @@ type ChatTabBarProps = {
   rightSlot?: React.ReactNode;
   unreadOnly?: boolean;
   onToggleUnread?: () => void;
+  unreadCount?: number;
   starredOnly?: boolean;
   onToggleStarred?: () => void;
+  starredCount?: number;
   notesOnly?: boolean;
   onToggleNotes?: () => void;
+  notesCount?: number;
 };
 
 const MAIN_TABS: { key: TabKey; label: string; Icon: ComponentType<{ className?: string }>; color: string }[] = [
@@ -31,7 +34,7 @@ const MAIN_TABS: { key: TabKey; label: string; Icon: ComponentType<{ className?:
   { key: "groups", label: "Grupos", Icon: Users,     color: "#28A745" },
 ];
 
-export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, starredOnly, onToggleStarred, notesOnly, onToggleNotes }: ChatTabBarProps) {
+export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, unreadCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount }: ChatTabBarProps) {
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
   const isOverflowActive = tab === "archived" || tab === "deleted" || unreadOnly || starredOnly || notesOnly;
 
@@ -92,7 +95,10 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
                 <MessageCircle className="h-3 w-3 text-muted-foreground shrink-0" />
                 No leídos
               </span>
-              {unreadOnly && <Check className="h-3 w-3 text-primary" />}
+              <span className="flex items-center gap-1">
+                {(unreadCount ?? 0) > 0 && <span className="text-[10px] text-muted-foreground">{unreadCount}</span>}
+                {unreadOnly && <Check className="h-3 w-3 text-primary" />}
+              </span>
             </DropdownMenuItem>
           )}
           {onToggleStarred && (
@@ -104,7 +110,10 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
                 <Star className={cn("h-3 w-3 shrink-0", starredOnly ? "fill-amber-400 text-amber-400" : "text-muted-foreground")} />
                 Destacados
               </span>
-              {starredOnly && <Check className="h-3 w-3 text-primary" />}
+              <span className="flex items-center gap-1">
+                {(starredCount ?? 0) > 0 && <span className="text-[10px] text-muted-foreground">{starredCount}</span>}
+                {starredOnly && <Check className="h-3 w-3 text-primary" />}
+              </span>
             </DropdownMenuItem>
           )}
           {onToggleNotes && (
@@ -116,7 +125,10 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
                 <Lock className={cn("h-3 w-3 shrink-0", notesOnly ? "text-amber-500" : "text-muted-foreground")} />
                 Con notas
               </span>
-              {notesOnly && <Check className="h-3 w-3 text-primary" />}
+              <span className="flex items-center gap-1">
+                {(notesCount ?? 0) > 0 && <span className="text-[10px] text-muted-foreground">{notesCount}</span>}
+                {notesOnly && <Check className="h-3 w-3 text-primary" />}
+              </span>
             </DropdownMenuItem>
           )}
           {(onToggleStarred || onToggleUnread || onToggleNotes) && (

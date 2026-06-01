@@ -283,6 +283,7 @@ export function ChatSidebar({
     };
   }, [contacts, myChats]);
 
+
   const deletedContacts = useMemo(() => {
     let list = contacts.filter((c) => c.isDeleted);
     if (q.trim()) {
@@ -298,6 +299,15 @@ export function ChatSidebar({
   }, [contacts, q]);
 
   const starredJids = React.useMemo(() => new Set(starredJidsArray), [starredJidsArray]);
+
+  const filterCounts = useMemo(() => {
+    const active = contacts.filter((c) => !c.isDeleted && !c.isArchived);
+    return {
+      unread: active.filter((c) => c.isUnreadLocal).length,
+      starred: active.filter((c) => starredJids.has(c.id)).length,
+      notes: active.filter((c) => c.hasNotes).length,
+    };
+  }, [contacts, starredJids, notedSessionIds]);
 
   const filtered = useMemo(() => {
     if (tab === "deleted") return [];
@@ -601,10 +611,13 @@ export function ChatSidebar({
             ) : null}
             unreadOnly={unreadOnly}
             onToggleUnread={() => setUnreadOnly((v) => !v)}
+            unreadCount={filterCounts.unread}
             starredOnly={starredOnly}
             onToggleStarred={() => setStarredOnly((v) => !v)}
+            starredCount={filterCounts.starred}
             notesOnly={notesOnly}
             onToggleNotes={() => setNotesOnly((v) => !v)}
+            notesCount={filterCounts.notes}
           />
 
           {selectedJids.size > 0 && (
