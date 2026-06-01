@@ -112,7 +112,7 @@ export function ChatContactItem({
   const isUnread = contact.isUnreadLocal;
   const apptStatus = contact.chatSession?.latestAppointmentStatus;
 
-  const MAX_BADGES = 5;
+  const MAX_BADGES = 6;
 
   const badgeItems: React.ReactNode[] = [];
 
