@@ -74,7 +74,8 @@ export function NotesClient({ userId }: Props) {
     if (saveTimer.current) clearTimeout(saveTimer.current)
     setSaving(true)
     saveTimer.current = setTimeout(async () => {
-      const res = await updateNote(selectedNote.id, userId, { content, title })
+      const plainContent = JSON.parse(JSON.stringify(content))
+      const res = await updateNote(selectedNote.id, userId, { content: plainContent, title })
       setSaving(false)
       if (!res.success) return toast.error(res.error)
       setNotes(prev => prev.map(n => n.id === selectedNote.id ? { ...n, title, updatedAt: new Date() } : n))
