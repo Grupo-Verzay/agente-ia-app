@@ -57,4 +57,5 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     // { route: "/with-out-route" },
     { route: "/schedule" },
     { route: "/my-data" },
+    { route: "/notas" },
 ];
