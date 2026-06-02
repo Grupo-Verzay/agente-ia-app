@@ -56,7 +56,7 @@ interface AccountSwitcherProps {
 }
 
 export function AccountSwitcher({ user }: AccountSwitcherProps) {
-  const { isMobile } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
   const [payload, setPayload] = useState<LinkedAccountsPayload | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [emailInput, setEmailInput] = useState("");
@@ -72,6 +72,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
     if (payload?.activeAccountId === targetId) return;
     startTransition(async () => {
       try {
+        if (isMobile) setOpenMobile(false);
         const res = await switchToAccount(targetId);
         if (!res.success) {
           toast.error(res.message ?? "Error al cambiar de cuenta.");
