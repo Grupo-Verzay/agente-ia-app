@@ -99,11 +99,7 @@ export const CrmDashboard = ({
     const [reportStats, setReportStats] = useState<ReportStats>({ total: 0, sent: 0, avgLeads: 0, avgConversions: 0 });
 
     const toggleScoreRange = (key: ScoreRangeKey) => {
-        setSelectedScoreRanges((prev) => {
-            const next = new Set(prev);
-            next.has(key) ? next.delete(key) : next.add(key);
-            return next;
-        });
+        setSelectedScoreRanges(new Set([key]));
     };
 
     const pad = (n: number) => String(n).padStart(2, "0");

@@ -55,11 +55,7 @@ export function TagsPageClient({
     }, [tags, tagCounts]);
 
     const toggleScoreRange = (key: ScoreKey) => {
-        setSelectedScoreRanges((prev) => {
-            const next = new Set(prev);
-            next.has(key) ? next.delete(key) : next.add(key);
-            return next;
-        });
+        setSelectedScoreRanges(new Set([key]));
     };
 
     return (
@@ -113,60 +109,50 @@ export function TagsPageClient({
                                 Gestionar
                             </button>
                         </div>
-                    </div>
 
-                    {/* Score pills — solo en vista Kanban */}
-                    {view === 'kanban' && (
-                        <div className="flex items-center gap-2">
-                            <TrendingUp className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                            <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
-                                {SCORE_RANGES.map((range) => {
-                                    const active = selectedScoreRanges.has(range.key);
-                                    const count = scoreCounts[range.key] ?? 0;
-                                    return (
-                                        <button
-                                            key={range.key}
-                                            type="button"
-                                            title={`Score ${range.range}`}
-                                            onClick={() => toggleScoreRange(range.key)}
-                                            className="flex items-center gap-1 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all"
-                                            style={{
-                                                color: active ? range.color : undefined,
-                                                backgroundColor: active ? `${range.color}18` : undefined,
-                                                boxShadow: active ? `inset 0 0 0 1px ${range.color}60` : undefined,
-                                            }}
-                                        >
-                                            <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: range.color }} />
-                                            {range.label}
-                                            {count > 0 && (
-                                                <span
-                                                    className="ml-1 rounded-full px-1 py-0 text-[10px] font-bold text-white"
-                                                    style={{ backgroundColor: range.color }}
-                                                >
-                                                    {count}
-                                                </span>
-                                            )}
-                                            {active && <X className="ml-0.5 h-2.5 w-2.5 opacity-60" />}
-                                        </button>
-                                    );
-                                })}
+                        {view === 'kanban' && (
+                            <div className="flex items-center gap-2">
+                                <TrendingUp className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                                <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
+                                    {SCORE_RANGES.map((range) => {
+                                        const active = selectedScoreRanges.has(range.key);
+                                        const count = scoreCounts[range.key] ?? 0;
+                                        return (
+                                            <button
+                                                key={range.key}
+                                                type="button"
+                                                title={`Score ${range.range}`}
+                                                onClick={() => toggleScoreRange(range.key)}
+                                                className="flex items-center gap-1 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all"
+                                                style={{
+                                                    color: active ? range.color : undefined,
+                                                    backgroundColor: active ? `${range.color}18` : undefined,
+                                                    boxShadow: active ? `inset 0 0 0 1px ${range.color}60` : undefined,
+                                                }}
+                                            >
+                                                <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: range.color }} />
+                                                {range.label}
+                                                {count > 0 && (
+                                                    <span
+                                                        className="ml-1 rounded-full px-1 py-0 text-[10px] font-bold text-white"
+                                                        style={{ backgroundColor: range.color }}
+                                                    >
+                                                        {count}
+                                                    </span>
+                                                )}
+                                                {active && <X className="ml-0.5 h-2.5 w-2.5 opacity-60" />}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </ModuleToolbar>
 
                 {/* Content */}
                 {view === 'kanban' ? (
-                    <div className="flex-1 min-h-0 flex flex-col gap-3">
-                        <SessionTagsManager
-                            userId={userId}
-                            sessionId={0}
-                            allTags={tags}
-                            initialSelectedTagIds={[]}
-                            hideSessionSection
-                            compact
-                            onTagsChanged={setTags}
-                        />
+                    <div className="flex-1 min-h-0 flex flex-col">
                         <TagKanbanBoard
                             userId={userId}
                             initialTags={tags}

@@ -489,7 +489,7 @@ export function TagKanbanBoard({
 
     return (
         <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0">
-            {/* Toolbar: búsqueda + etiquetas + contador + botones */}
+            {/* Toolbar: búsqueda + contador + botones */}
             <div className="flex items-center gap-2 min-w-0">
                 <div className="relative w-72 shrink-0">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -509,27 +509,6 @@ export function TagKanbanBoard({
                             <X className="h-3 w-3" />
                         </button>
                     )}
-                </div>
-
-                {/* Tag pills con conteo */}
-                <div className="hidden sm:flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto flex-1 min-w-0">
-                    {columns.map((col) => {
-                        const dotColor = col.color ?? DEFAULT_TAG_COLOR;
-                        const count = col.id === null
-                            ? cards.filter((c) => c.tags.length === 0).length
-                            : cards.filter((c) => c.tags.some((t) => t.id === col.id)).length;
-                        return (
-                            <span key={col.id ?? 'none'} className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs text-muted-foreground whitespace-nowrap uppercase">
-                                <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
-                                {col.label}
-                                {count > 0 && (
-                                    <span className="font-bold text-white px-1 rounded-full text-[10px]" style={{ backgroundColor: dotColor }}>
-                                        {count}
-                                    </span>
-                                )}
-                            </span>
-                        );
-                    })}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 ml-auto">

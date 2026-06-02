@@ -314,7 +314,6 @@ export function KanbanBoard({
     const [cards, setCards] = useState<KanbanCard[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeCard, setActiveCard] = useState<KanbanCard | null>(null);
-    const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
     const [searchQuery, setSearchQuery] = useState('');
     const [scoringIds, setScoringIds] = useState<Set<number>>(new Set());
     const [scoringAll, setScoringAll] = useState(false);
@@ -372,31 +371,9 @@ export function KanbanBoard({
         setScoringAll(false);
     }, [loadCards]);
 
-    // Etiquetas únicas extraídas de todos los cards
-    const allTags = useMemo(() => {
-        const map = new Map<number, { id: number; name: string; color: string | null }>();
-        for (const card of cards) {
-            for (const tag of card.tags) {
-                if (!map.has(tag.id)) map.set(tag.id, tag);
-            }
-        }
-        return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'es'));
-    }, [cards]);
-
-    const toggleTag = (id: number) => {
-        setSelectedTagIds((prev) => {
-            const next = new Set(prev);
-            next.has(id) ? next.delete(id) : next.add(id);
-            return next;
-        });
-    };
-
-    // Cards filtrados por etiquetas, búsqueda y score
+    // Cards filtrados por búsqueda y score
     const filteredCards = useMemo(() => {
         let result = cards;
-        if (selectedTagIds.size > 0) {
-            result = result.filter((c) => c.tags.some((t) => selectedTagIds.has(t.id)));
-        }
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase().trim();
             result = result.filter((c) =>
@@ -413,7 +390,7 @@ export function KanbanBoard({
             });
         }
         return result;
-    }, [cards, selectedTagIds, searchQuery, selectedScoreRanges]);
+    }, [cards, searchQuery, selectedScoreRanges]);
 
     const handleDragStart = (e: DragStartEvent) => {
         const card = filteredCards.find((c) => c.id === e.active.id);
@@ -484,47 +461,11 @@ export function KanbanBoard({
                     )}
                 </div>
 
-                {allTags.length > 0 && (
-                    <div className="flex items-center gap-1.5 overflow-x-auto flex-1 min-w-0 pb-1">
-                        <Tag className="h-4 w-4 text-amber-500 shrink-0" />
-                        {allTags.map((tag) => {
-                            const active = selectedTagIds.has(tag.id);
-                            return (
-                                <button
-                                    key={tag.id}
-                                    type="button"
-                                    onClick={() => toggleTag(tag.id)}
-                                    className={cn(
-                                        'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-all shrink-0 text-foreground',
-                                        active ? 'shadow-sm' : 'opacity-70 hover:opacity-100',
-                                    )}
-                                    style={tag.color ? {
-                                        borderColor: active ? tag.color : tag.color + '60',
-                                        backgroundColor: active ? tag.color + '25' : tag.color + '10',
-                                    } : undefined}
-                                >
-                                    {tag.name}
-                                    {active && <X className="h-2.5 w-2.5 ml-0.5" />}
-                                </button>
-                            );
-                        })}
-                        {selectedTagIds.size > 0 && (
-                            <button
-                                type="button"
-                                onClick={() => setSelectedTagIds(new Set())}
-                                className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 shrink-0"
-                            >
-                                Limpiar
-                            </button>
-                        )}
-                    </div>
-                )}
-
                 <div className="flex items-center gap-2 shrink-0 ml-auto">
                     <span className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
                         <Users className="h-3.5 w-3.5" />
                         <span className="font-medium text-foreground">
-                            {(selectedTagIds.size > 0 || searchQuery || selectedScoreRanges.size > 0)
+                            {(searchQuery || selectedScoreRanges.size > 0)
                                 ? `${filteredCards.length}/${cards.length}`
                                 : filteredCards.length}
                         </span>
