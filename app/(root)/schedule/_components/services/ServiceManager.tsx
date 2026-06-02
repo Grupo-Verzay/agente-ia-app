@@ -43,7 +43,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 
-import { Plus, Pencil, Trash2, Search, Loader2, GripVertical } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, GripVertical, Wrench } from "lucide-react";
 import {
     DndContext,
     closestCenter,
@@ -272,9 +272,14 @@ function ServiceListItem({ service, onEdited, onDeleted }: {
             <Card className="border-border w-full">
                 <CardContent className="p-3">
                     <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-base text-primary leading-tight truncate">{service.name}</p>
-                            <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{service.messageText}</p>
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
+                                <Wrench className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-base text-foreground leading-tight truncate">{service.name}</p>
+                                <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{service.messageText}</p>
+                            </div>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                             <ServiceFormDialog

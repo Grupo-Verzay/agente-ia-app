@@ -116,13 +116,13 @@
 
 /* ─── Scrollbar global – aplica a toda la plataforma ──────────────────────── */
 * {
-  scrollbar-width: 8px;          /* Firefox (acepta thin | auto | none, no px) */
-  scrollbar-color: hsl(var(--muted-foreground) / 0.5) transparent;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.42) transparent;
 }
 
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 *::-webkit-scrollbar-track {
@@ -130,12 +130,12 @@
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: hsl(var(--muted-foreground) / 0.5);
-  border-radius: 4px;
+  background-color: hsl(var(--muted-foreground) / 0.42);
+  border-radius: 999px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background-color: hsl(var(--muted-foreground) / 0.8);
+  background-color: hsl(var(--muted-foreground) / 0.68);
 }
 
 /* Clase helper para ocultar el scrollbar visualmente sin perder la funcionalidad */
@@ -177,6 +177,14 @@
   font-size: 1rem;
   font-weight: 600;
   line-height: 1.5rem;
+}
+
+.app-module-content:has([data-schedule-view]) {
+  scrollbar-width: none;
+}
+
+.app-module-content:has([data-schedule-view])::-webkit-scrollbar {
+  display: none;
 }
 
 .app-module-content :where(

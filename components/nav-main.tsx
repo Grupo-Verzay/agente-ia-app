@@ -11,6 +11,7 @@ import {
     SidebarGroup,
     SidebarMenu,
     SidebarMenuButton,
+    SidebarMenuBadge,
     SidebarMenuItem,
     useSidebar,
 } from '@/components/ui/sidebar';
@@ -102,12 +103,12 @@ export function NavMain({ user }: { user: User }) {
                                     <ChevronRight className="invisible ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                                     {route === '/profile' && <ChevronRight />}
                                     {requiresPremium && <PremiumModule />}
-                                    {route === '/tareas' && taskPendingCount > 0 && (
-                                        <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white leading-none">
-                                            {taskPendingCount > 99 ? '99+' : taskPendingCount}
-                                        </span>
-                                    )}
                                 </SidebarMenuButton>
+                                {route === '/tareas' && taskPendingCount > 0 && (
+                                    <SidebarMenuBadge className="right-2 top-1/2 z-20 flex h-4 min-w-4 -translate-y-1/2 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm group-data-[collapsible=icon]:right-0.5">
+                                        {taskPendingCount > 99 ? '99+' : taskPendingCount}
+                                    </SidebarMenuBadge>
+                                )}
 
                             </SidebarMenuItem>
                         );

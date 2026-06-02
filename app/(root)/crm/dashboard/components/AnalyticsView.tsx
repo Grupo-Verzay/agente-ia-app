@@ -44,7 +44,7 @@ const ANALYTICS_SECTIONS = {
 
 type SectionKey = keyof typeof ANALYTICS_SECTIONS;
 
-/* ─── colores ─── */
+/* --- colores --- */
 const LEAD_COLORS: Record<string, string> = {
     FRIO: "#3B82F6", TIBIO: "#F59E0B", CALIENTE: "#F97316",
     FINALIZADO: "#22C55E", DESCARTADO: "#EF4444",
@@ -77,7 +77,7 @@ const TIPO_LABELS: Record<string, string> = {
 };
 const FUNNEL_ORDER = ["FRIO", "TIBIO", "CALIENTE", "FINALIZADO"] as const;
 
-/* ─── helpers de UI ─── */
+/* --- helpers de UI --- */
 
 const CHART_H = "h-[220px]";
 
@@ -132,7 +132,7 @@ function DonutChart({ data }: { data: { name: string; value: number; color: stri
     );
 }
 
-/* ─── componente principal ─── */
+/* --- componente principal --- */
 export function AnalyticsView({ userId, stats, period }: { userId: string; stats: DashboardStats | null; period: AnalyticsPeriod }) {
     const { data, isLoading } = useSWR(
         ["crm-analytics", userId, period],
@@ -291,9 +291,9 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
     ];
 
     return (
-        <div className="flex flex-col gap-2">
+        <div className="flex min-h-0 flex-1 w-full flex-col gap-2">
 
-            {/* ─── Barra de resumen (simétrica con tabs de Registros) ─── */}
+            {/* --- Barra de resumen (simétrica con tabs de Registros) --- */}
             <div className="flex h-auto w-full flex-nowrap justify-between gap-1 overflow-x-auto rounded-md border border-border bg-muted/40 p-0">
                 {LEAD_SUMMARY.map((item) => (
                     <div
@@ -309,7 +309,7 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                 ))}
             </div>
 
-            {/* ─── Toolbar (simétrica con CrmRecordsToolbar) ─── */}
+            {/* --- Toolbar (simétrica con CrmRecordsToolbar) --- */}
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
 
@@ -440,11 +440,11 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                 </div>
             </div>
 
-            {/* ─── Contenido scrollable (igual que la tabla de Registros) ─── */}
-            <div className="h-[420px] overflow-y-auto rounded-xl border border-border/70 bg-background p-4 lg:h-[540px]">
-                <div className="space-y-4 pb-4">
+            {/* --- Contenido principal --- */}
+            <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border/70 bg-background p-4">
+                <div className="flex-1 min-h-0 space-y-4 overflow-y-auto pb-4 pr-1">
 
-            {/* ═══ ① ACTIVIDAD ═══ */}
+            {/* --- ? ACTIVIDAD --- */}
             {visibleSections.actividad && (<>
             <SectionLabel>Actividad</SectionLabel>
             <div className="grid gap-4 lg:grid-cols-2">
@@ -494,7 +494,7 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
 
             </>)}
 
-            {/* ═══ ② RENDIMIENTO DEL AGENTE IA ═══ */}
+            {/* --- ? RENDIMIENTO DEL AGENTE IA --- */}
             {visibleSections.rendimiento && (<>
             <SectionLabel>Rendimiento del Agente IA</SectionLabel>
             <div className="grid gap-4 lg:grid-cols-2">
@@ -553,7 +553,7 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
             </div>
             </>)}
 
-            {/* ═══ ③ LEADS Y SEGUIMIENTOS ═══ */}
+            {/* --- ? LEADS Y SEGUIMIENTOS --- */}
             {visibleSections.leads && (<>
             <SectionLabel>Leads y seguimientos</SectionLabel>
             <div className="grid gap-4 lg:grid-cols-2">
@@ -572,7 +572,7 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                 <Card className="border-border">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-base">Embudo de conversión</CardTitle>
-                        <CardDescription>Progresión de leads: Frío → Tibio → Caliente → Finalizado.</CardDescription>
+                        <CardDescription>Progresión de leads: Frío ? Tibio ? Caliente ? Finalizado.</CardDescription>
                     </CardHeader>
                     <CardContent className={CHART_H}>
                         {loading ? <EmptyState text="Cargando..." /> : funnelData.length === 0
@@ -636,7 +636,7 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
             </div>
             </>)}
 
-            {/* ═══ ④ CITAS ═══ */}
+            {/* --- ? CITAS --- */}
             {visibleSections.citas && (<>
             <SectionLabel>Citas agendadas</SectionLabel>
             <div className="grid gap-4 lg:grid-cols-2">
@@ -677,7 +677,7 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
             </div>
             </>)}
 
-            {/* ═══ ⑤ SESIONES ═══ */}
+            {/* --- ? SESIONES --- */}
             {visibleSections.sesiones && (<>
             <SectionLabel>Sesiones</SectionLabel>
             <div className="grid gap-4 lg:grid-cols-2">
@@ -709,7 +709,7 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
             </div>
             </>)}
 
-            {/* ═══ ⑥ FLUJOS ═══ */}
+            {/* --- ? FLUJOS --- */}
             {visibleSections.flujos && (<>
             <SectionLabel>Flujos</SectionLabel>
             <div className="grid gap-4 lg:grid-cols-2">
@@ -750,13 +750,13 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
             </div>
             </>)}
 
-            {/* ═══ ⑦ ETIQUETAS Y MADUREZ ═══ */}
+            {/* --- ? ETIQUETAS Y MADUREZ --- */}
             {visibleSections.etiquetas && (<>
             <SectionLabel>Etiquetas y madurez</SectionLabel>
             <TagStatsCard userId={userId} />
             </>)}
 
-            {/* ═══ ⑧ VENTAS Y GASTOS ═══ */}
+            {/* --- ? VENTAS Y GASTOS --- */}
             {visibleSections.ventas && a && (a.sales.total > 0 || a.expenses.total > 0) && (
                 <>
                     <SectionLabel>Ventas y gastos</SectionLabel>
@@ -853,7 +853,7 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                 </>
             )}
 
-            {/* ═══ ⑨ PRODUCTOS — condicional ═══ */}
+            {/* --- ? PRODUCTOS — condicional --- */}
             {visibleSections.productos && a && a.products.total > 0 && (
                 <>
                     <SectionLabel>Productos</SectionLabel>
@@ -928,7 +928,7 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                 </>
             )}
 
-            {/* ═══ ⑩ CRÉDITOS IA ═══ */}
+            {/* --- ? CRÉDITOS IA --- */}
             {visibleSections.sistema && (
                 <>
                     <SectionLabel>Créditos IA</SectionLabel>

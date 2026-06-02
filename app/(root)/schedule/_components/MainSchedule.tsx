@@ -76,7 +76,7 @@ export const MainSchedule = ({
     }));
 
     return (
-        <div className="flex h-full w-full flex-col gap-3">
+        <div className="flex h-full w-full flex-col gap-3" data-schedule-view>
             {/* Metric cards — siempre visibles, altura fija */}
             <div className="flex flex-wrap gap-3 shrink-0">
                 {topMetrics.map((m) => (
@@ -118,9 +118,9 @@ export const MainSchedule = ({
             <div className="flex-1 min-h-0">
                 {/* Dashboard */}
                 {tab === 'dashboard' && (
-                    <div className="h-full overflow-y-auto pr-1 pb-4">
+                    <div className="h-full min-h-0 overflow-hidden pb-4">
                         <Card className="border-none bg-transparent">
-                            <CardContent>
+                            <CardContent className="p-0">
                                 <CustomCalendar user={user} />
                             </CardContent>
                         </Card>
@@ -129,7 +129,7 @@ export const MainSchedule = ({
 
                 {/* Disponibilidad */}
                 {tab === 'availability' && (
-                    <div className="h-full overflow-y-auto flex flex-col gap-4 pr-1 pb-4">
+                    <div className="h-full overflow-y-auto flex flex-col gap-4 pb-4">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <p className="hidden sm:flex items-center gap-1.5 text-sm font-semibold text-foreground">
                                 <Clock className="w-4 h-4 shrink-0 text-blue-500" />
@@ -150,9 +150,9 @@ export const MainSchedule = ({
 
                 {/* Servicios */}
                 {tab === 'services' && (
-                    <div className="h-full overflow-y-auto pr-1 pb-4">
+                    <div className="h-full overflow-y-auto pb-4">
                         <Card className="border-none bg-transparent">
-                            <CardContent className="flex flex-col gap-2">
+                            <CardContent className="flex flex-col gap-2 p-0">
                                 <ServiceManager userId={userId} />
                             </CardContent>
                         </Card>
@@ -161,9 +161,9 @@ export const MainSchedule = ({
 
                 {/* Recordatorios */}
                 {tab === 'reminders' && (
-                    <div className="h-full overflow-y-auto pr-1 pb-4">
+                    <div className="h-full overflow-y-auto pb-4">
                         <Card className="border-none bg-transparent">
-                            <CardContent className="flex flex-col gap-2">
+                            <CardContent className="flex flex-col gap-2 p-0">
                                 <MainReminders
                                     isCampaignPage={isCampaignPage}
                                     user={user}

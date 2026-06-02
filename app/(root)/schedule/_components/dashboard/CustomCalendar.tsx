@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useState, useEffect, useRef, useMemo } from "react";
 import FullCalendar from "@fullcalendar/react";
@@ -57,15 +57,7 @@ import Link from "next/link";
 import { sendMessageWithHistoryAction } from "@/actions/chat-history/send-message-with-history-action";
 import { STATUS_LABELS } from "@/types/schedule";
 import { fmtPhone } from "@/lib/whatsapp-jid";
-import { LeadStatus } from "@prisma/client";
 
-const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; cls: string; dot: string }> = {
-    FRIO:       { label: 'Frío',       cls: 'bg-blue-100 text-blue-700 border-blue-300',    dot: 'bg-blue-500' },
-    TIBIO:      { label: 'Tibio',      cls: 'bg-yellow-100 text-yellow-700 border-yellow-300', dot: 'bg-yellow-500' },
-    CALIENTE:   { label: 'Caliente',   cls: 'bg-red-100 text-red-700 border-red-300',       dot: 'bg-red-500' },
-    FINALIZADO: { label: 'Finalizado', cls: 'bg-green-100 text-green-700 border-green-300', dot: 'bg-green-500' },
-    DESCARTADO: { label: 'Descartado', cls: 'bg-gray-100 text-gray-600 border-gray-300',    dot: 'bg-gray-400' },
-};
 
 const CARD_STATUS_STYLE: Record<AppointmentStatus, string> = {
     PENDIENTE:   'border-l-4 border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/20',
@@ -76,22 +68,21 @@ const CARD_STATUS_STYLE: Record<AppointmentStatus, string> = {
     FINALIZADO:  'border-l-4 border-l-emerald-500 bg-emerald-50 dark:bg-emerald-950/20',
     DESCARTADO:  'border-l-4 border-l-zinc-400 bg-zinc-50 dark:bg-zinc-900/20',
 };
-
-const CARD_STATUS_DOT: Record<AppointmentStatus, string> = {
-    PENDIENTE:   'bg-yellow-500',
-    CONFIRMADA:  'bg-green-500',
-    ATENDIDA:    'bg-blue-500',
-    NO_ASISTIDA: 'bg-violet-500',
-    CANCELADA:   'bg-red-500',
-    FINALIZADO:  'bg-emerald-500',
-    DESCARTADO:  'bg-zinc-400',
+const APPOINTMENT_STATUS_META: Record<AppointmentStatus, { label: string; color: string }> = {
+    PENDIENTE:   { label: 'Pendiente',   color: '#EAB308' },
+    CONFIRMADA:  { label: 'Confirmada',  color: '#22C55E' },
+    ATENDIDA:    { label: 'Atendida',    color: '#3B82F6' },
+    NO_ASISTIDA: { label: 'No asistida', color: '#8B5CF6' },
+    CANCELADA:   { label: 'Cancelada',   color: '#EF4444' },
+    FINALIZADO:  { label: 'Finalizado',  color: '#059669' },
+    DESCARTADO:  { label: 'Descartado',  color: '#52525B' },
 };
+
 
 export const CustomCalendar = ({ user }: ScheduleInterface) => {
     const toastId = "progress-calendar";
 
     const [appointments, setAppointments] = useState<AppointmentWithSession[]>([]);
-    const [seguimientosMap, setSeguimientosMap] = useState<Record<string, number>>({});
     const [currentAppointment, setCurrentAppointment] = useState<AppointmentWithSession>();
     const [openDialog, setOpenDialog] = useState(false);
     const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -106,7 +97,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
     const calendarWrapRef = useRef<HTMLDivElement>(null);
     const ownerTz = user.timezone ?? 'America/Bogota';
 
-    // Oculta/muestra el cuerpo del calendario según el modo
+    // Oculta/muestra el cuerpo del calendario segÃƒÆ’Ã‚Âºn el modo
     useEffect(() => {
         const el = calendarWrapRef.current?.querySelector('.fc-view-harness') as HTMLElement | null;
         if (el) el.style.display = agendaMode ? 'none' : '';
@@ -115,7 +106,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
         }
     }, [agendaMode]);
 
-    // Resalta el botón activo en el grupo Día/Semana/Mes
+    // Resalta el botÃƒÆ’Ã‚Â³n activo en el grupo DÃƒÆ’Ã‚Â­a/Semana/Mes
     useEffect(() => {
         const wrapper = calendarWrapRef.current;
         if (!wrapper) return;
@@ -131,7 +122,6 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
         const res = await getAppointmentsByUser(user.effectiveId ?? user.id);
         if (res.success) {
             setAppointments((res.data || []) as AppointmentWithSession[]);
-            setSeguimientosMap(res.seguimientosCount ?? {});
             toast.success("Agenda cargada con éxito", { id: toastId });
         } else {
             toast.error(res.message, { id: toastId });
@@ -172,7 +162,12 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
         [appointments, agendaDate, ownerTz]
     );
     const morningAppts = dayAppts.filter(a => toZonedTime(new Date(a.startTime), ownerTz).getHours() < 12);
-    const afternoonAppts = dayAppts.filter(a => toZonedTime(new Date(a.startTime), ownerTz).getHours() >= 12);
+    const afternoonAppts = dayAppts.filter(a => {
+        const hour = toZonedTime(new Date(a.startTime), ownerTz).getHours();
+        return hour >= 12 && hour < 18;
+    });
+    const nightAppts = dayAppts.filter(a => toZonedTime(new Date(a.startTime), ownerTz).getHours() >= 18);
+    const agendaColumnClass = nightAppts.length > 0 ? "grid-cols-3" : "grid-cols-2";
 
     const openApptDialog = (appt: AppointmentWithSession) => {
         setSelectedEventId(appt.id);
@@ -216,13 +211,13 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
             if (result.success) {
                 toast.success(result.message);
             } else {
-                toast.info(`No se envió el mensaje de notificación`);
+                toast.info(`No se enviÃƒÆ’Ã‚Â³ el mensaje de notificaciÃƒÆ’Ã‚Â³n`);
                 console.error(`Error SchedulePageClient line: 232 ${result.message}`)
             }
 
         } catch (error) {
-            console.error("Error en notificación:", error);
-            toast.error("currió un error al intentar notificar la cita.");
+            console.error("Error en notificaciÃƒÆ’Ã‚Â³n:", error);
+            toast.error("curriÃƒÆ’Ã‚Â³ un error al intentar notificar la cita.");
         }
     };
 
@@ -231,7 +226,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
 
     return (
         <>
-            {/* ── FullCalendar — toolbar siempre visible ─────────────── */}
+            {/* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ FullCalendar ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â toolbar siempre visible ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */}
             <div ref={calendarWrapRef}>
                 <FullCalendar
                     ref={calendarRef}
@@ -295,172 +290,195 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                 />
             </div>
 
-            {/* ── Panel Agenda: dos columnas Mañana / Tarde ─────────── */}
+            {/* Panel Agenda: dos columnas Mañana / Tarde */}
             {agendaMode && (
-                <div className="grid grid-cols-2 gap-4 pt-3 overflow-y-auto" style={{ height: 'calc(100vh - 230px)' }}>
+                <div className={`grid ${agendaColumnClass} gap-4 pt-3`} style={{ height: 'calc(100vh - 230px)' }}>
                     {/* Mañana */}
-                    <div className="space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pb-1 border-b border-border">
+                    <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-background/60 overflow-hidden">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-3 py-2 border-b border-border/70">
                             Mañana
                         </p>
-                        {morningAppts.length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center pt-6">Sin citas</p>
-                        ) : morningAppts.map(appt => (
-                            <button key={appt.id} type="button" onClick={() => openApptDialog(appt)}
-                                className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}>
-                                <div className="flex flex-col gap-1.5">
-                                    {/* Fila superior: contacto + servicio */}
-                                    <div className="flex flex-row gap-x-2">
-                                        <div className="flex flex-col flex-1 min-w-0">
-                                            <p className="text-sm font-bold leading-tight text-muted-foreground">
-                                                {formatInTimeZone(new Date(appt.startTime), ownerTz, "HH:mm")} – {formatInTimeZone(new Date(appt.endTime), ownerTz, "HH:mm")}
-                                            </p>
-                                            <p className="text-sm font-semibold leading-tight mt-0.5 truncate">
+                        <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2">
+                            {morningAppts.length === 0 ? (
+                                <p className="text-sm text-muted-foreground text-center pt-6">Sin citas</p>
+                            ) : morningAppts.map((appt) => {
+                                const status = APPOINTMENT_STATUS_META[appt.status];
+                                return (
+                                    <button
+                                        key={appt.id}
+                                        type="button"
+                                        onClick={() => openApptDialog(appt)}
+                                        className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}
+                                    >
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <p className="text-sm font-bold leading-tight text-muted-foreground">
+                                                    {formatInTimeZone(new Date(appt.startTime), ownerTz, "HH:mm")} – {formatInTimeZone(new Date(appt.endTime), ownerTz, "HH:mm")}
+                                                </p>
+                                                {appt.service?.name && (
+                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 bg-primary/10 text-primary leading-tight shrink-0">
+                                                        {appt.service.name}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <p className="text-sm font-semibold leading-tight truncate">
                                                 {appt.session?.pushName || "Sin nombre"}
                                             </p>
-                                            <Link
-                                                href={`/chats?jid=${encodeURIComponent(appt.session.remoteJid)}`}
-                                                className="flex items-center gap-1 text-xs text-primary hover:underline leading-tight mt-1"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <Phone className="w-3 h-3 shrink-0" />
-                                                {fmtPhone(appt.session.remoteJid)}
-                                            </Link>
-                                        </div>
-                                        {appt.service?.name && (
-                                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 bg-primary/10 text-primary leading-tight shrink-0 self-start">
-                                                {appt.service.name}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {/* Fila inferior: etiquetas/lead + estado cita */}
-                                    <div className="flex flex-row items-center justify-between gap-2 pt-1.5 border-t border-black/5">
-                                        <div className="flex flex-wrap gap-1">
-                                            {appt.session.leadStatus && (() => {
-                                                const cfg = LEAD_STATUS_CONFIG[appt.session.leadStatus as LeadStatus];
-                                                return cfg ? (
-                                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-semibold leading-tight ${cfg.cls}`}>
-                                                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-                                                        {cfg.label}
-                                                        {appt.session.leadScore != null && (
-                                                            <span className="opacity-70">· {appt.session.leadScore}</span>
-                                                        )}
-                                                    </span>
-                                                ) : null;
-                                            })()}
-                                            {appt.session.sessionTags.map(({ tag }) => (
+
+                                            <div className="flex items-end justify-between gap-3">
+                                                <Link
+                                                    href={`/chats?jid=${encodeURIComponent(appt.session.remoteJid)}`}
+                                                    className="flex items-center gap-1 text-xs text-primary hover:underline leading-tight min-w-0"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <Phone className="w-3 h-3 shrink-0" />
+                                                    {fmtPhone(appt.session.remoteJid)}
+                                                </Link>
+
                                                 <span
-                                                    key={tag.id}
-                                                    className="inline-flex items-center px-1.5 py-0.5 rounded-full border text-[10px] font-semibold leading-tight"
+                                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold leading-tight shrink-0"
                                                     style={{
-                                                        backgroundColor: tag.color ? `${tag.color}20` : '#e5e7eb',
-                                                        borderColor: tag.color ?? '#d1d5db',
-                                                        color: tag.color ?? '#374151',
+                                                        borderColor: status.color,
+                                                        backgroundColor: `${status.color}20`,
+                                                        color: status.color,
                                                     }}
                                                 >
-                                                    {tag.name}
+                                                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: status.color }} />
+                                                    {status.label}
                                                 </span>
-                                            ))}
-                                            {(seguimientosMap[appt.session.remoteJid] ?? 0) > 0 && (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-semibold leading-tight bg-orange-100 border-orange-300 text-orange-800">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0" />
-                                                    {seguimientosMap[appt.session.remoteJid]}
-                                                </span>
-                                            )}
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-1 shrink-0">
-                                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${CARD_STATUS_DOT[appt.status]}`} />
-                                            <span className="text-xs font-medium opacity-80">{STATUS_LABELS[appt.status]}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </button>
-                        ))}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
 
                     {/* Tarde */}
-                    <div className="space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pb-1 border-b border-border">
+                    <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-background/60 overflow-hidden">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-3 py-2 border-b border-border/70">
                             Tarde
                         </p>
-                        {afternoonAppts.length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center pt-6">Sin citas</p>
-                        ) : afternoonAppts.map(appt => (
-                            <button key={appt.id} type="button" onClick={() => openApptDialog(appt)}
-                                className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}>
-                                <div className="flex flex-col gap-1.5">
-                                    {/* Fila superior: contacto + servicio */}
-                                    <div className="flex flex-row gap-x-2">
-                                        <div className="flex flex-col flex-1 min-w-0">
-                                            <p className="text-sm font-bold leading-tight text-muted-foreground">
-                                                {formatInTimeZone(new Date(appt.startTime), ownerTz, "HH:mm")} – {formatInTimeZone(new Date(appt.endTime), ownerTz, "HH:mm")}
-                                            </p>
-                                            <p className="text-sm font-semibold leading-tight mt-0.5 truncate">
+                        <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2">
+                            {afternoonAppts.length === 0 ? (
+                                <p className="text-sm text-muted-foreground text-center pt-6">Sin citas</p>
+                            ) : afternoonAppts.map((appt) => {
+                                const status = APPOINTMENT_STATUS_META[appt.status];
+                                return (
+                                    <button
+                                        key={appt.id}
+                                        type="button"
+                                        onClick={() => openApptDialog(appt)}
+                                        className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}
+                                    >
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <p className="text-sm font-bold leading-tight text-muted-foreground">
+                                                    {formatInTimeZone(new Date(appt.startTime), ownerTz, "HH:mm")} – {formatInTimeZone(new Date(appt.endTime), ownerTz, "HH:mm")}
+                                                </p>
+                                                {appt.service?.name && (
+                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 bg-primary/10 text-primary leading-tight shrink-0">
+                                                        {appt.service.name}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <p className="text-sm font-semibold leading-tight truncate">
                                                 {appt.session?.pushName || "Sin nombre"}
                                             </p>
-                                            <Link
-                                                href={`/chats?jid=${encodeURIComponent(appt.session.remoteJid)}`}
-                                                className="flex items-center gap-1 text-xs text-primary hover:underline leading-tight mt-1"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <Phone className="w-3 h-3 shrink-0" />
-                                                {fmtPhone(appt.session.remoteJid)}
-                                            </Link>
-                                        </div>
-                                        {appt.service?.name && (
-                                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 bg-primary/10 text-primary leading-tight shrink-0 self-start">
-                                                {appt.service.name}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {/* Fila inferior: etiquetas/lead + estado cita */}
-                                    <div className="flex flex-row items-center justify-between gap-2 pt-1.5 border-t border-black/5">
-                                        <div className="flex flex-wrap gap-1">
-                                            {appt.session.leadStatus && (() => {
-                                                const cfg = LEAD_STATUS_CONFIG[appt.session.leadStatus as LeadStatus];
-                                                return cfg ? (
-                                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-semibold leading-tight ${cfg.cls}`}>
-                                                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-                                                        {cfg.label}
-                                                        {appt.session.leadScore != null && (
-                                                            <span className="opacity-70">· {appt.session.leadScore}</span>
-                                                        )}
-                                                    </span>
-                                                ) : null;
-                                            })()}
-                                            {appt.session.sessionTags.map(({ tag }) => (
+
+                                            <div className="flex items-end justify-between gap-3">
+                                                <Link
+                                                    href={`/chats?jid=${encodeURIComponent(appt.session.remoteJid)}`}
+                                                    className="flex items-center gap-1 text-xs text-primary hover:underline leading-tight min-w-0"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <Phone className="w-3 h-3 shrink-0" />
+                                                    {fmtPhone(appt.session.remoteJid)}
+                                                </Link>
+
                                                 <span
-                                                    key={tag.id}
-                                                    className="inline-flex items-center px-1.5 py-0.5 rounded-full border text-[10px] font-semibold leading-tight"
+                                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold leading-tight shrink-0"
                                                     style={{
-                                                        backgroundColor: tag.color ? `${tag.color}20` : '#e5e7eb',
-                                                        borderColor: tag.color ?? '#d1d5db',
-                                                        color: tag.color ?? '#374151',
+                                                        borderColor: status.color,
+                                                        backgroundColor: `${status.color}20`,
+                                                        color: status.color,
                                                     }}
                                                 >
-                                                    {tag.name}
+                                                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: status.color }} />
+                                                    {status.label}
                                                 </span>
-                                            ))}
-                                            {(seguimientosMap[appt.session.remoteJid] ?? 0) > 0 && (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-semibold leading-tight bg-orange-100 border-orange-300 text-orange-800">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0" />
-                                                    {seguimientosMap[appt.session.remoteJid]}
-                                                </span>
-                                            )}
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-1 shrink-0">
-                                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${CARD_STATUS_DOT[appt.status]}`} />
-                                            <span className="text-xs font-medium opacity-80">{STATUS_LABELS[appt.status]}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </button>
-                        ))}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
+
+                    {nightAppts.length > 0 && (
+                        <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-background/60 overflow-hidden">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-3 py-2 border-b border-border/70">
+                                Noche
+                            </p>
+                            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2">
+                                {nightAppts.map((appt) => {
+                                    const status = APPOINTMENT_STATUS_META[appt.status];
+                                    return (
+                                        <button
+                                            key={appt.id}
+                                            type="button"
+                                            onClick={() => openApptDialog(appt)}
+                                            className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}
+                                        >
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <p className="text-sm font-bold leading-tight text-muted-foreground">
+                                                        {formatInTimeZone(new Date(appt.startTime), ownerTz, "HH:mm")} – {formatInTimeZone(new Date(appt.endTime), ownerTz, "HH:mm")}
+                                                    </p>
+                                                    {appt.service?.name && (
+                                                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 bg-primary/10 text-primary leading-tight shrink-0">
+                                                            {appt.service.name}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <p className="text-sm font-semibold leading-tight truncate">
+                                                    {appt.session?.pushName || "Sin nombre"}
+                                                </p>
+
+                                                <div className="flex items-end justify-between gap-3">
+                                                    <Link
+                                                        href={`/chats?jid=${encodeURIComponent(appt.session.remoteJid)}`}
+                                                        className="flex items-center gap-1 text-xs text-primary hover:underline leading-tight min-w-0"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        <Phone className="w-3 h-3 shrink-0" />
+                                                        {fmtPhone(appt.session.remoteJid)}
+                                                    </Link>
+
+                                                    <span
+                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold leading-tight shrink-0"
+                                                        style={{
+                                                            borderColor: status.color,
+                                                            backgroundColor: `${status.color}20`,
+                                                            color: status.color,
+                                                        }}
+                                                    >
+                                                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: status.color }} />
+                                                        {status.label}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
-
-
             <AlertDialog
                 open={openDialog}
                 onOpenChange={(open) => {
@@ -488,7 +506,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                             <Card className="border-border min-h-[10rem]">
                                 <CardHeader>
                                     <CardDescription>
-                                        Estás por modificar el estado de la cita:
+                                        EstÃƒÆ’Ã‚Â¡s por modificar el estado de la cita:
                                         <span className="text-muted-foreground">
                                             {selectedAppointment?.session?.pushName || "Cliente desconocido"}
                                         </span>
@@ -531,7 +549,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                 </Button>
                             </div>
                         </TabsContent>
-                        {/* Pestaña de Detalles */}
+                        {/* PestaÃƒÆ’Ã‚Â±a de Detalles */}
                         <TabsContent value="details">
                             <Card className="border-border">
                                 <CardHeader>
@@ -539,14 +557,14 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                 </CardHeader>
                                 {currentAppointment &&
                                     <CardContent>
-                                        {/* Información general de la cita */}
+                                        {/* InformaciÃƒÆ’Ã‚Â³n general de la cita */}
                                         <div className="space-y-3">
                                             <div className="flex text-sm gap-1 flex-row">
                                                 <strong className="uppercase font-medium">Cliente:</strong>
                                                 {currentAppointment.session.pushName || "Cliente desconocido"}
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
-                                                <strong className="uppercase font-medium">Teléfono:</strong>
+                                                <strong className="uppercase font-medium">TelÃƒÆ’Ã‚Â©fono:</strong>
                                                 {fmtPhone(currentAppointment.session.remoteJid) || "No disponible"}
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
@@ -582,7 +600,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
                                                 <strong className="uppercase font-medium">Hora:</strong>
-                                                {formatInTimeZone(new Date(currentAppointment.startTime), ownerTz, "HH:mm")} – {formatInTimeZone(new Date(currentAppointment.endTime), ownerTz, "HH:mm")}
+                                                {formatInTimeZone(new Date(currentAppointment.startTime), ownerTz, "HH:mm")} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ {formatInTimeZone(new Date(currentAppointment.endTime), ownerTz, "HH:mm")}
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
                                                 <strong className="uppercase font-medium">Zona Horaria:</strong>
@@ -607,9 +625,9 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Eliminar cita</AlertDialogTitle>
                         <AlertDialogDescription>
-                            ¿Estás seguro de que quieres eliminar la cita de{" "}
+                            Ãƒâ€šÃ‚Â¿EstÃƒÆ’Ã‚Â¡s seguro de que quieres eliminar la cita de{" "}
                             <strong>{selectedAppointment?.session?.pushName || "este cliente"}</strong>?
-                            Esta acción no se puede deshacer.
+                            Esta acciÃƒÆ’Ã‚Â³n no se puede deshacer.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="gap-2">
@@ -630,7 +648,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                 }
                             }}
                         >
-                            Sí, eliminar
+                            SÃƒÆ’Ã‚Â­, eliminar
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -639,9 +657,9 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
             <AlertDialog open={openCancelAlert} onOpenChange={setOpenCancelAlert}>
                 <AlertDialogContent className="border-border">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Confirmar cancelación</AlertDialogTitle>
+                        <AlertDialogTitle>Confirmar cancelaciÃƒÆ’Ã‚Â³n</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Al cambiar el estado a <strong>CANCELADA</strong>, se eliminarán todos los recordatorios/seguimientos del agendamiento asociados.
+                            Al cambiar el estado a <strong>CANCELADA</strong>, se eliminarÃƒÆ’Ã‚Â¡n todos los recordatorios/seguimientos del agendamiento asociados.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
 
@@ -666,3 +684,4 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
         </>
     );
 };
+

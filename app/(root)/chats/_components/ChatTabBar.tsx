@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { ComponentType } from "react";
 import { Inbox, Users, UserCheck, Archive, Trash2, ChevronDown, Lock, MessageCircle, Check, Star } from "lucide-react";
@@ -39,7 +39,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
   const isOverflowActive = tab === "archived" || tab === "deleted" || unreadOnly || starredOnly || notesOnly;
 
   return (
-    <div className="flex flex-row items-center justify-between gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-2">
+    <div className="flex flex-row items-center justify-between gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-1.5">
       {visibleTabs.map(({ key, label, Icon, color }) => {
         const count = tabCounts[key];
         const isActive = tab === key;
@@ -48,7 +48,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
             key={key}
             type="button"
             onClick={() => onTabChange(key)}
-            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full border px-2.5 text-xs font-medium whitespace-nowrap transition-all"
+            className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium whitespace-nowrap transition-all"
             style={
               isActive
                 ? { background: color, borderColor: color, color: "#fff" }
@@ -76,7 +76,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
           <button
             type="button"
             className={cn(
-              "inline-flex h-7 shrink-0 items-center gap-0.5 rounded-full border px-2 text-xs font-medium transition-all",
+              "inline-flex h-6 shrink-0 items-center gap-0.5 rounded-full border px-2 text-[11px] font-medium transition-all",
               isOverflowActive
                 ? "border-slate-500 bg-slate-500 text-white"
                 : "border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
@@ -93,7 +93,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
             >
               <span className="flex items-center gap-1.5 text-xs">
                 <MessageCircle className="h-3 w-3 text-muted-foreground shrink-0" />
-                No leídos
+                No leÃ­dos
               </span>
               <span className="flex items-center gap-1">
                 {(unreadCount ?? 0) > 0 && <span className="text-[10px] text-muted-foreground">{unreadCount}</span>}
@@ -163,3 +163,5 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
     </div>
   );
 }
+
+

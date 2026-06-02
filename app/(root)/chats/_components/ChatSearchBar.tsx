@@ -51,7 +51,7 @@ export function ChatSearchBar({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="inline-flex shrink-0 items-center gap-0.5 rounded-md px-1 py-1 text-sm font-semibold tracking-tight text-foreground transition-colors hover:bg-accent sm:gap-1 sm:px-1.5"
+              className="inline-flex h-8 shrink-0 items-center gap-0.5 rounded-full px-2 text-xs font-semibold tracking-tight text-foreground transition-colors hover:bg-accent sm:gap-1 sm:px-2.5"
             >
               <span className="max-w-[52px] truncate sm:max-w-[90px]">{activeLabel}</span>
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -66,7 +66,7 @@ export function ChatSearchBar({
               onSelect={() => onChannelChange?.(null)}
               className="flex items-center justify-between gap-2 cursor-pointer"
             >
-              <span className="text-sm font-medium">Todos</span>
+              <span className="text-xs font-medium">Todos</span>
               <div className="flex items-center gap-1.5">
                 {totalCount > 0 && (
                   <span className="rounded-full bg-muted px-1.5 py-px text-[10px] font-semibold text-muted-foreground">
@@ -88,7 +88,7 @@ export function ChatSearchBar({
                   className="flex items-center justify-between gap-2 cursor-pointer"
                 >
                   <div className="flex min-w-0 flex-col">
-                    <span className={cn("truncate text-sm", isActive && "font-medium text-primary")}>
+                    <span className={cn("truncate text-xs", isActive && "font-medium text-primary")}>
                       {ch.instanceName}
                     </span>
                     {ch.company && (
@@ -121,7 +121,7 @@ export function ChatSearchBar({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Buscar..."
-          className="h-8 rounded-full pl-7 pr-7 text-sm"
+          className="h-7 rounded-full pl-7 pr-7 text-xs sm:text-sm"
           aria-label="Buscar chats"
         />
         {value && (
