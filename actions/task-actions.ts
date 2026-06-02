@@ -44,6 +44,11 @@ const createSchema = z.object({
   sendWhatsApp: z.boolean().optional(),
 });
 
+const nextTaskSchema = z.object({
+  type: z.string().trim().min(1),
+  dueDate: z.string().datetime(),
+});
+
 export async function createTaskAction(
   input: z.infer<typeof createSchema>,
 ): Promise<{ success: boolean; message: string; data?: TaskData }> {
@@ -165,14 +170,53 @@ export async function getTasksBySessionAction(
 export async function completeTaskAction(
   taskId: number,
   result: string,
-): Promise<{ success: boolean; message: string }> {
+  nextTask?: {
+    type: string;
+    dueDate: string;
+  },
+): Promise<{ success: boolean; message: string; data?: { nextTask?: TaskData } }> {
   try {
-    await getAuth();
-    await (db as any).task.update({
-      where: { id: taskId },
-      data: { status: "done", result: result || null },
+    const user = await getAuth();
+    const ownerId = user.ownerId ?? user.id;
+    const parsedNextTask = nextTask ? nextTaskSchema.parse(nextTask) : undefined;
+    const currentTask = await (db as any).task.findFirst({
+      where: { id: taskId, ownerId },
     });
-    return { success: true, message: "Tarea completada." };
+
+    if (!currentTask) {
+      return { success: false, message: "No se encontro la tarea." };
+    }
+
+    const createdNextTask = await db.$transaction(async (tx) => {
+      await (tx as any).task.update({
+        where: { id: taskId },
+        data: { status: "done", result: result || null },
+      });
+
+      if (!parsedNextTask) return null;
+
+      return (tx as any).task.create({
+        data: {
+          ownerId,
+          assignedToId: currentTask.assignedToId,
+          assignedToName: currentTask.assignedToName,
+          sessionId: currentTask.sessionId,
+          contactName: currentTask.contactName,
+          contactJid: currentTask.contactJid,
+          title: currentTask.title,
+          type: parsedNextTask.type,
+          dueDate: new Date(parsedNextTask.dueDate),
+          status: "pending",
+          createdById: user.id,
+        },
+      });
+    });
+
+    return {
+      success: true,
+      message: parsedNextTask ? "Tarea completada y siguiente tarea programada." : "Tarea completada.",
+      data: createdNextTask ? { nextTask: toTaskData(createdNextTask) } : undefined,
+    };
   } catch (error) {
     console.error("[completeTaskAction]", error);
     return { success: false, message: "Error al completar la tarea." };
@@ -183,15 +227,34 @@ export async function cancelTaskAction(
   taskId: number,
 ): Promise<{ success: boolean; message: string }> {
   try {
-    await getAuth();
-    await (db as any).task.update({
-      where: { id: taskId },
+    const user = await getAuth();
+    const ownerId = user.ownerId ?? user.id;
+    const result = await (db as any).task.updateMany({
+      where: { id: taskId, ownerId },
       data: { status: "cancelled" },
     });
+    if (result.count === 0) return { success: false, message: "No se encontro la tarea." };
     return { success: true, message: "Tarea cancelada." };
   } catch (error) {
     console.error("[cancelTaskAction]", error);
     return { success: false, message: "Error al cancelar la tarea." };
+  }
+}
+
+export async function deleteTaskAction(
+  taskId: number,
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const user = await getAuth();
+    const ownerId = user.ownerId ?? user.id;
+    const result = await (db as any).task.deleteMany({
+      where: { id: taskId, ownerId },
+    });
+    if (result.count === 0) return { success: false, message: "No se encontro la tarea." };
+    return { success: true, message: "Tarea eliminada." };
+  } catch (error) {
+    console.error("[deleteTaskAction]", error);
+    return { success: false, message: "Error al eliminar la tarea." };
   }
 }
 

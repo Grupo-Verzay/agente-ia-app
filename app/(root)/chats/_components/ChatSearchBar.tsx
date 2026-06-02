@@ -51,7 +51,7 @@ export function ChatSearchBar({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="inline-flex shrink-0 items-center gap-0.5 rounded-md px-1 py-1 text-xs font-bold tracking-tight text-foreground transition-colors hover:bg-accent sm:gap-1 sm:px-1.5 sm:text-sm"
+              className="inline-flex shrink-0 items-center gap-0.5 rounded-md px-1 py-1 text-sm font-semibold tracking-tight text-foreground transition-colors hover:bg-accent sm:gap-1 sm:px-1.5"
             >
               <span className="max-w-[52px] truncate sm:max-w-[90px]">{activeLabel}</span>
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -121,7 +121,7 @@ export function ChatSearchBar({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Buscar..."
-          className="h-7 rounded-full pl-7 pr-7 text-xs sm:h-8"
+          className="h-8 rounded-full pl-7 pr-7 text-sm"
           aria-label="Buscar chats"
         />
         {value && (

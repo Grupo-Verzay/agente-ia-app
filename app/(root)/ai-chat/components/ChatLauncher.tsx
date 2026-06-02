@@ -31,7 +31,7 @@ export const ChatLauncher = ({
         >
             <span className="sr-only">{open ? "Cerrar chat" : "Abrir chat"}</span>
 
-            <span className="pointer-events-none absolute left-[5px] top-[5px] h-10 w-10 rounded-full bg-[#1950ff] shadow-[0_2.1px_1.3px_rgba(0,0,0,0.044),0_5.9px_4.2px_rgba(0,0,0,0.054),0_12.6px_9.5px_rgba(0,0,0,0.061),0_25px_20px_rgba(0,0,0,0.1)]" />
+            <span className="pointer-events-none absolute left-[5px] top-[5px] h-10 w-10 rounded-full bg-[#4F7FE8] shadow-[0_2.1px_1.3px_rgba(0,0,0,0.044),0_5.9px_4.2px_rgba(0,0,0,0.054),0_12.6px_9.5px_rgba(0,0,0,0.061),0_25px_20px_rgba(0,0,0,0.1)]" />
 
             <svg
                 className="relative z-10 h-[50px] w-[50px]"

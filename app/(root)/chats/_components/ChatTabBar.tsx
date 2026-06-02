@@ -48,7 +48,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
             key={key}
             type="button"
             onClick={() => onTabChange(key)}
-            className="inline-flex shrink-0 h-6 items-center gap-1 rounded-full border px-2 text-[11px] font-medium whitespace-nowrap transition-all"
+            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full border px-2.5 text-xs font-medium whitespace-nowrap transition-all"
             style={
               isActive
                 ? { background: color, borderColor: color, color: "#fff" }
@@ -76,7 +76,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
           <button
             type="button"
             className={cn(
-              "inline-flex shrink-0 h-6 items-center gap-0.5 rounded-full border px-2 text-[11px] font-medium transition-all",
+              "inline-flex h-7 shrink-0 items-center gap-0.5 rounded-full border px-2 text-xs font-medium transition-all",
               isOverflowActive
                 ? "border-slate-500 bg-slate-500 text-white"
                 : "border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",

@@ -568,7 +568,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             size="icon"
             className={cn(
               "h-7 w-7 rounded-full shrink-0",
-              noteMode ? "bg-amber-500 hover:bg-amber-600" : "bg-blue-500 hover:bg-blue-600",
+              noteMode ? "bg-amber-500 hover:bg-amber-600" : "bg-[#4F7FE8] hover:bg-[#426FD4]",
             )}
             aria-label={noteMode ? "Guardar nota" : "Enviar"}
             title={noteMode ? "Guardar nota interna" : "Enviar"}

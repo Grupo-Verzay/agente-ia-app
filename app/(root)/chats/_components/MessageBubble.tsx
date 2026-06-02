@@ -171,7 +171,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   }
 
   const bubbleClass = isUserMessage
-    ? 'bg-primary text-white rounded-xl rounded-br-sm self-end'
+    ? 'bg-[#4F7FE8] text-white rounded-xl rounded-br-sm self-end'
     : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-xl rounded-tl-sm self-start';
   const contentClass = isUserMessage ? 'text-white' : 'text-gray-800 dark:text-gray-100';
 

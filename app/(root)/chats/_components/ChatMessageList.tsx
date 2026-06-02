@@ -174,14 +174,14 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 
   if (loading && renderedList.length === 0) {
     return (
-      <div className="flex flex-1 flex-col overflow-y-auto p-4 custom-scrollbar w-full" style={bgStyle} ref={listRef}>
+      <div className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto p-4 custom-scrollbar w-full" style={bgStyle} ref={listRef}>
         <ChatMessageListSkeleton />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto p-4 custom-scrollbar w-full" style={bgStyle} ref={listRef}>
+    <div className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto p-4 custom-scrollbar w-full" style={bgStyle} ref={listRef}>
       {loading && <div className="text-center text-gray-500 py-4">Cargando mensajes…</div>}
       {renderedList.map((item) =>
         item.type === 'date' ? (

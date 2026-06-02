@@ -53,14 +53,14 @@ const SortableAutoRepliesItem = ({ autoReplie, workflows }: SortableItemProps) =
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-start gap-2"
+      className="flex items-start gap-1.5"
     >
       <div
-        className="cursor-grab rounded p-2 text-muted-foreground hover:bg-slate-100"
+        className="cursor-grab rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted"
         {...attributes}
         {...listeners}
       >
-        <GripVertical className="w-5 h-5" />
+        <GripVertical className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
         <AutoRepliesCard autoReplie={autoReplie} workflows={workflows} />
@@ -118,7 +118,7 @@ export const SortableAutoRepliesList = ({ autoReplies, workflows }: SortableAuto
         items={items.map((autoReplie) => autoReplie.id)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-2">
           {items.map((autoReplie) => (
             <SortableAutoRepliesItem
               key={autoReplie.id}

@@ -67,12 +67,12 @@ export const WorkflowAction = ({
                 )}
             >
                 <ShuffleIcon size={16} />
-                Ingresar/Editar
+                Editar
             </Link>
 
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant={"outline"} size={"sm"}>
+                    <Button variant={"outline"} size={"sm"} className="w-9 px-0">
                         <TooltipWrapper content={"Mas Acciones"}>
                             <div className="flex items-center justify-center w-full h-full">
                                 <MoreVerticalIcon size={18} />

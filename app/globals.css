@@ -157,3 +157,101 @@
     transform: translateX(60%);
   }
 }
+
+/*
+ * Intermediate content scale.
+ * Module copy is easier to scan without enlarging compact controls, badges,
+ * navigation tabs or the summary cards approved for the top of each page.
+ */
+.app-module-content .text-sm {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+.app-module-content .text-xs {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.app-module-content .app-item-title {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5rem;
+}
+
+.app-module-content :where(
+  .app-typography-compact,
+  button,
+  input,
+  textarea,
+  select,
+  label,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"],
+  [data-ui="badge"]
+).text-sm,
+.app-module-content :where(
+  .app-typography-compact,
+  button,
+  label,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"],
+  [data-ui="badge"]
+) .text-sm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.app-module-content :where(
+  .app-typography-compact,
+  button,
+  input,
+  textarea,
+  select,
+  label,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"],
+  [data-ui="badge"]
+).text-xs,
+.app-module-content :where(
+  .app-typography-compact,
+  button,
+  label,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"],
+  [data-ui="badge"]
+) .text-xs {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.whatsapp-chat-background {
+  position: relative;
+  isolation: isolate;
+  background-image: none !important;
+}
+
+.whatsapp-chat-background::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  pointer-events: none;
+  background-image: url("/patterns/whatsapp-chat-pattern.svg");
+  background-repeat: repeat;
+  background-size: 460px 820px;
+  opacity: 0.075;
+}
+
+.dark .whatsapp-chat-background::before {
+  filter: invert(1);
+  opacity: 0.055;
+}

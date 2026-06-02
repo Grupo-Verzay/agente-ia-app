@@ -86,6 +86,7 @@ export interface MainReminderInterface {
 export interface ReminderListInterface {
     reminder: Reminders
     workflow?: Workflow
+    compact?: boolean
 }
 export interface ReminderListClientInterface {
     filteredReminders: Reminders[]

@@ -1,9 +1,6 @@
 import React, { Suspense } from 'react';
 import { redirect } from 'next/navigation';
-import Header from '@/components/shared/header';
 import { Skeleton } from '@/components/ui/skeleton';
-import CreateWorflowDialog from '../flow/_components/CreateWorflowDialog';
-
 import { currentUser } from '@/lib/auth';
 import { UserWorkflows } from '../flow/_components';
 import { getIntentTriggersByUser } from '@/actions/intent-trigger-actions';
@@ -11,33 +8,28 @@ import { IntentTrigger } from '@prisma/client';
 
 function UserWorkFlowSkeleton() {
   return (
-    <div className='space-y-2'>
+    <div className="space-y-2">
       {[1, 2, 3, 4].map(i => (
-        <Skeleton key={i} className='h-32 w-full' />
+        <Skeleton key={i} className="h-24 w-full" />
       ))}
     </div>
   );
-};
+}
 
 const WorkflowPage = async () => {
   const user = await currentUser();
 
   if (!user) {
     redirect('/login');
-  };
+  }
 
   const triggersRes = await getIntentTriggersByUser(user.effectiveId);
   const triggers = (triggersRes.success ? triggersRes.data ?? [] : []) as IntentTrigger[];
 
   return (
-    <div className="flex flex-col h-full p-4">
-      <div className="flex items-center justify-between mb-6">
-        <Header title="Flujos avanzados" />
-        <CreateWorflowDialog isPro={true} />
-      </div>
-
+    <div className="flex h-full flex-col">
       <Suspense fallback={<UserWorkFlowSkeleton />}>
-        <UserWorkflows userId={user.effectiveId} isPro={true} triggers={triggers} />
+        <UserWorkflows userId={user.effectiveId} isPro={true} triggers={triggers} showSummary />
       </Suspense>
     </div>
   );

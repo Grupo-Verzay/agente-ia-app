@@ -3,10 +3,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Calendar, CheckCircle2, ClipboardList, Kanban, List, Loader2, Phone, RefreshCw, Users, Mail, CalendarClock, X } from "lucide-react";
+import { Calendar, CheckCircle2, ClipboardList, Eye, EyeOff, Kanban, List, Loader2, Phone, RefreshCw, Search, Trash2, Users, Mail, CalendarClock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -21,9 +30,11 @@ import {
   getMyTasksAction,
   completeTaskAction,
   cancelTaskAction,
+  deleteTaskAction,
   getCustomTaskTypesAction,
 } from "@/actions/task-actions";
 import { TaskFormDialog } from "../../chats/_components/TaskFormDialog";
+import TooltipWrapper from "@/components/TooltipWrapper";
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
   Seguimiento: <RefreshCw className="h-3.5 w-3.5" />,
@@ -73,6 +84,16 @@ const GROUP_COLOR: Record<string, string> = {
   "Completadas":    "text-emerald-600 dark:text-emerald-400",
 };
 
+const QUICK_RESULTS = ["Contactado", "No respondio", "Reagendar", "Interesado", "Cerrado"];
+
+function getNextDueDate(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  date.setHours(9, 0, 0, 0);
+  const offset = date.getTimezoneOffset();
+  return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16);
+}
+
 type Props = {
   userId: string;
   userName?: string | null;
@@ -85,9 +106,13 @@ export function TasksClient({ userId, userName }: Props) {
   const [completeTarget, setCompleteTarget] = useState<TaskData | null>(null);
   const [resultText, setResultText] = useState("");
   const [completing, setCompleting] = useState(false);
+  const [scheduleNext, setScheduleNext] = useState(false);
+  const [nextTaskType, setNextTaskType] = useState("Seguimiento");
+  const [nextDueDate, setNextDueDate] = useState(() => getNextDueDate(1));
   const [showDone, setShowDone] = useState(false);
   const [view, setView] = useState<"list" | "kanban">("list");
   const [customTypes, setCustomTypes] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
 
   const allTypes = useMemo(() => [...TASK_TYPES, ...customTypes], [customTypes]);
 
@@ -104,15 +129,34 @@ export function TasksClient({ userId, userName }: Props) {
 
   useEffect(() => { void load(); }, [load]);
 
+  const beginComplete = (task: TaskData) => {
+    setCompleteTarget(task);
+    setResultText("");
+    setScheduleNext(false);
+    setNextTaskType(task.type);
+    setNextDueDate(getNextDueDate(1));
+  };
+
+  const filteredTasks = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return tasks;
+
+    return tasks.filter((task) =>
+      `${task.title} ${task.type} ${task.contactName ?? ""} ${task.assignedToName ?? ""} ${formatDueDate(task.dueDate)}`
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [search, tasks]);
+
   const grouped = useMemo(() => {
     const map: Record<string, TaskData[]> = {};
-    for (const t of tasks) {
+    for (const t of filteredTasks) {
       const group = t.status === "done" ? "Completadas" : getDayGroup(t.dueDate);
       if (!map[group]) map[group] = [];
       map[group].push(t);
     }
     return GROUP_ORDER.filter((g) => map[g]?.length).map((g) => ({ label: g, items: map[g] }));
-  }, [tasks]);
+  }, [filteredTasks]);
 
   const pending = tasks.filter((t) => t.status === "pending").length;
   const done = tasks.filter((t) => t.status === "done").length;
@@ -126,14 +170,26 @@ export function TasksClient({ userId, userName }: Props) {
 
   const handleComplete = async () => {
     if (!completeTarget) return;
+    if (scheduleNext && !nextDueDate) {
+      toast.error("Selecciona la fecha de la siguiente tarea.");
+      return;
+    }
     setCompleting(true);
-    const res = await completeTaskAction(completeTarget.id, resultText);
+    const res = await completeTaskAction(
+      completeTarget.id,
+      resultText,
+      scheduleNext ? { type: nextTaskType, dueDate: new Date(nextDueDate).toISOString() } : undefined,
+    );
     setCompleting(false);
     if (res.success) {
-      toast.success("Tarea completada.");
-      setTasks((prev) => prev.map((t) => t.id === completeTarget.id ? { ...t, status: "done", result: resultText || null } : t));
+      toast.success(res.message);
+      setTasks((prev) => {
+        const completed = prev.map((t) => t.id === completeTarget.id ? { ...t, status: "done" as const, result: resultText || null } : t);
+        return res.data?.nextTask ? [...completed, res.data.nextTask] : completed;
+      });
       setCompleteTarget(null);
       setResultText("");
+      setScheduleNext(false);
     } else {
       toast.error(res.message);
     }
@@ -144,6 +200,17 @@ export function TasksClient({ userId, userName }: Props) {
     if (res.success) {
       setTasks((prev) => prev.filter((t) => t.id !== task.id));
       toast.success("Tarea cancelada.");
+    } else {
+      toast.error(res.message);
+    }
+  };
+
+  const handleDelete = async (task: TaskData) => {
+    if (!window.confirm("Eliminar esta tarea definitivamente?")) return;
+    const res = await deleteTaskAction(task.id);
+    if (res.success) {
+      setTasks((prev) => prev.filter((t) => t.id !== task.id));
+      toast.success("Tarea eliminada.");
     } else {
       toast.error(res.message);
     }
@@ -171,44 +238,56 @@ export function TasksClient({ userId, userName }: Props) {
       </div>
 
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setView("list")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
-              view === "list"
-                ? "bg-background shadow-sm text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <List className="h-3.5 w-3.5" /> Lista
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("kanban")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
-              view === "kanban"
-                ? "bg-background shadow-sm text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Kanban className="h-3.5 w-3.5" /> Kanban
-          </button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 overflow-x-auto rounded-lg border border-border/60 bg-muted/30 p-1">
+            <button
+              type="button"
+              onClick={() => setView("list")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
+                view === "list"
+                  ? "bg-background shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <List className="h-3.5 w-3.5" /> Lista
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("kanban")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
+                view === "kanban"
+                  ? "bg-background shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Kanban className="h-3.5 w-3.5" /> Kanban
+            </button>
+          </div>
+          <div className="relative w-64 shrink-0">
+            <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar tarea..."
+              className="pl-8 text-sm"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+          <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => void load()} disabled={loading} title="Actualizar">
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
           </Button>
           {view === "list" && done > 0 && (
-            <Button variant="outline" size="sm" onClick={() => setShowDone((v) => !v)}>
-              {showDone ? "Ocultar completadas" : `Ver completadas (${done})`}
+            <Button variant="outline" size="sm" onClick={() => setShowDone((v) => !v)} title={showDone ? "Ocultar completadas" : "Mostrar completadas"}>
+              {showDone ? <EyeOff className="mr-1.5 h-3.5 w-3.5" /> : <Eye className="mr-1.5 h-3.5 w-3.5" />}
+              Completadas ({done})
             </Button>
           )}
           <Button size="sm" onClick={() => setNewTaskOpen(true)}>
-            + Nueva tarea
+            + Crear
           </Button>
         </div>
       </div>
@@ -221,10 +300,11 @@ export function TasksClient({ userId, userName }: Props) {
         </div>
       ) : view === "kanban" ? (
         <KanbanView
-          tasks={tasks.filter((t) => t.status !== "cancelled")}
+          tasks={filteredTasks.filter((t) => t.status !== "cancelled")}
           allTypes={allTypes}
-          onComplete={(task) => { setCompleteTarget(task); setResultText(""); }}
+          onComplete={beginComplete}
           onCancel={(task) => void handleCancel(task)}
+          onDelete={(task) => void handleDelete(task)}
         />
       ) : visibleGroups.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
@@ -250,8 +330,9 @@ export function TasksClient({ userId, userName }: Props) {
                   <TaskCard
                     key={task.id}
                     task={task}
-                    onComplete={() => { setCompleteTarget(task); setResultText(""); }}
+                    onComplete={() => beginComplete(task)}
                     onCancel={() => void handleCancel(task)}
+                    onDelete={() => void handleDelete(task)}
                   />
                 ))}
               </div>
@@ -262,7 +343,7 @@ export function TasksClient({ userId, userName }: Props) {
 
       {/* Dialog completar */}
       <Dialog open={!!completeTarget} onOpenChange={(o) => !o && setCompleteTarget(null)}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-emerald-600">
               <CheckCircle2 className="h-4 w-4" />
@@ -277,6 +358,48 @@ export function TasksClient({ userId, userName }: Props) {
             rows={3}
             className="resize-none"
           />
+          <div className="flex flex-wrap gap-1.5">
+            {QUICK_RESULTS.map((result) => (
+              <Button
+                key={result}
+                type="button"
+                size="sm"
+                variant={resultText === result ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={() => setResultText(result)}
+              >
+                {result}
+              </Button>
+            ))}
+          </div>
+          <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+            <div className="flex items-center gap-2">
+              <Checkbox id="schedule-next-task" checked={scheduleNext} onCheckedChange={(value) => setScheduleNext(Boolean(value))} />
+              <label htmlFor="schedule-next-task" className="cursor-pointer text-sm font-medium">
+                Programar siguiente tarea
+              </label>
+            </div>
+            {scheduleNext && (
+              <div className="mt-3 space-y-3">
+                <Select value={nextTaskType} onValueChange={setNextTaskType}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allTypes.map((type) => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex flex-wrap gap-1.5">
+                  <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setNextDueDate(getNextDueDate(1))}>Manana</Button>
+                  <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setNextDueDate(getNextDueDate(7))}>Proxima semana</Button>
+                  <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setNextDueDate(getNextDueDate(30))}>Proximo mes</Button>
+                </div>
+                <Input type="datetime-local" value={nextDueDate} onChange={(event) => setNextDueDate(event.target.value)} className="h-9" />
+              </div>
+            )}
+          </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setCompleteTarget(null)} type="button">Cancelar</Button>
             <Button onClick={() => void handleComplete()} disabled={completing} className="bg-emerald-600 hover:bg-emerald-700" type="button">
@@ -310,11 +433,12 @@ const TASK_COL: Record<string, { headerClass: string; borderColor: string }> = {
 };
 
 /* ─── KanbanView — copia exacta de AgendaKanban ─── */
-function KanbanView({ tasks, allTypes, onComplete, onCancel }: {
+function KanbanView({ tasks, allTypes, onComplete, onCancel, onDelete }: {
   tasks: TaskData[];
   allTypes: readonly string[] | string[];
   onComplete: (t: TaskData) => void;
   onCancel: (t: TaskData) => void;
+  onDelete: (t: TaskData) => void;
 }) {
   const knownTypes = new Set(allTypes);
   const others = tasks.filter((t) => !knownTypes.has(t.type));
@@ -352,7 +476,7 @@ function KanbanView({ tasks, allTypes, onComplete, onCancel }: {
                 {/* Body — exacto de AgendaColumn */}
                 <div className="flex-1 min-h-0 p-2 space-y-2 overflow-y-auto">
                   {pendingItems.map((task) => (
-                    <KanbanCard key={task.id} task={task} onComplete={() => onComplete(task)} onCancel={() => onCancel(task)} />
+                    <KanbanCard key={task.id} task={task} onComplete={() => onComplete(task)} onCancel={() => onCancel(task)} onDelete={() => onDelete(task)} />
                   ))}
                   {pendingItems.length === 0 && doneItems.length === 0 && (
                     <div className="flex items-center justify-center h-20 text-xs text-muted-foreground/40">
@@ -367,7 +491,7 @@ function KanbanView({ tasks, allTypes, onComplete, onCancel }: {
                         <div className="flex-1 border-t border-dashed border-border/50" />
                       </div>
                       {doneItems.map((task) => (
-                        <KanbanCard key={task.id} task={task} onComplete={() => onComplete(task)} onCancel={() => onCancel(task)} />
+                        <KanbanCard key={task.id} task={task} onComplete={() => onComplete(task)} onCancel={() => onCancel(task)} onDelete={() => onDelete(task)} />
                       ))}
                     </>
                   )}
@@ -382,10 +506,11 @@ function KanbanView({ tasks, allTypes, onComplete, onCancel }: {
 }
 
 /* ─── KanbanCard — copia exacta de AgendaCardItem ─── */
-function KanbanCard({ task, onComplete, onCancel }: {
+function KanbanCard({ task, onComplete, onCancel, onDelete }: {
   task: TaskData;
   onComplete: () => void;
   onCancel: () => void;
+  onDelete: () => void;
 }) {
   const isDone    = task.status === "done";
   const isOverdue = !isDone && new Date(task.dueDate) < new Date();
@@ -401,15 +526,8 @@ function KanbanCard({ task, onComplete, onCancel }: {
     >
       {/* Botones hover — aparecen en esquina igual al schedule */}
       {!isDone && (
-        <div className="absolute right-1.5 top-1.5 hidden gap-0.5 group-hover:flex" onClick={(e) => e.stopPropagation()}>
-          <button type="button" onClick={onComplete}
-            className="flex h-5 w-5 items-center justify-center rounded bg-emerald-50 text-emerald-500 hover:bg-emerald-100">
-            <CheckCircle2 className="h-3 w-3" />
-          </button>
-          <button type="button" onClick={onCancel}
-            className="flex h-5 w-5 items-center justify-center rounded bg-muted text-muted-foreground hover:bg-red-50 hover:text-red-500">
-            <X className="h-3 w-3" />
-          </button>
+        <div className="absolute right-1.5 top-1.5" onClick={(e) => e.stopPropagation()}>
+          <TaskActionButtons compact onComplete={onComplete} onCancel={onCancel} onDelete={onDelete} />
         </div>
       )}
 
@@ -419,7 +537,7 @@ function KanbanCard({ task, onComplete, onCancel }: {
           <Users className="h-3.5 w-3.5 text-primary" />
         </div>
         <div className="min-w-0">
-          <p className={cn("text-sm font-medium truncate leading-tight", isDone && "line-through text-muted-foreground")}>
+          <p className={cn("app-item-title truncate leading-tight", isDone && "line-through text-muted-foreground")}>
             {task.title}
           </p>
           {task.contactName && (
@@ -464,12 +582,20 @@ function TaskCard({
   task,
   onComplete,
   onCancel,
+  onDelete,
 }: {
   task: TaskData;
   onComplete: () => void;
   onCancel: () => void;
+  onDelete: () => void;
 }) {
   const isDone = task.status === "done";
+  const dueDate = new Date(task.dueDate);
+  const now = new Date();
+  const isOverdue = !isDone && dueDate < now;
+  const isDueToday = !isDone
+    && !isOverdue
+    && dueDate <= new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
   const typeColor = TYPE_COLOR[task.type] ?? TYPE_COLOR["Tarea"];
   const typeIcon = TYPE_ICON[task.type] ?? <ClipboardList className="h-3.5 w-3.5" />;
   const router = useRouter();
@@ -480,22 +606,27 @@ function TaskCard({
 
   return (
     <div className={cn(
-      "rounded-xl border p-3 transition-all",
+      "group rounded-xl border border-l-4 px-3 py-2.5 transition-all",
       isDone
-        ? "bg-muted/30 opacity-60"
-        : "bg-card hover:shadow-sm",
+        ? "border-l-emerald-300 bg-muted/30 opacity-55"
+        : isOverdue
+          ? "border-l-red-500 bg-red-50/30 hover:shadow-sm dark:bg-red-950/10"
+          : isDueToday
+            ? "border-l-blue-500 bg-blue-50/30 hover:shadow-sm dark:bg-blue-950/10"
+            : "border-l-transparent bg-card hover:shadow-sm",
     )}>
-      <div className="flex items-start gap-3">
-        {/* Tipo badge */}
-        <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium shrink-0 mt-0.5", typeColor)}>
-          {typeIcon}
-          {task.type}
-        </span>
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
+          <ClipboardList className="h-4 w-4" />
+        </div>
 
-        {/* Contenido */}
-        <div className="flex-1 min-w-0">
-          <p className={cn("text-sm font-medium leading-snug", isDone && "line-through")}>{task.title}</p>
+        <div className="min-w-0 flex-1">
+          <p className={cn("app-item-title leading-snug", isDone && "line-through")}>{task.title}</p>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+            <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium", typeColor)}>
+              {typeIcon}
+              {task.type}
+            </span>
             {task.contactName && (
               <button
                 type="button"
@@ -520,30 +651,50 @@ function TaskCard({
 
         {/* Acciones */}
         {!isDone && (
-          <div className="flex shrink-0 items-center gap-1">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-              onClick={onComplete}
-              title="Marcar completada"
-              type="button"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40"
-              onClick={onCancel}
-              title="Cancelar tarea"
-              type="button"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+          <TaskActionButtons onComplete={onComplete} onCancel={onCancel} onDelete={onDelete} />
         )}
       </div>
+    </div>
+  );
+}
+
+function TaskActionButtons({
+  compact = false,
+  onComplete,
+  onCancel,
+  onDelete,
+}: {
+  compact?: boolean;
+  onComplete: () => void;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  const buttonClass = compact ? "h-6 w-6" : "h-8 w-8";
+  const iconClass = compact ? "h-3 w-3" : "h-4 w-4";
+
+  return (
+    <div className={cn(
+      "flex shrink-0 items-center gap-1",
+      compact && "gap-0.5",
+    )}>
+      <TooltipWrapper content="Completar tarea">
+        <Button type="button" size="icon" variant="ghost" aria-label="Completar tarea" onClick={onComplete}
+          className={cn(buttonClass, "text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/40")}>
+          <CheckCircle2 className={iconClass} />
+        </Button>
+      </TooltipWrapper>
+      <TooltipWrapper content="Cancelar tarea">
+        <Button type="button" size="icon" variant="ghost" aria-label="Cancelar tarea" onClick={onCancel}
+          className={cn(buttonClass, "text-amber-600 hover:bg-amber-50 hover:text-amber-700 dark:hover:bg-amber-950/40")}>
+          <X className={iconClass} />
+        </Button>
+      </TooltipWrapper>
+      <TooltipWrapper content="Eliminar definitivamente">
+        <Button type="button" size="icon" variant="ghost" aria-label="Eliminar tarea definitivamente" onClick={onDelete}
+          className={cn(buttonClass, "text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40")}>
+          <Trash2 className={iconClass} />
+        </Button>
+      </TooltipWrapper>
     </div>
   );
 }

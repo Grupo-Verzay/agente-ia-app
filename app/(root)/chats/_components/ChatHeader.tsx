@@ -168,7 +168,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         <Button
           size="sm"
           variant="secondary"
-          className="h-8 text-xs gap-1.5 px-2.5"
+          className="h-8 gap-1.5 px-2.5 text-sm"
           disabled={resolving}
         >
           Acciones
@@ -364,7 +364,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                className="h-7 w-7 shrink-0 rounded-md border border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 onClick={() => setTaskDialogOpen(true)}
                 title="Nueva tarea"
               >
@@ -454,7 +454,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                className="h-7 w-7 shrink-0 rounded-md border border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 onClick={() => setTaskDialogOpen(true)}
                 title="Nueva tarea"
               >

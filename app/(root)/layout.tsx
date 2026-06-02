@@ -127,7 +127,7 @@ export default async function RootGroupLayout({
                     <main className={`flex-1 flex flex-col overflow-hidden overflow-x-hidden ${themeClass}`}>
                         <PanelAwareTabNav tabs={panelTabs} excludePanelRoutes />
                         <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-1">
-                            <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden rounded-md border border-border/70">
+                            <div className="app-module-content flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden rounded-md border border-border/70">
                                 {children}
                             </div>
                         </div>

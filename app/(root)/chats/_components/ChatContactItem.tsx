@@ -317,7 +317,7 @@ export function ChatContactItem({
                 )}
                 <span
                   className={cn(
-                    "shrink-0 text-sm font-bold",
+                    "app-item-title shrink-0",
                     isUnread && "text-foreground",
                   )}
                 >
@@ -333,7 +333,7 @@ export function ChatContactItem({
               <div
                 className={cn(
                   "flex items-center gap-1 truncate text-sm",
-                  isUnread ? "font-semibold text-foreground" : "text-muted-foreground",
+                  isUnread ? "text-foreground" : "text-muted-foreground",
                 )}
               >
                 {IconComponent && (

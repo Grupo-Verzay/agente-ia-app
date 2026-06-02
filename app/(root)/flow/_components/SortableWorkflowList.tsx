@@ -56,14 +56,14 @@ const SortableWorkflowItem = ({ workflow, userId, trigger }: SortableItemProps) 
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2"
+      className="flex items-center gap-1.5"
     >
       <div
-        className="cursor-grab p-2 text-muted-foreground hover:bg-slate-100 rounded"
+        className="cursor-grab rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted"
         {...attributes}
         {...listeners}
       >
-        <GripVertical className="w-5 h-5" />
+        <GripVertical className="h-4 w-4" />
       </div>
       <div className="flex-1">
         <WorkflowCard workflow={workflow} userId={userId} trigger={trigger} />

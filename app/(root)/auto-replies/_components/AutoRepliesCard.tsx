@@ -84,11 +84,11 @@ export const AutoRepliesCard = ({ autoReplie, workflows }: autoReplies) => {
     };
 
     return (
-        <Card className="border-border transition-all duration-300 hover:shadow-lg">
-            <CardContent className="flex min-h-[100px] flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <Card className="rounded-xl border border-border/70 bg-card/90 shadow-sm transition-shadow hover:shadow-md">
+            <CardContent className="flex min-h-[82px] flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm bg-blue-500">
-                        <MessageCircleMoreIcon />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
+                        <MessageCircleMoreIcon className="h-5 w-5" />
                     </div>
 
                     <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -146,7 +146,7 @@ export const AutoRepliesCard = ({ autoReplie, workflows }: autoReplies) => {
                                 className="flex min-w-0 items-start gap-2 cursor-pointer group"
                                 onClick={() => setEditing(true)}
                             >
-                                <h3 className="truncate text-sm font-bold leading-5 text-muted-foreground group-hover:underline sm:text-base">
+                                <h3 className="app-item-title truncate text-muted-foreground group-hover:underline">
                                     {mensaje.length > 80 ? `${mensaje.slice(0, 80)}…` : mensaje}
                                 </h3>
                                 <PencilLine size={16} className="mt-0.5 shrink-0 text-blue-500" />

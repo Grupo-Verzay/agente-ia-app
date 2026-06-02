@@ -15,24 +15,14 @@ export const ReminderListClient = ({ workflows, filteredReminders, isScheduleVie
                     {filteredReminders.map((reminder) => {
                         const workflow = workflows.find(w => w.id === reminder.workflowId);
 
+                        if (Boolean(isScheduleView) !== Boolean(reminder.isSchedule)) return null;
+
                         return (
-                            <>
-                                {
-                                    isScheduleView ?
-                                        reminder.isSchedule &&
-                                        <ReminderList
-                                            key={reminder.id}
-                                            reminder={reminder}
-                                            workflow={workflow}
-                                        /> :
-                                        !reminder.isSchedule &&
-                                        <ReminderList
-                                            key={reminder.id}
-                                            reminder={reminder}
-                                            workflow={workflow}
-                                        />
-                                }
-                            </>
+                            <ReminderList
+                                key={reminder.id}
+                                reminder={reminder}
+                                workflow={workflow}
+                            />
                         );
                     })}
                 </>

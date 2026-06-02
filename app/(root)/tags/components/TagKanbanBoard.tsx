@@ -127,7 +127,7 @@ function TagKanbanCardItem({
                         <User className="h-3.5 w-3.5 text-primary" />
                     </div>
                     <div className="min-w-0">
-                        <p className="text-sm font-medium truncate leading-tight">{card.pushName}</p>
+                        <p className="app-item-title truncate leading-tight">{card.pushName}</p>
                         <Link
                             href={`/chats?jid=${encodeURIComponent(card.remoteJid)}`}
                             className="text-[11px] text-primary hover:underline block"

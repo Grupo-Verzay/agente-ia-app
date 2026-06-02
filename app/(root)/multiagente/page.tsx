@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 
 const MultiagentePage = () => {
     const url = "https://multiagente.ia-app.com";
@@ -17,10 +16,6 @@ const MultiagentePage = () => {
     if (isMobile) {
         return (
             <div className="flex h-full flex-col overflow-hidden">
-                <div className="flex items-center gap-2 px-3 py-2 border-b bg-background shrink-0">
-                    <SidebarTrigger />
-                    <span className="text-sm font-medium">Multiagente</span>
-                </div>
                 <iframe
                     src={url}
                     allow="microphone; autoplay; clipboard-read; clipboard-write; encrypted-media; fullscreen; picture-in-picture"

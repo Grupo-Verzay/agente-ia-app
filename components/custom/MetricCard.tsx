@@ -33,7 +33,7 @@ export const MetricCard = ({
     const helperButtonStyle = color ? ({ color: withAlpha("B3") } as CSSProperties) : undefined;
 
     return (
-        <Card className="border-2 bg-background/60 shadow-sm flex-1" style={cardStyle}>
+        <Card className="app-typography-compact border-2 bg-background/60 shadow-sm flex-1" style={cardStyle}>
             <CardContent className="flex items-center gap-2 px-3 py-3">
                 <div
                     className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-muted-foreground"

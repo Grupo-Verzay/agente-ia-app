@@ -122,7 +122,7 @@ export function ChatRegistrosBadge({
           >
             <Plus className="h-3.5 w-3.5" />
             {grandTotal > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-teal-600 px-1 text-[9px] font-bold leading-none text-white">
+              <span className="absolute top-0 -right-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-teal-600 px-1 text-[9px] font-bold leading-none text-white">
                 {grandTotal > 99 ? "99+" : grandTotal}
               </span>
             )}

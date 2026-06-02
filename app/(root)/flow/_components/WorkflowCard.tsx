@@ -284,15 +284,15 @@ export const WorkflowCard = ({
     };
 
     return (
-        <Card className="border-border">
-            <CardContent className="p-4 flex flex-1 gap-2 flex-col">
+        <Card className="rounded-xl border border-border/70 bg-card/90 shadow-sm transition-shadow hover:shadow-md">
+            <CardContent className="flex flex-1 flex-col gap-2 p-3">
                 <div className="flex flex-1 gap-2 items-center justify-between">
                 <div className="flex flex-1 gap-4 justify-center items-center">
                     <div
-                        className="w-10 h-10 rounded-sm flex items-center justify-center bg-blue-500 cursor-pointer"
+                        className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm transition-colors hover:bg-blue-700"
                         onClick={() => router.push(editorPath)}
                     >
-                        <FileTextIcon />
+                        <FileTextIcon className="h-5 w-5" />
                     </div>
 
                     <div className="flex flex-col flex-1 gap-2">
@@ -399,10 +399,10 @@ export const WorkflowCard = ({
                         ) : (
                             <>
                                 <div
-                                    className={`flex items-center gap-2 ${welcomeActive ? "" : "cursor-pointer group"}`}
+                                    className={`flex flex-wrap items-center gap-2 ${welcomeActive ? "" : "cursor-pointer group"}`}
                                     onClick={() => { if (!welcomeActive) setEditing(true); }}
                                 >
-                                    <h3 className={`text-base font-semibold text-muted-foreground ${welcomeActive ? "" : "group-hover:underline"}`}>
+                                    <h3 className={`app-item-title text-foreground ${welcomeActive ? "" : "group-hover:underline"}`}>
                                     {welcomeActive && (
                                         <HomeIcon className="w-3.5 h-3.5 text-green-500 inline mr-1.5 relative -top-px" />
                                     )}
@@ -411,6 +411,15 @@ export const WorkflowCard = ({
                                     )}
                                         {workflow.name.toUpperCase()}
                                     </h3>
+                                    <Badge
+                                        variant="outline"
+                                        className={`h-5 px-1.5 text-[10px] ${workflow.isPro
+                                            ? "border-violet-200 bg-violet-50 text-violet-700"
+                                            : "border-blue-200 bg-blue-50 text-blue-700"
+                                            }`}
+                                    >
+                                        {workflow.isPro ? "Avanzado" : "Basico"}
+                                    </Badge>
                                     {!welcomeActive && (
                                         <PencilLine className="w-4 h-4 text-muted-foreground opacity-60 group-hover:opacity-100 transition" />
                                     )}
@@ -419,7 +428,7 @@ export const WorkflowCard = ({
                                     className={`flex items-center gap-2 ${welcomeActive ? "" : "cursor-pointer group"}`}
                                     onClick={() => { if (!welcomeActive) setEditing(true); }}
                                 >
-                                    <p className={`text-sm text-muted-foreground ${welcomeActive ? "" : "group-hover:underline"}`}>
+                                    <p className={`max-w-2xl truncate text-xs text-muted-foreground ${welcomeActive ? "" : "group-hover:underline"}`}>
                                         {getDescriptionLabel()}
                                     </p>
                                 </div>
