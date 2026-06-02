@@ -244,24 +244,6 @@
 .whatsapp-chat-background {
   position: relative;
   isolation: isolate;
-  background-image: none !important;
-}
-
-.whatsapp-chat-background::before {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  content: "";
-  pointer-events: none;
-  background-image: url("/patterns/whatsapp-chat-pattern.svg");
-  background-repeat: repeat;
-  background-size: 460px 820px;
-  opacity: 0.075;
-}
-
-.dark .whatsapp-chat-background::before {
-  filter: invert(1);
-  opacity: 0.055;
 }
 
 @media (max-width: 767px) {

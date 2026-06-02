@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { ChevronsUpDown, Check, Plus, Trash2, Loader2, Users } from "lucide-react";
+import { ChevronsUpDown, Check, Plus, Loader2, Users } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -20,14 +20,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton, useSidebar } from "@/components/ui/sidebar";
 import {
   getMyLinkedAccounts,
   switchToAccount,
   addLinkedAccount,
-  removeLinkedAccount,
   type LinkedAccountsPayload,
-  type LinkedAccountInfo,
 } from "@/actions/linked-account-actions";
 import type { User } from "@prisma/client";
 import { cn } from "@/lib/utils";
@@ -60,6 +59,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
   const [payload, setPayload] = useState<LinkedAccountsPayload | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [emailInput, setEmailInput] = useState("");
+  const [roleInput, setRoleInput] = useState<"agente" | "administrador">("agente");
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -89,13 +89,14 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
     if (!emailInput.trim()) return;
     startTransition(async () => {
       try {
-        const res = await addLinkedAccount(emailInput);
+        const res = await addLinkedAccount(emailInput, roleInput);
         if (!res.success) {
           toast.error(res.message ?? "Error al vincular cuenta.");
           return;
         }
         toast.success("Cuenta vinculada correctamente.");
         setEmailInput("");
+        setRoleInput("agente");
         setAddDialogOpen(false);
         const updated = await getMyLinkedAccounts();
         if (updated.success && updated.data) setPayload(updated.data);
@@ -105,34 +106,17 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
     });
   };
 
-  const handleRemove = (linkedUserId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    startTransition(async () => {
-      try {
-        const res = await removeLinkedAccount(linkedUserId);
-        if (!res.success) {
-          toast.error(res.message ?? "Error al desvincular.");
-          return;
-        }
-        toast.success("Cuenta desvinculada.");
-        const updated = await getMyLinkedAccounts();
-        if (updated.success && updated.data) setPayload(updated.data);
-        if (payload?.activeAccountId === linkedUserId) window.location.reload();
-      } catch {
-        toast.error("Error al desvincular cuenta. Intenta nuevamente.");
-      }
-    });
-  };
-
   const activeId = payload?.activeAccountId ?? payload?.realUserId;
-  const master = payload?.masterUser;
   const linked = payload?.accounts ?? [];
+  const currentAccount = payload?.currentAccount ?? null;
+  const currentRole = payload?.currentRole ?? null;
+  const totalAccounts = (currentAccount ? 1 : 0) + linked.length;
 
   // Cuenta activa para mostrar en el trigger
   const activeName =
-    activeId === payload?.realUserId
-      ? displayName({ name: master?.name ?? null, email: master?.email ?? "", company: user.company })
-      : displayName(linked.find((a) => a.linkedUserId === activeId) ?? { name: null, email: "", company: user.company });
+    currentAccount
+      ? displayName({ name: currentAccount.name ?? null, email: currentAccount.email, company: currentAccount.company })
+      : displayName({ name: user.name ?? null, email: user.email, company: user.company });
 
   return (
     <>
@@ -145,12 +129,14 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
                 <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white", colorFor(activeId ?? user.id))}>
-                  {initials(user.name, user.email, user.company)}
+                  {initials(currentAccount?.name ?? user.name, currentAccount?.email ?? user.email, currentAccount?.company ?? user.company)}
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">{activeName}</span>
                   <span className="truncate text-xs text-muted-foreground">
-                    {linked.length > 0 ? `${linked.length + 1} cuenta${linked.length + 1 !== 1 ? "s" : ""}` : "Mi cuenta"}
+                    {currentAccount?.id === payload?.realUserId && linked.length === 0
+                      ? "Mi cuenta"
+                      : `${Math.max(totalAccounts, 1)} cuenta${Math.max(totalAccounts, 1) !== 1 ? "s" : ""}`}
                   </span>
                 </div>
                 {isPending ? (
@@ -171,60 +157,62 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                 Cambiar de cuenta
               </DropdownMenuLabel>
 
-              {/* Cuenta maestra */}
-              {master && (
+              {currentAccount && (
                 <DropdownMenuItem
-                  onSelect={() => handleSwitch(master.id)}
+                  onSelect={() => handleSwitch(currentAccount.id)}
                   className="flex items-center gap-2 px-2 py-1.5 cursor-pointer"
                 >
-                  <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white", colorFor(master.id))}>
-                    {initials(master.name, master.email, master.company)}
+                  <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white", colorFor(currentAccount.id))}>
+                    {initials(currentAccount.name, currentAccount.email, currentAccount.company)}
                   </div>
                   <div className="flex flex-1 flex-col min-w-0">
-                    <span className="truncate text-sm font-medium">{displayName(master)}</span>
-                    <span className="truncate text-[10px] text-muted-foreground">Administrador</span>
+                    <span className="truncate text-sm font-medium">{displayName(currentAccount)}</span>
+                    <span className="truncate text-[10px] text-muted-foreground">
+                      {currentAccount?.id === payload?.realUserId
+                        ? "Mi cuenta"
+                        : currentRole === "administrador"
+                          ? "Administrador"
+                          : "Agente"}
+                    </span>
                   </div>
-                  {activeId === master.id && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                  {activeId === currentAccount.id && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
                 </DropdownMenuItem>
               )}
 
-              {/* Cuentas vinculadas */}
+              {linked.length > 0 && <DropdownMenuSeparator />}
+
+              {/* Cuentas accesibles */}
               {linked.map((a) => (
                 <DropdownMenuItem
-                  key={a.linkedUserId}
-                  onSelect={() => handleSwitch(a.linkedUserId)}
-                  className="group flex items-center gap-2 px-2 py-1.5 cursor-pointer"
+                  key={a.accountUserId}
+                  onSelect={() => handleSwitch(a.accountUserId)}
+                  className="flex items-center gap-2 px-2 py-1.5 cursor-pointer"
                 >
-                  <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white", colorFor(a.linkedUserId))}>
+                  <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white", colorFor(a.accountUserId))}>
                     {initials(a.name, a.email, a.company)}
                   </div>
                   <div className="flex flex-1 flex-col min-w-0">
                     <span className="truncate text-sm font-medium">{displayName(a)}</span>
-                    <span className="truncate text-[10px] text-muted-foreground">{a.label ?? "Administrador"}</span>
+                    <span className="truncate text-[10px] text-muted-foreground">
+                      {a.label ?? (a.role === "administrador" ? "Administrador" : "Agente")}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {activeId === a.linkedUserId && <Check className="h-3.5 w-3.5 text-primary" />}
-                    <button
-                      type="button"
-                      onClick={(e) => handleRemove(a.linkedUserId, e)}
-                      className="hidden group-hover:flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-destructive"
-                      title="Desvincular"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
+                  {activeId === a.accountUserId && <Check className="h-3.5 w-3.5 text-primary" />}
                 </DropdownMenuItem>
               ))}
 
-              <DropdownMenuSeparator />
-
-              <DropdownMenuItem
-                onSelect={(e) => { e.preventDefault(); setAddDialogOpen(true); }}
-                className="flex items-center gap-2 px-2 py-1.5 cursor-pointer text-muted-foreground"
-              >
-                <Plus className="h-3.5 w-3.5 shrink-0" />
-                <span className="text-sm">Agregar cuenta</span>
-              </DropdownMenuItem>
+              {(!user.ownerId || user.advisorRole === "administrador") && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={(e) => { e.preventDefault(); setAddDialogOpen(true); }}
+                    className="flex items-center gap-2 px-2 py-1.5 cursor-pointer text-muted-foreground"
+                  >
+                    <Plus className="h-3.5 w-3.5 shrink-0" />
+                    <span className="text-sm">Agregar cuenta</span>
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </SidebarMenuItem>
@@ -242,6 +230,18 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
           <p className="text-sm text-muted-foreground">
             Ingresa el email de la cuenta que quieres vincular. Ambas cuentas deben existir en el sistema.
           </p>
+          <div className="space-y-2">
+            <span className="text-xs font-medium text-muted-foreground">Rol en esta cuenta</span>
+            <Select value={roleInput} onValueChange={(value) => setRoleInput(value as "agente" | "administrador")}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecciona un rol" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="agente">Agente</SelectItem>
+                <SelectItem value="administrador">Administrador</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Input
             placeholder="email@ejemplo.com"
             value={emailInput}

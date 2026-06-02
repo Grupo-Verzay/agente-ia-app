@@ -39,6 +39,8 @@ type DbUser = Prisma.UserGetPayload<{ select: typeof USER_SELECT }>;
 
 export type CurrentUser = DbUser & { effectiveId: string; sessionUserId: string };
 
+type AccountRole = "agente" | "administrador";
+
 const userCache = new WeakMap<Request, Promise<CurrentUser | null>>();
 
 export async function currentUser(request?: Request): Promise<CurrentUser | null> {
@@ -60,18 +62,40 @@ export async function currentUser(request?: Request): Promise<CurrentUser | null
     if (!realUser) return null;
 
     let effectiveUserId = realUser.id;
+    let fromMembership = false;
+    let accountRole: AccountRole | null = null;
+
     if (impersonateId && isAdminLike(realUser.role)) {
         effectiveUserId = impersonateId;
     } else if (activeAccountId && activeAccountId !== realUser.id) {
         try {
-            const link = await db.$queryRaw<{ id: string }[]>`
-                SELECT id FROM "linked_accounts"
-                WHERE "master_user_id" = ${realUser.id} AND "linked_user_id" = ${activeAccountId}
+            const membership = await db.$queryRaw<{ role: AccountRole }[]>`
+                SELECT role
+                FROM "linked_accounts"
+                WHERE "master_user_id" = ${activeAccountId}
+                  AND "linked_user_id" = ${realUser.id}
                 LIMIT 1
             `;
-            if (link.length > 0) effectiveUserId = activeAccountId;
+
+            if (membership.length > 0) {
+                effectiveUserId = activeAccountId;
+                fromMembership = true;
+                accountRole = membership[0].role;
+            } else {
+                const legacyLink = await db.$queryRaw<{ id: string }[]>`
+                    SELECT id
+                    FROM "linked_accounts"
+                    WHERE "master_user_id" = ${realUser.id}
+                      AND "linked_user_id" = ${activeAccountId}
+                    LIMIT 1
+                `;
+
+                if (legacyLink.length > 0) {
+                    effectiveUserId = activeAccountId;
+                }
+            }
         } catch {
-            // tabla aún no existe — ignora
+            // Tabla aún no existe o no responde, ignorar y seguir con la cuenta base.
         }
     }
 
@@ -80,6 +104,16 @@ export async function currentUser(request?: Request): Promise<CurrentUser | null
         select: USER_SELECT,
     }).then(async (u): Promise<CurrentUser | null> => {
         if (!u) return null;
+
+        if (fromMembership) {
+            return {
+                ...u,
+                ownerId: effectiveUserId === realUser.id ? null : effectiveUserId,
+                advisorRole: accountRole,
+                effectiveId: effectiveUserId,
+                sessionUserId: realUser.id,
+            };
+        }
 
         if (u.ownerId) {
             const ownerCreds = await db.user.findUnique({

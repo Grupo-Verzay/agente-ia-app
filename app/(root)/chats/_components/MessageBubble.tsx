@@ -172,8 +172,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const bubbleClass = isUserMessage
     ? 'bg-[#4F7FE8] text-white rounded-xl rounded-br-sm self-end'
-    : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-xl rounded-tl-sm self-start';
-  const contentClass = isUserMessage ? 'text-white' : 'text-gray-800 dark:text-gray-100';
+    : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-xl rounded-tl-sm self-start border border-gray-200/80 dark:border-gray-700 shadow-sm';
+  const contentClass = isUserMessage ? 'text-white' : 'text-gray-900 dark:text-gray-100';
 
   const replyBtn = onReply && (
     <button
@@ -214,7 +214,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             'mb-1.5 px-2 py-1.5 rounded-lg border-l-4 text-xs cursor-default',
             isUserMessage
               ? 'border-white/60 bg-white/15 text-white/90'
-              : 'border-gray-400 dark:border-gray-500 bg-black/8 dark:bg-white/10 text-gray-700 dark:text-gray-300',
+              : 'border-gray-300 dark:border-gray-500 bg-gray-50 dark:bg-white/10 text-gray-700 dark:text-gray-300',
           )}>
             <span className="font-semibold block mb-0.5">
               {quotedMessage.sender === 'user' ? 'Tú' : 'Contacto'}

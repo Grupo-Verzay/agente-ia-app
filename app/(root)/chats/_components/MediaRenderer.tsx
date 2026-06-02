@@ -63,7 +63,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({ media }
         )}
 
         {type === 'audio' && (
-          <div className="p-2 bg-white dark:bg-gray-700 flex items-center gap-2 border-t dark:border-gray-600">
+          <div className="p-2 bg-gray-50/90 dark:bg-gray-700 flex items-center gap-2 border border-gray-200/70 dark:border-gray-600 rounded-lg">
             <button
               type="button"
               onClick={() => setViewerOpen(true)}
