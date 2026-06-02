@@ -596,6 +596,8 @@ model User {
   linkedTo                           LinkedAccount[]              @relation("LinkedTo")
   team                               Team?
   internalNotes                      InternalNote[]
+  userNotes                          UserNote[]
+  noteFolders                        NoteFolder[]
 }
 
 model UserNotificationContact {
@@ -743,6 +745,7 @@ model LinkedAccount {
   id           String   @id @default(uuid())
   masterUserId String   @map("master_user_id")
   linkedUserId String   @map("linked_user_id")
+  role         LinkedAccountRole @default(agente)
   label        String?
   createdAt    DateTime @default(now())
   masterUser   User     @relation("MasterLinks", fields: [masterUserId], references: [id], onDelete: Cascade)
@@ -750,6 +753,7 @@ model LinkedAccount {
 
   @@unique([masterUserId, linkedUserId])
   @@index([masterUserId])
+  @@index([linkedUserId])
   @@map("linked_accounts")
 }
 
@@ -1205,6 +1209,40 @@ model crm_follow_ups_archive {
   @@index([userId, status])
 }
 
+model NoteFolder {
+  id        String     @id @default(uuid())
+  userId    String
+  name      String
+  color     String?
+  order     Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes     UserNote[]
+
+  @@index([userId])
+  @@map("note_folders")
+}
+
+model UserNote {
+  id        String      @id @default(uuid())
+  userId    String
+  folderId  String?
+  title     String      @default("Sin título")
+  content   Json        @default("{}")
+  isPinned  Boolean     @default(false)
+  emoji     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder    NoteFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, isPinned])
+  @@index([folderId])
+  @@map("user_notes")
+}
+
 model IntentTrigger {
   id         String   @id @default(cuid())
   userId     String
@@ -1293,6 +1331,11 @@ enum Role {
   admin
   reseller
   super_admin
+}
+
+enum LinkedAccountRole {
+  agente
+  administrador
 }
 
 enum ThemeApp {
