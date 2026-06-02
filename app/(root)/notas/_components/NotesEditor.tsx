@@ -2,8 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useCallback, useState } from 'react'
-import { Check, Cloud, Loader2, Pin, PinOff, Smile, Trash2 } from 'lucide-react'
-import type { Block } from '@blocknote/core'
+import { Check, Loader2, Pin, PinOff, Smile, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -17,7 +16,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { UserNoteWithContent } from '@/actions/notes-actions'
 
-const BlockNoteEditorInner = dynamic(
+const TiptapEditor = dynamic(
   () => import('./BlockNoteEditorInner'),
   { ssr: false, loading: () => <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">Cargando editor...</div> }
 )
@@ -52,12 +51,12 @@ export function NotesEditor({ note, saving, onSave, onTogglePin, onDelete, onEmo
     if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
   }, [])
 
-  const handleEditorChange = useCallback((blocks: Block[]) => {
-    onSave(blocks as unknown as object, title)
+  const handleEditorChange = useCallback((content: object) => {
+    onSave(content, title)
   }, [title, onSave])
 
-  const initialBlocks = Array.isArray(note.content) && note.content.length > 0
-    ? (note.content as Block[])
+  const initialContent = note.content && typeof note.content === 'object' && 'type' in (note.content as object)
+    ? note.content as object
     : undefined
 
   return (
@@ -152,9 +151,9 @@ export function NotesEditor({ note, saving, onSave, onTogglePin, onDelete, onEmo
 
       {/* Editor */}
       <div className="flex-1 min-h-0 overflow-hidden px-4 pb-4">
-        <BlockNoteEditorInner
+        <TiptapEditor
           key={note.id}
-          initialContent={initialBlocks}
+          initialContent={initialContent}
           onChange={handleEditorChange}
         />
       </div>
