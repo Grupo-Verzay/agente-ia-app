@@ -12,6 +12,7 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    useSidebar,
 } from '@/components/ui/sidebar';
 
 import { User } from '@prisma/client';
@@ -23,6 +24,7 @@ export function NavMain({ user }: { user: User }) {
     const { modules, navPrefs, setLabelModule, labelModule, setCanvaUrl } = useModuleStore();
     const pathname = usePathname();
     const router = useRouter();
+    const { isMobile, setOpenMobile } = useSidebar();
     const taskPendingCount = useTaskStore((s) => s.pendingCount);
 
     const isAdvisor = !!user.ownerId;
@@ -65,6 +67,7 @@ export function NavMain({ user }: { user: User }) {
     const handleRoute = (label: string, targetRoute: string, customUrl?: string | null) => {
         setLabelModule(label)
         if (targetRoute === '/canva' && customUrl) setCanvaUrl(customUrl)
+        if (isMobile) setOpenMobile(false)
         router.push(targetRoute)
     }
     return (

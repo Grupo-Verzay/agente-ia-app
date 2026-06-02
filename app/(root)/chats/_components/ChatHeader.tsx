@@ -254,7 +254,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   return (
     <div className="sticky top-0 z-10 border-b border-border/40 bg-gradient-to-r from-background to-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/50">
       {/* ── Mobile ── */}
-      <div className="md:hidden px-3 py-2 space-y-2">
+      <div className="md:hidden px-2 py-2 space-y-2">
         {/* Fila única: volver + avatar + nombre + activa + acciones */}
         <div className="flex items-center gap-2">
           <Button
@@ -308,8 +308,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
         {/* Herramientas expandibles — una fila con scroll */}
         {session && mobileToolsOpen && (
-          <div className="-mx-3 border-t border-border/30 bg-muted/30">
-            <div className="flex items-center justify-between px-3 py-1.5 overflow-x-auto scrollbar-none">
+          <div className="-mx-2 border-t border-border/30 bg-muted/30">
+            <div className="flex items-center justify-between px-2 py-1.5 overflow-x-auto scrollbar-none">
               {/* Sesión on/off */}
               <Button
                 type="button"
@@ -476,7 +476,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       </div>
 
       {!session && (
-        <div className="md:hidden px-4 py-2 bg-amber-50/50 dark:bg-amber-950/20 border-t border-amber-200/50 dark:border-amber-800/30 text-xs text-amber-700 dark:text-amber-600">
+        <div className="md:hidden px-2 py-2 bg-amber-50/50 dark:bg-amber-950/20 border-t border-amber-200/50 dark:border-amber-800/30 text-xs text-amber-700 dark:text-amber-600">
           Sin sesión CRM sincronizada
         </div>
       )}

@@ -208,7 +208,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       )}
       {isUserMessage && replyBtn}
       {isUserMessage && contextMenu}
-      <div className={cn('px-2 pt-2 pb-5 break-words relative inline-block max-w-[90%] sm:max-w-[70%]', bubbleClass)}>
+      <div className={cn('px-2 pt-2 pb-5 break-words relative inline-block max-w-[94%] sm:max-w-[78%] lg:max-w-[72%]', bubbleClass)}>
         {quotedMessage && (
           <div className={cn(
             'mb-1.5 px-2 py-1.5 rounded-lg border-l-4 text-xs cursor-default',

@@ -1058,12 +1058,12 @@ export function ChatsClient({
 
   return (
     <>
-    <div data-full-bleed className="flex h-full w-full overflow-hidden">
+    <div data-full-bleed data-chat-view className="flex h-full w-full overflow-hidden">
       <div
         className={`${
           isSidebarVisible
-            ? "w-full sm:w-80 md:w-96"
-            : "hidden sm:w-80 md:block md:w-96"
+            ? "w-full sm:w-[18rem] md:w-[20rem] lg:w-[22rem] xl:w-[24rem]"
+            : "hidden sm:w-[18rem] md:block md:w-[20rem] lg:w-[22rem] xl:w-[24rem]"
         } h-full flex-shrink-0 transition-all duration-300 sm:border-r ${
           !isSidebarVisible ? "hidden" : ""
         }`}

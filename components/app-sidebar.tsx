@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef } from "react";
 import { User } from "@prisma/client"
 
 import { NavMain } from "@/components/nav-main"
@@ -48,7 +49,18 @@ function SidebarFooterContent({ user }: { user: User }) {
 }
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
+    const { isMobile, openMobile, setOpenMobile } = useSidebar();
     const pathname = usePathname();
+    const previousPathname = useRef(pathname);
+
+    useEffect(() => {
+        const pathChanged = previousPathname.current !== pathname;
+        previousPathname.current = pathname;
+
+        if (isMobile && openMobile && pathChanged) {
+            setOpenMobile(false);
+        }
+    }, [isMobile, pathname, openMobile, setOpenMobile]);
 
     return (
         <Sidebar collapsible="icon" {...props} className="bg-white dark:bg-gray-900 text-gray-800 dark:text-zinc-100 border-r border-zinc-200 dark:border-gray-800">

@@ -98,7 +98,7 @@ const SendingMessageSkeleton: React.FC<{ tempMessage: UIBubble }> = ({ tempMessa
 
   return (
     <div className="flex items-end gap-1 my-1 justify-end opacity-70" aria-live="polite">
-      <div className={cn('p-2 break-words relative inline-block max-w-[90%] sm:max-w-[70%]', bubbleClass)}>
+      <div className={cn('p-2 break-words relative inline-block max-w-[94%] sm:max-w-[78%] lg:max-w-[72%]', bubbleClass)}>
         {isMedia ? (
           <div className="w-24 h-24 rounded-md bg-gray-400/50 dark:bg-gray-600/50 my-1" />
         ) : (
@@ -174,14 +174,14 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 
   if (loading && renderedList.length === 0) {
     return (
-      <div className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto p-4 custom-scrollbar w-full" style={bgStyle} ref={listRef}>
+      <div className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto p-2 sm:p-4 custom-scrollbar w-full" style={bgStyle} ref={listRef}>
         <ChatMessageListSkeleton />
       </div>
     );
   }
 
   return (
-    <div className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto p-4 custom-scrollbar w-full" style={bgStyle} ref={listRef}>
+    <div className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto p-2 sm:p-4 custom-scrollbar w-full" style={bgStyle} ref={listRef}>
       {loading && <div className="text-center text-gray-500 py-4">Cargando mensajes…</div>}
       {renderedList.map((item) =>
         item.type === 'date' ? (

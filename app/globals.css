@@ -255,3 +255,15 @@
   filter: invert(1);
   opacity: 0.055;
 }
+
+@media (max-width: 767px) {
+  .app-module-content:has([data-chat-view]) {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .app-module-content:has([data-chat-view]) > [data-chat-view] {
+    min-height: 100%;
+  }
+}

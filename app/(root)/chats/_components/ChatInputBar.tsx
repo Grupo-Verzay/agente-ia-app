@@ -212,14 +212,14 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
 
   return (
     <div className={cn(
-      "p-3 border-t dark:border-gray-700 transition-colors",
+      "px-2 py-2 sm:p-3 border-t dark:border-gray-700 transition-colors",
       noteMode
         ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
         : "bg-gray-50 dark:bg-gray-900",
     )}>
       {/* Preview de respuesta a un mensaje */}
       {replyTo && (
-        <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-lg border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/50">
+        <div className="mb-2 flex items-center gap-2 px-2.5 py-2 rounded-lg border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/50">
           <div className="flex-1 min-w-0">
             <div className="text-xs font-semibold text-blue-600 dark:text-blue-400">
               {replyTo.sender === 'user' ? 'Tú' : 'Contacto'}
@@ -246,7 +246,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         <div className="mb-2">
           {composeMediaList.length === 1 ? (
             /* 1 imagen: fila con nombre y X roja */
-            <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2">
+            <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-2.5 py-2">
               <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border bg-white dark:bg-gray-800">
                 <SafeImage src={composeMediaList[0].dataUrl} alt={composeMediaList[0].fileName} fill sizes="40px" className="object-cover" />
               </div>
