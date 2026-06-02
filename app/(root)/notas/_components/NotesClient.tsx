@@ -140,13 +140,14 @@ export function NotesClient({ userId }: Props) {
         onUpdateFolder={handleUpdateFolder}
         onDeleteFolder={handleDeleteFolder}
       />
-      <div className="flex flex-1 min-w-0 flex-col">
+      <div className="flex flex-1 min-w-0 flex-col bg-background">
         {!selectedNote && !loadingNote && (
           <NoteEmptyState onNewNote={handleNewNote} />
         )}
         {loadingNote && (
-          <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
-            Cargando nota...
+          <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm gap-2">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-primary" />
+            Cargando...
           </div>
         )}
         {selectedNote && !loadingNote && (
