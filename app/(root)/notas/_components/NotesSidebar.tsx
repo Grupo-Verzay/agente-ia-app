@@ -89,7 +89,7 @@ export function NotesSidebar({
             placeholder="Buscar notas..."
             value={search}
             onChange={e => onSearchChange(e.target.value)}
-            className="h-8 pl-8 text-xs w-72 bg-muted/40 border-transparent focus-visible:border-border focus-visible:bg-background"
+            className="h-8 pl-8 text-xs w-full bg-muted/40 border-transparent shadow-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-border focus-visible:bg-background"
           />
         </div>
       </div>
