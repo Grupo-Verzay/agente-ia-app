@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { TASK_TYPES, type TaskData } from "@/lib/task-types";
 import { MetricCard } from "@/components/custom/MetricCard";
+import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import {
   getMyTasksAction,
   completeTaskAction,
@@ -238,8 +239,8 @@ export function TasksClient({ userId, userName }: Props) {
       </div>
 
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+      <ModuleToolbar className="shrink-0">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <div className="flex gap-1 overflow-x-auto rounded-lg border border-border/60 bg-muted/30 p-1">
             <button
               type="button"
@@ -290,7 +291,7 @@ export function TasksClient({ userId, userName }: Props) {
             + Crear
           </Button>
         </div>
-      </div>
+      </ModuleToolbar>
 
       {/* Content */}
       {loading ? (

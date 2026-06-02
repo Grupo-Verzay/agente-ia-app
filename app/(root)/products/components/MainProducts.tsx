@@ -9,6 +9,7 @@ import { ProductForm } from './ProductForm'
 import { ProductTable } from './ProductTable'
 import { MainProductsProps } from '@/types/products'
 import { MetricCard } from '@/components/custom/MetricCard'
+import { ModuleToolbar } from '@/components/shared/ModuleToolbar'
 
 export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stats }: MainProductsProps) => {
     const [filter, setFilter] = useState(initialFilter)
@@ -55,12 +56,12 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
                 </div>
             </div>
 
-            <div className="flex shrink-0 flex-col gap-3 p-1 sm:flex-row sm:items-center sm:justify-between">
-                <div className="relative w-64 shrink-0">
+            <ModuleToolbar className="shrink-0">
+                <div className="relative w-full sm:w-64">
                     <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Buscar producto..."
-                        className="pl-8 text-sm"
+                        className="w-full pl-8 text-sm"
                         value={filter}
                         onChange={(e) => setFilter(e.target.value)}
                     />
@@ -74,7 +75,7 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
                     )}
                     <ProductForm userId={userId} disabled={limitInfo?.reached} />
                 </div>
-            </div>
+            </ModuleToolbar>
 
             <ProductTable data={data} userId={userId} />
 

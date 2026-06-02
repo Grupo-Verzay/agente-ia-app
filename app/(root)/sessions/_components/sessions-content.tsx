@@ -21,6 +21,7 @@ import { FilterLeadsByStats, FilterSessionTypes, SessionStatsInterface } from ".
 import { CreateContactDialog } from "./CreateContactDialog";
 import { getSessionsForExport } from "@/actions/export-actions";
 import { toast } from "sonner";
+import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 
 const PAGE_SIZE = 20;
 
@@ -166,13 +167,15 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
             />
           </div>
         </div>
-        <div className="flex flex-1 justify-between">
-          <Input
-            placeholder="Buscar por nombre o número..."
-            value={search}
-            onChange={handleSearchChange}
-            className="w-72 shrink-0 text-xs"
-          />
+        <ModuleToolbar className="shrink-0">
+          <div className="relative w-full sm:w-72">
+            <Input
+              placeholder="Buscar por nombre o número..."
+              value={search}
+              onChange={handleSearchChange}
+              className="w-full text-xs"
+            />
+          </div>
           <div className="flex items-center gap-2">
             <Button
               size="sm"
@@ -209,7 +212,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
               onSuccess={() => router.refresh()}
             />
           </div>
-        </div>
+        </ModuleToolbar>
       </div>
 
       <Card className="flex-1 min-h-0 flex flex-col border-border overflow-hidden">

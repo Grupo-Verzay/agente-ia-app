@@ -18,6 +18,7 @@ import { MetricCard } from '@/components/custom/MetricCard';
 import { ReminderList } from './ReminderList';
 import { Badge } from '@/components/ui/badge';
 import type { Reminders } from '@prisma/client';
+import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 
 const parseReminderTime = (time: string | null) => {
   if (!time) return null;
@@ -181,38 +182,40 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
             </>
           )}
 
-          <div className="flex flex-row gap-2 items-center">
-            {!isScheduleView && !isCampaignPage && (
-              <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto">
-                <button
-                  type="button"
-                  onClick={() => setView('list')}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === 'list' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                  <List className="h-3.5 w-3.5" /> Lista
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setView('kanban')}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === 'kanban' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                  <Kanban className="h-3.5 w-3.5" /> Kanban
-                </button>
-              </div>
-            )}
+          <ModuleToolbar className="shrink-0">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              {!isScheduleView && !isCampaignPage && (
+                <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto">
+                  <button
+                    type="button"
+                    onClick={() => setView('list')}
+                    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === 'list' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    <List className="h-3.5 w-3.5" /> Lista
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setView('kanban')}
+                    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === 'kanban' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    <Kanban className="h-3.5 w-3.5" /> Kanban
+                  </button>
+                </div>
+              )}
 
-            <div className="relative w-64 shrink-0">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por título, número o nombre..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8"
-              />
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por título, número o nombre..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-8"
+                />
+              </div>
             </div>
 
             {!isScheduleView && (
-              <div className="ml-auto flex gap-2">
+              <div className="flex items-center gap-2">
                 {reminders.length > 0 && (
                   <Button size="sm" variant="destructive" onClick={() => setShowDeleteAll(true)}>
                     Eliminar todos
@@ -225,11 +228,11 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
             )}
 
             {isScheduleView && (
-              <Button size="sm" onClick={handleCreateReminder} className="ml-auto bg-blue-600 hover:bg-blue-700 text-white">
+              <Button size="sm" onClick={handleCreateReminder} className="bg-blue-600 hover:bg-blue-700 text-white">
                 + Crear
               </Button>
             )}
-          </div>
+          </ModuleToolbar>
         </div>
       </div>
 

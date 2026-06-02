@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { IntentTrigger, Workflow } from '@prisma/client';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import CreateWorflowDialog from './CreateWorflowDialog';
 import { SortableWorkflowList } from './SortableWorkflowList';
 
@@ -27,8 +28,8 @@ export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [] }:
 
     return (
         <>
-            <div className="flex shrink-0 flex-col gap-3 p-1 sm:flex-row sm:items-center sm:justify-between">
-                <div className="relative w-64 shrink-0">
+            <ModuleToolbar className="shrink-0">
+                <div className="relative w-full sm:w-72">
                     <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Buscar flujo..."
@@ -38,7 +39,7 @@ export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [] }:
                     />
                 </div>
                 <CreateWorflowDialog triggerText="+ Crear" isPro={isPro} />
-            </div>
+            </ModuleToolbar>
 
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                 {filteredWorkflows.length === 0 ? (

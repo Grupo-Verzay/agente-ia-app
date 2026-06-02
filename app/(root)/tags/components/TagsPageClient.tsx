@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Kanban, Settings2, TrendingUp, X, Tag } from 'lucide-react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { MetricCard } from '@/components/custom/MetricCard';
+import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import { TagKanbanBoard } from './TagKanbanBoard';
 import { SessionTagsManager } from './SessionTagsManager';
 import type { SimpleTag } from '@/types/session';
@@ -82,40 +83,42 @@ export function TagsPageClient({
                 )}
 
                 {/* Fila de toggle + score pills — igual que CRM */}
-                <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
-                        <button
-                            type="button"
-                            onClick={() => setView('kanban')}
-                            className={[
-                                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                                view === 'kanban'
-                                    ? 'bg-background shadow-sm text-foreground'
-                                    : 'text-muted-foreground hover:text-foreground',
-                            ].join(' ')}
-                        >
-                            <Kanban className="h-3.5 w-3.5" />
-                            Kanban
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setView('gestionar')}
-                            className={[
-                                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                                view === 'gestionar'
-                                    ? 'bg-background shadow-sm text-foreground'
-                                    : 'text-muted-foreground hover:text-foreground',
-                            ].join(' ')}
-                        >
-                            <Settings2 className="h-3.5 w-3.5" />
-                            Gestionar
-                        </button>
+                <ModuleToolbar>
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                        <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
+                            <button
+                                type="button"
+                                onClick={() => setView('kanban')}
+                                className={[
+                                    'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                                    view === 'kanban'
+                                        ? 'bg-background shadow-sm text-foreground'
+                                        : 'text-muted-foreground hover:text-foreground',
+                                ].join(' ')}
+                            >
+                                <Kanban className="h-3.5 w-3.5" />
+                                Kanban
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setView('gestionar')}
+                                className={[
+                                    'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                                    view === 'gestionar'
+                                        ? 'bg-background shadow-sm text-foreground'
+                                        : 'text-muted-foreground hover:text-foreground',
+                                ].join(' ')}
+                            >
+                                <Settings2 className="h-3.5 w-3.5" />
+                                Gestionar
+                            </button>
+                        </div>
                     </div>
 
                     {/* Score pills — solo en vista Kanban */}
                     {view === 'kanban' && (
                         <div className="flex items-center gap-2">
-                            <TrendingUp className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                            <TrendingUp className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
                             <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
                                 {SCORE_RANGES.map((range) => {
                                     const active = selectedScoreRanges.has(range.key);
@@ -126,31 +129,31 @@ export function TagsPageClient({
                                             type="button"
                                             title={`Score ${range.range}`}
                                             onClick={() => toggleScoreRange(range.key)}
-                                            className="rounded-md px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-1 whitespace-nowrap"
+                                            className="flex items-center gap-1 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all"
                                             style={{
                                                 color: active ? range.color : undefined,
-                                                backgroundColor: active ? range.color + '18' : undefined,
+                                                backgroundColor: active ? `${range.color}18` : undefined,
                                                 boxShadow: active ? `inset 0 0 0 1px ${range.color}60` : undefined,
                                             }}
                                         >
-                                            <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: range.color }} />
+                                            <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: range.color }} />
                                             {range.label}
                                             {count > 0 && (
                                                 <span
-                                                    className="ml-1 text-[10px] font-bold px-1 py-0 rounded-full text-white"
+                                                    className="ml-1 rounded-full px-1 py-0 text-[10px] font-bold text-white"
                                                     style={{ backgroundColor: range.color }}
                                                 >
                                                     {count}
                                                 </span>
                                             )}
-                                            {active && <X className="h-2.5 w-2.5 ml-0.5 opacity-60" />}
+                                            {active && <X className="ml-0.5 h-2.5 w-2.5 opacity-60" />}
                                         </button>
                                     );
                                 })}
                             </div>
                         </div>
                     )}
-                </div>
+                </ModuleToolbar>
 
                 {/* Content */}
                 {view === 'kanban' ? (
