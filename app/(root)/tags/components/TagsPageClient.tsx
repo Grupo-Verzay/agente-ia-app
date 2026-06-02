@@ -157,7 +157,16 @@ export function TagsPageClient({
 
                 {/* Content */}
                 {view === 'kanban' ? (
-                    <div className="flex-1 min-h-0 flex flex-col">
+                    <div className="flex-1 min-h-0 flex flex-col gap-3">
+                        <SessionTagsManager
+                            userId={userId}
+                            sessionId={0}
+                            allTags={tags}
+                            initialSelectedTagIds={[]}
+                            hideSessionSection
+                            compact
+                            onTagsChanged={setTags}
+                        />
                         <TagKanbanBoard
                             userId={userId}
                             initialTags={tags}

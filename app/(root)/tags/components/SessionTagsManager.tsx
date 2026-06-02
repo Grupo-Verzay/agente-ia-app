@@ -24,6 +24,7 @@ interface SessionTagsManagerProps {
     allTags: SimpleTag[];
     initialSelectedTagIds: number[];
     hideSessionSection?: boolean;
+    compact?: boolean;
     onTagsChanged?: (tags: SimpleTag[]) => void;
 }
 
@@ -42,6 +43,7 @@ export const SessionTagsManager = ({
     allTags,
     initialSelectedTagIds,
     hideSessionSection = false,
+    compact = false,
     onTagsChanged,
 }: SessionTagsManagerProps) => {
     const [isPending, startTransition] = useTransition();
@@ -206,7 +208,10 @@ export const SessionTagsManager = ({
 
     return (
         <>
-            <div className="space-y-4 rounded-lg border bg-card p-4">
+            <div className={cn(
+                "space-y-4 rounded-lg border bg-card p-4",
+                compact && "space-y-3 p-3",
+            )}>
                 {/* Header */}
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
@@ -304,36 +309,37 @@ export const SessionTagsManager = ({
                     </div>
                 </div>
 
-                {/* Lista completa de etiquetas */}
-                <div className="space-y-1">
-                    <p className="font-medium text-muted-foreground">
-                        CatÃ¡logo de etiquetas
-                    </p>
-                    {tags.length === 0 ? (
-                        <span className="text-muted-foreground">
-                            AÃºn no hay etiquetas creadas.
-                        </span>
-                    ) : (
-                        <SortableTagList
-                            tags={tags}
-                            onReorder={(reordered) => {
-                                setTags(reordered);
-                                onTagsChanged?.(reordered);
-                            }}
-                            editingTagId={editingTagId}
-                            editName={editName}
-                            editColor={editColor}
-                            isPending={isPending}
-                            onEditName={setEditName}
-                            onEditColor={setEditColor}
-                            onSaveEdit={handleSaveEditTag}
-                            onCancelEdit={() => setEditingTagId(null)}
-                            onStartEdit={startEditTag}
-                            onDelete={openDeleteDialog}
-                            renderColorDot={renderColorDot}
-                        />
-                    )}
-                </div>
+                {!compact && (
+                    <div className="space-y-1">
+                        <p className="font-medium text-muted-foreground">
+                            CatÃ¡logo de etiquetas
+                        </p>
+                        {tags.length === 0 ? (
+                            <span className="text-muted-foreground">
+                                AÃºn no hay etiquetas creadas.
+                            </span>
+                        ) : (
+                            <SortableTagList
+                                tags={tags}
+                                onReorder={(reordered) => {
+                                    setTags(reordered);
+                                    onTagsChanged?.(reordered);
+                                }}
+                                editingTagId={editingTagId}
+                                editName={editName}
+                                editColor={editColor}
+                                isPending={isPending}
+                                onEditName={setEditName}
+                                onEditColor={setEditColor}
+                                onSaveEdit={handleSaveEditTag}
+                                onCancelEdit={() => setEditingTagId(null)}
+                                onStartEdit={startEditTag}
+                                onDelete={openDeleteDialog}
+                                renderColorDot={renderColorDot}
+                            />
+                        )}
+                    </div>
+                )}
             </div>
 
             <GenericDeleteDialog
