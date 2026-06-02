@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { User } from "@prisma/client"
+import Image from "next/image"
 
 import { NavMain } from "@/components/nav-main"
 import { NavProjects } from "@/components/nav-projects"
@@ -24,6 +25,26 @@ import { usePathname } from "next/navigation"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
     user: User;
+}
+
+function AppLogo() {
+    const { state } = useSidebar();
+    const collapsed = state === "collapsed";
+
+    return (
+        <div className={`flex items-center gap-2 px-2 py-1 ${collapsed ? "justify-center" : ""}`}>
+            <Image
+                src="/logo.png"
+                alt="Agente IA"
+                width={32}
+                height={32}
+                className="rounded-lg shrink-0"
+            />
+            {!collapsed && (
+                <span className="font-semibold text-sm tracking-tight truncate">Agente IA</span>
+            )}
+        </div>
+    );
 }
 
 function SidebarFooterContent({ user }: { user: User }) {
@@ -65,6 +86,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     return (
         <Sidebar collapsible="icon" {...props} className="bg-white dark:bg-gray-900 text-gray-800 dark:text-zinc-100 border-r border-zinc-200 dark:border-gray-800">
             <SidebarHeader>
+                <AppLogo />
                 <AccountSwitcher user={user} />
             </SidebarHeader>
 
