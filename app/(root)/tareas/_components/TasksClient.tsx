@@ -460,7 +460,7 @@ function KanbanView({ tasks, allTypes, onComplete, onCancel, onDelete }: {
             return (
               <div
                 key={type}
-                className="flex flex-col min-w-[155px] w-[155px] sm:min-w-[240px] sm:w-[240px] shrink-0 rounded-xl border-2 overflow-hidden shadow-sm h-full"
+                className="flex flex-col min-w-[260px] w-[260px] shrink-0 rounded-xl border-2 overflow-hidden shadow-sm h-full"
                 style={{
                   borderColor: col.borderColor + "52",
                   backgroundColor: col.borderColor + "0A",
@@ -529,6 +529,23 @@ function KanbanCard({ task, onComplete, onCancel, onDelete }: {
       {!isDone && (
         <div className="absolute right-1.5 top-1.5" onClick={(e) => e.stopPropagation()}>
           <TaskActionButtons compact onComplete={onComplete} onCancel={onCancel} onDelete={onDelete} />
+        </div>
+      )}
+
+      {isDone && (
+        <div className="absolute right-1.5 top-1.5" onClick={(e) => e.stopPropagation()}>
+          <TooltipWrapper content="Eliminar tarea">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label="Eliminar tarea"
+              onClick={onDelete}
+              className="h-6 w-6 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </TooltipWrapper>
         </div>
       )}
 
@@ -607,7 +624,7 @@ function TaskCard({
 
   return (
     <div className={cn(
-      "group rounded-xl border border-l-4 px-3 py-2.5 transition-all",
+      "group relative rounded-xl border border-l-4 px-3 py-2.5 transition-all",
       isDone
         ? "border-l-emerald-300 bg-muted/30 opacity-55"
         : isOverdue
@@ -653,6 +670,23 @@ function TaskCard({
         {/* Acciones */}
         {!isDone && (
           <TaskActionButtons onComplete={onComplete} onCancel={onCancel} onDelete={onDelete} />
+        )}
+
+        {isDone && (
+          <div className="absolute right-2 top-2" onClick={(e) => e.stopPropagation()}>
+            <TooltipWrapper content="Eliminar tarea">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-label="Eliminar tarea"
+                onClick={onDelete}
+                className="h-7 w-7 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </TooltipWrapper>
+          </div>
         )}
       </div>
     </div>

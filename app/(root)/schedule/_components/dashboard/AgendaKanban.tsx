@@ -143,7 +143,7 @@ function AgendaColumn({ col, cards }: { col: (typeof COLUMNS)[number]; cards: Ag
 
     return (
         <div
-            className="flex flex-col min-w-[155px] w-[155px] sm:min-w-[240px] sm:w-[240px] shrink-0 rounded-xl border-2 overflow-hidden shadow-sm h-full"
+            className="flex flex-col min-w-[260px] w-[260px] shrink-0 rounded-xl border-2 overflow-hidden shadow-sm h-full"
             style={{ borderColor: col.borderColor + '52', backgroundColor: col.borderColor + '0A' }}
         >
             <div className={cn('px-3 py-2 flex items-center justify-between shrink-0', col.headerClass)}>
