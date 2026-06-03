@@ -13,12 +13,13 @@ async function getAuth() {
   return user;
 }
 
-function toTaskData(t: any): TaskData {
+function toTaskData(t: any, phoneMap: Record<string, string | null> = {}): TaskData {
   return {
     id: t.id,
     ownerId: t.ownerId,
     assignedToId: t.assignedToId,
     assignedToName: t.assignedToName,
+    assignedToPhone: phoneMap[t.assignedToId] ?? null,
     sessionId: t.sessionId,
     contactName: t.contactName,
     contactJid: t.contactJid,
@@ -144,7 +145,14 @@ export async function getMyTasksAction(): Promise<{
       orderBy: { dueDate: "asc" },
     });
 
-    return { success: true, data: tasks.map(toTaskData) };
+    const advisorIds = [...new Set(tasks.map((t: any) => t.assignedToId))] as string[];
+    const advisors = await db.user.findMany({
+      where: { id: { in: advisorIds } },
+      select: { id: true, notificationNumber: true },
+    });
+    const phoneMap = Object.fromEntries(advisors.map(a => [a.id, a.notificationNumber]));
+
+    return { success: true, data: tasks.map((t: any) => toTaskData(t, phoneMap)) };
   } catch (error) {
     console.error("[getMyTasksAction]", error);
     return { success: false, message: "Error al cargar las tareas." };

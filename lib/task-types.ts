@@ -15,6 +15,7 @@ export type TaskData = {
   ownerId: string;
   assignedToId: string;
   assignedToName: string | null;
+  assignedToPhone: string | null;
   sessionId: number | null;
   contactName: string | null;
   contactJid: string | null;

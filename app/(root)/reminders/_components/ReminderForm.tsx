@@ -219,7 +219,7 @@ export const ReminderForm = ({
                     ))}
                 </>
 
-                <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto px-1 pb-1">
+                <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto px-1 pb-1 pt-1">
 
                 <div className="flex flex-col gap-1.5">
                     <Label className="text-sm font-semibold">Título</Label>
@@ -227,7 +227,7 @@ export const ReminderForm = ({
                     {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
                 </div>
 
-                <div className="flex flex-col gap-1.5 flex-1 min-h-0">
+                <div className="flex flex-col gap-1.5">
                     <Label className="text-sm font-semibold">Mensaje</Label>
                     {(() => {
                         const { ref: rhfRef, ...descRest } = register("description");

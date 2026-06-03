@@ -50,62 +50,61 @@ export function DateTimePicker({
     }
 
     return (
-        <div className="gap-2">
-            <Popover>
-                <div className="flex flex-1 flex-row justify-between items-center gap-2">
-                    {/* Field date */}
-                    {!isSchedule &&
+        <Popover>
+            <div className="grid grid-cols-2 gap-3">
+                {/* Fecha */}
+                {!isSchedule && (
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-sm font-semibold">Fecha</label>
                         <PopoverTrigger asChild>
-                            <Button variant="outline" className="justify-start text-left flex-1">
-                                {date ? format(date, "dd/MM/yyyy HH:mm") : "Seleccionar fecha y hora"}
+                            <Button variant="outline" className="justify-start text-left w-full text-sm">
+                                {date ? format(date, "dd/MM/yyyy") : "Seleccionar"}
                             </Button>
                         </PopoverTrigger>
-                    }
+                    </div>
+                )}
 
-                    {/* Fields HH:MM */}
-                    <div className="flex gap-2 justify-between">
-                        <div className="flex flex-row flex-1 justify-start items-center">
-                            <label className="text-sm text-muted-foreground mr-1">HH:</label>
+                {/* Hora HH:MM */}
+                <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-semibold">Hora</label>
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 flex-1">
+                            <label className="text-xs text-muted-foreground shrink-0">HH:</label>
                             <select
-                                className={cn("border rounded-md px-2 py-1 text-sm bg-background")}
+                                className={cn("border rounded-md px-2 py-1 text-sm bg-background w-full")}
                                 value={hour}
                                 onChange={(e) => updateDateTime(undefined, parseInt(e.target.value), undefined)}
                             >
                                 {[...Array(24)].map((_, i) => (
-                                    <option key={i} value={i}>
-                                        {i.toString().padStart(2, '0')}
-                                    </option>
+                                    <option key={i} value={i}>{i.toString().padStart(2, '0')}</option>
                                 ))}
                             </select>
                         </div>
-
-                        <div className="flex flex-row flex-1 justify-start items-center">
-                            <label className="text-sm text-muted-foreground mr-1">MM:</label>
+                        <div className="flex items-center gap-1 flex-1">
+                            <label className="text-xs text-muted-foreground shrink-0">MM:</label>
                             <select
-                                className={cn("border rounded-md px-2 py-1 text-sm bg-background")}
+                                className={cn("border rounded-md px-2 py-1 text-sm bg-background w-full")}
                                 value={minute}
                                 onChange={(e) => updateDateTime(undefined, undefined, parseInt(e.target.value))}
                             >
                                 {[...Array(60)].map((_, i) => (
-                                    <option key={i} value={i}>
-                                        {i.toString().padStart(2, '0')}
-                                    </option>
+                                    <option key={i} value={i}>{i.toString().padStart(2, '0')}</option>
                                 ))}
                             </select>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                {!isSchedule &&
-                    <PopoverContent side="top" align="start" className="w-auto p-0" >
-                        <Calendar
-                            mode="single"
-                            selected={date}
-                            onSelect={(d) => d && updateDateTime(d)}
-                        />
-                    </PopoverContent>
-                }
-            </Popover>
-        </div>
+            {!isSchedule && (
+                <PopoverContent side="top" align="start" className="w-auto p-0">
+                    <Calendar
+                        mode="single"
+                        selected={date}
+                        onSelect={(d) => d && updateDateTime(d)}
+                    />
+                </PopoverContent>
+            )}
+        </Popover>
     )
 }

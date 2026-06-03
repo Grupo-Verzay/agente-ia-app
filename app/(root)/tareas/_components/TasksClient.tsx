@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Calendar, CheckCircle2, ClipboardList, Eye, EyeOff, Kanban, List, Loader2, Phone, RefreshCw, Search, Trash2, Users, Mail, CalendarClock, X } from "lucide-react";
+import { Calendar, CheckCircle2, ClipboardList, Eye, EyeOff, Kanban, List, Loader2, Phone, RefreshCw, Search, Trash2, User, Users, Mail, CalendarClock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { fmtPhone } from "@/lib/whatsapp-jid";
 import { TASK_TYPES, type TaskData } from "@/lib/task-types";
 import { MetricCard } from "@/components/custom/MetricCard";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
@@ -515,72 +516,92 @@ function KanbanCard({ task, onComplete, onCancel, onDelete }: {
 }) {
   const isDone    = task.status === "done";
   const isOverdue = !isDone && new Date(task.dueDate) < new Date();
+  const typeColor = TYPE_COLOR[task.type] ?? TYPE_COLOR["Tarea"];
+  const typeIcon  = TYPE_ICON[task.type] ?? <ClipboardList className="h-3 w-3" />;
   const router    = useRouter();
 
   return (
     <div
       className={cn(
-        "group relative bg-background rounded-lg border border-border p-3 shadow-sm space-y-2 select-none cursor-pointer transition-shadow hover:shadow-md",
+        "bg-background rounded-lg border border-border p-3 shadow-sm transition-shadow hover:shadow-md",
         isDone && "opacity-60",
       )}
-      onClick={() => task.contactJid && !isDone && router.push(`/chats?jid=${encodeURIComponent(task.contactJid)}`)}
     >
-      {/* Botones hover — aparecen en esquina igual al schedule */}
-      {!isDone && (
-        <div className="absolute right-1.5 top-1.5" onClick={(e) => e.stopPropagation()}>
-          <TaskActionButtons compact onComplete={onComplete} onCancel={onCancel} onDelete={onDelete} />
-        </div>
-      )}
-
-      {isDone && (
-        <div className="absolute right-1.5 top-1.5" onClick={(e) => e.stopPropagation()}>
-          <TooltipWrapper content="Eliminar tarea">
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              aria-label="Eliminar tarea"
-              onClick={onDelete}
-              className="h-6 w-6 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          </TooltipWrapper>
-        </div>
-      )}
-
-      {/* Avatar + nombre — exacto de AgendaCardItem */}
-      <div className="flex items-center gap-2 min-w-0">
-        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-          <Users className="h-3.5 w-3.5 text-primary" />
-        </div>
-        <div className="min-w-0">
+      <div className="flex gap-2">
+        {/* Contenido izquierdo */}
+        <div className="min-w-0 flex-1 flex flex-col gap-1">
+          {/* Fila 1: título */}
           <p className={cn("app-item-title truncate leading-tight", isDone && "line-through text-muted-foreground")}>
             {task.title}
           </p>
+
+          {/* Fila 2: contacto */}
           {task.contactName && (
-            <span className={cn("text-[11px] block truncate", task.contactJid ? "text-primary" : "text-muted-foreground")}>
-              {task.contactName}
+            <button type="button" onClick={() => task.contactJid && router.push(`/chats?jid=${encodeURIComponent(task.contactJid)}`)}
+              className={cn("flex items-center gap-1 text-xs text-left w-fit", task.contactJid && "text-blue-600 hover:underline cursor-pointer")}>
+              <Users className="h-3 w-3 shrink-0" />
+              <span className="truncate max-w-[120px]">{task.contactName}</span>
+            </button>
+          )}
+
+          {/* Fila 3: asesor */}
+          <span className="flex items-center gap-1 text-xs text-muted-foreground truncate">
+            <User className="h-3 w-3 shrink-0" />
+            {task.assignedToName ?? "Sin asesor"}
+          </span>
+          {task.assignedToPhone && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Phone className="h-3 w-3 shrink-0" />
+              <span className="truncate">{fmtPhone(task.assignedToPhone)}</span>
             </span>
+          )}
+
+          {/* Fila 4: fecha */}
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <CalendarClock className="h-3 w-3 shrink-0" />
+            <span className={cn(isOverdue && !isDone && "text-red-500 font-medium")}>
+              {new Date(task.dueDate).toLocaleDateString("es", { day: "2-digit", month: "short" })}
+              {" · "}
+              {new Date(task.dueDate).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", hour12: true })}
+            </span>
+          </div>
+        </div>
+
+        {/* Acciones derecha: vertical */}
+        <div className="flex flex-col items-center justify-between shrink-0 self-stretch" onClick={(e) => e.stopPropagation()}>
+          {!isDone ? (
+            <>
+              <TooltipWrapper content="Completar">
+                <Button type="button" size="icon" variant="ghost" onClick={onComplete}
+                  className="h-6 w-6 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipWrapper>
+              <TooltipWrapper content="Cancelar">
+                <Button type="button" size="icon" variant="ghost" onClick={onCancel}
+                  className="h-6 w-6 text-amber-500 hover:bg-amber-50 hover:text-amber-600">
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipWrapper>
+              <TooltipWrapper content="Eliminar">
+                <Button type="button" size="icon" variant="ghost" onClick={onDelete}
+                  className="h-6 w-6 text-red-500 hover:bg-red-50 hover:text-red-600">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipWrapper>
+            </>
+          ) : (
+            <TooltipWrapper content="Eliminar">
+              <Button type="button" size="icon" variant="ghost" onClick={onDelete}
+                className="h-6 w-6 text-red-500 hover:bg-red-50 hover:text-red-600">
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipWrapper>
           )}
         </div>
       </div>
 
-      {/* Fecha — exacto de AgendaCardItem */}
-      <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-        <CalendarClock className="h-3 w-3 shrink-0" />
-        <span className={cn(isOverdue && !isDone && "text-red-500 font-medium")}>
-          {new Date(task.dueDate).toLocaleDateString("es", { day: "2-digit", month: "short" })}
-          {" · "}
-          {new Date(task.dueDate).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", hour12: true })}
-        </span>
-      </div>
-
-      {/* Badge servicio — exacto de AgendaCardItem (Badge variant="secondary") */}
-      <div className="flex flex-wrap gap-1">
-        <Badge variant="secondary" className="text-[10px] h-4 px-1.5 py-0 font-normal">
-          {task.assignedToName ?? "Sin asesor"}
-        </Badge>
+      <div className="flex flex-wrap gap-1 mt-1">
         {isOverdue && !isDone && (
           <Badge variant="outline" className="text-[10px] h-4 px-1.5 py-0 border-red-200 text-red-500 bg-red-50">
             Vencida
@@ -624,7 +645,7 @@ function TaskCard({
 
   return (
     <div className={cn(
-      "group relative rounded-xl border border-l-4 px-3 py-2.5 transition-all",
+      "rounded-xl border border-l-4 px-3 py-2.5 transition-all",
       isDone
         ? "border-l-emerald-300 bg-muted/30 opacity-55"
         : isOverdue
@@ -639,55 +660,62 @@ function TaskCard({
         </div>
 
         <div className="min-w-0 flex-1">
+          {/* Fila 1: título */}
           <p className={cn("app-item-title leading-snug", isDone && "line-through")}>{task.title}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-            <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium", typeColor)}>
-              {typeIcon}
-              {task.type}
-            </span>
+
+          <div className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
+            {/* Fila 2: contacto + teléfono */}
             {task.contactName && (
-              <button
-                type="button"
-                onClick={goToChat}
-                className={cn(
-                  "truncate max-w-[160px] text-left",
-                  task.contactJid && "text-blue-600 hover:underline cursor-pointer",
-                )}
-              >
-                📱 {task.contactName}
+              <button type="button" onClick={goToChat}
+                className={cn("flex items-center gap-1 text-left w-fit", task.contactJid && "text-blue-600 hover:underline cursor-pointer")}>
+                <Phone className="h-3 w-3 shrink-0" />
+                <span className="truncate max-w-[140px]">{task.contactName}</span>
+                {task.contactJid && <span className="shrink-0 text-muted-foreground">· {fmtPhone(task.contactJid)}</span>}
               </button>
             )}
-            <span>👤 {task.assignedToName ?? task.assignedToId}</span>
-            <span className={cn(new Date(task.dueDate) < new Date() && !isDone && "text-red-500 font-medium")}>
-              🕐 {formatDueDate(task.dueDate)}
+            {/* Fila 3: asesor */}
+            <span className="flex items-center gap-1">
+              <User className="h-3 w-3 shrink-0" />
+              {task.assignedToName ?? task.assignedToId}
+            </span>
+            {task.assignedToPhone && (
+              <span className="flex items-center gap-1">
+                <Phone className="h-3 w-3 shrink-0" />
+                <span className="whitespace-nowrap">{fmtPhone(task.assignedToPhone)}</span>
+              </span>
+            )}
+            {/* Fila 4: fecha */}
+            <span className={cn("flex items-center gap-1", isOverdue && !isDone && "text-red-500 font-medium")}>
+              <CalendarClock className="h-3 w-3 shrink-0" />
+              {formatDueDate(task.dueDate)}
             </span>
           </div>
+
           {isDone && task.result && (
             <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-400">✓ {task.result}</p>
           )}
         </div>
 
-        {/* Acciones */}
-        {!isDone && (
-          <TaskActionButtons onComplete={onComplete} onCancel={onCancel} onDelete={onDelete} />
-        )}
-
-        {isDone && (
-          <div className="absolute right-2 top-2" onClick={(e) => e.stopPropagation()}>
+        {/* Acciones derecha */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium", typeColor)}>
+            {typeIcon}{task.type}
+          </span>
+          {!isDone && (
+            <>
+              <div className="w-0.5 h-5 bg-border rounded-full shrink-0" />
+              <TaskActionButtons onComplete={onComplete} onCancel={onCancel} onDelete={onDelete} />
+            </>
+          )}
+          {isDone && (
             <TooltipWrapper content="Eliminar tarea">
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                aria-label="Eliminar tarea"
-                onClick={onDelete}
-                className="h-7 w-7 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
-              >
+              <Button type="button" size="icon" variant="ghost" onClick={onDelete}
+                className="h-7 w-7 text-red-500 hover:bg-red-50 hover:text-red-600">
                 <Trash2 className="h-4 w-4" />
               </Button>
             </TooltipWrapper>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

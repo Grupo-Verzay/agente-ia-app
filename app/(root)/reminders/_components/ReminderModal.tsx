@@ -53,7 +53,7 @@ export const ReminderModal = ({ user, apiKey, leads, workflows, instancia, isSch
                         className="w-full max-w-[33rem] p-2"
                     >
                         <Card className="relative shadow-2xl border-border rounded-md bg-background h-[585px] flex flex-col overflow-hidden">
-                            <CardHeader className="flex items-center justify-between flex-row pb-2 shrink-0">
+                            <CardHeader className="flex items-center justify-between flex-row pt-3 pb-1 shrink-0">
                                 <CardTitle className="text-lg font-semibold leading-none tracking-tight">
                                     {openDialog === 'edit' ? `Editar ${modalTitle}` : `Crear ${modalTitle}`}
                                 </CardTitle>
