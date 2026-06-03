@@ -61,7 +61,7 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
   });
 
   try {
-    const [selfRows, linkedRows, currentMembership, legacyCurrent] = await Promise.all([
+    const [selfRows, incomingRows, currentMembership, legacyCurrent] = await Promise.all([
       db.$queryRaw<{ id: string; name: string | null; email: string; company: string }[]>`
         SELECT id, name, email, company FROM "User" WHERE id = ${realUserId} LIMIT 1
       `,
@@ -90,13 +90,13 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
       activeAccountId === realUserId
         ? Promise.resolve([] as { id: string; name: string | null; email: string; company: string; role: AccountRole | null }[])
         : db.$queryRaw<{ id: string; name: string | null; email: string; company: string; role: AccountRole | null }[]>`
-            SELECT u.id, u.name, u.email, u.company, u.advisor_role AS role
-            FROM "linked_accounts" la
-            JOIN "User" u ON u.id = la."linked_user_id"
-            WHERE la."master_user_id" = ${realUserId}
+          SELECT u.id, u.name, u.email, u.company, u.advisor_role AS role
+          FROM "linked_accounts" la
+          JOIN "User" u ON u.id = la."linked_user_id"
+          WHERE la."master_user_id" = ${realUserId}
               AND la."linked_user_id" = ${activeAccountId}
-            LIMIT 1
-          `,
+          LIMIT 1
+        `,
     ]);
 
     const currentAccount =
@@ -121,7 +121,31 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
           : null
         : currentMembership[0]?.role ?? legacyCurrent[0]?.role ?? null;
 
-    const accessibleAccounts = linkedRows.filter((row) => row.accountUserId !== currentAccount?.id);
+    const scopeAccountId = currentAccount?.id ?? activeAccountId;
+    const outgoingRows = scopeAccountId
+      ? await db.$queryRaw<LinkedAccountInfo[]>`
+          SELECT la.id,
+                 la."linked_user_id" AS "accountUserId",
+                 la.role,
+                 la.label,
+                 u.name,
+                 u.email,
+                 u.company
+          FROM "linked_accounts" la
+          JOIN "User" u ON u.id = la."linked_user_id"
+          WHERE la."master_user_id" = ${scopeAccountId}
+          ORDER BY la."createdAt" ASC
+        `
+      : [];
+
+    const accessibleAccountsMap = new Map<string, LinkedAccountInfo>();
+    for (const row of incomingRows) {
+      if (row.accountUserId !== currentAccount?.id) accessibleAccountsMap.set(row.accountUserId, row);
+    }
+    for (const row of outgoingRows) {
+      if (row.accountUserId !== currentAccount?.id) accessibleAccountsMap.set(row.accountUserId, row);
+    }
+    const accessibleAccounts = [...accessibleAccountsMap.values()];
 
     return {
       success: true,
