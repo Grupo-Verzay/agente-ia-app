@@ -27,14 +27,26 @@ type ActionResult<T = undefined> =
 async function requireOwner() {
   const user = await currentUser();
   if (!user?.id) return null;
-  if (user.ownerId) return null;
+  if (user.ownerId && user.advisorRole !== "administrador") return null;
   return user;
 }
 
 // Verifica que un asesor pertenece al dueño usando raw SQL
 async function findAdvisorRaw(advisorId: string, ownerId: string): Promise<boolean> {
   const rows = await db.$queryRaw<{ id: string }[]>`
-    SELECT id FROM "User" WHERE id = ${advisorId} AND owner_id = ${ownerId}
+    SELECT u.id
+    FROM "User" u
+    WHERE u.id = ${advisorId}
+      AND (
+        u.owner_id = ${ownerId}
+        OR EXISTS (
+          SELECT 1
+          FROM "linked_accounts" la
+          WHERE la."master_user_id" = ${ownerId}
+            AND la."linked_user_id" = u.id
+        )
+      )
+    LIMIT 1
   `;
   return rows.length > 0;
 }
@@ -44,20 +56,53 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
   if (!owner) return { success: false, message: "No autorizado." };
 
   const rows = await db.$queryRaw<AdvisorRow[]>`
+    WITH members AS (
+      SELECT
+        u.id,
+        u.name,
+        u.email,
+        u.advisor_role AS role,
+        u.advisor_available,
+        0 AS priority
+      FROM "User" u
+      WHERE u.owner_id = ${owner.id}
+
+      UNION ALL
+
+      SELECT
+        u.id,
+        u.name,
+        u.email,
+        la.role,
+        u.advisor_available,
+        1 AS priority
+      FROM "linked_accounts" la
+      JOIN "User" u ON u.id = la."linked_user_id"
+      WHERE la."master_user_id" = ${owner.id}
+    ),
+    dedup AS (
+      SELECT DISTINCT ON (id)
+        id,
+        name,
+        email,
+        role,
+        advisor_available
+      FROM members
+      ORDER BY id, priority DESC
+    )
     SELECT
-      u.id,
-      u.name,
-      u.email,
-      u.advisor_role                                            AS "advisorRole",
-      u.advisor_available                                       AS "advisorAvailable",
-      COUNT(s.id)::int                                         AS "assignedCount",
-      COUNT(s.id) FILTER (WHERE s.status = true)::int         AS "activeCount",
-      MAX(s."updatedAt")                                       AS "lastActivity"
-    FROM "User" u
-    LEFT JOIN "Session" s ON s.assigned_advisor_id = u.id
-    WHERE u.owner_id = ${owner.id}
-    GROUP BY u.id
-    ORDER BY u.name ASC
+      d.id,
+      d.name,
+      d.email,
+      d.role AS "advisorRole",
+      d.advisor_available AS "advisorAvailable",
+      COUNT(s.id)::int AS "assignedCount",
+      COUNT(s.id) FILTER (WHERE s.status = true)::int AS "activeCount",
+      MAX(s."updatedAt") AS "lastActivity"
+    FROM dedup d
+    LEFT JOIN "Session" s ON s.assigned_advisor_id = d.id
+    GROUP BY d.id, d.name, d.email, d.role, d.advisor_available
+    ORDER BY d.name ASC
   `;
 
   return { success: true, data: rows };
@@ -70,7 +115,23 @@ export async function updateAdvisorRole(advisorId: string, role: "agente" | "adm
   const found = await findAdvisorRaw(advisorId, owner.id);
   if (!found) return { success: false, message: "Asesor no encontrado." };
 
-  await db.$executeRaw`UPDATE "User" SET advisor_role = ${role} WHERE id = ${advisorId}`;
+  const linkedMembership = await db.$queryRaw<{ id: string }[]>`
+    SELECT id
+    FROM "linked_accounts"
+    WHERE "master_user_id" = ${owner.id}
+      AND "linked_user_id" = ${advisorId}
+    LIMIT 1
+  `;
+
+  if (linkedMembership.length > 0) {
+    await db.$executeRaw`
+      UPDATE "linked_accounts"
+      SET role = ${role}
+      WHERE id = ${linkedMembership[0].id}
+    `;
+  } else {
+    await db.$executeRaw`UPDATE "User" SET advisor_role = ${role} WHERE id = ${advisorId}`;
+  }
   return { success: true, message: "Rol actualizado." };
 }
 
@@ -88,12 +149,42 @@ export async function toggleAdvisorAvailability(advisorId: string, available: bo
 export async function getTeamAdvisorInfos(): Promise<ActionResult<AdvisorInfo[]>> {
   const user = await currentUser();
   if (!user?.id) return { success: false, message: "No autorizado." };
-  const ownerId: string = user.ownerId ?? user.id;
+  const ownerId: string = user.id;
 
   const rows = await db.$queryRaw<AdvisorInfo[]>`
-    SELECT id, name, email, advisor_role AS "advisorRole"
-    FROM "User"
-    WHERE owner_id = ${ownerId}
+    WITH members AS (
+      SELECT
+        u.id,
+        u.name,
+        u.email,
+        u.advisor_role AS role,
+        0 AS priority
+      FROM "User" u
+      WHERE u.owner_id = ${ownerId}
+
+      UNION ALL
+
+      SELECT
+        u.id,
+        u.name,
+        u.email,
+        la.role,
+        1 AS priority
+      FROM "linked_accounts" la
+      JOIN "User" u ON u.id = la."linked_user_id"
+      WHERE la."master_user_id" = ${ownerId}
+    ),
+    dedup AS (
+      SELECT DISTINCT ON (id)
+        id,
+        name,
+        email,
+        role
+      FROM members
+      ORDER BY id, priority DESC
+    )
+    SELECT id, name, email, role AS "advisorRole"
+    FROM dedup
     ORDER BY name ASC
   `;
   return { success: true, data: rows };
@@ -160,6 +251,34 @@ export async function deleteAdvisor(advisorId: string): Promise<ActionResult> {
   const found = await findAdvisorRaw(advisorId, owner.id);
   if (!found) return { success: false, message: "Asesor no encontrado." };
 
+  const linkedMembership = await db.$queryRaw<{ id: string }[]>`
+    SELECT id
+    FROM "linked_accounts"
+    WHERE "master_user_id" = ${owner.id}
+      AND "linked_user_id" = ${advisorId}
+    LIMIT 1
+  `;
+
+  if (linkedMembership.length > 0) {
+    await db.$executeRaw`
+      DELETE FROM "linked_accounts"
+      WHERE id = ${linkedMembership[0].id}
+    `;
+    return { success: true, message: "Asesor desvinculado." };
+  }
+
+  const linkedCountRows = await db.$queryRaw<{ cnt: number }[]>`
+    SELECT COUNT(*)::int AS cnt
+    FROM "linked_accounts"
+    WHERE "linked_user_id" = ${advisorId}
+  `;
+  if ((linkedCountRows[0]?.cnt ?? 0) > 0) {
+    return {
+      success: false,
+      message: "Este asesor está vinculado a otras cuentas. Desvincúlalo primero antes de eliminarlo.",
+    };
+  }
+
   // Release any sessions assigned to this advisor
   await db.$executeRaw`UPDATE "Session" SET assigned_advisor_id = NULL WHERE assigned_advisor_id = ${advisorId}`;
 
@@ -176,7 +295,10 @@ export async function deleteAdvisor(advisorId: string): Promise<ActionResult> {
   return { success: true, message: "Asesor eliminado." };
 }
 
-export async function linkExistingAdvisor(email: string): Promise<ActionResult> {
+export async function linkExistingAdvisor(
+  email: string,
+  role: "agente" | "administrador" = "agente",
+): Promise<ActionResult> {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
 
@@ -187,7 +309,21 @@ export async function linkExistingAdvisor(email: string): Promise<ActionResult> 
   if (!target) return { success: false, message: "No existe un usuario con ese email." };
   if (target.id === owner.id) return { success: false, message: "No puedes vincularte a ti mismo." };
 
-  await db.$executeRaw`UPDATE "User" SET owner_id = ${owner.id} WHERE id = ${target.id}`;
+  const existing = await db.$queryRaw<{ id: string }[]>`
+    SELECT id
+    FROM "linked_accounts"
+    WHERE "master_user_id" = ${owner.id}
+      AND "linked_user_id" = ${target.id}
+    LIMIT 1
+  `;
+  if (existing.length > 0) {
+    return { success: false, message: "Ese asesor ya está vinculado a esta cuenta." };
+  }
+
+  await db.$executeRaw`
+    INSERT INTO "linked_accounts" (id, "master_user_id", "linked_user_id", role)
+    VALUES (${crypto.randomUUID()}, ${owner.id}, ${target.id}, ${role})
+  `;
 
   return { success: true, message: "Usuario vinculado como asesor correctamente." };
 }
@@ -251,17 +387,44 @@ export async function getTeamMetrics(): Promise<ActionResult<TeamMetrics>> {
       total_assigned: number; active_count: number; closed_count: number;
       hot_count: number; converted_count: number;
     }[]>`
+      WITH members AS (
+        SELECT
+          u.id,
+          u.name,
+          u.email,
+          0 AS priority
+        FROM "User" u
+        WHERE u.owner_id = ${owner.id}
+
+        UNION ALL
+
+        SELECT
+          u.id,
+          u.name,
+          u.email,
+          1 AS priority
+        FROM "linked_accounts" la
+        JOIN "User" u ON u.id = la."linked_user_id"
+        WHERE la."master_user_id" = ${owner.id}
+      ),
+      dedup AS (
+        SELECT DISTINCT ON (id)
+          id,
+          name,
+          email
+        FROM members
+        ORDER BY id, priority DESC
+      )
       SELECT
-        u.id, u.name, u.email,
+        d.id, d.name, d.email,
         COUNT(s.id)::int                                                   AS total_assigned,
         COUNT(s.id) FILTER (WHERE s.status = true)::int                    AS active_count,
         COUNT(s.id) FILTER (WHERE s.status = false)::int                   AS closed_count,
         COUNT(s.id) FILTER (WHERE s."leadStatus" = 'CALIENTE')::int         AS hot_count,
         COUNT(s.id) FILTER (WHERE s."leadStatus" = 'FINALIZADO')::int       AS converted_count
-      FROM "User" u
-      LEFT JOIN "Session" s ON s.assigned_advisor_id = u.id
-      WHERE u.owner_id = ${owner.id}
-      GROUP BY u.id, u.name, u.email
+      FROM dedup d
+      LEFT JOIN "Session" s ON s.assigned_advisor_id = d.id
+      GROUP BY d.id, d.name, d.email
       ORDER BY total_assigned DESC
     `,
     // Global: active + escalation rate

@@ -169,6 +169,7 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
   const [createForm, setCreateForm] = useState<CreateForm>({ name: "", email: "", password: "", role: "agente" });
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkEmail, setLinkEmail] = useState("");
+  const [linkRole, setLinkRole] = useState<"agente" | "administrador">("agente");
   const [pwForm, setPwForm] = useState<PasswordForm | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdvisorRow | null>(null);
   const [modulesForm, setModulesForm] = useState<ModulesForm | null>(null);
@@ -196,11 +197,12 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
 
   function handleLink() {
     startTransition(async () => {
-      const res = await linkExistingAdvisor(linkEmail);
+      const res = await linkExistingAdvisor(linkEmail, linkRole);
       if (!res.success) { toast.error(res.message); return; }
       toast.success(res.message ?? "Asesor vinculado.");
       setLinkOpen(false);
       setLinkEmail("");
+      setLinkRole("agente");
       const { getTeamAdvisors } = await import("@/actions/team-actions");
       const list = await getTeamAdvisors();
       if (list.success && list.data) setAdvisors(list.data);
@@ -558,15 +560,27 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
 
       {/* Link existing dialog */}
       <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Vincular usuario existente</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <Label htmlFor="link-email">Email del usuario</Label>
-              <Input id="link-email" type="email" placeholder="asesor@empresa.com" value={linkEmail} onChange={(e) => setLinkEmail(e.target.value)} />
-            </div>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Vincular usuario existente</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1">
+            <Label htmlFor="link-role">Rol en esta cuenta</Label>
+            <Select value={linkRole} onValueChange={(value) => setLinkRole(value as "agente" | "administrador")}>
+              <SelectTrigger id="link-role">
+                <SelectValue placeholder="Selecciona un rol" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="administrador">Administrador — ve y gestiona todo</SelectItem>
+                <SelectItem value="agente">Agente — ve conversaciones asignadas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="link-email">Email del usuario</Label>
+            <Input id="link-email" type="email" placeholder="asesor@empresa.com" value={linkEmail} onChange={(e) => setLinkEmail(e.target.value)} />
+          </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setLinkOpen(false)}>Cancelar</Button>
