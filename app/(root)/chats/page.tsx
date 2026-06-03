@@ -71,32 +71,51 @@ function hasQuickReplies(
   return Array.isArray(result.data);
 }
 
+async function settle<T>(promise: Promise<T>): Promise<T | null> {
+  try {
+    return await promise;
+  } catch (error) {
+    console.error("[ChatsPage]", error);
+    return null;
+  }
+}
+
+function settleValue<T>(value: T | null | undefined): T | null {
+  return value ?? null;
+}
+
 export default async function ChatsPage({
   searchParams,
 }: {
   searchParams?: { jid?: string; instance?: string };
 }) {
-  const user = await currentUser();
+  const user = await settle(currentUser());
   if (!user) redirect("/login");
 
   // Si el usuario es asesor (tiene ownerId), usa los recursos del dueño
   const effectiveOwnerId = user.ownerId ?? user.id;
   const ownerApiKeyId =
     effectiveOwnerId !== user.id
-      ? (await db.user.findUnique({ where: { id: effectiveOwnerId }, select: { apiKeyId: true } }))?.apiKeyId
+      ? settleValue(
+          (
+            await settle(
+              db.user.findUnique({ where: { id: effectiveOwnerId }, select: { apiKeyId: true } }),
+            )
+          )?.apiKeyId,
+        )
       : user.apiKeyId;
 
   // Fase 1: todo lo que no depende de los chats corre en paralelo
   const [resInstancias, resApikey, workflowsResponse, quickRepliesResponse0, linkedAccountsRes] = await Promise.all([
-    getInstancesByUserId(effectiveOwnerId),
-    getApiKeyById(ownerApiKeyId ?? ''),
-    getWorkFlowByUser(effectiveOwnerId),
-    getAllRRs(effectiveOwnerId),
-    getLinkedAccountsInstances(user.sessionUserId),
+    settle(getInstancesByUserId(effectiveOwnerId)),
+    settle(getApiKeyById(ownerApiKeyId ?? "")),
+    settle(getWorkFlowByUser(effectiveOwnerId)),
+    settle(getAllRRs(effectiveOwnerId)),
+    settle(getLinkedAccountsInstances(user.sessionUserId)),
   ]);
 
-  const ownInstancias = hasInstancias(resInstancias) ? resInstancias.data : [];
-  const linkedAccountsData = linkedAccountsRes.success ? linkedAccountsRes.data : [];
+  const ownInstancias = resInstancias && hasInstancias(resInstancias) ? resInstancias.data : [];
+  const linkedAccountsData = linkedAccountsRes?.success ? linkedAccountsRes.data : [];
 
   // Agregar instancias de cuentas vinculadas (mismo servidor Evolution → misma API Key)
   const linkedInstancias = linkedAccountsData
@@ -129,7 +148,7 @@ export default async function ChatsPage({
   const whatsappInstancia = requestedInstance
     ? (instancias.find((i) => i.instanceName === requestedInstance) ?? pickWhatsappOrNull(instancias))
     : pickWhatsappOrNull(instancias);
-  const apiKey = hasApikey(resApikey) ? resApikey.data : null;
+  const apiKey = resApikey && hasApikey(resApikey) ? resApikey.data : null;
 
   // Fase 2: fetch chats de TODAS las instancias de mensajería en paralelo
   type FetchPlan = { instancia: Instancia; isBaileys: boolean };
@@ -246,14 +265,14 @@ export default async function ChatsPage({
   // initialMessages se carga en el cliente via warmMessagesAction para no bloquear el render
   const initialMessages: EvoMsgFromAction[] = [];
 
-  const workflows = hasWorkflows(workflowsResponse) ? workflowsResponse.data : [];
+  const workflows = workflowsResponse && hasWorkflows(workflowsResponse) ? workflowsResponse.data : [];
   const workflowOptions: ChatWorkflowOption[] = workflows.map((workflow) => ({
     id: workflow.id,
     name: workflow.name,
     isPro: workflow.isPro,
   }));
 
-  const quickReplies = hasQuickReplies(quickRepliesResponse0) ? quickRepliesResponse0.data : [];
+  const quickReplies = quickRepliesResponse0 && hasQuickReplies(quickRepliesResponse0) ? quickRepliesResponse0.data : [];
   const quickReplyOptions: ChatQuickReplyOption[] = quickReplies
     .map((quickReply) => {
       const workflow = workflows.find((item) => item.id === quickReply.workflowId);
@@ -274,28 +293,27 @@ export default async function ChatsPage({
   const currentAdvisorId: string = user.id;
 
   const [tagsRes, chatSessionsRes, chatPreferencesRes, advisorsRes] = await Promise.all([
-    listTagsAction(effectiveOwnerId),
+    settle(listTagsAction(effectiveOwnerId)),
     chatsResult.success
-      ? getChatContactSessions(
-          effectiveOwnerId,
-          chatsResult.data.map((chat) => ({
-            remoteJid: chat.remoteJid,
-            remoteJidAlt: chat.remoteJidAlt,
-            senderPn: chat.senderPn,
-            pushName: chat.pushName,
-            aliases: chat.aliases,
-          })),
+      ? settle(
+          getChatContactSessions(
+            effectiveOwnerId,
+            chatsResult.data.map((chat) => ({
+              remoteJid: chat.remoteJid,
+              remoteJidAlt: chat.remoteJidAlt,
+              senderPn: chat.senderPn,
+              pushName: chat.pushName,
+              aliases: chat.aliases,
+            })),
+          ),
         )
-      : Promise.resolve({
-          success: false as const,
-          message: "No se pudieron cargar las sesiones del sidebar.",
-        }),
-    getChatConversationPreferencesByUserId(effectiveOwnerId),
-    getTeamAdvisorInfos(),
+      : Promise.resolve(null),
+    settle(getChatConversationPreferencesByUserId(effectiveOwnerId)),
+    settle(getTeamAdvisorInfos()),
   ]);
 
   const allTags =
-    tagsRes.data?.map((tag) => ({
+    tagsRes?.data?.map((tag) => ({
       id: tag.id,
       name: tag.name,
       slug: tag.slug,
@@ -304,10 +322,10 @@ export default async function ChatsPage({
       sessionCount: tag._count?.sessionTags ?? 0,
     })) ?? [];
 
-  const initialChatSessions = chatSessionsRes.success ? chatSessionsRes.data ?? {} : {};
+  const initialChatSessions = chatSessionsRes?.success ? chatSessionsRes.data ?? {} : {};
   const initialChatPreferences =
-    chatPreferencesRes.success ? chatPreferencesRes.data ?? {} : {};
-  const advisorsFromTeam = advisorsRes.success ? advisorsRes.data ?? [] : [];
+    chatPreferencesRes?.success ? chatPreferencesRes.data ?? {} : {};
+  const advisorsFromTeam = advisorsRes?.success ? advisorsRes.data ?? [] : [];
   // El dueño se incluye a sí mismo para poder autoasignarse desde el badge
   const isOwner = !user.ownerId;
   const advisors = isOwner && user.id && user.email
