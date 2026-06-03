@@ -24,12 +24,12 @@ export default async function EquipoPage() {
     settle(getAutoAssignSettings()),
     settle(getTeamMetrics()),
   ]);
-  const advisors = advisorsRes.success ? (advisorsRes.data ?? []) : [];
-  const ownerModules = modulesRes.success ? (modulesRes.data ?? []) : [];
-  const autoAssignSettings = autoAssignRes.success && autoAssignRes.data
+  const advisors = advisorsRes?.success ? (advisorsRes.data ?? []) : [];
+  const ownerModules = modulesRes?.success ? (modulesRes.data ?? []) : [];
+  const autoAssignSettings = autoAssignRes?.success && autoAssignRes.data
     ? autoAssignRes.data
     : { autoAssignEnabled: false, autoAssignMaxChats: 5 };
-  const teamMetrics = metricsRes.success ? metricsRes.data ?? null : null;
+  const teamMetrics = metricsRes?.success ? metricsRes.data ?? null : null;
 
   return (
     <TeamClient
