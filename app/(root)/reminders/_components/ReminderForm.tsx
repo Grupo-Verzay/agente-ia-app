@@ -274,35 +274,37 @@ export const ReminderForm = ({
                 {errors.time && <p className="text-xs text-red-500">{errors.time.message}</p>}
 
                 {!isSchedule &&
-                    <div className="flex flex-col gap-1.5">
-                        <Label className="text-sm font-semibold">Repetición</Label>
-                        <Controller
-                            control={control}
-                            name="repeatType"
-                            render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                    <SelectTrigger className="text-sm">
-                                        <SelectValue placeholder="Seleccionar" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {repeatTypes.map((rt) => (
-                                            <SelectItem key={rt.value} value={rt.value}>
-                                                {rt.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            )}
-                        />
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1.5">
+                            <Label className="text-sm font-semibold">Repetición</Label>
+                            <Controller
+                                control={control}
+                                name="repeatType"
+                                render={({ field }) => (
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                        <SelectTrigger className="text-sm">
+                                            <SelectValue placeholder="Seleccionar" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {repeatTypes.map((rt) => (
+                                                <SelectItem key={rt.value} value={rt.value}>
+                                                    {rt.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                            <Label className="text-sm font-semibold">Repetir cada</Label>
+                            <Input type="number" placeholder="Ej: 7" className="text-sm" {...register("repeatEvery")} />
+                        </div>
                     </div>
                 }
 
                 {!isSchedule &&
                     <>
-                        <div className="flex flex-col gap-1.5">
-                            <Label className="text-sm font-semibold">Repetir cada</Label>
-                            <Input type="number" placeholder="Ej: 7 (días/meses...)" className="text-sm" {...register("repeatEvery")} />
-                        </div>
 
                         {leads && (isCampaignPage ?
                             <div className="space-y-1.5">
