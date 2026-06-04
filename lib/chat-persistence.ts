@@ -381,7 +381,11 @@ export async function getPersistedMessages(params: {
     FROM "chat_messages"
     WHERE "userId" = ${params.userId}
       ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
-      AND ("remoteJid" IN (${Prisma.join(candidates)}) OR "remoteJidAlt" IN (${Prisma.join(candidates)}))
+      AND (
+        "remoteJid" IN (${Prisma.join(candidates)})
+        OR "remoteJidAlt" IN (${Prisma.join(candidates)})
+        OR "senderPn" IN (${Prisma.join(candidates)})
+      )
     ORDER BY "messageTimestamp" DESC, "id" DESC
     OFFSET ${params.skip ?? 0}
     LIMIT ${params.take ?? 50}
@@ -424,7 +428,14 @@ export async function getPersistedInboxChats(params: {
       SELECT *
       FROM "chat_messages" cm
       WHERE cm."userId" = s."userId"
-        AND (cm."remoteJid" = s."remoteJid" OR cm."remoteJidAlt" = s."remoteJid")
+        AND (
+          cm."remoteJid" = s."remoteJid"
+          OR cm."remoteJidAlt" = s."remoteJid"
+          OR cm."senderPn" = s."remoteJid"
+          OR (s."remoteJidAlt" IS NOT NULL AND cm."remoteJid" = s."remoteJidAlt")
+          OR (s."remoteJidAlt" IS NOT NULL AND cm."remoteJidAlt" = s."remoteJidAlt")
+          OR (s."remoteJidAlt" IS NOT NULL AND cm."senderPn" = s."remoteJidAlt")
+        )
       ORDER BY cm."messageTimestamp" DESC, cm."id" DESC
       LIMIT 1
     ) m ON TRUE
