@@ -34,7 +34,7 @@ import { listTagsAction } from "@/actions/tag-actions";
 import { getWorkFlowByUser } from "@/actions/workflow-actions";
 import { getTeamAdvisorInfos } from "@/actions/team-actions";
 import { assignSessionToAdvisor, takeSession, releaseSession, transferSession } from "@/actions/advisor-assign-actions";
-import { getLinkedAccountsInstances } from "@/actions/linked-account-actions";
+import { getLinkedAccountsInstances, getMasterAccountInstances } from "@/actions/linked-account-actions";
 import { ChatsClient, type InstanceActionSet } from "./_components/chats-client";
 import { normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
 import type {
@@ -106,23 +106,33 @@ export default async function ChatsPage({
       : user.apiKeyId;
 
   // Fase 1: todo lo que no depende de los chats corre en paralelo
-  const [resInstancias, resApikey, workflowsResponse, quickRepliesResponse0, linkedAccountsRes] = await Promise.all([
+  const [resInstancias, resApikey, workflowsResponse, quickRepliesResponse0, linkedAccountsRes, masterAccountsRes] = await Promise.all([
     settle(getInstancesByUserId(effectiveOwnerId)),
     settle(getApiKeyById(ownerApiKeyId ?? "")),
     settle(getWorkFlowByUser(effectiveOwnerId)),
     settle(getAllRRs(effectiveOwnerId)),
-    settle(getLinkedAccountsInstances(user.sessionUserId)),
+    settle(getLinkedAccountsInstances(user.sessionUserId)),   // asesores del usuario actual
+    settle(getMasterAccountInstances(user.sessionUserId)),    // cuentas dueñas a las que está vinculado
   ]);
 
   const ownInstancias = resInstancias && hasInstancias(resInstancias) ? resInstancias.data : [];
   const linkedAccountsData = linkedAccountsRes?.success ? linkedAccountsRes.data : [];
+  const masterAccountsData = masterAccountsRes?.success ? masterAccountsRes.data : [];
 
-  // Agregar instancias de cuentas vinculadas (mismo servidor Evolution → misma API Key)
-  const linkedInstancias = linkedAccountsData
-    .flatMap((la) => la.instances)
-    .filter((li) => !ownInstancias.some((oi) => oi.instanceName === li.instanceName));
+  // Instancias de asesores del usuario + instancias de cuentas maestras vinculadas
+  const linkedInstancias = [
+    ...linkedAccountsData.flatMap((la) => la.instances),
+    ...masterAccountsData.flatMap((ma) => ma.instances),
+  ].filter((li) => !ownInstancias.some((oi) => oi.instanceName === li.instanceName));
 
   const instancias = [...ownInstancias, ...linkedInstancias];
+
+  // UserIds de todas las cuentas cuyas sesiones debe ver el usuario actual
+  const allSessionUserIds = [
+    effectiveOwnerId,
+    ...linkedAccountsData.map((la) => la.linkedUserId),
+    ...masterAccountsData.map((ma) => ma.masterUserId),
+  ].filter((id, idx, arr) => Boolean(id) && arr.indexOf(id) === idx);
 
   // Meta enriquecida para la UI (incluye info de cuenta vinculada)
   const instanciasMeta = [
@@ -140,6 +150,17 @@ export default async function ChatsPage({
           instanceType: li.instanceType,
           linkedUserId: la.linkedUserId,
           company: la.company || li.instanceName,
+        })),
+    ),
+    ...masterAccountsData.flatMap((ma) =>
+      ma.instances
+        .filter((li) => !ownInstancias.some((oi) => oi.instanceName === li.instanceName))
+        .map((li) => ({
+          instanceName: li.instanceName,
+          instanceId: li.instanceId,
+          instanceType: li.instanceType,
+          linkedUserId: ma.masterUserId,
+          company: ma.company || li.instanceName,
         })),
     ),
   ];
@@ -297,7 +318,7 @@ export default async function ChatsPage({
     chatsResult.success
       ? settle(
           getChatContactSessions(
-            effectiveOwnerId,
+            allSessionUserIds,
             chatsResult.data.map((chat) => ({
               remoteJid: chat.remoteJid,
               remoteJidAlt: chat.remoteJidAlt,

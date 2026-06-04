@@ -343,11 +343,12 @@ export async function getSessionsByUserId(
 }
 
 export async function getChatContactSessions(
-  userId: string,
+  userId: string | string[],
   chats: ChatContactDescriptor[],
 ): Promise<SessionResponse<ChatContactSessionMap>> {
+  const userIds = Array.isArray(userId) ? userId.filter(Boolean) : [userId].filter(Boolean);
   try {
-    if (!userId) {
+    if (userIds.length === 0) {
       return {
         success: false,
         message: 'Se requiere el userId.',
@@ -416,7 +417,7 @@ export async function getChatContactSessions(
       candidateBatches.map((batch) =>
         db.session.findMany({
           where: {
-            userId,
+            userId: userIds.length === 1 ? userIds[0] : { in: userIds },
             OR: [
               { remoteJid: { in: batch } },
               { remoteJidAlt: { in: batch } },

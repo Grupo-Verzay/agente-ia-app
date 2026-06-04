@@ -388,3 +388,49 @@ export async function getLinkedAccountsInstances(
     return { success: true, data: [] };
   }
 }
+
+export type MasterAccountInstances = {
+  masterUserId: string;
+  company: string;
+  instances: Instancia[];
+};
+
+// Inverso de getLinkedAccountsInstances: dado un asesor/admin vinculado,
+// devuelve las instancias de las cuentas DUEÑAS a las que está vinculado.
+export async function getMasterAccountInstances(
+  linkedUserId: string,
+): Promise<{ success: true; data: MasterAccountInstances[] } | { success: false; message: string }> {
+  if (!linkedUserId) return { success: true, data: [] };
+
+  try {
+    type MasterRow = { masterUserId: string; company: string };
+    const masterRows = await db.$queryRaw<MasterRow[]>`
+      SELECT la."master_user_id" AS "masterUserId", u.company
+      FROM "linked_accounts" la
+      JOIN "User" u ON u.id = la."master_user_id"
+      WHERE la."linked_user_id" = ${linkedUserId}
+    `;
+
+    if (masterRows.length === 0) return { success: true, data: [] };
+
+    const masterIds = masterRows.map((r) => r.masterUserId);
+
+    const instances = await db.instancia.findMany({
+      where: {
+        userId: { in: masterIds },
+        instanceType: { in: ["Whatsapp", "baileys"] },
+      },
+    });
+
+    const data: MasterAccountInstances[] = masterRows.map((row) => ({
+      masterUserId: row.masterUserId,
+      company: row.company,
+      instances: instances.filter((inst) => inst.userId === row.masterUserId),
+    }));
+
+    return { success: true, data };
+  } catch (error) {
+    console.error("[getMasterAccountInstances]", error);
+    return { success: true, data: [] };
+  }
+}
