@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import type { ApiKey, Instancia, QuickReply, Workflow } from "@prisma/client";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getPersistedInboxChats } from "@/lib/chat-persistence";
 import { getApiKeyById } from "@/actions/api-action";
 import {
   fetchChatsFromEvolution,
@@ -185,9 +186,18 @@ export default async function ChatsPage({
 
   let chatsResult: FetchChatsResult;
   let instanceActionSets: InstanceActionSet[] = [];
+  const persistedInitialChats = await getPersistedInboxChats({
+    userIds: allSessionUserIds,
+  });
 
   if (fetchPlans.length === 0) {
-    chatsResult = {
+    chatsResult = persistedInitialChats.length
+      ? {
+          success: true,
+          message: "Chats cargados desde historial local.",
+          data: persistedInitialChats,
+        }
+      : {
       success: false,
       message:
         instancias.filter(
@@ -198,6 +208,12 @@ export default async function ChatsPage({
         ).length === 0
           ? "No se encontró una instancia WhatsApp válida."
           : "No hay API Key configurada.",
+    };
+  } else if (persistedInitialChats.length >= 0) {
+    chatsResult = {
+      success: true,
+      message: "Chats cargados desde historial local.",
+      data: persistedInitialChats,
     };
   } else {
     const allFetchResults = await Promise.allSettled(
@@ -235,10 +251,62 @@ export default async function ChatsPage({
       return true;
     });
 
-    chatsResult = hasAnySuccess
-      ? { success: true, message: "OK", data: dedupedChats }
-      : { success: false, message: "No se pudieron cargar los chats." };
+    if (hasAnySuccess) {
+      const mergedSeen = new Set(dedupedChats.map((chat) => chat.remoteJid));
+      const mergedChats = [
+        ...dedupedChats,
+        ...persistedInitialChats.filter((chat) => {
+          if (mergedSeen.has(chat.remoteJid)) return false;
+          mergedSeen.add(chat.remoteJid);
+          return true;
+        }),
+      ].sort((a, b) => {
+        const aTs = a.lastMessage?.messageTimestamp ?? (a.updatedAt ? Math.floor(new Date(a.updatedAt).getTime() / 1000) : 0);
+        const bTs = b.lastMessage?.messageTimestamp ?? (b.updatedAt ? Math.floor(new Date(b.updatedAt).getTime() / 1000) : 0);
+        return bTs - aTs;
+      });
 
+      chatsResult = { success: true, message: "OK", data: mergedChats };
+    } else {
+      chatsResult = persistedInitialChats.length
+        ? {
+            success: true,
+            message: "Evolution no respondió; chats cargados desde historial local.",
+            data: persistedInitialChats,
+          }
+        : { success: false, message: "No se pudieron cargar los chats." };
+    }
+
+    instanceActionSets = fetchPlans.map((plan) => {
+      const inst = plan.instancia;
+      const isBaileysInst = plan.isBaileys;
+      const instActionCtx =
+        !isBaileysInst && apiKey
+          ? { apiKeyData: { url: apiKey.url, key: apiKey.key }, instanceName: inst.instanceName }
+          : null;
+      return {
+        instanceName: inst.instanceName,
+        instanceType: inst.instanceType ?? undefined,
+        warmMessages: isBaileysInst
+          ? findMessagesFromBaileys.bind(null, inst.instanceName)
+          : warmChatMessagesAction.bind(null, instActionCtx),
+        sendText: isBaileysInst
+          ? sendBaileysTextAction.bind(null, inst.instanceName)
+          : sendManualChatPayloadAction.bind(null, instActionCtx),
+        sendWorkflow: isBaileysInst
+          ? sendBaileysWorkflowAction.bind(null, inst.instanceName)
+          : sendManualWorkflowAction.bind(null, instActionCtx),
+        sendQuickReply: isBaileysInst
+          ? sendBaileysQuickReplyAction.bind(null, inst.instanceName)
+          : sendManualQuickReplyAction.bind(null, instActionCtx),
+        refetchChats: isBaileysInst
+          ? fetchChatsFromBaileys.bind(null, inst.instanceName)
+          : refetchChatsManualAction.bind(null, instActionCtx),
+      } satisfies InstanceActionSet;
+    });
+  }
+
+  if (instanceActionSets.length === 0 && fetchPlans.length > 0) {
     instanceActionSets = fetchPlans.map((plan) => {
       const inst = plan.instancia;
       const isBaileysInst = plan.isBaileys;

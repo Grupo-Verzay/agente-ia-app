@@ -1,6 +1,11 @@
 ﻿'use server';
 
 import { db } from '@/lib/db';
+import {
+  persistChatMessage,
+  persistEvolutionMessages,
+  resolveInstanceOwner,
+} from '@/lib/chat-persistence';
 import type {
   ChatData,
   EvolutionMessage,
@@ -85,7 +90,7 @@ export async function fetchChatsFromBaileys(instanceName: string): Promise<Fetch
     });
 
     return { success: true, message: 'OK', data: chats };
-  } catch (err) {
+  } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al cargar chats Baileys.' };
   }
 }
@@ -174,8 +179,19 @@ export async function findMessagesFromBaileys(
       };
     });
 
+    const owner = await resolveInstanceOwner(instanceName);
+    if (owner?.userId && messages.length) {
+      await persistEvolutionMessages({
+        userId: owner.userId,
+        instanceName,
+        instanceType: 'baileys',
+        remoteJid,
+        messages,
+      });
+    }
+
     return { success: true, message: 'OK', data: messages };
-  } catch (err) {
+  } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al cargar mensajes Baileys.' };
   }
 }
@@ -205,6 +221,21 @@ export async function sendBaileysTextAction(
         },
       );
       if (!res.ok) return { success: false, message: `Error ${res.status} al enviar media.`, remoteJid };
+      const owner = await resolveInstanceOwner(instanceName);
+      if (owner?.userId) {
+        await persistChatMessage({
+          userId: owner.userId,
+          instanceName,
+          instanceType: 'baileys',
+          remoteJid,
+          fromMe: true,
+          messageType: `${String(payload.mediatype ?? 'media')}Message`,
+          content: String(payload.caption ?? payload.fileName ?? '[Media]'),
+          mediaUrl: typeof payload.mediaUrl === 'string' ? payload.mediaUrl : null,
+          raw: { payload } as any,
+          messageTimestamp: new Date(),
+        });
+      }
       return { success: true, message: 'Enviado.', remoteJid };
     }
 
@@ -219,8 +250,22 @@ export async function sendBaileysTextAction(
       },
     );
     if (!res.ok) return { success: false, message: `Error ${res.status} al enviar.`, remoteJid };
+    const owner = await resolveInstanceOwner(instanceName);
+    if (owner?.userId) {
+      await persistChatMessage({
+        userId: owner.userId,
+        instanceName,
+        instanceType: 'baileys',
+        remoteJid,
+        fromMe: true,
+        messageType: 'conversation',
+        content: payload.text ?? '',
+        raw: { payload } as any,
+        messageTimestamp: new Date(),
+      });
+    }
     return { success: true, message: 'Enviado.', remoteJid };
-  } catch (err) {
+  } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al enviar.', remoteJid };
   }
 }
@@ -251,10 +296,26 @@ export async function sendBaileysQuickReplyAction(
         cache: 'no-store',
       },
     );
+    if (res.ok) {
+      const owner = await resolveInstanceOwner(instanceName);
+      if (owner?.userId) {
+        await persistChatMessage({
+          userId: owner.userId,
+          instanceName,
+          instanceType: 'baileys',
+          remoteJid,
+          fromMe: true,
+          messageType: 'conversation',
+          content: rr.mensaje.trim(),
+          raw: { quickReplyId },
+          messageTimestamp: new Date(),
+        });
+      }
+    }
     return res.ok
       ? { success: true, message: 'Enviado.' }
       : { success: false, message: `Error ${res.status}.` };
-  } catch (err) {
+  } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al enviar respuesta rápida.' };
   }
 }

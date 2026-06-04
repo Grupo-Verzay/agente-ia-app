@@ -9,6 +9,12 @@ import { db } from "@/lib/db";
 import { buildChatHistorySessionId } from "@/lib/chat-history/build-session-id";
 import { saveChatHistoryMessage } from "@/lib/chat-history/chat-history.helper";
 import {
+  getPersistedInboxChats,
+  getPersistedMessages,
+  persistChatMessage,
+  persistEvolutionMessages,
+} from "@/lib/chat-persistence";
+import {
   fetchChatsFromEvolution,
   findMessagesByRemoteJid,
   sendMediaByUrl,
@@ -139,15 +145,39 @@ function buildWorkflowPayload(node: WorkflowNode): OutgoingMessagePayload | null
   };
 }
 
+function extractSentMessageId(data: unknown) {
+  const rec = data as Record<string, any> | null | undefined;
+  return (
+    rec?.key?.id ||
+    rec?.message?.key?.id ||
+    rec?.data?.key?.id ||
+    rec?.id ||
+    null
+  );
+}
+
 async function persistOutgoingHistory(params: {
   instanceName: string;
   remoteJid: string;
   payload: OutgoingMessagePayload;
   source: string;
+  userId?: string;
+  instanceType?: string | null;
+  sentData?: unknown;
   historyType?: "notification" | "workflow";
   metadata?: Record<string, unknown>;
 }) {
-  const { instanceName, remoteJid, payload, source, historyType = "notification", metadata = {} } = params;
+  const {
+    instanceName,
+    remoteJid,
+    payload,
+    source,
+    userId,
+    instanceType,
+    sentData,
+    historyType = "notification",
+    metadata = {},
+  } = params;
   const historyEntry = buildOutgoingHistoryEntry(payload);
 
   try {
@@ -172,6 +202,31 @@ async function persistOutgoingHistory(params: {
   } catch (historyError) {
     console.error("[CHATS] No se pudo guardar el historial del mensaje enviado.", historyError);
   }
+
+  if (userId) {
+    try {
+      await persistChatMessage({
+        userId,
+        instanceName,
+        instanceType: instanceType ?? "evolution",
+        remoteJid,
+        messageId: extractSentMessageId(sentData),
+        fromMe: true,
+        messageType: payload.kind === "text" ? "conversation" : `${payload.mediatype}Message`,
+        content: historyEntry.content,
+        mediaUrl: payload.kind === "media" ? payload.mediaUrl : null,
+        raw: {
+          source,
+          payload,
+          sentData: sentData ?? null,
+          metadata,
+        } as any,
+        messageTimestamp: new Date(),
+      });
+    } catch (error) {
+      console.error("[CHATS] No se pudo persistir el mensaje saliente.", error);
+    }
+  }
 }
 
 async function sendOutgoingPayload(params: {
@@ -179,10 +234,12 @@ async function sendOutgoingPayload(params: {
   remoteJid: string;
   payload: OutgoingMessagePayload;
   source: string;
+  userId?: string;
+  instanceType?: string | null;
   historyType?: "notification" | "workflow";
   metadata?: Record<string, unknown>;
 }): Promise<SendMessageResult> {
-  const { context, remoteJid, payload, source, historyType, metadata } = params;
+  const { context, remoteJid, payload, source, userId, instanceType, historyType, metadata } = params;
 
   const result =
     payload.kind === "text"
@@ -213,6 +270,9 @@ async function sendOutgoingPayload(params: {
       remoteJid,
       payload,
       source,
+      userId,
+      instanceType,
+      sentData: result.data,
       historyType,
       metadata,
     });
@@ -239,7 +299,31 @@ export async function warmChatMessagesAction(
   remoteJid: string,
   options?: { page?: number; pageSize?: number; remoteJidAliases?: string[] },
 ): Promise<FindMessagesResult> {
+  const user = await currentUser();
+  const effectiveOwnerId = user?.ownerId ?? user?.id;
+
   if (!hasReadyContext(context)) {
+    if (effectiveOwnerId) {
+      const persisted = await getPersistedMessages({
+        userId: effectiveOwnerId,
+        remoteJid,
+        aliases: options?.remoteJidAliases,
+        take: options?.pageSize ?? 50,
+      });
+      if (persisted.length) {
+        return {
+          success: true,
+          message: "Mensajes cargados desde historial local.",
+          data: persisted,
+          total: persisted.length,
+          pages: 1,
+          currentPage: 1,
+          nextPage: null,
+          queriedRemoteJid: remoteJid,
+        };
+      }
+    }
+
     return {
       success: false,
       message: "No hay instancia o API key configurada para cargar mensajes.",
@@ -247,25 +331,89 @@ export async function warmChatMessagesAction(
     };
   }
 
-  return findMessagesByRemoteJid(
+  const result = await findMessagesByRemoteJid(
     context.apiKeyData,
     context.instanceName,
     remoteJid,
     options,
   );
+
+  if (result.success && effectiveOwnerId) {
+    await persistEvolutionMessages({
+      userId: effectiveOwnerId,
+      instanceName: context.instanceName,
+      instanceType: "evolution",
+      remoteJid,
+      messages: result.data,
+    });
+    return result;
+  }
+
+  if (!result.success && effectiveOwnerId) {
+    const persisted = await getPersistedMessages({
+      userId: effectiveOwnerId,
+      instanceName: context.instanceName,
+      remoteJid,
+      aliases: options?.remoteJidAliases,
+      take: options?.pageSize ?? 50,
+    });
+    if (persisted.length) {
+      return {
+        success: true,
+        message: "Evolution no respondió; mensajes cargados desde historial local.",
+        data: persisted,
+        total: persisted.length,
+        pages: 1,
+        currentPage: 1,
+        nextPage: null,
+        queriedRemoteJid: remoteJid,
+      };
+    }
+  }
+
+  return result;
 }
 
 export async function refetchChatsManualAction(
   context: ChatActionContext,
 ): Promise<FetchChatsResult> {
+  const user = await currentUser();
+  const effectiveOwnerId = user?.ownerId ?? user?.id;
+
   if (!hasReadyContext(context)) {
+    if (effectiveOwnerId) {
+      const persisted = await getPersistedInboxChats({ userIds: [effectiveOwnerId] });
+      if (persisted.length) {
+        return {
+          success: true,
+          message: "Chats cargados desde historial local.",
+          data: persisted,
+        };
+      }
+    }
+
     return {
       success: false,
       message: "No hay instancia o API key configurada para refrescar chats.",
     };
   }
 
-  return fetchChatsFromEvolution(context.apiKeyData, context.instanceName);
+  const result = await fetchChatsFromEvolution(context.apiKeyData, context.instanceName);
+  if (!result.success && effectiveOwnerId) {
+    const persisted = await getPersistedInboxChats({
+      userIds: [effectiveOwnerId],
+      instanceNames: [context.instanceName],
+    });
+    if (persisted.length) {
+      return {
+        success: true,
+        message: "Evolution no respondió; chats cargados desde historial local.",
+        data: persisted,
+      };
+    }
+  }
+
+  return result;
 }
 
 export async function sendManualChatPayloadAction(
@@ -306,6 +454,8 @@ export async function sendManualChatPayloadAction(
     remoteJid,
     payload,
     source: "manual_chat_ui",
+    userId: user?.ownerId ?? user?.id,
+    instanceType: "evolution",
     historyType: "notification",
   });
 
@@ -437,6 +587,8 @@ export async function sendManualWorkflowAction(
       remoteJid,
       payload,
       source: "manual_chat_workflow",
+      userId: effectiveId,
+      instanceType: "evolution",
       historyType: "workflow",
       metadata: {
         workflowId: workflow.id,
@@ -530,6 +682,8 @@ export async function sendManualQuickReplyAction(
       remoteJid,
       payload: { kind: "text", text: message },
       source: "manual_chat_quick_reply",
+      userId: effectiveId,
+      instanceType: "evolution",
       historyType: "notification",
       metadata: { quickReplyId: quickReply.id, workflowId: quickReply.workflowId },
     });
