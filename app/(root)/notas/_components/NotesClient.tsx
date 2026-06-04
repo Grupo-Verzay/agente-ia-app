@@ -10,6 +10,9 @@ import {
 import { NotesSidebar } from './NotesSidebar'
 import { NotesEditor } from './NotesEditor'
 import { NoteEmptyState } from './NoteEmptyState'
+import { Button } from '@/components/ui/button'
+import { ArrowLeft } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface Props { userId: string }
 
@@ -154,10 +157,17 @@ export function NotesClient({ userId }: Props) {
     if (activeFolderId === id) handleSelectFolder(undefined)
   }, [userId, activeFolderId, handleSelectFolder])
 
+  const showEditorPane = Boolean(selectedNote) || loadingNote
+  const handleBackToList = useCallback(() => {
+    setSelectedNote(null)
+    setSidebarOpen(true)
+  }, [])
+
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
       {sidebarOpen && (
         <NotesSidebar
+          className={cn(showEditorPane && 'hidden md:flex')}
           folders={folders}
           notes={notes}
           userId={userId}
@@ -176,12 +186,18 @@ export function NotesClient({ userId }: Props) {
           onDeleteFolder={handleDeleteFolder}
         />
       )}
-      <div className="flex flex-1 min-w-0 flex-col bg-background">
+      <div className={cn(
+        'flex flex-1 min-w-0 flex-col bg-background',
+        !showEditorPane && 'hidden md:flex',
+      )}>
         {!selectedNote && !loadingNote && (
           <NoteEmptyState onNewNote={() => handleNewNote()} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(v => !v)} />
         )}
         {loadingNote && (
-          <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm gap-2">
+          <div className="relative flex flex-1 items-center justify-center text-muted-foreground text-sm gap-2">
+            <Button variant="ghost" size="icon" className="absolute left-2 top-2 h-8 w-8 md:hidden" onClick={handleBackToList}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-primary" />
             Cargando...
           </div>
@@ -200,6 +216,7 @@ export function NotesClient({ userId }: Props) {
             onColorChange={handleColorChange}
             onContactChange={handleContactChange}
             onToggleSidebar={() => setSidebarOpen(v => !v)}
+            onBackToList={handleBackToList}
             onApplyTemplate={handleApplyTemplate}
           />
         )}

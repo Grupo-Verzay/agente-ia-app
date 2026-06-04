@@ -26,6 +26,7 @@ const FOLDER_COLORS = [
 ]
 
 interface Props {
+  className?: string
   folders: NoteFolderWithCount[]
   notes: UserNoteListItem[]
   selectedNoteId?: string
@@ -45,6 +46,7 @@ interface Props {
 }
 
 export function NotesSidebar({
+  className,
   folders, notes, selectedNoteId, activeFolderId, search, userId,
   onSearchChange, onSelectNote, onNewNote, onDeleteNote, onTogglePin, onReorder,
   onSelectFolder, onCreateFolder, onUpdateFolder, onDeleteFolder,
@@ -70,7 +72,7 @@ export function NotesSidebar({
   const tabValue = activeFolderId === undefined ? 'todas' : activeFolderId === null ? 'sin' : activeFolderId === '__archived__' ? 'archivadas' : 'folder'
 
   return (
-    <aside className="flex w-72 min-w-[240px] max-w-xs flex-col border-r border-border bg-background">
+    <aside className={cn('flex w-full min-w-0 max-w-none flex-col border-r border-border bg-background md:w-72 md:min-w-[240px] md:max-w-xs', className)}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <span className="font-semibold text-sm">Notas</span>

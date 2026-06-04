@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Archive, Check, Download, FileText, Loader2,
+  Archive, ArrowLeft, Check, Download, FileText, Loader2,
   PanelLeftClose, PanelLeftOpen, Pin, PinOff, Smile,
   Trash2, User, UserPlus, X, Maximize2, Minimize2,
 } from 'lucide-react'
@@ -97,6 +97,7 @@ interface Props {
   onColorChange: (id: string, color: string | null) => void
   onContactChange: (id: string, contactJid: string | null, contactName: string | null) => void
   onToggleSidebar: () => void
+  onBackToList: () => void
   onApplyTemplate: (content: object, title: string) => void
 }
 
@@ -147,7 +148,7 @@ function extractMarkdown(content: object): string {
 export function NotesEditor({
   note, saving, sidebarOpen,
   onSave, onTogglePin, onDelete, onArchive, onEmojiChange,
-  onColorChange, onContactChange, onToggleSidebar, onApplyTemplate,
+  onColorChange, onContactChange, onToggleSidebar, onBackToList, onApplyTemplate,
 }: Props) {
   const [title, setTitle] = useState(note.title)
   const [wordCount, setWordCount] = useState(0)
@@ -207,9 +208,13 @@ export function NotesEditor({
       {/* Toolbar */}
       <div className="flex items-center justify-between border-b border-border/70 px-4 py-2 shrink-0">
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden" onClick={onBackToList} title="Volver a notas">
+            <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+          </Button>
+
           {/* Toggle sidebar */}
           {!focusMode && (
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onToggleSidebar} title={sidebarOpen ? 'Ocultar panel' : 'Mostrar panel'}>
+            <Button variant="ghost" size="icon" className="hidden h-8 w-8 md:inline-flex" onClick={onToggleSidebar} title={sidebarOpen ? 'Ocultar panel' : 'Mostrar panel'}>
               {sidebarOpen ? <PanelLeftClose className="h-4 w-4 text-muted-foreground" /> : <PanelLeftOpen className="h-4 w-4 text-muted-foreground" />}
             </Button>
           )}
