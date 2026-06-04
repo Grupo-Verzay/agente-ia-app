@@ -314,7 +314,13 @@ export async function warmChatMessagesAction(
       skip: (page - 1) * pageSize,
       take: pageSize + 1,
     });
-    if (persisted.length) {
+    const shouldUseLocalOnly =
+      persisted.length > pageSize ||
+      persisted.length >= pageSize ||
+      page > 1 ||
+      !hasReadyContext(context);
+
+    if (persisted.length && shouldUseLocalOnly) {
       const hasMore = persisted.length > pageSize;
       const data = hasMore ? persisted.slice(0, pageSize) : persisted;
       return {
