@@ -191,20 +191,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
               sideOffset={4}
             >
               <DropdownMenuLabel className="px-2 py-2">
-                <div className="flex items-start gap-2">
-                  <UserLogoAvatar
-                    logoUrl={currentAccount?.image ?? user.image}
-                    plan={activePlan}
-                    alt={activeName}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-foreground">{activeName}</p>
-                    <p className="truncate text-xs font-normal text-muted-foreground">
-                      {currentAccount?.email ?? user.email}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-2 gap-1.5">
                   <Badge variant="outline" className="justify-start gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium">
                     <ShieldCheck className="h-3 w-3" />
                     {effectiveRoleLabel}
