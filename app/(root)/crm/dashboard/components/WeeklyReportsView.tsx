@@ -176,11 +176,11 @@ function ReportCard({ report, onDelete }: { report: WeeklyReportItem; onDelete: 
                             </p>
                             <div className="flex flex-wrap gap-2">
                                 {actividadEntries.map(([tipo, count]) => (
-                                    <MetricTile
+                                    <ActivityChip
                                         key={tipo}
                                         label={TIPO_LABELS[tipo]?.label ?? tipo}
+                                        emoji={TIPO_LABELS[tipo]?.emoji ?? '📋'}
                                         value={count}
-                                        sub=""
                                         color="#6366F1"
                                     />
                                 ))}
@@ -202,6 +202,16 @@ function MetricTile({ label, value, sub, color }: { label: string; value: string
                 <p className="text-lg font-bold leading-none" style={{ color }}>{value}</p>
                 {sub && <p className="text-[10px] text-muted-foreground/60 truncate mt-0.5">{sub}</p>}
             </div>
+        </div>
+    );
+}
+
+function ActivityChip({ label, value, emoji, color }: { label: string; value: number; emoji: string; color: string }) {
+    return (
+        <div className="flex items-center gap-1.5 rounded-lg border bg-card px-3 py-2 shrink-0">
+            <span className="text-sm leading-none">{emoji}</span>
+            <span className="text-xs text-muted-foreground leading-none">{label}</span>
+            <span className="text-sm font-bold leading-none" style={{ color }}>{value}</span>
         </div>
     );
 }
