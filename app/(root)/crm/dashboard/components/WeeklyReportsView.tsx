@@ -174,7 +174,7 @@ function ReportCard({ report, onDelete }: { report: WeeklyReportItem; onDelete: 
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                                 Actividad de la semana
                             </p>
-                            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2">
+                            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 [&>*:last-child:nth-child(odd)]:col-span-2">
                                 {actividadEntries.map(([tipo, count]) => (
                                     <ActivityChip
                                         key={tipo}
