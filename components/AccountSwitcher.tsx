@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { ChevronsUpDown, Check, Plus, Loader2, Users, Trash2 } from "lucide-react";
+import { ChevronsUpDown, Check, Plus, Loader2, Users, Trash2, CreditCard, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton, useSidebar } from "@/components/ui/sidebar";
 import {
@@ -31,7 +32,6 @@ import {
 } from "@/actions/linked-account-actions";
 import type { User } from "@prisma/client";
 import { cn } from "@/lib/utils";
-import { RoleBadge } from "@/components/shared/RoleBadge";
 import { canManageLinkedAccounts, getAdvisorRoleLabel } from "@/lib/permissions";
 
 const PALETTE = [
@@ -51,6 +51,31 @@ function initials(name: string | null, email: string, company: string) {
 }
 function displayName(a: { name: string | null; email: string; company: string }) {
   return a.company?.trim() || a.name?.trim() || a.email;
+}
+
+const PLAN_LABELS: Record<string, string> = {
+  enterprise: "Enterprise",
+  lite: "Lite",
+  unico: "Unico",
+  basico: "Basico",
+  intermedio: "Intermedio",
+  avanzado: "Avanzado",
+  personalizado: "Personalizado",
+};
+
+function getPlanLabel(plan?: string | null) {
+  return PLAN_LABELS[plan ?? ""] ?? "Basico";
+}
+
+function getAccountCountLabel(count: number) {
+  return count === 1 ? "1 cuenta" : `${count} cuentas`;
+}
+
+function getSwitcherRoleLabel(user: User, currentRole: "agente" | "administrador" | null) {
+  if (currentRole) return getAdvisorRoleLabel(currentRole);
+  if (user.advisorRole) return getAdvisorRoleLabel(user.advisorRole);
+  if (user.role === "admin" || user.role === "super_admin" || user.role === "reseller") return "Administrador";
+  return "Agente";
 }
 
 interface AccountSwitcherProps {
@@ -131,6 +156,9 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
   const currentAccount = payload?.currentAccount ?? null;
   const currentRole = payload?.currentRole ?? null;
   const canManageAccounts = canManageLinkedAccounts(user);
+  const accessibleCount = linked.length + 1;
+  const activePlan = currentAccount?.plan ?? user.plan;
+  const effectiveRoleLabel = getSwitcherRoleLabel(user, currentRole);
 
   // Cuenta activa para mostrar en el trigger
   const activeName =
@@ -153,7 +181,9 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">{activeName}</span>
-                  <RoleBadge user={user} compact className="mt-0.5 w-fit max-w-full" />
+                  <span className="mt-0.5 truncate text-xs text-sidebar-foreground/70">
+                    {getPlanLabel(activePlan)}
+                  </span>
                 </div>
                 {isPending ? (
                   <Loader2 className="ml-auto h-4 w-4 animate-spin shrink-0 opacity-50" />
@@ -169,6 +199,36 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
               align="end"
               sideOffset={4}
             >
+              <DropdownMenuLabel className="px-2 py-2">
+                <div className="flex items-start gap-2">
+                  <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white", colorFor(activeId ?? user.id))}>
+                    {initials(currentAccount?.name ?? user.name, currentAccount?.email ?? user.email, currentAccount?.company ?? user.company)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-foreground">{activeName}</p>
+                    <p className="truncate text-xs font-normal text-muted-foreground">
+                      {currentAccount?.email ?? user.email}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-1.5">
+                  <Badge variant="outline" className="justify-start gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium">
+                    <CreditCard className="h-3 w-3" />
+                    {getPlanLabel(activePlan)}
+                  </Badge>
+                  <Badge variant="outline" className="justify-start gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium">
+                    <Users className="h-3 w-3" />
+                    {getAccountCountLabel(accessibleCount)}
+                  </Badge>
+                  <Badge variant="outline" className="col-span-2 justify-start gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium">
+                    <ShieldCheck className="h-3 w-3" />
+                    {effectiveRoleLabel}
+                  </Badge>
+                </div>
+              </DropdownMenuLabel>
+
+              <DropdownMenuSeparator />
+
               <DropdownMenuLabel className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Cambiar de cuenta
               </DropdownMenuLabel>
