@@ -224,17 +224,17 @@ export function TasksClient({ userId, userName }: Props) {
     <div className="flex h-full w-full flex-col gap-3">
 
       {/* Tarjetas de resumen — MetricCard, exactamente igual al schedule */}
-      <div className="flex flex-wrap gap-3 shrink-0">
-        <div className="flex-1">
+      <div className="grid grid-cols-2 gap-2 shrink-0 sm:flex sm:flex-wrap sm:gap-3">
+        <div className="min-w-0 sm:flex-1">
           <MetricCard icon={<Calendar className="h-4 w-4" />} label="Pendiente" value={pending} color="#EAB308" helper="Tareas pendientes" />
         </div>
-        <div className="flex-1">
+        <div className="min-w-0 sm:flex-1">
           <MetricCard icon={<Calendar className="h-4 w-4" />} label="Vencidas" value={overdue} color="#EF4444" helper="Tareas vencidas" />
         </div>
-        <div className="flex-1">
+        <div className="min-w-0 sm:flex-1">
           <MetricCard icon={<Calendar className="h-4 w-4" />} label="Para hoy" value={dueToday} color="#3B82F6" helper="Tareas para hoy" />
         </div>
-        <div className="flex-1">
+        <div className="min-w-0 sm:flex-1">
           <MetricCard icon={<Calendar className="h-4 w-4" />} label="Completadas" value={done} color="#22C55E" helper="Tareas completadas" />
         </div>
       </div>

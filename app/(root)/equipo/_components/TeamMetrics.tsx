@@ -49,17 +49,17 @@ export function TeamKpiCards({ metrics }: Props) {
   const totalClassified = Object.values(global.leadStatus).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="flex flex-wrap gap-3">
-      <div className="flex-1">
+    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+      <div className="min-w-0 sm:flex-1">
         <MetricCard icon={<MessageSquare className="h-4 w-4" />} label="Conversaciones activas" value={global.totalActive} helper="Total de conversaciones activas en el equipo" color="#3B82F6" />
       </div>
-      <div className="flex-1">
+      <div className="min-w-0 sm:flex-1">
         <MetricCard icon={<Sparkles className="h-4 w-4" />} label="Nuevas esta semana" value={global.newThisWeek} helper="Conversaciones iniciadas en los últimos 7 días" color="#8B5CF6" />
       </div>
-      <div className="flex-1">
+      <div className="min-w-0 sm:flex-1">
         <MetricCard icon={<UserCheck className="h-4 w-4" />} label="Escaladas a asesor" value={`${global.escalationRate}%`} helper="Porcentaje del total escaladas a un asesor" color="#F59E0B" />
       </div>
-      <div className="flex-1">
+      <div className="min-w-0 sm:flex-1">
         <MetricCard icon={<TrendingUp className="h-4 w-4" />} label="Tasa de conversión" value={`${global.conversionRate}%`} helper={`De ${totalClassified} leads clasificados`} color="#10B981" />
       </div>
     </div>

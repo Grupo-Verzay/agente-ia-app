@@ -85,8 +85,8 @@ export const CreditMain = ({ userId }: Props) => {
         <div className="flex h-full min-w-0 w-full flex-col gap-2">
             {/* MetricCards */}
             {!loading && (
-                <div className="flex flex-wrap gap-3">
-                    <div className="flex-1">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+                    <div className="min-w-0 sm:flex-1">
                         <MetricCard
                             icon={<Coins className="h-4 w-4" />}
                             label="Total créditos"
@@ -95,7 +95,7 @@ export const CreditMain = ({ userId }: Props) => {
                             color="#3B82F6"
                         />
                     </div>
-                    <div className="flex-1">
+                    <div className="min-w-0 sm:flex-1">
                         <MetricCard
                             icon={<TrendingDown className="h-4 w-4" />}
                             label="Consumidos"
@@ -104,7 +104,7 @@ export const CreditMain = ({ userId }: Props) => {
                             color="#EF4444"
                         />
                     </div>
-                    <div className="flex-1">
+                    <div className="min-w-0 sm:flex-1">
                         <MetricCard
                             icon={<Wallet className="h-4 w-4" />}
                             label="Disponibles"
@@ -113,7 +113,7 @@ export const CreditMain = ({ userId }: Props) => {
                             color="#22C55E"
                         />
                     </div>
-                    <div className="flex-1">
+                    <div className="min-w-0 sm:flex-1">
                         <MetricCard
                             icon={<Gauge className="h-4 w-4" />}
                             label="% Uso"

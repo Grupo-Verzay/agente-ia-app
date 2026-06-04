@@ -170,25 +170,25 @@ export const CrmDashboard = ({
         <TooltipProvider delayDuration={120}>
             <div className="flex h-full min-h-0 min-w-0 w-full flex-col gap-2 overflow-hidden">
                 {/* Metric Cards */}
-                <div className="flex flex-wrap gap-3">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
                     {viewMode === "reportes" ? (
                         <>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard icon={<FileText className="h-4 w-4" />} label="Total reportes" value={reportStats.total} helper="Últimos 12 guardados" color="#3B82F6" />
                             </div>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard icon={<Activity className="h-4 w-4" />} label="Enviados por WhatsApp" value={reportStats.sent} helper={`De ${reportStats.total} generados`} color="#22C55E" />
                             </div>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard icon={<Users className="h-4 w-4" />} label="Leads promedio" value={reportStats.avgLeads} helper="Promedio de leads por semana" color="#8B5CF6" />
                             </div>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard icon={<CheckCheck className="h-4 w-4" />} label="Finalizados promedio" value={reportStats.avgConversions} helper="Conversiones promedio por semana" color="#F59E0B" />
                             </div>
                         </>
                     ) : viewMode === "registros" ? (
                         <>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard
                                     icon={<BarChart3 className="h-4 w-4" />}
                                     label="Total registros"
@@ -197,7 +197,7 @@ export const CrmDashboard = ({
                                     color={CRM_METRIC_COLORS.totalRegistros}
                                 />
                             </div>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard
                                     icon={<Activity className="h-4 w-4" />}
                                     label="Leads con movimientos"
@@ -206,7 +206,7 @@ export const CrmDashboard = ({
                                     color={CRM_METRIC_COLORS.leadsConMovimientos}
                                 />
                             </div>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard
                                     icon={<Clock3 className="h-4 w-4" />}
                                     label="Follow-ups activos"
@@ -215,7 +215,7 @@ export const CrmDashboard = ({
                                     color={CRM_METRIC_COLORS.crmFollowUpsActivos}
                                 />
                             </div>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard
                                     icon={<CheckCheck className="h-4 w-4" />}
                                     label="Follow-ups enviados"
@@ -227,7 +227,7 @@ export const CrmDashboard = ({
                         </>
                     ) : viewMode === "kanban" ? (
                         <>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard
                                     icon={<Users className="h-4 w-4" />}
                                     label="Frío"
@@ -236,7 +236,7 @@ export const CrmDashboard = ({
                                     color="#3B82F6"
                                 />
                             </div>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard
                                     icon={<Activity className="h-4 w-4" />}
                                     label="Tibio"
@@ -245,7 +245,7 @@ export const CrmDashboard = ({
                                     color="#F59E0B"
                                 />
                             </div>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard
                                     icon={<TrendingUp className="h-4 w-4" />}
                                     label="Caliente"
@@ -254,7 +254,7 @@ export const CrmDashboard = ({
                                     color="#EF4444"
                                 />
                             </div>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard
                                     icon={<CheckCheck className="h-4 w-4" />}
                                     label="Finalizado"
@@ -266,7 +266,7 @@ export const CrmDashboard = ({
                         </>
                     ) : (
                         <>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard
                                     icon={<Users className="h-4 w-4" />}
                                     label="Total leads"
@@ -275,7 +275,7 @@ export const CrmDashboard = ({
                                     color="#3B82F6"
                                 />
                             </div>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard
                                     icon={<Activity className="h-4 w-4" />}
                                     label="Sesiones"
@@ -284,7 +284,7 @@ export const CrmDashboard = ({
                                     color="#22C55E"
                                 />
                             </div>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard
                                     icon={<CalendarClock className="h-4 w-4" />}
                                     label="Citas próximas"
@@ -293,7 +293,7 @@ export const CrmDashboard = ({
                                     color="#3B82F6"
                                 />
                             </div>
-                            <div className="flex-1">
+                            <div className="min-w-0 sm:flex-1">
                                 <MetricCard
                                     icon={<Wallet className="h-4 w-4" />}
                                     label="Ingresos totales"

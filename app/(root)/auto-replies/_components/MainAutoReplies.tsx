@@ -41,17 +41,17 @@ export const MainAutoReplies = ({ user, Workflows, autoReplies = [] }: Props) =>
 
   return (
     <div className="flex h-full flex-col gap-2">
-      <div className="flex shrink-0 flex-wrap gap-3">
-        <div className="flex-1">
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+        <div className="min-w-0 sm:flex-1">
           <MetricCard icon={<MessagesSquare className="h-4 w-4" />} label="Total" value={autoReplies.length} helper="Respuestas rapidas disponibles" color="#3B82F6" />
         </div>
-        <div className="flex-1">
+        <div className="min-w-0 sm:flex-1">
           <MetricCard icon={<MessageSquareText className="h-4 w-4" />} label="Texto simple" value={textReplies} helper="Respuestas que envian un mensaje de texto" color="#10B981" />
         </div>
-        <div className="flex-1">
+        <div className="min-w-0 sm:flex-1">
           <MetricCard icon={<GitBranch className="h-4 w-4" />} label="Ejecutan flujo" value={workflowReplies} helper="Respuestas que activan un flujo automatizado" color="#8B5CF6" />
         </div>
-        <div className="flex-1">
+        <div className="min-w-0 sm:flex-1">
           <MetricCard icon={<Hash className="h-4 w-4" />} label="Con atajo" value={namedReplies} helper="Respuestas con nombre o atajo configurado" color="#F59E0B" />
         </div>
       </div>

@@ -251,8 +251,8 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         <TooltipProvider delayDuration={120}>
         <div className="flex h-full min-w-0 w-full flex-col gap-2 overflow-hidden">
             {/* MetricCards */}
-            <div className="shrink-0 flex flex-wrap gap-3">
-                <div className="flex-1">
+            <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<Users className="h-4 w-4" />}
                         label="Total clientes"
@@ -261,7 +261,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                         color="#3B82F6"
                     />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<Wifi className="h-4 w-4" />}
                         label="QR conectados"
@@ -270,7 +270,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                         color="#22C55E"
                     />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<WifiOff className="h-4 w-4" />}
                         label="Sin conexión QR"
@@ -279,7 +279,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                         color="#EF4444"
                     />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<Zap className="h-4 w-4" />}
                         label="Evolution activo"

@@ -115,8 +115,8 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
         <TooltipProvider delayDuration={120}>
         <div className="flex h-full min-w-0 w-full flex-col gap-2">
             {/* MetricCards */}
-            <div className="flex flex-wrap gap-3">
-                <div className="flex-1">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<FileText className="h-4 w-4" />}
                         label="Total plantillas"
@@ -125,7 +125,7 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                         color="#3B82F6"
                     />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<CheckCircle className="h-4 w-4" />}
                         label="Activas"
@@ -134,7 +134,7 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                         color="#22C55E"
                     />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<XCircle className="h-4 w-4" />}
                         label="Inactivas"
@@ -143,7 +143,7 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
                         color="#EF4444"
                     />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<Tag className="h-4 w-4" />}
                         label="Con categoría"

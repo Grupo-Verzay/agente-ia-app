@@ -86,8 +86,8 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
         <TooltipProvider delayDuration={120}>
         <div className="flex h-full min-w-0 w-full flex-col gap-2">
             {/* MetricCards */}
-            <div className="flex flex-wrap gap-3">
-                <div className="flex-1">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<Users className="h-4 w-4" />}
                         label="Total afiliados"
@@ -96,7 +96,7 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
                         color="#3B82F6"
                     />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<UserCheck className="h-4 w-4" />}
                         label="Clientes asignados"
@@ -105,7 +105,7 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
                         color="#22C55E"
                     />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<UserX className="h-4 w-4" />}
                         label="Sin asignar"
@@ -114,7 +114,7 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
                         color="#F59E0B"
                     />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<UsersRound className="h-4 w-4" />}
                         label="Total clientes"

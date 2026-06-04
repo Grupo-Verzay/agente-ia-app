@@ -63,9 +63,9 @@ export function TagsPageClient({
             <div data-full-bleed className="flex h-full min-w-0 w-full flex-col gap-2">
                 {/* Top 4 metric cards por conteo */}
                 {view === 'kanban' && (
-                    <div className="flex flex-wrap gap-3">
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
                         {topMetrics.map((m) => (
-                            <div key={m.id} className="flex-1">
+                            <div key={m.id} className="min-w-0 sm:flex-1">
                                 <MetricCard
                                     icon={<Tag className="h-4 w-4" />}
                                     label={m.label}

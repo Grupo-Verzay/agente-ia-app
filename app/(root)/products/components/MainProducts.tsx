@@ -41,17 +41,17 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
-            <div className="flex shrink-0 flex-wrap gap-3">
-                <div className="flex-1">
+            <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard icon={<Package className="h-4 w-4" />} label="Total productos" value={stats.total} helper="Productos registrados en el catálogo" color="#3B82F6" />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard icon={<CheckCircle2 className="h-4 w-4" />} label="Activos" value={stats.active} helper="Productos disponibles para usar" color="#22C55E" />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard icon={<PackageX className="h-4 w-4" />} label="Sin stock" value={stats.outOfStock} helper="Productos agotados" color="#EF4444" />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 sm:flex-1">
                     <MetricCard icon={<Boxes className="h-4 w-4" />} label="Cupos disponibles" value={stats.availableSlots} helper="Productos que aún puedes agregar según tu plan" color="#8B5CF6" />
                 </div>
             </div>

@@ -164,17 +164,17 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
               {isCampaignPage ? (
                 <Header title="Campañas" />
               ) : (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div>
+                <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+                  <div className="min-w-0">
                     <MetricCard icon={<Bell className="h-4 w-4" />} label="Pendientes" value={reminderMetrics.pending} helper="Recordatorios pendientes por enviar" color="#F59E0B" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <MetricCard icon={<Clock3 className="h-4 w-4" />} label="Para hoy" value={reminderMetrics.today} helper="Recordatorios programados para hoy" color="#3B82F6" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <MetricCard icon={<Repeat2 className="h-4 w-4" />} label="Recurrentes" value={reminderMetrics.recurring} helper="Recordatorios configurados para repetirse" color="#8B5CF6" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <MetricCard icon={<AlertTriangle className="h-4 w-4" />} label="Vencidos" value={reminderMetrics.expired} helper="Recordatorios con fecha anterior al momento actual" color="#EF4444" />
                   </div>
                 </div>

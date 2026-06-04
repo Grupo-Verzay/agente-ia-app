@@ -34,7 +34,7 @@ export const FilterLeadsByStats = ({
 
     return (
         <>
-            <div onClick={() => onChangeFilter("all")} className="flex-1 cursor-pointer">
+            <div onClick={() => onChangeFilter("all")} className="min-w-0 cursor-pointer sm:flex-1">
                 <MetricCard
                     icon={<Database className="h-4 w-4" />}
                     label="Total"
@@ -42,7 +42,7 @@ export const FilterLeadsByStats = ({
                     color="#3b82f6"
                 />
             </div>
-            <div onClick={() => onChangeFilter("activeSession")} className="flex-1 cursor-pointer">
+            <div onClick={() => onChangeFilter("activeSession")} className="min-w-0 cursor-pointer sm:flex-1">
                 <MetricCard
                     icon={<CheckCircle2 className="h-4 w-4" />}
                     label="Clientes Activos"
@@ -50,7 +50,7 @@ export const FilterLeadsByStats = ({
                     color="#22c55e"
                 />
             </div>
-            <div onClick={() => onChangeFilter("inactiveSession")} className="flex-1 cursor-pointer">
+            <div onClick={() => onChangeFilter("inactiveSession")} className="min-w-0 cursor-pointer sm:flex-1">
                 <MetricCard
                     icon={<XCircle className="h-4 w-4" />}
                     label="Clientes Inactivos"
@@ -58,7 +58,7 @@ export const FilterLeadsByStats = ({
                     color="#ef4444"
                 />
             </div>
-            <div onClick={() => onChangeFilter("activeAgent")} className="flex-1 cursor-pointer">
+            <div onClick={() => onChangeFilter("activeAgent")} className="min-w-0 cursor-pointer sm:flex-1">
                 <MetricCard
                     icon={<Bot className="h-4 w-4" />}
                     label="Agente Activo"

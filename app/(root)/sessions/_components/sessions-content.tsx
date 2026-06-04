@@ -156,7 +156,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
       {/* Header fijo */}
       <div className="sticky top-0 z-1">
         <div className="flex justify-between items-center">
-          <div className="container-stats flex flex-1 gap-4 overflow-x-auto mb-2">
+          <div className="container-stats mb-2 grid flex-1 grid-cols-2 gap-2 sm:flex sm:gap-4 sm:overflow-x-auto">
             <FilterLeadsByStats
               stats={stats}
               filter={filter}

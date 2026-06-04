@@ -84,8 +84,8 @@ export const MainConnection = ({ searchParams, user, apiKeys }: Props) => {
         <TooltipProvider delayDuration={120}>
             <div className="flex h-full min-w-0 w-full flex-col gap-2">
                 {/* MetricCards */}
-                <div className="flex flex-wrap gap-3">
-                    <div className="flex-1">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+                    <div className="min-w-0 sm:flex-1">
                         <MetricCard
                             icon={<Link2 className="h-4 w-4" />}
                             label="Total conexiones"
@@ -94,7 +94,7 @@ export const MainConnection = ({ searchParams, user, apiKeys }: Props) => {
                             color="#3B82F6"
                         />
                     </div>
-                    <div className="flex-1">
+                    <div className="min-w-0 sm:flex-1">
                         <MetricCard
                             icon={<KeyRound className="h-4 w-4" />}
                             label="Servidores únicos"
@@ -103,7 +103,7 @@ export const MainConnection = ({ searchParams, user, apiKeys }: Props) => {
                             color="#8B5CF6"
                         />
                     </div>
-                    <div className="flex-1">
+                    <div className="min-w-0 sm:flex-1">
                         <MetricCard
                             icon={<CalendarCheck className="h-4 w-4" />}
                             label="Recientes (30d)"
@@ -112,7 +112,7 @@ export const MainConnection = ({ searchParams, user, apiKeys }: Props) => {
                             color="#22C55E"
                         />
                     </div>
-                    <div className="flex-1">
+                    <div className="min-w-0 sm:flex-1">
                         <MetricCard
                             icon={<Clock className="h-4 w-4" />}
                             label="Antiguas"
