@@ -31,6 +31,7 @@ import { GuideUrl } from '@prisma/client';
 import { Button } from '../ui/button';
 import ThemeSwitcher from './ThemeSwitcher';
 import { NotificationCenter } from '@/components/shared/NotificationCenter';
+import { GlobalSearch } from '@/components/shared/GlobalSearch';
 
 export const breadcrumbLabels: Record<string, string> = {
   flow: 'flujo',
@@ -227,7 +228,8 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
                   </Dialog>
                 </div>
               )}
-              <div className="ml-auto flex items-center justify-end">
+              <div className="ml-auto flex items-center justify-end gap-1.5">
+                <GlobalSearch />
                 <NotificationCenter />
               </div>
               {isFlow &&
