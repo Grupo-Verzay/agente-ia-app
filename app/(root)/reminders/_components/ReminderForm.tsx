@@ -275,7 +275,7 @@ export const ReminderForm = ({
                     ))}
                 </>
 
-                <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto px-1 pb-1 pt-1">
+                <div className="flex flex-col gap-2.5 flex-1 min-h-0 overflow-y-auto px-1 pb-1 pt-1">
 
                 <div className="flex flex-col gap-1.5">
                     <Label className="text-sm font-semibold">Título</Label>
@@ -290,7 +290,7 @@ export const ReminderForm = ({
                         return (
                             <Textarea
                                 placeholder="Hola @client_name, te recordamos que..."
-                                className="resize-none text-sm flex-1 min-h-[80px]"
+                                className="resize-none text-sm flex-1 min-h-[72px]"
                                 {...descRest}
                                 ref={(el) => { rhfRef(el); (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el; }}
                             />
@@ -298,7 +298,7 @@ export const ReminderForm = ({
                     })()}
                 </div>
 
-                <div className="flex flex-col gap-2 rounded-md border border-dashed border-border bg-muted/20 p-3">
+                <div className="flex flex-col gap-2 rounded-md border border-dashed border-border bg-muted/15 px-3 py-2.5">
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -308,12 +308,12 @@ export const ReminderForm = ({
                     />
                     <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground shadow-sm">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground shadow-sm">
                                 <Paperclip className="h-4 w-4" />
                             </span>
                             <div className="min-w-0">
                                 <p className="text-sm font-semibold leading-tight">Archivo multimedia</p>
-                                <p className="truncate text-xs text-muted-foreground">Opcional para enviar junto al recordatorio</p>
+                                <p className="truncate text-[11px] text-muted-foreground">Opcional para enviar junto al recordatorio</p>
                             </div>
                         </div>
                         {mediaPreview && (
@@ -323,7 +323,7 @@ export const ReminderForm = ({
                         )}
                     </div>
 
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-4 gap-1.5">
                         {MEDIA_OPTIONS.map((option) => {
                             const Icon = option.Icon;
                             return (
@@ -332,7 +332,7 @@ export const ReminderForm = ({
                                     type="button"
                                     variant={mediaPreview?.type === option.type ? "default" : "outline"}
                                     size="sm"
-                                    className="h-9 gap-1 px-2 text-xs"
+                                    className="h-8 gap-1 px-2 text-xs"
                                     onClick={() => handlePickMedia(option)}
                                 >
                                     <Icon className="h-3.5 w-3.5" />
@@ -343,20 +343,20 @@ export const ReminderForm = ({
                     </div>
 
                     {mediaPreview ? (
-                        <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <div className="flex items-center gap-2 rounded-md border bg-background px-2.5 py-2">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                                 {mediaPreview.type === "image" ? <ImageIcon className="h-4 w-4" /> :
                                     mediaPreview.type === "video" ? <Video className="h-4 w-4" /> :
                                         mediaPreview.type === "audio" ? <FileAudio className="h-4 w-4" /> :
                                             <FileText className="h-4 w-4" />}
                             </div>
                             <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-medium">{mediaPreview.fileName}</p>
+                                <p className="truncate text-xs font-medium">{mediaPreview.fileName}</p>
                                 <p className="text-xs text-muted-foreground">{formatFileSize(mediaPreview.size)} · {mediaPreview.mimeType}</p>
                             </div>
                         </div>
                     ) : (
-                        <p className="text-xs text-muted-foreground">Selecciona una imagen, video, audio o documento.</p>
+                        <p className="text-[11px] text-muted-foreground">Selecciona una imagen, video, audio o documento.</p>
                     )}
                 </div>
                 {isCampaignPage && (
