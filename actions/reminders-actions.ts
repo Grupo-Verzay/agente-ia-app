@@ -154,7 +154,7 @@ export async function getRemindersByUserId(userId: string): Promise<ReminderResp
     try {
         const reminders = await db.reminders.findMany({
             where: { userId, isCampaign: false },
-            orderBy: { createdAt: 'desc' },
+            orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
         })
 
         return {
