@@ -1,12 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Session } from "@prisma/client"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
@@ -29,6 +28,7 @@ interface Props {
 export const SelectComboBox = ({ leads, onSelect, onLeadCreated, initialValue }: Props) => {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(initialValue || "");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (initialValue) setValue(initialValue);
@@ -51,6 +51,18 @@ export const SelectComboBox = ({ leads, onSelect, onLeadCreated, initialValue }:
     return nameValidate ? leadPhone : `${leadName}`
   };
 
+  const filteredLeads = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return leads;
+
+    return leads.filter((lead) => {
+      const leadName = (lead.pushName?.trim() || "Sin nombre").toLowerCase();
+      const leadPhone = (lead.remoteJid || "").split("@")[0].toLowerCase();
+      const remoteJid = (lead.remoteJid || "").toLowerCase();
+      return leadName.includes(term) || leadPhone.includes(term) || remoteJid.includes(term);
+    });
+  }, [leads, search]);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -66,11 +78,16 @@ export const SelectComboBox = ({ leads, onSelect, onLeadCreated, initialValue }:
           <ChevronsUpDown className="opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0">
-        <Command>
-          <CommandInput placeholder="Search lead..." className="h-9" />
-          <CommandList>
-            <CommandEmpty>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Buscar lead..."
+            className="h-9"
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList className="max-h-[260px]">
+            {filteredLeads.length === 0 && (
               <div className="p-2 text-sm text-center">
                 No se encontró ningún lead.
                 <br />
@@ -85,9 +102,9 @@ export const SelectComboBox = ({ leads, onSelect, onLeadCreated, initialValue }:
                   + Crear nuevo lead
                 </Button>
               </div>
-            </CommandEmpty>
+            )}
             <CommandGroup>
-              {leads.map((lead) => {
+              {filteredLeads.map((lead) => {
                 const leadName = lead.pushName === '' ? 'Sin nombre' : lead.pushName;
                 const leadPhone = lead.remoteJid.split("@")[0];
 
@@ -95,6 +112,7 @@ export const SelectComboBox = ({ leads, onSelect, onLeadCreated, initialValue }:
                   <CommandItem
                     key={lead.id}
                     value={`${leadName} ${leadPhone}`}
+                    className="min-h-[48px]"
                     onSelect={(currentValue) => {
                       setValue(currentValue === value ? "" : currentValue)
                       onSelect(lead)

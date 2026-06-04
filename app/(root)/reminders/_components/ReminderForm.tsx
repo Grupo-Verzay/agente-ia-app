@@ -46,11 +46,13 @@ type ReminderMediaPreview = {
 };
 
 const MEDIA_OPTIONS = [
-    { type: "image", label: "Imagen", accept: "image/*", Icon: ImageIcon },
-    { type: "video", label: "Video", accept: "video/*", Icon: Video },
-    { type: "audio", label: "Audio", accept: "audio/*", Icon: FileAudio },
-    { type: "document", label: "Doc.", accept: ".pdf,.doc,.docx,.xls,.xlsx,.csv,application/pdf", Icon: FileText },
+    { type: "image", label: "Imagen", accept: "image/*", Icon: ImageIcon, iconClass: "text-sky-600" },
+    { type: "video", label: "Video", accept: "video/*", Icon: Video, iconClass: "text-rose-600" },
+    { type: "audio", label: "Audio", accept: "audio/*", Icon: FileAudio, iconClass: "text-emerald-600" },
+    { type: "document", label: "Doc.", accept: ".pdf,.doc,.docx,.xls,.xlsx,.csv,application/pdf", Icon: FileText, iconClass: "text-amber-600" },
 ] as const;
+
+const REPEAT_EVERY_OPTIONS = Array.from({ length: 365 }, (_, index) => index + 1);
 
 function formatFileSize(bytes: number) {
     if (!bytes) return "0 KB";
@@ -106,7 +108,7 @@ export const ReminderForm = ({
             description: "",
             time: "",
             repeatType: "NONE",
-            repeatEvery: undefined,
+            repeatEvery: 1,
             userId: userId,
             remoteJid: "",
             instanceName: "",
@@ -275,7 +277,7 @@ export const ReminderForm = ({
                     ))}
                 </>
 
-                <div className="flex flex-col gap-2.5 flex-1 min-h-0 overflow-y-auto px-1 pb-1 pt-1">
+                <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto px-1 pb-1 pt-1">
 
                 <div className="flex flex-col gap-1.5">
                     <Label className="text-sm font-semibold">Título</Label>
@@ -290,7 +292,7 @@ export const ReminderForm = ({
                         return (
                             <Textarea
                                 placeholder="Hola @client_name, te recordamos que..."
-                                className="resize-none text-sm flex-1 min-h-[72px]"
+                                className="min-h-[72px] max-h-[220px] resize-y text-sm"
                                 {...descRest}
                                 ref={(el) => { rhfRef(el); (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el; }}
                             />
@@ -298,7 +300,7 @@ export const ReminderForm = ({
                     })()}
                 </div>
 
-                <div className="flex flex-col gap-2 rounded-md border border-dashed border-border bg-muted/15 px-3 py-2.5">
+                <div className="flex flex-col gap-3 rounded-md border border-dashed border-blue-200 bg-blue-50/30 px-3 py-3">
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -308,12 +310,12 @@ export const ReminderForm = ({
                     />
                     <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2">
-                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground shadow-sm">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white text-blue-600 shadow-sm">
                                 <Paperclip className="h-4 w-4" />
                             </span>
                             <div className="min-w-0">
-                                <p className="text-sm font-semibold leading-tight">Archivo multimedia</p>
-                                <p className="truncate text-[11px] text-muted-foreground">Opcional para enviar junto al recordatorio</p>
+                                <p className="text-sm font-semibold leading-none">Archivo multimedia</p>
+                                <p className="mt-1 truncate text-xs text-muted-foreground">Opcional para enviar junto al recordatorio</p>
                             </div>
                         </div>
                         {mediaPreview && (
@@ -323,19 +325,23 @@ export const ReminderForm = ({
                         )}
                     </div>
 
-                    <div className="grid grid-cols-4 gap-1.5">
+                    <div className="grid grid-cols-4 gap-2">
                         {MEDIA_OPTIONS.map((option) => {
                             const Icon = option.Icon;
                             return (
                                 <Button
                                     key={option.type}
                                     type="button"
-                                    variant={mediaPreview?.type === option.type ? "default" : "outline"}
+                                    variant="outline"
                                     size="sm"
-                                    className="h-8 gap-1 px-2 text-xs"
+                                    className={`h-9 gap-1.5 px-2 text-sm font-medium ${
+                                        mediaPreview?.type === option.type
+                                            ? "border-blue-300 bg-blue-100 text-blue-700 hover:bg-blue-100"
+                                            : "bg-background hover:border-blue-200 hover:bg-blue-50/60"
+                                    }`}
                                     onClick={() => handlePickMedia(option)}
                                 >
-                                    <Icon className="h-3.5 w-3.5" />
+                                    <Icon className={`h-4 w-4 ${option.iconClass}`} />
                                     <span className="truncate">{option.label}</span>
                                 </Button>
                             );
@@ -356,7 +362,7 @@ export const ReminderForm = ({
                             </div>
                         </div>
                     ) : (
-                        <p className="text-[11px] text-muted-foreground">Selecciona una imagen, video, audio o documento.</p>
+                        <p className="text-xs text-muted-foreground">Selecciona una imagen, video, audio o documento.</p>
                     )}
                 </div>
                 {isCampaignPage && (
@@ -416,7 +422,27 @@ export const ReminderForm = ({
                         </div>
                         <div className="flex flex-col gap-1.5">
                             <Label className="text-sm font-semibold">Repetir cada</Label>
-                            <Input type="number" placeholder="Ej: 7" className="text-sm" {...register("repeatEvery")} />
+                            <Controller
+                                control={control}
+                                name="repeatEvery"
+                                render={({ field }) => (
+                                    <Select
+                                        value={String(field.value || 1)}
+                                        onValueChange={(value) => field.onChange(Number(value))}
+                                    >
+                                        <SelectTrigger className="text-sm [&>span]:flex-1 [&>span]:text-center">
+                                            <SelectValue placeholder="1" />
+                                        </SelectTrigger>
+                                        <SelectContent className="max-h-[260px]">
+                                            {REPEAT_EVERY_OPTIONS.map((value) => (
+                                                <SelectItem key={value} value={String(value)} className="justify-center pl-8 pr-8 text-center">
+                                                    {value}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            />
                         </div>
                     </div>
                 }
@@ -470,19 +496,28 @@ export const ReminderForm = ({
                                 />
                             </div>
                             :
-                            <SelectComboBox
-                                leads={leads}
-                                onSelect={(lead) => {
-                                    setValue("userId", lead.userId, { shouldValidate: true })
-                                    setValue("remoteJid", lead.remoteJid, { shouldValidate: true })
-                                    setValue("instanceName", lead.instanceId, { shouldValidate: true })
-                                    setValue("pushName", lead.pushName, { shouldValidate: true })
-                                }}
-                                onLeadCreated={() => setCreateLead(true)}
-                                initialValue={initialLeadValue}
-                            />)}
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <SelectComboBox
+                                    leads={leads}
+                                    onSelect={(lead) => {
+                                        setValue("userId", lead.userId, { shouldValidate: true })
+                                        setValue("remoteJid", lead.remoteJid, { shouldValidate: true })
+                                        setValue("instanceName", lead.instanceId, { shouldValidate: true })
+                                        setValue("pushName", lead.pushName, { shouldValidate: true })
+                                    }}
+                                    onLeadCreated={() => setCreateLead(true)}
+                                    initialValue={initialLeadValue}
+                                />
 
-                        {workflows &&
+                                {workflows &&
+                                    <SelectWorkflowBox
+                                        workflows={workflows}
+                                        onSelect={(workflow) => setValue("workflowId", workflow.id, { shouldValidate: true })}
+                                        initialValue={initialWorkflowId}
+                                    />}
+                            </div>)}
+
+                        {isCampaignPage && workflows &&
                             <SelectWorkflowBox
                                 workflows={workflows}
                                 onSelect={(workflow) => setValue("workflowId", workflow.id, { shouldValidate: true })}

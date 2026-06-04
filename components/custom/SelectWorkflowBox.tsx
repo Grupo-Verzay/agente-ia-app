@@ -43,15 +43,15 @@ export const SelectWorkflowBox = ({ workflows, onSelect, initialValue }: Props) 
                     className="w-full justify-between"
                 >
                     {value
-                        ? workflows.find((w) => w.id === value)?.name
+                        ? workflows.find((w) => w.id === value)?.name?.toUpperCase()
                         : "Seleccione un workflow..."}
                     <ChevronsUpDown className="opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-full p-0">
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
                 <Command>
                     <CommandInput placeholder="Buscar flujo..." className="h-9" />
-                    <CommandList>
+                    <CommandList className="max-h-[260px]">
                         <CommandEmpty>No se encontró flujo.</CommandEmpty>
                         <CommandGroup>
                             {workflows.map((workflow) => {
@@ -59,14 +59,15 @@ export const SelectWorkflowBox = ({ workflows, onSelect, initialValue }: Props) 
                                     <CommandItem
                                         key={workflow.id}
                                         value={workflow.id}
+                                        className="min-h-[48px]"
                                         onSelect={(currentValue) => {
                                             setValue(currentValue === value ? "" : currentValue)
                                             onSelect(workflow)
                                             setOpen(false)
                                         }}
                                     >
-                                        <div className="flex flex-col">
-                                            <span className="font-medium">{workflow.name.toLowerCase()}</span>
+                                        <div className="flex min-w-0 flex-col">
+                                            <span className="truncate font-medium uppercase">{workflow.name}</span>
                                             {/* <span className="text-muted-foreground text-xs">{workflow.description}</span> */}
                                         </div>
                                         <Check
