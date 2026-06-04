@@ -261,8 +261,8 @@ export function NotesEditor({
           {/* Save status */}
           <div className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
             {saving
-              ? <><Loader2 className="h-3 w-3 animate-spin" /> Guardando...</>
-              : <><Check className="h-3 w-3 text-emerald-500" /> Guardado</>
+              ? <><Loader2 className="h-3 w-3 animate-spin" /><span className="hidden sm:inline">Guardando...</span></>
+              : <><Check className="h-3 w-3 text-emerald-500" /><span className="hidden sm:inline">Guardado</span></>
             }
           </div>
         </div>
