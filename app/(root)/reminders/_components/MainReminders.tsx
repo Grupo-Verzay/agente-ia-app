@@ -108,6 +108,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
     });
 
     return sorted.filter((r) => {
+      if (r.isSchedule) return false;
       const fullText = `${r.title} ${r.description ?? ""} ${r.pushName} ${r.remoteJid}`.toLowerCase();
       return fullText.includes(search.toLowerCase());
     });
