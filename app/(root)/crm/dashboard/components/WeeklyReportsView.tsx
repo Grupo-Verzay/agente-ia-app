@@ -138,7 +138,7 @@ function ReportCard({ report, onDelete }: { report: WeeklyReportItem; onDelete: 
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                             Métricas de la semana
                         </p>
-                        <div className="flex gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             <MetricTile label="Total leads" value={m.totalLeads} sub={`${m.newLeads} nuevos`} color="#3B82F6" />
                             <MetricTile label="Calientes" value={m.leadsByStatus['CALIENTE'] ?? 0} sub={`${m.leadsByStatus['TIBIO'] ?? 0} tibios`} color="#EF4444" />
                             <MetricTile label="Finalizados" value={m.conversions} sub={`${m.followUpsSent} follow-ups`} color="#22C55E" />
@@ -174,7 +174,7 @@ function ReportCard({ report, onDelete }: { report: WeeklyReportItem; onDelete: 
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                                 Actividad de la semana
                             </p>
-                            <div className="flex gap-2">
+                            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2">
                                 {actividadEntries.map(([tipo, count]) => (
                                     <ActivityChip
                                         key={tipo}
