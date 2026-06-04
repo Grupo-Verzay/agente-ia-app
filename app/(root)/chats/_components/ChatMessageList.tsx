@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MessageBubble } from './MessageBubble';
@@ -87,6 +88,9 @@ interface ChatMessageListProps {
   onReactMessage?: (bubble: UIBubble, emoji: string) => void;
   onDeleteMessage?: (bubble: UIBubble) => void;
   onDeleteNote?: (noteId: number) => Promise<void>;
+  onLoadOlderMessages?: () => Promise<void>;
+  canLoadOlderMessages?: boolean;
+  loadingOlderMessages?: boolean;
 }
 
 export const ChatMessageList: React.FC<ChatMessageListProps> = ({
@@ -99,6 +103,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
   onReactMessage,
   onDeleteMessage,
   onDeleteNote,
+  onLoadOlderMessages,
+  canLoadOlderMessages,
+  loadingOlderMessages,
 }) => {
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   const bgStyle = isDark ? WA_STYLE_DARK : WA_STYLE_LIGHT;
@@ -155,6 +162,20 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
       ref={listRef}
     >
       <div className="relative z-10 flex min-h-full w-full flex-col p-2 sm:p-4">
+        {canLoadOlderMessages && (
+          <div className="flex justify-center pb-3">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-8 rounded-full bg-background/90 px-3 text-xs shadow-sm"
+              disabled={loading || loadingOlderMessages}
+              onClick={() => void onLoadOlderMessages?.()}
+            >
+              {loadingOlderMessages ? 'Cargando...' : 'Cargar mensajes anteriores'}
+            </Button>
+          </div>
+        )}
         {loading && <div className="text-center text-gray-500 py-4">Cargando mensajes…</div>}
         {renderedList.map((item) =>
           item.type === 'date' ? (

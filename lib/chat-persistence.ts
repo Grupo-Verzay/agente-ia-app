@@ -372,6 +372,7 @@ export async function getPersistedMessages(params: {
   instanceName?: string | null;
   aliases?: string[];
   take?: number;
+  skip?: number;
 }) {
   await ensureChatMessagesTable();
   const candidates = buildWhatsAppJidCandidates(params.remoteJid, params.aliases ?? []);
@@ -382,6 +383,7 @@ export async function getPersistedMessages(params: {
       ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
       AND ("remoteJid" IN (${Prisma.join(candidates)}) OR "remoteJidAlt" IN (${Prisma.join(candidates)}))
     ORDER BY "messageTimestamp" DESC, "id" DESC
+    OFFSET ${params.skip ?? 0}
     LIMIT ${params.take ?? 50}
   `;
 

@@ -303,6 +303,7 @@ export async function warmChatMessagesAction(
   const user = await currentUser();
   const effectiveOwnerId = user?.ownerId ?? user?.id;
   const pageSize = options?.pageSize ?? DEFAULT_CHAT_MESSAGE_PAGE_SIZE;
+  const page = Math.max(options?.page ?? 1, 1);
 
   if (effectiveOwnerId) {
     const persisted = await getPersistedMessages({
@@ -310,17 +311,20 @@ export async function warmChatMessagesAction(
       instanceName: hasReadyContext(context) ? context.instanceName : undefined,
       remoteJid,
       aliases: options?.remoteJidAliases,
-      take: pageSize,
+      skip: (page - 1) * pageSize,
+      take: pageSize + 1,
     });
     if (persisted.length) {
+      const hasMore = persisted.length > pageSize;
+      const data = hasMore ? persisted.slice(0, pageSize) : persisted;
       return {
         success: true,
         message: "Mensajes cargados desde historial local.",
-        data: persisted,
-        total: persisted.length,
-        pages: 1,
-        currentPage: 1,
-        nextPage: null,
+        data,
+        total: data.length,
+        pages: hasMore ? page + 1 : page,
+        currentPage: page,
+        nextPage: hasMore ? page + 1 : null,
         queriedRemoteJid: remoteJid,
       };
     }

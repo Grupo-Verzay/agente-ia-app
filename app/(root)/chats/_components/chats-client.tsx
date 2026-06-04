@@ -58,7 +58,7 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
 }
 
 type ApiKeyData = { url: string; key: string };
-const INITIAL_MESSAGE_PAGE_SIZE = 10;
+const INITIAL_MESSAGE_PAGE_SIZE = 5;
 
 export type InstanceActionSet = {
   instanceName: string;
@@ -225,6 +225,7 @@ export function ChatsClient({
       : undefined,
   );
   const [loading, setLoading] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [isSidebarVisible, setIsSidebarVisible] = useState(!initialSelectedJid);
 
   const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -232,8 +233,30 @@ export function ChatsClient({
   const backoffRef = useRef(0);
   const messagesRef = useRef<EvolutionMessage[]>(initialMessages || []);
   const activeActionSetRef = useRef<InstanceActionSet | null>(null);
-  const BASE_INTERVAL = 2000;
+  const BASE_INTERVAL = 3000;
   const MAX_BACKOFF = 30000;
+
+  const getMessageKey = useCallback((message: EvolutionMessage) => {
+    return (
+      message.key?.id ||
+      message.id ||
+      `${message.key?.remoteJid ?? ""}:${message.messageTimestamp ?? 0}:${message.messageType ?? ""}:${message.key?.fromMe ? "1" : "0"}`
+    );
+  }, []);
+
+  const mergeMessages = useCallback(
+    (current: EvolutionMessage[], next: EvolutionMessage[]) => {
+      const map = new Map<string, EvolutionMessage>();
+      for (const message of current) map.set(getMessageKey(message), message);
+      for (const message of next) map.set(getMessageKey(message), message);
+      return Array.from(map.values()).sort((a, b) => {
+        const tsDiff = (b.messageTimestamp ?? 0) - (a.messageTimestamp ?? 0);
+        if (tsDiff !== 0) return tsDiff;
+        return getMessageKey(b).localeCompare(getMessageKey(a));
+      });
+    },
+    [getMessageKey],
+  );
 
   const contacts = useMemo(() => {
     if (!currentChatsResult.success) return [];
@@ -528,7 +551,7 @@ export function ChatsClient({
         if (result?.success) {
           const nextMessages = result.data || [];
           if (areListsDifferent(messagesRef.current, nextMessages)) {
-            setMessages(nextMessages);
+            setMessages((previous) => mergeMessages(previous, nextMessages));
             setInfo({
               total: result.total,
               pages: result.pages,
@@ -556,7 +579,7 @@ export function ChatsClient({
         inFlightRef.current = false;
       }
     },
-    [apiKeyData, instanceName, warmMessagesAction],
+    [apiKeyData, instanceName, mergeMessages, warmMessagesAction],
   );
 
   const handleSelectFromSidebar = useCallback(
@@ -667,6 +690,56 @@ export function ChatsClient({
       sendAnyAction,
     ],
   );
+
+  const handleLoadOlderMessages = useCallback(async () => {
+    if (!selectedJid || loading || loadingOlderMessages) return;
+
+    const currentPage = info?.currentPage ?? 1;
+    const nextPage = info?.nextPage ?? currentPage + 1;
+    const activeSet = activeActionSetRef.current;
+    const effectiveWarmMessages = activeSet?.warmMessages ?? warmMessagesAction;
+    const effectiveInstanceName = activeSet?.instanceName ?? instanceName;
+    const effectiveApiKeyData = activeSet?.instanceType === "baileys" ? undefined : apiKeyData;
+    const remoteJidAliases = currentContact?.aliases ?? info?.remoteJidAliases;
+
+    setLoadingOlderMessages(true);
+    try {
+      const result = await effectiveWarmMessages(selectedJid, {
+        page: nextPage,
+        pageSize: INITIAL_MESSAGE_PAGE_SIZE,
+        remoteJidAliases,
+      });
+
+      if (!result.success) {
+        toast.error(result.message || "No se pudieron cargar mensajes anteriores.");
+        return;
+      }
+
+      setMessages((previous) => mergeMessages(previous, result.data || []));
+      setInfo({
+        total: result.total,
+        pages: result.pages,
+        currentPage: result.currentPage ?? nextPage,
+        nextPage: result.nextPage,
+        instanceName: effectiveInstanceName,
+        remoteJid: selectedJid,
+        remoteJidAliases,
+        apiKeyData: effectiveApiKeyData,
+      });
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }, [
+    apiKeyData,
+    currentContact?.aliases,
+    info,
+    instanceName,
+    loading,
+    loadingOlderMessages,
+    mergeMessages,
+    selectedJid,
+    warmMessagesAction,
+  ]);
 
   const handleSendWorkflow = useCallback(
     async (workflowId: string) => {
@@ -1142,6 +1215,9 @@ export function ChatsClient({
                 : undefined
             }
             onNewMessage={instanceActionSets && instanceActionSets.length > 0 ? handleNewMessageForContact : undefined}
+            onLoadOlderMessages={handleLoadOlderMessages}
+            canLoadOlderMessages={Boolean(info?.nextPage)}
+            loadingOlderMessages={loadingOlderMessages}
           />
         ) : (
           <div className="hidden sm:flex h-full flex-1 flex-col items-center justify-center gap-5 select-none border-l border-border bg-muted/10 px-8">

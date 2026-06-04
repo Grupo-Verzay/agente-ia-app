@@ -65,6 +65,9 @@ type ChatMainProps = {
   assignedAdvisorId?: string | null;
   onAssignAdvisor?: (advisorId: string | null) => Promise<void>;
   onNewMessage?: () => void;
+  onLoadOlderMessages?: () => Promise<void>;
+  canLoadOlderMessages?: boolean;
+  loadingOlderMessages?: boolean;
 };
 
 export const ChatMain: React.FC<ChatMainProps> = ({
@@ -88,6 +91,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   assignedAdvisorId,
   onAssignAdvisor,
   onNewMessage,
+  onLoadOlderMessages,
+  canLoadOlderMessages,
+  loadingOlderMessages,
 }) => {
   /* ─── Refs ─── */
   const listRef = useRef<HTMLDivElement>(null);
@@ -202,8 +208,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     if (el) el.scrollTop = el.scrollHeight;
   }, []);
   useLayoutEffect(() => {
+    if (loadingOlderMessages) return;
     scrollToBottom();
-  }, [allMessages.length, tempMessage, scrollToBottom]);
+  }, [allMessages.length, loadingOlderMessages, tempMessage, scrollToBottom]);
 
   /* ─── Textarea auto-resize ─── */
   useEffect(() => {
@@ -498,6 +505,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onReactMessage={handleReactMessage}
         onDeleteMessage={!advisorRole || advisorRole === 'administrador' ? handleDeleteMessage : undefined}
         onDeleteNote={handleDeleteNote}
+        onLoadOlderMessages={onLoadOlderMessages}
+        canLoadOlderMessages={canLoadOlderMessages}
+        loadingOlderMessages={loadingOlderMessages}
       />
 
       <SuggestedReplyBar
