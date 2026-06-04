@@ -79,14 +79,26 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
     return counts;
   }, [reminders]);
 
-  // Schedule view: sorted by DB order (drag-and-drop), filtered by search
+  // Schedule view: sorted by order ASC, then by time seconds DESC (mayor tiempo primero)
   const scheduleReminders = useMemo(() => {
+    const timeToSeconds = (time: string | null): number => {
+      if (!time) return 0;
+      const m = time.match(/^(hours|minutes)-(\d+)$/);
+      if (!m) return 0;
+      const n = Number(m[2]);
+      return m[1] === 'hours' ? n * 3600 : n * 60;
+    };
+
     return reminders
       .filter((r) => r.isSchedule === true)
       .filter((r) => {
         if (!search) return true;
         const text = `${r.title} ${r.description ?? ""} ${r.pushName ?? ""} ${r.remoteJid ?? ""}`.toLowerCase();
         return text.includes(search.toLowerCase());
+      })
+      .sort((a, b) => {
+        if (a.order !== b.order) return a.order - b.order;
+        return timeToSeconds(b.time) - timeToSeconds(a.time);
       });
   }, [reminders, search]);
 
