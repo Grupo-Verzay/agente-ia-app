@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { ChevronsUpDown, Check, Plus, Loader2, Users } from "lucide-react";
+import { ChevronsUpDown, Check, Plus, Loader2, Users, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -26,6 +26,7 @@ import {
   getMyLinkedAccounts,
   switchToAccount,
   addLinkedAccount,
+  removeLinkedAccount,
   type LinkedAccountsPayload,
 } from "@/actions/linked-account-actions";
 import type { User } from "@prisma/client";
@@ -102,6 +103,23 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
         if (updated.success && updated.data) setPayload(updated.data);
       } catch {
         toast.error("Error al vincular cuenta. Intenta nuevamente.");
+      }
+    });
+  };
+
+  const handleUnlink = (linkedUserId: string) => {
+    startTransition(async () => {
+      try {
+        const res = await removeLinkedAccount(linkedUserId);
+        if (!res.success) {
+          toast.error(res.message ?? "Error al desvincular cuenta.");
+          return;
+        }
+        toast.success("Cuenta desvinculada.");
+        const updated = await getMyLinkedAccounts();
+        if (updated.success && updated.data) setPayload(updated.data);
+      } catch {
+        toast.error("Error al desvincular cuenta. Intenta nuevamente.");
       }
     });
   };
@@ -183,22 +201,39 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
 
               {/* Cuentas accesibles */}
               {linked.map((a) => (
-                <DropdownMenuItem
-                  key={a.accountUserId}
-                  onSelect={() => handleSwitch(a.accountUserId)}
-                  className="flex items-center gap-2 px-2 py-1.5 cursor-pointer"
-                >
-                  <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white", colorFor(a.accountUserId))}>
-                    {initials(a.name, a.email, a.company)}
-                  </div>
-                  <div className="flex flex-1 flex-col min-w-0">
-                    <span className="truncate text-sm font-medium">{displayName(a)}</span>
-                    <span className="truncate text-[10px] text-muted-foreground">
-                      {a.label ?? (a.role === "administrador" ? "Administrador" : "Agente")}
-                    </span>
-                  </div>
-                  {activeId === a.accountUserId && <Check className="h-3.5 w-3.5 text-primary" />}
-                </DropdownMenuItem>
+                <div key={a.accountUserId} className="flex items-center gap-1">
+                  <DropdownMenuItem
+                    onSelect={() => handleSwitch(a.accountUserId)}
+                    className="flex flex-1 items-center gap-2 px-2 py-1.5 cursor-pointer"
+                  >
+                    <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white", colorFor(a.accountUserId))}>
+                      {initials(a.name, a.email, a.company)}
+                    </div>
+                    <div className="flex flex-1 flex-col min-w-0">
+                      <span className="truncate text-sm font-medium">{displayName(a)}</span>
+                      <span className="truncate text-[10px] text-muted-foreground">
+                        {a.label ?? (a.role === "administrador" ? "Administrador" : "Agente")}
+                      </span>
+                    </div>
+                    {activeId === a.accountUserId && <Check className="h-3.5 w-3.5 text-primary" />}
+                  </DropdownMenuItem>
+                  {a.accountUserId !== activeId && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleUnlink(a.accountUserId);
+                      }}
+                      title="Desvincular cuenta"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  )}
+                </div>
               ))}
 
               {(!user.ownerId || user.advisorRole === "administrador") && (

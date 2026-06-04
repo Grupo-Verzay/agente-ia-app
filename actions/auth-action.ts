@@ -12,6 +12,10 @@ import { LENGTH_PASSWORD_HASH } from "@/types/generic";
 
 export const loginAction = async (values: z.infer<typeof loginSchema>) => {
   try {
+    const store = cookies();
+    store.delete("active_account_id");
+    store.delete("impersonate_user_id");
+
     await signIn("credentials", {
       email: values.email,
       password: values.password,
@@ -30,6 +34,10 @@ export const registerAction = async (
   values: z.infer<typeof registerSchema>
 ) => {
   try {
+    const store = cookies();
+    store.delete("active_account_id");
+    store.delete("impersonate_user_id");
+
     const { data, success } = registerSchema.safeParse(values);
     if (!success) {
       return {
@@ -246,6 +254,7 @@ export async function logoutAction() {
 
   // cookie de impersonación (clave para tu bug)
   store.delete("impersonate_user_id");
+  store.delete("active_account_id");
 
   // (Opcional) si guardas otros estados por cookies, bórralos aquí
   // store.delete("sidebar_state");

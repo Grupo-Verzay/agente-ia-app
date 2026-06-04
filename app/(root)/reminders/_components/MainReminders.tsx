@@ -277,14 +277,11 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-2 p-2">
-            <Suspense fallback={<ReminderSkeleton />}>
-              <ReminderListClient
-                filteredReminders={filteredReminders}
-                workflows={workflows}
-                isScheduleView={isSchedule}
-              />
-            </Suspense>
+          <div className="flex flex-col gap-2 p-2">
+            <SortableReminderList
+              reminders={filteredReminders}
+              workflows={workflows}
+            />
           </div>
         )}
       </div>

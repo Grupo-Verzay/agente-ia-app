@@ -76,7 +76,7 @@ export default function TiptapEditor({ initialContent, onChange, editable = true
 
 function EditorToolbar({ editor }: { editor: Editor }) {
   return (
-    <div className="flex flex-wrap items-center gap-0.5 border-b border-border/50 px-2 py-1 shrink-0">
+    <div className="flex flex-wrap items-center gap-0.5 border-b border-border/50 px-2 py-1.5 shrink-0">
       <ToolbarToggle pressed={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="Negrita">
         <Bold className="h-3.5 w-3.5" />
       </ToolbarToggle>

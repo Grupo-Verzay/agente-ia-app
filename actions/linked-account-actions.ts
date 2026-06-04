@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isAdminLike } from "@/lib/rbac";
 import { cookies } from "next/headers";
 import type { Instancia } from "@prisma/client";
 
@@ -316,6 +317,32 @@ export async function removeLinkedAccount(linkedUserId: string): Promise<Result>
   }
 
   return { success: true };
+}
+
+export async function resetAllLinkedAccounts(): Promise<Result> {
+  const user = await currentUser();
+  if (!user) return { success: false, message: "No autorizado." };
+  if (!isAdminLike(user.role)) return { success: false, message: "Solo un administrador puede reiniciar los vínculos." };
+
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.$executeRaw`DELETE FROM "linked_accounts"`;
+      await tx.$executeRaw`
+        UPDATE "User"
+        SET owner_id = NULL,
+            advisor_role = NULL
+        WHERE owner_id IS NOT NULL
+      `;
+    });
+
+    cookies().delete("active_account_id");
+    cookies().delete("impersonate_user_id");
+
+    return { success: true, warning: "Se eliminaron todos los vínculos entre cuentas." };
+  } catch (error) {
+    console.error("[resetAllLinkedAccounts]", error);
+    return { success: false, message: "No se pudieron reiniciar los vínculos." };
+  }
 }
 
 export type LinkedAccountInstances = {
