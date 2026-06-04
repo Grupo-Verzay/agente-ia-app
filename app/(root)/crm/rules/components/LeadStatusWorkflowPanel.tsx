@@ -148,7 +148,7 @@ export function LeadStatusWorkflowPanel({ userId, filterStatus }: { userId: stri
                     onValueChange={(id) => handleSelect(value, id)}
                     disabled={isPending}
                   >
-                    <SelectTrigger className="h-7 text-xs bg-background w-48">
+                    <SelectTrigger className="h-7 text-xs bg-background w-56">
                       <SelectValue placeholder="Seleccionar flujo" />
                     </SelectTrigger>
                     <SelectContent className="max-w-[240px]">
