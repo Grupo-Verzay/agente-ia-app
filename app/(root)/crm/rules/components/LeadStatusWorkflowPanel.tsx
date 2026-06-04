@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, X, Zap } from "lucide-react";
+import {
+  ArrowRight, CheckCircle2, Flame, Loader2, Snowflake, XCircle, Zap,
+} from "lucide-react";
 import {
   getLeadStatusWorkflowConfigs,
   upsertLeadStatusWorkflowConfig,
@@ -11,30 +13,60 @@ import {
 } from "@/actions/lead-status-workflow-config-actions";
 import { getWorkFlowByUser } from "@/actions/workflow-actions";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 const LEAD_STATUSES = [
-  { value: "FRIO",       label: "Frío",       color: "bg-blue-100 text-blue-700 border-blue-200" },
-  { value: "TIBIO",      label: "Tibio",      color: "bg-amber-100 text-amber-700 border-amber-200" },
-  { value: "CALIENTE",   label: "Caliente",   color: "bg-red-100 text-red-700 border-red-200" },
-  { value: "FINALIZADO", label: "Finalizado", color: "bg-green-100 text-green-700 border-green-200" },
-  { value: "DESCARTADO", label: "Descartado", color: "bg-slate-100 text-slate-600 border-slate-200" },
+  {
+    value:   "FRIO",
+    label:   "Frío",
+    icon:    <Snowflake className="h-4 w-4" />,
+    iconCn:  "text-blue-500",
+    rowCn:   "border-blue-100 bg-blue-50/40",
+    labelCn: "text-blue-700 font-semibold",
+  },
+  {
+    value:   "TIBIO",
+    label:   "Tibio",
+    icon:    <Flame className="h-4 w-4" />,
+    iconCn:  "text-amber-400",
+    rowCn:   "border-amber-100 bg-amber-50/40",
+    labelCn: "text-amber-700 font-semibold",
+  },
+  {
+    value:   "CALIENTE",
+    label:   "Caliente",
+    icon:    <Flame className="h-4 w-4" />,
+    iconCn:  "text-red-500",
+    rowCn:   "border-red-100 bg-red-50/40",
+    labelCn: "text-red-600 font-semibold",
+  },
+  {
+    value:   "FINALIZADO",
+    label:   "Finalizado",
+    icon:    <CheckCircle2 className="h-4 w-4" />,
+    iconCn:  "text-green-500",
+    rowCn:   "border-green-100 bg-green-50/40",
+    labelCn: "text-green-700 font-semibold",
+  },
+  {
+    value:   "DESCARTADO",
+    label:   "Descartado",
+    icon:    <XCircle className="h-4 w-4" />,
+    iconCn:  "text-slate-400",
+    rowCn:   "border-slate-200 bg-slate-50/40",
+    labelCn: "text-slate-500 font-semibold",
+  },
 ] as const;
 
 type LeadStatusValue = typeof LEAD_STATUSES[number]["value"];
 
-export function LeadStatusWorkflowPanel({ userId }: { userId: string }) {
-  const [configs, setConfigs] = useState<LeadStatusWorkflowConfigItem[]>([]);
+export function LeadStatusWorkflowPanel({ userId, filterStatus }: { userId: string; filterStatus?: LeadStatusValue }) {
+  const [configs, setConfigs]   = useState<LeadStatusWorkflowConfigItem[]>([]);
   const [workflows, setWorkflows] = useState<{ id: string; name: string }[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]   = useState(true);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -79,7 +111,7 @@ export function LeadStatusWorkflowPanel({ userId }: { userId: string }) {
 
   if (loading) {
     return (
-      <div className="flex flex-1 items-center justify-center gap-2 text-muted-foreground text-sm">
+      <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
         Cargando configuración...
       </div>
@@ -87,40 +119,37 @@ export function LeadStatusWorkflowPanel({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="flex flex-1 min-h-0 flex-col overflow-y-auto p-6 gap-6">
-      <div className="space-y-1">
-        <h3 className="text-base font-semibold flex items-center gap-2">
-          <Zap className="h-4 w-4 text-primary" />
-          Flujos por estado de lead
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          Cuando un lead cambia a este estado, el flujo se dispara automáticamente.
-          Solo se ejecuta una vez por estado por lead.
-        </p>
-      </div>
-
-      <div className="space-y-3">
-        {LEAD_STATUSES.map(({ value, label, color }) => {
+    <div className="flex flex-col gap-2">
+      {/* Tabla compacta */}
+      <div className="rounded-lg border border-border/70 overflow-hidden divide-y divide-border bg-muted/20">
+        {LEAD_STATUSES.filter(s => !filterStatus || s.value === filterStatus).map(({ value, label, icon, iconCn, rowCn, labelCn }) => {
           const config = getConfig(value);
           return (
-            <div
-              key={value}
-              className="flex items-center gap-3 rounded-lg border bg-card p-4"
-            >
-              <Badge variant="outline" className={cn("shrink-0 w-24 justify-center text-xs font-medium border", color)}>
-                {label}
-              </Badge>
+            <div key={value} className={cn("flex items-center gap-3 px-4 py-3", rowCn)}>
 
+              {/* Ícono + label del estado */}
+              <div className="flex items-center gap-2 w-28 shrink-0">
+                <span className={iconCn}>{icon}</span>
+                <span className={cn("text-sm", labelCn)}>{label}</span>
+              </div>
+
+              {/* Flecha + texto intermedio */}
+              <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground">
+                <ArrowRight className="h-3.5 w-3.5" />
+                <span className="text-xs">Disparar flujo:</span>
+              </div>
+
+              {/* Selector */}
               <div className="flex-1 min-w-0">
                 {workflows.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Sin flujos disponibles</p>
+                  <p className="text-xs text-muted-foreground">Sin flujos disponibles</p>
                 ) : (
                   <Select
                     value={config?.workflowId ?? ""}
                     onValueChange={(id) => handleSelect(value, id)}
                     disabled={isPending}
                   >
-                    <SelectTrigger className="h-9 text-sm">
+                    <SelectTrigger className="h-8 text-sm bg-background">
                       <SelectValue placeholder="Seleccionar flujo..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -134,26 +163,28 @@ export function LeadStatusWorkflowPanel({ userId }: { userId: string }) {
                 )}
               </div>
 
-              {config && (
+              {/* Quitar */}
+              {config ? (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                  className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
                   onClick={() => handleRemove(value)}
                   disabled={isPending}
                   title="Quitar flujo"
                 >
-                  <X className="h-4 w-4" />
+                  <XCircle className="h-4 w-4" />
                 </Button>
+              ) : (
+                <div className="h-7 w-7 shrink-0" />
               )}
             </div>
           );
         })}
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Si el lead vuelve a un estado ya ejecutado, el flujo <strong>no</strong> se vuelve a disparar.
-        Al cambiar de estado, los mensajes pendientes del flujo anterior se cancelan automáticamente.
+      <p className="text-[11px] text-muted-foreground px-1">
+        Se ejecuta solo una vez por estado. Al cambiar de estado, los mensajes pendientes del flujo anterior se cancelan.
       </p>
     </div>
   );
