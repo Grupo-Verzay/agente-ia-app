@@ -310,11 +310,11 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
             </div>
 
             {/* --- Toolbar (simétrica con CrmRecordsToolbar) --- */}
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
 
                     {/* Búsqueda */}
-                    <div className="relative w-64 shrink-0">
+                    <div className="relative w-full sm:w-64 shrink-0">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={searchValue}
@@ -324,106 +324,108 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                         />
                     </div>
 
-                    {/* Filtros avanzados */}
-                    <Popover>
-                        <UiTooltip>
-                            <TooltipTrigger asChild>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline" size="sm" className="relative h-9 gap-2 max-sm:w-9 max-sm:px-0">
-                                        <SlidersHorizontal className="h-4 w-4 shrink-0" />
-                                        <span className="hidden sm:inline">Filtros avanzados</span>
-                                        <span className="sr-only sm:hidden">Filtros avanzados</span>
-                                        {advFilterCount > 0 && (
-                                            <Badge variant="secondary" className="absolute -right-1 -top-1 h-5 min-w-5 rounded-full px-1 text-[10px] sm:static sm:min-w-0 sm:rounded-full sm:px-1.5">
-                                                {advFilterCount}
-                                            </Badge>
-                                        )}
-                                    </Button>
-                                </PopoverTrigger>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom">Filtros avanzados</TooltipContent>
-                        </UiTooltip>
-                        <PopoverContent align="start" className="w-[min(92vw,320px)] p-0">
-                            <ScrollArea className="h-auto max-h-[400px]">
-                                <div className="space-y-4 p-4">
-                                    <div>
-                                        <p className="text-sm font-medium">Filtros de analíticas</p>
-                                        <p className="text-xs text-muted-foreground">Afectan las gráficas de leads y embudo.</p>
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <label className="text-xs font-medium text-muted-foreground">Estado del lead</label>
-                                        <Select value={leadFilter} onValueChange={setLeadFilter}>
-                                            <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="__all__">Todos</SelectItem>
-                                                <SelectItem value="FRIO">Frío</SelectItem>
-                                                <SelectItem value="TIBIO">Tibio</SelectItem>
-                                                <SelectItem value="CALIENTE">Caliente</SelectItem>
-                                                <SelectItem value="FINALIZADO">Finalizado</SelectItem>
-                                                <SelectItem value="DESCARTADO">Descartado</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="grid gap-2">
-                                            <label className="text-xs font-medium text-muted-foreground">Desde</label>
-                                            <Input type="date" className="h-9" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <label className="text-xs font-medium text-muted-foreground">Hasta</label>
-                                            <Input type="date" className="h-9" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-end">
-                                        <Button variant="ghost" size="sm" onClick={resetAdvFilters}>Limpiar filtros</Button>
-                                    </div>
-                                </div>
-                            </ScrollArea>
-                        </PopoverContent>
-                    </Popover>
+                    {/* Botones de acción — siempre en fila, con label visible */}
+                    <div className="flex flex-row gap-2">
 
-                    <DropdownMenu>
+                        {/* Filtros avanzados */}
+                        <Popover>
+                            <UiTooltip>
+                                <TooltipTrigger asChild>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" size="sm" className="relative h-9 gap-1.5 flex-1 sm:flex-none">
+                                            <SlidersHorizontal className="h-4 w-4 shrink-0" />
+                                            <span className="truncate">Filtros</span>
+                                            {advFilterCount > 0 && (
+                                                <Badge variant="secondary" className="ml-0.5 h-5 min-w-5 rounded-full px-1 text-[10px]">
+                                                    {advFilterCount}
+                                                </Badge>
+                                            )}
+                                        </Button>
+                                    </PopoverTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">Filtros avanzados</TooltipContent>
+                            </UiTooltip>
+                            <PopoverContent align="start" className="w-[min(92vw,320px)] p-0">
+                                <ScrollArea className="h-auto max-h-[400px]">
+                                    <div className="space-y-4 p-4">
+                                        <div>
+                                            <p className="text-sm font-medium">Filtros de analíticas</p>
+                                            <p className="text-xs text-muted-foreground">Afectan las gráficas de leads y embudo.</p>
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <label className="text-xs font-medium text-muted-foreground">Estado del lead</label>
+                                            <Select value={leadFilter} onValueChange={setLeadFilter}>
+                                                <SelectTrigger className="h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="__all__">Todos</SelectItem>
+                                                    <SelectItem value="FRIO">Frío</SelectItem>
+                                                    <SelectItem value="TIBIO">Tibio</SelectItem>
+                                                    <SelectItem value="CALIENTE">Caliente</SelectItem>
+                                                    <SelectItem value="FINALIZADO">Finalizado</SelectItem>
+                                                    <SelectItem value="DESCARTADO">Descartado</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="grid gap-2">
+                                                <label className="text-xs font-medium text-muted-foreground">Desde</label>
+                                                <Input type="date" className="h-9" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
+                                            </div>
+                                            <div className="grid gap-2">
+                                                <label className="text-xs font-medium text-muted-foreground">Hasta</label>
+                                                <Input type="date" className="h-9" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end">
+                                            <Button variant="ghost" size="sm" onClick={resetAdvFilters}>Limpiar filtros</Button>
+                                        </div>
+                                    </div>
+                                </ScrollArea>
+                            </PopoverContent>
+                        </Popover>
+
+                        <DropdownMenu>
+                            <UiTooltip>
+                                <TooltipTrigger asChild>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" size="sm" className="h-9 gap-1.5 flex-1 sm:flex-none">
+                                            <Columns3 className="h-4 w-4 shrink-0" />
+                                            <span className="truncate">Secciones</span>
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">Mostrar / ocultar secciones</TooltipContent>
+                            </UiTooltip>
+                            <DropdownMenuContent align="start">
+                                {(Object.entries(ANALYTICS_SECTIONS) as [SectionKey, string][]).map(([key, label]) => (
+                                    <DropdownMenuCheckboxItem
+                                        key={key}
+                                        checked={visibleSections[key]}
+                                        onCheckedChange={() => toggleSection(key)}
+                                    >
+                                        {label}
+                                    </DropdownMenuCheckboxItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
                         <UiTooltip>
                             <TooltipTrigger asChild>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm" className="h-9 gap-2 max-sm:w-9 max-sm:px-0">
-                                        <Columns3 className="h-4 w-4 shrink-0" />
-                                        <span className="hidden sm:inline">Secciones</span>
-                                        <span className="sr-only sm:hidden">Secciones</span>
-                                    </Button>
-                                </DropdownMenuTrigger>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom">Mostrar / ocultar secciones</TooltipContent>
-                        </UiTooltip>
-                        <DropdownMenuContent align="start">
-                            {(Object.entries(ANALYTICS_SECTIONS) as [SectionKey, string][]).map(([key, label]) => (
-                                <DropdownMenuCheckboxItem
-                                    key={key}
-                                    checked={visibleSections[key]}
-                                    onCheckedChange={() => toggleSection(key)}
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 gap-1.5 flex-1 sm:flex-none"
+                                    onClick={handleExport}
+                                    disabled={!a}
                                 >
-                                    {label}
-                                </DropdownMenuCheckboxItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                                    <Download className="h-4 w-4 shrink-0" />
+                                    <span className="truncate">Exportar</span>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">Exportar analíticas a CSV</TooltipContent>
+                        </UiTooltip>
 
-                    <UiTooltip>
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-9 gap-2 max-sm:w-9 max-sm:px-0"
-                                onClick={handleExport}
-                                disabled={!a}
-                            >
-                                <Download className="h-4 w-4 shrink-0" />
-                                <span className="hidden sm:inline">Exportar</span>
-                                <span className="sr-only sm:hidden">Exportar</span>
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">Exportar analíticas a CSV</TooltipContent>
-                    </UiTooltip>
+                    </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
