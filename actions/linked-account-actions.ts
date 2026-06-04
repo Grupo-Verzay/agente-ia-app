@@ -281,7 +281,7 @@ export async function addLinkedAccount(
   try {
     await db.$executeRaw`
       INSERT INTO "linked_accounts" (id, "master_user_id", "linked_user_id", role)
-      VALUES (${newId}, ${context.accountUserId}, ${linked.id}, ${role})
+      VALUES (${newId}, ${context.accountUserId}, ${linked.id}, ${role}::"LinkedAccountRole")
     `;
   } catch {
     return { success: false, message: "Error al vincular. Contacta al soporte si el problema persiste." };
