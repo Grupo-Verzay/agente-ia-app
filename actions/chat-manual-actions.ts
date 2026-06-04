@@ -331,7 +331,7 @@ async function buildPersistedMessagesResult(params: {
 export async function warmChatMessagesAction(
   context: ChatActionContext,
   remoteJid: string,
-  options?: { page?: number; pageSize?: number; remoteJidAliases?: string[] },
+  options?: { page?: number; pageSize?: number; remoteJidAliases?: string[]; localOnly?: boolean },
 ): Promise<FindMessagesResult> {
   const user = await currentUser();
   const effectiveOwnerId = user?.ownerId ?? user?.id;
@@ -339,7 +339,7 @@ export async function warmChatMessagesAction(
   const page = Math.max(options?.page ?? 1, 1);
 
   if (effectiveOwnerId) {
-    const shouldUseLocalOnly = page > 1 || !hasReadyContext(context);
+    const shouldUseLocalOnly = Boolean(options?.localOnly) || page > 1 || !hasReadyContext(context);
 
     if (shouldUseLocalOnly) {
       const localResult = await buildPersistedMessagesResult({
@@ -351,7 +351,7 @@ export async function warmChatMessagesAction(
         pageSize,
         message: "Mensajes cargados desde historial local.",
       });
-      if (localResult.data.length) {
+      if (localResult.data.length || options?.localOnly) {
         return localResult;
       }
     }

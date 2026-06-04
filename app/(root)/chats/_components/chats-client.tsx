@@ -65,7 +65,7 @@ export type InstanceActionSet = {
   instanceType?: string;
   warmMessages: (
     remoteJid: string,
-    opts?: { page?: number; pageSize?: number; remoteJidAliases?: string[] },
+    opts?: { page?: number; pageSize?: number; remoteJidAliases?: string[]; localOnly?: boolean },
   ) => Promise<FindMessagesResult>;
   sendText: (remoteJid: string, payload: OutgoingMessagePayload) => Promise<SendMessageResult>;
   sendWorkflow: (remoteJid: string, workflowId: string) => Promise<ChatToolActionResult>;
@@ -122,7 +122,7 @@ interface ChatsClientProps {
   instanceName?: string;
   warmMessagesAction: (
     remoteJid: string,
-    opts?: { page?: number; pageSize?: number; remoteJidAliases?: string[] },
+    opts?: { page?: number; pageSize?: number; remoteJidAliases?: string[]; localOnly?: boolean },
   ) => Promise<FindMessagesResult>;
   sendAnyAction: (
     remoteJid: string,
@@ -233,6 +233,7 @@ export function ChatsClient({
   const backoffRef = useRef(0);
   const messagesRef = useRef<EvolutionMessage[]>(initialMessages || []);
   const activeActionSetRef = useRef<InstanceActionSet | null>(null);
+  const selectionRequestRef = useRef(0);
   const BASE_INTERVAL = 3000;
   const MAX_BACKOFF = 30000;
 
@@ -620,23 +621,29 @@ export function ChatsClient({
         remoteJidAliases,
         apiKeyData: effectiveApiKeyData,
       }));
+      const requestId = selectionRequestRef.current + 1;
+      selectionRequestRef.current = requestId;
       setLoading(true);
       setMessages([]);
 
       try {
-        const result = await effectiveWarmMessages(remoteJid, {
+        const shouldOpenFromLocalFirst = actionSet?.instanceType !== "baileys";
+        const localResult = await effectiveWarmMessages(remoteJid, {
           page: 1,
           pageSize: INITIAL_MESSAGE_PAGE_SIZE,
           remoteJidAliases,
+          localOnly: shouldOpenFromLocalFirst,
         });
 
-        if (result?.success) {
-          setMessages(result.data || []);
+        if (selectionRequestRef.current !== requestId) return;
+
+        if (localResult?.success) {
+          setMessages(localResult.data || []);
           setInfo({
-            total: result.total,
-            pages: result.pages,
-            currentPage: result.currentPage,
-            nextPage: result.nextPage,
+            total: localResult.total,
+            pages: localResult.pages,
+            currentPage: localResult.currentPage,
+            nextPage: localResult.nextPage,
             instanceName: effectiveInstanceName,
             remoteJid,
             remoteJidAliases,
@@ -652,6 +659,31 @@ export function ChatsClient({
             apiKeyData: effectiveApiKeyData,
           }));
         }
+
+        if (!shouldOpenFromLocalFirst) return;
+
+        void effectiveWarmMessages(remoteJid, {
+          page: 1,
+          pageSize: INITIAL_MESSAGE_PAGE_SIZE,
+          remoteJidAliases,
+        })
+          .then((syncResult) => {
+            if (selectionRequestRef.current !== requestId || !syncResult?.success) return;
+            setMessages((previous) => mergeMessages(previous, syncResult.data || []));
+            setInfo({
+              total: syncResult.total,
+              pages: syncResult.pages,
+              currentPage: syncResult.currentPage,
+              nextPage: syncResult.nextPage,
+              instanceName: effectiveInstanceName,
+              remoteJid,
+              remoteJidAliases,
+              apiKeyData: effectiveApiKeyData,
+            });
+          })
+          .catch(() => {
+            // Keep the local messages visible if the background sync fails.
+          });
       } catch {
         setMessages([]);
         setInfo((currentInfo) => ({
@@ -665,7 +697,7 @@ export function ChatsClient({
         setLoading(false);
       }
     },
-    [apiKeyData, contacts, instanceActionSets, instanceName, isSidebarVisible, selectedJid, warmMessagesAction],
+    [apiKeyData, contacts, instanceActionSets, instanceName, isSidebarVisible, mergeMessages, selectedJid, warmMessagesAction],
   );
 
   const handleSendAny = useCallback(

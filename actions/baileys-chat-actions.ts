@@ -114,7 +114,7 @@ function inferMimeFromUrl(url: string): string {
 export async function findMessagesFromBaileys(
   instanceName: string,
   remoteJid: string,
-  opts?: { pageSize?: number; before?: string; page?: number; remoteJidAliases?: string[] },
+  opts?: { pageSize?: number; before?: string; page?: number; remoteJidAliases?: string[]; localOnly?: boolean },
 ): Promise<FindMessagesResult> {
   try {
     const params = new URLSearchParams();
