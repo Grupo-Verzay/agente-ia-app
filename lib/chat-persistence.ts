@@ -99,6 +99,65 @@ function ensureChatMessagesTable() {
       CREATE INDEX IF NOT EXISTS "chat_messages_user_instance_ts_idx"
       ON "chat_messages" ("userId", "instanceName", "messageTimestamp" DESC)
     `;
+    await db.$executeRaw`
+      CREATE TABLE IF NOT EXISTS "chat_conversations" (
+        "id" BIGSERIAL PRIMARY KEY,
+        "userId" TEXT NOT NULL,
+        "instanceName" TEXT NOT NULL,
+        "instanceType" TEXT,
+        "remoteJid" TEXT NOT NULL,
+        "remoteJidAlt" TEXT,
+        "senderPn" TEXT,
+        "pushName" TEXT,
+        "lastMessageId" TEXT,
+        "lastMessageFromMe" BOOLEAN,
+        "lastMessageType" TEXT,
+        "lastMessageContent" TEXT,
+        "lastMessageMediaUrl" TEXT,
+        "lastMessageRaw" JSONB,
+        "lastMessageTimestamp" TIMESTAMP(3),
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    await db.$executeRaw`
+      CREATE UNIQUE INDEX IF NOT EXISTS "chat_conversations_user_instance_jid_unique"
+      ON "chat_conversations" ("userId", "instanceName", "remoteJid")
+    `;
+    await db.$executeRaw`
+      CREATE INDEX IF NOT EXISTS "chat_conversations_user_last_ts_idx"
+      ON "chat_conversations" ("userId", "lastMessageTimestamp" DESC)
+    `;
+    await db.$executeRaw`
+      INSERT INTO "chat_conversations" (
+        "userId", "instanceName", "instanceType", "remoteJid", "remoteJidAlt", "senderPn",
+        "pushName", "lastMessageId", "lastMessageFromMe", "lastMessageType",
+        "lastMessageContent", "lastMessageMediaUrl", "lastMessageRaw",
+        "lastMessageTimestamp", "createdAt", "updatedAt"
+      )
+      SELECT DISTINCT ON ("userId", "instanceName", "remoteJid")
+        "userId", "instanceName", "instanceType", "remoteJid", "remoteJidAlt", "senderPn",
+        "pushName", "messageId", "fromMe", "messageType",
+        "content", "mediaUrl", "raw", "messageTimestamp", NOW(), NOW()
+      FROM "chat_messages"
+      ORDER BY "userId", "instanceName", "remoteJid", "messageTimestamp" DESC, "id" DESC
+      ON CONFLICT ("userId", "instanceName", "remoteJid")
+      DO UPDATE SET
+        "instanceType" = COALESCE(EXCLUDED."instanceType", "chat_conversations"."instanceType"),
+        "remoteJidAlt" = COALESCE(EXCLUDED."remoteJidAlt", "chat_conversations"."remoteJidAlt"),
+        "senderPn" = COALESCE(EXCLUDED."senderPn", "chat_conversations"."senderPn"),
+        "pushName" = COALESCE(EXCLUDED."pushName", "chat_conversations"."pushName"),
+        "lastMessageId" = EXCLUDED."lastMessageId",
+        "lastMessageFromMe" = EXCLUDED."lastMessageFromMe",
+        "lastMessageType" = EXCLUDED."lastMessageType",
+        "lastMessageContent" = EXCLUDED."lastMessageContent",
+        "lastMessageMediaUrl" = EXCLUDED."lastMessageMediaUrl",
+        "lastMessageRaw" = EXCLUDED."lastMessageRaw",
+        "lastMessageTimestamp" = EXCLUDED."lastMessageTimestamp",
+        "updatedAt" = NOW()
+      WHERE "chat_conversations"."lastMessageTimestamp" IS NULL
+         OR "chat_conversations"."lastMessageTimestamp" <= EXCLUDED."lastMessageTimestamp"
+    `;
   })();
 
   return ensureTablePromise;
@@ -337,6 +396,38 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
       "messageTimestamp" = EXCLUDED."messageTimestamp",
       "updatedAt" = NOW()
   `;
+
+  await db.$executeRaw`
+    INSERT INTO "chat_conversations" (
+      "userId", "instanceName", "instanceType", "remoteJid", "remoteJidAlt", "senderPn",
+      "pushName", "lastMessageId", "lastMessageFromMe", "lastMessageType",
+      "lastMessageContent", "lastMessageMediaUrl", "lastMessageRaw",
+      "lastMessageTimestamp", "createdAt", "updatedAt"
+    )
+    VALUES (
+      ${input.userId}, ${input.instanceName}, ${input.instanceType ?? null}, ${normalizedRemoteJid},
+      ${input.remoteJidAlt ?? null}, ${input.senderPn ?? null}, ${input.pushName ?? null},
+      ${messageId}, ${input.fromMe}, ${input.messageType ?? 'conversation'},
+      ${input.content ?? null}, ${input.mediaUrl ?? null}, ${input.raw ?? Prisma.JsonNull},
+      ${messageTimestamp}, NOW(), NOW()
+    )
+    ON CONFLICT ("userId", "instanceName", "remoteJid")
+    DO UPDATE SET
+      "instanceType" = COALESCE(EXCLUDED."instanceType", "chat_conversations"."instanceType"),
+      "remoteJidAlt" = COALESCE(EXCLUDED."remoteJidAlt", "chat_conversations"."remoteJidAlt"),
+      "senderPn" = COALESCE(EXCLUDED."senderPn", "chat_conversations"."senderPn"),
+      "pushName" = COALESCE(EXCLUDED."pushName", "chat_conversations"."pushName"),
+      "lastMessageId" = EXCLUDED."lastMessageId",
+      "lastMessageFromMe" = EXCLUDED."lastMessageFromMe",
+      "lastMessageType" = EXCLUDED."lastMessageType",
+      "lastMessageContent" = EXCLUDED."lastMessageContent",
+      "lastMessageMediaUrl" = EXCLUDED."lastMessageMediaUrl",
+      "lastMessageRaw" = EXCLUDED."lastMessageRaw",
+      "lastMessageTimestamp" = EXCLUDED."lastMessageTimestamp",
+      "updatedAt" = NOW()
+    WHERE "chat_conversations"."lastMessageTimestamp" IS NULL
+       OR "chat_conversations"."lastMessageTimestamp" <= EXCLUDED."lastMessageTimestamp"
+  `;
 }
 
 export async function persistEvolutionMessages(params: {
@@ -411,14 +502,14 @@ export async function getPersistedInboxChats(params: {
       s."remoteJidAlt",
       s."pushName",
       COALESCE(i."instanceName", s."instanceId") AS "instanceName",
-      i."instanceType",
-      m."messageId",
-      m."fromMe",
-      m."messageType",
-      m."content",
-      m."mediaUrl",
-      m."raw",
-      m."messageTimestamp",
+      COALESCE(i."instanceType", c."instanceType") AS "instanceType",
+      c."lastMessageId" AS "messageId",
+      c."lastMessageFromMe" AS "fromMe",
+      c."lastMessageType" AS "messageType",
+      c."lastMessageContent" AS "content",
+      c."lastMessageMediaUrl" AS "mediaUrl",
+      c."lastMessageRaw" AS "raw",
+      c."lastMessageTimestamp" AS "messageTimestamp",
       s."updatedAt" AS "sessionUpdatedAt"
     FROM "Session" s
     LEFT JOIN "Instancias" i
@@ -426,22 +517,22 @@ export async function getPersistedInboxChats(params: {
       AND (i."instanceName" = s."instanceId" OR i."instanceId" = s."instanceId")
     LEFT JOIN LATERAL (
       SELECT *
-      FROM "chat_messages" cm
-      WHERE cm."userId" = s."userId"
+      FROM "chat_conversations" cc
+      WHERE cc."userId" = s."userId"
         AND (
-          cm."remoteJid" = s."remoteJid"
-          OR cm."remoteJidAlt" = s."remoteJid"
-          OR cm."senderPn" = s."remoteJid"
-          OR (s."remoteJidAlt" IS NOT NULL AND cm."remoteJid" = s."remoteJidAlt")
-          OR (s."remoteJidAlt" IS NOT NULL AND cm."remoteJidAlt" = s."remoteJidAlt")
-          OR (s."remoteJidAlt" IS NOT NULL AND cm."senderPn" = s."remoteJidAlt")
+          cc."remoteJid" = s."remoteJid"
+          OR cc."remoteJidAlt" = s."remoteJid"
+          OR cc."senderPn" = s."remoteJid"
+          OR (s."remoteJidAlt" IS NOT NULL AND cc."remoteJid" = s."remoteJidAlt")
+          OR (s."remoteJidAlt" IS NOT NULL AND cc."remoteJidAlt" = s."remoteJidAlt")
+          OR (s."remoteJidAlt" IS NOT NULL AND cc."senderPn" = s."remoteJidAlt")
         )
-      ORDER BY cm."messageTimestamp" DESC, cm."id" DESC
+      ORDER BY cc."lastMessageTimestamp" DESC, cc."id" DESC
       LIMIT 1
-    ) m ON TRUE
+    ) c ON TRUE
     WHERE s."userId" IN (${Prisma.join(userIds)})
       ${params.instanceNames?.length ? Prisma.sql`AND s."instanceId" IN (${Prisma.join(params.instanceNames)})` : Prisma.empty}
-    ORDER BY COALESCE(m."messageTimestamp", s."updatedAt") DESC
+    ORDER BY COALESCE(c."lastMessageTimestamp", s."updatedAt") DESC
     LIMIT ${params.take ?? 300}
   `;
 

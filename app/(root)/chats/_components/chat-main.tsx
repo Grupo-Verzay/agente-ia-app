@@ -98,6 +98,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   /* ─── Refs ─── */
   const listRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const skipNextAutoScrollRef = useRef(false);
 
   /* ─── Input & compose state ─── */
   const [input, setInput] = useState('');
@@ -208,7 +209,14 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     if (el) el.scrollTop = el.scrollHeight;
   }, []);
   useLayoutEffect(() => {
-    if (loadingOlderMessages) return;
+    if (loadingOlderMessages) {
+      skipNextAutoScrollRef.current = true;
+      return;
+    }
+    if (skipNextAutoScrollRef.current) {
+      skipNextAutoScrollRef.current = false;
+      return;
+    }
     scrollToBottom();
   }, [allMessages.length, loadingOlderMessages, tempMessage, scrollToBottom]);
 

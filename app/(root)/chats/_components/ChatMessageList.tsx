@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Clock } from 'lucide-react';
@@ -109,6 +109,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 }) => {
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   const bgStyle = isDark ? WA_STYLE_DARK : WA_STYLE_LIGHT;
+  const autoLoadLockRef = useRef(false);
 
   const fullList = useMemo(() => {
     const list = [...uiMessages];
@@ -139,12 +140,26 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     return items;
   }, [fullList]);
 
+  const handleScroll = useCallback(() => {
+    const el = listRef.current;
+    if (!el || !onLoadOlderMessages || !canLoadOlderMessages || loading || loadingOlderMessages || autoLoadLockRef.current) {
+      return;
+    }
+    if (el.scrollTop > 80) return;
+
+    autoLoadLockRef.current = true;
+    void onLoadOlderMessages().finally(() => {
+      autoLoadLockRef.current = false;
+    });
+  }, [canLoadOlderMessages, listRef, loading, loadingOlderMessages, onLoadOlderMessages]);
+
   if (loading && renderedList.length === 0) {
     return (
       <div
         className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto custom-scrollbar w-full"
         style={bgStyle}
         ref={listRef}
+        onScroll={handleScroll}
       >
       <div
         className="relative z-10 flex min-h-full w-full flex-col p-2 sm:p-4"
@@ -160,6 +175,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
       className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto custom-scrollbar w-full"
       style={bgStyle}
       ref={listRef}
+      onScroll={handleScroll}
     >
       <div className="relative z-10 flex min-h-full w-full flex-col p-2 sm:p-4">
         {canLoadOlderMessages && (
