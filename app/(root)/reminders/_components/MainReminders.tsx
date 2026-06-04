@@ -15,6 +15,7 @@ import { themeClass } from '@/types/generic';
 import { convertToSeconds } from '../../workflow/[workflowId]/helpers';
 import { MetricCard } from '@/components/custom/MetricCard';
 import { ReminderList } from './ReminderList';
+import { SortableReminderList } from './SortableReminderList';
 import { Badge } from '@/components/ui/badge';
 import type { Reminders } from '@prisma/client';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
