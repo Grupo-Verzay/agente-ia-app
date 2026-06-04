@@ -24,6 +24,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
     CRM_FOLLOW_UP_RULE_STATUS_ORDER,
     CRM_FOLLOW_UP_WEEKDAY_OPTIONS,
     type CrmFollowUpRuleConfig,
@@ -461,11 +466,12 @@ export function CrmFollowUpWizard({
                             className="flex w-full flex-col gap-3 rounded-xl border border-border/70 bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/40 sm:flex-row sm:items-center"
                         >
                             <div className="flex min-w-0 items-center gap-2">
-                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80 text-primary">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80 text-blue-500">
                                     <Images className="h-4 w-4" />
                                 </span>
-                                <div className="min-w-0 text-sm leading-5">
-                                    <span className="truncate font-semibold">Biblioteca de remarketing</span>
+                                <div className="flex min-w-0 items-center gap-1.5 text-sm leading-5">
+                                    <span className="shrink-0 font-semibold text-blue-700">Biblioteca</span>
+                                    <span className="truncate text-[14px] font-normal leading-5 text-muted-foreground">de remarketing</span>
                                 </div>
                             </div>
                             <div className="flex h-8 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm shadow-sm sm:ml-auto sm:w-64 sm:shrink-0">
@@ -478,6 +484,10 @@ export function CrmFollowUpWizard({
                                 }
                             </div>
                         </button>
+
+                        <p className="px-1 text-xs leading-5 text-muted-foreground">
+                            Estos archivos son multimedia que se usan como apoyo visual para el estado dentro del remarketing.
+                        </p>
 
                         {mediaExpanded && (
                             <CrmFollowUpMediaLibrary
@@ -496,18 +506,33 @@ export function CrmFollowUpWizard({
     return (
         <div className="flex h-full min-h-0 flex-col gap-4">
             <div className="shrink-0 space-y-4">
-                {/* <div className="flex items-center gap-2 text-sm">
-                    <Badge
-                        variant="outline"
-                        className="border-primary/20 bg-primary/5 text-primary"
-                    >
-                        <Sparkles className="mr-1 h-3.5 w-3.5" />
-                        IA CRM
-                    </Badge>
-                    <span className="text-muted-foreground">
-                        Zona horaria actual: {SERVER_TIME_ZONE || "America/Bogota"}
+                <div className="flex flex-row items-center gap-2 text-sm">
+                    <Tooltip delayDuration={120}>
+                        <TooltipTrigger asChild>
+                            <button
+                                type="button"
+                                aria-label="Informacion sobre Follow-ups IA"
+                                className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            >
+                                <Badge
+                                    variant="outline"
+                                    className="border-primary/20 bg-primary/5 text-primary"
+                                >
+                                    <Sparkles className="mr-1 h-3.5 w-3.5" />
+                                    Follow-ups IA
+                                </Badge>
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-72 sm:hidden">
+                            Configura como la IA hace seguimiento por estado, horarios,
+                            mensajes y archivos de remarketing.
+                        </TooltipContent>
+                    </Tooltip>
+                    <span className="hidden text-sm text-muted-foreground sm:inline">
+                        Configura como la IA hace seguimiento por estado, horarios,
+                        mensajes y archivos de remarketing.
                     </span>
-                </div> */}
+                </div>
 
                 <CrmWizardStepper
                     steps={steps}

@@ -1,6 +1,5 @@
 "use client";
 
-import type { CSSProperties } from "react";
 import { X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -8,7 +7,6 @@ import { MessageList } from "./MessageList";
 import { ChatComposer } from "./ChatComposer";
 import { useChatContext } from "../hooks/useChatContext";
 import { breadcrumbLabels } from "@/components/custom";
-import { ChatLauncher } from "./ChatLauncher";
 
 export function ChatSheet({
     open,
@@ -21,57 +19,21 @@ export function ChatSheet({
     const labelFromDict = breadcrumbLabels[ctx.pathname.split("/")[1]] ?? "Seccion actual";
     const desktopPanelId = "ai-chat-sheet-desktop";
     const mobilePanelId = "ai-chat-sheet-mobile";
-    const layoutVars = {
-        "--chat-panel-width": "min(420px, calc(100vw - 3.5rem))",
-        "--chat-panel-height": "100dvh",
-        "--chat-launcher-overlap": "14px",
-    } as CSSProperties;
 
     return (
         <>
             <div
-                className="pointer-events-none fixed right-0 top-1/2 z-50 hidden -translate-y-1/2 sm:block"
-                style={layoutVars}
+                className="pointer-events-none fixed right-0 top-0 z-50 hidden h-[100dvh] w-[min(420px,calc(100vw-3.5rem))] sm:block"
             >
-                <div className="relative h-[var(--chat-panel-height)] w-0">
-                    <div
-                        className={cn(
-                            "pointer-events-auto absolute top-1/2 z-10 transition-transform duration-500 [transition-timing-function:cubic-bezier(0.17,0.61,0.54,0.9)]",
-                            open ? "translate-x-[calc(var(--chat-launcher-overlap)-var(--chat-panel-width))]" : "translate-x-0",
-                        )}
-                        style={{ right: 0, transformOrigin: "center right" }}
-                    >
-                        <div className="-translate-y-1/2">
-                            <ChatLauncher
-                                open={open}
-                                onOpenChange={onOpenChange}
-                                controlsId={desktopPanelId}
-                            />
-                        </div>
-                    </div>
-
-                    <ChatPanel
-                        panelId={desktopPanelId}
-                        labelFromDict={labelFromDict}
-                        className={open ? "translate-x-0" : "translate-x-full"}
-                    />
-                </div>
+                <ChatPanel
+                    panelId={desktopPanelId}
+                    labelFromDict={labelFromDict}
+                    onClose={() => onOpenChange(false)}
+                    className={open ? "translate-x-0" : "translate-x-full"}
+                />
             </div>
 
             <div className="pointer-events-none fixed inset-0 z-50 sm:hidden">
-                <div
-                    className={cn(
-                        "pointer-events-auto absolute right-0 top-1/2 -translate-y-1/2 transition-opacity duration-300",
-                        open && "pointer-events-none opacity-0",
-                    )}
-                >
-                    <ChatLauncher
-                        open={open}
-                        onOpenChange={onOpenChange}
-                        controlsId={mobilePanelId}
-                    />
-                </div>
-
                 <ChatPanel
                     mobile
                     panelId={mobilePanelId}
@@ -105,7 +67,7 @@ function ChatPanel({
                 "pointer-events-auto flex flex-col overflow-hidden bg-background transition-transform duration-500 [transition-timing-function:cubic-bezier(0.17,0.61,0.54,0.9)]",
                 mobile
                     ? "absolute inset-0 h-[100dvh] w-screen border-0 shadow-none"
-                    : "absolute right-0 top-0 h-[var(--chat-panel-height)] w-[var(--chat-panel-width)] rounded-l-[28px] border border-r-0]",
+                    : "absolute right-0 top-0 h-[100dvh] w-full rounded-l-[28px] border border-r-0",
                 className,
             )}
         >
@@ -123,7 +85,7 @@ function ChatPanel({
                         </p>
                     </div>
 
-                    {mobile ? (
+                    {onClose ? (
                         <button
                             type="button"
                             onClick={onClose}

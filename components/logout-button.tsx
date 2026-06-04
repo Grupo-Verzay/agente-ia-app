@@ -1,21 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { User } from '@prisma/client'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
-import { ChevronsUpDown, CreditCard, LogOut, ShieldCheck, Users } from 'lucide-react'
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from './ui/sidebar'
-import { Badge } from '@/components/ui/badge'
+import { ChevronsUpDown, LogOut } from 'lucide-react'
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from './ui/sidebar'
 import { handleLogout } from '@/lib/handleLogout'
-import { getAdvisorRoleLabel } from '@/lib/permissions'
-import { getMyLinkedAccounts } from '@/actions/linked-account-actions'
 import { getPlanLabel, PlanBadgeDisplay } from '@/components/shared/PlanBadgeDisplay'
 import { UserLogoAvatar } from '@/components/shared/UserLogoAvatar'
 
@@ -24,29 +18,8 @@ type LogoutButtonProps = {
   collapsed?: boolean
 };
 
-function getRoleLabel(user: User | null) {
-  if (!user) return 'Agente'
-  if (user.advisorRole) return getAdvisorRoleLabel(user.advisorRole)
-  if (user.role === 'admin' || user.role === 'super_admin' || user.role === 'reseller') return 'Administrador'
-  return 'Agente'
-}
-
-function getAccountCountLabel(count: number) {
-  return count === 1 ? '1 cuenta' : `${count} cuentas`
-}
-
 const LogoutButton = ({ user }: LogoutButtonProps) => {
-  const { isMobile } = useSidebar()
-  const [accountCount, setAccountCount] = useState(1)
-
-  useEffect(() => {
-    getMyLinkedAccounts().then((res) => {
-      if (res.success && res.data) setAccountCount((res.data.accounts?.length ?? 0) + 1)
-    })
-  }, [])
-
   const planLabel = getPlanLabel(user?.plan)
-  const roleLabel = getRoleLabel(user)
 
   return (
     <SidebarMenu>
@@ -61,7 +34,7 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">{user?.name}</span>
                 <span className="mt-0.5 truncate text-xs text-sidebar-foreground/70">
-                  {planLabel}
+                  Plan {planLabel}
                 </span>
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
@@ -69,39 +42,29 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
           </DropdownMenuTrigger>
 
           <DropdownMenuContent
-            className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-            side={isMobile ? 'bottom' : 'right'}
-            align="start"
-            sideOffset={4}
+            className="w-40 rounded-lg"
+            side="right"
+            align="center"
+            sideOffset={6}
           >
             <DropdownMenuLabel className="p-0 font-normal">
-              <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <UserLogoAvatar logoUrl={user?.image} plan={user?.plan} alt={user?.name ?? 'Logo'} />
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{user?.name}</span>
-                  <span className="truncate text-xs">{user?.email}</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5 px-1 pb-1.5">
-                <Badge variant="outline" className="justify-start gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium">
-                  <ShieldCheck className="h-3 w-3" />
-                  {roleLabel}
-                </Badge>
-                <Badge variant="outline" className="justify-start gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium">
-                  <Users className="h-3 w-3" />
-                  {getAccountCountLabel(accountCount)}
-                </Badge>
-                <Badge variant="outline" className="col-span-2 justify-start gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium">
-                  <CreditCard className="h-3 w-3" />
-                  Plan {planLabel}
-                </Badge>
+              <div className="flex items-center gap-2 px-2.5 py-2">
+                <UserLogoAvatar
+                  logoUrl={user?.image}
+                  plan={user?.plan}
+                  alt={user?.name ?? 'Logo'}
+                  className="h-8 w-8"
+                />
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="ml-auto inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Salir
+                </button>
               </div>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-              <LogOut className="mr-2 h-4 w-4" />
-              Salir
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

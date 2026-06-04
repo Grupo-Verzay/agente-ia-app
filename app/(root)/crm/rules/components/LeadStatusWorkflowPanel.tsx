@@ -136,7 +136,7 @@ export function LeadStatusWorkflowPanel({ userId, filterStatus }: { userId: stri
                 </span>
                 <div className="flex min-w-0 items-center gap-1.5 text-sm leading-5">
                   <span className={cn("shrink-0 font-semibold", labelCn)}>{label}</span>
-                  <span className="truncate text-muted-foreground">Disparar un flujo</span>
+                  <span className="truncate text-[14px] font-normal leading-5 text-muted-foreground">disparar un flujo</span>
                   <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 </div>
               </div>
@@ -181,7 +181,7 @@ export function LeadStatusWorkflowPanel({ userId, filterStatus }: { userId: stri
       </div>
 
       <p className="px-1 text-xs leading-5 text-muted-foreground">
-        Se ejecuta solo una vez por estado. Al cambiar de estado, los mensajes pendientes del flujo anterior se cancelan.
+        Se ejecuta solo una vez al cambiar de estado, los mensajes pendientes del flujo anterior se cancelan.
       </p>
     </div>
   );

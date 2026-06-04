@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { SendHorizontal } from "lucide-react";
 
 import { useChatContext } from "../hooks/useChatContext";
 import { mergeBufferedUserMessages } from "../helpers/mergeBufferedUserMessages";
@@ -123,12 +124,12 @@ export function ChatComposer() {
     };
 
     return (
-        <div className="flex gap-2">
-            <Textarea
+        <div className="flex items-end gap-2">
+            <Input
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="Escribe tu duda... (Enter envía, Shift+Enter salto)"
-                className="min-h-[44px] max-h-[120px] resize-none"
+                placeholder="Escribe tu duda... Enter para enviar"
+                className="h-11 text-sm"
                 onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
@@ -138,11 +139,14 @@ export function ChatComposer() {
                 disabled={useChatStore((s) => s.isTyping)}
             />
             <Button
+                type="button"
                 onClick={sendLocal}
-                className="h-[44px]"
+                size="icon"
+                className="h-11 w-11 shrink-0 rounded-md"
                 disabled={useChatStore((s) => s.isTyping)}
+                aria-label="Enviar mensaje"
             >
-                Enviar
+                <SendHorizontal className="h-4 w-4" />
             </Button>
         </div>
     );
