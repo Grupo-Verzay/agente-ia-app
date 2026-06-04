@@ -154,11 +154,8 @@ export async function getRemindersByUserId(userId: string): Promise<ReminderResp
     try {
         const reminders = await db.reminders.findMany({
             where: { userId, isCampaign: false },
-            orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
-        }).catch(() => db.reminders.findMany({
-            where: { userId, isCampaign: false },
-            orderBy: { id: 'asc' },
-        }))
+            orderBy: { createdAt: 'desc' },
+        })
 
         return {
             success: true,
@@ -185,11 +182,8 @@ export async function getCampaignsByUserId(userId: string): Promise<ReminderResp
     try {
         const campaigns = await db.reminders.findMany({
             where: { userId, isCampaign: true },
-            orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
-        }).catch(() => db.reminders.findMany({
-            where: { userId, isCampaign: true },
-            orderBy: { id: 'asc' },
-        }))
+            orderBy: { createdAt: 'desc' },
+        })
 
         return {
             success: true,
@@ -269,7 +263,7 @@ export async function getRemindersByRemoteJid(
   try {
     const items = await db.reminders.findMany({
       where: { userId, remoteJid, isCampaign: false },
-      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+      orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         title: true,
