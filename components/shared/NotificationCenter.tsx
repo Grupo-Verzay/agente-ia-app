@@ -28,11 +28,38 @@ import {
 } from "@/actions/notification-center-actions";
 import { cn } from "@/lib/utils";
 
-const KIND_META: Record<NotificationKind, { label: string; Icon: typeof Bell; color: string }> = {
-  task: { label: "Tareas", Icon: AlertTriangle, color: "text-red-600" },
-  appointment: { label: "Citas", Icon: CalendarClock, color: "text-amber-600" },
-  connection: { label: "Errores", Icon: PlugZap, color: "text-violet-600" },
-  chat: { label: "Chats", Icon: MessageCircle, color: "text-emerald-600" },
+const KIND_META: Record<
+  NotificationKind,
+  { label: string; Icon: typeof Bell; color: string; filterClass: string; activeClass: string }
+> = {
+  task: {
+    label: "Tareas",
+    Icon: AlertTriangle,
+    color: "text-red-600",
+    filterClass: "border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
+    activeClass: "border-red-400 bg-red-100 text-red-800",
+  },
+  appointment: {
+    label: "Citas",
+    Icon: CalendarClock,
+    color: "text-amber-600",
+    filterClass: "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100",
+    activeClass: "border-amber-400 bg-amber-100 text-amber-800",
+  },
+  connection: {
+    label: "Errores",
+    Icon: PlugZap,
+    color: "text-violet-600",
+    filterClass: "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
+    activeClass: "border-violet-400 bg-violet-100 text-violet-800",
+  },
+  chat: {
+    label: "Chats",
+    Icon: MessageCircle,
+    color: "text-emerald-600",
+    filterClass: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+    activeClass: "border-emerald-400 bg-emerald-100 text-emerald-800",
+  },
 };
 
 const FILTER_ORDER: NotificationKind[] = ["connection", "chat", "appointment", "task"];
@@ -113,12 +140,13 @@ export function NotificationCenter() {
                   type="button"
                   onClick={() => setActiveKind(kind)}
                   className={cn(
-                    "flex min-w-0 items-center justify-between gap-1 rounded-md border bg-muted/30 px-1.5 py-1 text-left transition-colors hover:bg-muted/60",
-                    activeKind === kind && "border-primary/50 bg-primary/10",
+                    "flex min-w-0 items-center justify-between gap-1 rounded-md border px-1.5 py-1 text-left transition-colors",
+                    meta.filterClass,
+                    activeKind === kind && meta.activeClass,
                   )}
                 >
-                  <span className="min-w-0 truncate text-[11px] text-muted-foreground">{meta.label}</span>
-                  <Badge variant="outline" className="h-4 min-w-4 shrink-0 rounded px-1 text-[9px]">
+                  <span className="min-w-0 truncate text-[11px]">{meta.label}</span>
+                  <Badge variant="outline" className="h-4 min-w-4 shrink-0 rounded border-current bg-white/70 px-1 text-[9px] text-current">
                     {count}
                   </Badge>
                 </button>
