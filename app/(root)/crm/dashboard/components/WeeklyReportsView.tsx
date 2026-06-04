@@ -138,7 +138,7 @@ function ReportCard({ report, onDelete }: { report: WeeklyReportItem; onDelete: 
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                             Métricas de la semana
                         </p>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="flex gap-2">
                             <MetricTile label="Total leads" value={m.totalLeads} sub={`${m.newLeads} nuevos`} color="#3B82F6" />
                             <MetricTile label="Calientes" value={m.leadsByStatus['CALIENTE'] ?? 0} sub={`${m.leadsByStatus['TIBIO'] ?? 0} tibios`} color="#EF4444" />
                             <MetricTile label="Finalizados" value={m.conversions} sub={`${m.followUpsSent} follow-ups`} color="#22C55E" />
@@ -174,7 +174,7 @@ function ReportCard({ report, onDelete }: { report: WeeklyReportItem; onDelete: 
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                                 Actividad de la semana
                             </p>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div className="flex flex-wrap gap-2">
                                 {actividadEntries.map(([tipo, count]) => (
                                     <MetricTile
                                         key={tipo}
@@ -195,10 +195,13 @@ function ReportCard({ report, onDelete }: { report: WeeklyReportItem; onDelete: 
 
 function MetricTile({ label, value, sub, color }: { label: string; value: string | number; sub: string; color: string }) {
     return (
-        <div className="rounded-lg border p-3 space-y-0.5">
-            <p className="text-xs text-muted-foreground">{label}</p>
-            <p className="text-lg font-bold" style={{ color }}>{value}</p>
-            {sub && <p className="text-[10px] text-muted-foreground/70">{sub}</p>}
+        <div className="flex items-center gap-2.5 rounded-lg border bg-card px-3 py-2.5 flex-1 min-w-0">
+            <div className="h-9 w-[3px] rounded-full shrink-0" style={{ backgroundColor: color }} />
+            <div className="min-w-0 flex-1">
+                <p className="text-[11px] text-muted-foreground truncate leading-none mb-0.5">{label}</p>
+                <p className="text-lg font-bold leading-none" style={{ color }}>{value}</p>
+                {sub && <p className="text-[10px] text-muted-foreground/60 truncate mt-0.5">{sub}</p>}
+            </div>
         </div>
     );
 }
