@@ -12,30 +12,16 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ChevronsUpDown, CreditCard, LogOut, ShieldCheck, Users } from 'lucide-react'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from './ui/sidebar'
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { handleLogout } from '@/lib/handleLogout'
 import { getAdvisorRoleLabel } from '@/lib/permissions'
 import { getMyLinkedAccounts } from '@/actions/linked-account-actions'
+import { getPlanLabel, PlanBadgeDisplay } from '@/components/shared/PlanBadgeDisplay'
 
 type LogoutButtonProps = {
   user: User | null
   collapsed?: boolean
 };
-
-const PLAN_LABELS: Record<string, string> = {
-  enterprise: 'Enterprise',
-  lite: 'Lite',
-  unico: 'Unico',
-  basico: 'Basico',
-  intermedio: 'Intermedio',
-  avanzado: 'Avanzado',
-  personalizado: 'Personalizado',
-}
-
-function getPlanLabel(plan?: string | null) {
-  return PLAN_LABELS[plan ?? ''] ?? 'Basico'
-}
 
 function getRoleLabel(user: User | null) {
   if (!user) return 'Agente'
@@ -50,7 +36,6 @@ function getAccountCountLabel(count: number) {
 
 const LogoutButton = ({ user }: LogoutButtonProps) => {
   const { isMobile } = useSidebar()
-  const userInitial = user?.name?.charAt(0).toUpperCase() ?? '?'
   const [accountCount, setAccountCount] = useState(1)
 
   useEffect(() => {
@@ -71,12 +56,7 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-lg">
-                {user?.image && <AvatarImage src={user.image} alt={user.name ?? ''} />}
-                <AvatarFallback className="rounded-lg">
-                  {userInitial}
-                </AvatarFallback>
-              </Avatar>
+              <PlanBadgeDisplay plan={user?.plan} />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">{user?.name}</span>
                 <span className="mt-0.5 truncate text-xs text-sidebar-foreground/70">
@@ -95,12 +75,7 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  {user?.image && <AvatarImage src={user.image} alt={user.name ?? ''} />}
-                  <AvatarFallback className="rounded-lg">
-                    {userInitial}
-                  </AvatarFallback>
-                </Avatar>
+                <PlanBadgeDisplay plan={user?.plan} />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">{user?.name}</span>
                   <span className="truncate text-xs">{user?.email}</span>

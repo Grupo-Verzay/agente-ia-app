@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton, useSidebar } from "@/components/ui/sidebar";
+import { getPlanLabel, PlanBadgeDisplay } from "@/components/shared/PlanBadgeDisplay";
 import {
   getMyLinkedAccounts,
   switchToAccount,
@@ -51,20 +52,6 @@ function initials(name: string | null, email: string, company: string) {
 }
 function displayName(a: { name: string | null; email: string; company: string }) {
   return a.company?.trim() || a.name?.trim() || a.email;
-}
-
-const PLAN_LABELS: Record<string, string> = {
-  enterprise: "Enterprise",
-  lite: "Lite",
-  unico: "Unico",
-  basico: "Basico",
-  intermedio: "Intermedio",
-  avanzado: "Avanzado",
-  personalizado: "Personalizado",
-};
-
-function getPlanLabel(plan?: string | null) {
-  return PLAN_LABELS[plan ?? ""] ?? "Basico";
 }
 
 function getAccountCountLabel(count: number) {
@@ -176,9 +163,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                 size="lg"
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
-                <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white", colorFor(activeId ?? user.id))}>
-                  {initials(currentAccount?.name ?? user.name, currentAccount?.email ?? user.email, currentAccount?.company ?? user.company)}
-                </div>
+                <PlanBadgeDisplay plan={activePlan} />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">{activeName}</span>
                   <span className="mt-0.5 truncate text-xs text-sidebar-foreground/70">
@@ -201,9 +186,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
             >
               <DropdownMenuLabel className="px-2 py-2">
                 <div className="flex items-start gap-2">
-                  <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white", colorFor(activeId ?? user.id))}>
-                    {initials(currentAccount?.name ?? user.name, currentAccount?.email ?? user.email, currentAccount?.company ?? user.company)}
-                  </div>
+                  <PlanBadgeDisplay plan={activePlan} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-foreground">{activeName}</p>
                     <p className="truncate text-xs font-normal text-muted-foreground">
