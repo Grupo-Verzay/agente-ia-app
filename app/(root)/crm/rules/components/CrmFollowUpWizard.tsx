@@ -31,6 +31,8 @@ import { getLeadStatusLabel } from "../../dashboard/helpers";
 import { LoadingState } from "./LoadingState";
 import { CrmWizardStep, CrmWizardStepper } from "./CrmWizardStepper";
 import { CrmFollowUpMediaLibrary } from "./CrmFollowUpMediaLibrary";
+import { LeadStatusWorkflowPanel } from "./LeadStatusWorkflowPanel";
+import { ChevronDown, ChevronUp, Zap } from "lucide-react";
 
 type CrmFollowUpWizardProps = {
     userId: string;
@@ -154,6 +156,7 @@ export function CrmFollowUpWizard({
     onToggleWeekday,
     onResetRuleToDefault,
 }: CrmFollowUpWizardProps) {
+    const [workflowSectionOpen, setWorkflowSectionOpen] = useState(false);
     const steps = useMemo<CrmWizardStep[]>(
         () => [
             ...CRM_FOLLOW_UP_RULE_STATUS_ORDER.map((status) => ({
@@ -501,7 +504,31 @@ export function CrmFollowUpWizard({
 
             <div className="min-h-0 flex-1">
                 <ScrollArea className="h-full pr-4">
-                    <div className="space-y-4">{content}</div>
+                    <div className="space-y-4">
+                        {content}
+
+                        {/* Flujos por estado — sección colapsable */}
+                        <div className="rounded-xl border border-border/70 overflow-hidden">
+                            <button
+                                type="button"
+                                onClick={() => setWorkflowSectionOpen(v => !v)}
+                                className="flex w-full items-center gap-2 bg-muted/20 px-4 py-3 text-sm font-medium hover:bg-muted/40 transition-colors"
+                            >
+                                <Zap className="h-4 w-4 shrink-0 text-primary" />
+                                <span className="flex-1 text-left">Flujos por estado de lead</span>
+                                <span className="text-xs text-muted-foreground mr-1">
+                                    {workflowSectionOpen ? "Ocultar" : "Configurar"}
+                                </span>
+                                {workflowSectionOpen
+                                    ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                    : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                }
+                            </button>
+                            {workflowSectionOpen && (
+                                <LeadStatusWorkflowPanel userId={userId} />
+                            )}
+                        </div>
+                    </div>
                 </ScrollArea>
             </div>
 
