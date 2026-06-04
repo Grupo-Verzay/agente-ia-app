@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus } from "lucide-react";
+import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,9 +59,13 @@ import {
   deleteAdvisor,
   linkExistingAdvisor,
   getAdvisorModuleIds,
+  getOwnerModules,
+  getAutoAssignSettings,
+  getTeamMetrics,
   saveAdvisorModules,
   saveAutoAssignSettings,
 } from "@/actions/team-actions";
+import { resetAllLinkedAccounts } from "@/actions/linked-account-actions";
 import { bulkAutoAssign } from "@/actions/advisor-assign-actions";
 import { cn } from "@/lib/utils";
 
@@ -110,6 +114,8 @@ type PasswordForm = { advisorId: string; advisorName: string; newPassword: strin
 
 export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, teamMetrics }: Props) {
   const [advisors, setAdvisors] = useState<AdvisorRow[]>(initialAdvisors);
+  const [availableModules, setAvailableModules] = useState<ModuleOption[]>(ownerModules);
+  const [metrics, setMetrics] = useState<TeamMetrics | null>(teamMetrics);
   const [isPending, startTransition] = useTransition();
 
   const [autoAssignEnabled, setAutoAssignEnabled] = useState(initialAutoAssign.autoAssignEnabled);
@@ -173,6 +179,50 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
   const [pwForm, setPwForm] = useState<PasswordForm | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdvisorRow | null>(null);
   const [modulesForm, setModulesForm] = useState<ModulesForm | null>(null);
+  const [resetLinksOpen, setResetLinksOpen] = useState(false);
+
+  async function refreshAdvisors() {
+    const { getTeamAdvisors } = await import("@/actions/team-actions");
+    const list = await getTeamAdvisors();
+    if (list.success && list.data) setAdvisors(list.data);
+  }
+
+  useEffect(() => {
+    void refreshAdvisors();
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+
+    async function loadTeamData() {
+      const [modulesRes, autoAssignRes, metricsRes] = await Promise.allSettled([
+        getOwnerModules(),
+        getAutoAssignSettings(),
+        getTeamMetrics(),
+      ]);
+
+      if (!alive) return;
+
+      if (modulesRes.status === "fulfilled" && modulesRes.value.success && modulesRes.value.data) {
+        setAvailableModules(modulesRes.value.data);
+      }
+
+      if (autoAssignRes.status === "fulfilled" && autoAssignRes.value.success && autoAssignRes.value.data) {
+        setAutoAssignEnabled(autoAssignRes.value.data.autoAssignEnabled);
+        setAutoAssignMaxChats(autoAssignRes.value.data.autoAssignMaxChats);
+      }
+
+      if (metricsRes.status === "fulfilled" && metricsRes.value.success) {
+        setMetrics(metricsRes.value.data ?? null);
+      }
+    }
+
+    void loadTeamData();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   function handleCreateField(field: keyof CreateForm, value: string) {
     setCreateForm((prev) => ({ ...prev, [field]: value }));
@@ -181,7 +231,7 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
   async function openModules(advisor: AdvisorRow) {
     setModulesForm({ advisorId: advisor.id, advisorName: advisor.name ?? advisor.email, enabledIds: [], loading: true });
     const res = await getAdvisorModuleIds(advisor.id);
-    const ids = res.success && res.data && res.data.length > 0 ? res.data : ownerModules.map((m) => m.id);
+    const ids = res.success && res.data && res.data.length > 0 ? res.data : availableModules.map((m) => m.id);
     setModulesForm((prev) => prev ? { ...prev, enabledIds: ids, loading: false } : null);
   }
 
@@ -198,14 +248,20 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
   function handleLink() {
     startTransition(async () => {
       const res = await linkExistingAdvisor(linkEmail, linkRole);
-      if (!res.success) { toast.error(res.message); return; }
+      if (!res.success) {
+        if (res.message.toLowerCase().includes("ya está vinculado") || res.message.toLowerCase().includes("ya esta vinculado")) {
+          toast.info("Ese asesor ya estaba vinculado. Actualizando la lista...");
+          await refreshAdvisors();
+        } else {
+          toast.error(res.message);
+        }
+        return;
+      }
       toast.success(res.message ?? "Asesor vinculado.");
       setLinkOpen(false);
       setLinkEmail("");
       setLinkRole("agente");
-      const { getTeamAdvisors } = await import("@/actions/team-actions");
-      const list = await getTeamAdvisors();
-      if (list.success && list.data) setAdvisors(list.data);
+      await refreshAdvisors();
     });
   }
 
@@ -216,9 +272,7 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
       toast.success(res.message ?? "Asesor creado.");
       setCreateOpen(false);
       setCreateForm({ name: "", email: "", password: "", role: "agente" });
-      const { getTeamAdvisors } = await import("@/actions/team-actions");
-      const list = await getTeamAdvisors();
-      if (list.success && list.data) setAdvisors(list.data);
+      await refreshAdvisors();
     });
   }
 
@@ -243,6 +297,19 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
     });
   }
 
+  function handleResetLinks() {
+    startTransition(async () => {
+      const res = await resetAllLinkedAccounts();
+      if (!res.success) {
+        toast.error(res.message);
+        return;
+      }
+      toast.success(res.warning ?? "Vínculos reiniciados.");
+      setResetLinksOpen(false);
+      await refreshAdvisors();
+    });
+  }
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
 
@@ -250,7 +317,7 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
       <div className="flex flex-col gap-3 shrink-0 pb-3">
 
       {/* KPI cards — primera fila */}
-      {teamMetrics && <TeamKpiCards metrics={teamMetrics} />}
+      {metrics && <TeamKpiCards metrics={metrics} />}
 
       {/* Auto-assign + acciones en una sola barra */}
       <div className={cn(
@@ -330,6 +397,14 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
               <DropdownMenuItem onClick={downloadCsv} disabled={advisors.length === 0}>
                 <Download className="w-4 h-4 mr-2" />
                 Exportar CSV
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => setResetLinksOpen(true)}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Reiniciar vínculos
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -499,7 +574,7 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
       })()}
 
       {/* Gráficas */}
-      {teamMetrics && <TeamCharts metrics={teamMetrics} maxChats={autoAssignMaxChats} />}
+      {metrics && <TeamCharts metrics={metrics} maxChats={autoAssignMaxChats} />}
 
       </div>{/* /scrollable */}
 
@@ -512,17 +587,17 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
           <div className="py-2">
             {modulesForm?.loading ? (
               <p className="text-sm text-muted-foreground">Cargando módulos...</p>
-            ) : ownerModules.length === 0 ? (
+            ) : availableModules.length === 0 ? (
               <p className="text-sm text-muted-foreground">No hay módulos disponibles.</p>
             ) : (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">
-                    {modulesForm?.enabledIds.length ?? 0} de {ownerModules.length} habilitados
+                    {modulesForm?.enabledIds.length ?? 0} de {availableModules.length} habilitados
                   </p>
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" size="sm" className="h-6 text-xs px-2"
-                      onClick={() => setModulesForm((prev) => prev ? { ...prev, enabledIds: ownerModules.map((m) => m.id) } : null)}>
+                      onClick={() => setModulesForm((prev) => prev ? { ...prev, enabledIds: availableModules.map((m) => m.id) } : null)}>
                       Todos
                     </Button>
                     <Button type="button" variant="outline" size="sm" className="h-6 text-xs px-2"
@@ -532,7 +607,7 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
-                  {ownerModules.map((mod) => (
+                  {availableModules.map((mod) => (
                     <div key={mod.id} className="flex items-center justify-between gap-2 pr-2">
                       <Label className="text-xs">{mod.label}</Label>
                       <Switch
@@ -556,7 +631,32 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+        </Dialog>
+
+        <AlertDialog open={resetLinksOpen} onOpenChange={setResetLinksOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reiniciar vínculos de cuentas</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esto eliminará todas las relaciones entre cuentas y dejará a cada usuario independiente.
+                No borra usuarios ni cuentas, solo los vínculos.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleResetLinks();
+                }}
+                disabled={isPending}
+              >
+                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Reiniciar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
       {/* Link existing dialog */}
       <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
