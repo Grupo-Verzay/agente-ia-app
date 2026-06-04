@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton, useSidebar } from "@/components/ui/sidebar";
 import { PlanBadgeDisplay } from "@/components/shared/PlanBadgeDisplay";
@@ -194,21 +193,6 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
               align="end"
               sideOffset={4}
             >
-              <DropdownMenuLabel className="px-2 py-2">
-                <div className="grid grid-cols-2 gap-1.5">
-                  <Badge variant="outline" className="justify-start gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium">
-                    <ShieldCheck className="h-3 w-3" />
-                    {effectiveRoleLabel}
-                  </Badge>
-                  <Badge variant="outline" className="justify-start gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium">
-                    <Users className="h-3 w-3" />
-                    {getAccountCountLabel(accessibleCount)}
-                  </Badge>
-                </div>
-              </DropdownMenuLabel>
-
-              <DropdownMenuSeparator />
-
               <DropdownMenuLabel className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Cambiar de cuenta
               </DropdownMenuLabel>
