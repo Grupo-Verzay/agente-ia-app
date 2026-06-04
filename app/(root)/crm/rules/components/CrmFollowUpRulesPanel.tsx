@@ -22,6 +22,8 @@ import { LoadingState } from "./LoadingState";
 import { Separator } from "@/components/ui/separator";
 import type { CrmFeatureFlags } from "@/types/crm-feature-flags";
 import { LeadStatusWorkflowPanel } from "./LeadStatusWorkflowPanel";
+import { ChevronDown, ChevronUp, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type ManagedCrmPromptKind = keyof CrmPromptRecordMap;
 
@@ -45,7 +47,7 @@ export function CrmFollowUpRulesPanel({
 }) {
   const availableTabs = useMemo(() => {
     const tabs: Array<{
-      value: "followUps" | "leadStatus" | "leadFunnel" | "statusWorkflow";
+      value: "followUps" | "leadStatus" | "leadFunnel";
       label: string;
     }> = [];
 
@@ -61,15 +63,12 @@ export function CrmFollowUpRulesPanel({
       tabs.push({ value: "followUps", label: "Follow-ups" });
     }
 
-    if (features.enabledLeadStatusClassifier) {
-      tabs.push({ value: "statusWorkflow", label: "Flujos por estado" });
-    }
-
     return tabs;
   }, [features]);
   const [activeTab, setActiveTab] = useState<
-    "followUps" | "leadStatus" | "leadFunnel" | "statusWorkflow"
+    "followUps" | "leadStatus" | "leadFunnel"
   >(availableTabs[0]?.value ?? "followUps");
+  const [workflowSectionOpen, setWorkflowSectionOpen] = useState(false);
   const [rulesLoading, setRulesLoading] = useState(false);
   const [promptsLoading, setPromptsLoading] = useState(false);
   const [timezone, setTimezone] = useState<string | null>(null);
@@ -313,7 +312,7 @@ export function CrmFollowUpRulesPanel({
 
       <TabsContent
         value="followUps"
-        className="mt-0 flex-1 min-h-0 min-w-0 overflow-hidden"
+        className="mt-0 flex-1 min-h-0 min-w-0 overflow-y-auto flex flex-col"
       >
         <CrmFollowUpWizard
           userId={userId}
@@ -329,6 +328,26 @@ export function CrmFollowUpRulesPanel({
           onToggleWeekday={toggleWeekday}
           onResetRuleToDefault={resetRuleToDefault}
         />
+
+        {/* Sección colapsable: Flujos por estado */}
+        <div className="border-t border-border shrink-0">
+          <button
+            className="flex w-full items-center justify-between px-6 py-3 text-sm font-semibold hover:bg-muted/40 transition-colors"
+            onClick={() => setWorkflowSectionOpen(v => !v)}
+          >
+            <span className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" />
+              Flujos por estado de lead
+            </span>
+            {workflowSectionOpen
+              ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            }
+          </button>
+          {workflowSectionOpen && (
+            <LeadStatusWorkflowPanel userId={userId} />
+          )}
+        </div>
       </TabsContent>
 
       <TabsContent
@@ -383,12 +402,6 @@ export function CrmFollowUpRulesPanel({
         )}
       </TabsContent>
 
-      <TabsContent
-        value="statusWorkflow"
-        className="mt-0 flex-1 min-h-0 min-w-0 overflow-hidden"
-      >
-        <LeadStatusWorkflowPanel userId={userId} />
-      </TabsContent>
     </Tabs>
   );
 }
