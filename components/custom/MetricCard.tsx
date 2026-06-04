@@ -33,16 +33,16 @@ export const MetricCard = ({
     const helperButtonStyle = color ? ({ color: withAlpha("B3") } as CSSProperties) : undefined;
 
     return (
-        <Card className="app-typography-compact border-2 bg-background/60 shadow-sm flex-1" style={cardStyle}>
-            <CardContent className="flex items-center gap-2 px-3 py-3">
+        <Card className="app-typography-compact h-full min-w-0 flex-1 rounded-md border-2 bg-background/60 shadow-sm" style={cardStyle}>
+            <CardContent className="flex min-w-0 items-center gap-1.5 px-2.5 py-2 sm:gap-2 sm:px-3 sm:py-3">
                 <div
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-muted-foreground"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-muted-foreground sm:h-7 sm:w-7"
                     style={iconStyle}
                 >
                     {icon}
                 </div>
                 <div className="flex min-w-0 flex-1 items-center gap-1">
-                    <span className="truncate text-xs font-medium text-muted-foreground" style={labelStyle}>
+                    <span className="truncate text-[10px] font-medium text-muted-foreground sm:text-xs" style={labelStyle}>
                         {label}
                     </span>
                     {helper && (
@@ -63,7 +63,7 @@ export const MetricCard = ({
                         </Tooltip>
                     )}
                 </div>
-                <div className="shrink-0 text-lg font-bold leading-none" style={valueStyle}>
+                <div className="shrink-0 text-sm font-bold leading-none sm:text-lg" style={valueStyle}>
                     {value}
                 </div>
             </CardContent>

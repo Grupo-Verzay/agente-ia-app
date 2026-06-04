@@ -78,9 +78,9 @@ export const MainSchedule = ({
     return (
         <div className="flex h-full w-full flex-col gap-3" data-schedule-view>
             {/* Metric cards — siempre visibles, altura fija */}
-            <div className="flex flex-wrap gap-3 shrink-0">
+            <div className="grid grid-cols-2 gap-2 shrink-0 sm:flex sm:flex-wrap sm:gap-3">
                 {topMetrics.map((m) => (
-                    <div key={m.status} className="flex-1">
+                    <div key={m.status} className="min-w-0 sm:flex-1">
                         <MetricCard
                             icon={<Calendar className="h-4 w-4" />}
                             label={m.label}
