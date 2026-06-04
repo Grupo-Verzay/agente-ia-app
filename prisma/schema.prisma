@@ -1230,10 +1230,15 @@ model UserNote {
   folderId  String?
   title     String      @default("Sin título")
   content   Json        @default("{}")
-  isPinned  Boolean     @default(false)
-  emoji     String?
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  isPinned    Boolean     @default(false)
+  emoji       String?
+  color       String?
+  isArchived  Boolean     @default(false)
+  contactJid  String?
+  contactName String?
+  order       Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
   user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   folder    NoteFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
 

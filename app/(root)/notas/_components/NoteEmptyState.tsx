@@ -1,11 +1,22 @@
 'use client'
 
-import { NotebookPen, Plus } from 'lucide-react'
+import { NotebookPen, PanelLeftOpen, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-export function NoteEmptyState({ onNewNote }: { onNewNote: () => void }) {
+interface Props {
+  onNewNote: () => void
+  sidebarOpen: boolean
+  onToggleSidebar: () => void
+}
+
+export function NoteEmptyState({ onNewNote, sidebarOpen, onToggleSidebar }: Props) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center text-muted-foreground">
+      {!sidebarOpen && (
+        <Button variant="ghost" size="sm" onClick={onToggleSidebar} className="absolute top-2 left-2 gap-1.5 text-muted-foreground">
+          <PanelLeftOpen className="h-4 w-4" />
+        </Button>
+      )}
       <div className="rounded-2xl border p-6 opacity-70">
         <NotebookPen className="h-8 w-8" />
       </div>

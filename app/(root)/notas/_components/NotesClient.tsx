@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {
-  createNote, deleteNote, getNotes, getNote,
+  createNote, deleteNote, getNotes, getNote, archiveNote, getArchivedNotes, unarchiveNote,
   getFolders, createFolder, updateFolder, deleteFolder, updateNote,
   type NoteFolderWithCount, type UserNoteListItem, type UserNoteWithContent,
 } from '@/actions/notes-actions'
@@ -11,9 +11,7 @@ import { NotesSidebar } from './NotesSidebar'
 import { NotesEditor } from './NotesEditor'
 import { NoteEmptyState } from './NoteEmptyState'
 
-interface Props {
-  userId: string
-}
+interface Props { userId: string }
 
 export function NotesClient({ userId }: Props) {
   const [folders, setFolders] = useState<NoteFolderWithCount[]>([])
@@ -23,6 +21,7 @@ export function NotesClient({ userId }: Props) {
   const [search, setSearch] = useState('')
   const [loadingNote, setLoadingNote] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const loadFolders = useCallback(async () => {
@@ -30,21 +29,32 @@ export function NotesClient({ userId }: Props) {
     if (res.success) setFolders(res.data)
   }, [userId])
 
-  const loadNotes = useCallback(async (folderId?: string | null) => {
-    const res = await getNotes(userId, folderId)
-    if (res.success) setNotes(res.data)
+  const loadNotes = useCallback(async (folderId?: string | null, q?: string) => {
+    if (folderId === '__archived__') {
+      const res = await getArchivedNotes(userId)
+      if (res.success) setNotes(res.data)
+    } else {
+      const res = await getNotes(userId, folderId, q)
+      if (res.success) setNotes(res.data)
+    }
   }, [userId])
 
   useEffect(() => {
     loadFolders()
-    loadNotes(undefined)
+    loadNotes(undefined, '')
   }, [loadFolders, loadNotes])
+
+  // Debounced search
+  useEffect(() => {
+    const t = setTimeout(() => loadNotes(activeFolderId, search), 300)
+    return () => clearTimeout(t)
+  }, [search, activeFolderId, loadNotes])
 
   const handleSelectFolder = useCallback(async (folderId: string | null | undefined) => {
     setActiveFolderId(folderId)
     setSelectedNote(null)
-    await loadNotes(folderId)
-  }, [loadNotes])
+    await loadNotes(folderId, search)
+  }, [loadNotes, search])
 
   const handleSelectNote = useCallback(async (id: string) => {
     setLoadingNote(true)
@@ -53,8 +63,9 @@ export function NotesClient({ userId }: Props) {
     setLoadingNote(false)
   }, [userId])
 
-  const handleNewNote = useCallback(async () => {
-    const res = await createNote(userId, activeFolderId ?? null)
+  const handleNewNote = useCallback(async (templateContent?: object, templateTitle?: string) => {
+    const folderId = (activeFolderId && activeFolderId !== '__archived__') ? activeFolderId : null
+    const res = await createNote(userId, folderId, templateContent, templateTitle)
     if (!res.success || !res.data) return toast.error('No se pudo crear la nota')
     setNotes(prev => [res.data!, ...prev])
     await handleSelectNote(res.data.id)
@@ -67,7 +78,16 @@ export function NotesClient({ userId }: Props) {
     setNotes(prev => prev.filter(n => n.id !== id))
     if (selectedNote?.id === id) setSelectedNote(null)
     await loadFolders()
-  }, [userId, selectedNote])
+  }, [userId, selectedNote, loadFolders])
+
+  const handleArchiveNote = useCallback(async (id: string) => {
+    const res = await archiveNote(id, userId)
+    if (!res.success) return toast.error(res.error)
+    setNotes(prev => prev.filter(n => n.id !== id))
+    if (selectedNote?.id === id) setSelectedNote(null)
+    toast.success('Nota archivada')
+    await loadFolders()
+  }, [userId, selectedNote, loadFolders])
 
   const handleSave = useCallback((content: object, title: string) => {
     if (!selectedNote) return
@@ -86,10 +106,7 @@ export function NotesClient({ userId }: Props) {
   const handleTogglePin = useCallback(async (id: string, isPinned: boolean) => {
     const res = await updateNote(id, userId, { isPinned: !isPinned })
     if (!res.success) return toast.error(res.error)
-    setNotes(prev =>
-      [...prev.map(n => n.id === id ? { ...n, isPinned: !isPinned } : n)]
-        .sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0))
-    )
+    setNotes(prev => [...prev.map(n => n.id === id ? { ...n, isPinned: !isPinned } : n)].sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0)))
     if (selectedNote?.id === id) setSelectedNote(prev => prev ? { ...prev, isPinned: !isPinned } : prev)
   }, [userId, selectedNote])
 
@@ -99,6 +116,24 @@ export function NotesClient({ userId }: Props) {
     setNotes(prev => prev.map(n => n.id === id ? { ...n, emoji } : n))
     if (selectedNote?.id === id) setSelectedNote(prev => prev ? { ...prev, emoji } : prev)
   }, [userId, selectedNote])
+
+  const handleColorChange = useCallback(async (id: string, color: string | null) => {
+    const res = await updateNote(id, userId, { color })
+    if (!res.success) return toast.error(res.error)
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, color } : n))
+    if (selectedNote?.id === id) setSelectedNote(prev => prev ? { ...prev, color } : prev)
+  }, [userId, selectedNote])
+
+  const handleContactChange = useCallback(async (id: string, contactJid: string | null, contactName: string | null) => {
+    const res = await updateNote(id, userId, { contactJid, contactName })
+    if (!res.success) return toast.error(res.error)
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, contactJid, contactName } : n))
+    if (selectedNote?.id === id) setSelectedNote(prev => prev ? { ...prev, contactJid, contactName } : prev)
+  }, [userId, selectedNote])
+
+  const handleApplyTemplate = useCallback(async (content: object, title: string) => {
+    await handleNewNote(content, title)
+  }, [handleNewNote])
 
   const handleCreateFolder = useCallback(async (name: string, color?: string) => {
     const res = await createFolder(userId, name, color)
@@ -119,31 +154,31 @@ export function NotesClient({ userId }: Props) {
     if (activeFolderId === id) handleSelectFolder(undefined)
   }, [userId, activeFolderId, handleSelectFolder])
 
-  const filteredNotes = search.trim()
-    ? notes.filter(n => n.title.toLowerCase().includes(search.toLowerCase()))
-    : notes
-
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
-      <NotesSidebar
-        folders={folders}
-        notes={filteredNotes}
-        selectedNoteId={selectedNote?.id}
-        activeFolderId={activeFolderId}
-        search={search}
-        onSearchChange={setSearch}
-        onSelectNote={handleSelectNote}
-        onNewNote={handleNewNote}
-        onDeleteNote={handleDeleteNote}
-        onTogglePin={handleTogglePin}
-        onSelectFolder={handleSelectFolder}
-        onCreateFolder={handleCreateFolder}
-        onUpdateFolder={handleUpdateFolder}
-        onDeleteFolder={handleDeleteFolder}
-      />
+      {sidebarOpen && (
+        <NotesSidebar
+          folders={folders}
+          notes={notes}
+          userId={userId}
+          onReorder={setNotes}
+          selectedNoteId={selectedNote?.id}
+          activeFolderId={activeFolderId}
+          search={search}
+          onSearchChange={setSearch}
+          onSelectNote={handleSelectNote}
+          onNewNote={() => handleNewNote()}
+          onDeleteNote={handleDeleteNote}
+          onTogglePin={handleTogglePin}
+          onSelectFolder={handleSelectFolder}
+          onCreateFolder={handleCreateFolder}
+          onUpdateFolder={handleUpdateFolder}
+          onDeleteFolder={handleDeleteFolder}
+        />
+      )}
       <div className="flex flex-1 min-w-0 flex-col bg-background">
         {!selectedNote && !loadingNote && (
-          <NoteEmptyState onNewNote={handleNewNote} />
+          <NoteEmptyState onNewNote={() => handleNewNote()} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(v => !v)} />
         )}
         {loadingNote && (
           <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm gap-2">
@@ -156,10 +191,16 @@ export function NotesClient({ userId }: Props) {
             key={selectedNote.id}
             note={selectedNote}
             saving={saving}
+            sidebarOpen={sidebarOpen}
             onSave={handleSave}
             onTogglePin={handleTogglePin}
             onDelete={handleDeleteNote}
+            onArchive={handleArchiveNote}
             onEmojiChange={handleEmojiChange}
+            onColorChange={handleColorChange}
+            onContactChange={handleContactChange}
+            onToggleSidebar={() => setSidebarOpen(v => !v)}
+            onApplyTemplate={handleApplyTemplate}
           />
         )}
       </div>
