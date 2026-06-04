@@ -30,12 +30,34 @@ import { createReminder, getRemindersByUserId, updateReminder } from "@/actions/
 import { useReminderDialogStore } from "@/stores"
 import { LeadCreateForm } from "../../sessions/_components"
 import { Card } from "@/components/ui/card"
+import { FileAudio, FileText, ImageIcon, Paperclip, Trash2, Video } from "lucide-react"
 
 import { SelectMultipleComboBox, CampaignSegmentPanel } from "../../campaigns/_components"
 
 import { Reminders } from '@prisma/client';
 import { TimeInput } from "@/components/shared/TimeInput"
 import { Session } from "@prisma/client"
+
+type ReminderMediaPreview = {
+    fileName: string;
+    mimeType: string;
+    size: number;
+    type: "image" | "video" | "audio" | "document";
+};
+
+const MEDIA_OPTIONS = [
+    { type: "image", label: "Imagen", accept: "image/*", Icon: ImageIcon },
+    { type: "video", label: "Video", accept: "video/*", Icon: Video },
+    { type: "audio", label: "Audio", accept: "audio/*", Icon: FileAudio },
+    { type: "document", label: "Doc.", accept: ".pdf,.doc,.docx,.xls,.xlsx,.csv,application/pdf", Icon: FileText },
+] as const;
+
+function formatFileSize(bytes: number) {
+    if (!bytes) return "0 KB";
+    const mb = bytes / (1024 * 1024);
+    if (mb >= 1) return `${mb.toFixed(1)} MB`;
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
 
 export const ReminderForm = ({
     userId,
@@ -56,6 +78,9 @@ export const ReminderForm = ({
     const [countScheduleReminders, setCountScheduleReminders] = useState(0);
     const [segmentKey, setSegmentKey] = useState(0);
     const [showCampaignWarning, setShowCampaignWarning] = useState(false);
+    const [mediaPreview, setMediaPreview] = useState<ReminderMediaPreview | null>(null);
+    const [mediaAccept, setMediaAccept] = useState("image/*");
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const pendingPayload = useRef<formValuesReminderSchema | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -176,6 +201,37 @@ export const ReminderForm = ({
         setValue("time", value);
     }, [setValue]);
 
+    const handlePickMedia = (option: (typeof MEDIA_OPTIONS)[number]) => {
+        setMediaAccept(option.accept);
+        requestAnimationFrame(() => fileInputRef.current?.click());
+    };
+
+    const handleMediaSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const detectedType =
+            file.type.startsWith("image/")
+                ? "image"
+                : file.type.startsWith("video/")
+                    ? "video"
+                    : file.type.startsWith("audio/")
+                        ? "audio"
+                        : "document";
+
+        setMediaPreview({
+            fileName: file.name,
+            mimeType: file.type || "application/octet-stream",
+            size: file.size,
+            type: detectedType,
+        });
+    };
+
+    const clearMediaPreview = () => {
+        setMediaPreview(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
     const modalTitle = isCampaignPage ? 'campaña' : 'recordatorio';
 
     const onSubmit = (payload: formValuesReminderSchema) => {
@@ -240,6 +296,68 @@ export const ReminderForm = ({
                             />
                         );
                     })()}
+                </div>
+
+                <div className="flex flex-col gap-2 rounded-md border border-dashed border-border bg-muted/20 p-3">
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept={mediaAccept}
+                        className="hidden"
+                        onChange={handleMediaSelected}
+                    />
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground shadow-sm">
+                                <Paperclip className="h-4 w-4" />
+                            </span>
+                            <div className="min-w-0">
+                                <p className="text-sm font-semibold leading-tight">Archivo multimedia</p>
+                                <p className="truncate text-xs text-muted-foreground">Opcional para enviar junto al recordatorio</p>
+                            </div>
+                        </div>
+                        {mediaPreview && (
+                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={clearMediaPreview}>
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2">
+                        {MEDIA_OPTIONS.map((option) => {
+                            const Icon = option.Icon;
+                            return (
+                                <Button
+                                    key={option.type}
+                                    type="button"
+                                    variant={mediaPreview?.type === option.type ? "default" : "outline"}
+                                    size="sm"
+                                    className="h-9 gap-1 px-2 text-xs"
+                                    onClick={() => handlePickMedia(option)}
+                                >
+                                    <Icon className="h-3.5 w-3.5" />
+                                    <span className="truncate">{option.label}</span>
+                                </Button>
+                            );
+                        })}
+                    </div>
+
+                    {mediaPreview ? (
+                        <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                                {mediaPreview.type === "image" ? <ImageIcon className="h-4 w-4" /> :
+                                    mediaPreview.type === "video" ? <Video className="h-4 w-4" /> :
+                                        mediaPreview.type === "audio" ? <FileAudio className="h-4 w-4" /> :
+                                            <FileText className="h-4 w-4" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">{mediaPreview.fileName}</p>
+                                <p className="text-xs text-muted-foreground">{formatFileSize(mediaPreview.size)} · {mediaPreview.mimeType}</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-xs text-muted-foreground">Selecciona una imagen, video, audio o documento.</p>
+                    )}
                 </div>
                 {isCampaignPage && (
                     <div className="flex items-center gap-1.5 flex-wrap">
