@@ -323,7 +323,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                             </div>
 
                                             <p className="text-sm font-semibold leading-tight truncate">
-                                                {appt.session?.pushName || "Sin nombre"}
+                                                {appt.clientName || appt.session?.pushName || "Sin nombre"}
                                             </p>
 
                                             <div className="flex items-end justify-between gap-3">
@@ -385,7 +385,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                             </div>
 
                                             <p className="text-sm font-semibold leading-tight truncate">
-                                                {appt.session?.pushName || "Sin nombre"}
+                                                {appt.clientName || appt.session?.pushName || "Sin nombre"}
                                             </p>
 
                                             <div className="flex items-end justify-between gap-3">
@@ -445,7 +445,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                                 </div>
 
                                                 <p className="text-sm font-semibold leading-tight truncate">
-                                                    {appt.session?.pushName || "Sin nombre"}
+                                                    {appt.clientName || appt.session?.pushName || "Sin nombre"}
                                                 </p>
 
                                                 <div className="flex items-end justify-between gap-3">
@@ -508,7 +508,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                     <CardDescription>
                                         EstÃƒÆ’Ã‚Â¡s por modificar el estado de la cita:
                                         <span className="text-muted-foreground">
-                                            {selectedAppointment?.session?.pushName || "Cliente desconocido"}
+                                            {selectedAppointment?.clientName || selectedAppointment?.session?.pushName || "Cliente desconocido"}
                                         </span>
                                     </CardDescription>
                                 </CardHeader>
@@ -561,7 +561,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                         <div className="space-y-3">
                                             <div className="flex text-sm gap-1 flex-row">
                                                 <strong className="uppercase font-medium">Cliente:</strong>
-                                                {currentAppointment.session.pushName || "Cliente desconocido"}
+                                                {currentAppointment.clientName || currentAppointment.session.pushName || "Cliente desconocido"}
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
                                                 <strong className="uppercase font-medium">TelÃƒÆ’Ã‚Â©fono:</strong>
@@ -626,7 +626,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                         <AlertDialogTitle>Eliminar cita</AlertDialogTitle>
                         <AlertDialogDescription>
                             Ãƒâ€šÃ‚Â¿EstÃƒÆ’Ã‚Â¡s seguro de que quieres eliminar la cita de{" "}
-                            <strong>{selectedAppointment?.session?.pushName || "este cliente"}</strong>?
+                            <strong>{selectedAppointment?.clientName || selectedAppointment?.session?.pushName || "este cliente"}</strong>?
                             Esta acciÃƒÆ’Ã‚Â³n no se puede deshacer.
                         </AlertDialogDescription>
                     </AlertDialogHeader>

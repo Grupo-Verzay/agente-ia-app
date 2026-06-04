@@ -39,7 +39,7 @@ export const buildStatusOwnerMessage = ({
     const timeLabel = format(zonedStart, "h:mm a");
 
     const serviceName = appointment.service?.name ?? "—";
-    const clientName = appointment.session?.pushName ?? "Cliente";
+    const clientName = appointment.clientName || appointment.session?.pushName || "Cliente";
 
     const scheduleUrl = userId === "cm84mjtp50000l6soenaosi2z" ? 'https://verzay.com/agendar-una-cita' : `https://agente.ia-app.com/schedule/${userId}`;
 

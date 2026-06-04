@@ -187,6 +187,7 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
             data: {
                 userId,
                 sessionId,
+                clientName: normalizedPushName,
                 startTime: start,
                 endTime: end,
                 timezone,
@@ -574,7 +575,7 @@ export async function getAppointmentsForKanban(userId: string): Promise<{
                 status: a.status,
                 startTime: a.startTime.toISOString(),
                 endTime: a.endTime.toISOString(),
-                pushName: a.session.pushName,
+                pushName: a.clientName || a.session.pushName,
                 remoteJid: a.session.remoteJid,
                 serviceName: a.service?.name ?? null,
                 tags: a.session.sessionTags.map((st) => ({ id: st.tag.id, name: st.tag.name, color: st.tag.color })),

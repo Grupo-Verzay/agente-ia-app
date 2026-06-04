@@ -128,7 +128,7 @@ export async function getNotificationCenterData(): Promise<{
       ...pendingAppointments.map((appointment) => ({
         id: `appointment-${appointment.id}`,
         kind: "appointment" as const,
-        title: appointment.session.pushName ?? appointment.session.remoteJid,
+        title: appointment.clientName || appointment.session.pushName || appointment.session.remoteJid,
         description: appointment.service?.name ? `Cita pendiente: ${appointment.service.name}` : "Cita pendiente",
         href: "/schedule",
         date: appointment.startTime.toISOString(),

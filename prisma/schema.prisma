@@ -88,16 +88,17 @@ model ApiKey {
 }
 
 model Appointment {
-  id        String            @id @default(uuid())
-  userId    String
-  sessionId Int
-  startTime DateTime
-  endTime   DateTime
-  timezone  String
-  status    AppointmentStatus @default(PENDIENTE)
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  serviceId String?
+  id         String            @id @default(uuid())
+  userId     String
+  sessionId  Int
+  clientName String?
+  startTime  DateTime
+  endTime    DateTime
+  timezone   String
+  status     AppointmentStatus @default(PENDIENTE)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  serviceId  String?
   service   Service?          @relation(fields: [serviceId], references: [id])
   session   Session           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
