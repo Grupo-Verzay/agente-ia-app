@@ -517,7 +517,7 @@ export function ChatContactItem({
 
       {visibleBadges.length > 0 && (
         <div
-          className="mt-1 flex flex-wrap items-center gap-1 pl-[52px]"
+          className="mt-1 flex flex-wrap items-center gap-1"
           onClick={(e) => e.stopPropagation()}
         >
           {visibleBadges}
