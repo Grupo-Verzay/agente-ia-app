@@ -213,16 +213,16 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-1.5">
                   <Badge variant="outline" className="justify-start gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium">
-                    <CreditCard className="h-3 w-3" />
-                    {getPlanLabel(activePlan)}
+                    <ShieldCheck className="h-3 w-3" />
+                    {effectiveRoleLabel}
                   </Badge>
                   <Badge variant="outline" className="justify-start gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium">
                     <Users className="h-3 w-3" />
                     {getAccountCountLabel(accessibleCount)}
                   </Badge>
                   <Badge variant="outline" className="col-span-2 justify-start gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium">
-                    <ShieldCheck className="h-3 w-3" />
-                    {effectiveRoleLabel}
+                    <CreditCard className="h-3 w-3" />
+                    Plan {getPlanLabel(activePlan)}
                   </Badge>
                 </div>
               </DropdownMenuLabel>
