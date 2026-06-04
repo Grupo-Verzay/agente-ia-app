@@ -21,6 +21,7 @@ import { CrmLeadStatusPromptWizard } from "./CrmLeadStatusPromptWizard";
 import { LoadingState } from "./LoadingState";
 import { Separator } from "@/components/ui/separator";
 import type { CrmFeatureFlags } from "@/types/crm-feature-flags";
+import { LeadStatusWorkflowPanel } from "./LeadStatusWorkflowPanel";
 
 type ManagedCrmPromptKind = keyof CrmPromptRecordMap;
 
@@ -44,7 +45,7 @@ export function CrmFollowUpRulesPanel({
 }) {
   const availableTabs = useMemo(() => {
     const tabs: Array<{
-      value: "followUps" | "leadStatus" | "leadFunnel";
+      value: "followUps" | "leadStatus" | "leadFunnel" | "statusWorkflow";
       label: string;
     }> = [];
 
@@ -60,10 +61,14 @@ export function CrmFollowUpRulesPanel({
       tabs.push({ value: "followUps", label: "Follow-ups" });
     }
 
+    if (features.enabledLeadStatusClassifier) {
+      tabs.push({ value: "statusWorkflow", label: "Flujos por estado" });
+    }
+
     return tabs;
   }, [features]);
   const [activeTab, setActiveTab] = useState<
-    "followUps" | "leadStatus" | "leadFunnel"
+    "followUps" | "leadStatus" | "leadFunnel" | "statusWorkflow"
   >(availableTabs[0]?.value ?? "followUps");
   const [rulesLoading, setRulesLoading] = useState(false);
   const [promptsLoading, setPromptsLoading] = useState(false);
@@ -296,6 +301,7 @@ export function CrmFollowUpRulesPanel({
         setActiveTab(value as "followUps" | "leadStatus" | "leadFunnel")
       }
       className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+      onValueChange={(value) => setActiveTab(value as typeof activeTab)}
     >
       <TabsList className="flex justify-start shrink-0">
         {availableTabs.map((tab) => (
@@ -375,6 +381,13 @@ export function CrmFollowUpRulesPanel({
         ) : (
           <LoadingState label="Sin configuracion disponible." />
         )}
+      </TabsContent>
+
+      <TabsContent
+        value="statusWorkflow"
+        className="mt-0 flex-1 min-h-0 min-w-0 overflow-hidden"
+      >
+        <LeadStatusWorkflowPanel userId={userId} />
       </TabsContent>
     </Tabs>
   );
