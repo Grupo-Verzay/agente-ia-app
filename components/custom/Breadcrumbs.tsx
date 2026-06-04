@@ -237,7 +237,7 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
                 <Button
                   type="button"
                   variant="ghost"
-                  className={`h-9 gap-1.5 px-2.5 text-sm font-medium ${supportChatOpen ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary' : 'text-muted-foreground hover:text-primary'}`}
+                  className={`h-9 gap-1.5 rounded-full border px-3 text-sm font-medium shadow-sm transition-all ${supportChatOpen ? 'border-primary/30 bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary' : 'border-primary/20 bg-primary/10 text-primary hover:border-primary/30 hover:bg-primary/15 hover:text-primary'}`}
                   aria-label={supportChatOpen ? 'Cerrar chat con IA' : 'Abrir chat con IA'}
                   aria-controls="ai-chat-sheet-desktop"
                   aria-expanded={supportChatOpen}

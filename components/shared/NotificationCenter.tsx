@@ -120,10 +120,15 @@ export function NotificationCenter() {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative h-9 w-9" aria-label="Centro de notificaciones">
-          <Bell className="h-4 w-4" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative h-9 w-9 rounded-full border border-border bg-background shadow-sm transition-all hover:border-amber-200 hover:bg-amber-50"
+          aria-label="Centro de notificaciones"
+        >
+          <Bell className="h-4 w-4 text-amber-500" />
           {data.total > 0 && (
-            <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
+            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-background">
               {data.total > 99 ? "99+" : data.total}
             </span>
           )}
