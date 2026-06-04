@@ -477,7 +477,6 @@ export function CrmFollowUpWizard({
                             />
                         )}
 
-                        {/* Flujo por estado — siempre visible, una sola fila */}
                         <LeadStatusWorkflowPanel userId={userId} filterStatus={currentLeadStatus ?? undefined} />
                     </div>
 

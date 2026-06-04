@@ -5,7 +5,6 @@ import { currentUser } from "@/lib/auth";
 
 export type NotificationKind =
   | "task"
-  | "reminder"
   | "appointment"
   | "connection"
   | "chat";
@@ -27,7 +26,6 @@ export type NotificationCenterData = {
 
 const EMPTY_COUNTS: Record<NotificationKind, number> = {
   task: 0,
-  reminder: 0,
   appointment: 0,
   connection: 0,
   chat: 0,
@@ -59,13 +57,11 @@ export async function getNotificationCenterData(): Promise<{
 
   const ownerId = user.ownerId ?? user.id;
   const now = new Date();
-  const next24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
   try {
     const [
       overdueTasks,
       taskCount,
-      reminders,
       pendingAppointments,
       appointmentCount,
       instances,
@@ -80,11 +76,6 @@ export async function getNotificationCenterData(): Promise<{
       }),
       (db as any).task.count({
         where: { ownerId, status: "pending", dueDate: { lt: now } },
-      }),
-      db.reminders.findMany({
-        where: { userId: ownerId, isCampaign: false, time: { not: null } },
-        orderBy: { updatedAt: "desc" },
-        take: 50,
       }),
       db.appointment.findMany({
         where: { userId: ownerId, status: "PENDIENTE", startTime: { gte: now } },
@@ -117,11 +108,6 @@ export async function getNotificationCenterData(): Promise<{
       }),
     ]);
 
-    const upcomingReminders = reminders
-      .map((reminder) => ({ reminder, when: parseReminderTime(reminder.time) }))
-      .filter(({ when }) => when && when >= now && when <= next24h)
-      .sort((a, b) => a.when!.getTime() - b.when!.getTime());
-
     const connectionItems: NotificationCenterItem[] = [];
     if (instances.length === 0) {
       connectionItems.push({
@@ -142,30 +128,6 @@ export async function getNotificationCenterData(): Promise<{
       });
     }
     const items: NotificationCenterItem[] = [
-      ...overdueTasks.map((task: any) => ({
-        id: `task-${task.id}`,
-        kind: "task" as const,
-        title: task.title,
-        description: task.contactName ? `Tarea vencida con ${task.contactName}` : "Tarea vencida",
-        href: "/tareas",
-        date: task.dueDate?.toISOString?.() ?? null,
-      })),
-      ...upcomingReminders.slice(0, 5).map(({ reminder, when }) => ({
-        id: `reminder-${reminder.id}`,
-        kind: "reminder" as const,
-        title: reminder.title,
-        description: reminder.pushName ? `Recordatorio para ${reminder.pushName}` : "Recordatorio proximo",
-        href: "/reminders",
-        date: when?.toISOString() ?? null,
-      })),
-      ...pendingAppointments.map((appointment) => ({
-        id: `appointment-${appointment.id}`,
-        kind: "appointment" as const,
-        title: appointment.session.pushName ?? appointment.session.remoteJid,
-        description: appointment.service?.name ? `Cita pendiente: ${appointment.service.name}` : "Cita pendiente",
-        href: "/schedule",
-        date: appointment.startTime.toISOString(),
-      })),
       ...connectionItems,
       ...activeChats.map((chat) => ({
         id: `chat-${chat.id}`,
@@ -175,11 +137,26 @@ export async function getNotificationCenterData(): Promise<{
         href: `/chats?jid=${encodeURIComponent(chat.remoteJid)}`,
         date: chat.updatedAt.toISOString(),
       })),
+      ...pendingAppointments.map((appointment) => ({
+        id: `appointment-${appointment.id}`,
+        kind: "appointment" as const,
+        title: appointment.session.pushName ?? appointment.session.remoteJid,
+        description: appointment.service?.name ? `Cita pendiente: ${appointment.service.name}` : "Cita pendiente",
+        href: "/schedule",
+        date: appointment.startTime.toISOString(),
+      })),
+      ...overdueTasks.map((task: any) => ({
+        id: `task-${task.id}`,
+        kind: "task" as const,
+        title: task.title,
+        description: task.contactName ? `Tarea vencida con ${task.contactName}` : "Tarea vencida",
+        href: "/tareas",
+        date: task.dueDate?.toISOString?.() ?? null,
+      })),
     ];
 
     const counts = {
       task: taskCount,
-      reminder: upcomingReminders.length,
       appointment: appointmentCount,
       connection: connectionItems.length,
       chat: chatCount,

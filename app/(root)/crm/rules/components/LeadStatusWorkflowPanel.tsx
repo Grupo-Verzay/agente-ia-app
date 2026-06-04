@@ -87,7 +87,8 @@ export function LeadStatusWorkflowPanel({ userId, filterStatus }: { userId: stri
     configs.find((c) => c.leadStatus === status);
 
   const handleSelect = (status: LeadStatusValue, workflowId: string) => {
-    startTransition(async () => {
+    startTransition(() => {
+      void (async () => {
       const res = await upsertLeadStatusWorkflowConfig(status, workflowId);
       if (!res.success) return toast.error(res.error ?? "Error al guardar.");
       const wf = workflows.find((w) => w.id === workflowId);
@@ -97,15 +98,18 @@ export function LeadStatusWorkflowPanel({ userId, filterStatus }: { userId: stri
         return next;
       });
       toast.success("Configuración guardada.");
+      })();
     });
   };
 
   const handleRemove = (status: LeadStatusValue) => {
-    startTransition(async () => {
+    startTransition(() => {
+      void (async () => {
       const res = await deleteLeadStatusWorkflowConfig(status);
       if (!res.success) return toast.error(res.error ?? "Error al eliminar.");
       setConfigs((prev) => prev.filter((c) => c.leadStatus !== status));
       toast.success("Flujo desvinculado.");
+      })();
     });
   };
 
@@ -120,63 +124,54 @@ export function LeadStatusWorkflowPanel({ userId, filterStatus }: { userId: stri
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Tabla compacta */}
-      <div className="rounded-lg border border-border/70 overflow-hidden divide-y divide-border bg-muted/20">
+      <div className="rounded-xl border border-border/70 overflow-hidden divide-y divide-border/70 bg-muted/20">
         {LEAD_STATUSES.filter(s => !filterStatus || s.value === filterStatus).map(({ value, label, icon, iconCn, rowCn, labelCn }) => {
           const config = getConfig(value);
           return (
-            <div key={value} className={cn("flex items-center gap-3 px-4 py-3", rowCn)}>
+            <div key={value} className={cn("flex items-center gap-3 px-4 py-2.5", rowCn)}>
 
-              {/* Ícono + label del estado */}
-              <div className="flex items-center gap-2 w-28 shrink-0">
+              {/* Ícono + label + flecha + texto */}
+              <div className="flex items-center gap-2 shrink-0">
                 <span className={iconCn}>{icon}</span>
                 <span className={cn("text-sm", labelCn)}>{label}</span>
-              </div>
-
-              {/* Flecha + texto intermedio */}
-              <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground">
-                <ArrowRight className="h-3.5 w-3.5" />
-                <span className="text-xs">Disparar flujo:</span>
+                <span className="text-xs text-muted-foreground">Disparar flujo</span>
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
 
               {/* Selector */}
-              <div className="flex-1 min-w-0">
-                {workflows.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Sin flujos disponibles</p>
-                ) : (
+              {workflows.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Sin flujos</p>
+              ) : (
+                <div className="flex items-center gap-1 ml-auto">
                   <Select
                     value={config?.workflowId ?? ""}
                     onValueChange={(id) => handleSelect(value, id)}
                     disabled={isPending}
                   >
-                    <SelectTrigger className="h-8 text-sm bg-background">
-                      <SelectValue placeholder="Seleccionar flujo..." />
+                    <SelectTrigger className="h-7 text-xs bg-background w-48">
+                      <SelectValue placeholder="Seleccionar flujo" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-w-[240px]">
                       {workflows.map((wf) => (
-                        <SelectItem key={wf.id} value={wf.id}>
+                        <SelectItem key={wf.id} value={wf.id} className="text-xs truncate">
                           {wf.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                )}
-              </div>
-
-              {/* Quitar */}
-              {config ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => handleRemove(value)}
-                  disabled={isPending}
-                  title="Quitar flujo"
-                >
-                  <XCircle className="h-4 w-4" />
-                </Button>
-              ) : (
-                <div className="h-7 w-7 shrink-0" />
+                  {config && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleRemove(value)}
+                      disabled={isPending}
+                      title="Quitar flujo"
+                    >
+                      <XCircle className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           );

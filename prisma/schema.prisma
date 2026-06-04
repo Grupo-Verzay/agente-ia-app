@@ -1266,6 +1266,22 @@ model IntentTrigger {
   @@index([userId, isActive])
 }
 
+model AuditLog {
+  id         String   @id
+  userId     String   @map("user_id")
+  actorId    String?  @map("actor_id")
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  action     String
+  summary    String
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt(sort: Desc)], map: "audit_logs_user_created_at_idx")
+  @@index([entityType, entityId, createdAt(sort: Desc)], map: "audit_logs_entity_created_at_idx")
+  @@map("audit_logs")
+}
+
 enum LeadStatus {
   FRIO
   TIBIO

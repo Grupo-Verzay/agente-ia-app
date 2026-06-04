@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton, useSidebar } from "@/components/ui/sidebar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PlanBadgeDisplay } from "@/components/shared/PlanBadgeDisplay";
 import { UserLogoAvatar } from "@/components/shared/UserLogoAvatar";
 import {
@@ -67,6 +68,34 @@ function getSwitcherRoleLabel(user: User, currentRole: "agente" | "administrador
 
 function getCompactRoleLabel(label: string) {
   return label.replace(" de equipo", "");
+}
+
+function AccountListAvatar({
+  image,
+  id,
+  name,
+  email,
+  company,
+}: {
+  image?: string | null;
+  id: string;
+  name: string | null;
+  email: string;
+  company: string;
+}) {
+  return (
+    <Avatar className="h-6 w-6 shrink-0 rounded-md border bg-background">
+      {image && <AvatarImage src={image} alt={displayName({ name, email, company })} className="object-cover" />}
+      <AvatarFallback
+        className={cn(
+          "rounded-md text-[10px] font-bold text-white",
+          colorFor(id),
+        )}
+      >
+        {initials(name, email, company)}
+      </AvatarFallback>
+    </Avatar>
+  );
 }
 
 interface AccountSwitcherProps {
@@ -165,7 +194,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
             <DropdownMenuTrigger asChild>
               <SidebarMenuButton
                 size="lg"
-                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                className="gap-2.5 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
                 <UserLogoAvatar
                   logoUrl={currentAccount?.image ?? user.image}
@@ -175,7 +204,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                 />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="flex min-w-0 items-center gap-1 truncate font-semibold">
-                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/60" />
+                    <ShieldCheck className="h-3 w-3 shrink-0 text-sidebar-foreground/55" />
                     <span className="truncate">{getCompactRoleLabel(effectiveRoleLabel)}</span>
                   </span>
                   <span className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-xs text-sidebar-foreground/70">
@@ -206,9 +235,13 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                   onSelect={() => handleSwitch(currentAccount.id)}
                   className="flex items-center gap-2 px-2 py-1.5 cursor-pointer"
                 >
-                  <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white", colorFor(currentAccount.id))}>
-                    {initials(currentAccount.name, currentAccount.email, currentAccount.company)}
-                  </div>
+                  <AccountListAvatar
+                    image={currentAccount.image}
+                    id={currentAccount.id}
+                    name={currentAccount.name}
+                    email={currentAccount.email}
+                    company={currentAccount.company}
+                  />
                   <div className="flex flex-1 flex-col min-w-0">
                     <span className="truncate text-sm font-medium">{displayName(currentAccount)}</span>
                     <span className="truncate text-[10px] text-muted-foreground">
@@ -230,9 +263,13 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                     onSelect={() => handleSwitch(a.accountUserId)}
                     className="flex flex-1 items-center gap-2 px-2 py-1.5 cursor-pointer"
                   >
-                    <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white", colorFor(a.accountUserId))}>
-                      {initials(a.name, a.email, a.company)}
-                    </div>
+                    <AccountListAvatar
+                      image={a.image}
+                      id={a.accountUserId}
+                      name={a.name}
+                      email={a.email}
+                      company={a.company}
+                    />
                     <div className="flex flex-1 flex-col min-w-0">
                       <span className="truncate text-sm font-medium">{displayName(a)}</span>
                       <span className="truncate text-[10px] text-muted-foreground">

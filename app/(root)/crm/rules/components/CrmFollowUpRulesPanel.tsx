@@ -296,7 +296,6 @@ export function CrmFollowUpRulesPanel({
         setActiveTab(value as "followUps" | "leadStatus" | "leadFunnel")
       }
       className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
-      onValueChange={(value) => setActiveTab(value as typeof activeTab)}
     >
       <TabsList className="flex justify-start shrink-0">
         {availableTabs.map((tab) => (
