@@ -16,7 +16,7 @@ export type AdvisorRow = {
   assignedCount: number;
   activeCount: number;
   advisorAvailable: boolean;
-  lastActivity: Date | null;
+  lastActivity: string | null;
 };
 export type AdvisorInfo = { id: string; name: string | null; email: string; advisorRole: string | null };
 
@@ -105,7 +105,13 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
     ORDER BY d.name ASC
   `;
 
-  return { success: true, data: rows };
+  return {
+    success: true,
+    data: rows.map((row) => ({
+      ...row,
+      lastActivity: row.lastActivity ? row.lastActivity.toISOString() : null,
+    })),
+  };
 }
 
 export async function updateAdvisorRole(advisorId: string, role: "agente" | "administrador"): Promise<ActionResult> {
@@ -126,7 +132,7 @@ export async function updateAdvisorRole(advisorId: string, role: "agente" | "adm
   if (linkedMembership.length > 0) {
     await db.$executeRaw`
       UPDATE "linked_accounts"
-      SET role = ${role}
+      SET role = ${role}::"LinkedAccountRole"
       WHERE id = ${linkedMembership[0].id}
     `;
   } else {
@@ -322,7 +328,7 @@ export async function linkExistingAdvisor(
 
   await db.$executeRaw`
     INSERT INTO "linked_accounts" (id, "master_user_id", "linked_user_id", role)
-    VALUES (${crypto.randomUUID()}, ${owner.id}, ${target.id}, ${role})
+    VALUES (${crypto.randomUUID()}, ${owner.id}, ${target.id}, ${role}::"LinkedAccountRole")
   `;
 
   return { success: true, message: "Usuario vinculado como asesor correctamente." };
