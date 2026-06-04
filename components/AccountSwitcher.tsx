@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton, useSidebar } from "@/components/ui/sidebar";
 import { getPlanLabel, PlanBadgeDisplay } from "@/components/shared/PlanBadgeDisplay";
+import { UserLogoAvatar } from "@/components/shared/UserLogoAvatar";
 import {
   getMyLinkedAccounts,
   switchToAccount,
@@ -186,7 +187,11 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
             >
               <DropdownMenuLabel className="px-2 py-2">
                 <div className="flex items-start gap-2">
-                  <PlanBadgeDisplay plan={activePlan} />
+                  <UserLogoAvatar
+                    logoUrl={currentAccount?.image ?? user.image}
+                    plan={activePlan}
+                    alt={activeName}
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-foreground">{activeName}</p>
                     <p className="truncate text-xs font-normal text-muted-foreground">

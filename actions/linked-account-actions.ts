@@ -21,13 +21,14 @@ export type LinkedAccountInfo = {
   name: string | null;
   email: string;
   company: string;
+  image: string | null;
   plan: Plan;
 };
 
 export type LinkedAccountsPayload = {
   realUserId: string;
   activeAccountId: string;
-  currentAccount: { id: string; name: string | null; email: string; company: string; plan: Plan } | null;
+  currentAccount: { id: string; name: string | null; email: string; company: string; image: string | null; plan: Plan } | null;
   currentRole: AccountRole | null;
   accounts: LinkedAccountInfo[];
 };
@@ -64,8 +65,8 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
 
   try {
     const [selfRows, incomingRows, currentMembership, legacyCurrent] = await Promise.all([
-      db.$queryRaw<{ id: string; name: string | null; email: string; company: string; plan: Plan }[]>`
-        SELECT id, name, email, company, plan FROM "User" WHERE id = ${realUserId} LIMIT 1
+      db.$queryRaw<{ id: string; name: string | null; email: string; company: string; image: string | null; plan: Plan }[]>`
+        SELECT id, name, email, company, image, plan FROM "User" WHERE id = ${realUserId} LIMIT 1
       `,
       db.$queryRaw<LinkedAccountInfo[]>`
         SELECT la.id,
@@ -75,6 +76,7 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
                u.name,
                u.email,
                u.company,
+               u.image,
                u.plan
         FROM "linked_accounts" la
         JOIN "User" u ON u.id = la."master_user_id"
@@ -91,9 +93,9 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
             LIMIT 1
           `,
       activeAccountId === realUserId
-        ? Promise.resolve([] as { id: string; name: string | null; email: string; company: string; plan: Plan; role: AccountRole | null }[])
-        : db.$queryRaw<{ id: string; name: string | null; email: string; company: string; plan: Plan; role: AccountRole | null }[]>`
-          SELECT u.id, u.name, u.email, u.company, u.plan, u.advisor_role AS role
+        ? Promise.resolve([] as { id: string; name: string | null; email: string; company: string; image: string | null; plan: Plan; role: AccountRole | null }[])
+        : db.$queryRaw<{ id: string; name: string | null; email: string; company: string; image: string | null; plan: Plan; role: AccountRole | null }[]>`
+          SELECT u.id, u.name, u.email, u.company, u.image, u.plan, u.advisor_role AS role
           FROM "linked_accounts" la
           JOIN "User" u ON u.id = la."linked_user_id"
           WHERE la."master_user_id" = ${realUserId}
@@ -107,13 +109,13 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
         ? realUser?.ownerId
           ? await db.user.findUnique({
               where: { id: realUser.ownerId },
-              select: { id: true, name: true, email: true, company: true, plan: true },
+              select: { id: true, name: true, email: true, company: true, image: true, plan: true },
             }).then((row) => row ?? selfRows[0] ?? null)
           : selfRows[0] ?? null
         : currentMembership[0]
           ? await db.user.findUnique({
               where: { id: activeAccountId },
-              select: { id: true, name: true, email: true, company: true, plan: true },
+              select: { id: true, name: true, email: true, company: true, image: true, plan: true },
             }).then((row) => row ?? selfRows[0] ?? null)
           : legacyCurrent[0] ?? selfRows[0] ?? null;
 
@@ -134,6 +136,7 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
                  u.name,
                  u.email,
                  u.company,
+                 u.image,
                  u.plan
           FROM "linked_accounts" la
           JOIN "User" u ON u.id = la."linked_user_id"
@@ -162,8 +165,8 @@ export async function getMyLinkedAccounts(): Promise<Result<LinkedAccountsPayloa
       },
     };
   } catch {
-    const selfRows = await db.$queryRaw<{ id: string; name: string | null; email: string; company: string; plan: Plan }[]>`
-      SELECT id, name, email, company, plan FROM "User" WHERE id = ${realUserId} LIMIT 1
+    const selfRows = await db.$queryRaw<{ id: string; name: string | null; email: string; company: string; image: string | null; plan: Plan }[]>`
+      SELECT id, name, email, company, image, plan FROM "User" WHERE id = ${realUserId} LIMIT 1
     `.catch(() => []);
 
     return {
@@ -256,8 +259,8 @@ export async function addLinkedAccount(
   const trimmedEmail = linkedEmail.trim().toLowerCase();
   if (!trimmedEmail) return { success: false, message: "El email no puede estar vacío." };
 
-  const linkedRows = await db.$queryRaw<{ id: string; name: string | null; email: string; company: string; plan: Plan }[]>`
-    SELECT id, name, email, company, plan FROM "User" WHERE LOWER(email) = ${trimmedEmail} LIMIT 1
+  const linkedRows = await db.$queryRaw<{ id: string; name: string | null; email: string; company: string; image: string | null; plan: Plan }[]>`
+    SELECT id, name, email, company, image, plan FROM "User" WHERE LOWER(email) = ${trimmedEmail} LIMIT 1
   `;
 
   if (linkedRows.length === 0) {
@@ -300,6 +303,7 @@ export async function addLinkedAccount(
       name: linked.name,
       email: linked.email,
       company: linked.company,
+      image: linked.image,
       plan: linked.plan,
     },
   };
