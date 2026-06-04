@@ -8,6 +8,7 @@ import {
   Trash2, User, UserPlus, X, Maximize2, Minimize2,
 } from 'lucide-react'
 import { NoteContactPicker } from './NoteContactPicker'
+import { AuditHistoryButton } from '@/components/shared/AuditHistoryButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -320,6 +321,8 @@ export function NotesEditor({
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setFocusMode(v => !v)} title={focusMode ? 'Salir del modo enfoque' : 'Modo enfoque'}>
             {focusMode ? <Minimize2 className="h-4 w-4 text-muted-foreground" /> : <Maximize2 className="h-4 w-4 text-muted-foreground" />}
           </Button>
+
+          <AuditHistoryButton entityType="note" entityId={note.id} />
 
           {/* Pin */}
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onTogglePin(note.id, note.isPinned)} title={note.isPinned ? 'Desfijar' : 'Fijar'}>

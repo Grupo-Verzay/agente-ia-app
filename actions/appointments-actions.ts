@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { Appointment, AppointmentStatus } from '@prisma/client';
 import { addMinutes, parseISO, isBefore } from 'date-fns';
 import { registerSession } from './session-action';
+import { getAuditActorId, writeAuditLog } from './audit-log-actions';
 
 interface AppointmentOperationResponse {
     success: boolean;
@@ -194,6 +195,22 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
             },
         });
 
+        await writeAuditLog({
+            userId,
+            actorId: await getAuditActorId(),
+            entityType: 'appointment',
+            entityId: created.id,
+            action: 'created',
+            summary: `Creo cita para ${normalizedPushName}`,
+            metadata: {
+                sessionId,
+                status: created.status,
+                startTime: created.startTime.toISOString(),
+                endTime: created.endTime.toISOString(),
+                serviceId,
+            },
+        });
+
         return {
             success: true,
             message: 'Cita creada exitosamente.',
@@ -268,6 +285,19 @@ export async function updateAppointmentStatus(
             include: { session: true },
         });
 
+        await writeAuditLog({
+            userId: updated.userId,
+            actorId: await getAuditActorId(),
+            entityType: 'appointment',
+            entityId: id,
+            action: 'status_changed',
+            summary: `Cambio la cita a ${status}`,
+            metadata: {
+                status,
+                sessionId: updated.sessionId,
+            },
+        });
+
         // Al cancelar: borrar seguimientos de la cita (appt-confirm-*, appt-reminder-*)
         // y los legacy reminder-* que correspondan a plantillas isSchedule=true de este usuario.
         if (status === 'CANCELADA') {
@@ -335,6 +365,20 @@ export async function updateAppointmentDetails(
             data: updateData,
             include: { service: { select: { name: true } } },
         });
+        await writeAuditLog({
+            userId: updated.userId,
+            actorId: await getAuditActorId(),
+            entityType: 'appointment',
+            entityId: id,
+            action: 'updated',
+            summary: 'Actualizo los datos de la cita',
+            metadata: {
+                fields: Object.keys(updateData),
+                startTime: updated.startTime.toISOString(),
+                endTime: updated.endTime.toISOString(),
+                serviceId: updated.serviceId,
+            },
+        });
         return { success: true, message: 'Cita actualizada correctamente.', data: updated };
     } catch (error) {
         console.error('Error al actualizar cita:', error);
@@ -345,7 +389,20 @@ export async function updateAppointmentDetails(
 //Eliminar una cita
 export async function deleteAppointment(id: string): Promise<AppointmentOperationResponse> {
     try {
-        await db.appointment.delete({ where: { id } });
+        const deleted = await db.appointment.delete({ where: { id } });
+        await writeAuditLog({
+            userId: deleted.userId,
+            actorId: await getAuditActorId(),
+            entityType: 'appointment',
+            entityId: id,
+            action: 'deleted',
+            summary: 'Elimino la cita',
+            metadata: {
+                sessionId: deleted.sessionId,
+                status: deleted.status,
+                startTime: deleted.startTime.toISOString(),
+            },
+        });
 
         return {
             success: true,

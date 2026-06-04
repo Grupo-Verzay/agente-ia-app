@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db'
 import type { NoteFolder, UserNote } from '@prisma/client'
+import { getAuditActorId, writeAuditLog } from './audit-log-actions'
 
 export type NoteFolderWithCount = NoteFolder & { _count: { notes: number } }
 export type UserNoteListItem = Pick<
@@ -132,6 +133,15 @@ export async function createNote(userId: string, folderId?: string | null, templ
       },
       select: { id: true, title: true, emoji: true, color: true, isPinned: true, isArchived: true, folderId: true, contactJid: true, contactName: true, updatedAt: true, createdAt: true },
     })
+    await writeAuditLog({
+      userId,
+      actorId: await getAuditActorId(),
+      entityType: 'note',
+      entityId: data.id,
+      action: 'created',
+      summary: `Creo la nota "${data.title}"`,
+      metadata: { folderId: data.folderId },
+    })
     return { success: true, data }
   } catch {
     return { success: false, error: 'No se pudo crear la nota.' }
@@ -155,6 +165,24 @@ export async function updateNote(
 ) {
   try {
     const data = await db.userNote.update({ where: { id, userId }, data: payload })
+    const action = payload.isArchived === true
+      ? 'archived'
+      : payload.isArchived === false
+        ? 'restored'
+        : 'updated'
+    await writeAuditLog({
+      userId,
+      actorId: await getAuditActorId(),
+      entityType: 'note',
+      entityId: id,
+      action,
+      summary: action === 'archived'
+        ? `Archivo la nota "${data.title}"`
+        : action === 'restored'
+          ? `Restauro la nota "${data.title}"`
+          : `Actualizo la nota "${data.title}"`,
+      metadata: { fields: Object.keys(payload) },
+    })
     return { success: true, data }
   } catch {
     return { success: false, error: 'No se pudo guardar la nota.' }
@@ -172,7 +200,15 @@ export async function updateNoteOrder(id: string, userId: string, order: number)
 
 export async function archiveNote(id: string, userId: string) {
   try {
-    await db.userNote.update({ where: { id, userId }, data: { isArchived: true } })
+    const data = await db.userNote.update({ where: { id, userId }, data: { isArchived: true } })
+    await writeAuditLog({
+      userId,
+      actorId: await getAuditActorId(),
+      entityType: 'note',
+      entityId: id,
+      action: 'archived',
+      summary: `Archivo la nota "${data.title}"`,
+    })
     return { success: true }
   } catch {
     return { success: false, error: 'No se pudo archivar la nota.' }
@@ -181,7 +217,15 @@ export async function archiveNote(id: string, userId: string) {
 
 export async function unarchiveNote(id: string, userId: string) {
   try {
-    await db.userNote.update({ where: { id, userId }, data: { isArchived: false } })
+    const data = await db.userNote.update({ where: { id, userId }, data: { isArchived: false } })
+    await writeAuditLog({
+      userId,
+      actorId: await getAuditActorId(),
+      entityType: 'note',
+      entityId: id,
+      action: 'restored',
+      summary: `Restauro la nota "${data.title}"`,
+    })
     return { success: true }
   } catch {
     return { success: false, error: 'No se pudo desarchivar la nota.' }
@@ -190,7 +234,15 @@ export async function unarchiveNote(id: string, userId: string) {
 
 export async function deleteNote(id: string, userId: string) {
   try {
-    await db.userNote.delete({ where: { id, userId } })
+    const data = await db.userNote.delete({ where: { id, userId } })
+    await writeAuditLog({
+      userId,
+      actorId: await getAuditActorId(),
+      entityType: 'note',
+      entityId: id,
+      action: 'deleted',
+      summary: `Elimino la nota "${data.title}"`,
+    })
     return { success: true }
   } catch {
     return { success: false, error: 'No se pudo eliminar la nota.' }

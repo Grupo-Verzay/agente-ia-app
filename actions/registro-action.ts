@@ -3,6 +3,7 @@
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
+import { getAuditActorId, writeAuditLog } from "@/actions/audit-log-actions";
 import { assertUserCanUseApp } from "@/actions/billing/helpers/app-access-guard";
 import { db } from "@/lib/db";
 import { ActionResult } from "@/types/registro";
@@ -83,6 +84,7 @@ async function ensureAuthorizedRegistroById(registroId: number) {
             id: true,
             sessionId: true,
             tipo: true,
+            estado: true,
             session: {
                 select: {
                     userId: true,
@@ -388,8 +390,22 @@ export async function createRegistro(input: {
             return createdRegistro;
         });
 
+        await writeAuditLog({
+            userId: session.userId,
+            actorId: await getAuditActorId(),
+            entityType: "crm",
+            entityId: String(created.id),
+            action: "created",
+            summary: `Creo registro CRM ${input.tipo}`,
+            metadata: {
+                sessionId: input.sessionId,
+                tipo: input.tipo,
+                estado: input.estado,
+            },
+        });
+
         return { success: true, data: created };
-    } catch (e) {
+    } catch (e: any) {
         return { success: false, message: e?.message ?? "No se pudo crear el registro" };
     }
 }
@@ -456,8 +472,22 @@ export async function updateRegistro(input: {
             });
         });
 
+        await writeAuditLog({
+            userId: registro.session.userId,
+            actorId: await getAuditActorId(),
+            entityType: "crm",
+            entityId: String(input.id),
+            action: "updated",
+            summary: `Actualizo registro CRM ${input.tipo}`,
+            metadata: {
+                sessionId: input.sessionId,
+                tipo: input.tipo,
+                estado: input.estado,
+            },
+        });
+
         return { success: true, data: updated };
-    } catch (e) {
+    } catch (e: any) {
         return { success: false, message: e?.message ?? "No se pudo actualizar el registro" };
     }
 }
@@ -469,14 +499,14 @@ export async function getRegistrosBySessionId(sessionId: number): Promise<Action
             orderBy: { createdAt: "desc" },
         });
         return { success: true, data: registros };
-    } catch (e) {
+    } catch (e: any) {
         return { success: false, message: e?.message ?? "No se pudieron cargar los registros" };
     }
 }
 
 export async function deleteRegistro(id: number): Promise<ActionResult<true>> {
     try {
-        await ensureAuthorizedRegistroById(id);
+        const registro = await ensureAuthorizedRegistroById(id);
         await db.$transaction([
             db.crmFollowUp.updateMany({
                 where: { sourceReportId: id },
@@ -484,8 +514,21 @@ export async function deleteRegistro(id: number): Promise<ActionResult<true>> {
             }),
             db.registro.delete({ where: { id } }),
         ]);
+        await writeAuditLog({
+            userId: registro.session.userId,
+            actorId: await getAuditActorId(),
+            entityType: "crm",
+            entityId: String(id),
+            action: "deleted",
+            summary: `Elimino registro CRM ${registro.tipo}`,
+            metadata: {
+                sessionId: registro.sessionId,
+                tipo: registro.tipo,
+                estado: registro.estado,
+            },
+        });
         return { success: true, data: true };
-    } catch (e) {
+    } catch (e: any) {
         return { success: false, message: e?.message ?? "No se pudo eliminar el registro" };
     }
 }
@@ -599,6 +642,19 @@ export async function updateRegistroEstado(registroId: number, nuevoEstado: stri
         await db.registro.update({
             where: { id: registroId },
             data: { estado: nuevoEstado },
+        });
+
+        await writeAuditLog({
+            userId: registro.session.userId,
+            actorId: await getAuditActorId(),
+            entityType: "crm",
+            entityId: String(registroId),
+            action: "status_changed",
+            summary: `Cambio estado CRM a ${nuevoEstado}`,
+            metadata: {
+                tipo: registro.tipo,
+                estado: nuevoEstado,
+            },
         });
 
         // Notificación WhatsApp al contacto (no bloquea, falla silenciosamente)
@@ -1012,6 +1068,19 @@ export async function updateRegistroDetalle(registroId: number, nuevoDetalle: st
                 registro.tipo === "REPORTE"
                     ? { resumen: detalleValue }
                     : { detalles: detalleValue },
+        });
+
+        await writeAuditLog({
+            userId: registro.session.userId,
+            actorId: await getAuditActorId(),
+            entityType: "crm",
+            entityId: String(registroId),
+            action: "updated",
+            summary: "Actualizo detalle del registro CRM",
+            metadata: {
+                tipo: registro.tipo,
+                field: registro.tipo === "REPORTE" ? "resumen" : "detalles",
+            },
         });
 
         return {

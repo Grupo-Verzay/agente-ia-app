@@ -4,6 +4,7 @@ import { z } from "zod";
 import { format } from "date-fns";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { writeAuditLog } from "@/actions/audit-log-actions";
 
 import type { TaskData, TaskStatus } from "@/lib/task-types";
 
@@ -71,6 +72,21 @@ export async function createTaskAction(
         dueDate: new Date(parsed.dueDate),
         status: "pending",
         createdById: user.id,
+      },
+    });
+
+    await writeAuditLog({
+      userId: ownerId,
+      actorId: user.id,
+      entityType: "task",
+      entityId: String(task.id),
+      action: "created",
+      summary: `Creo la tarea "${task.title}"`,
+      metadata: {
+        status: task.status,
+        assignedToId: task.assignedToId,
+        sessionId: task.sessionId,
+        dueDate: task.dueDate?.toISOString?.() ?? parsed.dueDate,
       },
     });
 
@@ -145,7 +161,7 @@ export async function getMyTasksAction(): Promise<{
       orderBy: { dueDate: "asc" },
     });
 
-    const advisorIds = [...new Set(tasks.map((t: any) => t.assignedToId))] as string[];
+    const advisorIds = Array.from(new Set<string>(tasks.map((t: any) => t.assignedToId)));
     const advisors = await db.user.findMany({
       where: { id: { in: advisorIds } },
       select: { id: true, notificationNumber: true },
@@ -220,6 +236,35 @@ export async function completeTaskAction(
       });
     });
 
+    await writeAuditLog({
+      userId: ownerId,
+      actorId: user.id,
+      entityType: "task",
+      entityId: String(taskId),
+      action: "completed",
+      summary: `Completo la tarea "${currentTask.title}"`,
+      metadata: {
+        result: result || null,
+        nextTaskId: createdNextTask?.id ?? null,
+      },
+    });
+
+    if (createdNextTask) {
+      await writeAuditLog({
+        userId: ownerId,
+        actorId: user.id,
+        entityType: "task",
+        entityId: String(createdNextTask.id),
+        action: "created",
+        summary: `Creo la siguiente tarea "${createdNextTask.title}"`,
+        metadata: {
+          previousTaskId: taskId,
+          status: createdNextTask.status,
+          dueDate: createdNextTask.dueDate?.toISOString?.() ?? parsedNextTask?.dueDate,
+        },
+      });
+    }
+
     return {
       success: true,
       message: parsedNextTask ? "Tarea completada y siguiente tarea programada." : "Tarea completada.",
@@ -237,11 +282,23 @@ export async function cancelTaskAction(
   try {
     const user = await getAuth();
     const ownerId = user.ownerId ?? user.id;
+    const task = await (db as any).task.findFirst({
+      where: { id: taskId, ownerId },
+      select: { title: true },
+    });
     const result = await (db as any).task.updateMany({
       where: { id: taskId, ownerId },
       data: { status: "cancelled" },
     });
     if (result.count === 0) return { success: false, message: "No se encontro la tarea." };
+    await writeAuditLog({
+      userId: ownerId,
+      actorId: user.id,
+      entityType: "task",
+      entityId: String(taskId),
+      action: "cancelled",
+      summary: `Cancelo la tarea "${task?.title ?? taskId}"`,
+    });
     return { success: true, message: "Tarea cancelada." };
   } catch (error) {
     console.error("[cancelTaskAction]", error);
@@ -255,10 +312,22 @@ export async function deleteTaskAction(
   try {
     const user = await getAuth();
     const ownerId = user.ownerId ?? user.id;
+    const task = await (db as any).task.findFirst({
+      where: { id: taskId, ownerId },
+      select: { title: true },
+    });
     const result = await (db as any).task.deleteMany({
       where: { id: taskId, ownerId },
     });
     if (result.count === 0) return { success: false, message: "No se encontro la tarea." };
+    await writeAuditLog({
+      userId: ownerId,
+      actorId: user.id,
+      entityType: "task",
+      entityId: String(taskId),
+      action: "deleted",
+      summary: `Elimino la tarea "${task?.title ?? taskId}"`,
+    });
     return { success: true, message: "Tarea eliminada." };
   } catch (error) {
     console.error("[deleteTaskAction]", error);
