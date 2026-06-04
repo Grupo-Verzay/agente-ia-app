@@ -10,6 +10,19 @@ import { Button } from "@/components/ui/button"
 import { openEditDialog, openDeleteDialog } from "@/stores"
 import TooltipWrapper from "@/components/TooltipWrapper"
 
+const formatReminderTime = (time: string | null | undefined): string => {
+    if (!time) return ''
+    const match = time.match(/^(hours|minutes)-(\d+)$/)
+    if (match) {
+        const [, unit, numStr] = match
+        const n = Number(numStr)
+        if (n === 0) return 'Al momento'
+        if (unit === 'hours') return n === 1 ? '1 hora antes' : `${n} horas antes`
+        return n === 1 ? '1 minuto antes' : `${n} minutos antes`
+    }
+    return time
+}
+
 export const ReminderList = ({ reminder, workflow, compact = false }: ReminderListInterface) => {
     const isRecurring = Boolean(reminder.repeatType && reminder.repeatType !== "NONE")
     const phone = fmtPhone(reminder.remoteJid)
@@ -70,7 +83,7 @@ export const ReminderList = ({ reminder, workflow, compact = false }: ReminderLi
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                             <CalendarDaysIcon className="h-3 w-3 shrink-0" />
-                            {reminder.time}
+                            {formatReminderTime(reminder.time)}
                         </span>
                         <TooltipWrapper content="Eliminar">
                             <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => openDeleteDialog(reminder.id)}>
@@ -109,7 +122,7 @@ export const ReminderList = ({ reminder, workflow, compact = false }: ReminderLi
                         )}
                         <span className="flex items-center gap-1 whitespace-nowrap">
                             <CalendarDaysIcon className="h-3 w-3 shrink-0" />
-                            {reminder.time}
+                            {formatReminderTime(reminder.time)}
                         </span>
                         {workflow?.name && (
                             <span className="flex items-center gap-1 mt-0.5">
