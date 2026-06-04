@@ -283,17 +283,28 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
 
     const [activeTab, setActiveTab] = useState('conexion');
     const [showMoreTabs, setShowMoreTabs] = useState(false);
-    const [voiceEnabled, setVoiceEnabled] = useState<boolean>(!!user?.enableVoiceResponses);
-    const [voiceId, setVoiceId] = useState<string>(user?.voiceId ?? 'nova');
-    const [voiceModel, setVoiceModel] = useState<string>(user?.voiceModel ?? 'gpt-4o-mini-tts');
-    const [voiceInstructions, setVoiceInstructions] = useState<string>(user?.voiceInstructions ?? '');
-    const [ttsProvider, setTtsProvider] = useState<string>(user?.ttsProvider ?? 'openai');
-    const [elApiKey, setElApiKey] = useState<string>(user?.elevenLabsApiKey ?? '');
-    const [elVoiceId, setElVoiceId] = useState<string>(user?.elevenLabsVoiceId ?? '');
+    const [voiceEnabled, setVoiceEnabled] = useState<boolean>(false);
+    const [voiceId, setVoiceId] = useState<string>('nova');
+    const [voiceModel, setVoiceModel] = useState<string>('gpt-4o-mini-tts');
+    const [voiceInstructions, setVoiceInstructions] = useState<string>('');
+    const [ttsProvider, setTtsProvider] = useState<string>('openai');
+    const [elApiKey, setElApiKey] = useState<string>('');
+    const [elVoiceId, setElVoiceId] = useState<string>('');
     const [elVoices, setElVoices] = useState<{ voice_id: string; name: string; category: string }[]>([]);
     const [elVoiceSearch, setElVoiceSearch] = useState('');
     const [loadingElVoices, setLoadingElVoices] = useState(false);
     const [savingVoice, setSavingVoice] = useState(false);
+
+    useEffect(() => {
+        if (!user) return;
+        setVoiceEnabled(!!user.enableVoiceResponses);
+        setVoiceId(user.voiceId ?? 'nova');
+        setVoiceModel(user.voiceModel ?? 'gpt-4o-mini-tts');
+        setVoiceInstructions(user.voiceInstructions ?? '');
+        setTtsProvider(user.ttsProvider ?? 'openai');
+        setElApiKey(user.elevenLabsApiKey ?? '');
+        setElVoiceId(user.elevenLabsVoiceId ?? '');
+    }, [user?.id]);
 
     if (!user) return null;
 

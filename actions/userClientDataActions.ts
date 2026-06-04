@@ -732,7 +732,7 @@ export async function updateUserVoiceSettings(
     await ensureSelfOrAdmin(userId);
 
     const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
-    if (!validVoices.includes(voiceId)) {
+    if (ttsProvider !== 'elevenlabs' && !validVoices.includes(voiceId)) {
       return { success: false, message: 'Voz no válida.' };
     }
 
