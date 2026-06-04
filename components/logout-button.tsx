@@ -1,7 +1,6 @@
 'use client'
 
-import { Plan, User } from '@prisma/client'
-
+import { User } from '@prisma/client'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -14,7 +13,7 @@ import { ChevronsUpDown, LogOut } from 'lucide-react'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from './ui/sidebar'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { handleLogout } from '@/lib/handleLogout'
-// import { PLAN_COLORS } from '@/types/plans'
+import { RoleBadge } from '@/components/shared/RoleBadge'
 
 type LogoutButtonProps = {
   user: User | null
@@ -23,41 +22,7 @@ type LogoutButtonProps = {
 
 const LogoutButton = ({ user }: LogoutButtonProps) => {
   const { isMobile } = useSidebar()
-
   const userInitial = user?.name?.charAt(0).toUpperCase() ?? '?'
-
-  const PLAN_COLORS: Record<Plan, string> = {
-    enterprise:    'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
-    avanzado:      'bg-indigo-100  text-indigo-800  dark:bg-indigo-900  dark:text-indigo-300',
-    intermedio:    'bg-orange-100  text-orange-800  dark:bg-orange-900  dark:text-orange-300',
-    basico:        'bg-zinc-100    text-zinc-800    dark:bg-zinc-900    dark:text-zinc-300',
-    lite:          'bg-gray-100    text-gray-800    dark:bg-gray-900    dark:text-gray-300',
-    unico:         'bg-pink-100    text-pink-800    dark:bg-pink-900    dark:text-pink-300',
-    personalizado: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
-  };
-
-  const PLAN_LABELS: Record<Plan, string> = {
-    enterprise:    '🏢 Enterprise',
-    avanzado:      '🚀 Avanzado',
-    intermedio:    '⚙️ Intermedio',
-    basico:        '🌱 Básico',
-    lite:          '💡 Lite',
-    unico:         '⭐ Único',
-    personalizado: '🏢 Enterprise',
-  };
-
-  const isAdvisor = !!user?.ownerId;
-  const advisorRole: string | null = user?.advisorRole ?? null;
-
-  const planLabel = isAdvisor
-    ? advisorRole === 'administrador' ? '🛡️ Administrador' : '🕵️ Agente'
-    : PLAN_LABELS[user?.plan ?? 'basico'];
-
-  const customStyles = isAdvisor
-    ? advisorRole === 'administrador'
-      ? 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-300'
-      : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
-    : PLAN_COLORS[user?.plan ?? 'basico'];
 
   return (
     <SidebarMenu>
@@ -69,16 +34,14 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="h-8 w-8 rounded-lg">
-                {user?.image && <AvatarImage src={user?.image} alt={user?.name ?? ''} />}
+                {user?.image && <AvatarImage src={user.image} alt={user.name ?? ''} />}
                 <AvatarFallback className="rounded-lg">
                   {userInitial}
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">{user?.name}</span>
-                <span className={`truncate text-xs text-center p-1 rounded-sm ${customStyles}`}>
-                  {planLabel}
-                </span>
+                <RoleBadge user={user} compact className="mt-0.5 w-fit max-w-full" />
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
@@ -86,14 +49,14 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
 
           <DropdownMenuContent
             className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-            side={isMobile ? "bottom" : "right"}
+            side={isMobile ? 'bottom' : 'right'}
             align="start"
             sideOffset={4}
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  {user?.image && <AvatarImage src={user?.image} alt={user?.name ?? ''} />}
+                  {user?.image && <AvatarImage src={user.image} alt={user.name ?? ''} />}
                   <AvatarFallback className="rounded-lg">
                     {userInitial}
                   </AvatarFallback>
@@ -101,6 +64,7 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">{user?.name}</span>
                   <span className="truncate text-xs">{user?.email}</span>
+                  <RoleBadge user={user} className="mt-1 w-fit max-w-full" />
                 </div>
               </div>
             </DropdownMenuLabel>
@@ -113,7 +77,6 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
-
   )
 }
 

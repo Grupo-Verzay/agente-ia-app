@@ -1,5 +1,5 @@
 import type { Plan, Role } from "@prisma/client";
-import { isAdminLike, isAdminOrReseller, isReseller, isSuperAdmin } from "@/lib/rbac";
+import { isAdminLike, isAdminOrReseller, isReseller } from "@/lib/rbac";
 
 export type AdvisorRole = "agente" | "administrador";
 
@@ -120,4 +120,3 @@ export function getAccessDeniedMessage(reason?: string) {
   if (reason === "invalid_plan") return "Tu plan actual no incluye este modulo.";
   return "No tienes permisos para acceder a este modulo.";
 }
-

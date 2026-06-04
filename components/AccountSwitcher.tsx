@@ -31,6 +31,8 @@ import {
 } from "@/actions/linked-account-actions";
 import type { User } from "@prisma/client";
 import { cn } from "@/lib/utils";
+import { RoleBadge } from "@/components/shared/RoleBadge";
+import { canManageLinkedAccounts, getAdvisorRoleLabel } from "@/lib/permissions";
 
 const PALETTE = [
   "bg-blue-500", "bg-violet-500", "bg-emerald-500",
@@ -128,7 +130,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
   const linked = payload?.accounts ?? [];
   const currentAccount = payload?.currentAccount ?? null;
   const currentRole = payload?.currentRole ?? null;
-  const totalAccounts = (currentAccount ? 1 : 0) + linked.length;
+  const canManageAccounts = canManageLinkedAccounts(user);
 
   // Cuenta activa para mostrar en el trigger
   const activeName =
@@ -151,11 +153,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">{activeName}</span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    {currentAccount?.id === payload?.realUserId && linked.length === 0
-                      ? "Mi cuenta"
-                      : `${Math.max(totalAccounts, 1)} cuenta${Math.max(totalAccounts, 1) !== 1 ? "s" : ""}`}
-                  </span>
+                  <RoleBadge user={user} compact className="mt-0.5 w-fit max-w-full" />
                 </div>
                 {isPending ? (
                   <Loader2 className="ml-auto h-4 w-4 animate-spin shrink-0 opacity-50" />
@@ -188,9 +186,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                     <span className="truncate text-[10px] text-muted-foreground">
                       {currentAccount?.id === payload?.realUserId
                         ? "Mi cuenta"
-                        : currentRole === "administrador"
-                          ? "Administrador"
-                          : "Agente"}
+                        : getAdvisorRoleLabel(currentRole)}
                     </span>
                   </div>
                   {activeId === currentAccount.id && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
@@ -217,7 +213,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                     </div>
                     {activeId === a.accountUserId && <Check className="h-3.5 w-3.5 text-primary" />}
                   </DropdownMenuItem>
-                  {a.accountUserId !== activeId && (
+                  {canManageAccounts && a.accountUserId !== activeId && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -236,7 +232,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                 </div>
               ))}
 
-              {(!user.ownerId || user.advisorRole === "administrador") && (
+              {canManageAccounts && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem

@@ -11,6 +11,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { canAccessRoute } from '@/utils/access';
 import { toast } from 'sonner';
 import type { UserNavPref } from '@/types/nav-preference';
+import { getAccessDeniedMessage } from '@/lib/permissions';
 
 interface AppInitializerInterface {
     onReseller: ResellerInfoResponse
@@ -43,7 +44,7 @@ export default function AppInitializer({ onReseller, modules, user, navPrefs }: 
         });
 
         if (!access.allowed) {
-            toast.info(`Acceso denegado por:", ${access.reason ?? 'Desconocido'}`);
+            toast.info(getAccessDeniedMessage(access.reason));
             router.push("/credits");
         }
     }, [pathname, user, modules, labelModule, router]);

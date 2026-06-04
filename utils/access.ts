@@ -1,6 +1,7 @@
 // utils/access.ts
 import { Plan } from '@prisma/client';
 import type { ModuleWithItems } from '@/schema/module';
+import { isAdminOrReseller } from '@/lib/rbac';
 
 function normalizePath(p?: string | null) {
   const s = (p ?? '').trim();
@@ -80,17 +81,15 @@ export function canAccessRoute({
   label: string;
   isAdvisor?: boolean;
 }) {
-  const isAdminLike = userRole === 'admin' || userRole === 'super_admin' || userRole === 'reseller';
-
   const link = getRouteAccess(route, modules, { label });
   if (!link) return { allowed: true as const };
 
-  if (link.adminOnly && !isAdminLike) {
-    return { allowed: false as const, reason: 'Only admin' as const };
+  if (link.adminOnly && !isAdminOrReseller(userRole)) {
+    return { allowed: false as const, reason: 'admin_only' as const };
   }
 
   if (!isAdvisor && link.allowedPlans?.length && !link.allowedPlans.includes(userPlan)) {
-    return { allowed: false as const, reason: 'Invalid plan' as const };
+    return { allowed: false as const, reason: 'invalid_plan' as const };
   }
 
   return { allowed: true as const };
