@@ -109,7 +109,7 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
     success: true,
     data: rows.map((row) => ({
       ...row,
-      lastActivity: row.lastActivity ? row.lastActivity.toISOString() : null,
+      lastActivity: row.lastActivity ? String(row.lastActivity) : null,
     })),
   };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, Loader2 } from "lucide-react";
 
@@ -58,10 +58,8 @@ import {
   toggleAdvisorAvailability,
   deleteAdvisor,
   linkExistingAdvisor,
+  getTeamAdvisors,
   getAdvisorModuleIds,
-  getOwnerModules,
-  getAutoAssignSettings,
-  getTeamMetrics,
   saveAdvisorModules,
   saveAutoAssignSettings,
 } from "@/actions/team-actions";
@@ -111,6 +109,15 @@ type Props = {
 
 type CreateForm = { name: string; email: string; password: string; role: "agente" | "administrador" };
 type PasswordForm = { advisorId: string; advisorName: string; newPassword: string };
+
+async function safeInvoke<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
+  try {
+    return await fn();
+  } catch (error) {
+    console.error(`[EquipoClient:${label}]`, error);
+    return null;
+  }
+}
 
 export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, teamMetrics }: Props) {
   const [advisors, setAdvisors] = useState<AdvisorRow[]>(initialAdvisors);
@@ -182,47 +189,11 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
   const [resetLinksOpen, setResetLinksOpen] = useState(false);
 
   async function refreshAdvisors() {
-    const { getTeamAdvisors } = await import("@/actions/team-actions");
-    const list = await getTeamAdvisors();
-    if (list.success && list.data) setAdvisors(list.data);
-  }
-
-  useEffect(() => {
-    void refreshAdvisors();
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-
-    async function loadTeamData() {
-      const [modulesRes, autoAssignRes, metricsRes] = await Promise.allSettled([
-        getOwnerModules(),
-        getAutoAssignSettings(),
-        getTeamMetrics(),
-      ]);
-
-      if (!alive) return;
-
-      if (modulesRes.status === "fulfilled" && modulesRes.value.success && modulesRes.value.data) {
-        setAvailableModules(modulesRes.value.data);
-      }
-
-      if (autoAssignRes.status === "fulfilled" && autoAssignRes.value.success && autoAssignRes.value.data) {
-        setAutoAssignEnabled(autoAssignRes.value.data.autoAssignEnabled);
-        setAutoAssignMaxChats(autoAssignRes.value.data.autoAssignMaxChats);
-      }
-
-      if (metricsRes.status === "fulfilled" && metricsRes.value.success) {
-        setMetrics(metricsRes.value.data ?? null);
-      }
+    const list = await safeInvoke("refreshAdvisors", () => getTeamAdvisors());
+    if (list?.success && list.data) {
+      setAdvisors(list.data);
     }
-
-    void loadTeamData();
-
-    return () => {
-      alive = false;
-    };
-  }, []);
+  }
 
   function handleCreateField(field: keyof CreateForm, value: string) {
     setCreateForm((prev) => ({ ...prev, [field]: value }));

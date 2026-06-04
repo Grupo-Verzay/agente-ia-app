@@ -1,6 +1,12 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
 import { TeamClient } from "./_components/team-client";
+import {
+  getAutoAssignSettings,
+  getOwnerModules,
+  getTeamAdvisors,
+  getTeamMetrics,
+} from "@/actions/team-actions";
 
 async function settle<T>(promise: Promise<T>): Promise<T | null> {
   try {
@@ -17,12 +23,23 @@ export default async function EquipoPage() {
 
   if (user.ownerId) redirect("/");
 
+  const [advisors, ownerModules, autoAssignSettings, teamMetrics] = await Promise.all([
+    settle(getTeamAdvisors()),
+    settle(getOwnerModules()),
+    settle(getAutoAssignSettings()),
+    settle(getTeamMetrics()),
+  ]);
+
   return (
     <TeamClient
-      initialAdvisors={[]}
-      ownerModules={[]}
-      initialAutoAssign={{ autoAssignEnabled: false, autoAssignMaxChats: 5 }}
-      teamMetrics={null}
+      initialAdvisors={advisors?.success && advisors.data ? advisors.data : []}
+      ownerModules={ownerModules?.success && ownerModules.data ? ownerModules.data : []}
+      initialAutoAssign={
+        autoAssignSettings?.success && autoAssignSettings.data
+          ? autoAssignSettings.data
+          : { autoAssignEnabled: false, autoAssignMaxChats: 5 }
+      }
+      teamMetrics={teamMetrics?.success && teamMetrics.data ? teamMetrics.data : null}
     />
   );
 }
