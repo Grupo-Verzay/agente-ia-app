@@ -104,7 +104,7 @@ export function NotificationCenter() {
         <DropdownMenuSeparator />
 
         {summary.length > 0 && (
-          <div className="grid shrink-0 grid-cols-2 gap-1.5 px-3 py-2">
+          <div className="grid shrink-0 grid-cols-2 gap-1 px-2 py-2 sm:grid-cols-4">
             {summary.map(([kind, count]) => {
               const meta = KIND_META[kind];
               return (
@@ -113,12 +113,12 @@ export function NotificationCenter() {
                   type="button"
                   onClick={() => setActiveKind(kind)}
                   className={cn(
-                    "flex items-center justify-between rounded-md border bg-muted/30 px-2 py-1.5 text-left transition-colors hover:bg-muted/60",
+                    "flex min-w-0 items-center justify-between gap-1 rounded-md border bg-muted/30 px-1.5 py-1 text-left transition-colors hover:bg-muted/60",
                     activeKind === kind && "border-primary/50 bg-primary/10",
                   )}
                 >
-                  <span className="text-xs text-muted-foreground">{meta.label}</span>
-                  <Badge variant="outline" className="h-5 rounded-md px-1.5 text-[10px]">
+                  <span className="min-w-0 truncate text-[11px] text-muted-foreground">{meta.label}</span>
+                  <Badge variant="outline" className="h-4 min-w-4 shrink-0 rounded px-1 text-[9px]">
                     {count}
                   </Badge>
                 </button>
