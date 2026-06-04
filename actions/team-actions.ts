@@ -61,7 +61,7 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
         u.id,
         u.name,
         u.email,
-        u.advisor_role AS role,
+        u.advisor_role::text AS role,
         u.advisor_available,
         0 AS priority
       FROM "User" u
@@ -73,7 +73,7 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
         u.id,
         u.name,
         u.email,
-        la.role,
+        la.role::text AS role,
         u.advisor_available,
         1 AS priority
       FROM "linked_accounts" la
@@ -157,7 +157,7 @@ export async function getTeamAdvisorInfos(): Promise<ActionResult<AdvisorInfo[]>
         u.id,
         u.name,
         u.email,
-        u.advisor_role AS role,
+        u.advisor_role::text AS role,
         0 AS priority
       FROM "User" u
       WHERE u.owner_id = ${ownerId}
@@ -168,7 +168,7 @@ export async function getTeamAdvisorInfos(): Promise<ActionResult<AdvisorInfo[]>
         u.id,
         u.name,
         u.email,
-        la.role,
+        la.role::text AS role,
         1 AS priority
       FROM "linked_accounts" la
       JOIN "User" u ON u.id = la."linked_user_id"
