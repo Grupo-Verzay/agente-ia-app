@@ -30,6 +30,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { GuideUrl } from '@prisma/client';
 import { Button } from '../ui/button';
 import ThemeSwitcher from './ThemeSwitcher';
+import { NotificationCenter } from '@/components/shared/NotificationCenter';
 
 export const breadcrumbLabels: Record<string, string> = {
   flow: 'flujo',
@@ -226,6 +227,9 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
                   </Dialog>
                 </div>
               )}
+              <div className="ml-auto flex items-center justify-end">
+                <NotificationCenter />
+              </div>
               {isFlow &&
                 <div className="flex flex-1 justify-end">
                   <ThemeSwitcher />
