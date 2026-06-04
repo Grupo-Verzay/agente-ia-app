@@ -174,7 +174,7 @@ function ReportCard({ report, onDelete }: { report: WeeklyReportItem; onDelete: 
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                                 Actividad de la semana
                             </p>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex gap-2">
                                 {actividadEntries.map(([tipo, count]) => (
                                     <ActivityChip
                                         key={tipo}
@@ -210,10 +210,10 @@ function MetricTile({ label, value, sub, color }: { label: string; value: string
 
 function ActivityChip({ label, value, emoji, color }: { label: string; value: number; emoji: string; color: string }) {
     return (
-        <div className="flex items-center gap-1.5 rounded-lg border bg-card px-3 py-2 shrink-0">
-            <span className="text-sm leading-none">{emoji}</span>
-            <span className="text-xs text-muted-foreground leading-none">{label}</span>
-            <span className="text-sm font-bold leading-none" style={{ color }}>{value}</span>
+        <div className="flex items-center justify-center gap-1.5 rounded-lg border bg-card px-3 py-2 flex-1 min-w-0">
+            <span className="text-sm leading-none shrink-0">{emoji}</span>
+            <span className="text-sm text-muted-foreground leading-none truncate">{label}</span>
+            <span className="text-sm font-bold leading-none shrink-0" style={{ color }}>{value}</span>
         </div>
     );
 }
