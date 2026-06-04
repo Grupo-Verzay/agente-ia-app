@@ -113,6 +113,7 @@ function filterChatList(result: FetchChatsResult): FetchChatsResult {
 
 interface ChatsClientProps {
   userId: string;
+  sessionUserIds?: string[];
   instancias?: { instanceName: string; instanceId: string; instanceType?: string | null; linkedUserId?: string; company?: string }[];
   chatsResult: FetchChatsResult;
   initialChatPreferences: ChatConversationPreferenceMap;
@@ -153,6 +154,7 @@ interface ChatsClientProps {
 
 export function ChatsClient({
   userId,
+  sessionUserIds,
   instancias = [],
   chatsResult: initialChatsResult,
   initialChatPreferences,
@@ -383,12 +385,12 @@ export function ChatsClient({
         return;
       }
 
-      const result = await getChatContactSessions(userId, descriptors);
+      const result = await getChatContactSessions(sessionUserIds?.length ? sessionUserIds : userId, descriptors);
       if (result.success) {
         setChatSessions(result.data ?? {});
       }
     },
-    [userId],
+    [sessionUserIds, userId],
   );
 
   const refetchAllInstances = useCallback(async (): Promise<FetchChatsResult> => {

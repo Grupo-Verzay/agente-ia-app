@@ -454,6 +454,7 @@ export default async function ChatsPage({
   return (
     <ChatsClient
       userId={effectiveOwnerId}
+      sessionUserIds={allSessionUserIds}
       instancias={instanciasMeta}
       chatsResult={chatsResult}
       initialChatPreferences={initialChatPreferences}
