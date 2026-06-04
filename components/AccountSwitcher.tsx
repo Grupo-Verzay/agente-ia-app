@@ -164,7 +164,12 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                 size="lg"
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
-                <PlanBadgeDisplay plan={activePlan} />
+                <UserLogoAvatar
+                  logoUrl={currentAccount?.image ?? user.image}
+                  plan={activePlan}
+                  alt={activeName}
+                  className="h-8 w-8 rounded-lg"
+                />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">{activeName}</span>
                   <span className="mt-0.5 truncate text-xs text-sidebar-foreground/70">
