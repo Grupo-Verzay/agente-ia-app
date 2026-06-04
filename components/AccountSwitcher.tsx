@@ -174,16 +174,13 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                   className="h-8 w-8 rounded-lg"
                 />
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{activeName}</span>
-                  <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] leading-none text-sidebar-foreground/75">
-                    <span className="inline-flex min-w-0 max-w-[88px] items-center gap-1 rounded-md bg-sidebar-accent/70 px-1.5 py-0.5">
-                      <ShieldCheck className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{getCompactRoleLabel(effectiveRoleLabel)}</span>
-                    </span>
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-sidebar-accent/70 px-1.5 py-0.5">
-                      <Users className="h-3 w-3 shrink-0" />
-                      <span>{getAccountCountLabel(accessibleCount)}</span>
-                    </span>
+                  <span className="flex min-w-0 items-center gap-1 truncate font-semibold">
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/60" />
+                    <span className="truncate">{getCompactRoleLabel(effectiveRoleLabel)}</span>
+                  </span>
+                  <span className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-xs text-sidebar-foreground/70">
+                    <Users className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{getAccountCountLabel(accessibleCount)} asociadas</span>
                   </span>
                 </div>
                 {isPending ? (
