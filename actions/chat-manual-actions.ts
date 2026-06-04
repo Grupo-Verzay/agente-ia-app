@@ -31,6 +31,7 @@ type ChatActionContext = {
   };
   instanceName: string;
 } | null;
+type SuccessfulFindMessagesResult = Extract<FindMessagesResult, { success: true }>;
 
 type OutgoingTextPayload = {
   kind: "text";
@@ -295,6 +296,38 @@ async function requireCurrentUser() {
   return user;
 }
 
+async function buildPersistedMessagesResult(params: {
+  userId: string;
+  instanceName?: string;
+  remoteJid: string;
+  aliases?: string[];
+  page: number;
+  pageSize: number;
+  message: string;
+}): Promise<SuccessfulFindMessagesResult> {
+  const persisted = await getPersistedMessages({
+    userId: params.userId,
+    instanceName: params.instanceName,
+    remoteJid: params.remoteJid,
+    aliases: params.aliases,
+    skip: (params.page - 1) * params.pageSize,
+    take: params.pageSize + 1,
+  });
+  const hasMore = persisted.length > params.pageSize;
+  const data = hasMore ? persisted.slice(0, params.pageSize) : persisted;
+
+  return {
+    success: true,
+    message: params.message,
+    data,
+    total: data.length,
+    pages: hasMore ? params.page + 1 : params.page,
+    currentPage: params.page,
+    nextPage: hasMore ? params.page + 1 : null,
+    queriedRemoteJid: params.remoteJid,
+  };
+}
+
 export async function warmChatMessagesAction(
   context: ChatActionContext,
   remoteJid: string,
@@ -306,33 +339,21 @@ export async function warmChatMessagesAction(
   const page = Math.max(options?.page ?? 1, 1);
 
   if (effectiveOwnerId) {
-    const persisted = await getPersistedMessages({
-      userId: effectiveOwnerId,
-      instanceName: hasReadyContext(context) ? context.instanceName : undefined,
-      remoteJid,
-      aliases: options?.remoteJidAliases,
-      skip: (page - 1) * pageSize,
-      take: pageSize + 1,
-    });
-    const shouldUseLocalOnly =
-      persisted.length > pageSize ||
-      persisted.length >= pageSize ||
-      page > 1 ||
-      !hasReadyContext(context);
+    const shouldUseLocalOnly = page > 1 || !hasReadyContext(context);
 
-    if (persisted.length && shouldUseLocalOnly) {
-      const hasMore = persisted.length > pageSize;
-      const data = hasMore ? persisted.slice(0, pageSize) : persisted;
-      return {
-        success: true,
+    if (shouldUseLocalOnly) {
+      const localResult = await buildPersistedMessagesResult({
+        userId: effectiveOwnerId,
+        instanceName: hasReadyContext(context) ? context.instanceName : undefined,
+        remoteJid,
+        aliases: options?.remoteJidAliases,
+        page,
+        pageSize,
         message: "Mensajes cargados desde historial local.",
-        data,
-        total: data.length,
-        pages: hasMore ? page + 1 : page,
-        currentPage: page,
-        nextPage: hasMore ? page + 1 : null,
-        queriedRemoteJid: remoteJid,
-      };
+      });
+      if (localResult.data.length) {
+        return localResult;
+      }
     }
   }
 
@@ -359,28 +380,29 @@ export async function warmChatMessagesAction(
       remoteJid,
       messages: result.data,
     });
-    return result;
-  }
-
-  if (!result.success && effectiveOwnerId) {
-    const persisted = await getPersistedMessages({
+    return buildPersistedMessagesResult({
       userId: effectiveOwnerId,
       instanceName: context.instanceName,
       remoteJid,
       aliases: options?.remoteJidAliases,
-      take: pageSize,
+      page,
+      pageSize,
+      message: "Mensajes sincronizados con Evolution.",
     });
-    if (persisted.length) {
-      return {
-        success: true,
-        message: "Evolution no respondió; mensajes cargados desde historial local.",
-        data: persisted,
-        total: persisted.length,
-        pages: 1,
-        currentPage: 1,
-        nextPage: null,
-        queriedRemoteJid: remoteJid,
-      };
+  }
+
+  if (!result.success && effectiveOwnerId) {
+    const localResult = await buildPersistedMessagesResult({
+      userId: effectiveOwnerId,
+      instanceName: context.instanceName,
+      remoteJid,
+      aliases: options?.remoteJidAliases,
+      page,
+      pageSize,
+      message: "Evolution no respondio; mensajes cargados desde historial local.",
+    });
+    if (localResult.data.length) {
+      return localResult;
     }
   }
 
