@@ -6,10 +6,13 @@ import {
   AlertTriangle,
   Bell,
   CalendarClock,
+  CalendarDays,
   CheckCircle2,
+  FileText,
   MessageCircle,
   PlugZap,
   RefreshCw,
+  UserRound,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -77,6 +80,7 @@ function formatDate(value?: string | null) {
   return new Intl.DateTimeFormat("es", {
     day: "2-digit",
     month: "short",
+    year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
@@ -186,12 +190,23 @@ export function NotificationCenter() {
                     <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
                       <Icon className={cn("h-4 w-4", meta.color)} />
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{item.title}</span>
-                      {item.description && (
-                        <span className="block line-clamp-2 text-xs text-muted-foreground">{item.description}</span>
+                    <span className="min-w-0 flex-1 space-y-0.5">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <UserRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="truncate font-medium">{item.title}</span>
+                      </span>
+                      {date && (
+                        <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{date}</span>
+                        </span>
                       )}
-                      {date && <span className="mt-0.5 block text-[11px] text-muted-foreground">{date}</span>}
+                      {item.description && (
+                        <span className="flex min-w-0 items-start gap-1.5 text-xs text-muted-foreground">
+                          <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                          <span className="line-clamp-2">{item.description}</span>
+                        </span>
+                      )}
                     </span>
                   </Link>
                 );
