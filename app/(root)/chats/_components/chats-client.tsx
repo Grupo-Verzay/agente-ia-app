@@ -58,6 +58,7 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
 }
 
 type ApiKeyData = { url: string; key: string };
+const INITIAL_MESSAGE_PAGE_SIZE = 10;
 
 export type InstanceActionSet = {
   instanceName: string;
@@ -520,7 +521,7 @@ export function ChatsClient({
 
         const result = await effectiveWarmMessages(remoteJid, {
           page: 1,
-          pageSize: 50,
+          pageSize: INITIAL_MESSAGE_PAGE_SIZE,
           remoteJidAliases,
         });
 
@@ -602,7 +603,7 @@ export function ChatsClient({
       try {
         const result = await effectiveWarmMessages(remoteJid, {
           page: 1,
-          pageSize: 50,
+          pageSize: INITIAL_MESSAGE_PAGE_SIZE,
           remoteJidAliases,
         });
 

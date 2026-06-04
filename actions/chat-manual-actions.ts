@@ -58,6 +58,7 @@ type OutgoingMediaPayload = {
 };
 
 type OutgoingMessagePayload = OutgoingTextPayload | OutgoingMediaPayload;
+const DEFAULT_CHAT_MESSAGE_PAGE_SIZE = 10;
 
 function buildOutgoingHistoryEntry(payload: OutgoingMessagePayload) {
   if (payload.kind === "text") {
@@ -301,29 +302,31 @@ export async function warmChatMessagesAction(
 ): Promise<FindMessagesResult> {
   const user = await currentUser();
   const effectiveOwnerId = user?.ownerId ?? user?.id;
+  const pageSize = options?.pageSize ?? DEFAULT_CHAT_MESSAGE_PAGE_SIZE;
+
+  if (effectiveOwnerId) {
+    const persisted = await getPersistedMessages({
+      userId: effectiveOwnerId,
+      instanceName: hasReadyContext(context) ? context.instanceName : undefined,
+      remoteJid,
+      aliases: options?.remoteJidAliases,
+      take: pageSize,
+    });
+    if (persisted.length) {
+      return {
+        success: true,
+        message: "Mensajes cargados desde historial local.",
+        data: persisted,
+        total: persisted.length,
+        pages: 1,
+        currentPage: 1,
+        nextPage: null,
+        queriedRemoteJid: remoteJid,
+      };
+    }
+  }
 
   if (!hasReadyContext(context)) {
-    if (effectiveOwnerId) {
-      const persisted = await getPersistedMessages({
-        userId: effectiveOwnerId,
-        remoteJid,
-        aliases: options?.remoteJidAliases,
-        take: options?.pageSize ?? 50,
-      });
-      if (persisted.length) {
-        return {
-          success: true,
-          message: "Mensajes cargados desde historial local.",
-          data: persisted,
-          total: persisted.length,
-          pages: 1,
-          currentPage: 1,
-          nextPage: null,
-          queriedRemoteJid: remoteJid,
-        };
-      }
-    }
-
     return {
       success: false,
       message: "No hay instancia o API key configurada para cargar mensajes.",
@@ -355,7 +358,7 @@ export async function warmChatMessagesAction(
       instanceName: context.instanceName,
       remoteJid,
       aliases: options?.remoteJidAliases,
-      take: options?.pageSize ?? 50,
+      take: pageSize,
     });
     if (persisted.length) {
       return {
