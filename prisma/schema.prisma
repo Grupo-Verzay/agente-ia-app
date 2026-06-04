@@ -440,6 +440,31 @@ model ChatConversationPreference {
   @@index([userId, deletedAt])
 }
 
+model ChatMessage {
+  id               BigInt   @id @default(autoincrement())
+  userId           String
+  instanceName     String
+  instanceType     String?
+  remoteJid        String
+  remoteJidAlt     String?
+  senderPn         String?
+  messageId        String
+  fromMe           Boolean  @default(false)
+  pushName         String?
+  messageType      String   @default("conversation")
+  content          String?
+  mediaUrl         String?
+  raw              Json?
+  messageTimestamp DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([userId, instanceName, remoteJid, messageId, fromMe], map: "chat_messages_user_instance_jid_msg_from_unique")
+  @@index([userId, remoteJid, messageTimestamp], map: "chat_messages_user_jid_ts_idx")
+  @@index([userId, instanceName, messageTimestamp], map: "chat_messages_user_instance_ts_idx")
+  @@map("chat_messages")
+}
+
 model SessionTag {
   sessionId Int
   tagId     Int
