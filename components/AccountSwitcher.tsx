@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { ChevronsUpDown, Check, Plus, Loader2, Users, Trash2, CreditCard, ShieldCheck } from "lucide-react";
+import { ChevronsUpDown, Check, Plus, Loader2, Users, Trash2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton, useSidebar } from "@/components/ui/sidebar";
-import { getPlanLabel, PlanBadgeDisplay } from "@/components/shared/PlanBadgeDisplay";
+import { PlanBadgeDisplay } from "@/components/shared/PlanBadgeDisplay";
 import { UserLogoAvatar } from "@/components/shared/UserLogoAvatar";
 import {
   getMyLinkedAccounts,
@@ -172,8 +172,12 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                 />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">{activeName}</span>
-                  <span className="mt-0.5 truncate text-xs text-sidebar-foreground/70">
-                    {getPlanLabel(activePlan)}
+                  <span className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-xs text-sidebar-foreground/70">
+                    <ShieldCheck className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{effectiveRoleLabel}</span>
+                    <span className="text-sidebar-foreground/40">·</span>
+                    <Users className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{getAccountCountLabel(accessibleCount)}</span>
                   </span>
                 </div>
                 {isPending ? (
@@ -199,10 +203,6 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                   <Badge variant="outline" className="justify-start gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium">
                     <Users className="h-3 w-3" />
                     {getAccountCountLabel(accessibleCount)}
-                  </Badge>
-                  <Badge variant="outline" className="col-span-2 justify-start gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium">
-                    <CreditCard className="h-3 w-3" />
-                    Plan {getPlanLabel(activePlan)}
                   </Badge>
                 </div>
               </DropdownMenuLabel>
