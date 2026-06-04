@@ -128,32 +128,34 @@ export function LeadStatusWorkflowPanel({ userId, filterStatus }: { userId: stri
         {LEAD_STATUSES.filter(s => !filterStatus || s.value === filterStatus).map(({ value, label, icon, iconCn, rowCn, labelCn }) => {
           const config = getConfig(value);
           return (
-            <div key={value} className={cn("flex items-center gap-3 px-4 py-2.5", rowCn)}>
+            <div key={value} className={cn("flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center", rowCn)}>
 
-              {/* Ícono + label + flecha + texto */}
-              <div className="flex items-center gap-2 shrink-0">
-                <span className={iconCn}>{icon}</span>
-                <span className={cn("text-sm", labelCn)}>{label}</span>
-                <span className="text-xs text-muted-foreground">Disparar flujo</span>
-                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+              <div className="flex min-w-0 items-center gap-2">
+                <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80", iconCn)}>
+                  {icon}
+                </span>
+                <div className="flex min-w-0 items-center gap-1.5 text-sm leading-5">
+                  <span className={cn("shrink-0 font-semibold", labelCn)}>{label}</span>
+                  <span className="truncate text-muted-foreground">Disparar un flujo</span>
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                </div>
               </div>
 
-              {/* Selector */}
               {workflows.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Sin flujos</p>
+                <p className="text-sm text-muted-foreground sm:ml-auto">Sin flujos</p>
               ) : (
-                <div className="flex items-center gap-1 ml-auto">
+                <div className="flex w-full items-center gap-1 sm:ml-auto sm:w-auto">
                   <Select
                     value={config?.workflowId ?? ""}
                     onValueChange={(id) => handleSelect(value, id)}
                     disabled={isPending}
                   >
-                    <SelectTrigger className="h-7 text-xs bg-background w-56">
-                      <SelectValue placeholder="Seleccionar flujo" />
+                    <SelectTrigger className="h-8 w-full bg-background text-sm sm:w-64 sm:shrink-0">
+                      <SelectValue placeholder="Seleciona flujo para estado" />
                     </SelectTrigger>
-                    <SelectContent className="max-w-[240px]">
+                    <SelectContent className="max-w-[288px]">
                       {workflows.map((wf) => (
-                        <SelectItem key={wf.id} value={wf.id} className="text-xs truncate">
+                        <SelectItem key={wf.id} value={wf.id} className="truncate text-sm">
                           {wf.name}
                         </SelectItem>
                       ))}
@@ -163,12 +165,12 @@ export function LeadStatusWorkflowPanel({ userId, filterStatus }: { userId: stri
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+                      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                       onClick={() => handleRemove(value)}
                       disabled={isPending}
                       title="Quitar flujo"
                     >
-                      <XCircle className="h-3.5 w-3.5" />
+                      <XCircle className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
@@ -178,7 +180,7 @@ export function LeadStatusWorkflowPanel({ userId, filterStatus }: { userId: stri
         })}
       </div>
 
-      <p className="text-[11px] text-muted-foreground px-1">
+      <p className="px-1 text-xs leading-5 text-muted-foreground">
         Se ejecuta solo una vez por estado. Al cambiar de estado, los mensajes pendientes del flujo anterior se cancelan.
       </p>
     </div>

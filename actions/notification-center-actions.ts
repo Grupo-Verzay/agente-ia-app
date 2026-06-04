@@ -31,19 +31,7 @@ const EMPTY_COUNTS: Record<NotificationKind, number> = {
   chat: 0,
 };
 
-function parseReminderTime(value: string | null): Date | null {
-  if (!value) return null;
-
-  const direct = new Date(value);
-  if (!Number.isNaN(direct.getTime())) return direct;
-
-  const match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-
-  const [, day, month, year, hour, minute] = match;
-  const parsed = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
+const ITEMS_PER_KIND_LIMIT = 50;
 
 export async function getNotificationCenterData(): Promise<{
   success: boolean;
@@ -72,7 +60,7 @@ export async function getNotificationCenterData(): Promise<{
       (db as any).task.findMany({
         where: { ownerId, status: "pending", dueDate: { lt: now } },
         orderBy: { dueDate: "asc" },
-        take: 5,
+        take: ITEMS_PER_KIND_LIMIT,
       }),
       (db as any).task.count({
         where: { ownerId, status: "pending", dueDate: { lt: now } },
@@ -81,7 +69,7 @@ export async function getNotificationCenterData(): Promise<{
         where: { userId: ownerId, status: "PENDIENTE", startTime: { gte: now } },
         include: { session: { select: { pushName: true, remoteJid: true } }, service: { select: { name: true } } },
         orderBy: { startTime: "asc" },
-        take: 5,
+        take: ITEMS_PER_KIND_LIMIT,
       }),
       db.appointment.count({
         where: { userId: ownerId, status: "PENDIENTE", startTime: { gte: now } },
@@ -95,7 +83,7 @@ export async function getNotificationCenterData(): Promise<{
           ? { userId: ownerId, status: true, assignedAdvisorId: user.id }
           : { userId: ownerId, status: true, assignedAdvisorId: null },
         orderBy: { updatedAt: "desc" },
-        take: 5,
+        take: ITEMS_PER_KIND_LIMIT,
       }),
       db.session.count({
         where: user.ownerId
@@ -167,7 +155,7 @@ export async function getNotificationCenterData(): Promise<{
       data: {
         counts,
         total: Object.values(counts).reduce((sum, count) => sum + count, 0),
-        items: items.slice(0, 20),
+        items,
       },
     };
   } catch (error) {

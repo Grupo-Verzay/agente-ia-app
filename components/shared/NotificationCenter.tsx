@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -52,9 +52,9 @@ const KIND_META: Record<
   connection: {
     label: "Errores",
     Icon: PlugZap,
-    color: "text-violet-600",
-    filterClass: "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
-    activeClass: "border-violet-400 bg-violet-100 text-violet-800",
+    color: "text-red-600",
+    filterClass: "border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
+    activeClass: "border-red-500 bg-red-100 text-red-800",
   },
   chat: {
     label: "Chats",
@@ -65,7 +65,7 @@ const KIND_META: Record<
   },
 };
 
-const FILTER_ORDER: NotificationKind[] = ["connection", "chat", "appointment", "task"];
+const FILTER_ORDER: NotificationKind[] = ["chat", "appointment", "task", "connection"];
 
 const EMPTY_DATA: NotificationCenterData = {
   total: 0,
@@ -92,16 +92,20 @@ export function NotificationCenter() {
   const [activeKind, setActiveKind] = useState<NotificationKind | "all">("all");
   const [isPending, startTransition] = useTransition();
 
-  const load = () => {
+  const load = useCallback(() => {
     startTransition(async () => {
       const res = await getNotificationCenterData();
       if (res.success) setData(res.data);
     });
-  };
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
+
+  useEffect(() => {
+    if (open) load();
+  }, [load, open]);
 
   const summary = useMemo(
     () => FILTER_ORDER.map((kind) => [kind, data.counts[kind] ?? 0] as [NotificationKind, number]),
@@ -159,7 +163,7 @@ export function NotificationCenter() {
           </div>
         )}
 
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea className="h-[min(56vh,420px)] min-h-0">
           {filteredItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 px-6 py-8 text-center">
               <CheckCircle2 className="h-8 w-8 text-emerald-500" />
@@ -187,7 +191,7 @@ export function NotificationCenter() {
                     onClick={() => setOpen(false)}
                     className="flex gap-2 px-3 py-2 text-sm hover:bg-muted/60"
                   >
-                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
+                    <span className="self-center flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
                       <Icon className={cn("h-4 w-4", meta.color)} />
                     </span>
                     <span className="min-w-0 flex-1 space-y-0.5">

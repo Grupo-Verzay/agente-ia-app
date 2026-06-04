@@ -453,20 +453,30 @@ export function CrmFollowUpWizard({
                     </div>
 
                     <div className="space-y-3">
+                        <LeadStatusWorkflowPanel userId={userId} filterStatus={currentLeadStatus ?? undefined} />
+
                         <button
                             type="button"
                             onClick={() => setMediaExpanded((v) => !v)}
-                            className="flex w-full items-center gap-2 rounded-xl border border-border/70 bg-muted/20 px-4 py-3 text-sm font-medium hover:bg-muted/40 transition-colors"
+                            className="flex w-full flex-col gap-3 rounded-xl border border-border/70 bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/40 sm:flex-row sm:items-center"
                         >
-                            <Images className="h-4 w-4 shrink-0 text-primary" />
-                            <span className="flex-1 text-left">Biblioteca de remarketing</span>
-                            <span className="text-xs text-muted-foreground">
-                                {mediaExpanded ? "Ocultar" : "Gestionar archivos por estado"}
-                            </span>
-                            {mediaExpanded
-                                ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                                : <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            }
+                            <div className="flex min-w-0 items-center gap-2">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80 text-primary">
+                                    <Images className="h-4 w-4" />
+                                </span>
+                                <div className="min-w-0 text-sm leading-5">
+                                    <span className="truncate font-semibold">Biblioteca de remarketing</span>
+                                </div>
+                            </div>
+                            <div className="flex h-8 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm shadow-sm sm:ml-auto sm:w-64 sm:shrink-0">
+                                <span className="min-w-0 truncate text-muted-foreground">
+                                    {mediaExpanded ? "Ocultar" : "Gestionar archivos por estado"}
+                                </span>
+                                {mediaExpanded
+                                    ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground opacity-70" />
+                                    : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground opacity-70" />
+                                }
+                            </div>
                         </button>
 
                         {mediaExpanded && (
@@ -476,8 +486,6 @@ export function CrmFollowUpWizard({
                                 disabled={!currentRule.enabled}
                             />
                         )}
-
-                        <LeadStatusWorkflowPanel userId={userId} filterStatus={currentLeadStatus ?? undefined} />
                     </div>
 
                 </CardContent>
