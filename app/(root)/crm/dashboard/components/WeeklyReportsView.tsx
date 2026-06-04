@@ -198,8 +198,10 @@ function MetricTile({ label, value, sub, color }: { label: string; value: string
         <div className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3 flex-1 min-w-0">
             <div className="h-10 w-1 rounded-full shrink-0" style={{ backgroundColor: color }} />
             <div className="min-w-0 flex-1">
-                <p className="text-sm text-muted-foreground truncate leading-none mb-1">{label}</p>
-                <p className="text-2xl font-bold leading-none" style={{ color }}>{value}</p>
+                <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="text-sm text-muted-foreground leading-none">{label}</span>
+                    <span className="text-2xl font-bold leading-none" style={{ color }}>{value}</span>
+                </div>
                 {sub && <p className="text-xs text-muted-foreground/70 truncate mt-1">{sub}</p>}
             </div>
         </div>
