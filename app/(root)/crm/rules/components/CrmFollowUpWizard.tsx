@@ -482,7 +482,7 @@ export function CrmFollowUpWizard({
                         <Zap className="h-4 w-4 shrink-0 text-primary" />
                         <span className="flex-1 text-left">Flujos por estado de lead</span>
                         <span className="text-xs text-muted-foreground">
-                            {workflowSectionOpen ? "Ocultar" : "Configurar"}
+                            {workflowSectionOpen ? "Ocultar" : "Configurar flujos por estado"}
                         </span>
                         {workflowSectionOpen
                             ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
