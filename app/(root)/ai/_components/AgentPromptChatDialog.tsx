@@ -71,6 +71,15 @@ const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
   ],
 };
 
+const SECTION_DESCRIPTIONS: Record<AiSectionKey, string> = {
+  business: "El Agente IA usa esta sección para presentar el negocio y responder preguntas básicas como horarios, ubicación, contacto y descripción general.",
+  training: "Define cómo el Agente IA saluda y arranca cada conversación. Un buen inicio genera confianza desde el primer mensaje.",
+  faq: "Aquí viven las respuestas a las preguntas más frecuentes. Entre más completa esté, menos veces el agente quedará sin respuesta.",
+  products: "El Agente IA usa esta sección para presentar, describir y cotizar productos o servicios cuando el cliente los solicita.",
+  more: "Información adicional que el agente puede usar en situaciones específicas: políticas, restricciones, promociones o datos extra del negocio.",
+  management: "Configura cómo el agente maneja situaciones difíciles: quejas, escalaciones a humano, seguimientos y casos fuera de lo normal.",
+};
+
 const OPTIMIZE_PROMPT: QuickPrompt = {
   label: "Optimizar el prompt",
   icon: Zap,
@@ -767,6 +776,14 @@ export function AgentPromptChatDialog({
                   Generar flujo del negocio
                 </Button>
               </div>
+            </div>
+
+            {/* Descripción de la sección */}
+            <div className="mx-4 mb-4 mt-auto rounded-lg border bg-muted/40 px-3 py-2.5">
+              <p className="text-xs font-medium text-muted-foreground mb-1">¿Para qué sirve esta sección?</p>
+              <p className="text-xs text-muted-foreground/80 leading-relaxed">
+                {SECTION_DESCRIPTIONS[activeTab]}
+              </p>
             </div>
           </aside>
         </div>
