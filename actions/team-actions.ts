@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { LENGTH_PASSWORD_HASH } from "@/types/generic";
 import { getUserModuleIds, setUserModules } from "@/actions/user-module-actions";
 import { getAllModules } from "@/actions/module-actions";
+import { autoAssignUnassignedSessionsForOwner } from "@/actions/advisor-assign-actions";
 
 export type ModuleOption = { id: string; label: string };
 export type AdvisorRow = {
@@ -514,6 +515,22 @@ export async function saveAutoAssignSettings(input: {
     SET auto_assign_enabled = ${input.enabled}, auto_assign_max_chats = ${maxChats}
     WHERE id = ${owner.id}
   `;
+
+  if (input.enabled) {
+    const result = await autoAssignUnassignedSessionsForOwner(owner.id, {
+      assignedBy: owner.id,
+      onlyIfEnabled: true,
+    });
+
+    return {
+      success: true,
+      message:
+        result.assigned > 0
+          ? `Configuracion guardada. ${result.assigned} conversacion${result.assigned === 1 ? "" : "es"} asignada${result.assigned === 1 ? "" : "s"}.`
+          : "Configuracion guardada. No hay conversaciones pendientes para asignar.",
+    };
+  }
+
   return { success: true, message: "Configuración guardada." };
 }
 

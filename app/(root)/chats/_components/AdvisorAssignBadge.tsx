@@ -29,6 +29,7 @@ const ACTION_LABELS: Record<string, string> = {
   assigned: 'Asignado',
   released: 'Liberado',
   taken: 'Tomado',
+  auto_assigned: 'Auto-asignado',
   bulk_assigned: 'Auto-asignado',
   transferred: 'Transferido',
   resolved: 'Resuelto',

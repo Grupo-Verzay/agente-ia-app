@@ -5,6 +5,11 @@ import { db } from "@/lib/db";
 
 type Result = { success: true; warning?: string } | { success: false; message: string };
 
+type AutoAssignOptions = {
+  assignedBy: string | null;
+  onlyIfEnabled?: boolean;
+};
+
 export type AssignmentLogEntry = {
   id: number;
   advisorId: string | null;
@@ -37,6 +42,83 @@ async function logAssignment(
   } catch (error) {
     console.error("[logAssignment]", error);
   }
+}
+
+export async function autoAssignUnassignedSessionsForOwner(
+  ownerId: string,
+  options: AutoAssignOptions,
+): Promise<{ assigned: number; skippedReason?: string }> {
+  const settings = await db.$queryRaw<{
+    auto_assign_enabled: boolean;
+    auto_assign_max_chats: number;
+  }[]>`
+    SELECT auto_assign_enabled, auto_assign_max_chats
+    FROM "User"
+    WHERE id = ${ownerId}
+    LIMIT 1
+  `;
+  const setting = settings[0];
+
+  if (options.onlyIfEnabled && !setting?.auto_assign_enabled) {
+    return { assigned: 0, skippedReason: "auto_assign_disabled" };
+  }
+
+  const maxChats = setting?.auto_assign_max_chats ?? 5;
+  const unassigned = await db.$queryRaw<{ id: number }[]>`
+    SELECT id FROM "Session"
+    WHERE "userId" = ${ownerId}
+      AND assigned_advisor_id IS NULL
+      AND status = true
+    ORDER BY "createdAt" ASC
+  `;
+
+  let assigned = 0;
+  for (const session of unassigned) {
+    const candidates = await db.$queryRaw<{ id: string }[]>`
+      WITH members AS (
+        SELECT u.id, u.advisor_available
+        FROM "User" u
+        WHERE u.owner_id = ${ownerId}
+          AND u.advisor_role IS NOT NULL
+
+        UNION
+
+        SELECT u.id, u.advisor_available
+        FROM "linked_accounts" la
+        JOIN "User" u ON u.id = la."linked_user_id"
+        WHERE la."master_user_id" = ${ownerId}
+      )
+      SELECT m.id, COUNT(s.id)::int AS cnt
+      FROM members m
+      LEFT JOIN "Session" s ON s.assigned_advisor_id = m.id AND s.status = true
+      WHERE m.advisor_available = true
+      GROUP BY m.id
+      HAVING COUNT(s.id)::int < ${maxChats}
+      ORDER BY COUNT(s.id) ASC
+      LIMIT 1
+    `;
+    if (candidates.length === 0) {
+      return {
+        assigned,
+        skippedReason: assigned === 0 ? "no_available_advisors" : "advisor_limit_reached",
+      };
+    }
+
+    const advisorId = candidates[0].id;
+    const updated = await db.$executeRaw`
+      UPDATE "Session"
+      SET assigned_advisor_id = ${advisorId}
+      WHERE id = ${session.id}
+        AND assigned_advisor_id IS NULL
+    `;
+
+    if (Number(updated) > 0) {
+      await logAssignment(session.id, advisorId, options.assignedBy, "auto_assigned");
+      assigned++;
+    }
+  }
+
+  return { assigned };
 }
 
 export async function assignSessionToAdvisor(
@@ -123,45 +205,12 @@ export async function bulkAutoAssign(): Promise<Result & { assigned?: number }> 
   const ownerId = user.ownerId ? null : user.id;
   if (!ownerId) return { success: false, message: "Solo el dueño puede hacer asignación masiva." };
 
-  const settings = await db.$queryRaw<{ max_chats: number }[]>`
-    SELECT auto_assign_max_chats AS max_chats FROM "User" WHERE id = ${ownerId}
-  `;
-  const maxChats = settings[0]?.max_chats ?? 5;
+  const autoAssignResult = await autoAssignUnassignedSessionsForOwner(ownerId, {
+    assignedBy: user.id,
+    onlyIfEnabled: false,
+  });
 
-  const unassigned = await db.$queryRaw<{ id: number }[]>`
-    SELECT id FROM "Session"
-    WHERE "userId" = ${ownerId} AND assigned_advisor_id IS NULL AND status = true
-    ORDER BY "createdAt" ASC
-  `;
-
-  if (unassigned.length === 0) return { success: true, assigned: 0 };
-
-  let assigned = 0;
-  for (const session of unassigned) {
-    const candidates = await db.$queryRaw<{ id: string }[]>`
-      SELECT u.id, COUNT(s.id)::int AS cnt
-      FROM "User" u
-      LEFT JOIN "Session" s ON s.assigned_advisor_id = u.id AND s.status = true
-      WHERE u.owner_id = ${ownerId}
-        AND u.advisor_role IS NOT NULL
-        AND u.advisor_available = true
-      GROUP BY u.id
-      HAVING COUNT(s.id)::int < ${maxChats}
-      ORDER BY COUNT(s.id) ASC
-      LIMIT 1
-    `;
-    if (candidates.length === 0) break;
-    const advisorId = candidates[0].id;
-    await db.$executeRaw`
-      UPDATE "Session"
-      SET assigned_advisor_id = ${advisorId}
-      WHERE id = ${session.id} AND assigned_advisor_id IS NULL
-    `;
-    await logAssignment(session.id, advisorId, ownerId, "bulk_assigned");
-    assigned++;
-  }
-
-  return { success: true, assigned };
+  return { success: true, assigned: autoAssignResult.assigned };
 }
 
 export async function transferSession(
