@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 import {
   X, Loader2, Phone, Megaphone, Mail, Building2, MapPin,
-  Briefcase, FileText, Check, ChevronDown, Home, CreditCard,
+  Briefcase, FileText, Check, ChevronDown, Home, CreditCard, Calendar, Flag,
   Sheet, Send, Info, BotIcon, Pencil, CheckCircle2,
   Globe, AtSign, Share2, Linkedin,
 } from 'lucide-react';
@@ -34,6 +34,9 @@ type ContactFields = {
   ciudad: string;
   cargo: string;
   notas: string;
+  telefono: string;
+  fecha: string;
+  pais: string;
   sitioWeb: string;
   instagram: string;
   facebook: string;
@@ -41,7 +44,7 @@ type ContactFields = {
   direccion: string;
   documento: string;
 };
-const EMPTY_FIELDS: ContactFields = { email: '', empresa: '', ciudad: '', cargo: '', notas: '', sitioWeb: '', instagram: '', facebook: '', linkedin: '', direccion: '', documento: '' };
+const EMPTY_FIELDS: ContactFields = { email: '', empresa: '', ciudad: '', cargo: '', notas: '', sitioWeb: '', instagram: '', facebook: '', linkedin: '', direccion: '', documento: '', telefono: '', fecha: '', pais: '' };
 
 /* ── Inline field ──────────────────────────────────────────── */
 interface InlineFieldProps {
@@ -183,6 +186,9 @@ export function ContactInfoPanel({
           ciudad: String(d.ciudad ?? ''),
           cargo: String(d.cargo ?? ''),
           notas: String(d.notas ?? ''),
+          telefono: String(d.telefono ?? ''),
+          fecha: String(d.fecha ?? ''),
+          pais: String(d.pais ?? ''),
           sitioWeb: String(d.sitioWeb ?? ''),
           instagram: String(d.instagram ?? ''),
           facebook: String(d.facebook ?? ''),
@@ -276,11 +282,14 @@ export function ContactInfoPanel({
 
   const FIELDS_CONFIG: { field: keyof ContactFields; icon: React.ElementType; label: string; multiline?: boolean }[] = [
     { field: 'empresa',   icon: Building2,  label: 'Empresa' },
-    { field: 'documento', icon: CreditCard, label: 'Documento' },
     { field: 'cargo',     icon: Briefcase,  label: 'Cargo' },
+    { field: 'documento', icon: CreditCard, label: 'Documento' },
+    { field: 'telefono',  icon: Phone,      label: 'Teléfono' },
     { field: 'email',     icon: Mail,       label: 'Email' },
-    { field: 'direccion', icon: Home,       label: 'Dirección' },
+    { field: 'fecha',     icon: Calendar,   label: 'Fecha' },
+    { field: 'pais',      icon: Flag,       label: 'País' },
     { field: 'ciudad',    icon: MapPin,     label: 'Ciudad' },
+    { field: 'direccion', icon: Home,       label: 'Dirección' },
     { field: 'sitioWeb',  icon: Globe,      label: 'Sitio web' },
     { field: 'instagram', icon: AtSign,     label: 'Instagram' },
     { field: 'facebook',  icon: Share2,     label: 'Facebook' },
