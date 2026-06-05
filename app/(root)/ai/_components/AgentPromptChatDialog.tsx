@@ -320,7 +320,7 @@ export function AgentPromptChatDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(720px,92dvh)] w-[min(960px,calc(100vw-1.5rem))] max-w-none flex-col overflow-hidden p-0">
+      <DialogContent className="flex h-[min(585px,92dvh)] w-[min(960px,calc(100vw-1.5rem))] max-w-none flex-col overflow-hidden p-0">
         <div className="relative grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[1fr_320px]">
           {/* Divisor vertical completo */}
           <div className="absolute inset-y-0 right-[320px] hidden w-px bg-border lg:block" />
