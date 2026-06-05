@@ -397,46 +397,49 @@ export function ContactInfoPanel({
       </div>
 
       {/* ── Google Sheets fijo al fondo ── */}
-      <div className="shrink-0 border-t bg-background">
-        <Section title="Google Sheets" icon={Sheet} defaultOpen={sheetsSaved}>
-          <div className="px-4 pb-2 space-y-2">
-            {sheetsSaved && !editingSheets ? (
-              <div className="space-y-2">
-                <Button type="button" size="sm" className="w-full gap-2 h-8 text-xs" onClick={handleSync} disabled={syncing}>
-                  {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                  Sincronizar ficha ahora
-                </Button>
-                <button type="button" onClick={() => setEditingSheets(true)} className="w-full text-[10px] text-muted-foreground hover:text-foreground transition-colors text-center">
-                  Cambiar hoja
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-[10px] text-muted-foreground">Comparte tu hoja con esta cuenta como <span className="font-medium">Editor</span>:</p>
-                <button
-                  type="button"
-                  onClick={() => { navigator.clipboard.writeText('agente-ia@ia-crm-496602.iam.gserviceaccount.com'); toast.success('Email copiado'); }}
-                  className="w-full text-left text-[10px] font-mono bg-muted rounded-md px-2 py-1.5 truncate text-muted-foreground hover:bg-muted/80 transition-colors border border-border/50"
-                  title="Clic para copiar"
-                >
-                  agente-ia@ia-crm-496602.iam.gserviceaccount.com
-                </button>
-                <div className="flex gap-1.5">
-                  <input
-                    type="text"
-                    value={sheetsUrl}
-                    onChange={(e) => setSheetsUrl(e.target.value)}
-                    placeholder="URL o ID de la hoja…"
-                    className="flex-1 text-xs rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 outline-none focus:border-primary/40 focus:bg-background transition-colors"
-                  />
-                  <Button type="button" size="sm" variant="outline" className="h-8 px-2 shrink-0 text-xs" onClick={handleSaveWebhookUrl} disabled={savingUrl}>
-                    {savingUrl ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Guardar'}
-                  </Button>
-                </div>
-              </div>
-            )}
+      <div className="shrink-0 border-t bg-background px-4 py-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
+            <Sheet className="h-3 w-3" />
+            Google Sheets
+          </span>
+          {sheetsSaved && !editingSheets && (
+            <button type="button" onClick={() => setEditingSheets(true)} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+              Cambiar hoja
+            </button>
+          )}
+        </div>
+
+        {sheetsSaved && !editingSheets ? (
+          <Button type="button" size="sm" className="w-full gap-2 h-8 text-xs" onClick={handleSync} disabled={syncing}>
+            {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            Sincronizar ficha ahora
+          </Button>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-[10px] text-muted-foreground">Comparte tu hoja con esta cuenta como <span className="font-medium">Editor</span>:</p>
+            <button
+              type="button"
+              onClick={() => { navigator.clipboard.writeText('agente-ia@ia-crm-496602.iam.gserviceaccount.com'); toast.success('Email copiado'); }}
+              className="w-full text-left text-[10px] font-mono bg-muted rounded-md px-2 py-1.5 truncate text-muted-foreground hover:bg-muted/80 transition-colors border border-border/50"
+              title="Clic para copiar"
+            >
+              agente-ia@ia-crm-496602.iam.gserviceaccount.com
+            </button>
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                value={sheetsUrl}
+                onChange={(e) => setSheetsUrl(e.target.value)}
+                placeholder="URL o ID de la hoja…"
+                className="flex-1 text-xs rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 outline-none focus:border-primary/40 focus:bg-background transition-colors"
+              />
+              <Button type="button" size="sm" variant="outline" className="h-8 px-2 shrink-0 text-xs" onClick={handleSaveWebhookUrl} disabled={savingUrl}>
+                {savingUrl ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Guardar'}
+              </Button>
+            </div>
           </div>
-        </Section>
+        )}
       </div>
     </aside>
   );
