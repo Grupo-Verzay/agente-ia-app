@@ -25,6 +25,8 @@ import type {
 } from "@/actions/chat-actions";
 import { ChatMain } from "./chat-main";
 import { ChatSidebar } from "./chat-sidebar";
+import { useSidebar } from "@/components/ui/sidebar";
+import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
 import { fmtPhone } from "@/lib/whatsapp-jid";
 import type { OutgoingMessagePayload } from "./chat-main";
@@ -278,6 +280,9 @@ export function ChatsClient({
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [isSidebarVisible, setIsSidebarVisible] = useState(!initialSelectedJid);
   const [isContactPanelOpen, setIsContactPanelOpen] = useState(false);
+  const [isChatListCollapsed, setIsChatListCollapsed] = useState(false);
+  const { setOpen: setNavOpen } = useSidebar();
+  const prevNavOpenRef = useRef<boolean>(true);
 
   const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef(false);
@@ -424,6 +429,15 @@ export function ChatsClient({
   const toggleSidebarVisibility = useCallback(() => {
     setIsSidebarVisible((previous) => !previous);
   }, []);
+
+  useEffect(() => {
+    if (isContactPanelOpen) {
+      prevNavOpenRef.current = true;
+      setNavOpen(false);
+    } else {
+      setNavOpen(prevNavOpenRef.current);
+    }
+  }, [isContactPanelOpen, setNavOpen]);
 
   const refreshChatSessions = useCallback(
     async (chats: ChatData[]) => {
@@ -1218,7 +1232,7 @@ export function ChatsClient({
     <div data-full-bleed data-chat-view className="flex h-full w-full overflow-hidden">
       <div
         className={`${
-          isContactPanelOpen
+          isChatListCollapsed
             ? "hidden"
             : isSidebarVisible
               ? "w-full sm:w-[18rem] md:w-[20rem] lg:w-[22rem] xl:w-[24rem]"
@@ -1263,14 +1277,25 @@ export function ChatsClient({
               : undefined
           }
           onBulkAddTag={allTags.length > 0 ? handleBulkAddTag : undefined}
+          onCollapse={() => setIsChatListCollapsed(true)}
         />
       </div>
 
       <div
         className={`${
           !isSidebarVisible ? "flex-1 w-full" : "hidden sm:flex sm:flex-1"
-        } h-full min-w-0 transition-all duration-300`}
+        } relative h-full min-w-0 transition-all duration-300`}
       >
+        {isChatListCollapsed && (
+          <button
+            type="button"
+            onClick={() => setIsChatListCollapsed(false)}
+            title="Expandir lista de chats"
+            className="absolute left-2 top-2 z-20 hidden md:inline-flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            <PanelRightOpen className="h-4 w-4" />
+          </button>
+        )}
         {selectedJid ? (
           <ChatMain
             key={selectedJid || "no-jid"}

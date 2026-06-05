@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Inbox, Trash2, Users, UserX, Check, SquarePen, MessageCircle } from "lucide-react";
+import { Inbox, Trash2, Users, UserX, Check, SquarePen, MessageCircle, PanelLeftClose } from "lucide-react";
 import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
@@ -104,6 +104,7 @@ type ChatSidebarProps = {
   onBulkPin?: (remoteJids: string[], isPinned: boolean) => Promise<void>;
   onBulkAssignAdvisor?: (remoteJids: string[], advisorId: string | null) => Promise<void>;
   onBulkAddTag?: (remoteJids: string[], tagId: number) => Promise<void>;
+  onCollapse?: () => void;
 };
 
 export function ChatSidebar({
@@ -136,6 +137,7 @@ export function ChatSidebar({
   onBulkPin,
   onBulkAssignAdvisor,
   onBulkAddTag,
+  onCollapse,
 }: ChatSidebarProps) {
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<TabKey>(currentAdvisorId ? "mine" : "all");
@@ -515,7 +517,7 @@ export function ChatSidebar({
     <>
       <aside className="flex h-full w-full max-w-[700px] flex-col bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/50 xs:min-w-[200px] sm:border-r">
         <div className="sticky top-0 z-10 space-y-1.5 border-b bg-background/80 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:space-y-2 sm:px-3">
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2">
             <ChatSearchBar
               value={q}
               onChange={setQ}
@@ -535,6 +537,16 @@ export function ChatSidebar({
                 className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground sm:h-8 sm:w-8"
               >
                 <SquarePen className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {onCollapse && (
+              <button
+                type="button"
+                onClick={onCollapse}
+                title="Colapsar lista de chats"
+                className="hidden md:inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground sm:h-8 sm:w-8"
+              >
+                <PanelLeftClose className="h-3.5 w-3.5" />
               </button>
             )}
             {showAdvisorFilter && (
