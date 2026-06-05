@@ -751,23 +751,16 @@ export function AgentPromptChatDialog({
                     </Button>
                   );
                 })}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto w-full justify-start gap-2 px-3 py-2 text-left text-sm"
+                  onClick={() => setGeneratorMode(true)}
+                >
+                  <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+                  Generar flujo
+                </Button>
               </div>
-            </div>
-
-            {/* Separador */}
-            <div className="border-t mx-4 mt-auto" />
-
-            {/* Generar flujo */}
-            <div className="p-4 shrink-0">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-auto w-full justify-start gap-2 px-3 py-2 text-left text-sm"
-                onClick={() => setGeneratorMode(true)}
-              >
-                <Sparkles className="h-4 w-4 shrink-0 text-primary" />
-                Generar flujo
-              </Button>
             </div>
           </aside>
         </div>
