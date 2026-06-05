@@ -539,16 +539,6 @@ export function ChatSidebar({
                 <SquarePen className="h-3.5 w-3.5" />
               </button>
             )}
-            {onCollapse && (
-              <button
-                type="button"
-                onClick={onCollapse}
-                title="Colapsar lista de chats"
-                className="hidden md:inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground sm:h-8 sm:w-8"
-              >
-                <PanelLeftClose className="h-3.5 w-3.5" />
-              </button>
-            )}
             {showAdvisorFilter && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -605,6 +595,16 @@ export function ChatSidebar({
                   })}
                 </DropdownMenuContent>
               </DropdownMenu>
+            )}
+            {onCollapse && (
+              <button
+                type="button"
+                onClick={onCollapse}
+                title="Colapsar lista de chats"
+                className="hidden md:inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-input bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground sm:h-8 sm:w-8"
+              >
+                <PanelLeftClose className="h-3.5 w-3.5" />
+              </button>
             )}
           </div>
 
