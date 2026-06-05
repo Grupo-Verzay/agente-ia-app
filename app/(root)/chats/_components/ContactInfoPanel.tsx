@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  X, Brain, TrendingUp, Tag, Bell, Loader2, Sparkles,
-  RefreshCw, Phone, Megaphone, Mail, Building2, MapPin,
+  X, Tag, Loader2, Phone, Megaphone, Mail, Building2, MapPin,
   Briefcase, FileText, Check, ChevronDown, ChevronRight,
   Sheet, Send, Info,
 } from 'lucide-react';
@@ -12,8 +11,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { getSessionLatestSummarySnapshot } from '@/actions/crm-follow-up-actions';
-import { scoreLeadBySessionId } from '@/actions/lead-score-action';
 import {
   getExternalClientDataByRemoteJid,
   upsertExternalClientData,
@@ -29,22 +26,6 @@ import { SessionTagsCombobox } from '../../tags/components';
 import { initialFromName } from './chat-message-utils';
 import type { Session, SimpleTag } from '@/types/session';
 
-/* ── Helpers ───────────────────────────────────────────────── */
-function scoreColor(s: number) {
-  if (s >= 76) return '#22C55E';
-  if (s >= 51) return '#F59E0B';
-  if (s >= 26) return '#F97316';
-  return '#EF4444';
-}
-function timeAgo(iso: string | Date | null | undefined) {
-  if (!iso) return null;
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 60) return `hace ${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `hace ${hrs}h`;
-  return `hace ${Math.floor(hrs / 24)}d`;
-}
-
 /* ── Contact data fields ───────────────────────────────────── */
 type ContactFields = {
   email: string;
@@ -55,7 +36,7 @@ type ContactFields = {
 };
 const EMPTY_FIELDS: ContactFields = { email: '', empresa: '', ciudad: '', cargo: '', notas: '' };
 
-/* ── Inline field component ────────────────────────────────── */
+/* ── Inline field ──────────────────────────────────────────── */
 interface InlineFieldProps {
   icon: React.ElementType;
   label: string;
@@ -69,7 +50,6 @@ interface InlineFieldProps {
 
 function InlineField({ icon: Icon, label, field, value, multiline, saved, onChange, onSave }: InlineFieldProps) {
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
-
   const inputCls = 'flex-1 text-sm bg-transparent outline-none resize-none placeholder:text-muted-foreground/30 border-0 focus:ring-0 p-0 w-full';
 
   return (
@@ -166,21 +146,11 @@ export function ContactInfoPanel({
   onSessionMutate,
   onSessionRefresh,
 }: ContactInfoPanelProps) {
-  /* CRM state */
-  const [synthesis, setSynthesis] = useState<string | null>(null);
-  const [loadingSynth, setLoadingSynth] = useState(true);
-  const [scoring, setScoring] = useState(false);
-  const [localScore, setLocalScore] = useState<number | null>(session.leadScore ?? null);
-  const [localReason, setLocalReason] = useState<string | null>(session.leadScoreReason ?? null);
-  const [localStatus, setLocalStatus] = useState(session.leadStatus ?? null);
-
-  /* Contact data form state */
   const [fields, setFields] = useState<ContactFields>(EMPTY_FIELDS);
   const [savedField, setSavedField] = useState<keyof ContactFields | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  /* Google Sheets state */
+  const [localStatus, setLocalStatus] = useState(session.leadStatus ?? null);
   const [sheetsUrl, setSheetsUrl] = useState('');
   const [savingUrl, setSavingUrl] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -209,26 +179,12 @@ export function ContactInfoPanel({
     return () => { cancelled = true; };
   }, [userId, remoteJid]);
 
-  /* Load synthesis */
+  /* Sync lead status */
   useEffect(() => {
-    let cancelled = false;
-    setLoadingSynth(true);
-    setSynthesis(null);
-    getSessionLatestSummarySnapshot(session.id).then((res) => {
-      if (!cancelled && res.success && res.data?.summarySnapshot) setSynthesis(res.data.summarySnapshot);
-      if (!cancelled) setLoadingSynth(false);
-    });
-    return () => { cancelled = true; };
-  }, [session.id]);
-
-  /* Sync score/status when session changes */
-  useEffect(() => {
-    setLocalScore(session.leadScore ?? null);
-    setLocalReason(session.leadScoreReason ?? null);
     setLocalStatus(session.leadStatus ?? null);
-  }, [session.id, session.leadScore, session.leadScoreReason, session.leadStatus]);
+  }, [session.id, session.leadStatus]);
 
-  /* Load Google Sheets webhook URL */
+  /* Load Google Sheets config */
   useEffect(() => {
     getGoogleSheetsWebhookUrl(userId).then((url) => setSheetsUrl(url ?? ''));
   }, [userId]);
@@ -243,25 +199,10 @@ export function ContactInfoPanel({
     if (pendingRef.current) clearTimeout(pendingRef.current);
     try {
       await upsertExternalClientData(userId, remoteJid, fields as Record<string, string>, 'manual');
-      setSavedField(null); // hide check after save
     } catch {
       toast.error('No se pudo guardar');
     }
   }, [userId, remoteJid, fields]);
-
-  const handleScore = async () => {
-    setScoring(true);
-    const res = await scoreLeadBySessionId(session.id);
-    if (res.success && res.score !== undefined) {
-      setLocalScore(res.score);
-      setLocalReason(res.reason ?? null);
-      toast.success(`Lead puntuado: ${res.score}/100`);
-      onSessionMutate();
-    } else {
-      toast.error(res.message ?? 'Error al puntuar');
-    }
-    setScoring(false);
-  };
 
   const handleSaveWebhookUrl = async () => {
     setSavingUrl(true);
@@ -284,20 +225,19 @@ export function ContactInfoPanel({
     else toast.error(res.error ?? 'Error al sincronizar');
   };
 
-  const pendingFollowUps = session.crmFollowUpSummary?.pending ?? 0;
   const initialTagIds = session.tags?.map((t) => t.id).filter(Boolean) ?? [];
 
   const FIELDS_CONFIG: { field: keyof ContactFields; icon: React.ElementType; label: string; multiline?: boolean }[] = [
-    { field: 'email',   icon: Mail,       label: 'Email' },
-    { field: 'empresa', icon: Building2,  label: 'Empresa' },
-    { field: 'ciudad',  icon: MapPin,     label: 'Ciudad' },
-    { field: 'cargo',   icon: Briefcase,  label: 'Cargo' },
-    { field: 'notas',   icon: FileText,   label: 'Notas', multiline: true },
+    { field: 'email',   icon: Mail,      label: 'Email' },
+    { field: 'empresa', icon: Building2, label: 'Empresa' },
+    { field: 'ciudad',  icon: MapPin,    label: 'Ciudad' },
+    { field: 'cargo',   icon: Briefcase, label: 'Cargo' },
+    { field: 'notas',   icon: FileText,  label: 'Notas', multiline: true },
   ];
 
   return (
     <aside className="hidden md:flex flex-col w-72 shrink-0 border-l bg-background h-full overflow-hidden">
-      {/* ── Panel header ── */}
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/30 shrink-0">
         <span className="text-sm font-semibold">Contacto</span>
         <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={onClose} title="Cerrar">
@@ -305,10 +245,9 @@ export function ContactInfoPanel({
         </Button>
       </div>
 
-      {/* ── Scrollable body ── */}
       <div className="flex-1 overflow-y-auto [scrollbar-width:thin]">
 
-        {/* ── Contact card ── */}
+        {/* Contact card */}
         <div className="flex flex-col items-center gap-1.5 py-5 px-4 border-b">
           <Avatar className="h-16 w-16 ring-2 ring-border">
             <AvatarImage src={avatarSrc || '/default-avatar.png'} />
@@ -345,7 +284,7 @@ export function ContactInfoPanel({
           </div>
         </div>
 
-        {/* ── Datos del cliente ── */}
+        {/* Datos del cliente */}
         <Section title="Datos del cliente" icon={Briefcase}>
           {loadingData ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground px-4 py-2">
@@ -370,11 +309,9 @@ export function ContactInfoPanel({
           )}
         </Section>
 
-        {/* ── CRM ── */}
-        <Section title="CRM" icon={TrendingUp}>
+        {/* Estado y etiquetas */}
+        <Section title="Clasificación" icon={Tag}>
           <div className="space-y-3 px-2">
-
-            {/* Lead status */}
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Estado</p>
               <LeadStatusSelect
@@ -383,31 +320,6 @@ export function ContactInfoPanel({
                 onUpdated={async (s) => { setLocalStatus(s); await onSessionRefresh(); }}
               />
             </div>
-
-            {/* Lead score */}
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider shrink-0">Puntuación IA</p>
-              {localScore !== null ? (
-                <div className="flex items-center gap-1.5 ml-auto">
-                  <div className="flex items-center gap-1 rounded-md px-2 py-0.5 text-white font-bold text-xs" style={{ backgroundColor: scoreColor(localScore) }}>
-                    {localScore}<span className="font-normal opacity-80">/100</span>
-                  </div>
-                  <Button type="button" variant="ghost" size="icon" onClick={handleScore} disabled={scoring} className="h-6 w-6" title="Re-puntuar">
-                    {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                  </Button>
-                </div>
-              ) : (
-                <Button type="button" variant="outline" size="sm" onClick={handleScore} disabled={scoring} className="h-6 gap-1 text-xs px-2 ml-auto">
-                  {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                  Puntuar
-                </Button>
-              )}
-            </div>
-            {localScore !== null && localReason && (
-              <p className="text-[11px] text-muted-foreground leading-relaxed -mt-1">{localReason}</p>
-            )}
-
-            {/* Tags */}
             <div>
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
                 <Tag className="h-3 w-3" /> Etiquetas
@@ -433,35 +345,36 @@ export function ContactInfoPanel({
                 <p className="text-xs text-muted-foreground">Sin etiquetas</p>
               )}
             </div>
-
-            {/* Follow-ups */}
-            {pendingFollowUps > 0 && (
-              <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-500">
-                <Bell className="h-3.5 w-3.5 shrink-0" />
-                {pendingFollowUps} follow-up{pendingFollowUps > 1 ? 's' : ''} pendiente{pendingFollowUps > 1 ? 's' : ''}
-              </div>
-            )}
           </div>
         </Section>
 
-        {/* ── Síntesis IA ── */}
-        <Section title="Síntesis IA" icon={Brain} defaultOpen={false}>
-          <div className="px-2">
-            {loadingSynth ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
-                <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
-              </div>
-            ) : synthesis ? (
-              <div className="rounded-lg border p-3 bg-muted/20">
-                <p className="text-xs text-foreground/90 leading-relaxed whitespace-pre-line">{synthesis}</p>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground rounded-lg border border-dashed p-3">Sin síntesis disponible</p>
-            )}
+        {/* Google Sheets */}
+        <Section title="Google Sheets" icon={Sheet} defaultOpen={false}>
+          <div className="px-4 space-y-3">
+            <p className="text-[10px] text-muted-foreground leading-snug flex items-start gap-1">
+              <Info className="h-3 w-3 shrink-0 mt-0.5" />
+              Comparte tu hoja con <span className="font-medium text-foreground select-all">agente-ia@ia-crm-496602.iam.gserviceaccount.com</span> como Editor y pega la URL aquí.
+            </p>
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                value={sheetsUrl}
+                onChange={(e) => setSheetsUrl(e.target.value)}
+                placeholder="URL o ID de la hoja…"
+                className="flex-1 text-xs rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 outline-none focus:border-primary/40 focus:bg-background transition-colors"
+              />
+              <Button type="button" size="sm" variant="outline" className="h-8 px-2 shrink-0 text-xs" onClick={handleSaveWebhookUrl} disabled={savingUrl}>
+                {savingUrl ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Guardar'}
+              </Button>
+            </div>
+            <Button type="button" size="sm" className="w-full gap-2 h-8 text-xs" onClick={handleSync} disabled={syncing || !sheetsUrl}>
+              {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              Sincronizar ficha ahora
+            </Button>
           </div>
         </Section>
 
-        {/* ── Origen del anuncio ── */}
+        {/* Origen del anuncio */}
         {adSource && (
           <Section title="Origen del anuncio" icon={Megaphone} defaultOpen={false}>
             <div className="px-2">
@@ -478,46 +391,6 @@ export function ContactInfoPanel({
             </div>
           </Section>
         )}
-
-        {/* ── Google Sheets ── */}
-        <Section title="Google Sheets" icon={Sheet} defaultOpen={false}>
-          <div className="px-4 space-y-3">
-            <p className="text-[10px] text-muted-foreground leading-snug flex items-start gap-1">
-              <Info className="h-3 w-3 shrink-0 mt-0.5" />
-              Comparte tu Google Sheet con <span className="font-medium text-foreground">agente-ia@ia-crm-496602.iam.gserviceaccount.com</span> como Editor y pega la URL aquí.
-            </p>
-            <div className="flex gap-1.5">
-              <input
-                type="text"
-                value={sheetsUrl}
-                onChange={(e) => setSheetsUrl(e.target.value)}
-                placeholder="URL o ID de la hoja…"
-                className="flex-1 text-xs rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 outline-none focus:border-primary/40 focus:bg-background transition-colors"
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 px-2 shrink-0 text-xs"
-                onClick={handleSaveWebhookUrl}
-                disabled={savingUrl}
-              >
-                {savingUrl ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Guardar'}
-              </Button>
-            </div>
-
-            <Button
-              type="button"
-              size="sm"
-              className="w-full gap-2 h-8 text-xs"
-              onClick={handleSync}
-              disabled={syncing || !sheetsUrl}
-            >
-              {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-              Sincronizar ficha ahora
-            </Button>
-          </div>
-        </Section>
 
       </div>
     </aside>
