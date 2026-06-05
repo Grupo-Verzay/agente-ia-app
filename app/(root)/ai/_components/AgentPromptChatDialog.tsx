@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, CheckCircle2, AlertCircle, Copy, Lightbulb, Loader2, SendHorizontal, Sparkles, Wand2 } from "lucide-react";
+import { Bot, CheckCircle2, AlertCircle, Copy, Lightbulb, Loader2, RefreshCw, SendHorizontal, Sparkles, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { sendAgentPromptChatAction } from "@/actions/ai-prompt-chat-actions";
@@ -27,6 +27,7 @@ type AgentPromptChatDialogProps = {
   currentDraft: string;
   promptPreview: string;
   promptId?: string;
+  onApplyDraft?: (text: string) => void;
 };
 
 const QUICK_PROMPTS = [
@@ -56,7 +57,13 @@ function createMessage(role: ChatMessage["role"], content: string): ChatMessage 
   };
 }
 
-function PromptChatBubble({ message }: { message: ChatMessage }) {
+function PromptChatBubble({
+  message,
+  onApply,
+}: {
+  message: ChatMessage;
+  onApply?: (text: string) => void;
+}) {
   const isUser = message.role === "user";
 
   const copyMessage = async () => {
@@ -80,14 +87,29 @@ function PromptChatBubble({ message }: { message: ChatMessage }) {
       >
         <div className="whitespace-pre-wrap">{message.content}</div>
         {!isUser ? (
-          <button
-            type="button"
-            onClick={copyMessage}
-            className="absolute -right-2 -top-2 hidden h-7 w-7 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm transition-colors hover:text-foreground group-hover:flex"
-            aria-label="Copiar respuesta"
-          >
-            <Copy className="h-3.5 w-3.5" />
-          </button>
+          <div className="absolute -right-2 -top-2 hidden flex-col gap-0.5 group-hover:flex">
+            <button
+              type="button"
+              onClick={copyMessage}
+              className="flex h-7 w-7 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+              aria-label="Copiar respuesta"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </button>
+            {onApply ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onApply(message.content);
+                  toast.success("Aplicado a la sección.");
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-full border bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                aria-label="Aplicar a la sección"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </div>
@@ -101,10 +123,12 @@ export function AgentPromptChatDialog({
   currentDraft,
   promptPreview,
   promptId,
+  onApplyDraft,
 }: AgentPromptChatDialogProps) {
   const [text, setText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [sidebarTab, setSidebarTab] = useState<"atajos" | "generar">("atajos");
   const [genDescription, setGenDescription] = useState("");
   const [genStage, setGenStage] = useState<GenStage>("idle");
@@ -126,6 +150,14 @@ export function AgentPromptChatDialog({
     setMessages([welcome]);
     setText("");
   }, [open, welcome]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isSending]);
+
+  const handleClear = () => {
+    setMessages([welcome]);
+  };
 
   const sendText = async (value: string) => {
     const content = value.trim();
@@ -195,11 +227,13 @@ export function AgentPromptChatDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[min(720px,92dvh)] w-[min(960px,calc(100vw-1.5rem))] max-w-none flex-col overflow-hidden p-0">
-        <div className="grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[1fr_320px]">
+        <div className="relative grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[1fr_320px]">
+          {/* Divisor vertical completo */}
+          <div className="absolute inset-y-0 right-[320px] hidden w-px bg-border lg:block" />
 
           {/* ── Columna izquierda: chat ── */}
-          <div className="flex h-full flex-col border-r">
-            {/* Header solo en columna izquierda */}
+          <div className="flex h-full flex-col">
+            {/* Header */}
             <div className="shrink-0 border-b px-4 py-3">
               <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -208,13 +242,26 @@ export function AgentPromptChatDialog({
                 Chat para mejorar Agente IA
                 <span className="text-muted-foreground font-normal">·</span>
                 <span className="text-xs font-normal text-muted-foreground">Sección: <span className="font-medium text-foreground">{TYPE_AI_LABELS[activeTab]}</span></span>
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  aria-label="Limpiar chat"
+                  title="Limpiar chat"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </DialogTitle>
             </div>
 
             <ScrollArea className="min-h-0 flex-1 px-4 pt-3 pb-4">
               <div className="space-y-3">
                 {messages.map((message) => (
-                  <PromptChatBubble key={message.id} message={message} />
+                  <PromptChatBubble
+                    key={message.id}
+                    message={message}
+                    onApply={onApplyDraft}
+                  />
                 ))}
                 {isSending ? (
                   <div className="flex justify-start">
@@ -224,6 +271,7 @@ export function AgentPromptChatDialog({
                     </div>
                   </div>
                 ) : null}
+                <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
 
@@ -315,12 +363,28 @@ export function AgentPromptChatDialog({
                     value={genDescription}
                     onChange={(e) => setGenDescription(e.target.value)}
                   />
-                  {genError && (
-                    <div className="flex items-start gap-1.5 text-xs text-destructive">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      {genError}
+                  {genStage === "error" && genError ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-start gap-1.5 text-xs text-destructive">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        {genError}
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="w-full gap-2 shrink-0"
+                        onClick={() => {
+                          setGenStage("idle");
+                          setGenError(null);
+                          void handleGenerate();
+                        }}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Reintentar
+                      </Button>
                     </div>
-                  )}
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"
