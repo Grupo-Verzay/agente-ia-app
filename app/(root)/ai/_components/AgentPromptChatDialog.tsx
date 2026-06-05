@@ -356,9 +356,9 @@ export function AgentPromptChatDialog({
                   <p className="text-xs font-medium text-emerald-600">¡Listo! Recargando…</p>
                 </div>
               ) : (
-                <div className="flex flex-1 flex-col gap-3">
+                <div className="flex flex-1 flex-col gap-3 min-h-0">
                   <textarea
-                    className="flex-1 w-full rounded-md border bg-background p-2.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+                    className="flex-1 w-full rounded-md border bg-background p-2.5 text-xs resize-none overflow-y-auto focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
                     placeholder={"Pega la info del negocio y la IA genera el flujo completo.\n\nEj: Somos academia en Bogotá. Cursos de barbería $8/clase, mecánica $10/clase.\nHorarios: Lun-Sáb 8am-6pm\nPago: Nequi 300..."}
                     value={genDescription}
                     onChange={(e) => setGenDescription(e.target.value)}
