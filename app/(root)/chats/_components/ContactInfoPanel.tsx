@@ -389,7 +389,7 @@ export function ContactInfoPanel({
           {/* Agente IA toggle */}
           <div className="flex items-center justify-between w-full mt-0.5 px-3 py-0.5">
             <div className="flex items-center gap-2">
-              <BotIcon className={cn('h-4 w-4 transition-colors', agentEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')} />
+              <BotIcon className={cn('h-4 w-4 transition-colors', agentEnabled ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground')} />
               <p className="text-xs font-medium">Agente IA</p>
             </div>
             <SwitchPrimitive.Root
@@ -399,7 +399,7 @@ export function ContactInfoPanel({
               className={cn(
                 'relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full border transition-colors duration-300',
                 'border-input bg-input/60',
-                'data-[state=checked]:border-emerald-500 data-[state=checked]:bg-emerald-500',
+                'data-[state=checked]:border-blue-500 data-[state=checked]:bg-blue-500',
                 'focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
               )}
             >
@@ -407,7 +407,7 @@ export function ContactInfoPanel({
                 'pointer-events-none flex h-5 w-5 items-center justify-center rounded-full bg-background shadow-sm',
                 'transition-transform duration-300 translate-x-1 data-[state=checked]:translate-x-6',
               )}>
-                <BotIcon className={cn('h-3 w-3 transition-colors', agentEnabled ? 'text-emerald-500' : 'text-muted-foreground')} />
+                <BotIcon className={cn('h-3 w-3 transition-colors', agentEnabled ? 'text-blue-500' : 'text-muted-foreground')} />
               </SwitchPrimitive.Thumb>
             </SwitchPrimitive.Root>
           </div>
@@ -504,7 +504,7 @@ export function ContactInfoPanel({
       {/* ── Sync button fijo al fondo ── */}
       {sheetsSaved && (
         <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-1.5 sm:px-3 sm:py-2">
-          <Button type="button" className="w-full gap-1.5 text-sm h-10" onClick={handleSync} disabled={syncing}>
+          <Button type="button" className="w-full gap-1.5 text-sm h-10 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSync} disabled={syncing}>
             {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
             Sincronizar datos ahora
           </Button>
