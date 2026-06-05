@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 import {
   X, Loader2, Phone, Megaphone, Mail, Building2, MapPin,
-  Briefcase, FileText, Check, ChevronDown, ChevronRight,
+  Briefcase, FileText, Check, ChevronDown,
   Sheet, Send, Info, BotIcon, Pencil, CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -108,7 +108,7 @@ function Section({ title, icon: Icon, children, defaultOpen = true }: {
           <Icon className="h-3 w-3" />
           {title}
         </span>
-        {open ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+        <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${open ? '' : '-rotate-90'}`} />
       </button>
       {open && <div className="px-2 pb-3">{children}</div>}
     </div>
