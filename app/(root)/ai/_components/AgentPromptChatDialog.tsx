@@ -288,10 +288,10 @@ export function AgentPromptChatDialog({
             </div>
 
             {/* Separador */}
-            <div className="border-t mx-4" />
+            <div className="border-t mx-4 mt-auto" />
 
             {/* Generar flujo */}
-            <div className="flex flex-col gap-3 p-4">
+            <div className="flex flex-col gap-3 p-4 shrink-0">
               <div>
                 <p className="text-sm font-semibold flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-primary" />
