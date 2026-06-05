@@ -108,7 +108,7 @@ function Section({ title, icon: Icon, children, defaultOpen = true }: {
           <Icon className="h-3 w-3" />
           {title}
         </span>
-        <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${open ? '' : '-rotate-90'}`} />
+        <ChevronDown className="h-3 w-3 text-muted-foreground" />
       </button>
       {open && <div className="px-2 pb-3">{children}</div>}
     </div>
