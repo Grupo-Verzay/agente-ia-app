@@ -377,28 +377,18 @@ export function ContactInfoPanel({
 
 
         {/* Google Sheets */}
-        <Section title="Google Sheets" icon={Sheet} defaultOpen={false}>
+        <Section title="Google Sheets" icon={Sheet} defaultOpen={sheetsSaved}>
           <div className="px-4 space-y-3">
             {sheetsSaved && !editingSheets ? (
               /* ── Configurado ── */
-              <div className="space-y-3">
-                <div className="flex items-center justify-between rounded-lg bg-emerald-50 dark:bg-emerald-950/20 px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Hoja conectada</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setEditingSheets(true)}
-                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Cambiar
-                  </button>
-                </div>
+              <div className="space-y-2">
                 <Button type="button" size="sm" className="w-full gap-2 h-8 text-xs" onClick={handleSync} disabled={syncing}>
                   {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                   Sincronizar ficha ahora
                 </Button>
+                <button type="button" onClick={() => setEditingSheets(true)} className="w-full text-[10px] text-muted-foreground hover:text-foreground transition-colors text-center">
+                  Cambiar hoja
+                </button>
               </div>
             ) : (
               /* ── Sin configurar / editando ── */
