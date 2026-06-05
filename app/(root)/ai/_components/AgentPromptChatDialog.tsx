@@ -746,7 +746,7 @@ export function AgentPromptChatDialog({
             ) : null}
 
             {/* Atajos */}
-            <div className="flex flex-col gap-3 px-4 pt-3 pb-3">
+            <div className="flex flex-1 flex-col gap-3 px-4 pt-3 pb-3">
               <p className="text-sm font-semibold">Atajos</p>
               <div className="space-y-2">
                 {[...quickPrompts, OPTIMIZE_PROMPT, SIMULATE_PROMPT].map((item) => {
