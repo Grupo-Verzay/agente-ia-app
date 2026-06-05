@@ -72,6 +72,7 @@ type ChatMainProps = {
   onLoadOlderMessages?: () => Promise<void>;
   canLoadOlderMessages?: boolean;
   loadingOlderMessages?: boolean;
+  onInfoPanelChange?: (open: boolean) => void;
 };
 
 export const ChatMain: React.FC<ChatMainProps> = ({
@@ -98,6 +99,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   onLoadOlderMessages,
   canLoadOlderMessages,
   loadingOlderMessages,
+  onInfoPanelChange,
 }) => {
   /* ─── Refs ─── */
   const listRef = useRef<HTMLDivElement>(null);
@@ -121,6 +123,11 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     if (typeof window === 'undefined') return false;
     return localStorage.getItem('chat-info-panel') !== 'false';
   });
+
+  useEffect(() => {
+    onInfoPanelChange?.(infoPanelOpen);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ─── Note mode state ─── */
   const [noteMode, setNoteMode] = useState(false);
@@ -534,9 +541,10 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     setInfoPanelOpen((v) => {
       const next = !v;
       localStorage.setItem('chat-info-panel', String(next));
+      onInfoPanelChange?.(next);
       return next;
     });
-  }, []);
+  }, [onInfoPanelChange]);
 
   return (
     <div className="flex h-full w-full min-w-[100px] sm:border-l sm:border-r overflow-hidden">
