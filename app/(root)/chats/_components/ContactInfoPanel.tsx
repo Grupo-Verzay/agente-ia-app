@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 import {
   X, Loader2, Phone, Megaphone, Mail, Building2, MapPin,
   Briefcase, FileText, Check, ChevronDown, ChevronRight,
-  Sheet, Send, Info, BotIcon,
+  Sheet, Send, Info, BotIcon, Pencil,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -20,7 +20,7 @@ import {
   saveGoogleSheetsWebhookUrl,
   syncContactToGoogleSheets,
 } from '@/actions/google-sheets-actions';
-import { toggleAgentDisabled } from '@/actions/session-action';
+import { toggleAgentDisabled, updateLeadPushNameAction } from '@/actions/session-action';
 import * as SwitchPrimitive from '@radix-ui/react-switch';
 import { initialFromName } from './chat-message-utils';
 import type { Session } from '@/types/session';
@@ -148,6 +148,10 @@ export function ContactInfoPanel({
   const [sheetsUrl, setSheetsUrl] = useState('');
   const [agentEnabled, setAgentEnabled] = useState(!session.agentDisabled);
   const [isPending, startTransition] = useTransition();
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(displayedContactName);
+  const [savingName, setSavingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [savingUrl, setSavingUrl] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
@@ -174,6 +178,20 @@ export function ContactInfoPanel({
     });
     return () => { cancelled = true; };
   }, [userId, remoteJid]);
+
+  /* Sync name draft when contact changes */
+  useEffect(() => { setNameDraft(displayedContactName); }, [displayedContactName]);
+
+  const handleNameSave = async () => {
+    const name = nameDraft.trim();
+    if (!name || name === displayedContactName) { setEditingName(false); return; }
+    setSavingName(true);
+    const res = await updateLeadPushNameAction({ sessionId: session.id, pushName: name });
+    setSavingName(false);
+    if (res.success) { toast.success('Nombre actualizado'); onSessionRefresh(); }
+    else toast.error('No se pudo actualizar');
+    setEditingName(false);
+  };
 
   /* Sync agent state */
   useEffect(() => { setAgentEnabled(!session.agentDisabled); }, [session.agentDisabled]);
@@ -256,7 +274,28 @@ export function ContactInfoPanel({
             <AvatarImage src={avatarSrc || '/default-avatar.png'} />
             <AvatarFallback className="text-lg font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
           </Avatar>
-          <p className="font-semibold text-sm text-center leading-tight mt-1">{displayedContactName}</p>
+          {editingName ? (
+            <input
+              ref={nameInputRef}
+              autoFocus
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={handleNameSave}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleNameSave(); } if (e.key === 'Escape') { setEditingName(false); setNameDraft(displayedContactName); } }}
+              className="font-semibold text-sm text-center leading-tight mt-1 bg-transparent border-b border-primary outline-none w-full text-center px-2"
+              disabled={savingName}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setEditingName(true); setTimeout(() => nameInputRef.current?.select(), 50); }}
+              className="font-semibold text-sm text-center leading-tight mt-1 hover:text-primary transition-colors cursor-text group flex items-center gap-1"
+              title="Editar nombre"
+            >
+              {displayedContactName}
+              <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-50 transition-opacity shrink-0" />
+            </button>
+          )}
           {displayedWhatsapp && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Phone className="h-3 w-3 shrink-0" />
