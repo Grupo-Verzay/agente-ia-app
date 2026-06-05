@@ -1,17 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   X, Brain, TrendingUp, Tag, Bell, Loader2, Sparkles,
-  RefreshCw, Phone, Megaphone, FileText,
+  RefreshCw, Phone, Megaphone, Mail, Building2, MapPin,
+  Briefcase, FileText, Check, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { getSessionLatestSummarySnapshot } from '@/actions/crm-follow-up-actions';
 import { scoreLeadBySessionId } from '@/actions/lead-score-action';
+import {
+  getExternalClientDataByRemoteJid,
+  upsertExternalClientData,
+} from '@/actions/external-client-data-actions';
 import { LeadStatusSelect } from './LeadStatusSelect';
 import { SessionTagsCombobox } from '../../tags/components';
 import { initialFromName } from './chat-message-utils';
@@ -24,7 +29,6 @@ function scoreColor(s: number) {
   if (s >= 26) return '#F97316';
   return '#EF4444';
 }
-
 function timeAgo(iso: string | Date | null | undefined) {
   if (!iso) return null;
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -34,7 +38,98 @@ function timeAgo(iso: string | Date | null | undefined) {
   return `hace ${Math.floor(hrs / 24)}d`;
 }
 
-/* ── Types ─────────────────────────────────────────────────── */
+/* ── Contact data fields ───────────────────────────────────── */
+type ContactFields = {
+  email: string;
+  empresa: string;
+  ciudad: string;
+  cargo: string;
+  notas: string;
+};
+const EMPTY_FIELDS: ContactFields = { email: '', empresa: '', ciudad: '', cargo: '', notas: '' };
+
+/* ── Inline field component ────────────────────────────────── */
+interface InlineFieldProps {
+  icon: React.ElementType;
+  label: string;
+  field: keyof ContactFields;
+  value: string;
+  multiline?: boolean;
+  saved: boolean;
+  onChange: (field: keyof ContactFields, value: string) => void;
+  onSave: () => void;
+}
+
+function InlineField({ icon: Icon, label, field, value, multiline, saved, onChange, onSave }: InlineFieldProps) {
+  const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+
+  const commonCls = cn(
+    'flex-1 text-sm bg-transparent outline-none resize-none placeholder:text-muted-foreground/40',
+    'border-0 focus:ring-0 p-0',
+  );
+
+  return (
+    <div
+      className="group flex items-start gap-2.5 py-2 px-2 rounded-lg hover:bg-muted/40 cursor-text transition-colors"
+      onClick={() => ref.current?.focus()}
+    >
+      <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider leading-none mb-1">{label}</p>
+        {multiline ? (
+          <textarea
+            ref={ref as React.RefObject<HTMLTextAreaElement>}
+            rows={3}
+            className={cn(commonCls, 'w-full leading-snug')}
+            value={value}
+            placeholder="—"
+            onChange={(e) => onChange(field, e.target.value)}
+            onBlur={onSave}
+          />
+        ) : (
+          <input
+            ref={ref as React.RefObject<HTMLInputElement>}
+            type="text"
+            className={cn(commonCls, 'w-full')}
+            value={value}
+            placeholder="—"
+            onChange={(e) => onChange(field, e.target.value)}
+            onBlur={onSave}
+          />
+        )}
+      </div>
+      {saved && <Check className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />}
+    </div>
+  );
+}
+
+/* ── Collapsible section ───────────────────────────────────── */
+function Section({ title, icon: Icon, children, defaultOpen = true }: {
+  title: string;
+  icon: React.ElementType;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border-t first:border-t-0">
+      <button
+        type="button"
+        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/30 transition-colors"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
+          <Icon className="h-3 w-3" />
+          {title}
+        </span>
+        {open ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+      </button>
+      {open && <div className="px-2 pb-3">{children}</div>}
+    </div>
+  );
+}
+
+/* ── Props ─────────────────────────────────────────────────── */
 interface ContactInfoPanelProps {
   session: Session;
   displayedContactName: string;
@@ -48,16 +143,6 @@ interface ContactInfoPanelProps {
   onSessionTagsChange?: (remoteJid: string, selectedIds: number[]) => void;
   onSessionMutate: () => void;
   onSessionRefresh: () => Promise<void>;
-}
-
-/* ── Section header ────────────────────────────────────────── */
-function SectionLabel({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
-  return (
-    <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 mb-2">
-      <Icon className="h-3 w-3" />
-      {label}
-    </h4>
-  );
 }
 
 /* ── Panel ─────────────────────────────────────────────────── */
@@ -75,6 +160,7 @@ export function ContactInfoPanel({
   onSessionMutate,
   onSessionRefresh,
 }: ContactInfoPanelProps) {
+  /* CRM state */
   const [synthesis, setSynthesis] = useState<string | null>(null);
   const [loadingSynth, setLoadingSynth] = useState(true);
   const [scoring, setScoring] = useState(false);
@@ -82,27 +168,70 @@ export function ContactInfoPanel({
   const [localReason, setLocalReason] = useState<string | null>(session.leadScoreReason ?? null);
   const [localStatus, setLocalStatus] = useState(session.leadStatus ?? null);
 
+  /* Contact data form state */
+  const [fields, setFields] = useState<ContactFields>(EMPTY_FIELDS);
+  const [savedField, setSavedField] = useState<keyof ContactFields | null>(null);
+  const [loadingData, setLoadingData] = useState(true);
+  const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const adSource = session.adSource as { title?: string; body?: string; sourceUrl?: string } | null | undefined;
   const adLabel = adSource?.title || (adSource?.sourceUrl ? (() => { try { return new URL(adSource.sourceUrl!).hostname.replace(/^www\./, ''); } catch { return 'Anuncio'; } })() : null);
 
+  /* Load external contact data */
+  useEffect(() => {
+    if (!remoteJid) { setLoadingData(false); return; }
+    let cancelled = false;
+    setLoadingData(true);
+    getExternalClientDataByRemoteJid(userId, remoteJid).then((rec) => {
+      if (!cancelled && rec?.data && typeof rec.data === 'object') {
+        const d = rec.data as Record<string, unknown>;
+        setFields({
+          email: String(d.email ?? ''),
+          empresa: String(d.empresa ?? ''),
+          ciudad: String(d.ciudad ?? ''),
+          cargo: String(d.cargo ?? ''),
+          notas: String(d.notas ?? ''),
+        });
+      }
+      if (!cancelled) setLoadingData(false);
+    });
+    return () => { cancelled = true; };
+  }, [userId, remoteJid]);
+
+  /* Load synthesis */
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingSynth(true);
+    setSynthesis(null);
+    getSessionLatestSummarySnapshot(session.id).then((res) => {
+      if (!cancelled && res.success && res.data?.summarySnapshot) setSynthesis(res.data.summarySnapshot);
+      if (!cancelled) setLoadingSynth(false);
+    });
+    return () => { cancelled = true; };
+  }, [session.id]);
+
+  /* Sync score/status when session changes */
   useEffect(() => {
     setLocalScore(session.leadScore ?? null);
     setLocalReason(session.leadScoreReason ?? null);
     setLocalStatus(session.leadStatus ?? null);
   }, [session.id, session.leadScore, session.leadScoreReason, session.leadStatus]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingSynth(true);
-    setSynthesis(null);
-    getSessionLatestSummarySnapshot(session.id).then((res) => {
-      if (!cancelled && res.success && res.data?.summarySnapshot) {
-        setSynthesis(res.data.summarySnapshot);
-      }
-      if (!cancelled) setLoadingSynth(false);
-    });
-    return () => { cancelled = true; };
-  }, [session.id]);
+  const handleFieldChange = useCallback((field: keyof ContactFields, value: string) => {
+    setFields((prev) => ({ ...prev, [field]: value }));
+    setSavedField(null);
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    if (!remoteJid) return;
+    if (pendingRef.current) clearTimeout(pendingRef.current);
+    try {
+      await upsertExternalClientData(userId, remoteJid, fields as Record<string, string>, 'manual');
+      setSavedField(null); // hide check after save
+    } catch {
+      toast.error('No se pudo guardar');
+    }
+  }, [userId, remoteJid, fields]);
 
   const handleScore = async () => {
     setScoring(true);
@@ -121,18 +250,20 @@ export function ContactInfoPanel({
   const pendingFollowUps = session.crmFollowUpSummary?.pending ?? 0;
   const initialTagIds = session.tags?.map((t) => t.id).filter(Boolean) ?? [];
 
+  const FIELDS_CONFIG: { field: keyof ContactFields; icon: React.ElementType; label: string; multiline?: boolean }[] = [
+    { field: 'email',   icon: Mail,       label: 'Email' },
+    { field: 'empresa', icon: Building2,  label: 'Empresa' },
+    { field: 'ciudad',  icon: MapPin,     label: 'Ciudad' },
+    { field: 'cargo',   icon: Briefcase,  label: 'Cargo' },
+    { field: 'notas',   icon: FileText,   label: 'Notas', multiline: true },
+  ];
+
   return (
     <aside className="hidden md:flex flex-col w-72 shrink-0 border-l bg-background h-full overflow-hidden">
       {/* ── Panel header ── */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/30">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/30 shrink-0">
         <span className="text-sm font-semibold">Contacto</span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 text-muted-foreground hover:text-foreground"
-          onClick={onClose}
-          title="Cerrar panel"
-        >
+        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={onClose} title="Cerrar">
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -144,13 +275,9 @@ export function ContactInfoPanel({
         <div className="flex flex-col items-center gap-1.5 py-5 px-4 border-b">
           <Avatar className="h-16 w-16 ring-2 ring-border">
             <AvatarImage src={avatarSrc || '/default-avatar.png'} />
-            <AvatarFallback className="text-lg font-bold">
-              {initialFromName(displayedContactName)}
-            </AvatarFallback>
+            <AvatarFallback className="text-lg font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
           </Avatar>
-          <p className="font-semibold text-sm text-center leading-tight mt-1">
-            {displayedContactName}
-          </p>
+          <p className="font-semibold text-sm text-center leading-tight mt-1">{displayedContactName}</p>
           {displayedWhatsapp && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Phone className="h-3 w-3 shrink-0" />
@@ -158,100 +285,140 @@ export function ContactInfoPanel({
             </p>
           )}
           {adLabel && (
-            <span className="text-[11px] text-blue-500 dark:text-blue-400 flex items-center gap-1 mt-0.5">
+            <span className="text-[11px] text-blue-500 dark:text-blue-400 flex items-center gap-1">
               <Megaphone className="h-3 w-3 shrink-0" />
               <span className="truncate max-w-[200px]">{adLabel}</span>
             </span>
           )}
-
-          {/* Status pills */}
           <div className="flex flex-wrap justify-center gap-1.5 mt-1">
-            <Badge
-              variant="outline"
-              className={cn('text-[10px] py-0.5 px-1.5', session.status
-                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
-                : 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400')}
-            >
+            <Badge variant="outline" className={cn('text-[10px] py-0.5 px-1.5', session.status
+              ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
+              : 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400')}>
               {session.status ? 'Activa' : 'Pausada'}
             </Badge>
             {session.agentDisabled && (
-              <Badge variant="outline" className="text-[10px] py-0.5 px-1.5 border-gray-300 bg-gray-50 text-gray-500 dark:bg-gray-800/50">
-                IA off
-              </Badge>
+              <Badge variant="outline" className="text-[10px] py-0.5 px-1.5 text-gray-500">IA off</Badge>
             )}
             {notesCount !== undefined && notesCount > 0 && (
               <Badge variant="outline" className="text-[10px] py-0.5 px-1.5 gap-1">
-                <FileText className="h-2.5 w-2.5" />
-                {notesCount} nota{notesCount > 1 ? 's' : ''}
+                <FileText className="h-2.5 w-2.5" />{notesCount} nota{notesCount > 1 ? 's' : ''}
               </Badge>
             )}
           </div>
         </div>
 
-        {/* ── Sections ── */}
-        <div className="p-4 space-y-5">
+        {/* ── Datos del cliente ── */}
+        <Section title="Datos del cliente" icon={Briefcase}>
+          {loadingData ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground px-2 py-2">
+              <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {FIELDS_CONFIG.map(({ field, icon, label, multiline }) => (
+                <InlineField
+                  key={field}
+                  icon={icon}
+                  label={label}
+                  field={field}
+                  value={fields[field]}
+                  multiline={multiline}
+                  saved={savedField === field}
+                  onChange={handleFieldChange}
+                  onSave={handleSave}
+                />
+              ))}
+            </div>
+          )}
+        </Section>
 
-          {/* Lead status */}
-          <section>
-            <SectionLabel icon={TrendingUp} label="Estado del lead" />
-            <LeadStatusSelect
-              sessionId={session.id}
-              currentStatus={localStatus}
-              onUpdated={async (s) => {
-                setLocalStatus(s);
-                await onSessionRefresh();
-              }}
-            />
-          </section>
+        {/* ── CRM ── */}
+        <Section title="CRM" icon={TrendingUp}>
+          <div className="space-y-3 px-2">
 
-          {/* Lead score */}
-          <section>
-            <SectionLabel icon={TrendingUp} label="Puntuación IA" />
-            {localScore !== null ? (
-              <div className="rounded-lg border p-3 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <div
-                    className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-white font-bold text-base"
-                    style={{ backgroundColor: scoreColor(localScore) }}
-                  >
-                    <TrendingUp className="h-3.5 w-3.5" />
-                    {localScore}<span className="text-xs font-normal opacity-80">/100</span>
+            {/* Lead status */}
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Estado del lead</p>
+              <LeadStatusSelect
+                sessionId={session.id}
+                currentStatus={localStatus}
+                onUpdated={async (s) => { setLocalStatus(s); await onSessionRefresh(); }}
+              />
+            </div>
+
+            {/* Lead score */}
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Puntuación IA</p>
+              {localScore !== null ? (
+                <div className="rounded-lg border p-2.5 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-white font-bold text-sm" style={{ backgroundColor: scoreColor(localScore) }}>
+                      <TrendingUp className="h-3 w-3" />
+                      {localScore}<span className="text-xs font-normal opacity-80">/100</span>
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" onClick={handleScore} disabled={scoring} className="h-6 gap-1 text-xs px-2">
+                      {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                      Re-puntuar
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleScore}
-                    disabled={scoring}
-                    className="h-7 gap-1 text-xs px-2"
-                  >
-                    {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                    Re-puntuar
+                  {localReason && <p className="text-xs text-muted-foreground leading-relaxed">{localReason}</p>}
+                  {session.leadScoredAt && <p className="text-[10px] text-muted-foreground/60">{timeAgo(session.leadScoredAt)}</p>}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed p-2.5 flex items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">Sin puntuación</p>
+                  <Button type="button" size="sm" onClick={handleScore} disabled={scoring} className="h-6 gap-1 text-xs px-2">
+                    {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                    Puntuar
                   </Button>
                 </div>
-                {localReason && (
-                  <p className="text-xs text-muted-foreground leading-relaxed">{localReason}</p>
-                )}
-                {session.leadScoredAt && (
-                  <p className="text-[10px] text-muted-foreground/60">{timeAgo(session.leadScoredAt)}</p>
-                )}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed p-3 flex items-center justify-between gap-2">
-                <p className="text-xs text-muted-foreground">Sin puntuación</p>
-                <Button type="button" size="sm" onClick={handleScore} disabled={scoring} className="h-7 gap-1 text-xs px-2">
-                  {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                  Puntuar
-                </Button>
+              )}
+            </div>
+
+            {/* Tags */}
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <Tag className="h-3 w-3" /> Etiquetas
+              </p>
+              {remoteJid ? (
+                <SessionTagsCombobox
+                  userId={userId}
+                  sessionId={session.id}
+                  allTags={allTags}
+                  initialSelectedIds={initialTagIds}
+                  onSelectedIdsChange={(ids) => onSessionTagsChange?.(remoteJid, ids)}
+                />
+              ) : session.tags?.length ? (
+                <div className="flex flex-wrap gap-1">
+                  {session.tags.map((t) => (
+                    <Badge key={t.id} variant="outline" className="text-[11px]"
+                      style={t.color ? { borderColor: t.color + '60', color: t.color, backgroundColor: t.color + '15' } : undefined}>
+                      {t.name}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Sin etiquetas</p>
+              )}
+            </div>
+
+            {/* Follow-ups */}
+            {pendingFollowUps > 0 && (
+              <div className="rounded-lg border p-2.5 flex items-center gap-2">
+                <Bell className="h-4 w-4 text-amber-500 shrink-0" />
+                <span className="text-sm font-medium text-amber-600">
+                  {pendingFollowUps} follow-up{pendingFollowUps > 1 ? 's' : ''} pendiente{pendingFollowUps > 1 ? 's' : ''}
+                </span>
               </div>
             )}
-          </section>
+          </div>
+        </Section>
 
-          {/* AI Synthesis */}
-          <section>
-            <SectionLabel icon={Brain} label="Síntesis IA" />
+        {/* ── Síntesis IA ── */}
+        <Section title="Síntesis IA" icon={Brain} defaultOpen={false}>
+          <div className="px-2">
             {loadingSynth ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground p-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
                 <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
               </div>
             ) : synthesis ? (
@@ -261,72 +428,27 @@ export function ContactInfoPanel({
             ) : (
               <p className="text-xs text-muted-foreground rounded-lg border border-dashed p-3">Sin síntesis disponible</p>
             )}
-          </section>
+          </div>
+        </Section>
 
-          {/* Tags */}
-          <section>
-            <SectionLabel icon={Tag} label="Etiquetas" />
-            {remoteJid ? (
-              <SessionTagsCombobox
-                userId={userId}
-                sessionId={session.id}
-                allTags={allTags}
-                initialSelectedIds={initialTagIds}
-                onSelectedIdsChange={(ids) => onSessionTagsChange?.(remoteJid, ids)}
-              />
-            ) : session.tags && session.tags.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {session.tags.map((t) => (
-                  <Badge
-                    key={t.id}
-                    variant="outline"
-                    className="text-[11px]"
-                    style={t.color ? { borderColor: t.color + '60', color: t.color, backgroundColor: t.color + '15' } : undefined}
-                  >
-                    {t.name}
-                  </Badge>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">Sin etiquetas</p>
-            )}
-          </section>
-
-          {/* Follow-ups */}
-          {pendingFollowUps > 0 && (
-            <section>
-              <SectionLabel icon={Bell} label="Follow-ups" />
-              <div className="rounded-lg border p-3 flex items-center gap-2">
-                <Bell className="h-4 w-4 text-amber-500 shrink-0" />
-                <span className="text-sm font-medium text-amber-600">
-                  {pendingFollowUps} pendiente{pendingFollowUps > 1 ? 's' : ''}
-                </span>
-              </div>
-            </section>
-          )}
-
-          {/* Ad source detail */}
-          {adSource && (
-            <section>
-              <SectionLabel icon={Megaphone} label="Origen del anuncio" />
+        {/* ── Origen del anuncio ── */}
+        {adSource && (
+          <Section title="Origen del anuncio" icon={Megaphone} defaultOpen={false}>
+            <div className="px-2">
               <div className="rounded-lg border p-3 space-y-1">
                 {adSource.title && <p className="text-xs font-medium">{adSource.title}</p>}
                 {adSource.body && <p className="text-xs text-muted-foreground leading-snug">{adSource.body}</p>}
                 {adSource.sourceUrl && (
-                  <a
-                    href={adSource.sourceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[10px] text-blue-500 hover:underline truncate block"
-                  >
+                  <a href={adSource.sourceUrl} target="_blank" rel="noopener noreferrer"
+                    className="text-[10px] text-blue-500 hover:underline truncate block">
                     {adSource.sourceUrl}
                   </a>
                 )}
               </div>
-            </section>
-          )}
+            </div>
+          </Section>
+        )}
 
-        </div>
       </div>
     </aside>
   );
