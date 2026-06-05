@@ -431,14 +431,17 @@ export function ChatsClient({
     setIsSidebarVisible((previous) => !previous);
   }, []);
 
+  const autoClosedNavRef = useRef(false);
   useEffect(() => {
     if (isContactPanelOpen) {
-      prevNavOpenRef.current = true;
+      prevNavOpenRef.current = navOpen;
       setNavOpen(false);
-    } else {
+      autoClosedNavRef.current = true;
+    } else if (autoClosedNavRef.current) {
       setNavOpen(prevNavOpenRef.current);
+      autoClosedNavRef.current = false;
     }
-  }, [isContactPanelOpen, setNavOpen]);
+  }, [isContactPanelOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (navOpen && isContactPanelOpen) {
