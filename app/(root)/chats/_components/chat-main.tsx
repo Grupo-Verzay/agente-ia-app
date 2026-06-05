@@ -208,8 +208,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     const all = toUIMessages(reversed, header.avatarSrc, mediaCacheRef.current);
     const filtered = deletedIds.size > 0 ? all.filter((m) => !deletedIds.has(m.id)) : all;
     if (aiContents.size === 0) return filtered;
+    const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
     return filtered.map((m) =>
-      m.sender === 'user' && m.content && aiContents.has(m.content.trim())
+      m.sender === 'user' && m.content && aiContents.has(normalize(m.content))
         ? { ...m, sentByAi: true }
         : m,
     );

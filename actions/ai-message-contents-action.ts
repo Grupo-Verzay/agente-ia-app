@@ -3,6 +3,8 @@
 import { db } from '@/lib/db';
 import { buildChatHistorySessionIdCandidates } from '@/lib/chat-history/build-session-id';
 
+const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
+
 export async function getAiMessageContentsAction(
   instanceName: string,
   remoteJid: string,
@@ -21,7 +23,7 @@ export async function getAiMessageContentsAction(
     for (const row of rows) {
       const msg = row.message as { type?: string; content?: string } | null;
       if (msg?.type === 'ai' && typeof msg.content === 'string' && msg.content.trim()) {
-        aiContents.add(msg.content.trim());
+        aiContents.add(normalize(msg.content));
       }
     }
 
