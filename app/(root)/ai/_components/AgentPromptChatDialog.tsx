@@ -2,13 +2,14 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Bot, CheckCircle2, AlertCircle, ChevronDown, ChevronUp,
+  AlertCircle, ArrowLeft, Bot, CheckCircle2, ChevronDown, ChevronUp,
   Copy, FileText, Lightbulb, Loader2, MessageSquare, RefreshCw,
-  SendHorizontal, Sparkles, Trash2, Wand2,
+  RotateCcw, Send, SendHorizontal, Sparkles, Trash2, Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { sendAgentPromptChatAction } from "@/actions/ai-prompt-chat-actions";
+import { simulateChatMessage } from "@/actions/simulate-chat-actions";
 import { autoSaveBeforeGenerate, generateFlowSections, applyAllGeneratedSections } from "@/actions/generate-agent-flow";
 import type { ChatMessage } from "@/types/ai-assistence-chat";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import { TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
 
 type GenStage = "idle" | "running" | "done" | "error";
 type QuickPrompt = { label: string; icon: React.ElementType; text: string };
+type SimMessage = { id: string; role: "user" | "assistant"; content: string };
 
 type AgentPromptChatDialogProps = {
   open: boolean;
@@ -32,8 +34,8 @@ type AgentPromptChatDialogProps = {
   currentDraft: string;
   promptPreview: string;
   promptId?: string;
+  businessName?: string;
   onApplyDraft?: (text: string) => void;
-  onSimulate?: () => void;
 };
 
 const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
@@ -72,7 +74,7 @@ const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
 const SIMULATE_PROMPT: QuickPrompt = {
   label: "Simular",
   icon: MessageSquare,
-  text: "Simula una conversacion de WhatsApp con un cliente real usando esta configuracion. Actua como el Agente IA y como cliente tipico, mostrando el flujo completo desde el saludo hasta el cierre.",
+  text: "",
 };
 
 // ── Markdown renderer ──────────────────────────────────────────────────────
@@ -204,14 +206,25 @@ export function AgentPromptChatDialog({
   currentDraft,
   promptPreview,
   promptId,
+  businessName,
   onApplyDraft,
-  onSimulate,
 }: AgentPromptChatDialogProps) {
+  // ── Assistant chat state
   const [text, setText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showDraft, setShowDraft] = useState(false);
+
+  // ── Simulator state
+  const [simulatorMode, setSimulatorMode] = useState(false);
+  const [simMessages, setSimMessages] = useState<SimMessage[]>([]);
+  const [simInput, setSimInput] = useState("");
+  const [simIsLoading, setSimIsLoading] = useState(false);
+  const [simError, setSimError] = useState<string | null>(null);
+  const simBottomRef = useRef<HTMLDivElement>(null);
+
+  // ── Generate flow state
   const [genDescription, setGenDescription] = useState("");
   const [genStage, setGenStage] = useState<GenStage>("idle");
   const [genError, setGenError] = useState<string | null>(null);
@@ -232,11 +245,19 @@ export function AgentPromptChatDialog({
     setMessages([welcome]);
     setText("");
     setShowDraft(false);
+    setSimulatorMode(false);
+    setSimMessages([]);
+    setSimInput("");
+    setSimError(null);
   }, [open, welcome]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isSending]);
+
+  useEffect(() => {
+    simBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [simMessages, simIsLoading]);
 
   const handleClear = () => setMessages([welcome]);
 
@@ -245,10 +266,7 @@ export function AgentPromptChatDialog({
     const previous = currentDraft;
     onApplyDraft(text);
     toast.success("Aplicado a la sección.", {
-      action: {
-        label: "Deshacer",
-        onClick: () => onApplyDraft(previous),
-      },
+      action: { label: "Deshacer", onClick: () => onApplyDraft(previous) },
       duration: 5000,
     });
   };
@@ -299,6 +317,39 @@ export function AgentPromptChatDialog({
     void sendText(text);
   };
 
+  // ── Simulator handlers
+
+  const simSend = async () => {
+    const content = simInput.trim();
+    if (!content || simIsLoading || !promptId) return;
+
+    const userMsg: SimMessage = { id: crypto.randomUUID(), role: "user", content };
+    const next = [...simMessages, userMsg];
+    setSimMessages(next);
+    setSimInput("");
+    setSimIsLoading(true);
+    setSimError(null);
+
+    const res = await simulateChatMessage({
+      promptId,
+      messages: next.map(({ role, content }) => ({ role, content })),
+    });
+
+    setSimIsLoading(false);
+
+    if (res.ok) {
+      setSimMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "assistant", content: res.reply }]);
+    } else {
+      setSimError(res.error ?? "Error inesperado.");
+    }
+  };
+
+  const simReset = () => {
+    setSimMessages([]);
+    setSimInput("");
+    setSimError(null);
+  };
+
   const handleGenerate = async () => {
     if (!genDescription.trim() || !promptId || genStage === "running") return;
     setGenError(null);
@@ -319,6 +370,7 @@ export function AgentPromptChatDialog({
   };
 
   const quickPrompts = QUICK_PROMPTS[activeTab];
+  const initials = businessName ? businessName.charAt(0).toUpperCase() : "A";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -370,81 +422,202 @@ export function AgentPromptChatDialog({
           {/* Divisor vertical completo */}
           <div className="absolute inset-y-0 right-[320px] hidden w-px bg-border lg:block" />
 
-          {/* ── Columna izquierda: chat ── */}
-          <div className="flex h-full flex-col min-h-0">
+          {/* ── Columna izquierda ── */}
+          <div className="flex flex-col min-h-0">
 
-            <ScrollArea className="min-h-0 flex-1 px-4 pt-3 pb-2">
-              <div className="space-y-3">
-                {messages.map((message) => (
-                  <PromptChatBubble
-                    key={message.id}
-                    message={message}
-                    onApply={onApplyDraft ? handleApply : undefined}
-                  />
-                ))}
-                {isSending ? (
-                  <div className="flex justify-start">
-                    <div className="flex items-center gap-2 rounded-2xl border bg-muted/70 px-3 py-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Pensando...
-                    </div>
+            {simulatorMode ? (
+              /* ── Modo simulador ── */
+              <>
+                {/* Mini header estilo WhatsApp */}
+                <div className="shrink-0 border-b bg-card px-4 py-2 flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                    {initials}
                   </div>
-                ) : null}
-                <div ref={messagesEndRef} />
-              </div>
-            </ScrollArea>
-
-            {/* Mobile: atajos horizontales */}
-            <div className="shrink-0 overflow-x-auto border-t px-3 py-2 lg:hidden">
-              <div className="flex gap-2 w-max">
-                {[...quickPrompts, SIMULATE_PROMPT].map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={item.label}
-                      type="button"
-                      disabled={isSending}
-                      onClick={() => void sendText(item.text)}
-                      className="flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-50"
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold leading-none truncate">{businessName || "Agente IA"}</p>
+                    <p className="text-xs text-emerald-500 mt-0.5">en línea · simulador</p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs text-muted-foreground px-2"
+                      onClick={simReset}
+                      disabled={simMessages.length === 0 && !simError}
                     >
-                      <Icon className="h-3 w-3 shrink-0 text-primary" />
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      Reiniciar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs text-muted-foreground px-2"
+                      onClick={() => setSimulatorMode(false)}
+                    >
+                      <ArrowLeft className="h-3.5 w-3.5" />
+                      Salir
+                    </Button>
+                  </div>
+                </div>
 
-            <form ref={formRef} onSubmit={handleSubmit} className="shrink-0 border-t p-3">
-              <div className="flex items-center gap-2">
-                <Textarea
-                  value={text}
-                  onChange={(event) => setText(event.target.value)}
-                  placeholder="Ej: Mejora este prompt para cierre de ventas sin sonar insistente..."
-                  className="min-h-[36px] max-h-28 resize-y text-sm"
-                  disabled={isSending}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      formRef.current?.requestSubmit();
-                    }
-                  }}
-                />
-                <Button
-                  type="submit"
-                  size="icon"
-                  className="h-9 w-9 shrink-0 rounded-md"
-                  disabled={isSending || !text.trim()}
-                  aria-label="Enviar mensaje"
+                {/* Mensajes del simulador */}
+                <div
+                  className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-2.5"
+                  style={{ backgroundImage: "radial-gradient(hsl(var(--muted)/0.4) 1px, transparent 1px)", backgroundSize: "20px 20px" }}
                 >
-                  {isSending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <SendHorizontal className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </form>
+                  {simMessages.length === 0 && !simIsLoading && !simError ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center select-none">
+                      <div className="h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-2">
+                        <MessageSquare className="h-6 w-6 text-emerald-500" />
+                      </div>
+                      <p className="text-sm font-medium">Escribe como cliente</p>
+                      <p className="text-xs text-muted-foreground mt-1 max-w-[200px] leading-relaxed">
+                        El agente responderá como si estuviera en WhatsApp.
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {simMessages.map((msg) => (
+                    <div key={msg.id} className={cn("flex gap-2", msg.role === "user" ? "justify-end" : "justify-start items-end")}>
+                      {msg.role === "assistant" ? (
+                        <div className="h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mb-0.5">
+                          {initials}
+                        </div>
+                      ) : null}
+                      <div className={cn(
+                        "max-w-[78%] px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words leading-relaxed shadow-sm",
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground rounded-br-none"
+                          : "bg-card border rounded-bl-none"
+                      )}>
+                        {msg.content}
+                      </div>
+                    </div>
+                  ))}
+
+                  {simIsLoading ? (
+                    <div className="flex gap-2 items-end">
+                      <div className="h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mb-0.5">
+                        {initials}
+                      </div>
+                      <div className="bg-card border px-4 py-3 rounded-2xl rounded-bl-none shadow-sm flex items-center gap-1">
+                        <span className="h-2 w-2 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:-0.3s]" />
+                        <span className="h-2 w-2 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:-0.15s]" />
+                        <span className="h-2 w-2 rounded-full bg-muted-foreground/40 animate-bounce" />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {simError ? (
+                    <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      {simError}
+                    </div>
+                  ) : null}
+
+                  <div ref={simBottomRef} />
+                </div>
+
+                {/* Input del simulador */}
+                <div className="shrink-0 border-t px-4 py-3 flex gap-2 items-end bg-card">
+                  <Textarea
+                    className="flex-1 min-h-[36px] max-h-28 resize-none text-sm"
+                    placeholder="Escribe un mensaje como cliente…"
+                    value={simInput}
+                    onChange={(e) => setSimInput(e.target.value)}
+                    disabled={simIsLoading || !promptId}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void simSend(); }
+                    }}
+                  />
+                  <Button
+                    size="icon"
+                    className="h-9 w-9 shrink-0 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white"
+                    onClick={() => void simSend()}
+                    disabled={!simInput.trim() || simIsLoading || !promptId}
+                  >
+                    {simIsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              /* ── Modo asistente ── */
+              <>
+                <ScrollArea className="min-h-0 flex-1 px-4 pt-3 pb-2">
+                  <div className="space-y-3">
+                    {messages.map((message) => (
+                      <PromptChatBubble
+                        key={message.id}
+                        message={message}
+                        onApply={onApplyDraft ? handleApply : undefined}
+                      />
+                    ))}
+                    {isSending ? (
+                      <div className="flex justify-start">
+                        <div className="flex items-center gap-2 rounded-2xl border bg-muted/70 px-3 py-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Pensando...
+                        </div>
+                      </div>
+                    ) : null}
+                    <div ref={messagesEndRef} />
+                  </div>
+                </ScrollArea>
+
+                {/* Mobile: atajos horizontales */}
+                <div className="shrink-0 overflow-x-auto border-t px-3 py-2 lg:hidden">
+                  <div className="flex gap-2 w-max">
+                    {[...quickPrompts, SIMULATE_PROMPT].map((item) => {
+                      const Icon = item.icon;
+                      const isSimulate = item.label === SIMULATE_PROMPT.label;
+                      return (
+                        <button
+                          key={item.label}
+                          type="button"
+                          disabled={isSending}
+                          onClick={() => isSimulate ? setSimulatorMode(true) : void sendText(item.text)}
+                          className="flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-50"
+                        >
+                          <Icon className="h-3 w-3 shrink-0 text-primary" />
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <form ref={formRef} onSubmit={handleSubmit} className="shrink-0 border-t p-3">
+                  <div className="flex items-center gap-2">
+                    <Textarea
+                      value={text}
+                      onChange={(event) => setText(event.target.value)}
+                      placeholder="Ej: Mejora este prompt para cierre de ventas sin sonar insistente..."
+                      className="min-h-[36px] max-h-28 resize-y text-sm"
+                      disabled={isSending}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          formRef.current?.requestSubmit();
+                        }
+                      }}
+                    />
+                    <Button
+                      type="submit"
+                      size="icon"
+                      className="h-9 w-9 shrink-0 rounded-md"
+                      disabled={isSending || !text.trim()}
+                      aria-label="Enviar mensaje"
+                    >
+                      {isSending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <SendHorizontal className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </>
+            )}
           </div>
 
           {/* ── Sidebar derecha ── */}
@@ -472,8 +645,8 @@ export function AgentPromptChatDialog({
                       type="button"
                       variant="outline"
                       className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
-                      disabled={isSending || (isSimulate && !onSimulate)}
-                      onClick={() => { isSimulate ? onSimulate?.() : setText(item.text); }}
+                      disabled={isSending}
+                      onClick={() => { isSimulate ? setSimulatorMode(true) : setText(item.text); }}
                     >
                       <Icon className="h-4 w-4 shrink-0 text-primary" />
                       {item.label}
