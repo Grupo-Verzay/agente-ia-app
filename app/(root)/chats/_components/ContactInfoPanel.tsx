@@ -46,6 +46,8 @@ type ContactFields = {
 };
 const EMPTY_FIELDS: ContactFields = { email: '', empresa: '', ciudad: '', cargo: '', notas: '', sitioWeb: '', instagram: '', facebook: '', linkedin: '', direccion: '', documento: '', telefono: '', fecha: '', pais: '' };
 
+type FieldConfig = { field: keyof ContactFields; icon: React.ElementType; label: string; multiline?: boolean };
+
 /* ── Inline field ──────────────────────────────────────────── */
 interface InlineFieldProps {
   icon: React.ElementType;
@@ -280,21 +282,46 @@ export function ContactInfoPanel({
     else toast.error(res.error ?? 'Error al sincronizar');
   };
 
-  const FIELDS_CONFIG: { field: keyof ContactFields; icon: React.ElementType; label: string; multiline?: boolean }[] = [
-    { field: 'empresa',   icon: Building2,  label: 'Empresa' },
-    { field: 'cargo',     icon: Briefcase,  label: 'Cargo' },
-    { field: 'documento', icon: CreditCard, label: 'Documento' },
-    { field: 'telefono',  icon: Phone,      label: 'Teléfono' },
-    { field: 'email',     icon: Mail,       label: 'Email' },
-    { field: 'fecha',     icon: Calendar,   label: 'Fecha' },
-    { field: 'pais',      icon: Flag,       label: 'País' },
-    { field: 'ciudad',    icon: MapPin,     label: 'Ciudad' },
-    { field: 'direccion', icon: Home,       label: 'Dirección' },
-    { field: 'sitioWeb',  icon: Globe,      label: 'Sitio web' },
-    { field: 'instagram', icon: AtSign,     label: 'Instagram' },
-    { field: 'facebook',  icon: Share2,     label: 'Facebook' },
-    { field: 'linkedin',  icon: Linkedin,   label: 'LinkedIn' },
-    { field: 'notas',     icon: FileText,   label: 'Notas', multiline: true },
+  const SECTIONS_CONFIG: { title: string; icon: React.ElementType; fields: FieldConfig[] }[] = [
+    {
+      title: 'Datos de negocio', icon: Building2,
+      fields: [
+        { field: 'empresa',   icon: Building2,  label: 'Empresa' },
+        { field: 'cargo',     icon: Briefcase,  label: 'Cargo' },
+        { field: 'documento', icon: CreditCard, label: 'Documento' },
+      ],
+    },
+    {
+      title: 'Contacto', icon: Phone,
+      fields: [
+        { field: 'telefono', icon: Phone,    label: 'Teléfono' },
+        { field: 'email',    icon: Mail,     label: 'Email' },
+        { field: 'fecha',    icon: Calendar, label: 'Fecha' },
+      ],
+    },
+    {
+      title: 'Ubicación', icon: MapPin,
+      fields: [
+        { field: 'pais',      icon: Flag,    label: 'País' },
+        { field: 'ciudad',    icon: MapPin,  label: 'Ciudad' },
+        { field: 'direccion', icon: Home,    label: 'Dirección' },
+      ],
+    },
+    {
+      title: 'Presencia digital', icon: Globe,
+      fields: [
+        { field: 'sitioWeb',  icon: Globe,    label: 'Sitio web' },
+        { field: 'instagram', icon: AtSign,   label: 'Instagram' },
+        { field: 'facebook',  icon: Share2,   label: 'Facebook' },
+        { field: 'linkedin',  icon: Linkedin, label: 'LinkedIn' },
+      ],
+    },
+    {
+      title: 'Libre', icon: FileText,
+      fields: [
+        { field: 'notas', icon: FileText, label: 'Notas', multiline: true },
+      ],
+    },
   ];
 
   return (
@@ -386,30 +413,32 @@ export function ContactInfoPanel({
           </div>
         </div>
 
-        {/* Datos del cliente */}
-        <Section title="Datos del cliente" icon={Briefcase}>
-          {loadingData ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground px-4 py-2">
-              <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
-            </div>
-          ) : (
-            <div className="space-y-2 py-1">
-              {FIELDS_CONFIG.map(({ field, icon, label, multiline }) => (
-                <InlineField
-                  key={field}
-                  icon={icon}
-                  label={label}
-                  field={field}
-                  value={fields[field]}
-                  multiline={multiline}
-                  saved={savedField === field}
-                  onChange={handleFieldChange}
-                  onSave={handleSave}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
+        {/* Datos del cliente — secciones agrupadas */}
+        {loadingData ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground px-4 py-3">
+            <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
+          </div>
+        ) : (
+          SECTIONS_CONFIG.map(({ title, icon, fields: sectionFields }) => (
+            <Section key={title} title={title} icon={icon} defaultOpen={title === 'Datos de negocio' || title === 'Contacto'}>
+              <div className="space-y-2 py-1">
+                {sectionFields.map(({ field, icon: fieldIcon, label, multiline }) => (
+                  <InlineField
+                    key={field}
+                    icon={fieldIcon}
+                    label={label}
+                    field={field}
+                    value={fields[field]}
+                    multiline={multiline}
+                    saved={savedField === field}
+                    onChange={handleFieldChange}
+                    onSave={handleSave}
+                  />
+                ))}
+              </div>
+            </Section>
+          ))
+        )}
 
 
         {/* Origen del anuncio */}
