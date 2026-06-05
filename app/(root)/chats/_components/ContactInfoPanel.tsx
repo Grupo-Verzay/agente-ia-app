@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  X, Tag, Loader2, Phone, Megaphone, Mail, Building2, MapPin,
+  X, Loader2, Phone, Megaphone, Mail, Building2, MapPin,
   Briefcase, FileText, Check, ChevronDown, ChevronRight,
   Sheet, Send, Info,
 } from 'lucide-react';
@@ -21,10 +21,8 @@ import {
   syncContactToGoogleSheets,
 } from '@/actions/google-sheets-actions';
 import { SwitchAgentDisabled } from '../../sessions/_components';
-import { LeadStatusSelect } from './LeadStatusSelect';
-import { SessionTagsCombobox } from '../../tags/components';
 import { initialFromName } from './chat-message-utils';
-import type { Session, SimpleTag } from '@/types/session';
+import type { Session } from '@/types/session';
 
 /* ── Contact data fields ───────────────────────────────────── */
 type ContactFields = {
@@ -122,11 +120,9 @@ interface ContactInfoPanelProps {
   displayedWhatsapp: string;
   avatarSrc?: string;
   userId: string;
-  allTags: SimpleTag[];
   remoteJid?: string;
   notesCount?: number;
   onClose: () => void;
-  onSessionTagsChange?: (remoteJid: string, selectedIds: number[]) => void;
   onSessionMutate: () => void;
   onSessionRefresh: () => Promise<void>;
 }
@@ -138,11 +134,9 @@ export function ContactInfoPanel({
   displayedWhatsapp,
   avatarSrc,
   userId,
-  allTags,
   remoteJid,
   notesCount,
   onClose,
-  onSessionTagsChange,
   onSessionMutate,
   onSessionRefresh,
 }: ContactInfoPanelProps) {
@@ -150,7 +144,6 @@ export function ContactInfoPanel({
   const [savedField, setSavedField] = useState<keyof ContactFields | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [localStatus, setLocalStatus] = useState(session.leadStatus ?? null);
   const [sheetsUrl, setSheetsUrl] = useState('');
   const [savingUrl, setSavingUrl] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -178,11 +171,6 @@ export function ContactInfoPanel({
     });
     return () => { cancelled = true; };
   }, [userId, remoteJid]);
-
-  /* Sync lead status */
-  useEffect(() => {
-    setLocalStatus(session.leadStatus ?? null);
-  }, [session.id, session.leadStatus]);
 
   /* Load Google Sheets config */
   useEffect(() => {
@@ -224,8 +212,6 @@ export function ContactInfoPanel({
     if (res.success) toast.success('Sincronizado con Google Sheets');
     else toast.error(res.error ?? 'Error al sincronizar');
   };
-
-  const initialTagIds = session.tags?.map((t) => t.id).filter(Boolean) ?? [];
 
   const FIELDS_CONFIG: { field: keyof ContactFields; icon: React.ElementType; label: string; multiline?: boolean }[] = [
     { field: 'email',   icon: Mail,      label: 'Email' },
@@ -309,44 +295,6 @@ export function ContactInfoPanel({
           )}
         </Section>
 
-        {/* Estado y etiquetas */}
-        <Section title="Clasificación" icon={Tag}>
-          <div className="space-y-3 px-2">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Estado</p>
-              <LeadStatusSelect
-                sessionId={session.id}
-                currentStatus={localStatus}
-                onUpdated={async (s) => { setLocalStatus(s); await onSessionRefresh(); }}
-              />
-            </div>
-            <div>
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                <Tag className="h-3 w-3" /> Etiquetas
-              </p>
-              {remoteJid ? (
-                <SessionTagsCombobox
-                  userId={userId}
-                  sessionId={session.id}
-                  allTags={allTags}
-                  initialSelectedIds={initialTagIds}
-                  onSelectedIdsChange={(ids) => onSessionTagsChange?.(remoteJid, ids)}
-                />
-              ) : session.tags?.length ? (
-                <div className="flex flex-wrap gap-1">
-                  {session.tags.map((t) => (
-                    <Badge key={t.id} variant="outline" className="text-[11px]"
-                      style={t.color ? { borderColor: t.color + '60', color: t.color, backgroundColor: t.color + '15' } : undefined}>
-                      {t.name}
-                    </Badge>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">Sin etiquetas</p>
-              )}
-            </div>
-          </div>
-        </Section>
 
         {/* Google Sheets */}
         <Section title="Google Sheets" icon={Sheet} defaultOpen={false}>

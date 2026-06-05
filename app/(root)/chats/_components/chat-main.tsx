@@ -595,11 +595,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
           displayedWhatsapp={displayedWhatsapp}
           avatarSrc={header.avatarSrc}
           userId={userId}
-          allTags={allTags}
           remoteJid={info?.remoteJid}
           notesCount={notes.length}
           onClose={toggleInfoPanel}
-          onSessionTagsChange={onSessionTagsChange}
           onSessionMutate={mutateSessionStatus}
           onSessionRefresh={refreshSessionStatus}
         />
