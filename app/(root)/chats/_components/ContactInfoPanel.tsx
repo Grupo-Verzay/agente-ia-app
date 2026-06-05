@@ -421,7 +421,7 @@ export function ContactInfoPanel({
         {sheetsSaved && !editingSheets ? (
           <Button type="button" size="sm" className="w-full gap-1.5 h-7 text-xs" onClick={handleSync} disabled={syncing}>
             {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-            Sincronizar ficha ahora
+            Sincronizar datos ahora
           </Button>
         ) : (
           <div className="space-y-2">
