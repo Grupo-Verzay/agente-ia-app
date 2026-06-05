@@ -22,7 +22,7 @@ import {
   getInternalNotesBySessionAction,
   type InternalNoteData,
 } from '@/actions/internal-notes-actions';
-import { PanelRightOpen } from 'lucide-react';
+import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatInputBar } from './ChatInputBar';
@@ -534,14 +534,16 @@ export const ChatMain: React.FC<ChatMainProps> = ({
           canLoadOlderMessages={canLoadOlderMessages}
           loadingOlderMessages={loadingOlderMessages}
         />
-        {session && !infoPanelOpen && (
+        {session && (
           <button
             type="button"
             onClick={toggleInfoPanel}
-            title="Ver ficha del contacto"
+            title={infoPanelOpen ? 'Cerrar ficha del contacto' : 'Ver ficha del contacto'}
             className="hidden md:flex absolute top-3 right-3 z-10 h-8 w-8 items-center justify-center rounded-lg bg-background/90 backdrop-blur-sm border border-border shadow-sm text-muted-foreground hover:text-foreground hover:bg-background hover:shadow-md transition-all"
           >
-            <PanelRightOpen className="h-4 w-4" />
+            {infoPanelOpen
+              ? <PanelRightClose className="h-4 w-4" />
+              : <PanelRightOpen className="h-4 w-4" />}
           </button>
         )}
       </div>
