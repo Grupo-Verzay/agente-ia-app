@@ -277,10 +277,10 @@ export function ContactInfoPanel({
 
           {/* Agente IA toggle */}
           <div className={cn(
-            'flex items-center justify-between w-full mt-2 px-3 py-2.5 rounded-lg border transition-colors duration-200',
+            'flex items-center justify-between w-full mt-2 px-3 py-2.5 rounded-lg transition-colors duration-200',
             agentEnabled
-              ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50'
-              : 'bg-muted/40 border-border/50',
+              ? 'bg-emerald-50 dark:bg-emerald-950/20'
+              : 'bg-muted/40',
           )}>
             <div className="flex items-center gap-2">
               <BotIcon className={cn('h-4 w-4 transition-colors', agentEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')} />
