@@ -503,8 +503,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             >
               <UserRound className="h-3.5 w-3.5 text-gray-600 dark:text-gray-400" />
               {infoPanelOpen
-                ? <PanelRightClose className="h-3.5 w-3.5 opacity-80" />
-                : <PanelRightOpen className="h-3.5 w-3.5 opacity-80" />}
+                ? <PanelRightClose className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
+                : <PanelRightOpen className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />}
             </Button>
           )}
         </div>
