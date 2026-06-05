@@ -274,28 +274,32 @@ export function ContactInfoPanel({
             <AvatarImage src={avatarSrc || '/default-avatar.png'} />
             <AvatarFallback className="text-lg font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
           </Avatar>
-          {editingName ? (
-            <input
-              ref={nameInputRef}
-              autoFocus
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onBlur={handleNameSave}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleNameSave(); } if (e.key === 'Escape') { setEditingName(false); setNameDraft(displayedContactName); } }}
-              className="font-semibold text-sm text-center leading-tight mt-1 bg-transparent border-b border-primary outline-none w-full text-center px-2"
-              disabled={savingName}
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => { setEditingName(true); setTimeout(() => nameInputRef.current?.select(), 50); }}
-              className="font-semibold text-sm text-center leading-tight mt-1 hover:text-primary transition-colors cursor-text group flex items-center gap-1"
-              title="Editar nombre"
-            >
-              {displayedContactName}
-              <Pencil className="h-3 w-3 text-muted-foreground shrink-0" />
-            </button>
-          )}
+          <div className="flex items-center gap-1 mt-1">
+            {editingName ? (
+              <input
+                ref={nameInputRef}
+                autoFocus
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={handleNameSave}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleNameSave(); } if (e.key === 'Escape') { setEditingName(false); setNameDraft(displayedContactName); } }}
+                className="font-semibold text-sm text-center bg-transparent outline-none w-full px-1"
+                disabled={savingName}
+              />
+            ) : (
+              <span className="font-semibold text-sm leading-tight">{displayedContactName}</span>
+            )}
+            {!editingName && (
+              <button
+                type="button"
+                onClick={() => { setEditingName(true); setTimeout(() => nameInputRef.current?.select(), 50); }}
+                title="Editar nombre"
+                className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            )}
+          </div>
           {displayedWhatsapp && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Phone className="h-3 w-3 shrink-0" />
