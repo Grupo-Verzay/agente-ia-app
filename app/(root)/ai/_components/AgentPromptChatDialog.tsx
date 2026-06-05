@@ -204,7 +204,7 @@ export function AgentPromptChatDialog({
                   value={text}
                   onChange={(event) => setText(event.target.value)}
                   placeholder="Ej: Mejora este prompt para cierre de ventas sin sonar insistente..."
-                  className="min-h-[48px] max-h-36 resize-y text-sm"
+                  className="min-h-[36px] max-h-28 resize-y text-sm"
                   disabled={isSending}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
