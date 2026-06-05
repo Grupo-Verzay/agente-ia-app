@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 import { getSessionLatestSummarySnapshot } from '@/actions/crm-follow-up-actions';
 import { scoreLeadBySessionId } from '@/actions/lead-score-action';
 import { LeadStatusSelect } from './LeadStatusSelect';
-import { SessionTagsCombobox } from '../tags/components';
+import { SessionTagsCombobox } from '../../tags/components';
 import { initialFromName } from './chat-message-utils';
 import type { Session, SimpleTag } from '@/types/session';
 
