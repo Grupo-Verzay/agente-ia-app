@@ -602,6 +602,7 @@ model User {
   ttsProvider                        String?                      @default("openai")
   elevenLabsApiKey                   String?
   elevenLabsVoiceId                  String?
+  googleSheetsWebhookUrl             String?                      @map("google_sheets_webhook_url")
   ownerId                            String?                      @map("owner_id")
   advisorRole                        String?                      @map("advisor_role")
   advisorAvailable                   Boolean                      @default(true) @map("advisor_available")

@@ -5,6 +5,7 @@ import {
   X, Brain, TrendingUp, Tag, Bell, Loader2, Sparkles,
   RefreshCw, Phone, Megaphone, Mail, Building2, MapPin,
   Briefcase, FileText, Check, ChevronDown, ChevronRight,
+  Sheet, Send, Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -17,6 +18,11 @@ import {
   getExternalClientDataByRemoteJid,
   upsertExternalClientData,
 } from '@/actions/external-client-data-actions';
+import {
+  getGoogleSheetsWebhookUrl,
+  saveGoogleSheetsWebhookUrl,
+  syncContactToGoogleSheets,
+} from '@/actions/google-sheets-actions';
 import { SwitchAgentDisabled } from '../../sessions/_components';
 import { LeadStatusSelect } from './LeadStatusSelect';
 import { SessionTagsCombobox } from '../../tags/components';
@@ -174,6 +180,11 @@ export function ContactInfoPanel({
   const [loadingData, setLoadingData] = useState(true);
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /* Google Sheets state */
+  const [sheetsUrl, setSheetsUrl] = useState('');
+  const [savingUrl, setSavingUrl] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
   const adSource = session.adSource as { title?: string; body?: string; sourceUrl?: string } | null | undefined;
   const adLabel = adSource?.title || (adSource?.sourceUrl ? (() => { try { return new URL(adSource.sourceUrl!).hostname.replace(/^www\./, ''); } catch { return 'Anuncio'; } })() : null);
 
@@ -217,6 +228,11 @@ export function ContactInfoPanel({
     setLocalStatus(session.leadStatus ?? null);
   }, [session.id, session.leadScore, session.leadScoreReason, session.leadStatus]);
 
+  /* Load Google Sheets webhook URL */
+  useEffect(() => {
+    getGoogleSheetsWebhookUrl(userId).then((url) => setSheetsUrl(url ?? ''));
+  }, [userId]);
+
   const handleFieldChange = useCallback((field: keyof ContactFields, value: string) => {
     setFields((prev) => ({ ...prev, [field]: value }));
     setSavedField(null);
@@ -245,6 +261,27 @@ export function ContactInfoPanel({
       toast.error(res.message ?? 'Error al puntuar');
     }
     setScoring(false);
+  };
+
+  const handleSaveWebhookUrl = async () => {
+    setSavingUrl(true);
+    const res = await saveGoogleSheetsWebhookUrl(userId, sheetsUrl);
+    setSavingUrl(false);
+    if (res.success) toast.success('URL guardada');
+    else toast.error('No se pudo guardar la URL');
+  };
+
+  const handleSync = async () => {
+    if (!displayedWhatsapp) return;
+    setSyncing(true);
+    const res = await syncContactToGoogleSheets(userId, {
+      phone: displayedWhatsapp,
+      name: displayedContactName,
+      ...fields,
+    });
+    setSyncing(false);
+    if (res.success) toast.success('Sincronizado con Google Sheets');
+    else toast.error(res.error ?? 'Error al sincronizar');
   };
 
   const pendingFollowUps = session.crmFollowUpSummary?.pending ?? 0;
@@ -441,6 +478,78 @@ export function ContactInfoPanel({
             </div>
           </Section>
         )}
+
+        {/* ── Google Sheets ── */}
+        <Section title="Google Sheets" icon={Sheet} defaultOpen={false}>
+          <div className="px-4 space-y-3">
+            <div>
+              <p className="text-[10px] text-muted-foreground mb-1.5 leading-snug flex items-start gap-1">
+                <Info className="h-3 w-3 shrink-0 mt-0.5" />
+                Pega la URL del webhook de tu Google Apps Script para sincronizar esta ficha.
+              </p>
+              <div className="flex gap-1.5">
+                <input
+                  type="url"
+                  value={sheetsUrl}
+                  onChange={(e) => setSheetsUrl(e.target.value)}
+                  placeholder="https://script.google.com/..."
+                  className="flex-1 text-xs rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 outline-none focus:border-primary/40 focus:bg-background transition-colors"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 px-2 shrink-0 text-xs"
+                  onClick={handleSaveWebhookUrl}
+                  disabled={savingUrl}
+                >
+                  {savingUrl ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Guardar'}
+                </Button>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              size="sm"
+              className="w-full gap-2 h-8 text-xs"
+              onClick={handleSync}
+              disabled={syncing || !sheetsUrl}
+            >
+              {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              Sincronizar ficha ahora
+            </Button>
+
+            <details className="text-[10px] text-muted-foreground">
+              <summary className="cursor-pointer hover:text-foreground transition-colors font-medium">
+                Ver plantilla del Apps Script
+              </summary>
+              <pre className="mt-2 p-2 rounded-md bg-muted text-[10px] leading-relaxed overflow-x-auto whitespace-pre-wrap break-all">{`function doPost(e) {
+  const data = JSON.parse(e.postData.contents);
+  const sheet = SpreadsheetApp
+    .getActiveSpreadsheet()
+    .getActiveSheet();
+  const lastRow = sheet.getLastRow();
+  const phones = lastRow > 1
+    ? sheet.getRange(2,1,lastRow-1,1)
+        .getValues().flat()
+    : [];
+  const idx = phones.findIndex(p => p === data.phone);
+  const row = [data.phone, data.name,
+    data.email||'', data.empresa||'',
+    data.ciudad||'', data.cargo||'',
+    data.notas||'', data.syncedAt];
+  if (idx >= 0) {
+    sheet.getRange(idx+2,1,1,8).setValues([row]);
+  } else {
+    sheet.appendRow(row);
+  }
+  return ContentService
+    .createTextOutput(JSON.stringify({ok:true}))
+    .setMimeType(ContentService.MimeType.JSON);
+}`}</pre>
+            </details>
+          </div>
+        </Section>
 
       </div>
     </aside>
