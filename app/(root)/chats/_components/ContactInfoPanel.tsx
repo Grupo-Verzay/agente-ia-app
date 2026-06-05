@@ -410,7 +410,7 @@ export function ContactInfoPanel({
                 <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                   <CheckCircle2 className="h-3.5 w-3.5" /> Hoja conectada
                 </span>
-                <button type="button" onClick={() => setEditingSheets(true)} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+                <button type="button" onClick={() => setEditingSheets(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
                   Cambiar hoja
                 </button>
               </div>
