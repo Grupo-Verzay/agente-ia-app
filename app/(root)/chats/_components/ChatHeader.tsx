@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, ClipboardList, Megaphone, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, SquarePen, Power } from 'lucide-react';
+import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, UserRound, SquarePen, Power } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -61,6 +61,8 @@ interface ChatHeaderProps {
   assignedAdvisorId?: string | null;
   onAssignAdvisor?: (advisorId: string | null) => Promise<void>;
   onNewMessage?: () => void;
+  infoPanelOpen?: boolean;
+  onToggleInfoPanel?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -82,6 +84,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   assignedAdvisorId,
   onAssignAdvisor,
   onNewMessage,
+  infoPanelOpen,
+  onToggleInfoPanel,
 }) => {
   const adSource = session?.adSource as { title?: string; body?: string; sourceUrl?: string } | null | undefined;
   const adSourceLabel = adSource?.title || (adSource?.sourceUrl ? (() => { try { return new URL(adSource.sourceUrl!).hostname.replace(/^www\./, ''); } catch { return 'Anuncio'; } })() : null);
@@ -489,6 +493,20 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           )}
           {sessionActions}
           {lifecycleButton}
+          {onToggleInfoPanel && session && (
+            <Button
+              type="button"
+              onClick={onToggleInfoPanel}
+              title={infoPanelOpen ? 'Cerrar ficha del contacto' : 'Ver ficha del contacto'}
+              className="hidden md:flex h-8 items-center gap-1.5 px-2.5 rounded-lg bg-primary text-primary-foreground hover:brightness-110 shrink-0"
+              size="sm"
+            >
+              <UserRound className="h-3.5 w-3.5" />
+              {infoPanelOpen
+                ? <PanelRightClose className="h-3.5 w-3.5 opacity-80" />
+                : <PanelRightOpen className="h-3.5 w-3.5 opacity-80" />}
+            </Button>
+          )}
         </div>
       </div>
 
