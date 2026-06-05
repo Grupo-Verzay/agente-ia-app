@@ -1,8 +1,26 @@
 'use server';
 
+import { google } from 'googleapis';
 import { db } from '@/lib/db';
 
-export async function getGoogleSheetsWebhookUrl(userId: string): Promise<string | null> {
+/* ── Service account auth ──────────────────────────────────── */
+function getAuth() {
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const key = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  if (!email || !key) throw new Error('Faltan credenciales de la service account (GOOGLE_SERVICE_ACCOUNT_EMAIL / GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY)');
+  return new google.auth.JWT(email, undefined, key, ['https://www.googleapis.com/auth/spreadsheets']);
+}
+
+function extractSheetId(input: string): string | null {
+  if (!input) return null;
+  const match = input.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  if (/^[a-zA-Z0-9_-]{30,}$/.test(input.trim())) return input.trim();
+  return null;
+}
+
+/* ── DB helpers ────────────────────────────────────────────── */
+export async function getGoogleSheetsConfig(userId: string): Promise<string | null> {
   const user = await db.user.findUnique({
     where: { id: userId },
     select: { googleSheetsWebhookUrl: true },
@@ -10,17 +28,25 @@ export async function getGoogleSheetsWebhookUrl(userId: string): Promise<string 
   return (user as any)?.googleSheetsWebhookUrl ?? null;
 }
 
-export async function saveGoogleSheetsWebhookUrl(userId: string, url: string): Promise<{ success: boolean }> {
+export async function saveGoogleSheetId(userId: string, sheetInput: string): Promise<{ success: boolean; error?: string }> {
+  const sheetId = extractSheetId(sheetInput) ?? sheetInput.trim();
   try {
     await db.user.update({
       where: { id: userId },
-      data: { googleSheetsWebhookUrl: url.trim() || null } as any,
+      data: { googleSheetsWebhookUrl: sheetId || null } as any,
     });
     return { success: true };
   } catch {
-    return { success: false };
+    return { success: false, error: 'No se pudo guardar' };
   }
 }
+
+// Keep old name for backwards compat
+export const saveGoogleSheetsWebhookUrl = saveGoogleSheetId;
+export const getGoogleSheetsWebhookUrl = getGoogleSheetsConfig;
+
+/* ── Sync ──────────────────────────────────────────────────── */
+const HEADERS = ['Teléfono', 'Nombre', 'Email', 'Empresa', 'Ciudad', 'Cargo', 'Notas', 'Actualizado'];
 
 export async function syncContactToGoogleSheets(
   userId: string,
@@ -34,22 +60,70 @@ export async function syncContactToGoogleSheets(
     notas?: string;
   },
 ): Promise<{ success: boolean; error?: string }> {
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: { googleSheetsWebhookUrl: true },
-  });
-  const url = (user as any)?.googleSheetsWebhookUrl as string | null;
-  if (!url) return { success: false, error: 'Sin webhook configurado' };
+  const config = await getGoogleSheetsConfig(userId);
+  if (!config) return { success: false, error: 'No hay hoja configurada' };
+
+  const sheetId = extractSheetId(config) ?? config;
 
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, syncedAt: new Date().toISOString() }),
+    const auth = getAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Asegurar que existan los encabezados en la fila 1
+    const meta = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: 'A1:H1',
     });
-    if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
+    if (!meta.data.values?.length) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: sheetId,
+        range: 'A1:H1',
+        valueInputOption: 'RAW',
+        requestBody: { values: [HEADERS] },
+      });
+    }
+
+    // Buscar fila existente por teléfono
+    const existing = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: 'A:A',
+    });
+    const phones = existing.data.values?.flat() ?? [];
+    const rowIdx = phones.findIndex((p, i) => i > 0 && p === payload.phone);
+
+    const row = [
+      payload.phone,
+      payload.name,
+      payload.email ?? '',
+      payload.empresa ?? '',
+      payload.ciudad ?? '',
+      payload.cargo ?? '',
+      payload.notas ?? '',
+      new Date().toLocaleString('es-CO'),
+    ];
+
+    if (rowIdx > 0) {
+      // Actualizar fila existente
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: sheetId,
+        range: `A${rowIdx + 1}:H${rowIdx + 1}`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [row] },
+      });
+    } else {
+      // Agregar nueva fila
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: sheetId,
+        range: 'A:H',
+        valueInputOption: 'RAW',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: { values: [row] },
+      });
+    }
+
     return { success: true };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : 'Error de red' };
+    const msg = e instanceof Error ? e.message : String(e);
+    return { success: false, error: msg };
   }
 }

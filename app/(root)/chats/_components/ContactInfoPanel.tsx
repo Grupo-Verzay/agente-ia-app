@@ -482,30 +482,28 @@ export function ContactInfoPanel({
         {/* ── Google Sheets ── */}
         <Section title="Google Sheets" icon={Sheet} defaultOpen={false}>
           <div className="px-4 space-y-3">
-            <div>
-              <p className="text-[10px] text-muted-foreground mb-1.5 leading-snug flex items-start gap-1">
-                <Info className="h-3 w-3 shrink-0 mt-0.5" />
-                Pega la URL del webhook de tu Google Apps Script para sincronizar esta ficha.
-              </p>
-              <div className="flex gap-1.5">
-                <input
-                  type="url"
-                  value={sheetsUrl}
-                  onChange={(e) => setSheetsUrl(e.target.value)}
-                  placeholder="https://script.google.com/..."
-                  className="flex-1 text-xs rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 outline-none focus:border-primary/40 focus:bg-background transition-colors"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-8 px-2 shrink-0 text-xs"
-                  onClick={handleSaveWebhookUrl}
-                  disabled={savingUrl}
-                >
-                  {savingUrl ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Guardar'}
-                </Button>
-              </div>
+            <p className="text-[10px] text-muted-foreground leading-snug flex items-start gap-1">
+              <Info className="h-3 w-3 shrink-0 mt-0.5" />
+              Comparte tu Google Sheet con <span className="font-medium text-foreground">agente-ia@ia-crm-496602.iam.gserviceaccount.com</span> como Editor y pega la URL aquí.
+            </p>
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                value={sheetsUrl}
+                onChange={(e) => setSheetsUrl(e.target.value)}
+                placeholder="URL o ID de la hoja…"
+                className="flex-1 text-xs rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 outline-none focus:border-primary/40 focus:bg-background transition-colors"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 px-2 shrink-0 text-xs"
+                onClick={handleSaveWebhookUrl}
+                disabled={savingUrl}
+              >
+                {savingUrl ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Guardar'}
+              </Button>
             </div>
 
             <Button
@@ -518,36 +516,6 @@ export function ContactInfoPanel({
               {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
               Sincronizar ficha ahora
             </Button>
-
-            <details className="text-[10px] text-muted-foreground">
-              <summary className="cursor-pointer hover:text-foreground transition-colors font-medium">
-                Ver plantilla del Apps Script
-              </summary>
-              <pre className="mt-2 p-2 rounded-md bg-muted text-[10px] leading-relaxed overflow-x-auto whitespace-pre-wrap break-all">{`function doPost(e) {
-  const data = JSON.parse(e.postData.contents);
-  const sheet = SpreadsheetApp
-    .getActiveSpreadsheet()
-    .getActiveSheet();
-  const lastRow = sheet.getLastRow();
-  const phones = lastRow > 1
-    ? sheet.getRange(2,1,lastRow-1,1)
-        .getValues().flat()
-    : [];
-  const idx = phones.findIndex(p => p === data.phone);
-  const row = [data.phone, data.name,
-    data.email||'', data.empresa||'',
-    data.ciudad||'', data.cargo||'',
-    data.notas||'', data.syncedAt];
-  if (idx >= 0) {
-    sheet.getRange(idx+2,1,1,8).setValues([row]);
-  } else {
-    sheet.appendRow(row);
-  }
-  return ContentService
-    .createTextOutput(JSON.stringify({ok:true}))
-    .setMimeType(ContentService.MimeType.JSON);
-}`}</pre>
-            </details>
           </div>
         </Section>
 
