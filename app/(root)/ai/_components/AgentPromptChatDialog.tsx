@@ -1,10 +1,11 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Copy, Lightbulb, Loader2, SendHorizontal, Sparkles, Wand2 } from "lucide-react";
+import { Bot, CheckCircle2, AlertCircle, Copy, Lightbulb, Loader2, SendHorizontal, Sparkles, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { sendAgentPromptChatAction } from "@/actions/ai-prompt-chat-actions";
+import { autoSaveBeforeGenerate, generateFlowSections, applyAllGeneratedSections } from "@/actions/generate-agent-flow";
 import type { ChatMessage } from "@/types/ai-assistence-chat";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,12 +19,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
 
+type GenStage = "idle" | "running" | "done" | "error";
+
 type AgentPromptChatDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   activeTab: AiSectionKey;
   currentDraft: string;
   promptPreview: string;
+  promptId?: string;
 };
 
 const QUICK_PROMPTS = [
@@ -97,10 +101,15 @@ export function AgentPromptChatDialog({
   activeTab,
   currentDraft,
   promptPreview,
+  promptId,
 }: AgentPromptChatDialogProps) {
   const [text, setText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const [sidebarTab, setSidebarTab] = useState<"atajos" | "generar">("atajos");
+  const [genDescription, setGenDescription] = useState("");
+  const [genStage, setGenStage] = useState<GenStage>("idle");
+  const [genError, setGenError] = useState<string | null>(null);
 
   const welcome = useMemo(
     () =>
@@ -163,6 +172,25 @@ export function AgentPromptChatDialog({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void sendText(text);
+  };
+
+  const handleGenerate = async () => {
+    if (!genDescription.trim() || !promptId || genStage === "running") return;
+    setGenError(null);
+    setGenStage("running");
+    try {
+      const saved = await autoSaveBeforeGenerate({ promptId });
+      if (!saved.ok) throw new Error(saved.error);
+      const gen = await generateFlowSections({ description: genDescription });
+      if (!gen.ok) throw new Error(gen.error);
+      const result = await applyAllGeneratedSections({ promptId, sections: gen.sections });
+      if (!result.ok) throw new Error(result.error);
+      setGenStage("done");
+      setTimeout(() => window.location.reload(), 2000);
+    } catch (e: any) {
+      setGenError(e?.message ?? "Error inesperado. Intenta de nuevo.");
+      setGenStage("error");
+    }
   };
 
   return (
@@ -230,34 +258,98 @@ export function AgentPromptChatDialog({
             </form>
           </div>
 
-          <aside className="hidden min-h-0 flex-col gap-3 bg-muted/20 p-4 lg:flex">
-            <div>
-              <p className="text-sm font-semibold">Atajos</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Usa estos puntos de partida para obtener una respuesta lista para trabajar.
-              </p>
+          <aside className="hidden min-h-0 flex-col bg-muted/20 lg:flex">
+            {/* Tab switcher */}
+            <div className="flex border-b shrink-0">
+              <button
+                type="button"
+                onClick={() => setSidebarTab("atajos")}
+                className={cn("flex-1 py-2.5 text-xs font-medium transition-colors", sidebarTab === "atajos" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground")}
+              >
+                Atajos
+              </button>
+              <button
+                type="button"
+                onClick={() => setSidebarTab("generar")}
+                className={cn("flex-1 py-2.5 text-xs font-medium transition-colors", sidebarTab === "generar" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground")}
+              >
+                Generar flujo
+              </button>
             </div>
-            <div className="space-y-2">
-              {QUICK_PROMPTS.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Button
-                    key={item.label}
-                    type="button"
-                    variant="outline"
-                    className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
-                    disabled={isSending}
-                    onClick={() => void sendText(item.text)}
-                  >
-                    <Icon className="h-4 w-4 shrink-0 text-primary" />
-                    {item.label}
-                  </Button>
-                );
-              })}
-            </div>
-            <div className="mt-auto rounded-md border bg-background p-3 text-xs leading-relaxed text-muted-foreground">
-              Consejo: cuando te entregue una version lista, puedes copiarla y pegarla en la seccion del constructor.
-            </div>
+
+            {/* Tab: Atajos */}
+            {sidebarTab === "atajos" && (
+              <div className="flex flex-col gap-3 p-4 flex-1">
+                <p className="text-xs text-muted-foreground">Puntos de partida para obtener una respuesta lista.</p>
+                <div className="space-y-2">
+                  {QUICK_PROMPTS.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Button
+                        key={item.label}
+                        type="button"
+                        variant="outline"
+                        className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
+                        disabled={isSending}
+                        onClick={() => void sendText(item.text)}
+                      >
+                        <Icon className="h-4 w-4 shrink-0 text-primary" />
+                        {item.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <div className="mt-auto rounded-md border bg-background p-3 text-xs leading-relaxed text-muted-foreground">
+                  Consejo: copia la respuesta y pégala en la sección del constructor.
+                </div>
+              </div>
+            )}
+
+            {/* Tab: Generar flujo */}
+            {sidebarTab === "generar" && (
+              <div className="flex flex-col gap-3 p-4 flex-1">
+                <p className="text-xs text-muted-foreground">Pega la info de tu negocio y la IA generará el flujo completo.</p>
+                {genStage === "idle" || genStage === "error" ? (
+                  <>
+                    <textarea
+                      className="flex-1 w-full rounded-md border bg-background p-2.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+                      placeholder={"Ej: Somos una academia en Bogotá. Ofrecemos cursos de barbería ($8/clase), mecánica ($10/clase)...\n\nHorarios: Lunes a Sábado 8am-6pm\nPago: Nequi 3001234567"}
+                      value={genDescription}
+                      onChange={(e) => setGenDescription(e.target.value)}
+                      rows={8}
+                    />
+                    {genError && (
+                      <div className="flex items-start gap-1.5 text-xs text-destructive">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        {genError}
+                      </div>
+                    )}
+                    <Button
+                      type="button"
+                      className="w-full gap-2"
+                      disabled={!genDescription.trim() || !promptId}
+                      onClick={() => void handleGenerate()}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Generar flujo
+                    </Button>
+                    {!promptId && <p className="text-xs text-muted-foreground text-center">Guarda el prompt primero para habilitar esta función.</p>}
+                  </>
+                ) : genStage === "running" ? (
+                  <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm font-medium">Generando flujo completo…</p>
+                    <p className="text-xs text-muted-foreground">Puede tardar 20-40 segundos</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+                    <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+                    <p className="text-sm font-medium text-emerald-600">¡Listo! Recargando…</p>
+                    <p className="text-xs text-muted-foreground">Versión anterior guardada en historial.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </aside>
         </div>
       </DialogContent>

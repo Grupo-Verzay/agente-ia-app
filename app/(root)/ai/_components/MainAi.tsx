@@ -566,6 +566,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                 activeTab={activeTab}
                 currentDraft={currentDraft}
                 promptPreview={prompt}
+                promptId={promptMeta.id}
             />
         </>
     );
