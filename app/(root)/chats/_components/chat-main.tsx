@@ -22,7 +22,7 @@ import {
   getInternalNotesBySessionAction,
   type InternalNoteData,
 } from '@/actions/internal-notes-actions';
-import { PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { PanelRightClose, PanelRightOpen, UserRound } from 'lucide-react';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatInputBar } from './ChatInputBar';
@@ -539,11 +539,12 @@ export const ChatMain: React.FC<ChatMainProps> = ({
             type="button"
             onClick={toggleInfoPanel}
             title={infoPanelOpen ? 'Cerrar ficha del contacto' : 'Ver ficha del contacto'}
-            className="hidden md:flex absolute top-3 right-3 z-10 h-8 w-8 items-center justify-center rounded-lg bg-background/90 backdrop-blur-sm border border-border shadow-sm text-muted-foreground hover:text-foreground hover:bg-background hover:shadow-md transition-all"
+            className="hidden md:flex absolute top-3 right-3 z-10 h-8 items-center gap-1 px-2 rounded-lg bg-background/90 backdrop-blur-sm border border-border shadow-sm text-muted-foreground hover:text-foreground hover:bg-background hover:shadow-md transition-all"
           >
+            <UserRound className="h-3.5 w-3.5" />
             {infoPanelOpen
-              ? <PanelRightClose className="h-4 w-4" />
-              : <PanelRightOpen className="h-4 w-4" />}
+              ? <PanelRightClose className="h-3.5 w-3.5" />
+              : <PanelRightOpen className="h-3.5 w-3.5" />}
           </button>
         )}
       </div>
