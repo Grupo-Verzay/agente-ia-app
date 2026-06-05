@@ -22,6 +22,7 @@ import {
   getInternalNotesBySessionAction,
   type InternalNoteData,
 } from '@/actions/internal-notes-actions';
+import { UserRound } from 'lucide-react';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatInputBar } from './ChatInputBar';
@@ -520,20 +521,32 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         isPending={isContactUpdatePending}
       />
 
-      <ChatMessageList
-        uiMessages={allMessages}
-        loading={loading}
-        listRef={listRef}
-        tempMessage={tempMessage}
-        onSetReplyTo={setReplyTo}
-        onCopyMessage={handleCopyMessage}
-        onReactMessage={handleReactMessage}
-        onDeleteMessage={!advisorRole || advisorRole === 'administrador' ? handleDeleteMessage : undefined}
-        onDeleteNote={handleDeleteNote}
-        onLoadOlderMessages={onLoadOlderMessages}
-        canLoadOlderMessages={canLoadOlderMessages}
-        loadingOlderMessages={loadingOlderMessages}
-      />
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        <ChatMessageList
+          uiMessages={allMessages}
+          loading={loading}
+          listRef={listRef}
+          tempMessage={tempMessage}
+          onSetReplyTo={setReplyTo}
+          onCopyMessage={handleCopyMessage}
+          onReactMessage={handleReactMessage}
+          onDeleteMessage={!advisorRole || advisorRole === 'administrador' ? handleDeleteMessage : undefined}
+          onDeleteNote={handleDeleteNote}
+          onLoadOlderMessages={onLoadOlderMessages}
+          canLoadOlderMessages={canLoadOlderMessages}
+          loadingOlderMessages={loadingOlderMessages}
+        />
+        {session && !infoPanelOpen && (
+          <button
+            type="button"
+            onClick={toggleInfoPanel}
+            title="Ver ficha del contacto"
+            className="hidden md:flex absolute top-3 right-3 z-10 h-8 w-8 items-center justify-center rounded-full bg-background/80 backdrop-blur-sm border border-border/60 shadow-sm text-muted-foreground hover:text-foreground hover:bg-background transition-all"
+          >
+            <UserRound className="h-4 w-4" />
+          </button>
+        )}
+      </div>
 
       <SuggestedReplyBar
         suggestion={suggestion}
