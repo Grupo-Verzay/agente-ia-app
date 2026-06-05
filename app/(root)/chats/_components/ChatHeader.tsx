@@ -474,20 +474,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <Phone className="h-4 w-4" />
               </Button>
               {advisorBadge}
-              {onToggleInfoPanel && session && (
-                <Button
-                  type="button"
-                  onClick={onToggleInfoPanel}
-                  title={infoPanelOpen ? 'Cerrar ficha del contacto' : 'Ver ficha del contacto'}
-                  className="hidden md:flex h-8 items-center gap-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground hover:bg-muted shrink-0 transition-colors"
-                  size="sm"
-                >
-                  <UserRound className="h-3.5 w-3.5 text-gray-600 dark:text-gray-400" />
-                  {infoPanelOpen
-                    ? <PanelRightClose className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
-                    : <PanelRightOpen className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />}
-                </Button>
-              )}
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               <ChatRegistrosBadge
@@ -539,6 +525,20 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               title="Buscar en el chat"
             >
               <Search className="h-4 w-4" />
+            </Button>
+          )}
+          {onToggleInfoPanel && session && (
+            <Button
+              type="button"
+              onClick={onToggleInfoPanel}
+              title={infoPanelOpen ? 'Cerrar ficha del contacto' : 'Ver ficha del contacto'}
+              className="hidden md:flex h-8 items-center gap-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground hover:bg-muted shrink-0 transition-colors"
+              size="sm"
+            >
+              <UserRound className="h-3.5 w-3.5 text-gray-600 dark:text-gray-400" />
+              {infoPanelOpen
+                ? <PanelRightClose className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
+                : <PanelRightOpen className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />}
             </Button>
           )}
         </div>
