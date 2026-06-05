@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 import {
   X, Loader2, Phone, Megaphone, Mail, Building2, MapPin,
-  Briefcase, FileText, Check, ChevronDown,
+  Briefcase, FileText, Check, ChevronDown, Home, CreditCard,
   Sheet, Send, Info, BotIcon, Pencil, CheckCircle2,
   Globe, AtSign, Share2, Linkedin,
 } from 'lucide-react';
@@ -38,8 +38,10 @@ type ContactFields = {
   instagram: string;
   facebook: string;
   linkedin: string;
+  direccion: string;
+  documento: string;
 };
-const EMPTY_FIELDS: ContactFields = { email: '', empresa: '', ciudad: '', cargo: '', notas: '', sitioWeb: '', instagram: '', facebook: '', linkedin: '' };
+const EMPTY_FIELDS: ContactFields = { email: '', empresa: '', ciudad: '', cargo: '', notas: '', sitioWeb: '', instagram: '', facebook: '', linkedin: '', direccion: '', documento: '' };
 
 /* ── Inline field ──────────────────────────────────────────── */
 interface InlineFieldProps {
@@ -185,6 +187,8 @@ export function ContactInfoPanel({
           instagram: String(d.instagram ?? ''),
           facebook: String(d.facebook ?? ''),
           linkedin: String(d.linkedin ?? ''),
+          direccion: String(d.direccion ?? ''),
+          documento: String(d.documento ?? ''),
         });
       }
       if (!cancelled) setLoadingData(false);
@@ -275,11 +279,13 @@ export function ContactInfoPanel({
     { field: 'empresa',  icon: Building2, label: 'Empresa' },
     { field: 'ciudad',   icon: MapPin,    label: 'Ciudad' },
     { field: 'cargo',    icon: Briefcase, label: 'Cargo' },
-    { field: 'sitioWeb', icon: Globe,     label: 'Sitio web' },
-    { field: 'instagram',icon: AtSign,    label: 'Instagram' },
-    { field: 'facebook', icon: Share2,    label: 'Facebook' },
-    { field: 'linkedin', icon: Linkedin,  label: 'LinkedIn' },
-    { field: 'notas',    icon: FileText,  label: 'Notas', multiline: true },
+    { field: 'direccion', icon: Home,       label: 'Dirección' },
+    { field: 'documento', icon: CreditCard, label: 'Documento' },
+    { field: 'sitioWeb',  icon: Globe,      label: 'Sitio web' },
+    { field: 'instagram', icon: AtSign,     label: 'Instagram' },
+    { field: 'facebook',  icon: Share2,     label: 'Facebook' },
+    { field: 'linkedin',  icon: Linkedin,   label: 'LinkedIn' },
+    { field: 'notas',     icon: FileText,   label: 'Notas', multiline: true },
   ];
 
   return (
