@@ -503,8 +503,6 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         assignedAdvisorId={assignedAdvisorId}
         onAssignAdvisor={onAssignAdvisor}
         onNewMessage={onNewMessage}
-        infoPanelOpen={infoPanelOpen}
-        onToggleInfoPanel={toggleInfoPanel}
       />
 
       <ContactEditDialog

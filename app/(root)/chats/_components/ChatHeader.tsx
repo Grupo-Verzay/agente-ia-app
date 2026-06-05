@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, SquarePen, Power } from 'lucide-react';
+import { ArrowRight, ClipboardList, Megaphone, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, SquarePen, Power } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -61,8 +61,6 @@ interface ChatHeaderProps {
   assignedAdvisorId?: string | null;
   onAssignAdvisor?: (advisorId: string | null) => Promise<void>;
   onNewMessage?: () => void;
-  infoPanelOpen?: boolean;
-  onToggleInfoPanel?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -84,8 +82,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   assignedAdvisorId,
   onAssignAdvisor,
   onNewMessage,
-  infoPanelOpen,
-  onToggleInfoPanel,
 }) => {
   const adSource = session?.adSource as { title?: string; body?: string; sourceUrl?: string } | null | undefined;
   const adSourceLabel = adSource?.title || (adSource?.sourceUrl ? (() => { try { return new URL(adSource.sourceUrl!).hostname.replace(/^www\./, ''); } catch { return 'Anuncio'; } })() : null);
@@ -493,20 +489,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           )}
           {sessionActions}
           {lifecycleButton}
-          {onToggleInfoPanel && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0 hidden md:flex"
-              onClick={onToggleInfoPanel}
-              title={infoPanelOpen ? 'Cerrar panel de contacto' : 'Abrir panel de contacto'}
-            >
-              {infoPanelOpen
-                ? <PanelRightClose className="h-4 w-4" />
-                : <PanelRightOpen className="h-4 w-4" />}
-            </Button>
-          )}
         </div>
       </div>
 
