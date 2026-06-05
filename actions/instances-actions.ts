@@ -293,3 +293,78 @@ export async function setUserConnectionType(
     return { success: false, message: 'Error al configurar el canal.' };
   }
 }
+
+/* ─── Meta Cloud API instances ─────────────────────────────── */
+
+export async function createMetaInstance(params: {
+  instanceName: string;
+  userId: string;
+  phoneNumberId: string;
+  accessToken: string;
+  wabaId: string;
+  verifyToken: string;
+}): Promise<{ success: boolean; message: string }> {
+  const { instanceName, userId, phoneNumberId, accessToken, wabaId, verifyToken } = params;
+  if (!instanceName || !userId || !phoneNumberId || !accessToken) {
+    return { success: false, message: 'Nombre, Phone Number ID y Access Token son requeridos.' };
+  }
+  try {
+    await db.instancia.create({
+      data: {
+        instanceName,
+        instanceType: 'meta',
+        userId,
+        instanceId: `meta-${phoneNumberId}`,
+        metaPhoneNumberId: phoneNumberId,
+        metaAccessToken: accessToken,
+        metaWabaId: wabaId || null,
+        metaVerifyToken: verifyToken || null,
+      } as any,
+    });
+    revalidatePath('/connection');
+    return { success: true, message: 'Instancia Meta creada. Configura el webhook en Meta Developer.' };
+  } catch (error: any) {
+    console.error('[createMetaInstance]', error);
+    return { success: false, message: error?.message ?? 'Error al crear la instancia Meta.' };
+  }
+}
+
+export async function deleteMetaInstance(
+  instanceName: string,
+): Promise<{ success: boolean; message: string }> {
+  if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
+  try {
+    await db.instancia.deleteMany({ where: { instanceName } });
+    revalidatePath('/connection');
+    return { success: true, message: 'Instancia Meta eliminada.' };
+  } catch (error: any) {
+    console.error('[deleteMetaInstance]', error);
+    return { success: false, message: 'Error al eliminar la instancia Meta.' };
+  }
+}
+
+export async function updateMetaInstance(params: {
+  instanceName: string;
+  phoneNumberId: string;
+  accessToken: string;
+  wabaId: string;
+  verifyToken: string;
+}): Promise<{ success: boolean; message: string }> {
+  const { instanceName, phoneNumberId, accessToken, wabaId, verifyToken } = params;
+  try {
+    await db.instancia.updateMany({
+      where: { instanceName },
+      data: {
+        metaPhoneNumberId: phoneNumberId,
+        metaAccessToken: accessToken,
+        metaWabaId: wabaId || null,
+        metaVerifyToken: verifyToken || null,
+      } as any,
+    });
+    revalidatePath('/connection');
+    return { success: true, message: 'Credenciales actualizadas.' };
+  } catch (error: any) {
+    console.error('[updateMetaInstance]', error);
+    return { success: false, message: 'Error al actualizar.' };
+  }
+}

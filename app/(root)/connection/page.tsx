@@ -8,6 +8,8 @@ import { fetchInstanceAction } from "@/actions/fetch-intance-action";
 import { getPromptsByUserId } from "@/actions/prompt-actions";
 import { ConnectionMain } from "./_components";
 import { BaileysInstanceCard } from "./_components/BaileysInstanceCard";
+import { MetaInstanceCard } from "./_components/MetaInstanceCard";
+import { MetaInstanceCreator } from "./_components/MetaInstanceCreator";
 
 // Tipo de la respuesta esperada
 interface ActionResponse<T> {
@@ -29,7 +31,7 @@ function hasPrompts(result: { data?: PromptInstance[] | null }): result is { dat
 
 // 🔹 Normaliza el tipo (null/undefined -> "Desconocido")
 const normalizeType = (t?: string | null): string => {
-    const valid = ["Whatsapp", "Instagram", "Facebook", "baileys"];
+    const valid = ["Whatsapp", "Instagram", "Facebook", "baileys", "meta"];
     if (!t) return "Desconocido";
     const normalized = t.trim();
     return valid.includes(normalized) ? normalized : "Desconocido";
@@ -67,14 +69,19 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
         Desconocido: { prompts: [] },
     };
 
-    // Instancias Baileys (puede haber varias)
+    // Instancias Baileys y Meta (puede haber varias de cada tipo)
     const baileysInstances: Instancia[] = [];
+    const metaInstances: Instancia[] = [];
 
     // Asignar instancias sin interferir entre tipos
     instancias.forEach(instancia => {
         const type = normalizeType(instancia.instanceType);
         if (type === 'baileys') {
             baileysInstances.push(instancia);
+            return;
+        }
+        if (type === 'meta') {
+            metaInstances.push(instancia);
             return;
         }
         if (!instancesData[type]) instancesData[type] = { prompts: [] };
@@ -122,6 +129,15 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
             {baileysInstances.map((inst) => (
                 <BaileysInstanceCard key={inst.instanceName} instanceName={inst.instanceName} />
             ))}
+            {metaInstances.map((inst) => (
+                <MetaInstanceCard
+                    key={inst.instanceName}
+                    instanceName={inst.instanceName}
+                    phoneNumberId={(inst as any).metaPhoneNumberId ?? ''}
+                    wabaId={(inst as any).metaWabaId}
+                />
+            ))}
+            <MetaInstanceCreator userId={effectiveId} />
         </div>
     );
 };
