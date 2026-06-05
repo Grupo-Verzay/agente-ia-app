@@ -199,7 +199,7 @@ export function AgentPromptChatDialog({
             </ScrollArea>
 
             <form ref={formRef} onSubmit={handleSubmit} className="border-t p-3">
-              <div className="flex items-end gap-2">
+              <div className="flex items-center gap-2">
                 <Textarea
                   value={text}
                   onChange={(event) => setText(event.target.value)}
@@ -216,7 +216,7 @@ export function AgentPromptChatDialog({
                 <Button
                   type="submit"
                   size="icon"
-                  className="h-12 w-12 shrink-0 rounded-md"
+                  className="h-9 w-9 shrink-0 rounded-md"
                   disabled={isSending || !text.trim()}
                   aria-label="Enviar mensaje"
                 >
