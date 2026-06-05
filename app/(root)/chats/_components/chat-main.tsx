@@ -27,6 +27,7 @@ import { ChatMessageList } from './ChatMessageList';
 import { ChatInputBar } from './ChatInputBar';
 import { SuggestedReplyBar } from './SuggestedReplyBar';
 import { ContactEditDialog } from './ContactEditDialog';
+import { ContactInfoPanel } from './ContactInfoPanel';
 import { useChatSession } from './hooks/useChatSession';
 import { useAudioRecording } from './hooks/useAudioRecording';
 import { useMediaCache } from './hooks/useMediaCache';
@@ -110,6 +111,10 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [tempMessage, setTempMessage] = useState<UIBubble | null>(null);
   const [isContactEditorOpen, setIsContactEditorOpen] = useState(false);
+  const [infoPanelOpen, setInfoPanelOpen] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('chat-info-panel') !== 'false';
+  });
 
   /* ─── Note mode state ─── */
   const [noteMode, setNoteMode] = useState(false);
@@ -466,8 +471,18 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     [sendNow, handleSendNote, isRecording, recordedAudio, slashOpen, noteMode, input],
   );
 
+  const toggleInfoPanel = useCallback(() => {
+    setInfoPanelOpen((v) => {
+      const next = !v;
+      localStorage.setItem('chat-info-panel', String(next));
+      return next;
+    });
+  }, []);
+
   return (
-    <div className="flex flex-col h-full w-full min-w-[100px] sm:border-l sm:border-r">
+    <div className="flex h-full w-full min-w-[100px] sm:border-l sm:border-r overflow-hidden">
+      {/* ── Chat area ── */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
       <ChatHeader
         header={header}
         session={session}
@@ -487,6 +502,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         assignedAdvisorId={assignedAdvisorId}
         onAssignAdvisor={onAssignAdvisor}
         onNewMessage={onNewMessage}
+        infoPanelOpen={infoPanelOpen}
+        onToggleInfoPanel={toggleInfoPanel}
       />
 
       <ContactEditDialog
@@ -568,6 +585,25 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onToggleNoteMode={handleToggleNoteMode}
         onSendNote={handleSendNote}
       />
+      </div>{/* end chat area */}
+
+      {/* ── Contact info panel (desktop only) ── */}
+      {infoPanelOpen && session && (
+        <ContactInfoPanel
+          session={session}
+          displayedContactName={displayedContactName}
+          displayedWhatsapp={displayedWhatsapp}
+          avatarSrc={header.avatarSrc}
+          userId={userId}
+          allTags={allTags}
+          remoteJid={info?.remoteJid}
+          notesCount={notes.length}
+          onClose={toggleInfoPanel}
+          onSessionTagsChange={onSessionTagsChange}
+          onSessionMutate={mutateSessionStatus}
+          onSessionRefresh={refreshSessionStatus}
+        />
+      )}
     </div>
   );
 };
