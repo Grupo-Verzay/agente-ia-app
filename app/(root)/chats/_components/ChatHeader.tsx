@@ -498,7 +498,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               type="button"
               onClick={onToggleInfoPanel}
               title={infoPanelOpen ? 'Cerrar ficha del contacto' : 'Ver ficha del contacto'}
-              className="hidden md:flex h-8 items-center gap-1.5 px-2.5 rounded-lg bg-primary text-primary-foreground hover:brightness-110 shrink-0"
+              className="hidden md:flex h-8 items-center gap-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground hover:bg-muted shrink-0 transition-colors"
               size="sm"
             >
               <UserRound className="h-3.5 w-3.5" />
