@@ -1242,8 +1242,8 @@ export function ChatsClient({
           isChatListCollapsed
             ? "hidden"
             : isSidebarVisible
-              ? "w-full sm:w-[18rem] md:w-[20rem] lg:w-[22rem] xl:w-[24rem]"
-              : "hidden md:block md:w-[20rem] lg:w-[22rem] xl:w-[24rem]"
+              ? "w-full sm:w-[16rem] md:w-[18rem] lg:w-[20rem] xl:w-[22rem]"
+              : "hidden md:block md:w-[18rem] lg:w-[20rem] xl:w-[22rem]"
         } h-full flex-shrink-0 transition-all duration-300 sm:border-r`}
       >
         <ChatSidebar
