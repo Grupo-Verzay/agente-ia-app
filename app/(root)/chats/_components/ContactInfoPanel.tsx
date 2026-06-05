@@ -251,7 +251,7 @@ export function ContactInfoPanel({
       <div className="flex-1 overflow-y-auto [scrollbar-width:thin]">
 
         {/* Contact card */}
-        <div className="flex flex-col items-center gap-1.5 py-5 px-4 border-b">
+        <div className="flex flex-col items-center gap-1 pt-4 pb-2 px-4 border-b">
           <Avatar className="h-16 w-16 ring-2 ring-border">
             <AvatarImage src={avatarSrc || '/default-avatar.png'} />
             <AvatarFallback className="text-lg font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
