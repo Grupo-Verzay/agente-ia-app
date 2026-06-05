@@ -746,7 +746,7 @@ export function AgentPromptChatDialog({
             ) : null}
 
             {/* Atajos */}
-            <div className="flex flex-1 flex-col gap-3 px-4 pt-3 pb-3 min-h-0">
+            <div className="flex flex-col gap-3 px-4 pt-3 pb-3">
               <p className="text-sm font-semibold">Atajos</p>
               <div className="space-y-2">
                 {[...quickPrompts, OPTIMIZE_PROMPT, SIMULATE_PROMPT].map((item) => {
@@ -779,11 +779,11 @@ export function AgentPromptChatDialog({
             </div>
 
             {/* Descripción de la sección */}
-            <div className="shrink-0 border-t px-4 h-[60px] flex flex-col justify-center gap-0.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">
+            <div className="mt-auto shrink-0 border-t px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-primary mb-1">
                 {TYPE_AI_LABELS[activeTab]}
               </p>
-              <p className="text-xs leading-tight text-foreground/70 line-clamp-2">
+              <p className="text-xs leading-relaxed text-foreground/70">
                 {SECTION_DESCRIPTIONS[activeTab]}
               </p>
             </div>
