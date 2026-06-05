@@ -312,7 +312,6 @@ export function AgentPromptChatDialog({
             <div className="flex flex-col gap-3 px-4 pt-0 pb-3">
               <div>
                 <p className="text-sm font-semibold">Atajos</p>
-                <p className="mt-1 text-xs text-muted-foreground">Puntos de partida para una respuesta lista.</p>
               </div>
               <div className="space-y-2">
                 {QUICK_PROMPTS.map((item) => {
