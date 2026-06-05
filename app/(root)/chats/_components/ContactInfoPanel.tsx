@@ -376,11 +376,31 @@ export function ContactInfoPanel({
         </Section>
 
 
-        {/* Google Sheets */}
+        {/* Origen del anuncio */}
+        {adSource && (
+          <Section title="Origen del anuncio" icon={Megaphone} defaultOpen={false}>
+            <div className="px-2">
+              <div className="rounded-lg border p-3 space-y-1">
+                {adSource.title && <p className="text-xs font-medium">{adSource.title}</p>}
+                {adSource.body && <p className="text-xs text-muted-foreground leading-snug">{adSource.body}</p>}
+                {adSource.sourceUrl && (
+                  <a href={adSource.sourceUrl} target="_blank" rel="noopener noreferrer"
+                    className="text-[10px] text-blue-500 hover:underline truncate block">
+                    {adSource.sourceUrl}
+                  </a>
+                )}
+              </div>
+            </div>
+          </Section>
+        )}
+
+      </div>
+
+      {/* ── Google Sheets fijo al fondo ── */}
+      <div className="shrink-0 border-t bg-background">
         <Section title="Google Sheets" icon={Sheet} defaultOpen={sheetsSaved}>
-          <div className="px-4 space-y-3">
+          <div className="px-4 pb-2 space-y-2">
             {sheetsSaved && !editingSheets ? (
-              /* ── Configurado ── */
               <div className="space-y-2">
                 <Button type="button" size="sm" className="w-full gap-2 h-8 text-xs" onClick={handleSync} disabled={syncing}>
                   {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
@@ -391,7 +411,6 @@ export function ContactInfoPanel({
                 </button>
               </div>
             ) : (
-              /* ── Sin configurar / editando ── */
               <div className="space-y-2">
                 <p className="text-[10px] text-muted-foreground">Comparte tu hoja con esta cuenta como <span className="font-medium">Editor</span>:</p>
                 <button
@@ -418,25 +437,6 @@ export function ContactInfoPanel({
             )}
           </div>
         </Section>
-
-        {/* Origen del anuncio */}
-        {adSource && (
-          <Section title="Origen del anuncio" icon={Megaphone} defaultOpen={false}>
-            <div className="px-2">
-              <div className="rounded-lg border p-3 space-y-1">
-                {adSource.title && <p className="text-xs font-medium">{adSource.title}</p>}
-                {adSource.body && <p className="text-xs text-muted-foreground leading-snug">{adSource.body}</p>}
-                {adSource.sourceUrl && (
-                  <a href={adSource.sourceUrl} target="_blank" rel="noopener noreferrer"
-                    className="text-[10px] text-blue-500 hover:underline truncate block">
-                    {adSource.sourceUrl}
-                  </a>
-                )}
-              </div>
-            </div>
-          </Section>
-        )}
-
       </div>
     </aside>
   );
