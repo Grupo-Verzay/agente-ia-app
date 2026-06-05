@@ -539,9 +539,10 @@ export const ChatMain: React.FC<ChatMainProps> = ({
             type="button"
             onClick={toggleInfoPanel}
             title="Ver ficha del contacto"
-            className="hidden md:flex absolute top-3 right-3 z-10 h-8 w-8 items-center justify-center rounded-full bg-background/80 backdrop-blur-sm border border-border/60 shadow-sm text-muted-foreground hover:text-foreground hover:bg-background transition-all"
+            className="hidden md:flex absolute top-3 right-3 z-10 items-center gap-1.5 px-3 py-1.5 rounded-full bg-background/90 backdrop-blur-sm border border-border shadow-sm text-xs font-medium text-foreground hover:bg-background hover:shadow-md transition-all"
           >
-            <UserRound className="h-4 w-4" />
+            <UserRound className="h-3.5 w-3.5 text-muted-foreground" />
+            Ficha del contacto
           </button>
         )}
       </div>
