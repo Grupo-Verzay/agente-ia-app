@@ -779,9 +779,11 @@ export function AgentPromptChatDialog({
             </div>
 
             {/* Descripción de la sección */}
-            <div className="mx-4 mb-4 mt-auto rounded-lg border bg-muted/40 px-3 py-2.5">
-              <p className="text-xs font-medium text-muted-foreground mb-1">¿Para qué sirve esta sección?</p>
-              <p className="text-xs text-muted-foreground/80 leading-relaxed">
+            <div className="mx-4 mb-4 rounded-lg border bg-muted/40 px-3 py-3">
+              <p className="text-xs font-semibold text-foreground mb-1.5">
+                Sección: {TYPE_AI_LABELS[activeTab]}
+              </p>
+              <p className="text-xs leading-relaxed text-foreground/70">
                 {SECTION_DESCRIPTIONS[activeTab]}
               </p>
             </div>
