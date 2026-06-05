@@ -281,7 +281,8 @@ export function ChatsClient({
   const [isSidebarVisible, setIsSidebarVisible] = useState(!initialSelectedJid);
   const [isContactPanelOpen, setIsContactPanelOpen] = useState(false);
   const [isChatListCollapsed, setIsChatListCollapsed] = useState(false);
-  const { setOpen: setNavOpen } = useSidebar();
+  const [closeInfoPanelSignal, setCloseInfoPanelSignal] = useState(0);
+  const { setOpen: setNavOpen, open: navOpen } = useSidebar();
   const prevNavOpenRef = useRef<boolean>(true);
 
   const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -438,6 +439,12 @@ export function ChatsClient({
       setNavOpen(prevNavOpenRef.current);
     }
   }, [isContactPanelOpen, setNavOpen]);
+
+  useEffect(() => {
+    if (navOpen && isContactPanelOpen) {
+      setCloseInfoPanelSignal((n) => n + 1);
+    }
+  }, [navOpen]);
 
   const refreshChatSessions = useCallback(
     async (chats: ChatData[]) => {
@@ -1327,6 +1334,7 @@ export function ChatsClient({
             canLoadOlderMessages={Boolean(info?.nextPage)}
             loadingOlderMessages={loadingOlderMessages}
             onInfoPanelChange={setIsContactPanelOpen}
+            closeInfoPanelSignal={closeInfoPanelSignal}
           />
         ) : (
           <div className="hidden sm:flex h-full flex-1 flex-col items-center justify-center gap-5 select-none border-l border-border bg-muted/10 px-8">

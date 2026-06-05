@@ -73,6 +73,7 @@ type ChatMainProps = {
   canLoadOlderMessages?: boolean;
   loadingOlderMessages?: boolean;
   onInfoPanelChange?: (open: boolean) => void;
+  closeInfoPanelSignal?: number;
 };
 
 export const ChatMain: React.FC<ChatMainProps> = ({
@@ -100,6 +101,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   canLoadOlderMessages,
   loadingOlderMessages,
   onInfoPanelChange,
+  closeInfoPanelSignal,
 }) => {
   /* ─── Refs ─── */
   const listRef = useRef<HTMLDivElement>(null);
@@ -128,6 +130,13 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     onInfoPanelChange?.(infoPanelOpen);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!closeInfoPanelSignal) return;
+    setInfoPanelOpen(false);
+    localStorage.setItem('chat-info-panel', 'false');
+    onInfoPanelChange?.(false);
+  }, [closeInfoPanelSignal, onInfoPanelChange]);
 
   /* ─── Note mode state ─── */
   const [noteMode, setNoteMode] = useState(false);
