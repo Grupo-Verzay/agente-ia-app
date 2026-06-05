@@ -402,53 +402,57 @@ export function ContactInfoPanel({
           </Section>
         )}
 
+        {/* Google Sheets — config en scroll */}
+        <Section title="Google Sheets" icon={Sheet} defaultOpen={false}>
+          <div className="px-4 space-y-2 pb-1">
+            {sheetsSaved && !editingSheets ? (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Hoja conectada
+                </span>
+                <button type="button" onClick={() => setEditingSheets(true)} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+                  Cambiar hoja
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-[10px] text-muted-foreground">Comparte tu hoja con esta cuenta como <span className="font-medium">Editor</span>:</p>
+                <button
+                  type="button"
+                  onClick={() => { navigator.clipboard.writeText('agente-ia@ia-crm-496602.iam.gserviceaccount.com'); toast.success('Email copiado'); }}
+                  className="w-full text-left text-[10px] font-mono bg-muted rounded-md px-2 py-1.5 truncate text-muted-foreground hover:bg-muted/80 transition-colors border border-border/50"
+                  title="Clic para copiar"
+                >
+                  agente-ia@ia-crm-496602.iam.gserviceaccount.com
+                </button>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={sheetsDraft}
+                    onChange={(e) => setSheetsDraft(e.target.value)}
+                    placeholder="URL o ID de la hoja…"
+                    className="flex-1 text-xs rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 outline-none focus:border-primary/40 focus:bg-background transition-colors"
+                  />
+                  <Button type="button" size="sm" variant="outline" className="h-8 px-2 shrink-0 text-xs" onClick={handleSaveWebhookUrl} disabled={savingUrl}>
+                    {savingUrl ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Guardar'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </Section>
+
       </div>
 
-      {/* ── Google Sheets fijo al fondo ── */}
-      <div className="shrink-0 border-t bg-background px-3 py-2 space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
-            <Sheet className="h-3 w-3" />
-            Google Sheets
-          </span>
-          {sheetsSaved && !editingSheets && (
-            <button type="button" onClick={() => setEditingSheets(true)} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
-              Cambiar hoja
-            </button>
-          )}
-        </div>
-
-        {sheetsSaved && !editingSheets ? (
-          <Button type="button" size="sm" className="w-full gap-1.5 h-7 text-xs" onClick={handleSync} disabled={syncing}>
-            {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+      {/* ── Sync button fijo al fondo ── */}
+      {sheetsSaved && (
+        <div className="shrink-0 border-t bg-background px-3 py-2">
+          <Button type="button" size="sm" className="w-full gap-1.5 h-9 text-xs" onClick={handleSync} disabled={syncing}>
+            {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
             Sincronizar datos ahora
           </Button>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-[10px] text-muted-foreground">Comparte tu hoja con esta cuenta como <span className="font-medium">Editor</span>:</p>
-            <button
-              type="button"
-              onClick={() => { navigator.clipboard.writeText('agente-ia@ia-crm-496602.iam.gserviceaccount.com'); toast.success('Email copiado'); }}
-              className="w-full text-left text-[10px] font-mono bg-muted rounded-md px-2 py-1.5 truncate text-muted-foreground hover:bg-muted/80 transition-colors border border-border/50"
-              title="Clic para copiar"
-            >
-              agente-ia@ia-crm-496602.iam.gserviceaccount.com
-            </button>
-            <div className="flex gap-1.5">
-              <input
-                type="text"
-                value={sheetsDraft}
-                onChange={(e) => setSheetsDraft(e.target.value)}
-                placeholder="URL o ID de la hoja…"
-                className="flex-1 text-xs rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 outline-none focus:border-primary/40 focus:bg-background transition-colors"
-              />
-              <Button type="button" size="sm" variant="outline" className="h-8 px-2 shrink-0 text-xs" onClick={handleSaveWebhookUrl} disabled={savingUrl}>
-                {savingUrl ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Guardar'}
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </aside>
   );
 }
