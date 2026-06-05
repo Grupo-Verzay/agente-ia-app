@@ -20,7 +20,8 @@ import {
   saveGoogleSheetsWebhookUrl,
   syncContactToGoogleSheets,
 } from '@/actions/google-sheets-actions';
-import { toggleAgentDisabled, updateLeadPushNameAction } from '@/actions/session-action';
+import { updateLeadPushNameAction } from '@/actions/registro-action';
+import { toggleAgentDisabled } from '@/actions/session-action';
 import * as SwitchPrimitive from '@radix-ui/react-switch';
 import { initialFromName } from './chat-message-utils';
 import type { Session } from '@/types/session';
@@ -146,6 +147,7 @@ export function ContactInfoPanel({
   const [loadingData, setLoadingData] = useState(true);
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sheetsUrl, setSheetsUrl] = useState('');
+  const [sheetsDraft, setSheetsDraft] = useState('');
   const [sheetsSaved, setSheetsSaved] = useState(false);
   const [editingSheets, setEditingSheets] = useState(false);
   const [agentEnabled, setAgentEnabled] = useState(!session.agentDisabled);
@@ -233,11 +235,17 @@ export function ContactInfoPanel({
   }, [userId, remoteJid, fields]);
 
   const handleSaveWebhookUrl = async () => {
+    if (!sheetsDraft.trim()) return;
     setSavingUrl(true);
-    const res = await saveGoogleSheetsWebhookUrl(userId, sheetsUrl);
+    const res = await saveGoogleSheetsWebhookUrl(userId, sheetsDraft);
     setSavingUrl(false);
-    if (res.success) { toast.success('Hoja guardada'); setSheetsSaved(true); setEditingSheets(false); }
-    else toast.error('No se pudo guardar la URL');
+    if (res.success) {
+      setSheetsUrl(sheetsDraft);
+      setSheetsDraft('');
+      toast.success('Hoja guardada');
+      setSheetsSaved(true);
+      setEditingSheets(false);
+    } else toast.error('No se pudo guardar la URL');
   };
 
   const handleSync = async () => {
@@ -429,8 +437,8 @@ export function ContactInfoPanel({
             <div className="flex gap-1.5">
               <input
                 type="text"
-                value={sheetsUrl}
-                onChange={(e) => setSheetsUrl(e.target.value)}
+                value={sheetsDraft}
+                onChange={(e) => setSheetsDraft(e.target.value)}
                 placeholder="URL o ID de la hoja…"
                 className="flex-1 text-xs rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 outline-none focus:border-primary/40 focus:bg-background transition-colors"
               />
