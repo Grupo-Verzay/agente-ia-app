@@ -17,6 +17,7 @@ import {
   getExternalClientDataByRemoteJid,
   upsertExternalClientData,
 } from '@/actions/external-client-data-actions';
+import { SwitchAgentDisabled } from '../sessions/_components';
 import { LeadStatusSelect } from './LeadStatusSelect';
 import { SessionTagsCombobox } from '../../tags/components';
 import { initialFromName } from './chat-message-utils';
@@ -294,6 +295,17 @@ export function ContactInfoPanel({
               <FileText className="h-2.5 w-2.5" />{notesCount} nota{notesCount > 1 ? 's' : ''}
             </Badge>
           )}
+
+          {/* Agente IA toggle */}
+          <div className="flex items-center justify-between w-full mt-2 px-2 py-2 rounded-lg bg-muted/40 border border-border/50">
+            <span className="text-xs text-muted-foreground">Agente IA</span>
+            <SwitchAgentDisabled
+              agentDisabled={Boolean(session.agentDisabled)}
+              userId={userId}
+              sessionId={session.id}
+              mutateSessions={onSessionMutate}
+            />
+          </div>
         </div>
 
         {/* ── Datos del cliente ── */}

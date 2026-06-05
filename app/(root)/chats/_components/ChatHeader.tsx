@@ -491,7 +491,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               {tagsCombobox}
             </>
           )}
-          {sessionActions}
           {lifecycleButton}
           {onToggleInfoPanel && session && (
             <Button
