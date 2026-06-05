@@ -321,15 +321,12 @@ export function AgentPromptChatDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[min(585px,92dvh)] w-[min(960px,calc(100vw-1.5rem))] max-w-none flex-col overflow-hidden p-0">
-        <div className="relative grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[1fr_320px]">
-          {/* Divisor vertical completo */}
-          <div className="absolute inset-y-0 right-[320px] hidden w-px bg-border lg:block" />
 
-          {/* ── Columna izquierda: chat ── */}
-          <div className="flex h-full flex-col min-h-0">
-            {/* Header */}
-            <div className="shrink-0 border-b px-4 py-3">
-              <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
+        {/* ── Header compartido full-width ── */}
+        <div className="shrink-0 border-b">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px]">
+            <div className="flex items-center px-4 py-3">
+              <DialogTitle className="flex w-full items-center gap-2 text-sm font-semibold">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <Bot className="h-3.5 w-3.5" />
                 </span>
@@ -349,6 +346,30 @@ export function AgentPromptChatDialog({
                 </button>
               </DialogTitle>
             </div>
+            {currentDraft ? (
+              <div className="hidden lg:flex items-center border-l px-4">
+                <button
+                  type="button"
+                  onClick={() => setShowDraft((v) => !v)}
+                  className="flex w-full items-center justify-between text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <FileText className="h-3 w-3" />
+                    VER SECCIÓN ACTUAL
+                  </span>
+                  {showDraft ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="relative grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[1fr_320px]">
+          {/* Divisor vertical completo */}
+          <div className="absolute inset-y-0 right-[320px] hidden w-px bg-border lg:block" />
+
+          {/* ── Columna izquierda: chat ── */}
+          <div className="flex h-full flex-col min-h-0">
 
             <ScrollArea className="min-h-0 flex-1 px-4 pt-3 pb-2">
               <div className="space-y-3">
@@ -427,25 +448,12 @@ export function AgentPromptChatDialog({
           {/* ── Sidebar derecha ── */}
           <aside className="hidden min-h-0 flex-col bg-muted/20 lg:flex overflow-y-auto">
 
-            {/* Preview sección actual */}
-            {currentDraft ? (
-              <div className="shrink-0 border-b px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => setShowDraft((v) => !v)}
-                  className="flex w-full items-center justify-between text-xs text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <FileText className="h-3 w-3" />
-                    VER SECCIÓN ACTUAL
-                  </span>
-                  {showDraft ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                </button>
-                {showDraft ? (
-                  <div className="mt-2 max-h-28 overflow-y-auto rounded-md border bg-background p-2 text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                    {currentDraft}
-                  </div>
-                ) : null}
+            {/* Draft expandido */}
+            {showDraft && currentDraft ? (
+              <div className="shrink-0 border-b px-4 py-2">
+                <div className="max-h-28 overflow-y-auto rounded-md border bg-background p-2 text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                  {currentDraft}
+                </div>
               </div>
             ) : null}
 
