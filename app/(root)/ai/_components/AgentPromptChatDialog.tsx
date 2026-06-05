@@ -291,7 +291,7 @@ export function AgentPromptChatDialog({
             <div className="border-t mx-4 mt-auto" />
 
             {/* Generar flujo */}
-            <div className="flex flex-col gap-3 p-4 shrink-0">
+            <div className="flex flex-1 flex-col gap-3 p-4">
               <div>
                 <p className="text-sm font-semibold flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-primary" />
@@ -310,13 +310,12 @@ export function AgentPromptChatDialog({
                   <p className="text-xs font-medium text-emerald-600">¡Listo! Recargando…</p>
                 </div>
               ) : (
-                <>
+                <div className="flex flex-1 flex-col gap-3">
                   <textarea
-                    className="w-full rounded-md border bg-background p-2.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+                    className="flex-1 w-full rounded-md border bg-background p-2.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
                     placeholder={"Ej: Somos academia en Bogotá. Cursos de barbería $8/clase, mecánica $10/clase.\nHorarios: Lun-Sáb 8am-6pm\nPago: Nequi 300..."}
                     value={genDescription}
                     onChange={(e) => setGenDescription(e.target.value)}
-                    rows={5}
                   />
                   {genError && (
                     <div className="flex items-start gap-1.5 text-xs text-destructive">
@@ -327,14 +326,14 @@ export function AgentPromptChatDialog({
                   <Button
                     type="button"
                     size="sm"
-                    className="w-full gap-2"
+                    className="w-full gap-2 shrink-0"
                     disabled={!genDescription.trim() || !promptId}
                     onClick={() => void handleGenerate()}
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     Generar
                   </Button>
-                </>
+                </div>
               )}
             </div>
           </aside>
