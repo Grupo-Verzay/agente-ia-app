@@ -223,6 +223,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
               status={item.message.status}
               kind={item.message.kind}
               quotedMessage={item.message.quotedMessage}
+              adPreview={item.message.adPreview}
               onReply={onSetReplyTo ? () => onSetReplyTo(item.message) : undefined}
               onCopy={onCopyMessage ? () => onCopyMessage(item.message) : undefined}
               onReact={onReactMessage ? (emoji) => onReactMessage(item.message, emoji) : undefined}

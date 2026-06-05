@@ -69,6 +69,7 @@ interface MessageBubbleProps {
   status?: MessageDeliveryState;
   kind?: UIBubble['kind'];
   quotedMessage?: UIBubble['quotedMessage'];
+  adPreview?: UIBubble['adPreview'];
   onReply?: () => void;
   onCopy?: () => void;
   onReact?: (emoji: string) => void;
@@ -84,6 +85,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   status,
   kind,
   quotedMessage,
+  adPreview,
   onReply,
   onCopy,
   onReact,
@@ -209,6 +211,48 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       {isUserMessage && replyBtn}
       {isUserMessage && contextMenu}
       <div className={cn('px-2 pt-2 pb-5 break-words relative inline-block max-w-[94%] sm:max-w-[78%] lg:max-w-[72%]', bubbleClass)}>
+        {adPreview && (
+          <div className={cn(
+            'mb-1.5 rounded-lg overflow-hidden border text-xs',
+            isUserMessage
+              ? 'border-white/30 bg-white/10'
+              : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-white/5',
+          )}>
+            <div className="flex items-stretch min-h-[3.5rem]">
+              {adPreview.thumbnailUrl && (
+                <img
+                  src={adPreview.thumbnailUrl}
+                  alt="Vista previa del anuncio"
+                  className="w-14 h-14 object-cover shrink-0"
+                />
+              )}
+              <div className="flex flex-col justify-center px-2 py-1.5 min-w-0">
+                {adPreview.title && (
+                  <span className={cn('font-semibold leading-snug', isUserMessage ? 'text-white' : 'text-gray-800 dark:text-gray-100')}>
+                    {adPreview.title}
+                  </span>
+                )}
+                {adPreview.body && (
+                  <span className={cn('truncate leading-snug', isUserMessage ? 'text-white/80' : 'text-gray-500 dark:text-gray-400')}>
+                    {adPreview.body}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className={cn(
+              'px-2 py-0.5 text-[0.6rem] font-medium tracking-wide uppercase',
+              isUserMessage ? 'bg-white/10 text-white/70' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500',
+            )}>
+              {(() => {
+                let host = 'Facebook';
+                if (adPreview.sourceUrl) {
+                  try { host = new URL(adPreview.sourceUrl).hostname.replace(/^www\./, ''); } catch { /* keep default */ }
+                }
+                return `Anuncio · ${host}`;
+              })()}
+            </div>
+          </div>
+        )}
         {quotedMessage && (
           <div className={cn(
             'mb-1.5 px-2 py-1.5 rounded-lg border-l-4 text-xs cursor-default',

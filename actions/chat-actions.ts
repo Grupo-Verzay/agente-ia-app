@@ -471,7 +471,20 @@ type MediaMessagePayload = {
 
 export type MessageContent = {
   conversation?: string;
-  extendedTextMessage?: { text: string };
+  extendedTextMessage?: {
+    text: string;
+    contextInfo?: {
+      externalAdReply?: {
+        title?: string;
+        body?: string;
+        sourceUrl?: string;
+        mediaUrl?: string;
+        thumbnail?: string;
+        mediaType?: number;
+        renderLargerThumbnail?: boolean;
+      };
+    };
+  };
   imageMessage?: MediaMessagePayload;
   documentMessage?: MediaMessagePayload;
   videoMessage?: MediaMessagePayload;
@@ -484,6 +497,17 @@ export type MessageContent = {
   };
   mediaUrl?: string;
   messageContextInfo?: Record<string, unknown>;
+  contextInfo?: {
+    externalAdReply?: {
+      title?: string;
+      body?: string;
+      sourceUrl?: string;
+      mediaUrl?: string;
+      thumbnail?: string;
+      mediaType?: number;
+      renderLargerThumbnail?: boolean;
+    };
+  };
 };
 
 export type EvolutionMessage = {

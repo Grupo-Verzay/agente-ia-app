@@ -173,6 +173,21 @@ export function toUIMessages(
       media = { ...media, url: cached.dataUrl, mimeType: cached.mime };
     }
 
+    // Extraer previsualización de anuncio Click-to-WhatsApp
+    const adReply =
+      messageData?.contextInfo?.externalAdReply ??
+      messageData?.extendedTextMessage?.contextInfo?.externalAdReply ??
+      (m.contextInfo as any)?.externalAdReply;
+    const rawThumb = adReply?.mediaUrl || adReply?.thumbnail;
+    const thumbnailUrl = rawThumb
+      ? rawThumb.startsWith('data:') || rawThumb.startsWith('http')
+        ? rawThumb
+        : `data:image/jpeg;base64,${rawThumb}`
+      : undefined;
+    const adPreview: UIBubble['adPreview'] = adReply
+      ? { title: adReply.title, body: adReply.body, sourceUrl: adReply.sourceUrl, thumbnailUrl }
+      : undefined;
+
     return {
       id: m.id || (ts ? String(ts) : '') + (m.key?.id || Math.random().toString(36).slice(2)),
       sender,
@@ -182,6 +197,7 @@ export function toUIMessages(
       media: media || undefined,
       status: isUser ? normalizeDeliveryState(resolveEvolutionMessageStatus(m)) : undefined,
       kind,
+      adPreview,
     };
   });
 }

@@ -67,6 +67,12 @@ export type UIBubble = {
   status?: MessageDeliveryState;
   kind?: 'sticker' | 'reaction';
   quotedMessage?: { id: string; content: string; sender: 'user' | 'other'; mediaType?: string };
+  adPreview?: {
+    title?: string;
+    body?: string;
+    sourceUrl?: string;
+    thumbnailUrl?: string;
+  };
   // Nota interna
   isNote?: boolean;
   noteAuthorName?: string | null;
