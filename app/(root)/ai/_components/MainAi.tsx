@@ -335,16 +335,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 <span className="hidden sm:inline">Chat prompts</span>
                             </Button>
 
-                            <Button
-                                variant="outline"
-                                className="gap-2 h-9"
-                                onClick={() => setShowSimulator(true)}
-                            >
-                                <MessageSquare className="h-4 w-4 text-emerald-500" />
-                                <span className="hidden sm:inline">Simular</span>
-                            </Button>
-
-                            <DropdownMenu modal={false}>
+<DropdownMenu modal={false}>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="outline" aria-label="Open menu" size="icon">
                                         <MoreVertical />
