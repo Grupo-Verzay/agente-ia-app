@@ -275,12 +275,12 @@ export function ContactInfoPanel({
   };
 
   const FIELDS_CONFIG: { field: keyof ContactFields; icon: React.ElementType; label: string; multiline?: boolean }[] = [
-    { field: 'email',    icon: Mail,      label: 'Email' },
-    { field: 'empresa',  icon: Building2, label: 'Empresa' },
-    { field: 'ciudad',   icon: MapPin,    label: 'Ciudad' },
-    { field: 'cargo',    icon: Briefcase, label: 'Cargo' },
-    { field: 'direccion', icon: Home,       label: 'Dirección' },
+    { field: 'empresa',   icon: Building2,  label: 'Empresa' },
     { field: 'documento', icon: CreditCard, label: 'Documento' },
+    { field: 'cargo',     icon: Briefcase,  label: 'Cargo' },
+    { field: 'email',     icon: Mail,       label: 'Email' },
+    { field: 'direccion', icon: Home,       label: 'Dirección' },
+    { field: 'ciudad',    icon: MapPin,     label: 'Ciudad' },
     { field: 'sitioWeb',  icon: Globe,      label: 'Sitio web' },
     { field: 'instagram', icon: AtSign,     label: 'Instagram' },
     { field: 'facebook',  icon: Share2,     label: 'Facebook' },
