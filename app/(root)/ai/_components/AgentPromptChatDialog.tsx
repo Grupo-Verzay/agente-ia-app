@@ -258,98 +258,83 @@ export function AgentPromptChatDialog({
             </form>
           </div>
 
-          <aside className="hidden min-h-0 flex-col bg-muted/20 lg:flex">
-            {/* Tab switcher */}
-            <div className="flex border-b shrink-0">
-              <button
-                type="button"
-                onClick={() => setSidebarTab("atajos")}
-                className={cn("flex-1 py-2.5 text-xs font-medium transition-colors", sidebarTab === "atajos" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground")}
-              >
-                Atajos
-              </button>
-              <button
-                type="button"
-                onClick={() => setSidebarTab("generar")}
-                className={cn("flex-1 py-2.5 text-xs font-medium transition-colors", sidebarTab === "generar" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground")}
-              >
-                Generar flujo
-              </button>
+          <aside className="hidden min-h-0 flex-col gap-0 bg-muted/20 lg:flex overflow-y-auto">
+            {/* Atajos */}
+            <div className="flex flex-col gap-3 p-4">
+              <div>
+                <p className="text-sm font-semibold">Atajos</p>
+                <p className="mt-1 text-xs text-muted-foreground">Puntos de partida para obtener una respuesta lista.</p>
+              </div>
+              <div className="space-y-2">
+                {QUICK_PROMPTS.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Button
+                      key={item.label}
+                      type="button"
+                      variant="outline"
+                      className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
+                      disabled={isSending}
+                      onClick={() => void sendText(item.text)}
+                    >
+                      <Icon className="h-4 w-4 shrink-0 text-primary" />
+                      {item.label}
+                    </Button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Tab: Atajos */}
-            {sidebarTab === "atajos" && (
-              <div className="flex flex-col gap-3 p-4 flex-1">
-                <p className="text-xs text-muted-foreground">Puntos de partida para obtener una respuesta lista.</p>
-                <div className="space-y-2">
-                  {QUICK_PROMPTS.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <Button
-                        key={item.label}
-                        type="button"
-                        variant="outline"
-                        className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
-                        disabled={isSending}
-                        onClick={() => void sendText(item.text)}
-                      >
-                        <Icon className="h-4 w-4 shrink-0 text-primary" />
-                        {item.label}
-                      </Button>
-                    );
-                  })}
-                </div>
-                <div className="mt-auto rounded-md border bg-background p-3 text-xs leading-relaxed text-muted-foreground">
-                  Consejo: copia la respuesta y pégala en la sección del constructor.
-                </div>
-              </div>
-            )}
+            {/* Separador */}
+            <div className="border-t mx-4" />
 
-            {/* Tab: Generar flujo */}
-            {sidebarTab === "generar" && (
-              <div className="flex flex-col gap-3 p-4 flex-1">
-                <p className="text-xs text-muted-foreground">Pega la info de tu negocio y la IA generará el flujo completo.</p>
-                {genStage === "idle" || genStage === "error" ? (
-                  <>
-                    <textarea
-                      className="flex-1 w-full rounded-md border bg-background p-2.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
-                      placeholder={"Ej: Somos una academia en Bogotá. Ofrecemos cursos de barbería ($8/clase), mecánica ($10/clase)...\n\nHorarios: Lunes a Sábado 8am-6pm\nPago: Nequi 3001234567"}
-                      value={genDescription}
-                      onChange={(e) => setGenDescription(e.target.value)}
-                      rows={8}
-                    />
-                    {genError && (
-                      <div className="flex items-start gap-1.5 text-xs text-destructive">
-                        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                        {genError}
-                      </div>
-                    )}
-                    <Button
-                      type="button"
-                      className="w-full gap-2"
-                      disabled={!genDescription.trim() || !promptId}
-                      onClick={() => void handleGenerate()}
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      Generar flujo
-                    </Button>
-                    {!promptId && <p className="text-xs text-muted-foreground text-center">Guarda el prompt primero para habilitar esta función.</p>}
-                  </>
-                ) : genStage === "running" ? (
-                  <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="text-sm font-medium">Generando flujo completo…</p>
-                    <p className="text-xs text-muted-foreground">Puede tardar 20-40 segundos</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-                    <CheckCircle2 className="h-8 w-8 text-emerald-500" />
-                    <p className="text-sm font-medium text-emerald-600">¡Listo! Recargando…</p>
-                    <p className="text-xs text-muted-foreground">Versión anterior guardada en historial.</p>
-                  </div>
-                )}
+            {/* Generar flujo */}
+            <div className="flex flex-col gap-3 p-4">
+              <div>
+                <p className="text-sm font-semibold flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  Generar flujo
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">Pega la info del negocio y la IA genera el flujo completo.</p>
               </div>
-            )}
+              {genStage === "running" ? (
+                <div className="flex flex-col items-center gap-2 py-3 text-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <p className="text-xs font-medium">Generando… (20-40 seg)</p>
+                </div>
+              ) : genStage === "done" ? (
+                <div className="flex flex-col items-center gap-2 py-3 text-center">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+                  <p className="text-xs font-medium text-emerald-600">¡Listo! Recargando…</p>
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    className="w-full rounded-md border bg-background p-2.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+                    placeholder={"Ej: Somos academia en Bogotá. Cursos de barbería $8/clase, mecánica $10/clase.\nHorarios: Lun-Sáb 8am-6pm\nPago: Nequi 300..."}
+                    value={genDescription}
+                    onChange={(e) => setGenDescription(e.target.value)}
+                    rows={5}
+                  />
+                  {genError && (
+                    <div className="flex items-start gap-1.5 text-xs text-destructive">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      {genError}
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="w-full gap-2"
+                    disabled={!genDescription.trim() || !promptId}
+                    onClick={() => void handleGenerate()}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Generar
+                  </Button>
+                </>
+              )}
+            </div>
           </aside>
         </div>
       </DialogContent>
