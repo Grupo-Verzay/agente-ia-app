@@ -65,6 +65,8 @@ export type Session = PrismaSession & {
   tags?: SimpleTag[];
   crmFollowUpSummary?: SessionCrmFollowUpSummary | null;
   pendingSeguimientos?: number;
+  adSource?: { title?: string; body?: string; sourceUrl?: string } | null;
+  adSourceAt?: Date | null;
 };
 
 export type ChatContactDescriptor = {

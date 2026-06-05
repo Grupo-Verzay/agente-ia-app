@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, ClipboardList, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, SquarePen, Power } from 'lucide-react';
+import { ArrowRight, ClipboardList, Megaphone, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, SquarePen, Power } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -83,6 +83,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onAssignAdvisor,
   onNewMessage,
 }) => {
+  const adSource = session?.adSource as { title?: string; body?: string; sourceUrl?: string } | null | undefined;
+  const adSourceLabel = adSource?.title || (adSource?.sourceUrl ? (() => { try { return new URL(adSource.sourceUrl!).hostname.replace(/^www\./, ''); } catch { return 'Anuncio'; } })() : null);
+
   const initialSelectedTagIds = session?.tags?.map((t) => t?.id).filter(Boolean) ?? [];
   const [resolving, setResolving] = useState(false);
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
@@ -280,6 +283,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               )}
               <h2 className="truncate text-sm font-bold leading-tight">{displayedContactName}</h2>
             </div>
+            {adSourceLabel && (
+              <span className="flex items-center gap-0.5 text-[0.6rem] leading-none text-blue-500 dark:text-blue-400 truncate">
+                <Megaphone className="h-2.5 w-2.5 shrink-0" />
+                {adSourceLabel}
+              </span>
+            )}
           </div>
 
           {session ? (
@@ -399,22 +408,30 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             <AvatarImage src={header.avatarSrc || '/default-avatar.png'} />
             <AvatarFallback className="text-lg font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
           </Avatar>
-          <div className="flex items-center gap-1.5 min-w-0">
-            {header.isPinned && (
-              <Pin className="h-4 w-4 fill-current text-amber-500 flex-shrink-0" />
-            )}
-            <h2 className="truncate text-lg font-bold" title={displayedContactName}>{displayedContactName}</h2>
-            {session && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-full hover:bg-muted flex-shrink-0"
-                onClick={onOpenContactEditor}
-                title="Editar contacto"
-              >
-                <PencilLine className="h-3.5 w-3.5" />
-              </Button>
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-1.5">
+              {header.isPinned && (
+                <Pin className="h-4 w-4 fill-current text-amber-500 flex-shrink-0" />
+              )}
+              <h2 className="truncate text-lg font-bold" title={displayedContactName}>{displayedContactName}</h2>
+              {session && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-full hover:bg-muted flex-shrink-0"
+                  onClick={onOpenContactEditor}
+                  title="Editar contacto"
+                >
+                  <PencilLine className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+            {adSourceLabel && (
+              <span className="flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 leading-tight truncate">
+                <Megaphone className="h-3 w-3 shrink-0" />
+                {adSourceLabel}
+              </span>
             )}
           </div>
         </div>
