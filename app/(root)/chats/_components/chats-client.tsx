@@ -1291,18 +1291,8 @@ export function ChatsClient({
       <div
         className={`${
           !isSidebarVisible ? "flex-1 w-full" : "hidden sm:flex sm:flex-1"
-        } relative h-full min-w-0 transition-all duration-300`}
+        } h-full min-w-0 transition-all duration-300`}
       >
-        {isChatListCollapsed && (
-          <button
-            type="button"
-            onClick={() => setIsChatListCollapsed(false)}
-            title="Expandir lista de chats"
-            className="absolute left-2 top-2 z-20 hidden md:inline-flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-          >
-            <PanelRightOpen className="h-4 w-4" />
-          </button>
-        )}
         {selectedJid ? (
           <ChatMain
             key={selectedJid || "no-jid"}
@@ -1335,6 +1325,7 @@ export function ChatsClient({
             loadingOlderMessages={loadingOlderMessages}
             onInfoPanelChange={setIsContactPanelOpen}
             closeInfoPanelSignal={closeInfoPanelSignal}
+            onExpandChatList={isChatListCollapsed ? () => setIsChatListCollapsed(false) : undefined}
           />
         ) : (
           <div className="hidden sm:flex h-full flex-1 flex-col items-center justify-center gap-5 select-none border-l border-border bg-muted/10 px-8">

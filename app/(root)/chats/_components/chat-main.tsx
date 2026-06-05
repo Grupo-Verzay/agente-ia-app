@@ -74,6 +74,7 @@ type ChatMainProps = {
   loadingOlderMessages?: boolean;
   onInfoPanelChange?: (open: boolean) => void;
   closeInfoPanelSignal?: number;
+  onExpandChatList?: () => void;
 };
 
 export const ChatMain: React.FC<ChatMainProps> = ({
@@ -102,6 +103,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   loadingOlderMessages,
   onInfoPanelChange,
   closeInfoPanelSignal,
+  onExpandChatList,
 }) => {
   /* ─── Refs ─── */
   const listRef = useRef<HTMLDivElement>(null);
@@ -582,6 +584,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onToggleInfoPanel={toggleInfoPanel}
         searchOpen={searchOpen}
         onToggleSearch={handleToggleSearch}
+        onExpandChatList={onExpandChatList}
       />
 
       {searchOpen && (

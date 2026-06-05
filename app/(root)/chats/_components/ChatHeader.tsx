@@ -65,6 +65,7 @@ interface ChatHeaderProps {
   onToggleInfoPanel?: () => void;
   searchOpen?: boolean;
   onToggleSearch?: () => void;
+  onExpandChatList?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -90,6 +91,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onToggleInfoPanel,
   searchOpen,
   onToggleSearch,
+  onExpandChatList,
 }) => {
   const adSource = session?.adSource as { title?: string; body?: string; sourceUrl?: string } | null | undefined;
   const adSourceLabel = adSource?.title || (adSource?.sourceUrl ? (() => { try { return new URL(adSource.sourceUrl!).hostname.replace(/^www\./, ''); } catch { return 'Anuncio'; } })() : null);
@@ -428,6 +430,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       {/* ── Desktop ── */}
       <div className="hidden md:grid md:grid-cols-[1fr_auto] items-center p-3 gap-3 overflow-hidden">
         <div className="flex items-center gap-3 min-w-0">
+          {onExpandChatList && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onExpandChatList}
+              title="Expandir lista de chats"
+              className="h-8 w-8 shrink-0 rounded-md border border-input bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            >
+              <PanelRightOpen className="h-4 w-4" />
+            </Button>
+          )}
           <Avatar className="w-14 h-14 ring-2 ring-border flex-shrink-0">
             <AvatarImage src={header.avatarSrc || '/default-avatar.png'} />
             <AvatarFallback className="text-lg font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
