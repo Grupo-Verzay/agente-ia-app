@@ -40,8 +40,8 @@ type AgentPromptChatDialogProps = {
 
 const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
   business: [
-    { label: "Mejorar descripción", icon: Wand2, text: "Mejora la descripción del negocio para que sea más clara y atractiva para clientes por WhatsApp." },
     { label: "Datos clave faltantes", icon: Lightbulb, text: "Sugiere qué datos del negocio faltan o deberían añadirse para que el Agente IA responda mejor." },
+    { label: "Mejorar descripción", icon: Wand2, text: "Mejora la descripción del negocio para que sea más clara y atractiva para clientes por WhatsApp." },
     { label: "Tono profesional", icon: Sparkles, text: "Ajusta el tono de la información del negocio para sonar más profesional y confiable." },
   ],
   training: [
@@ -69,6 +69,12 @@ const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
     { label: "Flujo de escalación", icon: Lightbulb, text: "Crea un flujo claro para escalar casos complejos a un agente humano sin frustrar al cliente." },
     { label: "Optimizar respuestas", icon: Sparkles, text: "Revisa la configuración de gestión y dime cómo mejorar las respuestas para situaciones difíciles." },
   ],
+};
+
+const OPTIMIZE_PROMPT: QuickPrompt = {
+  label: "Optimizar",
+  icon: Sparkles,
+  text: "Revisa esta sección y dime qué cambiar, agregar o quitar para mejorar el resultado del Agente IA sin hacerlo más largo.",
 };
 
 const SIMULATE_PROMPT: QuickPrompt = {
@@ -665,7 +671,7 @@ export function AgentPromptChatDialog({
                 {/* Mobile: atajos horizontales */}
                 <div className="shrink-0 overflow-x-auto border-t px-3 py-2 lg:hidden">
                   <div className="flex gap-2 w-max">
-                    {[...quickPrompts, SIMULATE_PROMPT].map((item) => {
+                    {[...quickPrompts, OPTIMIZE_PROMPT, SIMULATE_PROMPT].map((item) => {
                       const Icon = item.icon;
                       const isSimulate = item.label === SIMULATE_PROMPT.label;
                       return (
@@ -734,7 +740,7 @@ export function AgentPromptChatDialog({
             <div className="flex flex-col gap-3 px-4 pt-3 pb-3">
               <p className="text-sm font-semibold">Atajos</p>
               <div className="space-y-2">
-                {[...quickPrompts, SIMULATE_PROMPT].map((item) => {
+                {[...quickPrompts, OPTIMIZE_PROMPT, SIMULATE_PROMPT].map((item) => {
                   const Icon = item.icon;
                   const isSimulate = item.label === SIMULATE_PROMPT.label;
                   return (
