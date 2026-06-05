@@ -297,7 +297,6 @@ export function AgentPromptChatDialog({
                   <Sparkles className="h-3.5 w-3.5 text-primary" />
                   Generar flujo
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">Pega la info del negocio y la IA genera el flujo completo.</p>
               </div>
               {genStage === "running" ? (
                 <div className="flex flex-col items-center gap-2 py-3 text-center">
@@ -313,7 +312,7 @@ export function AgentPromptChatDialog({
                 <div className="flex flex-1 flex-col gap-3">
                   <textarea
                     className="flex-1 w-full rounded-md border bg-background p-2.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
-                    placeholder={"Ej: Somos academia en Bogotá. Cursos de barbería $8/clase, mecánica $10/clase.\nHorarios: Lun-Sáb 8am-6pm\nPago: Nequi 300..."}
+                    placeholder={"Pega la info del negocio y la IA genera el flujo completo.\n\nEj: Somos academia en Bogotá. Cursos de barbería $8/clase, mecánica $10/clase.\nHorarios: Lun-Sáb 8am-6pm\nPago: Nequi 300..."}
                     value={genDescription}
                     onChange={(e) => setGenDescription(e.target.value)}
                   />
