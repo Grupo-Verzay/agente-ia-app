@@ -209,8 +209,13 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     const filtered = deletedIds.size > 0 ? all.filter((m) => !deletedIds.has(m.id)) : all;
     if (aiContents.size === 0) return filtered;
     const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
+    const isAiMessage = (content: string) => {
+      const norm = normalize(content);
+      if (aiContents.has(norm)) return true;
+      return [...aiContents].some((ai) => ai.length > 10 && (norm.includes(ai) || ai.includes(norm)));
+    };
     return filtered.map((m) =>
-      m.sender === 'user' && m.content && aiContents.has(normalize(m.content))
+      m.sender === 'user' && m.content && isAiMessage(m.content)
         ? { ...m, sentByAi: true }
         : m,
     );
