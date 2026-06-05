@@ -91,6 +91,8 @@ interface ChatMessageListProps {
   onLoadOlderMessages?: () => Promise<void>;
   canLoadOlderMessages?: boolean;
   loadingOlderMessages?: boolean;
+  searchMatchIds?: Set<string>;
+  activeSearchMessageId?: string;
 }
 
 export const ChatMessageList: React.FC<ChatMessageListProps> = ({
@@ -106,6 +108,8 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
   onLoadOlderMessages,
   canLoadOlderMessages,
   loadingOlderMessages,
+  searchMatchIds,
+  activeSearchMessageId,
 }) => {
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   const bgStyle = isDark ? WA_STYLE_DARK : WA_STYLE_LIGHT;
@@ -193,44 +197,61 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
           </div>
         )}
         {loading && <div className="text-center text-gray-500 py-4">Cargando mensajes…</div>}
-        {renderedList.map((item) =>
-          item.type === 'date' ? (
-            <ConversationDateBadge key={item.id} label={item.label} />
-          ) : item.message.status === 'sending' ? (
-            <SendingMessageSkeleton key={item.id} tempMessage={item.message} />
-          ) : item.message.isNote ? (
-            <InternalNoteBubble
+        {renderedList.map((item) => {
+          if (item.type === 'date') {
+            return <ConversationDateBadge key={item.id} label={item.label} />;
+          }
+
+          const isSearchMatch = searchMatchIds?.has(item.message.id) ?? false;
+          const isActiveSearchMatch = activeSearchMessageId === item.message.id;
+          const wrapperClass = cn(
+            'rounded-xl transition-all duration-200',
+            isSearchMatch && 'bg-amber-200/20',
+            isActiveSearchMatch && 'ring-2 ring-amber-400 ring-offset-2 ring-offset-transparent',
+          );
+
+          return (
+            <div
               key={item.id}
-              content={item.message.content}
-              authorName={item.message.noteAuthorName ?? null}
-              authorEmail={item.message.noteAuthorEmail ?? ''}
-              timestamp={item.message.ts ? new Date(item.message.ts).toISOString() : new Date().toISOString()}
-              isOwn={item.message.sender === 'user'}
-              onDelete={
-                item.message.noteId !== undefined && onDeleteNote
-                  ? () => void onDeleteNote(item.message.noteId!)
-                  : undefined
-              }
-            />
-          ) : (
-            <MessageBubble
-              key={item.id}
-              message={item.message.content}
-              isUserMessage={item.message.sender === 'user'}
-              avatarSrc={item.message.avatarSrc}
-              timestamp={item.message.ts}
-              media={item.message.media}
-              status={item.message.status}
-              kind={item.message.kind}
-              quotedMessage={item.message.quotedMessage}
-              adPreview={item.message.adPreview}
-              onReply={onSetReplyTo ? () => onSetReplyTo(item.message) : undefined}
-              onCopy={onCopyMessage ? () => onCopyMessage(item.message) : undefined}
-              onReact={onReactMessage ? (emoji) => onReactMessage(item.message, emoji) : undefined}
-              onDelete={onDeleteMessage ? () => onDeleteMessage(item.message) : undefined}
-            />
-          ),
-        )}
+              data-message-id={item.message.id}
+              data-search-active={isActiveSearchMatch ? 'true' : undefined}
+              className={wrapperClass}
+            >
+              {item.message.status === 'sending' ? (
+                <SendingMessageSkeleton tempMessage={item.message} />
+              ) : item.message.isNote ? (
+                <InternalNoteBubble
+                  content={item.message.content}
+                  authorName={item.message.noteAuthorName ?? null}
+                  authorEmail={item.message.noteAuthorEmail ?? ''}
+                  timestamp={item.message.ts ? new Date(item.message.ts).toISOString() : new Date().toISOString()}
+                  isOwn={item.message.sender === 'user'}
+                  onDelete={
+                    item.message.noteId !== undefined && onDeleteNote
+                      ? () => void onDeleteNote(item.message.noteId!)
+                      : undefined
+                  }
+                />
+              ) : (
+                <MessageBubble
+                  message={item.message.content}
+                  isUserMessage={item.message.sender === 'user'}
+                  avatarSrc={item.message.avatarSrc}
+                  timestamp={item.message.ts}
+                  media={item.message.media}
+                  status={item.message.status}
+                  kind={item.message.kind}
+                  quotedMessage={item.message.quotedMessage}
+                  adPreview={item.message.adPreview}
+                  onReply={onSetReplyTo ? () => onSetReplyTo(item.message) : undefined}
+                  onCopy={onCopyMessage ? () => onCopyMessage(item.message) : undefined}
+                  onReact={onReactMessage ? (emoji) => onReactMessage(item.message, emoji) : undefined}
+                  onDelete={onDeleteMessage ? () => onDeleteMessage(item.message) : undefined}
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

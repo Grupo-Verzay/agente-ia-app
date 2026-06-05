@@ -9,6 +9,7 @@ import React, {
   useState,
 } from 'react';
 import { toast } from 'sonner';
+import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
 import type { Session, SimpleTag } from '@/types/session';
@@ -25,6 +26,8 @@ import {
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatInputBar } from './ChatInputBar';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { SuggestedReplyBar } from './SuggestedReplyBar';
 import { ContactEditDialog } from './ContactEditDialog';
 import { ContactInfoPanel } from './ContactInfoPanel';
@@ -111,6 +114,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [tempMessage, setTempMessage] = useState<UIBubble | null>(null);
   const [isContactEditorOpen, setIsContactEditorOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [infoPanelOpen, setInfoPanelOpen] = useState(() => {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem('chat-info-panel') !== 'false';
@@ -207,6 +213,59 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     combined.sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0));
     return combined;
   }, [uiMessages, noteBubbles]);
+
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const searchMatches = useMemo(() => {
+    if (!normalizedSearchQuery) return [];
+    return allMessages.filter((message) =>
+      message.content?.toLowerCase().includes(normalizedSearchQuery),
+    );
+  }, [allMessages, normalizedSearchQuery]);
+  const searchMatchIds = useMemo(
+    () => new Set(searchMatches.map((message) => message.id)),
+    [searchMatches],
+  );
+  const activeSearchMessageId = searchMatches[activeSearchIndex]?.id;
+
+  useEffect(() => {
+    setActiveSearchIndex(0);
+  }, [normalizedSearchQuery, info?.remoteJid]);
+
+  useEffect(() => {
+    if (activeSearchIndex < searchMatches.length) return;
+    setActiveSearchIndex(Math.max(0, searchMatches.length - 1));
+  }, [activeSearchIndex, searchMatches.length]);
+
+  useEffect(() => {
+    if (!activeSearchMessageId) return;
+    const activeElement = listRef.current?.querySelector('[data-search-active="true"]');
+    activeElement?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [activeSearchMessageId]);
+
+  const handleToggleSearch = useCallback(() => {
+    setSearchOpen((current) => {
+      const next = !current;
+      if (!next) {
+        setSearchQuery('');
+        setActiveSearchIndex(0);
+      }
+      return next;
+    });
+  }, []);
+
+  const goToPreviousSearchMatch = useCallback(() => {
+    if (searchMatches.length === 0) return;
+    setActiveSearchIndex((current) =>
+      current <= 0 ? searchMatches.length - 1 : current - 1,
+    );
+  }, [searchMatches.length]);
+
+  const goToNextSearchMatch = useCallback(() => {
+    if (searchMatches.length === 0) return;
+    setActiveSearchIndex((current) =>
+      current >= searchMatches.length - 1 ? 0 : current + 1,
+    );
+  }, [searchMatches.length]);
 
   /* ─── Auto scroll to bottom ─── */
   const scrollToBottom = useCallback(() => {
@@ -504,7 +563,63 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onNewMessage={onNewMessage}
         infoPanelOpen={infoPanelOpen}
         onToggleInfoPanel={toggleInfoPanel}
+        searchOpen={searchOpen}
+        onToggleSearch={handleToggleSearch}
       />
+
+      {searchOpen && (
+        <div className="flex items-center gap-2 border-b border-border/50 bg-background/95 px-3 py-2">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Buscar en este chat..."
+              className="h-9 rounded-lg pl-9 pr-3 text-sm"
+              autoFocus
+            />
+          </div>
+          <span className="min-w-[4.5rem] text-center text-xs text-muted-foreground">
+            {normalizedSearchQuery
+              ? searchMatches.length > 0
+                ? `${activeSearchIndex + 1}/${searchMatches.length}`
+                : '0/0'
+              : '-'}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            disabled={searchMatches.length === 0}
+            onClick={goToPreviousSearchMatch}
+            title="Resultado anterior"
+          >
+            <ChevronUp className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            disabled={searchMatches.length === 0}
+            onClick={goToNextSearchMatch}
+            title="Resultado siguiente"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={handleToggleSearch}
+            title="Cerrar busqueda"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       <ContactEditDialog
         open={isContactEditorOpen}
@@ -533,6 +648,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onLoadOlderMessages={onLoadOlderMessages}
         canLoadOlderMessages={canLoadOlderMessages}
         loadingOlderMessages={loadingOlderMessages}
+        searchMatchIds={searchMatchIds}
+        activeSearchMessageId={activeSearchMessageId}
       />
 
       <SuggestedReplyBar

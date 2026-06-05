@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, UserRound, SquarePen, Power } from 'lucide-react';
+import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, UserRound, SquarePen, Power, Search } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -63,6 +63,8 @@ interface ChatHeaderProps {
   onNewMessage?: () => void;
   infoPanelOpen?: boolean;
   onToggleInfoPanel?: () => void;
+  searchOpen?: boolean;
+  onToggleSearch?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -86,6 +88,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onNewMessage,
   infoPanelOpen,
   onToggleInfoPanel,
+  searchOpen,
+  onToggleSearch,
 }) => {
   const adSource = session?.adSource as { title?: string; body?: string; sourceUrl?: string } | null | undefined;
   const adSourceLabel = adSource?.title || (adSource?.sourceUrl ? (() => { try { return new URL(adSource.sourceUrl!).hostname.replace(/^www\./, ''); } catch { return 'Anuncio'; } })() : null);
@@ -386,6 +390,22 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               {tagsCombobox}
 
+              {onToggleSearch && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    'h-7 w-7 shrink-0 rounded-md border border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700',
+                    searchOpen && 'border-blue-300 bg-blue-50 text-blue-600 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300',
+                  )}
+                  onClick={onToggleSearch}
+                  title="Buscar en el chat"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                </Button>
+              )}
+
               {/* Separador */}
               <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
 
@@ -492,6 +512,21 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             </>
           )}
           {lifecycleButton}
+          {onToggleSearch && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                'h-8 w-8 shrink-0 rounded-lg border border-border bg-background text-foreground hover:bg-muted',
+                searchOpen && 'border-blue-300 bg-blue-50 text-blue-600 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300',
+              )}
+              onClick={onToggleSearch}
+              title="Buscar en el chat"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+          )}
           {onToggleInfoPanel && session && (
             <Button
               type="button"

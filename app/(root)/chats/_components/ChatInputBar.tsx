@@ -24,6 +24,7 @@ import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } f
 import type { Session } from '@/types/session';
 import type { RecordedAudioData, UIBubble } from './chat-message-types';
 import { SwitchStatus } from '../../sessions/_components';
+import { getQuickReplyCategoryClass, getQuickReplyCategoryLabel } from '@/lib/quick-reply-categories';
 
 interface ChatInputBarProps {
   input: string;
@@ -212,7 +213,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
 
   return (
     <div className={cn(
-      "px-2 py-2 sm:p-3 border-t dark:border-gray-700 transition-colors",
+      "px-2 py-1.5 sm:px-3 sm:py-2 border-t dark:border-gray-700 transition-colors",
       noteMode
         ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
         : "bg-gray-50 dark:bg-gray-900",
@@ -514,6 +515,9 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               >
                 <span className="text-primary font-mono font-medium shrink-0">/{qr.name}</span>
                 <span className="text-muted-foreground truncate">{qr.message}</span>
+                <span className={`ml-auto shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${getQuickReplyCategoryClass(qr.category)}`}>
+                  {getQuickReplyCategoryLabel(qr.category)}
+                </span>
               </button>
             ))}
           </div>

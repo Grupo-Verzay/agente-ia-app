@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
 import {
+  getQuickReplyCategoryClass,
   getQuickReplyCategoryLabel,
   normalizeQuickReplyCategory,
   QUICK_REPLY_CATEGORIES,
@@ -35,7 +36,7 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
   onSendWorkflow,
 }) => {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<'workflows' | 'quickReplies'>('workflows');
+  const [tab, setTab] = useState<'workflows' | 'quickReplies'>('quickReplies');
   const [quickReplyCategory, setQuickReplyCategory] = useState<string>('all');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const quickReplyCategoryOptions = useMemo(() => {
@@ -103,21 +104,21 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
 
       <PopoverContent align="start" className="w-[340px] p-3">
         <div className="mb-3">
-          <p className="text-sm font-semibold text-foreground">Atajos de envio</p>
+          <p className="text-sm font-semibold text-foreground">Atajos</p>
           <p className="text-xs text-muted-foreground">
-            Lanza un workflow manual o envia una respuesta rapida.
+            Usa una respuesta rapida o lanza un workflow manual.
           </p>
         </div>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as 'workflows' | 'quickReplies')}>
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="workflows" className="gap-2 text-xs">
-              <Workflow className="h-3.5 w-3.5" />
-              Workflows
-            </TabsTrigger>
             <TabsTrigger value="quickReplies" className="gap-2 text-xs">
               <MessageCircleMore className="h-3.5 w-3.5" />
               Rapidas
+            </TabsTrigger>
+            <TabsTrigger value="workflows" className="gap-2 text-xs">
+              <Workflow className="h-3.5 w-3.5" />
+              Workflows
             </TabsTrigger>
           </TabsList>
 
@@ -168,10 +169,10 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
                     key={category.value}
                     type="button"
                     onClick={() => setQuickReplyCategory(category.value)}
-                    className={`h-7 shrink-0 rounded-full border px-3 text-xs transition-colors ${
+                    className={`h-7 shrink-0 rounded-full border px-3 text-xs transition-colors ${getQuickReplyCategoryClass(category.value)} ${
                       quickReplyCategory === category.value
-                        ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-                        : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                        ? 'ring-2 ring-blue-500/40'
+                        : 'opacity-80 hover:opacity-100'
                     }`}
                   >
                     {category.label}
@@ -203,9 +204,9 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
                               )}
                               <p className="line-clamp-2 text-sm font-medium">{quickReply.message}</p>
                             </div>
-                            <p className="text-[11px] text-muted-foreground">
+                            <span className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[11px] ${getQuickReplyCategoryClass(quickReply.category)}`}>
                               {getQuickReplyCategoryLabel(quickReply.category)}
-                            </p>
+                            </span>
                           </div>
                           <MessageCircleMore className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                         </CommandItem>
