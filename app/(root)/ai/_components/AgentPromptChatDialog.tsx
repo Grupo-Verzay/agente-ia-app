@@ -470,7 +470,7 @@ export function AgentPromptChatDialog({
                       variant="outline"
                       className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
                       disabled={isSending}
-                      onClick={() => void sendText(item.text)}
+                      onClick={() => { setText(item.text); }}
                     >
                       <Icon className="h-4 w-4 shrink-0 text-primary" />
                       {item.label}
