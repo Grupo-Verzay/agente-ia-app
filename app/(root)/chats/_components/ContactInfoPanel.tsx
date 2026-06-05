@@ -299,10 +299,18 @@ export function ContactInfoPanel({
         {/* Google Sheets */}
         <Section title="Google Sheets" icon={Sheet} defaultOpen={false}>
           <div className="px-4 space-y-3">
-            <p className="text-[10px] text-muted-foreground leading-snug flex items-start gap-1">
-              <Info className="h-3 w-3 shrink-0 mt-0.5" />
-              Comparte tu hoja con <span className="font-medium text-foreground select-all">agente-ia@ia-crm-496602.iam.gserviceaccount.com</span> como Editor y pega la URL aquí.
-            </p>
+            <div className="space-y-1.5">
+              <p className="text-[10px] text-muted-foreground">Comparte tu hoja con esta cuenta como <span className="font-medium">Editor</span>:</p>
+              <button
+                type="button"
+                onClick={() => { navigator.clipboard.writeText('agente-ia@ia-crm-496602.iam.gserviceaccount.com'); toast.success('Email copiado'); }}
+                className="w-full text-left text-[10px] font-mono bg-muted rounded-md px-2 py-1.5 truncate text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors border border-border/50"
+                title="Clic para copiar"
+              >
+                agente-ia@ia-crm-496602.iam.gserviceaccount.com
+              </button>
+              <p className="text-[10px] text-muted-foreground">Luego pega la URL de la hoja aquí:</p>
+            </div>
             <div className="flex gap-1.5">
               <input
                 type="text"
