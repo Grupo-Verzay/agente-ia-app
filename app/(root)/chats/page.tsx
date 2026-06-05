@@ -35,13 +35,24 @@ import { listTagsAction } from "@/actions/tag-actions";
 import { getWorkFlowByUser } from "@/actions/workflow-actions";
 import { getTeamAdvisorInfos } from "@/actions/team-actions";
 import { assignSessionToAdvisor, takeSession, releaseSession, transferSession } from "@/actions/advisor-assign-actions";
-import { getLinkedAccountsInstances, getMasterAccountInstances } from "@/actions/linked-account-actions";
 import { ChatsClient, type InstanceActionSet } from "./_components/chats-client";
 import { normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
 import type {
   ChatQuickReplyOption,
   ChatWorkflowOption,
 } from "@/types/chat";
+
+type InstanceHealth = {
+  instanceName: string;
+  instanceType?: string | null;
+  status: "open" | "closed" | "connecting" | "error" | "unknown";
+  label: string;
+  message?: string;
+  chats?: number;
+  contacts?: number;
+  messages?: number;
+  updatedAt?: string;
+};
 
 function pickWhatsappOrNull(arr: Instancia[]) {
   return (
@@ -92,8 +103,7 @@ export default async function ChatsPage({
 }) {
   const user = await settle(currentUser());
   if (!user) redirect("/login");
-
-  // Si el usuario es asesor (tiene ownerId), usa los recursos del dueño
+  // Si el usuario es asesor (tiene ownerId), usa los recursos del dueno
   const effectiveOwnerId = user.ownerId ?? user.id;
   const ownerApiKeyId =
     effectiveOwnerId !== user.id
@@ -107,18 +117,16 @@ export default async function ChatsPage({
       : user.apiKeyId;
 
   // Fase 1: todo lo que no depende de los chats corre en paralelo
-  const [resInstancias, resApikey, workflowsResponse, quickRepliesResponse0, linkedAccountsRes, masterAccountsRes] = await Promise.all([
+  const [resInstancias, resApikey, workflowsResponse, quickRepliesResponse0] = await Promise.all([
     settle(getInstancesByUserId(effectiveOwnerId)),
     settle(getApiKeyById(ownerApiKeyId ?? "")),
     settle(getWorkFlowByUser(effectiveOwnerId)),
     settle(getAllRRs(effectiveOwnerId)),
-    settle(getLinkedAccountsInstances(user.sessionUserId)),   // asesores del usuario actual
-    settle(getMasterAccountInstances(user.sessionUserId)),    // cuentas dueñas a las que está vinculado
   ]);
 
   const ownInstancias = resInstancias && hasInstancias(resInstancias) ? resInstancias.data : [];
-  const linkedAccountsData = linkedAccountsRes?.success ? linkedAccountsRes.data : [];
-  const masterAccountsData = masterAccountsRes?.success ? masterAccountsRes.data : [];
+  const linkedAccountsData: never[] = [];
+  const masterAccountsData: never[] = [];
 
   // Instancias de asesores del usuario + instancias de cuentas maestras vinculadas
   const linkedInstancias = [
@@ -172,7 +180,32 @@ export default async function ChatsPage({
     : pickWhatsappOrNull(instancias);
   const apiKey = resApikey && hasApikey(resApikey) ? resApikey.data : null;
 
-  // Fase 2: fetch chats de TODAS las instancias de mensajería en paralelo
+  const instanceHealth: InstanceHealth[] = instancias
+    .filter(
+      (inst) =>
+        inst.instanceType === "Whatsapp" ||
+        inst.instanceType === "baileys" ||
+        inst.instanceType == null,
+    )
+    .map((inst) =>
+      inst.instanceType === "baileys"
+        ? {
+            instanceName: inst.instanceName,
+            instanceType: inst.instanceType,
+            status: "unknown",
+            label: "Baileys",
+            message: "Estado local listo.",
+          }
+        : {
+            instanceName: inst.instanceName,
+            instanceType: inst.instanceType,
+            status: apiKey ? "unknown" : "error",
+            label: apiKey ? "Configurada" : "Sin API",
+            message: apiKey ? "Lista para sincronizar." : "No hay API Key configurada.",
+          },
+  );
+
+  // Fase 2: fetch chats de TODAS las instancias de mensajeria en paralelo
   type FetchPlan = { instancia: Instancia; isBaileys: boolean };
   const fetchPlans: FetchPlan[] = instancias
     .filter(
@@ -188,6 +221,7 @@ export default async function ChatsPage({
   let instanceActionSets: InstanceActionSet[] = [];
   const persistedInitialChats = await getPersistedInboxChats({
     userIds: allSessionUserIds,
+    instanceNames: instancias.map((inst) => inst.instanceName),
   });
 
   if (fetchPlans.length === 0) {
@@ -206,7 +240,7 @@ export default async function ChatsPage({
             i.instanceType === "baileys" ||
             i.instanceType == null,
         ).length === 0
-          ? "No se encontró una instancia WhatsApp válida."
+          ? "No se encontro una instancia WhatsApp valida."
           : "No hay API Key configurada.",
     };
   } else if (persistedInitialChats.length >= 0) {
@@ -234,15 +268,15 @@ export default async function ChatsPage({
     }
 
     // Deduplicate:
-    // - Groups (@g.us): by remoteJid only — same group appears in multiple instances, show once
-    // - 1-on-1 chats: by (instanceName, remoteJid) — keep separate per instance
+    // - Groups (@g.us): by remoteJid only - same group appears in multiple instances, show once
+    // - 1-on-1 chats: by (instanceName, remoteJid) - keep separate per instance
     // Sort by most recent message first so we keep the freshest entry when deduplicating
     allChats.sort((a, b) => {
       const ta = (a.lastMessage?.messageTimestamp ?? 0);
       const tb = (b.lastMessage?.messageTimestamp ?? 0);
       return tb - ta;
     });
-    // Deduplicate all chats by remoteJid — same contact appearing in multiple instances
+    // Deduplicate all chats by remoteJid - same contact appearing in multiple instances
     // shows only once (the entry with the most recent message, already sorted above).
     const seenJids = new Set<string>();
     const dedupedChats = allChats.filter((chat) => {
@@ -271,7 +305,7 @@ export default async function ChatsPage({
       chatsResult = persistedInitialChats.length
         ? {
             success: true,
-            message: "Evolution no respondió; chats cargados desde historial local.",
+            message: "Evolution no respondio; chats cargados desde historial local.",
             data: persistedInitialChats,
           }
         : { success: false, message: "No se pudieron cargar los chats." };
@@ -415,7 +449,7 @@ export default async function ChatsPage({
   const initialChatPreferences =
     chatPreferencesRes?.success ? chatPreferencesRes.data ?? {} : {};
   const advisorsFromTeam = advisorsRes?.success ? advisorsRes.data ?? [] : [];
-  // El dueño se incluye a sí mismo para poder autoasignarse desde el badge
+  // El dueno se incluye a si mismo para poder autoasignarse desde el badge
   const isOwner = !user.ownerId;
   const advisors = isOwner && user.id && user.email
     ? [{ id: user.id, name: user.name ?? null, email: user.email, advisorRole: null as string | null }, ...advisorsFromTeam]
@@ -469,6 +503,7 @@ export default async function ChatsPage({
       refetchChatsAction={refetchChatsAction}
       apiKeyData={apiKey ? { url: apiKey.url, key: apiKey.key } : undefined}
       instanceActionSets={instanceActionSets}
+      instanceHealth={instanceHealth}
       allTags={allTags}
       workflows={workflowOptions}
       quickReplies={quickReplyOptions}

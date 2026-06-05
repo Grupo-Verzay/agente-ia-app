@@ -307,7 +307,7 @@ export function ChatSidebar({
       starred: active.filter((c) => starredJids.has(c.id)).length,
       notes: active.filter((c) => c.hasNotes).length,
     };
-  }, [contacts, starredJids, notedSessionIds]);
+  }, [contacts, starredJids]);
 
   const filtered = useMemo(() => {
     if (tab === "deleted") return [];

@@ -60,6 +60,18 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
 type ApiKeyData = { url: string; key: string };
 const INITIAL_MESSAGE_PAGE_SIZE = 5;
 
+export type InstanceHealth = {
+  instanceName: string;
+  instanceType?: string | null;
+  status: "open" | "closed" | "connecting" | "error" | "unknown";
+  label: string;
+  message?: string;
+  chats?: number;
+  contacts?: number;
+  messages?: number;
+  updatedAt?: string;
+};
+
 export type InstanceActionSet = {
   instanceName: string;
   instanceType?: string;
@@ -105,10 +117,28 @@ function filterChatList(result: FetchChatsResult): FetchChatsResult {
 
   return {
     ...result,
-    data: result.data.filter(
+    data: dedupeAndSortChats(result.data).filter(
       (chat) => chat.remoteJid && chat.remoteJid !== "status@broadcast",
     ),
   };
+}
+
+function getChatSortTimestamp(chat: ChatData) {
+  return (
+    chat.lastMessage?.messageTimestamp ??
+    (chat.updatedAt ? Math.floor(new Date(chat.updatedAt).getTime() / 1000) : 0)
+  );
+}
+
+function dedupeAndSortChats(chats: ChatData[]) {
+  const seen = new Set<string>();
+  return [...chats]
+    .sort((a, b) => getChatSortTimestamp(b) - getChatSortTimestamp(a))
+    .filter((chat) => {
+      if (!chat.remoteJid || seen.has(chat.remoteJid)) return false;
+      seen.add(chat.remoteJid);
+      return true;
+    });
 }
 
 interface ChatsClientProps {
@@ -140,6 +170,7 @@ interface ChatsClientProps {
   refetchChatsAction: () => Promise<FetchChatsResult>;
   apiKeyData?: ApiKeyData;
   instanceActionSets?: InstanceActionSet[];
+  instanceHealth?: InstanceHealth[];
   allTags: SimpleTag[];
   workflows: ChatWorkflowOption[];
   quickReplies: ChatQuickReplyOption[];
@@ -176,6 +207,7 @@ export function ChatsClient({
   instanceName,
   apiKeyData,
   instanceActionSets,
+  instanceHealth = [],
   allTags,
   workflows,
   quickReplies,
@@ -184,6 +216,22 @@ export function ChatsClient({
     () => filterChatList(initialChatsResult),
     [initialChatsResult],
   );
+
+  const disconnectedInstanceNames = useMemo(
+    () =>
+      instanceHealth
+        .filter((health) => health.status === "closed" || health.status === "error")
+        .map((health) => health.instanceName),
+    [instanceHealth],
+  );
+
+  useEffect(() => {
+    if (disconnectedInstanceNames.length === 0) return;
+    toast.error("Instancia desconectada. Vincular WhatsApp", {
+      description: disconnectedInstanceNames.join(", "),
+      id: "chat-instance-disconnected",
+    });
+  }, [disconnectedInstanceNames]);
 
   const initialSelectedChat =
     normalizedInitialChatsResult.success && initialSelectedJid
@@ -400,7 +448,7 @@ export function ChatsClient({
     for (const r of results) {
       if (r.status === "fulfilled" && r.value.success) allChats.push(...r.value.data);
     }
-    return { success: true, message: "OK", data: allChats };
+    return { success: true, message: "OK", data: dedupeAndSortChats(allChats) };
   }, [instanceActionSets, refetchChatsAction]);
 
   const refreshSidebarData = useCallback(async () => {
@@ -511,7 +559,7 @@ export function ChatsClient({
         }
       }
     },
-    [chatSessions, advisorRole, currentAdvisorId, takeSessionAction, assignAdvisorAction, releaseSessionAction, transferSessionAction],
+    [chatSessions, advisorRole, advisors, currentAdvisorId, takeSessionAction, assignAdvisorAction, releaseSessionAction, transferSessionAction],
   );
 
   const handleSessionTagsChange = useCallback(
