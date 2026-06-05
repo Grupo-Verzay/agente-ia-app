@@ -557,6 +557,14 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         setSlashOpen(false);
         return;
       }
+      const shouldEnterInsertLineBreak =
+        typeof window !== 'undefined' &&
+        (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768);
+
+      if (e.key === 'Enter' && shouldEnterInsertLineBreak) {
+        return;
+      }
+
       if (!isRecording && !recordedAudio && e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         if (noteMode) {
