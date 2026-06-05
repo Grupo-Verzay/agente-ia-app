@@ -41,8 +41,8 @@ type AgentPromptChatDialogProps = {
 const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
   business: [
     { label: "Datos clave faltantes", icon: Lightbulb, text: "Sugiere qué datos del negocio faltan o deberían añadirse para que el Agente IA responda mejor." },
-    { label: "Mejorar descripción", icon: Wand2, text: "Mejora la descripción del negocio para que sea más clara y atractiva para clientes por WhatsApp." },
-    { label: "Tono profesional", icon: Sparkles, text: "Ajusta el tono de la información del negocio para sonar más profesional y confiable." },
+    { label: "Mejorar la descripción", icon: Wand2, text: "Mejora la descripción del negocio para que sea más clara y atractiva para clientes por WhatsApp." },
+    { label: "Usar tono profesional", icon: Sparkles, text: "Ajusta el tono de la información del negocio para sonar más profesional y confiable." },
   ],
   training: [
     { label: "Mejorar bienvenida", icon: Wand2, text: "Mejora el mensaje de inicio para que sea más cálido, claro y guíe bien al usuario desde el primer mensaje." },
@@ -72,13 +72,13 @@ const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
 };
 
 const OPTIMIZE_PROMPT: QuickPrompt = {
-  label: "Optimizar",
+  label: "Optimizar el prompt",
   icon: Sparkles,
   text: "Revisa esta sección y dime qué cambiar, agregar o quitar para mejorar el resultado del Agente IA sin hacerlo más largo.",
 };
 
 const SIMULATE_PROMPT: QuickPrompt = {
-  label: "Simular",
+  label: "Simular conversación",
   icon: MessageSquare,
   text: "",
 };
@@ -764,7 +764,7 @@ export function AgentPromptChatDialog({
                   onClick={() => setGeneratorMode(true)}
                 >
                   <Sparkles className="h-4 w-4 shrink-0 text-primary" />
-                  Generar flujo
+                  Generar flujo del negocio
                 </Button>
               </div>
             </div>
