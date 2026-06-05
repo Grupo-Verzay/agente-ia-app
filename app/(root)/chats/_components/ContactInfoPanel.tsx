@@ -284,12 +284,7 @@ export function ContactInfoPanel({
           )}>
             <div className="flex items-center gap-2">
               <BotIcon className={cn('h-4 w-4 transition-colors', agentEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')} />
-              <div>
-                <p className="text-xs font-medium leading-tight">Agente IA</p>
-                <p className={cn('text-[10px] leading-tight transition-colors', agentEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
-                  {agentEnabled ? 'Respondiendo' : 'Pausado'}
-                </p>
-              </div>
+              <p className="text-xs font-medium">Agente IA</p>
             </div>
             <SwitchPrimitive.Root
               checked={agentEnabled}
