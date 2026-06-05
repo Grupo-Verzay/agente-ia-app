@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -195,22 +194,25 @@ export function AgentPromptChatDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(720px,92dvh)] w-[min(960px,calc(100vw-1.5rem))] max-w-none flex-col gap-0 overflow-hidden p-0">
-        <DialogHeader className="border-b px-5 py-4">
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <Bot className="h-4 w-4" />
-            </span>
-            Chat para mejorar Agente IA
-          </DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Seccion actual: <span className="font-medium text-foreground">{TYPE_AI_LABELS[activeTab]}</span>
-          </p>
-        </DialogHeader>
+      <DialogContent className="h-[min(720px,92dvh)] w-[min(960px,calc(100vw-1.5rem))] max-w-none overflow-hidden p-0">
+        <div className="grid h-full grid-cols-1 lg:grid-cols-[1fr_320px]">
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1fr_320px]">
+          {/* ── Columna izquierda: chat ── */}
           <div className="flex h-full flex-col border-r">
-            <ScrollArea className="min-h-0 flex-1 px-4 pt-0 pb-4">
+            {/* Header solo en columna izquierda */}
+            <div className="shrink-0 border-b px-4 py-3">
+              <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <Bot className="h-3.5 w-3.5" />
+                </span>
+                Chat para mejorar Agente IA
+              </DialogTitle>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Sección actual: <span className="font-medium text-foreground">{TYPE_AI_LABELS[activeTab]}</span>
+              </p>
+            </div>
+
+            <ScrollArea className="min-h-0 flex-1 px-4 pt-3 pb-4">
               <div className="space-y-3">
                 {messages.map((message) => (
                   <PromptChatBubble key={message.id} message={message} />
