@@ -5,6 +5,7 @@ import {
   X, Loader2, Phone, Megaphone, Mail, Building2, MapPin,
   Briefcase, FileText, Check, ChevronDown,
   Sheet, Send, Info, BotIcon, Pencil, CheckCircle2,
+  Globe, AtSign, Share2, Linkedin,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -33,8 +34,12 @@ type ContactFields = {
   ciudad: string;
   cargo: string;
   notas: string;
+  sitioWeb: string;
+  instagram: string;
+  facebook: string;
+  linkedin: string;
 };
-const EMPTY_FIELDS: ContactFields = { email: '', empresa: '', ciudad: '', cargo: '', notas: '' };
+const EMPTY_FIELDS: ContactFields = { email: '', empresa: '', ciudad: '', cargo: '', notas: '', sitioWeb: '', instagram: '', facebook: '', linkedin: '' };
 
 /* ── Inline field ──────────────────────────────────────────── */
 interface InlineFieldProps {
@@ -176,6 +181,10 @@ export function ContactInfoPanel({
           ciudad: String(d.ciudad ?? ''),
           cargo: String(d.cargo ?? ''),
           notas: String(d.notas ?? ''),
+          sitioWeb: String(d.sitioWeb ?? ''),
+          instagram: String(d.instagram ?? ''),
+          facebook: String(d.facebook ?? ''),
+          linkedin: String(d.linkedin ?? ''),
         });
       }
       if (!cancelled) setLoadingData(false);
@@ -262,11 +271,15 @@ export function ContactInfoPanel({
   };
 
   const FIELDS_CONFIG: { field: keyof ContactFields; icon: React.ElementType; label: string; multiline?: boolean }[] = [
-    { field: 'email',   icon: Mail,      label: 'Email' },
-    { field: 'empresa', icon: Building2, label: 'Empresa' },
-    { field: 'ciudad',  icon: MapPin,    label: 'Ciudad' },
-    { field: 'cargo',   icon: Briefcase, label: 'Cargo' },
-    { field: 'notas',   icon: FileText,  label: 'Notas', multiline: true },
+    { field: 'email',    icon: Mail,      label: 'Email' },
+    { field: 'empresa',  icon: Building2, label: 'Empresa' },
+    { field: 'ciudad',   icon: MapPin,    label: 'Ciudad' },
+    { field: 'cargo',    icon: Briefcase, label: 'Cargo' },
+    { field: 'sitioWeb', icon: Globe,     label: 'Sitio web' },
+    { field: 'instagram',icon: AtSign,    label: 'Instagram' },
+    { field: 'facebook', icon: Share2,    label: 'Facebook' },
+    { field: 'linkedin', icon: Linkedin,  label: 'LinkedIn' },
+    { field: 'notas',    icon: FileText,  label: 'Notas', multiline: true },
   ];
 
   return (
