@@ -209,7 +209,7 @@ export function AgentPromptChatDialog({
         </DialogHeader>
 
         <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1fr_320px]">
-          <div className="flex min-h-0 flex-col border-r">
+          <div className="flex h-full flex-col border-r">
             <ScrollArea className="min-h-0 flex-1 px-4 pt-0 pb-4">
               <div className="space-y-3">
                 {messages.map((message) => (
