@@ -18,7 +18,7 @@ import {
 } from "@/types/agentAi";
 import { ProductBuilder } from "./ProductBuilder";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, History, MessageSquare, MoreVertical, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bot, History, MessageSquare, MoreVertical, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PromptToolbar } from "./PromptToolbar";
@@ -42,15 +42,8 @@ import { deleteAgentPromptsByUserId } from "@/actions/prompt-actions";
 import { FlowGeneratorModal } from "./FlowGeneratorModal";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { ChatSimulatorModal } from "./ChatSimulatorModal";
-
-export const TYPE_AI_LABELS = {
-    business: "Perfil",
-    training: "Inicio",
-    faq: "Preguntas",
-    products: "Productos",
-    more: "Extras",
-    management: "Gestion",
-} as const;
+import { AgentPromptChatDialog } from "./AgentPromptChatDialog";
+import { TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
 
 const CADENA_PHASES: Record<keyof typeof TYPE_AI_LABELS, string> = {
     business:   "Base transversal · Datos del negocio y contexto del agente",
@@ -61,7 +54,7 @@ const CADENA_PHASES: Record<keyof typeof TYPE_AI_LABELS, string> = {
     management: "Fases 6-7 · Acuerdo + Postventa — Cierre, herramientas y seguimiento",
 };
 
-type TabKey = keyof typeof TYPE_AI_LABELS;
+type TabKey = AiSectionKey;
 
 export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     const router = useRouter();
@@ -69,6 +62,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     const [showFlowGenerator, setShowFlowGenerator] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     const [showSimulator, setShowSimulator] = useState(false);
+    const [showPromptChat, setShowPromptChat] = useState(false);
 
     const trainingMd = sections?.training
         ? buildTrainingMarkdown(TrainingDraftSchema.parse(sections.training))
@@ -152,6 +146,31 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
         () => buildPrompt(values, { enabled: firmaEnabled, name: signatureName }),
         [values, firmaEnabled, signatureName]
     );
+
+    const currentDraft = useMemo(() => {
+        if (activeTab === "business") {
+            return [
+                values.nombre && `Nombre: ${values.nombre}`,
+                values.sector && `Sector: ${values.sector}`,
+                values.ubicacion && `Ubicacion: ${values.ubicacion}`,
+                values.horarios && `Horarios: ${values.horarios}`,
+                values.telefono && `Telefono: ${values.telefono}`,
+                values.email && `Email: ${values.email}`,
+                values.sitio && `Sitio web: ${values.sitio}`,
+                values.notas && `Notas: ${values.notas}`,
+            ].filter(Boolean).join("\n");
+        }
+
+        const map: Record<Exclude<TabKey, "business">, keyof BusinessValues> = {
+            training: "training",
+            faq: "faq",
+            products: "products",
+            more: "more",
+            management: "management",
+        };
+
+        return String(values[map[activeTab as Exclude<TabKey, "business">]] ?? "");
+    }, [activeTab, values]);
 
     const completedTabs = useMemo((): Set<TabKey> => {
         const done = new Set<TabKey>();
@@ -306,6 +325,15 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                     revisions={[]}
                                     onManualSave={handleManualSaveCurrent}
                                 />
+
+                            <Button
+                                variant="outline"
+                                className="gap-2 h-9"
+                                onClick={() => setShowPromptChat(true)}
+                            >
+                                <Bot className="h-4 w-4 text-primary" />
+                                <span className="hidden sm:inline">Chat prompts</span>
+                            </Button>
 
                             <Button
                                 variant="outline"
@@ -531,6 +559,13 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                 onOpenChange={setShowSimulator}
                 promptId={promptMeta.id}
                 businessName={promptMeta.businessName ?? ""}
+            />
+            <AgentPromptChatDialog
+                open={showPromptChat}
+                onOpenChange={setShowPromptChat}
+                activeTab={activeTab}
+                currentDraft={currentDraft}
+                promptPreview={prompt}
             />
         </>
     );
