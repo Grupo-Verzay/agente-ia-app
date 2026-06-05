@@ -779,7 +779,8 @@ export function AgentPromptChatDialog({
             </div>
 
             {/* Descripción de la sección */}
-            <div className="mx-4 mb-4 rounded-lg border bg-muted/40 px-3 py-3">
+            <div className="border-t mx-0 mb-0" />
+            <div className="mx-4 mb-4 mt-3 rounded-lg border bg-muted/40 px-3 py-3">
               <p className="text-xs font-semibold text-foreground mb-1.5">
                 Sección: {TYPE_AI_LABELS[activeTab]}
               </p>
