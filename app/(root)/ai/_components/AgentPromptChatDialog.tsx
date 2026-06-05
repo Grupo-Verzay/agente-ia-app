@@ -567,7 +567,7 @@ export function AgentPromptChatDialog({
                 {/* Mobile: atajos horizontales */}
                 <div className="shrink-0 overflow-x-auto border-t px-3 py-2 lg:hidden">
                   <div className="flex gap-2 w-max">
-                    {quickPrompts.map((item) => {
+                    {[...quickPrompts, SIMULATE_PROMPT].map((item) => {
                       const Icon = item.icon;
                       const isSimulate = item.label === SIMULATE_PROMPT.label;
                       return (
@@ -636,7 +636,7 @@ export function AgentPromptChatDialog({
             <div className="flex flex-col gap-3 px-4 pt-3 pb-3">
               <p className="text-sm font-semibold">Atajos</p>
               <div className="space-y-2">
-                {quickPrompts.map((item) => {
+                {[...quickPrompts, SIMULATE_PROMPT].map((item) => {
                   const Icon = item.icon;
                   const isSimulate = item.label === SIMULATE_PROMPT.label;
                   return (
