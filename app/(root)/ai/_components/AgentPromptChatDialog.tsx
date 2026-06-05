@@ -72,12 +72,12 @@ const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
 };
 
 const SECTION_DESCRIPTIONS: Record<AiSectionKey, string> = {
-  business: "El agente usa esto para presentar el negocio y responder preguntas básicas al cliente.",
-  training: "Define cómo el agente saluda y arranca cada conversación en WhatsApp.",
-  faq: "Respuestas frecuentes para que el agente responda sin intervención humana.",
-  products: "El agente usa esto para presentar y cotizar productos o servicios al cliente.",
-  more: "Información extra que el agente consulta en situaciones específicas.",
-  management: "Configura cómo el agente maneja quejas, escalaciones y seguimientos.",
+  business: "El agente usa esta sección para presentar el negocio y responder preguntas básicas como horarios, ubicación y contacto.",
+  training: "Define cómo el agente saluda y arranca cada conversación. Un buen inicio genera confianza desde el primer mensaje.",
+  faq: "Respuestas a las preguntas más frecuentes. Entre más completa esté, menos veces el agente quedará sin respuesta.",
+  products: "El agente usa esta sección para presentar, describir y cotizar productos o servicios cuando el cliente los solicita.",
+  more: "Información adicional que el agente consulta en situaciones específicas: políticas, restricciones o datos extra.",
+  management: "Configura cómo el agente maneja quejas, escalaciones a humano, seguimientos y casos fuera de lo normal.",
 };
 
 const OPTIMIZE_PROMPT: QuickPrompt = {
@@ -783,7 +783,7 @@ export function AgentPromptChatDialog({
               <p className="text-[10px] font-semibold uppercase tracking-wide text-primary mb-1">
                 {TYPE_AI_LABELS[activeTab]}
               </p>
-              <p className="text-sm leading-relaxed text-foreground font-medium">
+              <p className="text-xs leading-relaxed text-foreground font-medium">
                 {SECTION_DESCRIPTIONS[activeTab]}
               </p>
             </div>
