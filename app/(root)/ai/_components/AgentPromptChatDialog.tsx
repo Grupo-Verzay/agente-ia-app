@@ -3,8 +3,8 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle, ArrowLeft, Bot, CheckCircle2, ChevronDown, ChevronUp,
-  Copy, FileText, Lightbulb, Loader2, MessageSquare, RefreshCw,
-  RotateCcw, Send, SendHorizontal, Sparkles, Trash2, Wand2,
+  Copy, FileText, GitBranch, Lightbulb, Loader2, MessageSquare, PenLine, RefreshCw,
+  RotateCcw, Send, SendHorizontal, Sparkles, Trash2, Wand2, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,7 +42,7 @@ const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
   business: [
     { label: "Datos clave faltantes", icon: Lightbulb, text: "Sugiere qué datos del negocio faltan o deberían añadirse para que el Agente IA responda mejor." },
     { label: "Mejorar la descripción", icon: Wand2, text: "Mejora la descripción del negocio para que sea más clara y atractiva para clientes por WhatsApp." },
-    { label: "Usar tono profesional", icon: Sparkles, text: "Ajusta el tono de la información del negocio para sonar más profesional y confiable." },
+    { label: "Usar tono profesional", icon: PenLine, text: "Ajusta el tono de la información del negocio para sonar más profesional y confiable." },
   ],
   training: [
     { label: "Mejorar bienvenida", icon: Wand2, text: "Mejora el mensaje de inicio para que sea más cálido, claro y guíe bien al usuario desde el primer mensaje." },
@@ -73,7 +73,7 @@ const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
 
 const OPTIMIZE_PROMPT: QuickPrompt = {
   label: "Optimizar el prompt",
-  icon: Sparkles,
+  icon: Zap,
   text: "Revisa esta sección y dime qué cambiar, agregar o quitar para mejorar el resultado del Agente IA sin hacerlo más largo.",
 };
 
@@ -763,7 +763,7 @@ export function AgentPromptChatDialog({
                   className="h-auto w-full justify-start gap-2 px-3 py-2 text-left text-sm"
                   onClick={() => setGeneratorMode(true)}
                 >
-                  <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+                  <GitBranch className="h-4 w-4 shrink-0 text-primary" />
                   Generar flujo del negocio
                 </Button>
               </div>
