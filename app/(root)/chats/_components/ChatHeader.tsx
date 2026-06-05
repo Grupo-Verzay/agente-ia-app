@@ -501,7 +501,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               className="hidden md:flex h-8 items-center gap-1.5 px-2.5 rounded-lg border border-border bg-background text-foreground hover:bg-muted shrink-0 transition-colors"
               size="sm"
             >
-              <UserRound className="h-3.5 w-3.5" />
+              <UserRound className="h-3.5 w-3.5 text-gray-600 dark:text-gray-400" />
               {infoPanelOpen
                 ? <PanelRightClose className="h-3.5 w-3.5 opacity-80" />
                 : <PanelRightOpen className="h-3.5 w-3.5 opacity-80" />}
