@@ -8,12 +8,10 @@ function getAuth() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!raw) throw new Error('Falta la variable GOOGLE_SERVICE_ACCOUNT_JSON en el .env');
   const creds = JSON.parse(raw);
-  return new google.auth.JWT(
-    creds.client_email,
-    undefined,
-    creds.private_key,
-    ['https://www.googleapis.com/auth/spreadsheets'],
-  );
+  return new google.auth.GoogleAuth({
+    credentials: creds,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
 }
 
 function extractSheetId(input: string): string | null {
