@@ -780,7 +780,7 @@ export function AgentPromptChatDialog({
 
             {/* Descripción de la sección */}
             <div className="mt-auto shrink-0 border-t px-4 py-11">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">
+              <p className="text-sm font-semibold mb-1">
                 {TYPE_AI_LABELS[activeTab]}
               </p>
               <p className="text-sm leading-relaxed text-foreground text-justify">
