@@ -49,7 +49,12 @@ export const saveGoogleSheetsWebhookUrl = saveGoogleSheetId;
 export const getGoogleSheetsWebhookUrl = getGoogleSheetsConfig;
 
 /* ── Sync ──────────────────────────────────────────────────── */
-const HEADERS = ['Teléfono', 'Nombre', 'Email', 'Empresa', 'Ciudad', 'Cargo', 'Notas', 'Actualizado'];
+const HEADERS = [
+  'Teléfono', 'Nombre', 'Empresa', 'Cargo', 'Documento',
+  'Email', 'Teléfono alt.', 'Fecha', 'País', 'Ciudad', 'Dirección',
+  'Sitio web', 'Instagram', 'Facebook', 'LinkedIn', 'Notas', 'Actualizado',
+];
+const COL_END = 'Q'; // 17 columnas
 
 export async function syncContactToGoogleSheets(
   userId: string,
@@ -61,6 +66,15 @@ export async function syncContactToGoogleSheets(
     ciudad?: string;
     cargo?: string;
     notas?: string;
+    documento?: string;
+    telefono?: string;
+    fecha?: string;
+    pais?: string;
+    direccion?: string;
+    sitioWeb?: string;
+    instagram?: string;
+    facebook?: string;
+    linkedin?: string;
   },
 ): Promise<{ success: boolean; error?: string }> {
   const config = await getGoogleSheetsConfig(userId);
@@ -75,12 +89,12 @@ export async function syncContactToGoogleSheets(
     // Asegurar que existan los encabezados en la fila 1
     const meta = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
-      range: 'A1:H1',
+      range: `A1:${COL_END}1`,
     });
     if (!meta.data.values?.length) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: sheetId,
-        range: 'A1:H1',
+        range: `A1:${COL_END}1`,
         valueInputOption: 'RAW',
         requestBody: { values: [HEADERS] },
       });
@@ -97,27 +111,34 @@ export async function syncContactToGoogleSheets(
     const row = [
       payload.phone,
       payload.name,
-      payload.email ?? '',
       payload.empresa ?? '',
-      payload.ciudad ?? '',
       payload.cargo ?? '',
+      payload.documento ?? '',
+      payload.email ?? '',
+      payload.telefono ?? '',
+      payload.fecha ?? '',
+      payload.pais ?? '',
+      payload.ciudad ?? '',
+      payload.direccion ?? '',
+      payload.sitioWeb ?? '',
+      payload.instagram ?? '',
+      payload.facebook ?? '',
+      payload.linkedin ?? '',
       payload.notas ?? '',
       new Date().toLocaleString('es-CO'),
     ];
 
     if (rowIdx > 0) {
-      // Actualizar fila existente
       await sheets.spreadsheets.values.update({
         spreadsheetId: sheetId,
-        range: `A${rowIdx + 1}:H${rowIdx + 1}`,
+        range: `A${rowIdx + 1}:${COL_END}${rowIdx + 1}`,
         valueInputOption: 'RAW',
         requestBody: { values: [row] },
       });
     } else {
-      // Agregar nueva fila
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
-        range: 'A:H',
+        range: `A:${COL_END}`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: [row] },
