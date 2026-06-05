@@ -276,7 +276,7 @@ export function ContactInfoPanel({
           )}
 
           {/* Agente IA toggle */}
-          <div className="flex items-center justify-between w-full mt-2 px-3 py-2">
+          <div className="flex items-center justify-between w-full mt-1 px-3 py-1">
             <div className="flex items-center gap-2">
               <BotIcon className={cn('h-4 w-4 transition-colors', agentEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')} />
               <p className="text-xs font-medium">Agente IA</p>
