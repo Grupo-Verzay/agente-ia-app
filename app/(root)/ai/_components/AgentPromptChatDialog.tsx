@@ -33,6 +33,7 @@ type AgentPromptChatDialogProps = {
   promptPreview: string;
   promptId?: string;
   onApplyDraft?: (text: string) => void;
+  onSimulate?: () => void;
 };
 
 const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
@@ -204,6 +205,7 @@ export function AgentPromptChatDialog({
   promptPreview,
   promptId,
   onApplyDraft,
+  onSimulate,
 }: AgentPromptChatDialogProps) {
   const [text, setText] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -463,14 +465,15 @@ export function AgentPromptChatDialog({
               <div className="space-y-2">
                 {[...quickPrompts, SIMULATE_PROMPT].map((item) => {
                   const Icon = item.icon;
+                  const isSimulate = item.label === SIMULATE_PROMPT.label;
                   return (
                     <Button
                       key={item.label}
                       type="button"
                       variant="outline"
                       className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
-                      disabled={isSending}
-                      onClick={() => { setText(item.text); }}
+                      disabled={isSending || (isSimulate && !onSimulate)}
+                      onClick={() => { isSimulate ? onSimulate?.() : setText(item.text); }}
                     >
                       <Icon className="h-4 w-4 shrink-0 text-primary" />
                       {item.label}
