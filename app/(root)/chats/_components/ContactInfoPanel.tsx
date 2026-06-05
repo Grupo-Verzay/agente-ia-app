@@ -63,26 +63,25 @@ interface InlineFieldProps {
 function InlineField({ icon: Icon, label, field, value, multiline, saved, onChange, onSave }: InlineFieldProps) {
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
 
-  const commonCls = cn(
-    'flex-1 text-sm bg-transparent outline-none resize-none placeholder:text-muted-foreground/40',
-    'border-0 focus:ring-0 p-0',
-  );
+  const inputCls = 'flex-1 text-sm bg-transparent outline-none resize-none placeholder:text-muted-foreground/30 border-0 focus:ring-0 p-0 w-full';
 
   return (
-    <div
-      className="group flex items-start gap-2.5 py-2 px-2 rounded-lg hover:bg-muted/40 cursor-text transition-colors"
-      onClick={() => ref.current?.focus()}
-    >
-      <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider leading-none mb-1">{label}</p>
+    <div className="px-4 py-1.5">
+      <label className="text-[10px] text-muted-foreground/70 font-medium flex items-center gap-1 mb-1 cursor-pointer" onClick={() => ref.current?.focus()}>
+        <Icon className="h-3 w-3" />
+        {label}
+      </label>
+      <div
+        className="flex items-start gap-1.5 rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 focus-within:border-primary/40 focus-within:bg-background transition-colors cursor-text"
+        onClick={() => ref.current?.focus()}
+      >
         {multiline ? (
           <textarea
             ref={ref as React.RefObject<HTMLTextAreaElement>}
             rows={3}
-            className={cn(commonCls, 'w-full leading-snug')}
+            className={inputCls + ' leading-snug'}
             value={value}
-            placeholder="—"
+            placeholder={`Agregar ${label.toLowerCase()}…`}
             onChange={(e) => onChange(field, e.target.value)}
             onBlur={onSave}
           />
@@ -90,15 +89,15 @@ function InlineField({ icon: Icon, label, field, value, multiline, saved, onChan
           <input
             ref={ref as React.RefObject<HTMLInputElement>}
             type="text"
-            className={cn(commonCls, 'w-full')}
+            className={inputCls}
             value={value}
-            placeholder="—"
+            placeholder={`Agregar ${label.toLowerCase()}…`}
             onChange={(e) => onChange(field, e.target.value)}
             onBlur={onSave}
           />
         )}
+        {saved && <Check className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />}
       </div>
-      {saved && <Check className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />}
     </div>
   );
 }
@@ -290,31 +289,21 @@ export function ContactInfoPanel({
               <span className="truncate max-w-[200px]">{adLabel}</span>
             </span>
           )}
-          <div className="flex flex-wrap justify-center gap-1.5 mt-1">
-            <Badge variant="outline" className={cn('text-[10px] py-0.5 px-1.5', session.status
-              ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
-              : 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400')}>
-              {session.status ? 'Activa' : 'Pausada'}
+          {notesCount !== undefined && notesCount > 0 && (
+            <Badge variant="outline" className="text-[10px] py-0.5 px-1.5 gap-1 mt-0.5">
+              <FileText className="h-2.5 w-2.5" />{notesCount} nota{notesCount > 1 ? 's' : ''}
             </Badge>
-            {session.agentDisabled && (
-              <Badge variant="outline" className="text-[10px] py-0.5 px-1.5 text-gray-500">IA off</Badge>
-            )}
-            {notesCount !== undefined && notesCount > 0 && (
-              <Badge variant="outline" className="text-[10px] py-0.5 px-1.5 gap-1">
-                <FileText className="h-2.5 w-2.5" />{notesCount} nota{notesCount > 1 ? 's' : ''}
-              </Badge>
-            )}
-          </div>
+          )}
         </div>
 
         {/* ── Datos del cliente ── */}
         <Section title="Datos del cliente" icon={Briefcase}>
           {loadingData ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground px-2 py-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground px-4 py-2">
               <Loader2 className="h-3 w-3 animate-spin" /> Cargando…
             </div>
           ) : (
-            <div className="space-y-0.5">
+            <div className="space-y-2 py-1">
               {FIELDS_CONFIG.map(({ field, icon, label, multiline }) => (
                 <InlineField
                   key={field}
@@ -337,8 +326,8 @@ export function ContactInfoPanel({
           <div className="space-y-3 px-2">
 
             {/* Lead status */}
-            <div>
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Estado del lead</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Estado</p>
               <LeadStatusSelect
                 sessionId={session.id}
                 currentStatus={localStatus}
@@ -347,33 +336,27 @@ export function ContactInfoPanel({
             </div>
 
             {/* Lead score */}
-            <div>
-              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">Puntuación IA</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider shrink-0">Puntuación IA</p>
               {localScore !== null ? (
-                <div className="rounded-lg border p-2.5 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 rounded-md px-2 py-1 text-white font-bold text-sm" style={{ backgroundColor: scoreColor(localScore) }}>
-                      <TrendingUp className="h-3 w-3" />
-                      {localScore}<span className="text-xs font-normal opacity-80">/100</span>
-                    </div>
-                    <Button type="button" variant="ghost" size="sm" onClick={handleScore} disabled={scoring} className="h-6 gap-1 text-xs px-2">
-                      {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                      Re-puntuar
-                    </Button>
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <div className="flex items-center gap-1 rounded-md px-2 py-0.5 text-white font-bold text-xs" style={{ backgroundColor: scoreColor(localScore) }}>
+                    {localScore}<span className="font-normal opacity-80">/100</span>
                   </div>
-                  {localReason && <p className="text-xs text-muted-foreground leading-relaxed">{localReason}</p>}
-                  {session.leadScoredAt && <p className="text-[10px] text-muted-foreground/60">{timeAgo(session.leadScoredAt)}</p>}
-                </div>
-              ) : (
-                <div className="rounded-lg border border-dashed p-2.5 flex items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground">Sin puntuación</p>
-                  <Button type="button" size="sm" onClick={handleScore} disabled={scoring} className="h-6 gap-1 text-xs px-2">
-                    {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                    Puntuar
+                  <Button type="button" variant="ghost" size="icon" onClick={handleScore} disabled={scoring} className="h-6 w-6" title="Re-puntuar">
+                    {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                   </Button>
                 </div>
+              ) : (
+                <Button type="button" variant="outline" size="sm" onClick={handleScore} disabled={scoring} className="h-6 gap-1 text-xs px-2 ml-auto">
+                  {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                  Puntuar
+                </Button>
               )}
             </div>
+            {localScore !== null && localReason && (
+              <p className="text-[11px] text-muted-foreground leading-relaxed -mt-1">{localReason}</p>
+            )}
 
             {/* Tags */}
             <div>
@@ -404,11 +387,9 @@ export function ContactInfoPanel({
 
             {/* Follow-ups */}
             {pendingFollowUps > 0 && (
-              <div className="rounded-lg border p-2.5 flex items-center gap-2">
-                <Bell className="h-4 w-4 text-amber-500 shrink-0" />
-                <span className="text-sm font-medium text-amber-600">
-                  {pendingFollowUps} follow-up{pendingFollowUps > 1 ? 's' : ''} pendiente{pendingFollowUps > 1 ? 's' : ''}
-                </span>
+              <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-500">
+                <Bell className="h-3.5 w-3.5 shrink-0" />
+                {pendingFollowUps} follow-up{pendingFollowUps > 1 ? 's' : ''} pendiente{pendingFollowUps > 1 ? 's' : ''}
               </div>
             )}
           </div>
