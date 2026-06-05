@@ -208,7 +208,7 @@ export function AgentPromptChatDialog({
           </p>
         </DialogHeader>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1fr_260px]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1fr_320px]">
           <div className="flex min-h-0 flex-col border-r">
             <ScrollArea className="min-h-0 flex-1 px-4 py-4">
               <div className="space-y-3">
@@ -260,7 +260,7 @@ export function AgentPromptChatDialog({
 
           <aside className="hidden min-h-0 flex-col gap-0 bg-muted/20 lg:flex overflow-y-auto">
             {/* Atajos */}
-            <div className="flex flex-col gap-3 p-4">
+            <div className="flex flex-col gap-3 px-4 pt-3 pb-3">
               <div>
                 <p className="text-sm font-semibold">Atajos</p>
                 <p className="mt-1 text-xs text-muted-foreground">Puntos de partida para obtener una respuesta lista.</p>
