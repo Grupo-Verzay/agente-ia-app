@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bot, CheckCircle2, AlertCircle, ChevronDown, ChevronUp,
-  Copy, FileText, Lightbulb, Loader2, RefreshCw,
+  Copy, FileText, Lightbulb, Loader2, MessageSquare, RefreshCw,
   SendHorizontal, Sparkles, Trash2, Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -66,6 +66,12 @@ const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
     { label: "Flujo de escalación", icon: Lightbulb, text: "Crea un flujo claro para escalar casos complejos a un agente humano sin frustrar al cliente." },
     { label: "Optimizar respuestas", icon: Sparkles, text: "Revisa la configuración de gestión y dime cómo mejorar las respuestas para situaciones difíciles." },
   ],
+};
+
+const SIMULATE_PROMPT: QuickPrompt = {
+  label: "Simular",
+  icon: MessageSquare,
+  text: "Simula una conversacion de WhatsApp con un cliente real usando esta configuracion. Actua como el Agente IA y como cliente tipico, mostrando el flujo completo desde el saludo hasta el cierre.",
 };
 
 // ── Markdown renderer ──────────────────────────────────────────────────────
@@ -368,7 +374,7 @@ export function AgentPromptChatDialog({
             {/* Mobile: atajos horizontales */}
             <div className="shrink-0 overflow-x-auto border-t px-3 py-2 lg:hidden">
               <div className="flex gap-2 w-max">
-                {quickPrompts.map((item) => {
+                {[...quickPrompts, SIMULATE_PROMPT].map((item) => {
                   const Icon = item.icon;
                   return (
                     <button
@@ -447,7 +453,7 @@ export function AgentPromptChatDialog({
             <div className="flex flex-col gap-3 px-4 pt-3 pb-3">
               <p className="text-sm font-semibold">Atajos</p>
               <div className="space-y-2">
-                {quickPrompts.map((item) => {
+                {[...quickPrompts, SIMULATE_PROMPT].map((item) => {
                   const Icon = item.icon;
                   return (
                     <Button
