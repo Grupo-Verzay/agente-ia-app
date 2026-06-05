@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 import {
   X, Loader2, Phone, Megaphone, Mail, Building2, MapPin,
   Briefcase, FileText, Check, ChevronDown, ChevronRight,
-  Sheet, Send, Info,
+  Sheet, Send, Info, BotIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -20,7 +20,8 @@ import {
   saveGoogleSheetsWebhookUrl,
   syncContactToGoogleSheets,
 } from '@/actions/google-sheets-actions';
-import { SwitchAgentDisabled } from '../../sessions/_components';
+import { toggleAgentDisabled } from '@/actions/session-action';
+import * as SwitchPrimitive from '@radix-ui/react-switch';
 import { initialFromName } from './chat-message-utils';
 import type { Session } from '@/types/session';
 
@@ -145,6 +146,8 @@ export function ContactInfoPanel({
   const [loadingData, setLoadingData] = useState(true);
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sheetsUrl, setSheetsUrl] = useState('');
+  const [agentEnabled, setAgentEnabled] = useState(!session.agentDisabled);
+  const [isPending, startTransition] = useTransition();
   const [savingUrl, setSavingUrl] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
@@ -171,6 +174,20 @@ export function ContactInfoPanel({
     });
     return () => { cancelled = true; };
   }, [userId, remoteJid]);
+
+  /* Sync agent state */
+  useEffect(() => { setAgentEnabled(!session.agentDisabled); }, [session.agentDisabled]);
+
+  const handleToggleAgent = (next: boolean) => {
+    const prev = agentEnabled;
+    setAgentEnabled(next);
+    startTransition(async () => {
+      const res = await toggleAgentDisabled(userId, session.id, !next);
+      if (!res?.success) { setAgentEnabled(prev); toast.error('No se pudo actualizar'); return; }
+      onSessionMutate();
+      toast.success(next ? 'Agente habilitado' : 'Agente pausado');
+    });
+  };
 
   /* Load Google Sheets config */
   useEffect(() => {
@@ -259,14 +276,39 @@ export function ContactInfoPanel({
           )}
 
           {/* Agente IA toggle */}
-          <div className="flex items-center justify-between w-full mt-2 px-2 py-2 rounded-lg bg-muted/40 border border-border/50">
-            <span className="text-xs text-muted-foreground">Agente IA</span>
-            <SwitchAgentDisabled
-              agentDisabled={Boolean(session.agentDisabled)}
-              userId={userId}
-              sessionId={session.id}
-              mutateSessions={onSessionMutate}
-            />
+          <div className={cn(
+            'flex items-center justify-between w-full mt-2 px-3 py-2.5 rounded-lg border transition-colors duration-200',
+            agentEnabled
+              ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50'
+              : 'bg-muted/40 border-border/50',
+          )}>
+            <div className="flex items-center gap-2">
+              <BotIcon className={cn('h-4 w-4 transition-colors', agentEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')} />
+              <div>
+                <p className="text-xs font-medium leading-tight">Agente IA</p>
+                <p className={cn('text-[10px] leading-tight transition-colors', agentEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
+                  {agentEnabled ? 'Respondiendo' : 'Pausado'}
+                </p>
+              </div>
+            </div>
+            <SwitchPrimitive.Root
+              checked={agentEnabled}
+              onCheckedChange={handleToggleAgent}
+              disabled={isPending}
+              className={cn(
+                'relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full border transition-colors duration-300',
+                'border-input bg-input/60',
+                'data-[state=checked]:border-emerald-500 data-[state=checked]:bg-emerald-500',
+                'focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
+              )}
+            >
+              <SwitchPrimitive.Thumb className={cn(
+                'pointer-events-none flex h-5 w-5 items-center justify-center rounded-full bg-background shadow-sm',
+                'transition-transform duration-300 translate-x-1 data-[state=checked]:translate-x-6',
+              )}>
+                <BotIcon className={cn('h-3 w-3 transition-colors', agentEnabled ? 'text-emerald-500' : 'text-muted-foreground')} />
+              </SwitchPrimitive.Thumb>
+            </SwitchPrimitive.Root>
           </div>
         </div>
 
