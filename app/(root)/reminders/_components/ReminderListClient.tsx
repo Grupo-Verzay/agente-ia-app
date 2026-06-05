@@ -3,7 +3,7 @@
 import { ReminderListClientInterface } from "@/schema/reminder";
 import { ReminderList } from "./";
 
-export const ReminderListClient = ({ workflows, filteredReminders, isScheduleView }: ReminderListClientInterface) => {
+export const ReminderListClient = ({ workflows, filteredReminders, deliverySummaries, isScheduleView }: ReminderListClientInterface) => {
     return (
         <>
             {filteredReminders.length === 0 ? (
@@ -22,6 +22,7 @@ export const ReminderListClient = ({ workflows, filteredReminders, isScheduleVie
                                 key={reminder.id}
                                 reminder={reminder}
                                 workflow={workflow}
+                                deliverySummary={deliverySummaries?.[reminder.id]}
                             />
                         );
                     })}

@@ -94,6 +94,7 @@ export interface MainReminderInterface {
     user: UserWithApiKeys,
     apiKey: ApiKey | null,
     reminders: Reminders[],
+    deliverySummaries?: Record<string, ReminderDeliverySummary>,
     leads: Session[],
     workflows: Workflow[]
     instancia: Instancia
@@ -104,10 +105,37 @@ export interface MainReminderInterface {
 export interface ReminderListInterface {
     reminder: Reminders
     workflow?: Workflow
+    deliverySummary?: ReminderDeliverySummary
     compact?: boolean
 }
 export interface ReminderListClientInterface {
     filteredReminders: Reminders[]
     workflows: Workflow[]
+    deliverySummaries?: Record<string, ReminderDeliverySummary>
     isScheduleView?: boolean
+}
+
+export type ReminderDeliveryItem = {
+    id: number
+    remoteJid: string | null
+    mensaje: string | null
+    tipo: string | null
+    time: string | null
+    followUpStatus: string
+    followUpAttempt: number
+    followUpMaxAttempts: number
+    errorReason: string | null
+    media: string | null
+    nameFile: string | null
+    createdAt: string
+    updatedAt: string
+}
+
+export type ReminderDeliverySummary = {
+    total: number
+    pending: number
+    sent: number
+    failed: number
+    canceled: number
+    items: ReminderDeliveryItem[]
 }

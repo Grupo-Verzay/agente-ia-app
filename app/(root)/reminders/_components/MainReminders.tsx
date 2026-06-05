@@ -42,7 +42,7 @@ const getReminderGroup = (reminder: Reminders, now: number, tomorrow: number, da
   return 'tomorrow';
 };
 
-export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, workflows, instancia, isScheduleView, isSchedule }: MainReminderInterface) => {
+export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliverySummaries, leads, workflows, instancia, isScheduleView, isSchedule }: MainReminderInterface) => {
   const { openDialog, selectedReminderId, setCampaignPage } = useReminderDialogStore();
 
   useEffect(() => {
@@ -270,6 +270,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
                       key={reminder.id}
                       reminder={reminder}
                       workflow={workflows.find((workflow) => workflow.id === reminder.workflowId)}
+                      deliverySummary={deliverySummaries?.[reminder.id]}
                       compact
                     />
                   ))}
@@ -288,6 +289,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
               <ReminderListClient
                 filteredReminders={filteredReminders}
                 workflows={workflows}
+                deliverySummaries={deliverySummaries}
                 isScheduleView={isSchedule}
               />
             </Suspense>

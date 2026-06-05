@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db"
 import { z } from "zod"
-import { formValuesReminderSchema, reminderSchema } from "@/schema/reminder"
+import { formValuesReminderSchema, ReminderDeliverySummary, reminderSchema } from "@/schema/reminder"
 import { Prisma } from "@prisma/client"
 import { parse as parseDate, format, isValid, addSeconds } from "date-fns"
 
@@ -208,6 +208,192 @@ export async function getCampaignsByUserId(userId: string): Promise<ReminderResp
             success: false,
             message: "Error al obtener las campaÃ±as.",
         }
+    }
+}
+
+const SENT_STATUSES = new Set(["sent", "success", "completed", "done", "delivered"]);
+const FAILED_STATUSES = new Set(["failed", "error"]);
+const CANCELED_STATUSES = new Set(["canceled", "cancelled", "deleted"]);
+
+function normalizeDeliveryStatus(status: string | null | undefined) {
+    return (status ?? "pending").toLowerCase();
+}
+
+export async function getReminderDeliverySummaries(
+    reminderIds: string[],
+): Promise<{ success: boolean; message: string; data?: Record<string, ReminderDeliverySummary> }> {
+    const ids = reminderIds.filter(Boolean);
+    if (ids.length === 0) {
+        return { success: true, message: "Sin recordatorios.", data: {} };
+    }
+
+    try {
+        const directIds = ids.map((id) => `reminder-${id}`);
+        const campaignPrefixes = ids.map((id) => `camping-${id}-`);
+
+        const rows = await db.seguimiento.findMany({
+            where: {
+                OR: [
+                    { idNodo: { in: directIds } },
+                    ...campaignPrefixes.map((prefix) => ({ idNodo: { startsWith: prefix } })),
+                ],
+            },
+            orderBy: { time: "asc" },
+            select: {
+                id: true,
+                idNodo: true,
+                remoteJid: true,
+                mensaje: true,
+                tipo: true,
+                time: true,
+                followUpStatus: true,
+                followUpAttempt: true,
+                followUpMaxAttempts: true,
+                errorReason: true,
+                media: true,
+                nameFile: true,
+                createdAt: true,
+                updatedAt: true,
+            },
+        });
+
+        const summaries: Record<string, ReminderDeliverySummary> = Object.fromEntries(
+            ids.map((id) => [id, { total: 0, pending: 0, sent: 0, failed: 0, canceled: 0, items: [] }])
+        );
+
+        for (const row of rows) {
+            const reminderId = row.idNodo?.startsWith("reminder-")
+                ? row.idNodo.replace("reminder-", "")
+                : row.idNodo?.match(/^camping-(.+)-\d+$/)?.[1];
+            if (!reminderId || !summaries[reminderId]) continue;
+
+            const status = normalizeDeliveryStatus(row.followUpStatus);
+            const summary = summaries[reminderId];
+            summary.total += 1;
+            if (SENT_STATUSES.has(status)) summary.sent += 1;
+            else if (FAILED_STATUSES.has(status)) summary.failed += 1;
+            else if (CANCELED_STATUSES.has(status)) summary.canceled += 1;
+            else summary.pending += 1;
+
+            summary.items.push({
+                id: row.id,
+                remoteJid: row.remoteJid,
+                mensaje: row.mensaje,
+                tipo: row.tipo,
+                time: row.time,
+                followUpStatus: row.followUpStatus,
+                followUpAttempt: row.followUpAttempt,
+                followUpMaxAttempts: row.followUpMaxAttempts,
+                errorReason: row.errorReason,
+                media: row.media,
+                nameFile: row.nameFile,
+                createdAt: row.createdAt.toISOString(),
+                updatedAt: row.updatedAt.toISOString(),
+            });
+        }
+
+        return { success: true, message: "Estados obtenidos correctamente.", data: summaries };
+    } catch (error) {
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : "Error al obtener estados de envio.",
+        };
+    }
+}
+
+function reminderSeguimientoWhere(reminderId: string) {
+    return {
+        OR: [
+            { idNodo: `reminder-${reminderId}` },
+            { idNodo: { startsWith: `camping-${reminderId}-` } },
+        ],
+    };
+}
+
+export async function retryReminderFailedDeliveries(reminderId: string): Promise<ReminderResponse> {
+    if (!reminderId) return { success: false, message: "ID obligatorio." };
+
+    try {
+        const result = await db.seguimiento.updateMany({
+            where: {
+                ...reminderSeguimientoWhere(reminderId),
+                followUpStatus: { in: ["failed", "error"] },
+            },
+            data: {
+                followUpStatus: "pending",
+                followUpAttempt: 0,
+                errorReason: null,
+                time: new Date().toISOString(),
+            },
+        });
+
+        return {
+            success: true,
+            message: result.count > 0 ? `Se reintentaran ${result.count} envio(s).` : "No hay envios fallidos para reintentar.",
+            data: { count: result.count },
+        };
+    } catch (error) {
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : "Error al reintentar envios.",
+        };
+    }
+}
+
+export async function cancelReminderPendingDeliveries(reminderId: string): Promise<ReminderResponse> {
+    if (!reminderId) return { success: false, message: "ID obligatorio." };
+
+    try {
+        const result = await db.seguimiento.updateMany({
+            where: {
+                ...reminderSeguimientoWhere(reminderId),
+                followUpStatus: "pending",
+            },
+            data: {
+                followUpStatus: "canceled",
+                errorReason: "Cancelado manualmente",
+            },
+        });
+
+        return {
+            success: true,
+            message: result.count > 0 ? `Se pausaron ${result.count} envio(s).` : "No hay envios pendientes para pausar.",
+            data: { count: result.count },
+        };
+    } catch (error) {
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : "Error al pausar envios.",
+        };
+    }
+}
+
+export async function resumeReminderCanceledDeliveries(reminderId: string): Promise<ReminderResponse> {
+    if (!reminderId) return { success: false, message: "ID obligatorio." };
+
+    try {
+        const result = await db.seguimiento.updateMany({
+            where: {
+                ...reminderSeguimientoWhere(reminderId),
+                followUpStatus: "canceled",
+            },
+            data: {
+                followUpStatus: "pending",
+                errorReason: null,
+                time: new Date().toISOString(),
+            },
+        });
+
+        return {
+            success: true,
+            message: result.count > 0 ? `Se reanudaron ${result.count} envio(s).` : "No hay envios pausados para reanudar.",
+            data: { count: result.count },
+        };
+    } catch (error) {
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : "Error al reanudar envios.",
+        };
     }
 }
 

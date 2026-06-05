@@ -2,7 +2,7 @@
 import { redirect } from "next/navigation"
 import { getApiKeyById } from "@/actions/api-action"
 import { ApiKey, Instancia, Reminders, Session, Workflow } from "@prisma/client"
-import { getCampaignsByUserId } from "@/actions/reminders-actions"
+import { getCampaignsByUserId, getReminderDeliverySummaries } from "@/actions/reminders-actions"
 import { getSessionsByUserId } from "@/actions/session-action"
 import { getWorkFlowByUser } from "@/actions/workflow-actions"
 import { getInstancesByUserId } from "@/actions/instances-actions"
@@ -49,6 +49,8 @@ const CampaignsPage = async () => {
     return <strong>404</strong>
   }
   const reminders = hasReminder(resReminder) ? resReminder.data : []
+  const deliveryRes = await getReminderDeliverySummaries(reminders.map((reminder) => reminder.id))
+  const deliverySummaries = deliveryRes.success ? deliveryRes.data ?? {} : {}
 
   // Obtener sesiones
   const resSession = await getSessionsByUserId(effectiveId, 0, 1000)
@@ -86,6 +88,7 @@ const CampaignsPage = async () => {
       user={user}
       apiKey={resApikey.data}
       reminders={reminders}
+      deliverySummaries={deliverySummaries}
       leads={sessions}
       workflows={workflows}
       instancia={resInstancia.data[0]}
