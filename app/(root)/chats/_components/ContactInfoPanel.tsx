@@ -447,7 +447,7 @@ export function ContactInfoPanel({
       {/* ── Sync button fijo al fondo ── */}
       {sheetsSaved && (
         <div className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-1.5 sm:px-3 sm:py-2">
-          <Button type="button" className="w-full gap-1.5 text-xs h-10" onClick={handleSync} disabled={syncing}>
+          <Button type="button" className="w-full gap-1.5 text-sm h-10" onClick={handleSync} disabled={syncing}>
             {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
             Sincronizar datos ahora
           </Button>
