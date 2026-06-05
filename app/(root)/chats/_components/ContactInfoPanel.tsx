@@ -17,7 +17,7 @@ import {
   getExternalClientDataByRemoteJid,
   upsertExternalClientData,
 } from '@/actions/external-client-data-actions';
-import { SwitchAgentDisabled } from '../sessions/_components';
+import { SwitchAgentDisabled } from '../../sessions/_components';
 import { LeadStatusSelect } from './LeadStatusSelect';
 import { SessionTagsCombobox } from '../../tags/components';
 import { initialFromName } from './chat-message-utils';
