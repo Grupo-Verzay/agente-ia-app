@@ -29,6 +29,7 @@ import {
 } from "@/actions/baileys-chat-actions";
 import { getChatConversationPreferencesByUserId } from "@/actions/chat-conversation-actions";
 import { getInstancesByUserId } from "@/actions/instances-actions";
+import { getLinkedAccountsInstances, getMasterAccountInstances } from "@/actions/linked-account-actions";
 import { getAllRRs } from "@/actions/rr-actions";
 import { normalizeQuickReplyCategory } from "@/lib/quick-reply-categories";
 import { getChatContactSessions } from "@/actions/session-action";
@@ -118,16 +119,31 @@ export default async function ChatsPage({
       : user.apiKeyId;
 
   // Fase 1: todo lo que no depende de los chats corre en paralelo
-  const [resInstancias, resApikey, workflowsResponse, quickRepliesResponse0] = await Promise.all([
+  const [
+    resInstancias,
+    resApikey,
+    workflowsResponse,
+    quickRepliesResponse0,
+    linkedAccountsResponse,
+    masterAccountsResponse,
+  ] = await Promise.all([
     settle(getInstancesByUserId(effectiveOwnerId)),
     settle(getApiKeyById(ownerApiKeyId ?? "")),
     settle(getWorkFlowByUser(effectiveOwnerId)),
     settle(getAllRRs(effectiveOwnerId)),
+    settle(getLinkedAccountsInstances(effectiveOwnerId)),
+    settle(getMasterAccountInstances(user.sessionUserId ?? user.id)),
   ]);
 
   const ownInstancias = resInstancias && hasInstancias(resInstancias) ? resInstancias.data : [];
-  const linkedAccountsData: never[] = [];
-  const masterAccountsData: never[] = [];
+  const linkedAccountsData =
+    linkedAccountsResponse?.success && Array.isArray(linkedAccountsResponse.data)
+      ? linkedAccountsResponse.data
+      : [];
+  const masterAccountsData =
+    masterAccountsResponse?.success && Array.isArray(masterAccountsResponse.data)
+      ? masterAccountsResponse.data
+      : [];
 
   // Instancias de asesores del usuario + instancias de cuentas maestras vinculadas
   const linkedInstancias = [
