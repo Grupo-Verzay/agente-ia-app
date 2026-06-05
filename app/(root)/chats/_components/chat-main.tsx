@@ -17,6 +17,7 @@ import type { AdvisorInfo } from '@/actions/team-actions';
 
 import { reactToMessageAction, deleteMessageAction } from '@/actions/chat-manual-actions';
 import { generateSuggestedReplyAction } from '@/actions/ai-suggested-reply-action';
+import { getAiMessageContentsAction } from '@/actions/ai-message-contents-action';
 import {
   createInternalNoteAction,
   deleteInternalNoteAction,
@@ -144,6 +145,14 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [noteMode, setNoteMode] = useState(false);
   const [notes, setNotes] = useState<InternalNoteData[]>([]);
 
+  /* ─── AI message contents ─── */
+  const [aiContents, setAiContents] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!info?.instanceName || !info?.remoteJid) return;
+    getAiMessageContentsAction(info.instanceName, info.remoteJid).then(setAiContents);
+  }, [info?.instanceName, info?.remoteJid, messages.length]);
+
   /* ─── AI suggested reply state ─── */
   const [suggestion, setSuggestion] = useState('');
   const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
@@ -197,8 +206,14 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const uiMessages = useMemo(() => {
     void mediaCacheTick;
     const all = toUIMessages(reversed, header.avatarSrc, mediaCacheRef.current);
-    return deletedIds.size > 0 ? all.filter((m) => !deletedIds.has(m.id)) : all;
-  }, [reversed, header.avatarSrc, mediaCacheTick, mediaCacheRef, deletedIds]);
+    const filtered = deletedIds.size > 0 ? all.filter((m) => !deletedIds.has(m.id)) : all;
+    if (aiContents.size === 0) return filtered;
+    return filtered.map((m) =>
+      m.sender === 'user' && m.content && aiContents.has(m.content.trim())
+        ? { ...m, sentByAi: true }
+        : m,
+    );
+  }, [reversed, header.avatarSrc, mediaCacheTick, mediaCacheRef, deletedIds, aiContents]);
 
   /* ─── Load notes when session changes ─── */
   useEffect(() => {

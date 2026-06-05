@@ -63,6 +63,7 @@ export const MessageStatusIndicator: React.FC<MessageStatusIndicatorProps> = ({ 
 interface MessageBubbleProps {
   message: string;
   isUserMessage: boolean;
+  sentByAi?: boolean;
   avatarSrc?: string;
   timestamp?: number;
   media?: MediaData;
@@ -79,6 +80,7 @@ interface MessageBubbleProps {
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isUserMessage,
+  sentByAi,
   avatarSrc,
   timestamp,
   media,
@@ -93,8 +95,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 }) => {
   const showAvatar = !isUserMessage;
 
+  const senderIcon = isUserMessage ? (
+    <span className="text-[0.65rem] leading-none" title={sentByAi ? 'Enviado por el Agente IA' : 'Enviado por asesor humano'}>
+      {sentByAi ? '🤖' : '👤'}
+    </span>
+  ) : null;
+
   const timeAndStatus = (
     <div className="flex items-center gap-0.5">
+      {senderIcon}
       {timestamp && (
         <span
           className={cn(

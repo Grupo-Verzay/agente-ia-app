@@ -236,6 +236,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                 <MessageBubble
                   message={item.message.content}
                   isUserMessage={item.message.sender === 'user'}
+                  sentByAi={item.message.sentByAi}
                   avatarSrc={item.message.avatarSrc}
                   timestamp={item.message.ts}
                   media={item.message.media}

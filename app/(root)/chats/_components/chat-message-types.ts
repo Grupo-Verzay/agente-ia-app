@@ -73,6 +73,7 @@ export type UIBubble = {
     sourceUrl?: string;
     thumbnailUrl?: string;
   };
+  sentByAi?: boolean;
   // Nota interna
   isNote?: boolean;
   noteAuthorName?: string | null;
