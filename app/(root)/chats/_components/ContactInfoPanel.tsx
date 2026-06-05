@@ -405,7 +405,7 @@ export function ContactInfoPanel({
       </div>
 
       {/* ── Google Sheets fijo al fondo ── */}
-      <div className="shrink-0 border-t bg-background px-4 py-3 space-y-2">
+      <div className="shrink-0 border-t bg-background px-3 py-2 space-y-1.5">
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
             <Sheet className="h-3 w-3" />
@@ -419,8 +419,8 @@ export function ContactInfoPanel({
         </div>
 
         {sheetsSaved && !editingSheets ? (
-          <Button type="button" size="sm" className="w-full gap-2 h-8 text-xs" onClick={handleSync} disabled={syncing}>
-            {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+          <Button type="button" size="sm" className="w-full gap-1.5 h-7 text-xs" onClick={handleSync} disabled={syncing}>
+            {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
             Sincronizar ficha ahora
           </Button>
         ) : (
