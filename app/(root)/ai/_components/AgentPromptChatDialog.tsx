@@ -72,12 +72,12 @@ const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
 };
 
 const SECTION_DESCRIPTIONS: Record<AiSectionKey, string> = {
-  business: "El Agente IA usa esta sección para presentar el negocio y responder preguntas básicas como horarios, ubicación, contacto y descripción general.",
-  training: "Define cómo el Agente IA saluda y arranca cada conversación. Un buen inicio genera confianza desde el primer mensaje.",
-  faq: "Aquí viven las respuestas a las preguntas más frecuentes. Entre más completa esté, menos veces el agente quedará sin respuesta.",
-  products: "El Agente IA usa esta sección para presentar, describir y cotizar productos o servicios cuando el cliente los solicita.",
-  more: "Información adicional que el agente puede usar en situaciones específicas: políticas, restricciones, promociones o datos extra del negocio.",
-  management: "Configura cómo el agente maneja situaciones difíciles: quejas, escalaciones a humano, seguimientos y casos fuera de lo normal.",
+  business: "El agente usa esta sección para presentar el negocio y responder preguntas básicas.",
+  training: "Define cómo el agente saluda y arranca cada conversación en WhatsApp.",
+  faq: "Respuestas a preguntas frecuentes para que el agente responda sin intervención.",
+  products: "Catálogo que el agente usa para presentar, describir y cotizar al cliente.",
+  more: "Información extra que el agente consulta en situaciones específicas.",
+  management: "Instrucciones para manejar quejas, escalaciones y seguimientos.",
 };
 
 const OPTIMIZE_PROMPT: QuickPrompt = {
@@ -779,11 +779,11 @@ export function AgentPromptChatDialog({
             </div>
 
             {/* Descripción de la sección */}
-            <div className="shrink-0 border-t px-4 py-3">
-              <p className="text-xs font-semibold text-foreground mb-1.5">
-                Sección: {TYPE_AI_LABELS[activeTab]}
+            <div className="shrink-0 border-t px-4 h-[60px] flex flex-col justify-center gap-0.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">
+                {TYPE_AI_LABELS[activeTab]}
               </p>
-              <p className="text-xs leading-relaxed text-foreground/70">
+              <p className="text-xs leading-tight text-foreground/70 line-clamp-2">
                 {SECTION_DESCRIPTIONS[activeTab]}
               </p>
             </div>
