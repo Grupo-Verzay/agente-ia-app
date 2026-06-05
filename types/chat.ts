@@ -20,6 +20,7 @@ export type ChatQuickReplyOption = {
   id: number;
   name: string | null;
   message: string;
+  category: string;
   workflowId: string | null;
   workflowName: string | null;
 };

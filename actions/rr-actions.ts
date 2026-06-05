@@ -33,6 +33,7 @@ export async function createRR(data: {
     workflowId?: string;
     name?: string;
     mensaje?: string;
+    category?: string;
     userId: string;
 }): Promise<RROperationResponse> {
     try {

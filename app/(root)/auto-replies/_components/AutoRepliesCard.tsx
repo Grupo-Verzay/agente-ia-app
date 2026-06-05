@@ -12,6 +12,11 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import {
+    getQuickReplyCategoryLabel,
+    normalizeQuickReplyCategory,
+    QUICK_REPLY_CATEGORIES,
+} from "@/lib/quick-reply-categories";
 
 interface autoReplies {
     autoReplie: QuickReply;
@@ -25,6 +30,7 @@ export const AutoRepliesCard = ({ autoReplie, workflows }: autoReplies) => {
     const [editingName, setEditingName] = useState(false);
     const [name, setName] = useState(autoReplie.name ?? "");
     const [loading, setLoading] = useState(false);
+    const category = normalizeQuickReplyCategory(autoReplie.category);
 
     const relatedWorkflow = workflows.find((wf) => wf.id === autoReplie.workflowId);
 
@@ -121,6 +127,42 @@ export const AutoRepliesCard = ({ autoReplie, workflows }: autoReplies) => {
                                 </Badge>
                             )
                         )}
+
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Select
+                                value={category}
+                                onValueChange={async (newCategory) => {
+                                    if (newCategory === category) return;
+
+                                    const toastId = `rr-category-${autoReplie.id}`;
+                                    toast.loading("Actualizando categoria...", { id: toastId });
+
+                                    try {
+                                        const res = await updateRR(autoReplie.id, { category: newCategory });
+                                        if (res.success) {
+                                            toast.success("Categoria actualizada", { id: toastId });
+                                        } else {
+                                            toast.error(res.message, { id: toastId });
+                                        }
+                                    } catch {
+                                        toast.error("Error al actualizar categoria", { id: toastId });
+                                    } finally {
+                                        router.refresh();
+                                    }
+                                }}
+                            >
+                                <SelectTrigger className="h-7 w-fit min-w-[118px] rounded-full border-muted px-2 py-0 text-xs">
+                                    <SelectValue>{getQuickReplyCategoryLabel(category)}</SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {QUICK_REPLY_CATEGORIES.map((item) => (
+                                        <SelectItem key={item.value} value={item.value} className="text-xs">
+                                            {item.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
 
                         {!autoReplie.workflowId && (editing ? (
                             <Textarea

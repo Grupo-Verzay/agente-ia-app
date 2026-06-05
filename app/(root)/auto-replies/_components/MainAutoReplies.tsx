@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, GitBranch, Hash, InboxIcon, MessageSquareText, MessagesSquare, Search } from "lucide-react";
 import { MetricCard } from "@/components/custom/MetricCard";
 import { Input } from "@/components/ui/input";
+import { getQuickReplyCategoryLabel, normalizeQuickReplyCategory } from "@/lib/quick-reply-categories";
 
 interface Props {
   user: User;
@@ -18,14 +19,15 @@ export const MainAutoReplies = ({ user, Workflows, autoReplies = [] }: Props) =>
   const [search, setSearch] = useState("");
   const textReplies = autoReplies.filter(reply => !reply.workflowId).length;
   const workflowReplies = autoReplies.filter(reply => Boolean(reply.workflowId)).length;
-  const namedReplies = autoReplies.filter(reply => Boolean(reply.name?.trim())).length;
+  const categoryCount = new Set(autoReplies.map(reply => normalizeQuickReplyCategory(reply.category))).size;
   const filteredAutoReplies = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return autoReplies;
 
     return autoReplies.filter(reply => {
       const workflowName = Workflows.find(workflow => workflow.id === reply.workflowId)?.name ?? "";
-      return `${reply.name ?? ""} ${reply.mensaje ?? ""} ${workflowName}`.toLowerCase().includes(query);
+      const categoryName = getQuickReplyCategoryLabel(reply.category);
+      return `${reply.name ?? ""} ${reply.mensaje ?? ""} ${workflowName} ${categoryName}`.toLowerCase().includes(query);
     });
   }, [Workflows, autoReplies, search]);
 
@@ -52,7 +54,7 @@ export const MainAutoReplies = ({ user, Workflows, autoReplies = [] }: Props) =>
           <MetricCard icon={<GitBranch className="h-4 w-4" />} label="Ejecutan flujo" value={workflowReplies} helper="Respuestas que activan un flujo automatizado" color="#8B5CF6" />
         </div>
         <div className="min-w-0 sm:flex-1">
-          <MetricCard icon={<Hash className="h-4 w-4" />} label="Con atajo" value={namedReplies} helper="Respuestas con nombre o atajo configurado" color="#F59E0B" />
+          <MetricCard icon={<Hash className="h-4 w-4" />} label="Categorias" value={categoryCount} helper="Grupos usados en respuestas rapidas" color="#F59E0B" />
         </div>
       </div>
 

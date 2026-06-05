@@ -18,6 +18,7 @@ import { createRR } from "@/actions/rr-actions";
 import { toast } from "sonner";
 import { ReplyTypeSelector, ReplyType } from "./ReplyTypeSelector";
 import { Separator } from "@/components/ui/separator";
+import { DEFAULT_QUICK_REPLY_CATEGORY, QUICK_REPLY_CATEGORIES } from "@/lib/quick-reply-categories";
 
 interface AutoReplies {
     user: User;
@@ -31,6 +32,7 @@ export const CardCreateRr = ({ user, Workflows, onSuccessClose }: AutoReplies) =
     const [phrase, setPhrase] = useState("");
     const [name, setName] = useState("");
     const [workflowId, setWorkflowId] = useState("");
+    const [category, setCategory] = useState(DEFAULT_QUICK_REPLY_CATEGORY);
     const [loading, setLoading] = useState(false);
 
     const isTextMode = replyType === 'text';
@@ -40,6 +42,7 @@ export const CardCreateRr = ({ user, Workflows, onSuccessClose }: AutoReplies) =
         setPhrase("");
         setWorkflowId("");
         setName("");
+        setCategory(DEFAULT_QUICK_REPLY_CATEGORY);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -60,6 +63,7 @@ export const CardCreateRr = ({ user, Workflows, onSuccessClose }: AutoReplies) =
                 workflowId: !isTextMode ? workflowId : undefined,
                 name: name.trim() || undefined,
                 mensaje: isTextMode ? phrase : undefined,
+                category,
                 userId: user.id,
             });
 
@@ -126,6 +130,23 @@ export const CardCreateRr = ({ user, Workflows, onSuccessClose }: AutoReplies) =
                     )}
                 </div>
 
+                <div className="flex flex-col space-y-1.5">
+                    <Label htmlFor="category" className="text-sm font-medium">
+                        Categoria
+                    </Label>
+                    <Select value={category} onValueChange={setCategory} disabled={loading}>
+                        <SelectTrigger id="category">
+                            <SelectValue placeholder="Selecciona una categoria..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {QUICK_REPLY_CATEGORIES.map((item) => (
+                                <SelectItem key={item.value} value={item.value}>
+                                    {item.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
                 {/* Campo de mensaje — solo modo texto */}
                 {isTextMode && (
                     <div className="flex flex-col space-y-1.5">

@@ -30,6 +30,7 @@ import {
 import { getChatConversationPreferencesByUserId } from "@/actions/chat-conversation-actions";
 import { getInstancesByUserId } from "@/actions/instances-actions";
 import { getAllRRs } from "@/actions/rr-actions";
+import { normalizeQuickReplyCategory } from "@/lib/quick-reply-categories";
 import { getChatContactSessions } from "@/actions/session-action";
 import { listTagsAction } from "@/actions/tag-actions";
 import { getWorkFlowByUser } from "@/actions/workflow-actions";
@@ -406,6 +407,7 @@ export default async function ChatsPage({
         id: quickReply.id,
         name: quickReply.name ?? null,
         message,
+        category: normalizeQuickReplyCategory(quickReply.category),
         workflowId: quickReply.workflowId ?? null,
         workflowName: workflow?.name ?? null,
       };

@@ -1138,6 +1138,7 @@ model QuickReply {
   userId     String
   order      Int      @default(0)
   name       String?
+  category   String?  @default("general")
 
   @@map("rr")
 }

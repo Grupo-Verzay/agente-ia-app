@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Loader2, MessageCircleMore, Workflow, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,11 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
+import {
+  getQuickReplyCategoryLabel,
+  normalizeQuickReplyCategory,
+  QUICK_REPLY_CATEGORIES,
+} from '@/lib/quick-reply-categories';
 
 interface ChatAutomationPickerProps {
   quickReplies: ChatQuickReplyOption[];
@@ -31,7 +36,16 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'workflows' | 'quickReplies'>('workflows');
+  const [quickReplyCategory, setQuickReplyCategory] = useState<string>('all');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const quickReplyCategoryOptions = useMemo(() => {
+    const used = new Set(quickReplies.map((reply) => normalizeQuickReplyCategory(reply.category)));
+    return QUICK_REPLY_CATEGORIES.filter((category) => used.has(category.value));
+  }, [quickReplies]);
+  const filteredQuickReplies = useMemo(() => {
+    if (quickReplyCategory === 'all') return quickReplies;
+    return quickReplies.filter((reply) => normalizeQuickReplyCategory(reply.category) === quickReplyCategory);
+  }, [quickReplies, quickReplyCategory]);
 
   const handleWorkflowSend = useCallback(
     async (workflowId: string) => {
@@ -136,37 +150,70 @@ export const ChatAutomationPicker: React.FC<ChatAutomationPickerProps> = ({
           </TabsContent>
 
           <TabsContent value="quickReplies">
-            <Command className="rounded-lg border">
-              <CommandInput placeholder="Buscar respuesta rapida..." className="h-9 text-xs" />
-              <CommandList>
-                <CommandEmpty className="text-xs">No hay respuestas rapidas disponibles.</CommandEmpty>
-                <CommandGroup className="max-h-64 overflow-auto">
-                  {quickReplies
-                    .filter((qr) => qr.name !== null)
-                    .map((quickReply) => (
-                      <CommandItem
-                        key={quickReply.id}
-                        value={`${quickReply.name ?? ''} ${quickReply.message} ${quickReply.workflowName ?? ''}`}
-                        className="items-start justify-between gap-3 py-3"
-                        disabled={isSubmitting}
-                        onSelect={() => void handleQuickReplySend(quickReply.id)}
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            {quickReply.name && (
-                              <span className="text-xs font-mono text-primary font-medium">
-                                /{quickReply.name}
-                              </span>
-                            )}
-                            <p className="line-clamp-2 text-sm font-medium">{quickReply.message}</p>
+            <div className="space-y-2">
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                <button
+                  type="button"
+                  onClick={() => setQuickReplyCategory('all')}
+                  className={`h-7 shrink-0 rounded-full border px-3 text-xs transition-colors ${
+                    quickReplyCategory === 'all'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                      : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Todas
+                </button>
+                {quickReplyCategoryOptions.map((category) => (
+                  <button
+                    key={category.value}
+                    type="button"
+                    onClick={() => setQuickReplyCategory(category.value)}
+                    className={`h-7 shrink-0 rounded-full border px-3 text-xs transition-colors ${
+                      quickReplyCategory === category.value
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                        : 'border-border bg-background text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {category.label}
+                  </button>
+                ))}
+              </div>
+
+              <Command className="rounded-lg border">
+                <CommandInput placeholder="Buscar respuesta rapida..." className="h-9 text-xs" />
+                <CommandList>
+                  <CommandEmpty className="text-xs">No hay respuestas rapidas disponibles.</CommandEmpty>
+                  <CommandGroup className="max-h-64 overflow-auto">
+                    {filteredQuickReplies
+                      .filter((qr) => qr.name !== null)
+                      .map((quickReply) => (
+                        <CommandItem
+                          key={quickReply.id}
+                          value={`${quickReply.name ?? ''} ${quickReply.message} ${quickReply.workflowName ?? ''} ${getQuickReplyCategoryLabel(quickReply.category)}`}
+                          className="items-start justify-between gap-3 py-3"
+                          disabled={isSubmitting}
+                          onSelect={() => void handleQuickReplySend(quickReply.id)}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              {quickReply.name && (
+                                <span className="text-xs font-mono text-primary font-medium">
+                                  /{quickReply.name}
+                                </span>
+                              )}
+                              <p className="line-clamp-2 text-sm font-medium">{quickReply.message}</p>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">
+                              {getQuickReplyCategoryLabel(quickReply.category)}
+                            </p>
                           </div>
-                        </div>
-                        <MessageCircleMore className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                      </CommandItem>
-                    ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
+                          <MessageCircleMore className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                        </CommandItem>
+                      ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </div>
           </TabsContent>
         </Tabs>
       </PopoverContent>
