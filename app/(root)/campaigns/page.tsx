@@ -51,7 +51,7 @@ const CampaignsPage = async () => {
   const reminders = hasReminder(resReminder) ? resReminder.data : []
 
   // Obtener sesiones
-  const resSession = await getSessionsByUserId(effectiveId)
+  const resSession = await getSessionsByUserId(effectiveId, 0, 1000)
   if (!resSession.success) {
     console.error("[REMINDERS_PAGE] Error al obtener sesiones:", resSession.message)
     return <strong>404</strong>

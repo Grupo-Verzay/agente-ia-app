@@ -40,12 +40,14 @@ export const SelectWorkflowBox = ({ workflows, onSelect, initialValue }: Props) 
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="w-full justify-between"
+                    className="w-full justify-between gap-2"
                 >
-                    {value
-                        ? workflows.find((w) => w.id === value)?.name?.toUpperCase()
-                        : "Seleccione un workflow..."}
-                    <ChevronsUpDown className="opacity-50" />
+                    <span className="min-w-0 truncate">
+                        {value
+                            ? workflows.find((w) => w.id === value)?.name?.toUpperCase()
+                            : "Seleccione workflow..."}
+                    </span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">

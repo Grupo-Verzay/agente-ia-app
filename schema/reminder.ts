@@ -4,31 +4,31 @@ import { UserWithApiKeys } from "./schema";
 
 export const repeatTypes = [
     { value: "NONE", label: "No se repite" },
-    { value: "DAILY", label: "Cada día" },
+    { value: "DAILY", label: "Cada dia" },
     { value: "WEEKLY", label: "Cada semana" },
     { value: "MONTHLY", label: "Cada mes" },
-    { value: "YEARLY", label: "Cada año" },
-    { value: "WEEKDAYS", label: "Días laborables (L-V)" },
-    { value: "EVERYDAY", label: "Todos los días" }
+    { value: "YEARLY", label: "Cada ano" },
+    { value: "WEEKDAYS", label: "Dias laborables (L-V)" },
+    { value: "EVERYDAY", label: "Todos los dias" }
 ] as const;
 
 export const reminderSchema = z.object({
     title: z.string({
-        required_error: "El título es obligatorio.",
-        invalid_type_error: "El título debe ser un texto.",
-    }).min(1, { message: "El título no puede estar vacío." }),
+        required_error: "El titulo es obligatorio.",
+        invalid_type_error: "El titulo debe ser un texto.",
+    }).min(1, { message: "El titulo no puede estar vacio." }),
 
     description: z.string().optional(),
 
     time: z.string({
         required_error: "La fecha y hora son obligatorias.",
-        invalid_type_error: "Selecciona una fecha y hora válidas.",
+        invalid_type_error: "Selecciona una fecha y hora validas.",
     }).min(1),
 
-    repeatType: z.enum(repeatTypes.map(r => r.value) as [string, ...string[]], { errorMap: () => ({ message: "Selecciona un tipo de repetición válido." }) }).optional(),
+    repeatType: z.enum(repeatTypes.map(r => r.value) as [string, ...string[]], { errorMap: () => ({ message: "Selecciona un tipo de repeticion valido." }) }).optional(),
 
     repeatEvery: z.coerce.number()
-        .min(1, { message: "Debe ser un número mayor a 0." })
+        .min(1, { message: "Debe ser un numero mayor a 0." })
         .optional(),
 
     userId: z.string({
@@ -49,8 +49,26 @@ export const reminderSchema = z.object({
 
     isSchedule: z.boolean().optional(),
 
-    campaignMinDelay: z.coerce.number().min(5).max(600).optional(),
-    campaignMaxDelay: z.coerce.number().min(5).max(600).optional(),
+    media: z.string().optional(),
+
+    mediaType: z.enum(["image", "video", "audio", "document"]).optional(),
+
+    nameFile: z.string().optional(),
+
+    campaignMinDelay: z.coerce.number()
+        .min(30, { message: "El minimo debe ser de al menos 30 segundos." })
+        .max(600, { message: "El minimo no puede superar 600 segundos." })
+        .optional(),
+    campaignMaxDelay: z.coerce.number()
+        .min(30, { message: "El maximo debe ser de al menos 30 segundos." })
+        .max(600, { message: "El maximo no puede superar 600 segundos." })
+        .optional(),
+}).refine((data) => {
+    if (data.campaignMinDelay === undefined || data.campaignMaxDelay === undefined) return true;
+    return data.campaignMaxDelay >= data.campaignMinDelay;
+}, {
+    path: ["campaignMaxDelay"],
+    message: "El maximo debe ser mayor o igual al minimo.",
 })
 
 export type formValuesReminderSchema = z.infer<typeof reminderSchema>

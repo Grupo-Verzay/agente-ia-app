@@ -81,7 +81,9 @@ export const ReminderForm = ({
     const [segmentKey, setSegmentKey] = useState(0);
     const [showCampaignWarning, setShowCampaignWarning] = useState(false);
     const [mediaPreview, setMediaPreview] = useState<ReminderMediaPreview | null>(null);
+    const [selectedMediaFile, setSelectedMediaFile] = useState<File | null>(null);
     const [mediaAccept, setMediaAccept] = useState("image/*");
+    const [uploadingMedia, setUploadingMedia] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const pendingPayload = useRef<formValuesReminderSchema | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -117,7 +119,7 @@ export const ReminderForm = ({
             apikey: "",
             serverUrl: "",
             isSchedule: isSchedule ?? false,
-            campaignMinDelay: 20,
+            campaignMinDelay: 30,
             campaignMaxDelay: 60,
         }
     });
@@ -179,6 +181,7 @@ export const ReminderForm = ({
         },
         onSuccess: (res) => {
             reset()
+            clearMediaPreview()
             if (!res.success) return toast.error(res.message)
             toast.success(res.message)
             router.refresh()
@@ -227,24 +230,66 @@ export const ReminderForm = ({
             size: file.size,
             type: detectedType,
         });
+        setSelectedMediaFile(file);
     };
 
     const clearMediaPreview = () => {
         setMediaPreview(null);
+        setSelectedMediaFile(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
     const modalTitle = isCampaignPage ? 'campaña' : 'recordatorio';
 
-    const onSubmit = (payload: formValuesReminderSchema) => {
+    const uploadReminderMedia = async () => {
+        if (!selectedMediaFile || !mediaPreview) return {};
+
+        const formData = new FormData();
+        formData.append("file", selectedMediaFile);
+        formData.append("userID", userId);
+        formData.append("workflowID", "reminders");
+
+        const response = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+        });
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok || !data?.url) {
+            throw new Error(data?.error || "No se pudo subir el archivo multimedia.");
+        }
+
+        return {
+            media: data.url as string,
+            mediaType: mediaPreview.type,
+            nameFile: selectedMediaFile.name,
+        };
+    };
+
+    const onSubmit = async (payload: formValuesReminderSchema) => {
         if (countScheduleReminders >= 10) return toast.info('No se pueden crear más de 10 recordatorios en el módulo de agendamiento.');
+
+        let nextPayload = payload;
+        if (selectedMediaFile && mediaPreview) {
+            try {
+                setUploadingMedia(true);
+                const mediaPayload = await uploadReminderMedia();
+                nextPayload = { ...payload, ...mediaPayload };
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : "No se pudo subir el archivo multimedia.");
+                return;
+            } finally {
+                setUploadingMedia(false);
+            }
+        }
+
         // Campañas: mostrar advertencia antes de confirmar
         if (isCampaignPage && !isEdit) {
-            pendingPayload.current = payload;
+            pendingPayload.current = nextPayload;
             setShowCampaignWarning(true);
             return;
         }
-        mutation.mutate(payload);
+        mutation.mutate(nextPayload);
     };
 
     const handleConfirmCampaign = () => {
@@ -299,6 +344,22 @@ export const ReminderForm = ({
                         );
                     })()}
                 </div>
+
+                {isCampaignPage && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium text-muted-foreground">Variables:</span>
+                        {['{{nombre}}', '{{telefono}}', '{{fecha}}'].map(v => (
+                            <button
+                                key={v}
+                                type="button"
+                                onClick={() => insertVariable(v)}
+                                className="rounded-md border border-border bg-muted/40 px-2 py-1 font-mono text-xs font-medium text-foreground transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                            >
+                                {v}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 <div className="flex flex-col gap-3 rounded-md border border-dashed border-blue-200 bg-blue-50/30 px-3 py-3">
                     <input
@@ -365,22 +426,6 @@ export const ReminderForm = ({
                         <p className="text-xs text-muted-foreground">Selecciona una imagen, video, audio o documento.</p>
                     )}
                 </div>
-                {isCampaignPage && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[11px] text-muted-foreground">Variables:</span>
-                        {['{{nombre}}', '{{telefono}}', '{{fecha}}'].map(v => (
-                            <button
-                                key={v}
-                                type="button"
-                                onClick={() => insertVariable(v)}
-                                className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
-                            >
-                                {v}
-                            </button>
-                        ))}
-                    </div>
-                )}
-
                 {!isSchedule ? (
                     <DateTimePicker
                         isSchedule={false}
@@ -451,49 +496,65 @@ export const ReminderForm = ({
                     <>
 
                         {leads && (isCampaignPage ?
-                            <div className="space-y-1.5">
+                            <div className="space-y-3">
                                 <CampaignSegmentPanel
                                     leads={leads}
                                     onApply={handleSegmentApply}
                                 />
 
                                 {/* Pausa entre envíos */}
-                                <div className="rounded-lg border border-border bg-muted/10 px-3 py-2">
+                                <div className="rounded-lg border border-border bg-muted/10 px-3 py-3">
                                     <div className="flex items-center gap-2">
                                         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide shrink-0">
-                                            Pausa entre envíos
+                                            Pausa entre envios
                                         </p>
-                                        <div className="flex items-center gap-1.5 flex-1">
+                                        <div className="ml-auto flex items-center justify-end gap-2">
                                             <span className="text-[10px] text-muted-foreground shrink-0">mín</span>
                                             <Input
                                                 type="number"
-                                                min={5} max={600}
-                                                className="h-7 text-xs w-16"
-                                                {...register("campaignMinDelay")}
+                                                min={30} max={600}
+                                                required={isCampaignPage}
+                                                className="h-8 w-20 text-center text-sm"
+                                                {...register("campaignMinDelay", { valueAsNumber: true })}
                                             />
                                             <span className="text-[10px] text-muted-foreground shrink-0">máx</span>
                                             <Input
                                                 type="number"
-                                                min={5} max={600}
-                                                className="h-7 text-xs w-16"
-                                                {...register("campaignMaxDelay")}
+                                                min={30} max={600}
+                                                required={isCampaignPage}
+                                                className="h-8 w-20 text-center text-sm"
+                                                {...register("campaignMaxDelay", { valueAsNumber: true })}
                                             />
                                             <span className="text-[10px] text-muted-foreground shrink-0">seg</span>
                                         </div>
                                     </div>
+                                    {(errors.campaignMinDelay || errors.campaignMaxDelay) && (
+                                        <p className="mt-2 text-xs text-destructive">
+                                            {errors.campaignMinDelay?.message || errors.campaignMaxDelay?.message}
+                                        </p>
+                                    )}
                                 </div>
 
-                                <SelectMultipleComboBox
-                                    key={segmentKey}
-                                    leads={leads}
-                                    onSelect={(selected) => {
-                                        setValue("remoteJid", selected.map(l => l.remoteJid).join(','), { shouldValidate: true });
-                                        setValue("pushName", selected.map(l => l.pushName).join(','), { shouldValidate: true });
-                                        setCampaignInitialIds(selected.map(l => l.id.toString()));
-                                    }}
-                                    onLeadCreated={() => setCreateLead(true)}
-                                    initialValue={campaignInitialIds}
-                                />
+                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                    <SelectMultipleComboBox
+                                        key={segmentKey}
+                                        leads={leads}
+                                        onSelect={(selected) => {
+                                            setValue("remoteJid", selected.map(l => l.remoteJid).join(','), { shouldValidate: true });
+                                            setValue("pushName", selected.map(l => l.pushName).join(','), { shouldValidate: true });
+                                            setCampaignInitialIds(selected.map(l => l.id.toString()));
+                                        }}
+                                        onLeadCreated={() => setCreateLead(true)}
+                                        initialValue={campaignInitialIds}
+                                    />
+
+                                    {workflows &&
+                                        <SelectWorkflowBox
+                                            workflows={workflows}
+                                            onSelect={(workflow) => setValue("workflowId", workflow.id, { shouldValidate: true })}
+                                            initialValue={initialWorkflowId}
+                                        />}
+                                </div>
                             </div>
                             :
                             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -517,13 +578,6 @@ export const ReminderForm = ({
                                     />}
                             </div>)}
 
-                        {isCampaignPage && workflows &&
-                            <SelectWorkflowBox
-                                workflows={workflows}
-                                onSelect={(workflow) => setValue("workflowId", workflow.id, { shouldValidate: true })}
-                                initialValue={initialWorkflowId}
-                            />}
-
                     </>
                 }
 
@@ -533,8 +587,8 @@ export const ReminderForm = ({
                     <Button type="button" variant="secondary" onClick={onCancel}>
                         Cancelar
                     </Button>
-                    <Button type="submit" variant="save" disabled={mutation.isPending}>
-                        {mutation.isPending ? "Guardando..." : isEdit ? "Actualizar" : `Crear ${modalTitle}`}
+                    <Button type="submit" variant="save" disabled={mutation.isPending || uploadingMedia}>
+                        {uploadingMedia ? "Subiendo archivo..." : mutation.isPending ? "Guardando..." : isEdit ? "Actualizar" : `Crear ${modalTitle}`}
                     </Button>
                 </div>
             </form>

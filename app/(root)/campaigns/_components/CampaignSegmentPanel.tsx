@@ -109,20 +109,20 @@ export function CampaignSegmentPanel({ leads, onApply }: CampaignSegmentPanelPro
                     {/* Estado del lead */}
                     <div className="pt-3 space-y-2">
                         <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Estado del lead</p>
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="flex flex-wrap justify-center gap-2">
                             {STATUS_OPTIONS.map(opt => (
                                 <button
                                     key={opt.value}
                                     type="button"
                                     onClick={() => toggleStatus(opt.value)}
                                     className={cn(
-                                        'px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
+                                        'min-w-0 w-[calc((100%-0.5rem)/2)] rounded-full border px-2.5 py-1.5 text-center text-xs font-medium uppercase transition-all sm:w-[calc((100%-1rem)/3)]',
                                         selectedStatuses.includes(opt.value)
                                             ? opt.cls
                                             : 'bg-background border-border text-muted-foreground hover:border-foreground/30'
                                     )}
                                 >
-                                    {opt.label}
+                                    <span className="block truncate">{opt.label}</span>
                                 </button>
                             ))}
                         </div>
@@ -152,7 +152,7 @@ export function CampaignSegmentPanel({ leads, onApply }: CampaignSegmentPanelPro
                     {tags.length > 0 && (
                         <div className="space-y-2">
                             <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Tags</p>
-                            <div className="flex flex-wrap gap-1.5">
+                            <div className="flex flex-wrap justify-center gap-2">
                                 {tags.map(tag => {
                                     const isActive = selectedTagIds.includes(tag.id);
                                     return (
@@ -162,11 +162,11 @@ export function CampaignSegmentPanel({ leads, onApply }: CampaignSegmentPanelPro
                                             onClick={() => toggleTag(tag.id)}
                                             style={isActive ? { backgroundColor: tag.color ?? '#6366F1', color: '#fff', borderColor: 'transparent' } : {}}
                                             className={cn(
-                                                'px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
+                                                'min-w-0 w-[calc((100%-0.5rem)/2)] rounded-full border px-2.5 py-1.5 text-center text-xs font-medium uppercase transition-all sm:w-[calc((100%-1rem)/3)]',
                                                 !isActive && 'bg-background border-border text-muted-foreground hover:border-foreground/30'
                                             )}
                                         >
-                                            {tag.name}
+                                            <span className="block truncate">{tag.name}</span>
                                         </button>
                                     );
                                 })}

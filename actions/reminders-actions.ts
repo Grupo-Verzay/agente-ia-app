@@ -30,6 +30,13 @@ function addSecondsToTime(timeStr: string, extraSeconds: number): string {
     return format(addSeconds(base, extraSeconds), 'dd/MM/yyyy HH:mm');
 }
 
+function addSecondsToIsoTime(timeStr: string, extraSeconds: number): string {
+    if (!timeStr) return timeStr;
+    const base = normalizeToAbsoluteTime(timeStr);
+    if (!base) return timeStr;
+    return addSeconds(base, extraSeconds).toISOString();
+}
+
 function applyVariables(message: string, name: string, phone: string): string {
     const today = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
     return message
@@ -59,12 +66,13 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
         }
     }
 
-    const { campaignMinDelay, campaignMaxDelay, ...reminderData } = parse.data
+    const { campaignMinDelay, campaignMaxDelay, media, mediaType, nameFile, ...reminderData } = parse.data
 
     const jids    = (reminderData.remoteJid ?? '').split(',').map(s => s.trim()).filter(Boolean);
     const names   = (reminderData.pushName  ?? '').split(',').map(s => s.trim());
     const baseMsg = reminderData.description || reminderData.title;
     const isCampaign = jids.length > 1;
+    const seguimientoTipo = media ? `seguimiento-${mediaType ?? "image"}` : "text";
 
     const serverurl = reminderData.serverUrl
         ? (reminderData.serverUrl.startsWith("https://") ? reminderData.serverUrl : `https://${reminderData.serverUrl}`)
@@ -86,7 +94,9 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                     apikey:    reminderData.apikey ?? "",
                     remoteJid: reminderData.remoteJid ?? "",
                     mensaje:   baseMsg,
-                    tipo:      "text",
+                    tipo:      seguimientoTipo,
+                    media:     media ?? null,
+                    nameFile:  nameFile ?? null,
                     time:      addSecondsToTime(reminderData.time ?? '', 0),
                     workflowId: reminderData.workflowId ?? null,
                 },
@@ -100,7 +110,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
         }
 
         // CampaÃ±a â€” N Seguimientos individuales con delay escalonado y variables resueltas
-        const minDelay = Math.max(5, campaignMinDelay ?? 20);
+        const minDelay = Math.max(30, campaignMinDelay ?? 30);
         const maxDelay = Math.max(minDelay, campaignMaxDelay ?? 60);
         let cumulativeDelay = 0;
 
@@ -109,7 +119,7 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
             const name  = names[i] ?? '';
             const phone = jid.replace(/@.*/, '');
 
-            if (i > 0) cumulativeDelay += randomBetween(minDelay, maxDelay);
+            cumulativeDelay += randomBetween(minDelay, maxDelay);
 
             await db.seguimiento.create({
                 data: {
@@ -119,8 +129,10 @@ export async function createReminder(formData: formValuesReminderSchema): Promis
                     apikey:    reminderData.apikey ?? "",
                     remoteJid: jid,
                     mensaje:   applyVariables(baseMsg, name, phone),
-                    tipo:      "text",
-                    time:      addSecondsToTime(reminderData.time ?? '', cumulativeDelay),
+                    tipo:      seguimientoTipo,
+                    media:     media ?? null,
+                    nameFile:  nameFile ?? null,
+                    time:      addSecondsToIsoTime(reminderData.time ?? '', cumulativeDelay),
                     workflowId: reminderData.workflowId ?? null,
                 },
             });
@@ -327,12 +339,12 @@ export async function updateReminder(id: string, formData: formValuesReminderSch
         }
     }
 
-    const data = parse.data
+    const { campaignMinDelay, campaignMaxDelay, media, mediaType, nameFile, ...data } = parse.data
 
     try {
         const updated = await db.reminders.update({
             where: { id },
-            data: data as Prisma.RemindersCreateInput,
+            data: data as Prisma.RemindersUpdateInput,
         })
 
         return {

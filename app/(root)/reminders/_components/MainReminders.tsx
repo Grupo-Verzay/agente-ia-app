@@ -1,7 +1,6 @@
 ﻿'use client'
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import Header from '@/components/shared/header';
 import { ReminderListClient, ReminderSkeleton, ReminderModal } from './';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Bell, CalendarDays, Clock3, Kanban, List, Repeat2, Search } from 'lucide-react';
@@ -173,31 +172,25 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
       <div className={`sticky top-0 z-1 mb-2 ${themeClass}`}>
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-2">
           {!isScheduleView && (
-            <>
-              {isCampaignPage ? (
-                <Header title="Campañas" />
-              ) : (
-                <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
-                  <div className="min-w-0">
-                    <MetricCard icon={<Bell className="h-4 w-4" />} label="Pendientes" value={reminderMetrics.pending} helper="Recordatorios pendientes por enviar" color="#F59E0B" />
-                  </div>
-                  <div className="min-w-0">
-                    <MetricCard icon={<Clock3 className="h-4 w-4" />} label="Para hoy" value={reminderMetrics.today} helper="Recordatorios programados para hoy" color="#3B82F6" />
-                  </div>
-                  <div className="min-w-0">
-                    <MetricCard icon={<Repeat2 className="h-4 w-4" />} label="Recurrentes" value={reminderMetrics.recurring} helper="Recordatorios configurados para repetirse" color="#8B5CF6" />
-                  </div>
-                  <div className="min-w-0">
-                    <MetricCard icon={<AlertTriangle className="h-4 w-4" />} label="Vencidos" value={reminderMetrics.expired} helper="Recordatorios con fecha anterior al momento actual" color="#EF4444" />
-                  </div>
-                </div>
-              )}
-            </>
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+              <div className="min-w-0">
+                <MetricCard icon={<Bell className="h-4 w-4" />} label="Pendientes" value={reminderMetrics.pending} helper={isCampaignPage ? "Campañas pendientes por enviar" : "Recordatorios pendientes por enviar"} color="#F59E0B" />
+              </div>
+              <div className="min-w-0">
+                <MetricCard icon={<Clock3 className="h-4 w-4" />} label="Para hoy" value={reminderMetrics.today} helper={isCampaignPage ? "Campañas programadas para hoy" : "Recordatorios programados para hoy"} color="#3B82F6" />
+              </div>
+              <div className="min-w-0">
+                <MetricCard icon={<Repeat2 className="h-4 w-4" />} label="Recurrentes" value={reminderMetrics.recurring} helper={isCampaignPage ? "Campañas configuradas para repetirse" : "Recordatorios configurados para repetirse"} color="#8B5CF6" />
+              </div>
+              <div className="min-w-0">
+                <MetricCard icon={<AlertTriangle className="h-4 w-4" />} label="Vencidos" value={reminderMetrics.expired} helper={isCampaignPage ? "Campañas con fecha anterior al momento actual" : "Recordatorios con fecha anterior al momento actual"} color="#EF4444" />
+              </div>
+            </div>
           )}
 
           <ModuleToolbar className="shrink-0">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              {!isScheduleView && !isCampaignPage && (
+              {!isScheduleView && (
                 <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 overflow-x-auto">
                   <button
                     type="button"
@@ -256,7 +249,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
             reminders={scheduleReminders}
             workflows={workflows}
           />
-        ) : !isCampaignPage && view === 'kanban' ? (
+        ) : view === 'kanban' ? (
           <div className="flex h-full min-h-0 gap-3 overflow-x-auto pb-3">
             {kanbanColumns.map((column) => (
               <div
@@ -282,7 +275,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, leads, 
                   ))}
                   {column.items.length === 0 && (
                     <div className="flex h-20 items-center justify-center text-xs text-muted-foreground/40">
-                      Sin recordatorios
+                      {isCampaignPage ? "Sin campañas" : "Sin recordatorios"}
                     </div>
                   )}
                 </div>
