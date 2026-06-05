@@ -202,14 +202,13 @@ export function AgentPromptChatDialog({
             {/* Header solo en columna izquierda */}
             <div className="shrink-0 border-b px-4 py-3">
               <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
-                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <Bot className="h-3.5 w-3.5" />
                 </span>
                 Chat para mejorar Agente IA
+                <span className="text-muted-foreground font-normal">·</span>
+                <span className="text-xs font-normal text-muted-foreground">Sección: <span className="font-medium text-foreground">{TYPE_AI_LABELS[activeTab]}</span></span>
               </DialogTitle>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Sección actual: <span className="font-medium text-foreground">{TYPE_AI_LABELS[activeTab]}</span>
-              </p>
             </div>
 
             <ScrollArea className="min-h-0 flex-1 px-4 pt-3 pb-4">
