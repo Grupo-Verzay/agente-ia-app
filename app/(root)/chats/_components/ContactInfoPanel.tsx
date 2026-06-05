@@ -64,8 +64,8 @@ function InlineField({ icon: Icon, label, field, value, multiline, saved, onChan
 
   return (
     <div className="px-4 py-1.5">
-      <label className="text-[10px] text-muted-foreground/70 font-medium flex items-center gap-1 mb-1 cursor-pointer" onClick={() => ref.current?.focus()}>
-        <Icon className="h-3 w-3" />
+      <label className="text-xs text-foreground/60 font-semibold flex items-center gap-1.5 mb-1 cursor-pointer" onClick={() => ref.current?.focus()}>
+        <Icon className="h-3.5 w-3.5" />
         {label}
       </label>
       <div
