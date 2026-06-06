@@ -1,22 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-import { getChatUnreadCountAction } from "@/actions/chat-unread-count-action";
-import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
-
-const POLL_INTERVAL_MS = 60_000;
-
-export function useChatUnreadNotifications() {
-  const setUnreadCount = useChatUnreadStore((s) => s.setUnreadCount);
-
-  const check = async () => {
-    const count = await getChatUnreadCountAction();
-    setUnreadCount(count);
-  };
-
-  useEffect(() => {
-    void check();
-    const interval = setInterval(() => void check(), POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, []);
-}
+// El conteo de chats sin leer es estado cliente puro (pendingUnreadJids en chat-sidebar).
+// Este hook existe solo como punto de entrada del store — la actualización real
+// ocurre en chat-sidebar.tsx via useEffect cuando filterCounts.unread cambia.
+export function useChatUnreadNotifications() {}

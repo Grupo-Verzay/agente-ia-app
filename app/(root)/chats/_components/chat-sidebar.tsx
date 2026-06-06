@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { resolveSession } from "@/actions/advisor-assign-actions";
 import { getSessionIdsWithNotesAction } from "@/actions/internal-notes-actions";
@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Inbox, Trash2, Users, UserX, Check, SquarePen, MessageCircle, PanelLeftClose } from "lucide-react";
 import type { FetchChatsResult } from "@/actions/chat-actions";
+import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
 import type { ChatContactSessionMap, SimpleTag } from "@/types/session";
@@ -310,6 +311,11 @@ export function ChatSidebar({
       notes: active.filter((c) => c.hasNotes).length,
     };
   }, [contacts, starredJids]);
+
+  const setUnreadCount = useChatUnreadStore((s) => s.setUnreadCount);
+  useEffect(() => {
+    setUnreadCount(filterCounts.unread);
+  }, [filterCounts.unread, setUnreadCount]);
 
   const filtered = useMemo(() => {
     if (tab === "deleted") return [];
