@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle, ArrowLeft, Bot, CheckCircle2,
   Copy, GitBranch, Lightbulb, Loader2, MessageSquare, PenLine, RefreshCw,
-  RotateCcw, Send, SendHorizontal, Sparkles, Trash2, Wand2, Zap,
+  RotateCcw, SendHorizontal, Sparkles, Trash2, Wand2, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -457,6 +457,17 @@ export function AgentPromptChatDialog({
             {generatorMode ? (
               /* ── Modo generador ── */
               <>
+                <div className="shrink-0 border-b px-3 py-2 flex items-center lg:hidden">
+                  <button
+                    type="button"
+                    onClick={exitAllModes}
+                    disabled={genStage === "running"}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Salir
+                  </button>
+                </div>
                 {genStage === "idle" || genStage === "error" ? (
                   <div className="flex flex-1 flex-col gap-3 p-4 min-h-0">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary shrink-0 self-start">
@@ -525,6 +536,27 @@ export function AgentPromptChatDialog({
             ) : (
               /* ── Chat (asistente + simulador integrado) ── */
               <>
+                {simulatorMode ? (
+                  <div className="shrink-0 border-b px-3 py-2 flex items-center gap-3 lg:hidden">
+                    <button
+                      type="button"
+                      onClick={exitAllModes}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <ArrowLeft className="h-3.5 w-3.5" />
+                      Salir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={simReset}
+                      disabled={simMessages.length === 0 && !simError}
+                      className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Reiniciar
+                    </button>
+                  </div>
+                ) : null}
 
                 <ScrollArea className="min-h-0 flex-1 px-4 pt-3 pb-2">
                   <div className="space-y-3">
