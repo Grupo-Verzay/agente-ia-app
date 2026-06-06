@@ -324,10 +324,10 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
 
                             <Button
                                 variant="outline"
-                                className="gap-2 h-9"
+                                className="gap-2 h-9 bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 hover:text-primary hover:border-primary/50"
                                 onClick={() => setShowPromptChat(true)}
                             >
-                                <Bot className="h-4 w-4 text-primary" />
+                                <Bot className="h-4 w-4" />
                                 <span className="hidden sm:inline">IA Prompts</span>
                             </Button>
 
