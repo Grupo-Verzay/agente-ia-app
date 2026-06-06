@@ -219,7 +219,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                         <div
                             ref={scrollRef}
                             className={cn(
-                                "flex overflow-x-auto gap-2 pb-1 scrollbar-none",
+                                "flex items-center overflow-x-auto gap-2 pb-1 scrollbar-none",
                                 "sm:overflow-visible sm:justify-start sm:flex-wrap"
                             )}
                         >
