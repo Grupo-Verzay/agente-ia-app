@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
+import { useChatUnreadStore } from '@/stores/useChatUnreadStore';
 
 import { canAccessRoute } from '@/utils/access';
 import { PremiumModule } from './shared/PremiumModule';
@@ -27,6 +28,7 @@ export function NavMain({ user }: { user: User }) {
     const router = useRouter();
     const { isMobile, setOpenMobile } = useSidebar();
     const taskPendingCount = useTaskStore((s) => s.pendingCount);
+    const chatUnreadCount = useChatUnreadStore((s) => s.unreadCount);
 
     const isAdvisor = !!user.ownerId;
 
@@ -107,6 +109,11 @@ export function NavMain({ user }: { user: User }) {
                                 {route === '/tareas' && taskPendingCount > 0 && (
                                     <SidebarMenuBadge className="right-2 top-1/2 z-20 flex h-4 min-w-4 -translate-y-1/2 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm group-data-[collapsible=icon]:right-0.5">
                                         {taskPendingCount > 99 ? '99+' : taskPendingCount}
+                                    </SidebarMenuBadge>
+                                )}
+                                {route === '/chats' && chatUnreadCount > 0 && (
+                                    <SidebarMenuBadge className="right-2 top-1/2 z-20 flex h-4 min-w-4 -translate-y-1/2 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm group-data-[collapsible=icon]:right-0.5">
+                                        {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
                                     </SidebarMenuBadge>
                                 )}
 
