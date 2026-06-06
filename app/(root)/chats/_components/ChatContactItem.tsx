@@ -332,7 +332,7 @@ export function ChatContactItem({
             <div className="mt-0.5 flex items-center justify-between gap-2">
               <div
                 className={cn(
-                  "flex items-center gap-1 truncate text-sm",
+                  "flex items-center gap-1 truncate text-[15px] sm:text-sm",
                   isUnread ? "text-foreground" : "text-muted-foreground",
                 )}
               >
