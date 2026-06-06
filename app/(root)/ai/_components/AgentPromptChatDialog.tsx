@@ -2,8 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertCircle, ArrowLeft, Bot, CheckCircle2, ChevronDown, ChevronUp,
-  Copy, FileText, GitBranch, Lightbulb, Loader2, MessageSquare, PenLine, RefreshCw,
+  AlertCircle, ArrowLeft, Bot, CheckCircle2,
+  Copy, GitBranch, Lightbulb, Loader2, MessageSquare, PenLine, RefreshCw,
   RotateCcw, Send, SendHorizontal, Sparkles, Trash2, Wand2, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -72,12 +72,12 @@ const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
 };
 
 const SECTION_DESCRIPTIONS: Record<AiSectionKey, string> = {
-  business: "El agente presenta el negocio y responde preguntas básicas al cliente.",
-  training: "Define cómo el agente saluda y comienza cada conversación.",
-  faq: "Respuestas frecuentes para que el agente responda sin intervención.",
-  products: "El agente presenta, describe y cotiza productos o servicios.",
-  more: "Información extra que el agente usa en situaciones específicas.",
-  management: "Configura el manejo de quejas, escalaciones y seguimientos.",
+  business: "Presenta el negocio al cliente: nombre, descripción, ubicación, horarios y contacto. Mientras más completa, mejor responderá sin escalar a un humano.",
+  training: "Define cómo el agente arranca cada conversación nueva. Un buen mensaje de inicio genera confianza, orienta al cliente y aumenta la respuesta desde el primer mensaje.",
+  faq: "Configura las preguntas y respuestas más frecuentes de tu negocio. El agente las consulta para responder de forma automática, reduciendo tiempos de espera sin intervención humana.",
+  products: "Lista los productos o servicios con nombre, descripción y precio. El agente los usa para presentar, comparar y cotizar según lo que el cliente necesite en la conversación.",
+  more: "Espacio para información complementaria: políticas, condiciones, horarios especiales o instrucciones que el agente aplica en situaciones puntuales que no cubre otra sección.",
+  management: "Define cómo el agente maneja quejas, reclamos, seguimientos y cuándo escalar a un humano. Una buena configuración aquí evita fricciones y mejora la experiencia del cliente.",
 };
 
 const OPTIMIZE_PROMPT: QuickPrompt = {
@@ -229,7 +229,7 @@ export function AgentPromptChatDialog({
   const [isSending, setIsSending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [showDraft, setShowDraft] = useState(false);
+
 
   // ── Simulator state
   const [simulatorMode, setSimulatorMode] = useState(false);
@@ -261,7 +261,7 @@ export function AgentPromptChatDialog({
     if (!open) return;
     setMessages([welcome]);
     setText("");
-    setShowDraft(false);
+
     setSimulatorMode(false);
     setSimMessages([]);
     setSimInput("");
@@ -335,7 +335,7 @@ export function AgentPromptChatDialog({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void sendText(text);
+    if (simulatorMode) { void simSend(); } else { void sendText(text); }
   };
 
   // ── Simulator handlers
@@ -369,6 +369,17 @@ export function AgentPromptChatDialog({
     setSimMessages([]);
     setSimInput("");
     setSimError(null);
+  };
+
+  const exitAllModes = () => {
+    setSimulatorMode(false);
+    setSimMessages([]);
+    setSimInput("");
+    setSimError(null);
+    setGeneratorMode(false);
+    setGenStage("idle");
+    setGenStep(0);
+    setGenError(null);
   };
 
   const handleGenerate = async () => {
@@ -406,7 +417,11 @@ export function AgentPromptChatDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(585px,92dvh)] w-[min(960px,calc(100vw-1.5rem))] max-w-none flex-col overflow-hidden p-0">
+      <DialogContent className="flex h-[min(585px,92dvh)] w-[min(960px,calc(100vw-1.5rem))] max-w-none flex-col overflow-hidden p-0 [&>button]:text-destructive/60 [&>button]:hover:text-destructive [&>button]:hover:bg-destructive/10">
+
+        <div className="relative flex flex-1 flex-col min-h-0">
+          {/* Divisor vertical header+body */}
+          <div className="absolute inset-y-0 right-[320px] hidden w-px bg-border lg:block pointer-events-none" />
 
         {/* ── Header compartido full-width ── */}
         <div className="shrink-0 border-b">
@@ -416,15 +431,11 @@ export function AgentPromptChatDialog({
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <Bot className="h-3.5 w-3.5" />
                 </span>
-                Chat para mejorar Agente IA
-                <span className="text-muted-foreground font-normal">·</span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  Sección: <span className="font-medium text-foreground">{TYPE_AI_LABELS[activeTab]}</span>
-                </span>
+                Chat IA
                 <button
                   type="button"
                   onClick={handleClear}
-                  className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-destructive/60 transition-colors hover:bg-destructive/10 hover:text-destructive"
                   aria-label="Limpiar chat"
                   title="Limpiar chat"
                 >
@@ -432,27 +443,13 @@ export function AgentPromptChatDialog({
                 </button>
               </DialogTitle>
             </div>
-            {currentDraft ? (
-              <div className="hidden lg:flex items-center border-l px-4">
-                <button
-                  type="button"
-                  onClick={() => setShowDraft((v) => !v)}
-                  className="flex w-full items-center justify-between text-xs text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <FileText className="h-3 w-3" />
-                    VER SECCIÓN ACTUAL
-                  </span>
-                  {showDraft ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                </button>
-              </div>
-            ) : null}
+            <div className="hidden lg:flex items-center border-l px-4">
+              <span className="text-sm font-semibold text-foreground">Acciones</span>
+            </div>
           </div>
         </div>
 
-        <div className="relative grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[1fr_320px]">
-          {/* Divisor vertical completo */}
-          <div className="absolute inset-y-0 right-[320px] hidden w-px bg-border lg:block" />
+        <div className="grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[1fr_320px]">
 
           {/* ── Columna izquierda ── */}
           <div className="flex flex-col min-h-0">
@@ -460,36 +457,15 @@ export function AgentPromptChatDialog({
             {generatorMode ? (
               /* ── Modo generador ── */
               <>
-                {/* Mini header */}
-                <div className="shrink-0 border-b bg-card px-4 py-2 flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 shrink-0">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold leading-none">Generar flujo</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">La IA crea todas las secciones</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 gap-1.5 text-xs text-muted-foreground px-2 shrink-0"
-                    disabled={genStage === "running"}
-                    onClick={() => { setGeneratorMode(false); setGenStage("idle"); setGenStep(0); setGenError(null); }}
-                  >
-                    <ArrowLeft className="h-3.5 w-3.5" />
-                    Salir
-                  </Button>
-                </div>
-
-                {/* Contenido */}
                 {genStage === "idle" || genStage === "error" ? (
                   <div className="flex flex-1 flex-col gap-3 p-4 min-h-0">
-                    <p className="text-xs text-muted-foreground shrink-0">
-                      Describe el negocio y la IA genera el flujo completo automáticamente.
-                    </p>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary shrink-0 self-start">
+                      <Sparkles className="h-3 w-3" />
+                      Generar flujo del negocio
+                    </span>
                     <textarea
                       className="flex-1 w-full rounded-md border bg-background p-2.5 text-sm resize-none overflow-y-auto focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50 min-h-0"
-                      placeholder={"Ej: Somos academia en Bogotá. Cursos de barbería $8/clase, mecánica $10/clase.\nHorarios: Lun-Sáb 8am-6pm\nPago: Nequi 300..."}
+                      placeholder={"Describe el negocio y la IA genera el flujo completo automáticamente.\n\nEj: Somos academia en Bogotá. Cursos de barbería $8/clase, mecánica $10/clase.\nHorarios: Lun-Sáb 8am-6pm"}
                       value={genDescription}
                       onChange={(e) => setGenDescription(e.target.value)}
                     />
@@ -510,7 +486,14 @@ export function AgentPromptChatDialog({
                     </Button>
                   </div>
                 ) : genStage === "running" || genStage === "done" ? (
-                  <div className="flex flex-1 flex-col items-center justify-center gap-6 px-8 text-center min-h-0">
+                  <div className="flex flex-1 flex-col gap-6 px-4 pt-4 min-h-0">
+                    <div className="flex items-center justify-between shrink-0">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                        <Sparkles className="h-3 w-3" />
+                        Generando flujo…
+                      </span>
+                    </div>
+                  <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4 text-center min-h-0">
                     <div className="w-full max-w-xs space-y-4">
                       {GEN_STEPS.map((step, i) => (
                         <div
@@ -536,177 +519,103 @@ export function AgentPromptChatDialog({
                       <p className="text-sm font-medium text-emerald-600">¡Listo! Recargando…</p>
                     ) : null}
                   </div>
+                  </div>
                 ) : null}
               </>
-            ) : simulatorMode ? (
-              /* ── Modo simulador ── */
-              <>
-                {/* Mini header estilo WhatsApp */}
-                <div className="shrink-0 border-b bg-card px-4 py-2 flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                    {initials}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold leading-none truncate">{businessName || "Agente IA"}</p>
-                    <p className="text-xs text-emerald-500 mt-0.5">en línea · simulador</p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-1.5 text-xs text-muted-foreground px-2"
-                      onClick={simReset}
-                      disabled={simMessages.length === 0 && !simError}
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                      Reiniciar
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-1.5 text-xs text-muted-foreground px-2"
-                      onClick={() => setSimulatorMode(false)}
-                    >
-                      <ArrowLeft className="h-3.5 w-3.5" />
-                      Salir
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Mensajes del simulador */}
-                <div
-                  className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-2.5"
-                  style={{ backgroundImage: "radial-gradient(hsl(var(--muted)/0.4) 1px, transparent 1px)", backgroundSize: "20px 20px" }}
-                >
-                  {simMessages.length === 0 && !simIsLoading && !simError ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center select-none">
-                      <div className="h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-2">
-                        <MessageSquare className="h-6 w-6 text-emerald-500" />
-                      </div>
-                      <p className="text-sm font-medium">Escribe como cliente</p>
-                      <p className="text-xs text-muted-foreground mt-1 max-w-[200px] leading-relaxed">
-                        El agente responderá como si estuviera en WhatsApp.
-                      </p>
-                    </div>
-                  ) : null}
-
-                  {simMessages.map((msg) => (
-                    <div key={msg.id} className={cn("flex gap-2", msg.role === "user" ? "justify-end" : "justify-start items-end")}>
-                      {msg.role === "assistant" ? (
-                        <div className="h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mb-0.5">
-                          {initials}
-                        </div>
-                      ) : null}
-                      <div className={cn(
-                        "max-w-[78%] px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words leading-relaxed shadow-sm",
-                        msg.role === "user"
-                          ? "bg-primary text-primary-foreground rounded-br-none"
-                          : "bg-card border rounded-bl-none"
-                      )}>
-                        {msg.content}
-                      </div>
-                    </div>
-                  ))}
-
-                  {simIsLoading ? (
-                    <div className="flex gap-2 items-end">
-                      <div className="h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0 mb-0.5">
-                        {initials}
-                      </div>
-                      <div className="bg-card border px-4 py-3 rounded-2xl rounded-bl-none shadow-sm flex items-center gap-1">
-                        <span className="h-2 w-2 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:-0.3s]" />
-                        <span className="h-2 w-2 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:-0.15s]" />
-                        <span className="h-2 w-2 rounded-full bg-muted-foreground/40 animate-bounce" />
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {simError ? (
-                    <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      {simError}
-                    </div>
-                  ) : null}
-
-                  <div ref={simBottomRef} />
-                </div>
-
-                {/* Input del simulador */}
-                <div className="shrink-0 border-t px-4 py-3 flex gap-2 items-end bg-card">
-                  <Textarea
-                    className="flex-1 min-h-[36px] max-h-28 resize-none text-sm"
-                    placeholder="Escribe un mensaje como cliente…"
-                    value={simInput}
-                    onChange={(e) => setSimInput(e.target.value)}
-                    disabled={simIsLoading || !promptId}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void simSend(); }
-                    }}
-                  />
-                  <Button
-                    size="icon"
-                    className="h-9 w-9 shrink-0 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white"
-                    onClick={() => void simSend()}
-                    disabled={!simInput.trim() || simIsLoading || !promptId}
-                  >
-                    {simIsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </>
             ) : (
-              /* ── Modo asistente ── */
+              /* ── Chat (asistente + simulador integrado) ── */
               <>
+
                 <ScrollArea className="min-h-0 flex-1 px-4 pt-3 pb-2">
                   <div className="space-y-3">
-                    {messages.map((message) => (
-                      <PromptChatBubble
-                        key={message.id}
-                        message={message}
-                        onApply={onApplyDraft ? handleApply : undefined}
-                      />
-                    ))}
-                    {isSending ? (
-                      <div className="flex justify-start">
-                        <div className="flex items-center gap-2 rounded-2xl border bg-muted/70 px-3 py-2 text-sm text-muted-foreground">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Pensando...
-                        </div>
-                      </div>
-                    ) : null}
-                    <div ref={messagesEndRef} />
+                    {simulatorMode ? (
+                      <>
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-600 mb-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          Simulador · {businessName || "Agente IA"}
+                        </span>
+                        {simMessages.map((msg) => (
+                          <div key={msg.id} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+                            <div className={cn(
+                              "max-w-[86%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words",
+                              msg.role === "user"
+                                ? "bg-primary text-primary-foreground"
+                                : "border bg-muted/70 text-foreground"
+                            )}>
+                              {msg.content}
+                            </div>
+                          </div>
+                        ))}
+                        {simIsLoading ? (
+                          <div className="flex justify-start">
+                            <div className="flex items-center gap-2 rounded-2xl border bg-muted/70 px-3 py-2 text-sm text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
+                              Respondiendo...
+                            </div>
+                          </div>
+                        ) : null}
+                        {simError ? (
+                          <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                            {simError}
+                          </div>
+                        ) : null}
+                        <div ref={simBottomRef} />
+                      </>
+                    ) : (
+                      <>
+                        {messages.map((message) => (
+                          <PromptChatBubble
+                            key={message.id}
+                            message={message}
+                            onApply={onApplyDraft ? handleApply : undefined}
+                          />
+                        ))}
+                        {isSending ? (
+                          <div className="flex justify-start">
+                            <div className="flex items-center gap-2 rounded-2xl border bg-muted/70 px-3 py-2 text-sm text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Pensando...
+                            </div>
+                          </div>
+                        ) : null}
+                        <div ref={messagesEndRef} />
+                      </>
+                    )}
                   </div>
                 </ScrollArea>
 
-                {/* Mobile: atajos horizontales */}
-                <div className="shrink-0 overflow-x-auto border-t px-3 py-2 lg:hidden">
-                  <div className="flex gap-2 w-max">
-                    {[...quickPrompts, OPTIMIZE_PROMPT, SIMULATE_PROMPT].map((item) => {
-                      const Icon = item.icon;
-                      const isSimulate = item.label === SIMULATE_PROMPT.label;
-                      return (
-                        <button
-                          key={item.label}
-                          type="button"
-                          disabled={isSending}
-                          onClick={() => isSimulate ? setSimulatorMode(true) : void sendText(item.text)}
-                          className="flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-50"
-                        >
-                          <Icon className="h-3 w-3 shrink-0 text-primary" />
-                          {item.label}
-                        </button>
-                      );
-                    })}
+                {!simulatorMode ? (
+                  <div className="shrink-0 overflow-x-auto border-t px-3 py-2 lg:hidden">
+                    <div className="flex gap-2 w-max">
+                      {[...quickPrompts, OPTIMIZE_PROMPT, SIMULATE_PROMPT].map((item) => {
+                        const Icon = item.icon;
+                        const isSimulate = item.label === SIMULATE_PROMPT.label;
+                        return (
+                          <button
+                            key={item.label}
+                            type="button"
+                            disabled={isSending}
+                            onClick={() => { if (isSimulate) { exitAllModes(); setSimulatorMode(true); } else { exitAllModes(); void sendText(item.text); } }}
+                            className="flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-50"
+                          >
+                            <Icon className="h-3 w-3 shrink-0 text-primary" />
+                            {item.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
                 <form ref={formRef} onSubmit={handleSubmit} className="shrink-0 border-t p-3">
                   <div className="flex items-center gap-2">
                     <Textarea
-                      value={text}
-                      onChange={(event) => setText(event.target.value)}
-                      placeholder="Ej: Mejora este prompt para cierre de ventas sin sonar insistente..."
-                      className="min-h-[36px] max-h-28 resize-y text-sm"
-                      disabled={isSending}
+                      value={simulatorMode ? simInput : text}
+                      onChange={(e) => simulatorMode ? setSimInput(e.target.value) : setText(e.target.value)}
+                      placeholder={simulatorMode ? "Escribe un mensaje como cliente…" : "Escribe tu duda o lo que quieres mejorar y la IA te guiará..."}
+                      className="min-h-[56px] max-h-28 resize-none text-sm"
+                      disabled={simulatorMode ? (simIsLoading || !promptId) : isSending}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" && !event.shiftKey) {
                           event.preventDefault();
@@ -717,11 +626,11 @@ export function AgentPromptChatDialog({
                     <Button
                       type="submit"
                       size="icon"
-                      className="h-9 w-9 shrink-0 rounded-md"
-                      disabled={isSending || !text.trim()}
+                      className={cn("h-9 w-9 shrink-0 rounded-md", simulatorMode && "bg-emerald-500 hover:bg-emerald-600")}
+                      disabled={simulatorMode ? (!simInput.trim() || simIsLoading || !promptId) : (isSending || !text.trim())}
                       aria-label="Enviar mensaje"
                     >
-                      {isSending ? (
+                      {(simulatorMode ? simIsLoading : isSending) ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <SendHorizontal className="h-4 w-4" />
@@ -734,61 +643,76 @@ export function AgentPromptChatDialog({
           </div>
 
           {/* ── Sidebar derecha ── */}
-          <aside className="hidden min-h-0 flex-col bg-muted/20 lg:flex overflow-y-auto">
-
-            {/* Draft expandido */}
-            {showDraft && currentDraft ? (
-              <div className="shrink-0 border-b px-4 py-2">
-                <div className="max-h-28 overflow-y-auto rounded-md border bg-background p-2 text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                  {currentDraft}
-                </div>
-              </div>
-            ) : null}
+          <aside className="hidden min-h-0 flex-col bg-muted/30 lg:flex overflow-y-auto">
 
             {/* Atajos */}
-            <div className="flex flex-col gap-3 px-4 pt-3 pb-3">
-              <p className="text-sm font-semibold">Atajos</p>
-              <div className="space-y-2">
-                {[...quickPrompts, OPTIMIZE_PROMPT, SIMULATE_PROMPT].map((item) => {
-                  const Icon = item.icon;
-                  const isSimulate = item.label === SIMULATE_PROMPT.label;
-                  return (
-                    <Button
-                      key={item.label}
-                      type="button"
-                      variant="outline"
-                      className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
-                      disabled={isSending}
-                      onClick={() => { isSimulate ? setSimulatorMode(true) : setText(item.text); }}
-                    >
-                      <Icon className="h-4 w-4 shrink-0 text-primary" />
-                      {item.label}
-                    </Button>
-                  );
-                })}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-auto w-full justify-start gap-2 px-3 py-2 text-left text-sm"
-                  onClick={() => setGeneratorMode(true)}
-                >
-                  <GitBranch className="h-4 w-4 shrink-0 text-primary" />
-                  Generar flujo del negocio
-                </Button>
+            <div className="flex flex-col gap-3 px-4 py-4">
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground/60">Sugerencias</span>
+                <div className="h-px flex-1 bg-border" />
               </div>
+              {quickPrompts.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Button
+                    key={item.label}
+                    type="button"
+                    variant="outline"
+                    className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
+                    disabled={isSending}
+                    onClick={() => { exitAllModes(); void sendText(item.text); }}
+                  >
+                    <Icon className="h-4 w-4 shrink-0 text-primary" />
+                    {item.label}
+                  </Button>
+                );
+              })}
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground/60">Herramientas</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              {[OPTIMIZE_PROMPT, SIMULATE_PROMPT].map((item) => {
+                const Icon = item.icon;
+                const isSimulate = item.label === SIMULATE_PROMPT.label;
+                return (
+                  <Button
+                    key={item.label}
+                    type="button"
+                    variant="outline"
+                    className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
+                    disabled={isSending}
+                    onClick={() => { if (isSimulate) { exitAllModes(); setSimulatorMode(true); } else { exitAllModes(); void sendText(item.text); } }}
+                  >
+                    <Icon className="h-4 w-4 shrink-0 text-primary" />
+                    {item.label}
+                  </Button>
+                );
+              })}
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto w-full justify-start gap-2 px-3 py-2 text-left text-sm"
+                onClick={() => { exitAllModes(); setGeneratorMode(true); }}
+              >
+                <GitBranch className="h-4 w-4 shrink-0 text-primary" />
+                Generar flujo del negocio
+              </Button>
             </div>
 
             {/* Descripción de la sección */}
-            <div className="mt-auto shrink-0 border-t px-4 py-11">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-primary mb-1">
+            <div className="mt-auto shrink-0 border-t border-primary/20 bg-primary/5 px-4 pt-5 pb-4">
+              <p className="text-sm font-semibold uppercase tracking-wide text-primary mb-1.5">
                 {TYPE_AI_LABELS[activeTab]}
               </p>
-              <p className="text-sm leading-relaxed text-foreground font-medium">
+              <p className="text-sm leading-relaxed text-foreground font-normal">
                 {SECTION_DESCRIPTIONS[activeTab]}
               </p>
             </div>
           </aside>
         </div>
+        </div>{/* fin wrapper relative */}
       </DialogContent>
     </Dialog>
   );
