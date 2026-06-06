@@ -371,7 +371,7 @@ export function ChatContactItem({
             type="button"
             onClick={(e) => { e.stopPropagation(); onToggleStar(contact.id); }}
             className={cn(
-              "shrink-0 h-7 w-7 flex items-center justify-center rounded-full transition-all",
+              "shrink-0 -mr-1 h-7 w-7 flex items-center justify-center rounded-full transition-all",
               isStarred
                 ? "opacity-100 text-amber-400"
                 : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-amber-400",

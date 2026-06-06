@@ -106,6 +106,8 @@ type ChatSidebarProps = {
   onBulkAssignAdvisor?: (remoteJids: string[], advisorId: string | null) => Promise<void>;
   onBulkAddTag?: (remoteJids: string[], tagId: number) => Promise<void>;
   onCollapse?: () => void;
+  tab?: TabKey;
+  onTabChange?: (tab: TabKey) => void;
 };
 
 export function ChatSidebar({
@@ -139,9 +141,19 @@ export function ChatSidebar({
   onBulkAssignAdvisor,
   onBulkAddTag,
   onCollapse,
+  tab: tabProp,
+  onTabChange: onTabChangeProp,
 }: ChatSidebarProps) {
   const [q, setQ] = useState("");
-  const [tab, setTab] = useState<TabKey>(currentAdvisorId ? "mine" : "all");
+  const [internalTab, setInternalTab] = useState<TabKey>(currentAdvisorId ? "mine" : "all");
+  const tab = tabProp ?? internalTab;
+  const applyTab = useCallback(
+    (newTab: TabKey) => {
+      if (onTabChangeProp) onTabChangeProp(newTab);
+      else setInternalTab(newTab);
+    },
+    [onTabChangeProp],
+  );
   const [deleteTarget, setDeleteTarget] = useState<SidebarContact | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
   const [advisorFilter, setAdvisorFilter] = useState<string | null>(null); // null=todos, 'unassigned'=sin asignar, id=asesor específico
@@ -403,13 +415,13 @@ export function ChatSidebar({
   }, []);
 
   const handleTabChange = useCallback((newTab: TabKey) => {
-    setTab(newTab);
+    applyTab(newTab);
     setUnreadOnly(false);
     setStarredOnly(false);
     setNotesOnly(false);
     setSelectedTagIds(new Set());
     void onSelectRemoteJid?.("");
-  }, [onSelectRemoteJid]);
+  }, [applyTab, onSelectRemoteJid]);
 
   const toggleTagFilter = useCallback((tagId: number) => {
     setSelectedTagIds((prev) => {

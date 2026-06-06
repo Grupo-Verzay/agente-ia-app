@@ -39,7 +39,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
   const isOverflowActive = tab === "archived" || tab === "deleted" || unreadOnly || starredOnly || notesOnly;
 
   return (
-    <div className="flex flex-row items-center justify-between gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-1.5">
+    <div className="flex flex-row items-center gap-1.5">
       {visibleTabs.map(({ key, label, Icon, color }) => {
         const count = tabCounts[key];
         const isActive = tab === key;
@@ -48,7 +48,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
             key={key}
             type="button"
             onClick={() => onTabChange(key)}
-            className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium whitespace-nowrap transition-all"
+            className="inline-flex h-6 flex-1 items-center justify-center gap-1 rounded-full border px-2 text-[11px] font-medium whitespace-nowrap transition-all"
             style={
               isActive
                 ? { background: color, borderColor: color, color: "#fff" }
@@ -59,7 +59,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
             <span>{label}</span>
             {count > 0 && (
               <span
-                className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none text-white"
+                className="flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none text-white"
                 style={{ background: isActive ? "rgba(255,255,255,0.3)" : color }}
               >
                 {count}
@@ -76,7 +76,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
           <button
             type="button"
             className={cn(
-              "inline-flex h-6 shrink-0 items-center gap-0.5 rounded-full border px-2 text-[11px] font-medium transition-all",
+              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-medium transition-all",
               isOverflowActive
                 ? "border-slate-500 bg-slate-500 text-white"
                 : "border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",

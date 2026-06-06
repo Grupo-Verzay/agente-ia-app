@@ -51,7 +51,7 @@ export function ChatSearchBar({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="inline-flex h-8 shrink-0 items-center gap-0.5 rounded-full px-2 text-xs font-semibold tracking-tight text-foreground transition-colors hover:bg-accent sm:gap-1 sm:px-2.5"
+              className="inline-flex h-8 shrink-0 items-center gap-0.5 rounded-full px-2 text-sm font-semibold tracking-tight text-foreground transition-colors hover:bg-accent sm:gap-1 sm:px-2.5"
             >
               <span className="max-w-[52px] truncate sm:max-w-[90px]">{activeLabel}</span>
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />

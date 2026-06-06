@@ -25,6 +25,7 @@ import type {
 } from "@/actions/chat-actions";
 import { ChatMain } from "./chat-main";
 import { ChatSidebar } from "./chat-sidebar";
+import type { TabKey } from "./chat-sidebar.types";
 import { useSidebar } from "@/components/ui/sidebar";
 import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
@@ -281,7 +282,14 @@ export function ChatsClient({
   const [isSidebarVisible, setIsSidebarVisible] = useState(!initialSelectedJid);
   const [isContactPanelOpen, setIsContactPanelOpen] = useState(false);
   const [isChatListCollapsed, setIsChatListCollapsed] = useState(false);
+  const [chatListTab, setChatListTab] = useState<TabKey>(currentAdvisorId ? "mine" : "all");
   const [closeInfoPanelSignal, setCloseInfoPanelSignal] = useState(0);
+
+  const goToChatTab = useCallback((tab: TabKey) => {
+    setChatListTab(tab);
+    setIsChatListCollapsed(false);
+    setIsSidebarVisible(true);
+  }, []);
   const { setOpen: setNavOpen, open: navOpen } = useSidebar();
   const prevNavOpenRef = useRef<boolean>(true);
 
@@ -1245,8 +1253,8 @@ export function ChatsClient({
           isChatListCollapsed
             ? "hidden"
             : isSidebarVisible
-              ? "w-full sm:w-[16rem] md:w-[18rem] lg:w-[20rem] xl:w-[22rem]"
-              : "hidden md:block md:w-[18rem] lg:w-[20rem] xl:w-[22rem]"
+              ? "w-full sm:w-[18rem] md:w-[20rem] lg:w-[22rem] xl:w-[24rem]"
+              : "hidden md:block md:w-[20rem] lg:w-[22rem] xl:w-[24rem]"
         } h-full flex-shrink-0 transition-all duration-300 sm:border-r`}
       >
         <ChatSidebar
@@ -1288,6 +1296,8 @@ export function ChatsClient({
           }
           onBulkAddTag={allTags.length > 0 ? handleBulkAddTag : undefined}
           onCollapse={() => setIsChatListCollapsed(true)}
+          tab={chatListTab}
+          onTabChange={setChatListTab}
         />
       </div>
 
@@ -1342,27 +1352,39 @@ export function ChatsClient({
               <p className="mt-1.5 text-sm text-muted-foreground">Selecciona un chat de la lista para comenzar</p>
             </div>
             <div className="flex flex-col gap-2.5 w-full max-w-xs">
-              <div className="flex items-center gap-3 rounded-xl border border-violet-200 bg-violet-50 dark:border-violet-800/50 dark:bg-violet-950/30 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => goToChatTab("mine")}
+                className="flex w-full items-center gap-3 rounded-xl border border-violet-200 bg-violet-50 dark:border-violet-800/50 dark:bg-violet-950/30 px-4 py-3 text-left transition-colors hover:bg-violet-100 dark:hover:bg-violet-900/40"
+              >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-500 text-[10px] font-bold text-white">M</span>
                 <div>
                   <p className="text-xs font-semibold text-violet-700 dark:text-violet-400">Pestaña Mías</p>
                   <p className="text-[11px] text-muted-foreground">Conversaciones asignadas a ti</p>
                 </div>
-              </div>
-              <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-800/50 dark:bg-blue-950/30 px-4 py-3">
+              </button>
+              <button
+                type="button"
+                onClick={() => goToChatTab("all")}
+                className="flex w-full items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-800/50 dark:bg-blue-950/30 px-4 py-3 text-left transition-colors hover:bg-blue-100 dark:hover:bg-blue-900/40"
+              >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">T</span>
                 <div>
                   <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">Pestaña Todos</p>
                   <p className="text-[11px] text-muted-foreground">Todas las conversaciones activas</p>
                 </div>
-              </div>
-              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/30 px-4 py-3">
+              </button>
+              <button
+                type="button"
+                onClick={() => goToChatTab("archived")}
+                className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/30 px-4 py-3 text-left transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/60"
+              >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-400 text-xs font-bold text-white">▼</span>
                 <div>
                   <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Más opciones</p>
                   <p className="text-[11px] text-muted-foreground">Chats archivados y eliminados</p>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
         )}
