@@ -328,7 +328,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 onClick={() => setShowPromptChat(true)}
                             >
                                 <Bot className="h-4 w-4 text-primary" />
-                                <span className="hidden sm:inline">Chat prompts</span>
+                                <span className="hidden sm:inline">IA Prompts</span>
                             </Button>
 
 <DropdownMenu modal={false}>
