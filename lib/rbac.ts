@@ -6,6 +6,8 @@ export const isAdmin = (role?: Role | string | null): boolean => role === "admin
 
 export const isReseller = (role?: Role | string | null): boolean => role === "reseller";
 
+export const isAffiliate = (role?: Role | string | null): boolean => role === "affiliate";
+
 export const isAdminLike = (role?: Role | string | null): boolean =>
   role === "admin" || role === "super_admin";
 

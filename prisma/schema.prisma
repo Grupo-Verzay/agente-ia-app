@@ -1442,8 +1442,9 @@ enum RepeatType {
 
 enum Role {
   user
-  admin
+  affiliate
   reseller
+  admin
   super_admin
 }
 

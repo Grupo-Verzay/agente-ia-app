@@ -82,8 +82,9 @@ const defaultImgUrl = 'https://images.pexels.com/photos/133356/pexels-photo-1333
 
 const ROLE_LABELS: Record<string, string> = {
     user: 'Usuario',
-    admin: 'Administrador',
+    affiliate: 'Afiliado',
     reseller: 'Reseller',
+    admin: 'Administrador',
     super_admin: 'Super Admin',
 };
 

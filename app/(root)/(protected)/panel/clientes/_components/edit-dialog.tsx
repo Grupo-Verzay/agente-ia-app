@@ -47,8 +47,9 @@ export const EditDialog = ({
   const ROLES = Object.values(Role);
   const ROLE_LABELS: Record<Role, string> = {
     user: 'Usuario',
-    admin: 'Administrador',
+    affiliate: 'Afiliado',
     reseller: 'Reseller',
+    admin: 'Administrador',
     super_admin: 'Super administrador',
   };
 
