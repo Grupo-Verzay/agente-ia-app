@@ -8,11 +8,10 @@ import { db } from "@/lib/db"; // tu prisma client
 import { Prisma, Plan } from "@prisma/client";
 
 const PLAN_PRODUCT_LIMITS: Record<Plan, number> = {
-    basico:       10,
-    intermedio:   25,
-    avanzado:     50,
-    lite:         10,
-    unico:        25,
+    lite:          10,
+    basico:        10,
+    intermedio:    25,
+    avanzado:      50,
     enterprise:   200,
     personalizado: 50,
 };

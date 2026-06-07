@@ -14,7 +14,7 @@ import { PLAN_LABELS } from '@/types/plans';
 export const dynamic = 'force-dynamic';
 
 // Planes que tienen acceso a esta funcionalidad
-const ALLOWED_PLANS: Plan[] = ['intermedio', 'avanzado', 'enterprise', 'personalizado', 'unico'];
+const ALLOWED_PLANS: Plan[] = ['intermedio', 'avanzado', 'enterprise', 'personalizado'];
 
 function UpgradeRequired({ currentPlan }: { currentPlan: Plan }) {
   return (

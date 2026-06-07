@@ -2,7 +2,7 @@
 
 import type React from "react";
 import type { Plan } from "@prisma/client";
-import { Bot, Building2, Crown, Rocket, Sparkles, Star, Zap } from "lucide-react";
+import { Bot, Building2, Crown, Rocket, Sparkles, Zap } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { PLAN_LABELS } from "@/types/plans";
@@ -15,9 +15,8 @@ type PlanBadgeDisplayProps = {
 };
 
 const PLAN_ICON_CONFIG: Record<string, { icon: React.ElementType; className: string }> = {
-  basico: { icon: Bot, className: "bg-slate-100 text-slate-700" },
   lite: { icon: Zap, className: "bg-sky-100 text-sky-700" },
-  unico: { icon: Star, className: "bg-amber-100 text-amber-700" },
+  basico: { icon: Bot, className: "bg-slate-100 text-slate-700" },
   intermedio: { icon: Sparkles, className: "bg-emerald-100 text-emerald-700" },
   avanzado: { icon: Rocket, className: "bg-blue-100 text-blue-700" },
   enterprise: { icon: Building2, className: "bg-indigo-100 text-indigo-700" },
