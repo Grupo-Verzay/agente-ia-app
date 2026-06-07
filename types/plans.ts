@@ -1,14 +1,16 @@
 import { Plan } from "@prisma/client";
 
-export const PLANS = Object.values(Plan);
 export const PLAN_LABELS: Record<Plan, string> = {
-    enterprise: 'Enterprise',
     lite: 'Lite',
-    unico: 'Unico',
     basico: 'Básico',
     intermedio: 'Intermedio',
     avanzado: 'Avanzado',
+    enterprise: 'Enterprise',
     personalizado: 'Personalizado',
+    unico: 'Unico',
 };
 
-export const PLAN_VALUES = Object.values(Plan) as [Plan, ...Plan[]];
+// Orden visual en dropdowns y UI (unico excluido — plan heredado sin uso activo)
+export const PLANS: Plan[] = ['lite', 'basico', 'intermedio', 'avanzado', 'enterprise', 'personalizado'];
+
+export const PLAN_VALUES = PLANS as [Plan, ...Plan[]];
