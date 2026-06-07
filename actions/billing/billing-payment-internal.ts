@@ -278,9 +278,48 @@ export async function confirmPaymentInternal(
         notes,
     });
 
+    // 6. Comisión de afiliado: si el cliente fue referido, generar comisión pendiente
+    await createAffiliateCommissionIfApplies({
+        referredUserId: clientUserId,
+        amount,
+        currencyCode,
+        paymentRef: externalReference,
+    }).catch(() => null);
+
     return {
         success: true,
         message: "Pago confirmado exitosamente.",
         newDueDate: newDueDate.toISOString(),
     };
+}
+
+// ---------------------------------------------------------------------------
+// createAffiliateCommissionIfApplies — uso interno
+// ---------------------------------------------------------------------------
+
+async function createAffiliateCommissionIfApplies(args: {
+    referredUserId: string;
+    amount: number;
+    currencyCode: string;
+    paymentRef: string;
+}) {
+    const referral = await db.affiliateReferral.findUnique({
+        where: { referredUserId: args.referredUserId },
+        include: { affiliate: { select: { id: true, commissionRate: true } } },
+    });
+    if (!referral) return;
+
+    const commissionAmount = Math.round(args.amount * referral.affiliate.commissionRate * 100) / 100;
+    if (commissionAmount <= 0) return;
+
+    await db.affiliateCommission.create({
+        data: {
+            affiliateId: referral.affiliateId,
+            referralId: referral.id,
+            amount: commissionAmount,
+            currencyCode: args.currencyCode,
+            status: "pending",
+            paymentRef: args.paymentRef,
+        },
+    });
 }

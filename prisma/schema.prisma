@@ -658,6 +658,8 @@ model User {
   userNotes                          UserNote[]
   noteFolders                        NoteFolder[]
   leadStatusWorkflowConfigs          LeadStatusWorkflowConfig[]
+  affiliateProfile                   AffiliateProfile?
+  referredBy                         AffiliateReferral?           @relation("ReferredBy")
 }
 
 model UserNotificationContact {
@@ -1414,6 +1416,51 @@ enum FinanceTxStatus {
 enum FinanceTxType {
   SALE
   EXPENSE
+}
+
+model AffiliateProfile {
+  id             String                @id @default(uuid())
+  userId         String                @unique
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code           String                @unique
+  commissionRate Float                 @default(0.20)
+  notes          String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  referrals      AffiliateReferral[]
+  commissions    AffiliateCommission[]
+}
+
+model AffiliateReferral {
+  id             String              @id @default(uuid())
+  affiliateId    String
+  affiliate      AffiliateProfile    @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  referredUserId String              @unique
+  referredUser   User                @relation("ReferredBy", fields: [referredUserId], references: [id], onDelete: Cascade)
+  createdAt      DateTime            @default(now())
+  commissions    AffiliateCommission[]
+}
+
+model AffiliateCommission {
+  id           String            @id @default(uuid())
+  affiliateId  String
+  affiliate    AffiliateProfile  @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  referralId   String
+  referral     AffiliateReferral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  amount       Decimal           @db.Decimal(18, 2)
+  currencyCode String            @default("USD")
+  status       CommissionStatus  @default(pending)
+  paymentRef   String?
+  notes        String?
+  createdAt    DateTime          @default(now())
+  paidAt       DateTime?
+}
+
+enum CommissionStatus {
+  pending
+  approved
+  paid
+  rejected
 }
 
 enum Plan {

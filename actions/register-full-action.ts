@@ -136,7 +136,8 @@ async function createInstanceForUser(
 ───────────────────────────────────────── */
 export async function fullRegisterAction(
   values: z.infer<typeof fullRegisterSchema>,
-  apiKeyRef?: string
+  apiKeyRef?: string,
+  affiliateCode?: string
 ): Promise<FullRegisterResult> {
   const parsed = fullRegisterSchema.safeParse(values);
   if (!parsed.success) {
@@ -339,7 +340,20 @@ export async function fullRegisterAction(
 
     completedSteps.push("instance");
 
-    /* ── STEP 7: Auto sign-in ── */
+    /* ── STEP 7: Affiliate referral ── */
+    if (affiliateCode) {
+      const affiliate = await db.affiliateProfile.findUnique({
+        where: { code: affiliateCode.trim().toUpperCase() },
+        select: { id: true },
+      }).catch(() => null);
+      if (affiliate) {
+        await db.affiliateReferral.create({
+          data: { affiliateId: affiliate.id, referredUserId: userId },
+        }).catch(() => null);
+      }
+    }
+
+    /* ── STEP 8: Auto sign-in ── */
     await signIn("credentials", {
       email,
       password,
