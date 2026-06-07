@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { useSidebar } from "@/components/ui/sidebar";
-import { fmtPhone } from "@/lib/whatsapp-jid";
+import { fmtPhone, pickExplicitWhatsAppPhoneJid } from "@/lib/whatsapp-jid";
 import { SwitchStatus } from "./SwitchStatus";
 import {
   DropdownMenu,
@@ -230,7 +230,9 @@ export const columns = ({ onDeleteSuccess, mutateSessions, allTags, onNavigateTo
       header: () => <div className="w-full text-center text-sm font-medium text-muted-foreground">WhatsApp</div>,
       cell: ({ row }) => {
         const remoteJid = row.getValue("remoteJid") as string;
-        const phone = fmtPhone(remoteJid);
+        const remoteJidAlt = row.original.remoteJidAlt;
+        const displayJid = pickExplicitWhatsAppPhoneJid([remoteJid, remoteJidAlt]) || remoteJid;
+        const phone = fmtPhone(displayJid);
         return (
           <button
             onClick={() => onNavigateToChat(remoteJid)}

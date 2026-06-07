@@ -17,6 +17,21 @@ export async function assertCanAccessTargetUser(targetUserId: string) {
   // Asesores pueden acceder a datos de su dueño
   if (actor.ownerId === cleanTarget) return actor;
 
+  // Cuentas vinculadas: el actor (o su dueño) puede acceder a cuentas
+  // relacionadas via linked_accounts en cualquier dirección
+  try {
+    const effectiveActorId = actor.ownerId ?? actor.id;
+    const link = await db.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "linked_accounts"
+      WHERE ("master_user_id" = ${effectiveActorId} AND "linked_user_id" = ${cleanTarget})
+         OR ("linked_user_id" = ${effectiveActorId} AND "master_user_id" = ${cleanTarget})
+      LIMIT 1
+    `;
+    if (link.length > 0) return actor;
+  } catch {
+    // Si la tabla aún no existe, continuar con los checks normales
+  }
+
   if (!isAdminOrReseller(actor.role)) {
     throw new Error("No autorizado.");
   }
