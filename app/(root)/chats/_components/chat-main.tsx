@@ -126,7 +126,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [infoPanelOpen, setInfoPanelOpen] = useState(() => {
     if (typeof window === 'undefined') return false;
-    return localStorage.getItem('chat-info-panel') !== 'false';
+    return localStorage.getItem('chat-info-panel') === 'true';
   });
 
   useEffect(() => {
