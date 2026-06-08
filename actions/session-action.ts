@@ -802,11 +802,16 @@ export async function registerSession(input: z.infer<typeof registerSessionSchem
         existingSession.remoteJidAlt,
       ]);
 
-      /* TODO: ACTUALIZACIÓN PUSHNAME SOSPECHOSA */
+      // Solo actualizar pushName desde WhatsApp si la sesión aún no tiene nombre guardado.
+      // Si el usuario editó el nombre manualmente, no sobreescribir.
+      const resolvedPushName = existingSession.pushName?.trim()
+        ? existingSession.pushName
+        : (pushName ?? null);
+
       const updated = await db.session.update({
         where: { id: existingSession.id },
         data: {
-          pushName,
+          pushName: resolvedPushName,
           remoteJid: preferredRemoteJid,
           remoteJidAlt,
           updatedAt: new Date(),
