@@ -194,7 +194,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   });
 
   /* ─── Derived display values ─── */
-  const displayedContactName = session?.pushName?.trim() || header.name;
+  const displayedContactName = header.name || session?.pushName?.trim();
   const displayedWhatsapp = session
     ? getDisplayWhatsappFromSession(session)
     : info?.remoteJid?.toLowerCase().endsWith('@lid')
