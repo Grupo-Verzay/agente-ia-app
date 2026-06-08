@@ -22,8 +22,9 @@ export async function getFolders(userId: string) {
       include: { _count: { select: { notes: true } } },
     })
     return { success: true, data }
-  } catch {
-    return { success: false, data: [] as NoteFolderWithCount[] }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { success: false, data: [] as NoteFolderWithCount[], error: msg }
   }
 }
 
@@ -94,8 +95,9 @@ export async function getNotes(userId: string, folderId?: string | null, search?
       })
     }
     return { success: true, data }
-  } catch {
-    return { success: false, data: [] as UserNoteListItem[] }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { success: false, data: [] as UserNoteListItem[], error: msg }
   }
 }
 
@@ -107,8 +109,9 @@ export async function getArchivedNotes(userId: string) {
       orderBy: { updatedAt: 'desc' },
     })
     return { success: true, data }
-  } catch {
-    return { success: false, data: [] as UserNoteListItem[] }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { success: false, data: [] as UserNoteListItem[], error: msg }
   }
 }
 

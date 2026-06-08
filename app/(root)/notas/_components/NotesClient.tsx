@@ -30,15 +30,18 @@ export function NotesClient({ userId }: Props) {
   const loadFolders = useCallback(async () => {
     const res = await getFolders(userId)
     if (res.success) setFolders(res.data)
+    else toast.error('Error al cargar carpetas: ' + (res as { error?: string }).error)
   }, [userId])
 
   const loadNotes = useCallback(async (folderId?: string | null, q?: string) => {
     if (folderId === '__archived__') {
       const res = await getArchivedNotes(userId)
       if (res.success) setNotes(res.data)
+      else toast.error('Error al cargar notas: ' + (res as { error?: string }).error)
     } else {
       const res = await getNotes(userId, folderId, q)
       if (res.success) setNotes(res.data)
+      else toast.error('Error al cargar notas: ' + (res as { error?: string }).error)
     }
   }, [userId])
 
