@@ -124,12 +124,12 @@ export function ChatContactItem({
 
   const badgeItems: React.ReactNode[] = [];
 
-  if (contact.chatSession?.leadStatus) {
+  if (contact.chatSession) {
     badgeItems.push(
       <LeadStatusSelect
         key="status"
         sessionId={contact.chatSession.id}
-        currentStatus={contact.chatSession.leadStatus}
+        currentStatus={contact.chatSession.leadStatus ?? null}
         onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus)}
       />
     );
