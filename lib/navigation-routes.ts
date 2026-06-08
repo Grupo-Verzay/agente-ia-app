@@ -18,6 +18,7 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: '/panel/password' },
     { route: '/panel/register-links' },
     { route: '/panel/credits' },
+    { route: '/panel/afiliados' },
     { route: "/documentation" },
     { route: "/dashboard" },
     { route: "/connection" },
@@ -58,4 +59,5 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/schedule" },
     { route: "/my-data" },
     { route: "/notas" },
+    { route: "/afiliados" },
 ];
