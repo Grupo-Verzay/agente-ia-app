@@ -77,6 +77,7 @@ type ChatMainProps = {
   closeInfoPanelSignal?: number;
   onExpandChatList?: () => void;
   onRefresh?: () => Promise<void>;
+  sessionRefreshSignal?: number;
 };
 
 export const ChatMain: React.FC<ChatMainProps> = ({
@@ -107,6 +108,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   closeInfoPanelSignal,
   onExpandChatList,
   onRefresh,
+  sessionRefreshSignal,
 }) => {
   /* ─── Refs ─── */
   const listRef = useRef<HTMLDivElement>(null);
@@ -174,6 +176,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     remoteJid: info?.remoteJid,
     remoteJidAliases: info?.remoteJidAliases,
     onSessionResolved,
+    refreshSignal: sessionRefreshSignal,
   });
 
   const {

@@ -108,6 +108,7 @@ type ChatSidebarProps = {
   onCollapse?: () => void;
   tab?: TabKey;
   onTabChange?: (tab: TabKey) => void;
+  onRenameSuccess?: () => void;
 };
 
 export function ChatSidebar({
@@ -143,6 +144,7 @@ export function ChatSidebar({
   onCollapse,
   tab: tabProp,
   onTabChange: onTabChangeProp,
+  onRenameSuccess,
 }: ChatSidebarProps) {
   const [q, setQ] = useState("");
   const [internalTab, setInternalTab] = useState<TabKey>(currentAdvisorId ? "mine" : "all");
@@ -504,10 +506,11 @@ export function ChatSidebar({
       toast.success("Nombre actualizado.");
       setRenameTarget(null);
       void onRefresh?.();
+      onRenameSuccess?.();
     } else {
       toast.error(res.message ?? "Error al actualizar.");
     }
-  }, [renameTarget, renameDraft, chatSessions, onRefresh]);
+  }, [renameTarget, renameDraft, chatSessions, onRefresh, onRenameSuccess]);
 
   const handleResolve = useCallback(async (remoteJid: string) => {
     const session = chatSessions[remoteJid];

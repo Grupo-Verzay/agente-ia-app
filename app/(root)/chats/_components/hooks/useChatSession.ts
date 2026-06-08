@@ -11,6 +11,7 @@ interface UseChatSessionOptions {
   remoteJid?: string;
   remoteJidAliases?: string[];
   onSessionResolved?: (remoteJid: string, session: Session | null) => void;
+  refreshSignal?: number;
 }
 
 interface UseChatSessionReturn {
@@ -29,6 +30,7 @@ export function useChatSession({
   remoteJid,
   remoteJidAliases,
   onSessionResolved,
+  refreshSignal,
 }: UseChatSessionOptions): UseChatSessionReturn {
   const [session, setSession] = useState<Session | null>(null);
   const [contactNameDraft, setContactNameDraft] = useState('');
@@ -74,7 +76,7 @@ export function useChatSession({
     if (userId && remoteJid) {
       void fetchSessionStatus();
     }
-  }, [fetchSessionStatus, userId, remoteJid]);
+  }, [fetchSessionStatus, userId, remoteJid, refreshSignal]);
 
   // Sync contact name draft when session changes
   useEffect(() => {

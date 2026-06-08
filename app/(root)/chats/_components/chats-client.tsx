@@ -284,6 +284,7 @@ export function ChatsClient({
   const [isChatListCollapsed, setIsChatListCollapsed] = useState(false);
   const [chatListTab, setChatListTab] = useState<TabKey>(currentAdvisorId ? "mine" : "all");
   const [closeInfoPanelSignal, setCloseInfoPanelSignal] = useState(0);
+  const [sessionRefreshSignal, setSessionRefreshSignal] = useState(0);
 
   const goToChatTab = useCallback((tab: TabKey) => {
     setChatListTab(tab);
@@ -1298,6 +1299,7 @@ export function ChatsClient({
           onCollapse={() => setIsChatListCollapsed(true)}
           tab={chatListTab}
           onTabChange={setChatListTab}
+          onRenameSuccess={() => setSessionRefreshSignal((n) => n + 1)}
         />
       </div>
 
@@ -1340,6 +1342,7 @@ export function ChatsClient({
             closeInfoPanelSignal={closeInfoPanelSignal}
             onExpandChatList={isChatListCollapsed ? () => setIsChatListCollapsed(false) : undefined}
             onRefresh={refreshSidebarData}
+            sessionRefreshSignal={sessionRefreshSignal}
           />
         ) : (
           <div className="hidden sm:flex h-full flex-1 flex-col items-center justify-center gap-5 select-none border-l border-border bg-muted/10 px-8">
