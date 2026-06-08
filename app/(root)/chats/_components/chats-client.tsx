@@ -1339,6 +1339,7 @@ export function ChatsClient({
             onInfoPanelChange={setIsContactPanelOpen}
             closeInfoPanelSignal={closeInfoPanelSignal}
             onExpandChatList={isChatListCollapsed ? () => setIsChatListCollapsed(false) : undefined}
+            onRefresh={refreshSidebarData}
           />
         ) : (
           <div className="hidden sm:flex h-full flex-1 flex-col items-center justify-center gap-5 select-none border-l border-border bg-muted/10 px-8">

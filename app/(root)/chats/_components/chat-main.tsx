@@ -76,6 +76,7 @@ type ChatMainProps = {
   onInfoPanelChange?: (open: boolean) => void;
   closeInfoPanelSignal?: number;
   onExpandChatList?: () => void;
+  onRefresh?: () => Promise<void>;
 };
 
 export const ChatMain: React.FC<ChatMainProps> = ({
@@ -105,6 +106,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   onInfoPanelChange,
   closeInfoPanelSignal,
   onExpandChatList,
+  onRefresh,
 }) => {
   /* ─── Refs ─── */
   const listRef = useRef<HTMLDivElement>(null);
@@ -679,7 +681,10 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onDraftChange={setContactNameDraft}
         onSave={async () => {
           const ok = await handleSaveContactName();
-          if (ok) setIsContactEditorOpen(false);
+          if (ok) {
+            setIsContactEditorOpen(false);
+            void onRefresh?.();
+          }
         }}
         isPending={isContactUpdatePending}
       />

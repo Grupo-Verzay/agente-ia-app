@@ -503,10 +503,11 @@ export function ChatSidebar({
     if (res.success) {
       toast.success("Nombre actualizado.");
       setRenameTarget(null);
+      void onRefresh?.();
     } else {
       toast.error(res.message ?? "Error al actualizar.");
     }
-  }, [renameTarget, renameDraft, chatSessions]);
+  }, [renameTarget, renameDraft, chatSessions, onRefresh]);
 
   const handleResolve = useCallback(async (remoteJid: string) => {
     const session = chatSessions[remoteJid];
