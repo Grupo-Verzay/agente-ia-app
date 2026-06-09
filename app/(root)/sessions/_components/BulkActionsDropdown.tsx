@@ -165,7 +165,7 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
 
                     <DropdownMenuLabel className="flex flex-row gap-2 justify-start items-center">
                         {/* <Cog className="h-4 w-4" /> */}
-                        GestiÃ³n masiva
+                        Gestión masiva
                     </DropdownMenuLabel>
                     <DropdownMenuItem
                         onClick={() => openDialog('activate')}
@@ -215,7 +215,7 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
                 <AlertDialogContent className="text-center space-y-4">
                     <AlertDialogHeader className="space-y-2">
                         <AlertDialogTitle className="text-destructive text-xl font-bold">
-                            Â¿EstÃ¡s completamente seguro?
+                            ¿Estás completamente seguro?
                         </AlertDialogTitle>
 
                         <AlertDialogDescription className="text-sm text-muted-foreground">
@@ -225,7 +225,7 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
                             </span>
 
                             <span className="block mt-3 text-destructive font-semibold">
-                                Esta acciÃ³n no se puede deshacer.
+                                Esta acción no se puede deshacer.
                             </span>
                         </AlertDialogDescription>
                     </AlertDialogHeader>

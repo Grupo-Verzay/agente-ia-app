@@ -217,7 +217,7 @@ export const SessionTagsManager = ({
                     <div className="flex items-center gap-2">
                         <TagIcon className="h-4 w-4 text-muted-foreground" />
                         <h3 className="font-semibold">
-                            {hideSessionSection ? 'Gestionar etiquetas' : 'Etiquetas de la sesiÃ³n'}
+                            {hideSessionSection ? 'Gestionar etiquetas' : 'Etiquetas de la sesión'}
                         </h3>
                     </div>
                     {isPending && (
@@ -225,12 +225,12 @@ export const SessionTagsManager = ({
                     )}
                 </div>
 
-                {/* Tags asignados â€” solo visible cuando hay sesiÃ³n activa */}
+                {/* Tags asignados â€” solo visible cuando hay sesión activa */}
                 {!hideSessionSection && (
                     <>
                         <div className="space-y-1">
                             <p className="font-medium text-muted-foreground">
-                                Asignadas a esta sesiÃ³n
+                                Asignadas a esta sesión
                             </p>
                             <div className="flex flex-wrap gap-1.5">
                                 {tags.filter((t) => selectedIds.includes(t.id)).length === 0 ? (
@@ -304,7 +304,7 @@ export const SessionTagsManager = ({
                             disabled={isPending || !newTagName.trim()}
                             onClick={handleCreateTag}
                         >
-                            AÃ±adir
+                            Añadir
                         </Button>
                     </div>
                 </div>
@@ -312,11 +312,11 @@ export const SessionTagsManager = ({
                 {!compact && (
                     <div className="space-y-1">
                         <p className="font-medium text-muted-foreground">
-                            CatÃ¡logo de etiquetas
+                            Catálogo de etiquetas
                         </p>
                         {tags.length === 0 ? (
                             <span className="text-muted-foreground">
-                                AÃºn no hay etiquetas creadas.
+                                Aún no hay etiquetas creadas.
                             </span>
                         ) : (
                             <SortableTagList

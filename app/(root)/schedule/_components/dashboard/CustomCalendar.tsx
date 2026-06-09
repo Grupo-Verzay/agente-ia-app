@@ -211,13 +211,13 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
             if (result.success) {
                 toast.success(result.message);
             } else {
-                toast.info(`No se enviÃƒÆ’Ã‚Â³ el mensaje de notificaciÃƒÆ’Ã‚Â³n`);
+                toast.info(`No se envió el mensaje de notificación`);
                 console.error(`Error SchedulePageClient line: 232 ${result.message}`)
             }
 
         } catch (error) {
-            console.error("Error en notificaciÃƒÆ’Ã‚Â³n:", error);
-            toast.error("curriÃƒÆ’Ã‚Â³ un error al intentar notificar la cita.");
+            console.error("Error en notificación:", error);
+            toast.error("Ocurrió un error al intentar notificar la cita.");
         }
     };
 
@@ -506,7 +506,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                             <Card className="border-border min-h-[10rem]">
                                 <CardHeader>
                                     <CardDescription>
-                                        EstÃƒÆ’Ã‚Â¡s por modificar el estado de la cita:
+                                        Estás por modificar el estado de la cita:
                                         <span className="text-muted-foreground">
                                             {selectedAppointment?.clientName || selectedAppointment?.session?.pushName || "Cliente desconocido"}
                                         </span>
@@ -564,7 +564,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                                 {currentAppointment.clientName || currentAppointment.session.pushName || "Cliente desconocido"}
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
-                                                <strong className="uppercase font-medium">TelÃƒÆ’Ã‚Â©fono:</strong>
+                                                <strong className="uppercase font-medium">Teléfono:</strong>
                                                 {fmtPhone(currentAppointment.session.remoteJid) || "No disponible"}
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
@@ -600,7 +600,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
                                                 <strong className="uppercase font-medium">Hora:</strong>
-                                                {formatInTimeZone(new Date(currentAppointment.startTime), ownerTz, "HH:mm")} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ {formatInTimeZone(new Date(currentAppointment.endTime), ownerTz, "HH:mm")}
+                                                {formatInTimeZone(new Date(currentAppointment.startTime), ownerTz, “HH:mm”)} — {formatInTimeZone(new Date(currentAppointment.endTime), ownerTz, “HH:mm”)}
                                             </div>
                                             <div className="flex text-sm gap-1 flex-row">
                                                 <strong className="uppercase font-medium">Zona Horaria:</strong>
@@ -625,9 +625,9 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Eliminar cita</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Ãƒâ€šÃ‚Â¿EstÃƒÆ’Ã‚Â¡s seguro de que quieres eliminar la cita de{" "}
+                            ¿Estás seguro de que quieres eliminar la cita de{" "}
                             <strong>{selectedAppointment?.clientName || selectedAppointment?.session?.pushName || "este cliente"}</strong>?
-                            Esta acciÃƒÆ’Ã‚Â³n no se puede deshacer.
+                            Esta acción no se puede deshacer.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="gap-2">
@@ -648,7 +648,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                                 }
                             }}
                         >
-                            SÃƒÆ’Ã‚Â­, eliminar
+                            Sí, eliminar
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -657,9 +657,9 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
             <AlertDialog open={openCancelAlert} onOpenChange={setOpenCancelAlert}>
                 <AlertDialogContent className="border-border">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Confirmar cancelaciÃƒÆ’Ã‚Â³n</AlertDialogTitle>
+                        <AlertDialogTitle>Confirmar cancelación</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Al cambiar el estado a <strong>CANCELADA</strong>, se eliminarÃƒÆ’Ã‚Â¡n todos los recordatorios/seguimientos del agendamiento asociados.
+                            Al cambiar el estado a <strong>CANCELADA</strong>, se eliminarán todos los recordatorios/seguimientos del agendamiento asociados.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
 

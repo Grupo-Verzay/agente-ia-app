@@ -93,7 +93,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
             >
               <span className="flex items-center gap-1.5 text-xs">
                 <MessageCircle className="h-3 w-3 text-muted-foreground shrink-0" />
-                No leÃ­dos
+                No leídos
               </span>
               <span className="flex items-center gap-1">
                 {(unreadCount ?? 0) > 0 && <span className="text-[10px] text-muted-foreground">{unreadCount}</span>}
