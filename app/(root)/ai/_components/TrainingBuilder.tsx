@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, GripVertical, ChevronDown, Copy } from "lucide-react";
+import { Plus, Trash2, GripVertical, ChevronDown, Copy, MousePointerClick, ArrowRight } from "lucide-react";
 import { StepTemplatePicker } from "./StepTemplatePicker";
 
 import {
@@ -57,7 +57,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { WELCOME_TITLE, WELCOME_MAIN_MESSAGE } from "./helpers/trainingDefaults";
+import { WELCOME_TITLE, WELCOME_TITLE_LEGACY, WELCOME_MAIN_MESSAGE, WELCOME_MESSAGES, WelcomeType } from "./helpers/trainingDefaults";
 
 /* utilidad: type-guard para pedidos */
 function isPedidoFn(el: ElementItem): el is PedidoFunctionEl {
@@ -171,6 +171,7 @@ export function TrainingBuilder({
         mainMessage: WELCOME_MAIN_MESSAGE,
         elements: [],
         openPicker: false,
+        welcomeType: "obligatoria",
       }];
     } else {
       _initOnce.current = initialSteps.length > 0 ? (initialSteps as StepTraining[]) : [];
@@ -279,6 +280,7 @@ export function TrainingBuilder({
           mainMessage: WELCOME_MAIN_MESSAGE,
           elements: [],
           openPicker: false,
+          welcomeType: "obligatoria" as WelcomeType,
         },
       ]);
       setExpandedSteps((prev) => new Set(Array.from(prev).concat(newId)));
@@ -398,6 +400,16 @@ export function TrainingBuilder({
           }),
         };
       })
+    );
+  };
+
+  const updateWelcomeType = (stepId: string, type: WelcomeType) => {
+    setSteps((prev) =>
+      prev.map((s) =>
+        s.id === stepId
+          ? { ...s, welcomeType: type, mainMessage: WELCOME_MESSAGES[type] }
+          : s
+      )
     );
   };
 
@@ -555,7 +567,7 @@ export function TrainingBuilder({
             <SortableContext items={stepIds} strategy={verticalListSortingStrategy}>
               <div className="space-y-4">
                 {steps.map((step, idx) => {
-                  const lockWelcome = step.title === WELCOME_TITLE; // bloquea drag del welcome (opcional)
+                  const lockWelcome = step.title === WELCOME_TITLE || step.title === WELCOME_TITLE_LEGACY;
 
                   return (
                     <SortableStepCard
@@ -592,7 +604,11 @@ export function TrainingBuilder({
                                 </span>
 
                                 {/* Título */}
-                                {isExpanded ? (
+                                {lockWelcome ? (
+                                  <span className="text-sm font-semibold truncate">
+                                    {step.title}
+                                  </span>
+                                ) : isExpanded ? (
                                   <Input
                                     id={step.id}
                                     value={step.title}
@@ -688,21 +704,70 @@ export function TrainingBuilder({
                               }}
                             >
                               <div className="overflow-hidden">
-                                <CardContent className="space-y-3 pt-0 pb-3 px-0">
+                                <CardContent className="space-y-2 pt-1 pb-3 px-0">
                                   <div className="pl-10 pr-3 space-y-2">
-                                    <StepTemplatePicker
-                                      label={`Objetivo/respuesta principal del paso ${idx + 1}`}
-                                      disabled={step.title === WELCOME_TITLE}
-                                      onApply={(content) => updateStepMainMessage(step.id, content)}
-                                    />
-                                    <Textarea
-                                      value={step.mainMessage}
-                                      onChange={(e) => updateStepMainMessage(step.id, e.target.value)}
-                                      placeholder="Escribe el mensaje inicial para este paso…"
-                                      className="min-h-[32px]"
-                                      disabled={step.title === WELCOME_TITLE}
-                                    />
+                                    {lockWelcome ? (
+                                      <div className="space-y-1.5">
+                                        <Label className="flex items-center gap-1.5 text-sm font-semibold text-primary">
+                                          <MousePointerClick className="h-4 w-4 shrink-0" />
+                                          Selecciona el modo de inicio del flujo
+                                        </Label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                          {([
+                                            { type: "obligatoria", icon: "🔒", desc: "Siempre saluda al inicio" },
+                                            { type: "inteligente", icon: "⚡", desc: "Detecta la intención primero" },
+                                          ] as { type: WelcomeType; icon: string; desc: string }[]).map(({ type, icon, desc }) => (
+                                            <button
+                                              key={type}
+                                              type="button"
+                                              onClick={() => updateWelcomeType(step.id, type)}
+                                              className={[
+                                                "flex flex-col items-start gap-0.5 rounded-md border px-3 py-3 text-left transition-all",
+                                                step.welcomeType === type
+                                                  ? "border-primary bg-primary/5 text-foreground"
+                                                  : "border-muted-foreground/40 bg-muted/20 text-muted-foreground hover:border-muted-foreground/70 hover:text-foreground",
+                                              ].join(" ")}
+                                            >
+                                              <span className="text-xs font-bold uppercase tracking-widest">
+                                                {icon} {type}
+                                              </span>
+                                              <span className="text-xs font-normal">{desc}</span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <StepTemplatePicker
+                                          label={`Objetivo/respuesta principal del paso ${idx + 1}`}
+                                          disabled={false}
+                                          onApply={(content) => updateStepMainMessage(step.id, content)}
+                                        />
+                                        <Textarea
+                                          value={step.mainMessage}
+                                          onChange={(e) => updateStepMainMessage(step.id, e.target.value)}
+                                          placeholder="Escribe el mensaje inicial para este paso…"
+                                          className="min-h-[32px]"
+                                        />
+                                      </>
+                                    )}
                                   </div>
+
+                                  {lockWelcome && (
+                                    <div className="px-3">
+                                      <details className="group">
+                                        <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors select-none list-none flex items-center gap-1">
+                                          <ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
+                                          Ver instrucciones del sistema
+                                        </summary>
+                                        <Textarea
+                                          value={step.mainMessage}
+                                          readOnly
+                                          className="min-h-[120px] mt-2 text-xs font-mono bg-muted/30 text-muted-foreground resize-none"
+                                        />
+                                      </details>
+                                    </div>
+                                  )}
 
                                   {/* Motor de Flujo */}
                                   <div className="pl-10 pr-3">
@@ -819,7 +884,12 @@ export function TrainingBuilder({
       </CardContent>
 
       {steps.length > 0 && (
-        <CardFooter className="pb-2 flex justify-end">
+        <CardFooter className="pb-2 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span>Cada paso define una etapa</span>
+            <ArrowRight className="h-3 w-3 shrink-0" />
+            <span>de la conversación</span>
+          </div>
           <Button size="sm" onClick={addStep} className="gap-2">
             <Plus className="w-4 h-4" />
             Agregar paso

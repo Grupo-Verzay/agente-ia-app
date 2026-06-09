@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, GitBranch, AlertTriangle, ChevronDown, Info } from "lucide-react";
+import { Trash2, Plus, GitBranch, AlertTriangle, ChevronDown, Info, Tag, ArrowRight } from "lucide-react";
 import {
     Popover,
     PopoverTrigger,
@@ -78,10 +78,10 @@ export const RoutingCard: FC<PropsRouting> = ({
                 </button>
                 {!isManagement && (
                     <Button
-                        variant="secondary"
+                        variant="destructive"
                         size="icon"
                         onClick={onRemove}
-                        className="bg-gray-400 hover:bg-gray-500 text-white dark:bg-zinc-600 dark:hover:bg-zinc-500 shrink-0"
+                        className="shrink-0"
                     >
                         <Trash2 className="h-4 w-4" />
                     </Button>
@@ -92,7 +92,7 @@ export const RoutingCard: FC<PropsRouting> = ({
                 <div className="flex items-start gap-2 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 px-3 py-2">
                     <Info className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
                     <p className="text-sm text-blue-700 dark:text-blue-300 leading-relaxed">
-                        Define palabras clave y el paso destino. Se evalúa antes del saludo de bienvenida.
+                        Define palabras clave específicas y el paso destino. Tiene prioridad sobre el modo de inicio del flujo.
                     </p>
                 </div>
 
@@ -129,7 +129,8 @@ export const RoutingCard: FC<PropsRouting> = ({
                                     {/* Cuerpo */}
                                     <div className="p-3 space-y-3">
                                         <div className="space-y-1.5">
-                                            <label className="text-xs font-medium text-foreground/70">
+                                            <label className="flex items-center gap-1.5 text-xs font-semibold text-foreground/80">
+                                                <Tag className="h-3 w-3 shrink-0" />
                                                 Palabras clave <span className="font-normal text-muted-foreground">(separadas por coma)</span>
                                             </label>
                                             <Input
@@ -141,7 +142,8 @@ export const RoutingCard: FC<PropsRouting> = ({
                                         </div>
 
                                         <div className="space-y-1.5">
-                                            <label className="text-xs font-medium text-foreground/70">
+                                            <label className="flex items-center gap-1.5 text-xs font-semibold text-foreground/80">
+                                                <ArrowRight className="h-3 w-3 shrink-0" />
                                                 Ir al paso
                                             </label>
                                             <Popover>
@@ -187,17 +189,22 @@ export const RoutingCard: FC<PropsRouting> = ({
                     </div>
                 )}
 
-                <div className="flex justify-center">
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addRule}
-                    className="gap-1.5 border-dashed text-muted-foreground hover:text-foreground"
-                >
-                    <Plus className="h-3.5 w-3.5" />
-                    Agregar regla
-                </Button>
+                <div className="flex items-center justify-between !mt-4 mb-2">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span>Si el mensaje contiene</span>
+                        <ArrowRight className="h-3 w-3 shrink-0" />
+                        <span>ir al paso seleccionado</span>
+                    </div>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addRule}
+                        className="gap-1.5 border-dashed border-primary/40 text-primary hover:bg-primary/10 hover:border-primary hover:text-primary"
+                    >
+                        <Plus className="h-3.5 w-3.5" />
+                        Agregar regla
+                    </Button>
                 </div>
             </CardContent>}
         </Card>

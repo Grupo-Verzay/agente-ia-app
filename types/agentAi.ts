@@ -45,6 +45,7 @@ export const TrainingDraftSchema = z.object({
             mainMessage: z.string().optional().default(""),
             variableQueRecoge: z.string().optional().default(""),
             condicionParaAvanzar: z.string().optional().default(""),
+            welcomeType: z.enum(["obligatoria", "inteligente"]).optional(),
             elements: z.array(
                 z.union([
                     z.object({
@@ -549,6 +550,7 @@ export type StepTraining = {
     openPicker?: boolean;
     variableQueRecoge?: string;
     condicionParaAvanzar?: string;
+    welcomeType?: "obligatoria" | "inteligente";
 };
 
 export type PedidoFunctionEl = ElementFunction & {

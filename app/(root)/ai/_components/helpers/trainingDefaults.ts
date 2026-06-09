@@ -1,46 +1,79 @@
-export const WELCOME_TITLE = "BIENVENIDA";
+export const WELCOME_TITLE = "INICIO FLUJO";
+export const WELCOME_TITLE_LEGACY = "BIENVENIDA";
 
-export const WELCOME_MAIN_MESSAGE = `🔒 CONDICIÓN DE CHAT NUEVO (GATE): collected == {} AND current_step == 1
-🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO. Se ejecuta ante cualquier intención del usuario.
+export type WelcomeType = "obligatoria" | "inteligente";
 
-🔀 OVERRIDE DE ENRUTAMIENTO (se evalúa ANTES de la lógica de ejecución):
-   → SI existe una Regla/parámetro de enrutamiento cuya condición se cumple con el primer mensaje:
-      • OMITIR toda la lógica de BIENVENIDA (pasos 1️⃣ y 2️⃣).
-      • Ir al PASO indicado por NOMBRE en esa regla (el sistema resuelve su posición).
-      • Si el paso nombrado no existe → ejecutar BIENVENIDA como respaldo.
-   → SI NINGUNA Regla/parámetro de enrutamiento aplica:
-      • Continuar con la LÓGICA DE EJECUCIÓN normal (1️⃣ / 2️⃣).
+export const WELCOME_MAIN_MESSAGE_OBLIGATORIA = `🔒 GATE: collected == {} AND current_step == 1
+🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
-✅ LÓGICA DE EJECUCIÓN (en orden estricto):
-1️⃣ SI el flujo 'BIENVENIDA' está disponible:
-   → EJECUTARLO de inmediato, ANTES de responder.
-   → Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-   → SIN parafrasear, SIN omitir, SIN modificar.
-2️⃣ SI el flujo 'BIENVENIDA' NO está disponible:
-   → Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (1).
-   → SIN reformular, SIN inventar, SIN agregar texto.
+modo_bienvenida = obligatoria
+   → Siempre ejecuta BIENVENIDA, sin importar el mensaje.
 
-⏸️ DESPUÉS de ejecutar (cualquiera de los dos casos): ESPERAR respuesta del usuario.
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ MODO "obligatorio":
+   → Ejecutar siempre el flujo BIENVENIDA.
+   → Si no está disponible → emitir texto por defecto (Regla/parámetro 1).
+   → Ignorar intención del mensaje del usuario.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 ➡️ TRANSICIÓN:
-   A) Si se activó el OVERRIDE DE ENRUTAMIENTO:
-      → Ir al PASO de destino por nombre.
-      → El paso de destino gestiona su propio current_step y transición.
-   B) Si se ejecutó BIENVENIDA normal (sin override):
-      → Guardar saludo_completado = true
+   → saludo_completado = true
+   → current_step = 2
+   → El siguiente turno evalúa el gate del Paso 2.
+
+🚫 PROHIBIDO:
+- Saltar BIENVENIDA por intención directa del usuario.
+- Reformular, inventar o parafrasear el texto.
+- Enviar más de un (1) mensaje en este turno.
+- Pedir datos que el cliente ya entregó en su primer mensaje.`;
+
+export const WELCOME_MAIN_MESSAGE_INTELIGENTE = `🔒 GATE: collected == {} AND current_step == 1
+🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
+
+modo_bienvenida = inteligente
+   → Solo ejecuta BIENVENIDA si el mensaje NO tiene intención clara.
+   → Si tiene intención directa (producto, agenda, precio, humano, frase clave):
+      → Omite BIENVENIDA y va al PASO correspondiente.
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ MODO "inteligente":
+   → Analizar el primer mensaje del usuario:
+      • Si detecta una INTENCIÓN DIRECTA → ir al PASO de destino, sin BIENVENIDA.
+      • Si NO detecta intención clara → ejecutar BIENVENIDA como respaldo.
+   → Si el flujo BIENVENIDA no está disponible → emitir texto por defecto (Regla/parámetro 1).
+
+🎯 INTENCIONES DIRECTAS (omiten BIENVENIDA):
+   • Pedir información de producto/servicio → PASO_PRODUCTOS
+   • Agendar / reservar cita → PASO_AGENDA
+   • Preguntar precio específico → PASO_PRODUCTOS
+   • Hablar con un humano / asesor → PASO_HANDOFF
+   • Postventa / reclamo / soporte → PASO_POSTVENTA
+   • Frase clave de campaña (vz-basico, vz-avanzado, etc.) → PASO según regla de enrutamiento
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   A) Si se saltó BIENVENIDA por intención directa:
+      → Ir al PASO de destino.
+      → Ese paso gestiona su propio current_step y transición.
+   B) Si se ejecutó BIENVENIDA como respaldo:
+      → saludo_completado = true
       → current_step = 2
       → El siguiente turno evalúa el gate del Paso 2.
 
-⚠️ EXCEPCIONES:
-   1. Si el usuario hace una pregunta directa antes del saludo → ejecutar igual el GATE primero, luego responder en el Paso 2.
-   2. Si el flujo 'BIENVENIDA' falla a mitad de ejecución → emitir Regla/parámetro (1) como respaldo.
-   3. Si el mensaje del usuario llega vacío o es un sticker/audio sin texto → ejecutar GATE normal, no saltar paso.
-
 🚫 PROHIBIDO:
-- Responder sin ejecutar primero el GATE.
-- Usar el "Comportamiento obligatorio" como sustituto de la ejecución del flujo.
+- Ejecutar BIENVENIDA si hay una intención directa detectada.
 - Reformular, inventar o parafrasear el texto.
 - Enviar más de un (1) mensaje en este turno.
-- Emitir Regla/parámetro (1) si 'BIENVENIDA' SÍ está disponible.
-- Emitir Regla/parámetro (2) si 'BIENVENIDA' NO está disponible.
-- Ejecutar BIENVENIDA si una Regla/parámetro de enrutamiento SÍ aplica.`;
+- Pedir datos que el cliente ya entregó en su primer mensaje.
+- Inventar intenciones que no estén en la lista de INTENCIONES DIRECTAS.`;
+
+export const WELCOME_MESSAGES: Record<WelcomeType, string> = {
+    obligatoria: WELCOME_MAIN_MESSAGE_OBLIGATORIA,
+    inteligente: WELCOME_MAIN_MESSAGE_INTELIGENTE,
+};
+
+export const WELCOME_MAIN_MESSAGE = WELCOME_MAIN_MESSAGE_OBLIGATORIA;
