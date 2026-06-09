@@ -30,7 +30,7 @@ import { isBadContactName } from "./chat-sidebar.utils";
 import { useSidebar } from "@/components/ui/sidebar";
 import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
-import { fmtPhone } from "@/lib/whatsapp-jid";
+import { fmtPhone, extractWhatsAppDigits } from "@/lib/whatsapp-jid";
 import type { OutgoingMessagePayload } from "./chat-main";
 import type {
   ChatConversationPreference,
@@ -398,7 +398,7 @@ export function ChatsClient({
         if (custom && !isBadContactName(custom)) return custom;
         const push = currentContactSession?.pushName?.trim();
         if (push && !isBadContactName(push)) return push;
-        return selectedJid || "Sin nombre";
+        return extractWhatsAppDigits(selectedJid) || selectedJid?.split("@")[0] || "Sin nombre";
       })(),
       avatarSrc: currentContact?.profilePicUrl || "/placeholder.svg",
       status: currentContact?.lastMessage?.messageTimestamp ? "ultimo mensaje" : "-",

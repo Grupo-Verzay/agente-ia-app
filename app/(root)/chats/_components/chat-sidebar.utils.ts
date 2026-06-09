@@ -37,11 +37,11 @@ export function nameFrom(chat: ChatData): string {
   if (name && !isBadContactName(name)) return name;
 
   const jid = chat.remoteJid || "";
-  const base = jid.includes("@") ? jid.split("@")[0] : jid;
   const digits = extractWhatsAppDigits(jid);
-  const indicativo = digits && digits.length > 10 ? `+${digits.slice(0, digits.length - 10)}` : "";
+  if (digits) return digits;
 
-  return indicativo ? `${base} (${indicativo})` : base || "Sin nombre";
+  const base = jid.includes("@") ? jid.split("@")[0] : jid;
+  return base || "Sin nombre";
 }
 
 export function avatarFrom(chat: ChatData): string {
