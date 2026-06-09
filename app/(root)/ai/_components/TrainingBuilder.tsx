@@ -58,6 +58,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { WELCOME_TITLE, WELCOME_TITLE_LEGACY, WELCOME_MAIN_MESSAGE, WELCOME_MESSAGES, WelcomeType } from "./helpers/trainingDefaults";
+import { CADENA_STEPS, buildCadenaSteps } from "./helpers/flowObjectives";
 
 /* utilidad: type-guard para pedidos */
 function isPedidoFn(el: ElementItem): el is PedidoFunctionEl {
@@ -881,6 +882,39 @@ export function TrainingBuilder({
             </SortableContext>
           </DndContext>
         )}
+
+        {/* Banner CADENA — solo cuando existe únicamente el paso INICIO FLUJO */}
+        {steps.length === 1 && (steps[0].title === WELCOME_TITLE || steps[0].title === WELCOME_TITLE_LEGACY) && (<>
+          <Separator className="opacity-40" />
+          <div className="rounded-md border border-dashed border-muted-foreground/25 bg-muted/20 px-3 py-2 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-foreground/70">🎯 Modelo CADENA para ventas por WhatsApp</span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0 h-7 text-xs gap-1.5 border-dashed border-primary/40 text-primary hover:bg-primary/10 hover:border-primary hover:text-primary"
+                onClick={() => {
+                  const newSteps = buildCadenaSteps();
+                  setSteps((prev) => [...prev, ...newSteps]);
+                  setExpandedSteps(new Set(newSteps.map((s) => s.id)));
+                }}
+              >
+                <Plus className="h-3 w-3" />
+                Aplicar modelo
+              </Button>
+            </div>
+            <div className="flex items-center w-full gap-1">
+              {CADENA_STEPS.map((s, i) => (
+                <>
+                  <span key={s.title} className="flex-1 text-center text-[10px] font-semibold text-primary/80 bg-primary/10 border border-primary/25 rounded py-1">{s.title}</span>
+                  {i < CADENA_STEPS.length - 1 && (
+                    <ArrowRight key={`a-${i}`} className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                  )}
+                </>
+              ))}
+            </div>
+          </div>
+        </>)}
       </CardContent>
 
       {steps.length > 0 && (
