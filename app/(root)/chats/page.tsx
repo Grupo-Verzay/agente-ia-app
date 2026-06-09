@@ -189,7 +189,7 @@ export default async function ChatsPage({
           company: ma.company || li.instanceName,
         })),
     ),
-  ];
+  ].filter((item, idx, arr) => arr.findIndex((x) => x.instanceName === item.instanceName) === idx);
 
   const requestedInstance = searchParams?.instance;
   const whatsappInstancia = requestedInstance
