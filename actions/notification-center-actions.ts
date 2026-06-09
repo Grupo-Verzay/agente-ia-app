@@ -97,7 +97,7 @@ export async function getNotificationCenterData(): Promise<{
           where: {
             userId: ownerId,
             remoteJid: { in: activeJids },
-            lastMessageFromMe: false,
+            lastMessageFromMe: { not: true },
           },
           select: { remoteJid: true },
         })
