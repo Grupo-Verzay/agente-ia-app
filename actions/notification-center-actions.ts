@@ -85,14 +85,14 @@ export async function getNotificationCenterData(): Promise<{
         orderBy: { updatedAt: "desc" },
         take: ITEMS_PER_KIND_LIMIT,
       }),
-      db.$queryRaw<{ remote_jid: string }[]>`
-        SELECT remote_jid FROM (
-          SELECT DISTINCT ON (user_id, remote_jid) remote_jid, from_me
+      db.$queryRaw<{ remoteJid: string }[]>`
+        SELECT "remoteJid" FROM (
+          SELECT DISTINCT ON ("userId", "remoteJid") "remoteJid", "fromMe"
           FROM chat_messages
-          WHERE user_id = ${ownerId}
-          ORDER BY user_id, remote_jid, message_timestamp DESC, id DESC
+          WHERE "userId" = ${ownerId}
+          ORDER BY "userId", "remoteJid", "messageTimestamp" DESC, id DESC
         ) latest
-        WHERE from_me = false
+        WHERE "fromMe" = false
       `,
       db.user.findUnique({
         where: { id: ownerId },
@@ -100,7 +100,7 @@ export async function getNotificationCenterData(): Promise<{
       }),
     ]);
 
-    const unreadJids = new Set(unreadConversations.map((c) => c.remote_jid));
+    const unreadJids = new Set(unreadConversations.map((c) => c.remoteJid));
     const unreadChats = activeChats.filter((chat) => unreadJids.has(chat.remoteJid));
     const chatCount = unreadChats.length;
 
