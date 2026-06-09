@@ -518,6 +518,14 @@ export async function getChatContactSessions(
           );
 
           if (aScore !== bScore) return aScore - bScore;
+          // Preferir sesiones con nombre válido (customName o pushName no vacío/Você)
+          const hasGoodName = (s: typeof a) => {
+            const n = (s.customName ?? s.pushName ?? '').toLowerCase().trim();
+            return n !== '' && n !== 'você' && n !== 'voce' && n !== 'desconocido' && n !== '.';
+          };
+          const aHasName = hasGoodName(a) ? 0 : 1;
+          const bHasName = hasGoodName(b) ? 0 : 1;
+          if (aHasName !== bHasName) return aHasName - bHasName;
           return b.updatedAt.getTime() - a.updatedAt.getTime();
         })[0];
 
