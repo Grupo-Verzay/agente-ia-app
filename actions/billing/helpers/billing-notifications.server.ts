@@ -395,6 +395,12 @@ export async function syncUserBillingLifecycle(args: {
         ...billingUserRecordArgs,
     });
 
+    // Sincronizar user.status con el estado de acceso de billing
+    await db.user.update({
+        where: { id: updated.userId },
+        data: { status: updated.accessStatus !== "SUSPENDED" },
+    });
+
     const resolvedDispatcher = args.dispatcher ?? (await loadBillingDispatcherConfig());
     const webhookResult = args.syncWebhook === false
         ? null
