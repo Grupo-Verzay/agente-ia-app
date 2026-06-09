@@ -145,6 +145,24 @@ async function syncSessionLeadName(
             nombre,
         },
     });
+
+    // Propagar customName a todas las sesiones del mismo número en cuentas vinculadas
+    const user = await tx.user.findUnique({
+        where: { id: session.userId },
+        select: { ownerId: true },
+    });
+    const masterId = user?.ownerId ?? session.userId;
+    const linkedUsers = await tx.user.findMany({
+        where: { OR: [{ id: masterId }, { ownerId: masterId }] },
+        select: { id: true },
+    });
+    const linkedIds = linkedUsers.map((u) => u.id).filter((id) => id !== session.userId);
+    if (linkedIds.length > 0) {
+        await tx.session.updateMany({
+            where: { remoteJid: session.remoteJid, userId: { in: linkedIds } },
+            data: { customName: nombre },
+        });
+    }
 }
 
 export async function updateLeadPushNameAction(
