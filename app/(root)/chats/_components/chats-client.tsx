@@ -26,6 +26,7 @@ import type {
 import { ChatMain } from "./chat-main";
 import { ChatSidebar } from "./chat-sidebar";
 import type { TabKey } from "./chat-sidebar.types";
+import { isBadContactName } from "./chat-sidebar.utils";
 import { useSidebar } from "@/components/ui/sidebar";
 import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
@@ -392,11 +393,13 @@ export function ChatsClient({
 
   const header = useMemo(() => {
     return {
-      name:
-        currentContactSession?.customName?.trim() ||
-        currentContactSession?.pushName?.trim() ||
-        selectedJid ||
-        "Sin contacto",
+      name: (() => {
+        const custom = currentContactSession?.customName?.trim();
+        if (custom && !isBadContactName(custom)) return custom;
+        const push = currentContactSession?.pushName?.trim();
+        if (push && !isBadContactName(push)) return push;
+        return selectedJid || "Sin nombre";
+      })(),
       avatarSrc: currentContact?.profilePicUrl || "/placeholder.svg",
       status: currentContact?.lastMessage?.messageTimestamp ? "ultimo mensaje" : "-",
       isPinned: currentPreference?.isPinned ?? false,

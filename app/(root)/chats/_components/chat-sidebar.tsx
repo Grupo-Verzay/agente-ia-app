@@ -72,6 +72,7 @@ import {
   avatarFrom,
   isGroupJid,
   lastTextFrom,
+  isBadContactName,
 } from "./chat-sidebar.utils";
 import type { SidebarContact, TabKey, TabCounts } from "./chat-sidebar.types";
 
@@ -234,7 +235,14 @@ export function ChatSidebar({
         return {
           id: chat.remoteJid,
           chatSession: chatSessions[chat.remoteJid] ?? null,
-          name: chatSessions[chat.remoteJid]?.customName?.trim() || chatSessions[chat.remoteJid]?.pushName?.trim() || nameFrom(chat),
+          name: (() => {
+            const s = chatSessions[chat.remoteJid];
+            const custom = s?.customName?.trim();
+            if (custom && !isBadContactName(custom)) return custom;
+            const push = s?.pushName?.trim();
+            if (push && !isBadContactName(push)) return push;
+            return nameFrom(chat);
+          })(),
           avatarSrc: avatarFrom(chat),
           lastMessage: lastMsgData.text,
           lastMessageId: lastMsgData.id,

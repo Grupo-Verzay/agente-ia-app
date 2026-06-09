@@ -26,16 +26,22 @@ export function formatTimeFromEpoch(epoch?: number): string {
   return CHAT_TIME_FORMATTER.format(new Date(ms));
 }
 
+const BAD_NAMES = new Set(['você', 'voce', 'desconocido', '.', '']);
+
+export function isBadContactName(name?: string | null): boolean {
+  return !name || BAD_NAMES.has(name.toLowerCase().trim());
+}
+
 export function nameFrom(chat: ChatData): string {
   const name = chat.pushName?.trim();
-  if (name) return name;
+  if (name && !isBadContactName(name)) return name;
 
   const jid = chat.remoteJid || "";
   const base = jid.includes("@") ? jid.split("@")[0] : jid;
   const digits = extractWhatsAppDigits(jid);
   const indicativo = digits && digits.length > 10 ? `+${digits.slice(0, digits.length - 10)}` : "";
 
-  return indicativo ? `${base} (${indicativo})` : base;
+  return indicativo ? `${base} (${indicativo})` : base || "Sin nombre";
 }
 
 export function avatarFrom(chat: ChatData): string {
