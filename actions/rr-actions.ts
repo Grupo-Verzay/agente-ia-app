@@ -29,6 +29,27 @@ export async function getAllRRs(userId: string): Promise<RROperationResponse> {
     }
 }
 
+export async function getAllRRsByUserIds(userIds: string[]): Promise<RROperationResponse> {
+    if (!userIds.length) return { success: true, message: 'Sin usuarios.', data: [] };
+    try {
+        const list = await db.quickReply.findMany({
+            where: { userId: { in: userIds } },
+            orderBy: [{ userId: 'asc' }, { order: 'asc' }],
+        });
+        return {
+            success: true,
+            message: 'Registros obtenidos correctamente.',
+            data: list,
+        };
+    } catch (error) {
+        console.error('Error al obtener registros rr:', error);
+        return {
+            success: false,
+            message: 'Error al obtener los registros.',
+        };
+    }
+}
+
 export async function createRR(data: {
     workflowId?: string;
     name?: string;

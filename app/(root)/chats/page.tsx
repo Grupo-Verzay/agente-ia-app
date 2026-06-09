@@ -30,7 +30,7 @@ import {
 import { getChatConversationPreferencesByUserId } from "@/actions/chat-conversation-actions";
 import { getInstancesByUserId } from "@/actions/instances-actions";
 import { getLinkedAccountsInstances, getMasterAccountInstances } from "@/actions/linked-account-actions";
-import { getAllRRs } from "@/actions/rr-actions";
+import { getAllRRs, getAllRRsByUserIds } from "@/actions/rr-actions";
 import { normalizeQuickReplyCategory } from "@/lib/quick-reply-categories";
 import { getChatContactSessions } from "@/actions/session-action";
 import { listTagsAction } from "@/actions/tag-actions";
@@ -159,6 +159,12 @@ export default async function ChatsPage({
     ...linkedAccountsData.map((la) => la.linkedUserId),
     ...masterAccountsData.map((ma) => ma.masterUserId),
   ].filter((id, idx, arr) => Boolean(id) && arr.indexOf(id) === idx);
+
+  // Si hay cuentas vinculadas, recargar quick replies de todos los userIds
+  const quickRepliesResponse =
+    allSessionUserIds.length > 1
+      ? await settle(getAllRRsByUserIds(allSessionUserIds))
+      : quickRepliesResponse0;
 
   // Meta enriquecida para la UI (incluye info de cuenta vinculada)
   const instanciasMeta = [
@@ -412,7 +418,7 @@ export default async function ChatsPage({
     isPro: workflow.isPro,
   }));
 
-  const quickReplies = quickRepliesResponse0 && hasQuickReplies(quickRepliesResponse0) ? quickRepliesResponse0.data : [];
+  const quickReplies = quickRepliesResponse && hasQuickReplies(quickRepliesResponse) ? quickRepliesResponse.data : [];
   const quickReplyOptions: ChatQuickReplyOption[] = quickReplies
     .map((quickReply) => {
       const workflow = workflows.find((item) => item.id === quickReply.workflowId);
