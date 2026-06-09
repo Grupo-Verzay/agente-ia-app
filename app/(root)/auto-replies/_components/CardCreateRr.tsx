@@ -82,8 +82,8 @@ export const CardCreateRr = ({ user, Workflows, onSuccessClose }: AutoReplies) =
     };
 
     return (
-        <form onSubmit={handleSubmit}>
-            <div className="grid w-full items-center gap-5">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto grid w-full items-center gap-5 pr-1">
 
                 {/* Selector de tipo */}
                 <div className="flex flex-col space-y-2">
@@ -197,7 +197,16 @@ export const CardCreateRr = ({ user, Workflows, onSuccessClose }: AutoReplies) =
                 )}
             </div>
 
-            <div className="flex mt-5 gap-2">
+            <div className="flex mt-5 gap-2 shrink-0">
+                <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={loading}
+                    onClick={onSuccessClose}
+                >
+                    Cancelar
+                </Button>
                 <Button
                     type="submit"
                     className="w-full"

@@ -49,7 +49,7 @@ export const GenericEditDialog = ({
                     </Button>
                 </DialogTrigger>
             )}
-            <DialogContent>
+            <DialogContent className="sm:max-w-lg h-[585px] flex flex-col overflow-hidden">
                 <CustomDialogHeader icon={icon} title={title} subTitle={subTitle} />
                 {children && typeof children === 'function' ? children({ onClose: () => setInternalOpen(false) }) : children}
             </DialogContent>
