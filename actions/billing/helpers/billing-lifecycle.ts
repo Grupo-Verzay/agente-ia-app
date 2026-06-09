@@ -7,6 +7,7 @@ import {
     AccessStatus,
     BillingTemplateType,
     SOON_DAYS_BILLING,
+    OVERDUE_DAYS_BILLING,
 } from "@/types/billing";
 
 export type BillingLifecycleLike = {
@@ -74,7 +75,8 @@ export function pickBillingReminderTemplate(
 ): BillingTemplateType | null {
     if (daysRemaining === SOON_DAYS_BILLING) return "REMINDER_3D";
     if (daysRemaining === 0) return "DUE_TODAY";
-    if (typeof daysRemaining === "number" && daysRemaining < 0) return "EXPIRED";
+    // Solo notificar hasta OVERDUE_DAYS_BILLING días vencido; después silencio
+    if (typeof daysRemaining === "number" && daysRemaining < 0 && daysRemaining >= -OVERDUE_DAYS_BILLING) return "EXPIRED";
     return null;
 }
 
@@ -125,8 +127,10 @@ export function evaluateBillingLifecycle(
         };
     }
 
+    // Suspender mínimo al día -(OVERDUE_DAYS_BILLING+1), respetando graceDays si es mayor
+    const effectiveGraceDays = Math.max(graceDays, OVERDUE_DAYS_BILLING);
     const overdueBeyondGrace =
-        daysRemaining !== null && daysRemaining < -graceDays;
+        daysRemaining !== null && daysRemaining < -effectiveGraceDays;
 
     const nextBillingStatus: BillingStatus = overdueBeyondGrace ? "UNPAID" : "PAID";
     const nextAccessStatus: AccessStatus = overdueBeyondGrace ? "SUSPENDED" : "ACTIVE";

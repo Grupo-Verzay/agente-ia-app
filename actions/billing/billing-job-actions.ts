@@ -6,7 +6,7 @@ import { SERVER_TIME_ZONE } from "@/lib/utils";
 import { endOfDay, format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 
-import { ResponseFormat, SOON_DAYS_BILLING } from "@/types/billing";
+import { ResponseFormat, SOON_DAYS_BILLING, DELETE_DAYS_BILLING } from "@/types/billing";
 import { deleteInstanceInternal } from "@/actions/api-action";
 import { assertAdminOrReseller } from "./helpers/billing-helpers.server";
 import {
@@ -454,6 +454,41 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
             }
         }
 
+        // ── Eliminar cuentas con 30+ días vencidas sin pagar ──────────────────
+        const deletionCutoff = endOfDay(
+            new Date(now.getTime() - DELETE_DAYS_BILLING * 24 * 60 * 60 * 1000)
+        );
+        const deletionCandidates = await db.userBilling.findMany({
+            where: {
+                billingStatus: "UNPAID",
+                dueDate: { not: null, lte: deletionCutoff },
+                user: { role: "user" },
+            },
+            select: { id: true, userId: true, user: { select: { name: true, email: true } } },
+        });
+
+        let deletedApplied = 0;
+        for (const dc of deletionCandidates) {
+            try {
+                await deleteInstanceInternal(dc.userId).catch(() => null);
+                await db.user.delete({ where: { id: dc.userId } });
+                deletedApplied++;
+                pushLog({
+                    at: new Date().toISOString(),
+                    level: "INFO",
+                    message: `Cuenta eliminada por 30+ días sin renovar: ${dc.user?.email ?? dc.userId}`,
+                    userId: dc.userId,
+                });
+            } catch (delErr: any) {
+                pushLog({
+                    at: new Date().toISOString(),
+                    level: "ERROR",
+                    message: `Error al eliminar cuenta ${dc.userId}: ${delErr?.message}`,
+                    userId: dc.userId,
+                });
+            }
+        }
+
         const debtorsRaw = await db.userBilling.findMany({
             where: {
                 dueDate: { not: null },
@@ -512,7 +547,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
         pushLog({
             at: new Date().toISOString(),
             level: "INFO",
-            message: `Resumen job billing: attempted=${attempted}, sent=${sent}, suspended=${suspendedApplied}, errors=${errors}.`,
+            message: `Resumen job billing: attempted=${attempted}, sent=${sent}, suspended=${suspendedApplied}, deleted=${deletedApplied}, errors=${errors}.`,
         });
 
         return {

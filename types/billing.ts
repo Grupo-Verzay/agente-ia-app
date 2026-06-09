@@ -1,5 +1,6 @@
 export const SOON_DAYS_BILLING = 3;
 export const OVERDUE_DAYS_BILLING = 3;
+export const DELETE_DAYS_BILLING = 30;
 
 /**
  * Formato estándar de respuesta (backend)
