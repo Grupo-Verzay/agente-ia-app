@@ -8,7 +8,7 @@ export type OutgoingTextPayload = {
   linkPreview?: boolean;
   mentionsEveryOne?: boolean;
   mentioned?: string[];
-  quotedMessage?: { key: { id: string }; message: { conversation: string } };
+  quotedMessage?: { key: { id: string; fromMe?: boolean; remoteJid?: string }; message: { conversation: string } };
 };
 
 export type OutgoingMediaPayload = {
@@ -24,7 +24,7 @@ export type OutgoingMediaPayload = {
   linkPreview?: boolean;
   mentionsEveryOne?: boolean;
   mentioned?: string[];
-  quotedMessage?: { key: { id: string }; message: { conversation: string } };
+  quotedMessage?: { key: { id: string; fromMe?: boolean; remoteJid?: string }; message: { conversation: string } };
 };
 
 export type OutgoingMessagePayload = OutgoingTextPayload | OutgoingMediaPayload;

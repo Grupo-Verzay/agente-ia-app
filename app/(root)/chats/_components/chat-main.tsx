@@ -198,6 +198,10 @@ export const ChatMain: React.FC<ChatMainProps> = ({
 
   /* ─── Derived display values ─── */
   const displayedContactName = header.name || session?.pushName?.trim();
+  const assignedAdvisorName = useMemo(() => {
+    if (!advisors?.length) return 'Asesor';
+    return advisors.find((a) => a.id === assignedAdvisorId)?.name ?? 'Asesor';
+  }, [assignedAdvisorId, advisors]);
   const displayedWhatsapp = session
     ? getDisplayWhatsappFromSession(session)
     : info?.remoteJid?.toLowerCase().endsWith('@lid')
@@ -463,7 +467,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     let media: MediaData | undefined;
 
     const quotedMessage = replyTo
-      ? { key: { id: replyTo.id }, message: { conversation: replyTo.content } }
+      ? { key: { id: replyTo.id, fromMe: replyTo.sender === 'user', remoteJid: info?.remoteJid }, message: { conversation: replyTo.content } }
       : undefined;
 
     if (recordedAudio) {
@@ -697,6 +701,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         loading={loading}
         listRef={listRef}
         tempMessage={tempMessage}
+        advisorName={assignedAdvisorName}
         onSetReplyTo={setReplyTo}
         onCopyMessage={handleCopyMessage}
         onReactMessage={handleReactMessage}

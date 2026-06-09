@@ -40,7 +40,7 @@ type OutgoingTextPayload = {
   linkPreview?: boolean;
   mentionsEveryOne?: boolean;
   mentioned?: string[];
-  quotedMessage?: { key: { id: string }; message: { conversation: string } };
+  quotedMessage?: { key: { id: string; fromMe?: boolean; remoteJid?: string }; message: { conversation: string } };
 };
 
 type OutgoingMediaPayload = {
@@ -55,7 +55,7 @@ type OutgoingMediaPayload = {
   linkPreview?: boolean;
   mentionsEveryOne?: boolean;
   mentioned?: string[];
-  quotedMessage?: { key: { id: string }; message: { conversation: string } };
+  quotedMessage?: { key: { id: string; fromMe?: boolean; remoteJid?: string }; message: { conversation: string } };
 };
 
 type OutgoingMessagePayload = OutgoingTextPayload | OutgoingMediaPayload;

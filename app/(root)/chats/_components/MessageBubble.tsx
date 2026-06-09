@@ -64,6 +64,7 @@ interface MessageBubbleProps {
   message: string;
   isUserMessage: boolean;
   sentByAi?: boolean;
+  senderName?: string;
   avatarSrc?: string;
   timestamp?: number;
   media?: MediaData;
@@ -81,6 +82,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isUserMessage,
   sentByAi,
+  senderName,
   avatarSrc,
   timestamp,
   media,
@@ -96,8 +98,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const showAvatar = !isUserMessage;
 
   const senderIcon = isUserMessage ? (
-    <span className="text-[0.65rem] leading-none" title={sentByAi ? 'Enviado por el Agente IA' : 'Enviado por asesor humano'}>
-      {sentByAi ? '🤖' : '👤'}
+    <span className="flex items-center gap-0.5 text-[0.6rem] leading-none text-gray-300" title={sentByAi ? 'Enviado por el Agente IA' : 'Enviado por asesor humano'}>
+      <span>{sentByAi ? '🤖' : '👤'}</span>
+      {senderName && <span className="truncate max-w-[5rem]">{senderName}</span>}
     </span>
   ) : null;
 

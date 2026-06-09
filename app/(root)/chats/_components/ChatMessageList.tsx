@@ -83,6 +83,7 @@ interface ChatMessageListProps {
   loading?: boolean;
   listRef: React.RefObject<HTMLDivElement>;
   tempMessage: UIBubble | null;
+  advisorName?: string;
   onSetReplyTo?: (bubble: UIBubble) => void;
   onCopyMessage?: (bubble: UIBubble) => void;
   onReactMessage?: (bubble: UIBubble, emoji: string) => void;
@@ -100,6 +101,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
   loading,
   listRef,
   tempMessage,
+  advisorName,
   onSetReplyTo,
   onCopyMessage,
   onReactMessage,
@@ -237,6 +239,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                   message={item.message.content}
                   isUserMessage={item.message.sender === 'user'}
                   sentByAi={item.message.sentByAi}
+                  senderName={item.message.sender === 'user' ? (item.message.sentByAi ? 'IA' : advisorName) : undefined}
                   avatarSrc={item.message.avatarSrc}
                   timestamp={item.message.ts}
                   media={item.message.media}

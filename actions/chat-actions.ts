@@ -612,7 +612,7 @@ export interface SendMediaUrlParams {
   linkPreview?: boolean;
   mentionsEveryOne?: boolean;
   mentioned?: string[];
-  quotedMessage?: { key: { id: string }; message: { conversation: string } };
+  quotedMessage?: { key: { id: string; fromMe?: boolean; remoteJid?: string }; message: { conversation: string } };
 }
 
 export type GetMediaResult =
@@ -824,7 +824,7 @@ export async function sendTextMessage(
   options?: {
     timeoutMs?: number;
     delay?: number;
-    quotedMessage?: { key: { id: string }; message: { conversation: string } };
+    quotedMessage?: { key: { id: string; fromMe?: boolean; remoteJid?: string }; message: { conversation: string } };
     linkPreview?: boolean;
     mentionsEveryOne?: boolean;
     mentioned?: string[];
@@ -881,7 +881,7 @@ export async function sendAudio(
   options?: {
     timeoutMs?: number;
     delay?: number;
-    quotedMessage?: { key: { id: string }; message: { conversation: string } };
+    quotedMessage?: { key: { id: string; fromMe?: boolean; remoteJid?: string }; message: { conversation: string } };
     mentionsEveryOne?: boolean;
     mentioned?: string[];
     ptt?: boolean;
@@ -1146,7 +1146,7 @@ export async function sendMediaAuto(
     linkPreview?: boolean;
     mentionsEveryOne?: boolean;
     mentioned?: string[];
-    quotedMessage?: { key: { id: string }; message: { conversation: string } };
+    quotedMessage?: { key: { id: string; fromMe?: boolean; remoteJid?: string }; message: { conversation: string } };
     timeoutMs?: number;
     forceAudioBase64?: boolean;
   }

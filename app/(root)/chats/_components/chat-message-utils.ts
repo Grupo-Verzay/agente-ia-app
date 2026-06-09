@@ -189,7 +189,7 @@ export function toUIMessages(
       : undefined;
 
     return {
-      id: m.id || (ts ? String(ts) : '') + (m.key?.id || Math.random().toString(36).slice(2)),
+      id: m.key?.id || m.id || (ts ? String(ts) : '') + Math.random().toString(36).slice(2),
       sender,
       content,
       avatarSrc: sender === 'user' ? '/default.png' : avatarUrl,
