@@ -239,7 +239,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                   message={item.message.content}
                   isUserMessage={item.message.sender === 'user'}
                   sentByAi={item.message.sentByAi}
-                  senderName={item.message.sender === 'user' ? (item.message.sentByAi ? 'IA' : advisorName) : undefined}
+                  senderName={item.message.sender === 'user' ? (item.message.sentByAi ? 'Agente IA' : advisorName) : undefined}
                   avatarSrc={item.message.avatarSrc}
                   timestamp={item.message.ts}
                   media={item.message.media}
