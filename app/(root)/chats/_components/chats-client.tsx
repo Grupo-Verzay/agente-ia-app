@@ -395,7 +395,6 @@ export function ChatsClient({
       name:
         currentContactSession?.customName?.trim() ||
         currentContactSession?.pushName?.trim() ||
-        currentContact?.pushName ||
         selectedJid ||
         "Sin contacto",
       avatarSrc: currentContact?.profilePicUrl || "/placeholder.svg",
@@ -518,10 +517,14 @@ export function ChatsClient({
           return next;
         }
 
-        return {
-          ...previous,
-          [remoteJid]: mapSessionToChatContactSummary(session),
-        };
+        const mapped = mapSessionToChatContactSummary(session);
+        // Preservar customName existente en memoria si el fetch de DB trae null
+        // (evita parpadeo cuando la sesión fue renombrada antes del campo customName)
+        const prevCustomName = previous[remoteJid]?.customName;
+        if (!mapped.customName && prevCustomName) {
+          mapped.customName = prevCustomName;
+        }
+        return { ...previous, [remoteJid]: mapped };
       });
     },
     [],
