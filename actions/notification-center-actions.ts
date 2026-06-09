@@ -79,8 +79,8 @@ export async function getNotificationCenterData(): Promise<{
       }),
       db.session.findMany({
         where: user.ownerId
-          ? { userId: ownerId, status: true, assignedAdvisorId: user.id }
-          : { userId: ownerId, status: true, assignedAdvisorId: null },
+          ? { userId: ownerId, status: true, assignedAdvisorId: user.id, agentDisabled: true }
+          : { userId: ownerId, status: true, assignedAdvisorId: null, agentDisabled: true },
         orderBy: { updatedAt: "desc" },
         take: ITEMS_PER_KIND_LIMIT,
       }),
@@ -90,10 +90,7 @@ export async function getNotificationCenterData(): Promise<{
       }),
     ]);
 
-    // Filtrar sesiones donde el último mensaje del contacto fue reciente (últimas 24h)
-    // y no ha sido respondido (lastMessageFromMe=false).
-    // El límite de 24h evita mostrar conversaciones antiguas ya leídas en WhatsApp.
-    const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    // Sesiones con agente OFF y último mensaje del contacto sin responder
     const activeJids = activeChats.map((c) => c.remoteJid);
     const unreadConversations = activeJids.length > 0
       ? await db.chatConversation.findMany({
@@ -101,7 +98,6 @@ export async function getNotificationCenterData(): Promise<{
             userId: ownerId,
             remoteJid: { in: activeJids },
             lastMessageFromMe: false,
-            lastMessageTimestamp: { gte: since24h },
           },
           select: { remoteJid: true },
         })
