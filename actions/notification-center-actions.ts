@@ -90,8 +90,10 @@ export async function getNotificationCenterData(): Promise<{
       }),
     ]);
 
-    // Filtrar por sesiones donde el último mensaje es del contacto
-    // (ChatConversation.lastMessageFromMe se actualiza cuando enviamos mensajes via webhook)
+    // Filtrar sesiones donde el último mensaje del contacto fue reciente (últimas 24h)
+    // y no ha sido respondido (lastMessageFromMe=false).
+    // El límite de 24h evita mostrar conversaciones antiguas ya leídas en WhatsApp.
+    const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const activeJids = activeChats.map((c) => c.remoteJid);
     const unreadConversations = activeJids.length > 0
       ? await db.chatConversation.findMany({
@@ -99,6 +101,7 @@ export async function getNotificationCenterData(): Promise<{
             userId: ownerId,
             remoteJid: { in: activeJids },
             lastMessageFromMe: false,
+            lastMessageTimestamp: { gte: since24h },
           },
           select: { remoteJid: true },
         })
