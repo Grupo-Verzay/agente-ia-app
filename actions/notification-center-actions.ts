@@ -54,7 +54,6 @@ export async function getNotificationCenterData(): Promise<{
       appointmentCount,
       instances,
       activeChats,
-      unreadConversations,
       owner,
     ] = await Promise.all([
       (db as any).task.findMany({
@@ -85,20 +84,25 @@ export async function getNotificationCenterData(): Promise<{
         orderBy: { updatedAt: "desc" },
         take: ITEMS_PER_KIND_LIMIT,
       }),
-      db.$queryRaw<{ remoteJid: string }[]>`
-        SELECT "remoteJid" FROM (
-          SELECT DISTINCT ON ("userId", "remoteJid") "remoteJid", "fromMe"
-          FROM chat_messages
-          WHERE "userId" = ${ownerId}
-          ORDER BY "userId", "remoteJid", "messageTimestamp" DESC, id DESC
-        ) latest
-        WHERE "fromMe" = false
-      `,
       db.user.findUnique({
         where: { id: ownerId },
         select: { apiKeyId: true },
       }),
     ]);
+
+    // Filtrar por sesiones donde el último mensaje es del contacto
+    // (ChatConversation.lastMessageFromMe se actualiza cuando enviamos mensajes via webhook)
+    const activeJids = activeChats.map((c) => c.remoteJid);
+    const unreadConversations = activeJids.length > 0
+      ? await db.chatConversation.findMany({
+          where: {
+            userId: ownerId,
+            remoteJid: { in: activeJids },
+            lastMessageFromMe: false,
+          },
+          select: { remoteJid: true },
+        })
+      : [];
 
     const unreadJids = new Set(unreadConversations.map((c) => c.remoteJid));
     const unreadChats = activeChats.filter((chat) => unreadJids.has(chat.remoteJid));
