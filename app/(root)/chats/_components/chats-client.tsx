@@ -473,7 +473,16 @@ export function ChatsClient({
 
       const result = await getChatContactSessions(sessionUserIds?.length ? sessionUserIds : userId, descriptors);
       if (result.success) {
-        setChatSessions(result.data ?? {});
+        setChatSessions((prev) => {
+          const next = { ...(result.data ?? {}) };
+          // Preservar customName de memoria si DB aún no lo tiene (race condition de rename)
+          for (const jid of Object.keys(next)) {
+            if (!next[jid].customName && prev[jid]?.customName) {
+              next[jid] = { ...next[jid], customName: prev[jid].customName };
+            }
+          }
+          return next;
+        });
       }
     },
     [sessionUserIds, userId],
@@ -603,6 +612,13 @@ export function ChatsClient({
     },
     [chatSessions, advisorRole, advisors, currentAdvisorId, takeSessionAction, assignAdvisorAction, releaseSessionAction, transferSessionAction],
   );
+
+  const handleSessionRename = useCallback((jid: string, name: string) => {
+    setChatSessions((prev) => {
+      if (!prev[jid]) return prev;
+      return { ...prev, [jid]: { ...prev[jid]!, customName: name, pushName: name } };
+    });
+  }, []);
 
   const handleSessionTagsChange = useCallback(
     (remoteJid: string, selectedIds: number[]) => {
@@ -1308,6 +1324,7 @@ export function ChatsClient({
           tab={chatListTab}
           onTabChange={setChatListTab}
           onRenameSuccess={() => setSessionRefreshSignal((n) => n + 1)}
+          onSessionRename={handleSessionRename}
         />
       </div>
 

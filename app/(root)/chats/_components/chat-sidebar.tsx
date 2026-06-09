@@ -110,6 +110,7 @@ type ChatSidebarProps = {
   tab?: TabKey;
   onTabChange?: (tab: TabKey) => void;
   onRenameSuccess?: () => void;
+  onSessionRename?: (jid: string, name: string) => void;
 };
 
 export function ChatSidebar({
@@ -146,6 +147,7 @@ export function ChatSidebar({
   tab: tabProp,
   onTabChange: onTabChangeProp,
   onRenameSuccess,
+  onSessionRename,
 }: ChatSidebarProps) {
   const [q, setQ] = useState("");
   const [internalTab, setInternalTab] = useState<TabKey>(currentAdvisorId ? "mine" : "all");
@@ -512,6 +514,7 @@ export function ChatSidebar({
     setRenameLoading(false);
     if (res.success) {
       toast.success("Nombre actualizado.");
+      onSessionRename?.(renameTarget.id, name);
       setRenameTarget(null);
       void onRefresh?.();
       onRenameSuccess?.();
