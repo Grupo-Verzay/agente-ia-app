@@ -124,6 +124,7 @@ async function syncSessionLeadName(
         },
         data: {
             pushName: nombre,
+            customName: nombre,
         },
     });
 

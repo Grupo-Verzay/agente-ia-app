@@ -234,7 +234,7 @@ export function ChatSidebar({
         return {
           id: chat.remoteJid,
           chatSession: chatSessions[chat.remoteJid] ?? null,
-          name: chatSessions[chat.remoteJid]?.pushName?.trim() || nameFrom(chat),
+          name: chatSessions[chat.remoteJid]?.customName?.trim() || chatSessions[chat.remoteJid]?.pushName?.trim() || nameFrom(chat),
           avatarSrc: avatarFrom(chat),
           lastMessage: lastMsgData.text,
           lastMessageId: lastMsgData.id,

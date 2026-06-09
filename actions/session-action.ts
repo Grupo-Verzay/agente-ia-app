@@ -130,6 +130,7 @@ function mapChatContactSessionSummary(
     userId: mappedSession.userId,
     remoteJid: mappedSession.remoteJid,
     remoteJidAlt: mappedSession.remoteJidAlt,
+    customName: mappedSession.customName ?? null,
     pushName: mappedSession.pushName,
     tags: mappedSession.tags ?? [],
     leadStatus: mappedSession.leadStatus ?? null,

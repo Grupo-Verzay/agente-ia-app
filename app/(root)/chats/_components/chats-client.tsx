@@ -106,6 +106,7 @@ function mapSessionToChatContactSummary(session: Session): ChatContactSessionSum
     userId: session.userId,
     remoteJid: session.remoteJid,
     remoteJidAlt: session.remoteJidAlt,
+    customName: session.customName ?? null,
     pushName: session.pushName,
     tags: session.tags ?? [],
     leadStatus: session.leadStatus ?? null,
@@ -392,6 +393,7 @@ export function ChatsClient({
   const header = useMemo(() => {
     return {
       name:
+        currentContactSession?.customName?.trim() ||
         currentContactSession?.pushName?.trim() ||
         currentContact?.pushName ||
         selectedJid ||
@@ -1240,7 +1242,7 @@ export function ChatsClient({
     if (!selectedJid) return;
     const contact = currentContact;
     const session = currentContactSession;
-    const name = session?.pushName?.trim() || contact?.pushName?.trim() || selectedJid;
+    const name = session?.customName?.trim() || session?.pushName?.trim() || contact?.pushName?.trim() || selectedJid;
     const phone = fmtPhone(selectedJid) || selectedJid;
     setComposeInitialContact({ jid: selectedJid, name, phone });
     setIsComposeOpen(true);

@@ -82,6 +82,7 @@ export type ChatContactSessionSummary = {
   userId: string;
   remoteJid: string;
   remoteJidAlt?: string | null;
+  customName?: string | null;
   pushName?: string | null;
   tags: SimpleTag[];
   leadStatus?: LeadStatus | null;
