@@ -398,6 +398,8 @@ export function ChatsClient({
         if (custom && !isBadContactName(custom)) return custom;
         const push = currentContactSession?.pushName?.trim();
         if (push && !isBadContactName(push)) return push;
+        const contactPush = currentContact?.pushName?.trim();
+        if (contactPush && !isBadContactName(contactPush)) return contactPush;
         return extractWhatsAppDigits(selectedJid) || selectedJid?.split("@")[0] || "Sin nombre";
       })(),
       avatarSrc: currentContact?.profilePicUrl || "/placeholder.svg",
