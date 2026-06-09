@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Trash2, Plus, PenSquare, GripVertical, ChevronDown, Copy } from "lucide-react";
@@ -650,7 +651,12 @@ export function ExtraInfoBuilder({
                 </CardContent>
             </>
             {items.length > 0 && (
-                <CardFooter className="pb-2 flex justify-end">
+                <CardFooter className="pb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span>Cada extra agrega contexto</span>
+                        <ArrowRight className="h-3 w-3 shrink-0" />
+                        <span>adicional al agente</span>
+                    </div>
                     <Button size="sm" onClick={addItem} className="gap-2">
                         <Plus className="w-4 h-4" />
                         Agregar extra

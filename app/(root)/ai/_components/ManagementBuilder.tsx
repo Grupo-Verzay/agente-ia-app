@@ -16,7 +16,7 @@ import ElementRenderer from "./action-steeps/ElementRenderer";
 import { FunctionSelector } from "./FunctionSelector";
 import { PromptFragment } from "./helpers/prompt-fragments";
 import { getUserAppointmentUrl } from "@/actions/userClientDataActions";
-import { GripVertical, ChevronDown, Trash2, Copy } from "lucide-react";
+import { GripVertical, ChevronDown, Trash2, Copy, ArrowRight } from "lucide-react";
 
 import {
     AlertDialog,
@@ -763,7 +763,12 @@ export const ManagementBuilder = ({
             </CardContent>
 
             {steps.length > 0 && (
-                <CardFooter className="pb-2 flex justify-end">
+                <CardFooter className="pb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span>Cada acción ejecuta una función</span>
+                        <ArrowRight className="h-3 w-3 shrink-0" />
+                        <span>dentro del flujo de gestión</span>
+                    </div>
                     <FunctionSelector
                         notificationNumber={notificationNumber ?? ""}
                         isManagement={true}

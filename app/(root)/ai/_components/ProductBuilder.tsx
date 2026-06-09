@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Plus as PlusIcon, ArrowRight } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Trash2, Plus, GripVertical, ChevronDown, Copy } from "lucide-react";
 import { StepTemplatePicker } from "./StepTemplatePicker";
@@ -583,7 +584,12 @@ export const ProductBuilder = ({
             </CardContent>
 
             {items.length > 0 && (
-                <CardFooter className="pb-2 flex justify-end">
+                <CardFooter className="pb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span>Cada producto define una opción</span>
+                        <ArrowRight className="h-3 w-3 shrink-0" />
+                        <span>disponible para el cliente</span>
+                    </div>
                     <Button size="sm" onClick={addProduct} className="gap-2">
                         <Plus className="w-4 h-4" />
                         Agregar producto

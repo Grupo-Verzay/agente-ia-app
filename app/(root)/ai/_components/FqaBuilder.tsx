@@ -5,7 +5,7 @@ import { ChangeEvent, useEffect, useMemo, useState, useCallback } from "react";
 import { nanoid } from "nanoid";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, GripVertical, ChevronDown, Copy } from "lucide-react";
+import { Plus, Trash2, GripVertical, ChevronDown, Copy, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { StepTemplatePicker } from "./StepTemplatePicker";
@@ -589,7 +589,12 @@ export function FqaBuilder({
                 </CardContent>
 
                 {items.length > 0 && (
-                    <CardFooter className="pb-2 flex justify-end">
+                    <CardFooter className="pb-2 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>Cada pregunta resuelve una duda</span>
+                            <ArrowRight className="h-3 w-3 shrink-0" />
+                            <span>frecuente del cliente</span>
+                        </div>
                         <Button size="sm" onClick={addFaq} className="gap-2">
                             <Plus className="w-4 h-4" />
                             Agregar Pregunta
