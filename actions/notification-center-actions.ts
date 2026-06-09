@@ -54,7 +54,7 @@ export async function getNotificationCenterData(): Promise<{
       appointmentCount,
       instances,
       activeChats,
-      chatCount,
+      unreadConversations,
       owner,
     ] = await Promise.all([
       (db as any).task.findMany({
@@ -85,16 +85,19 @@ export async function getNotificationCenterData(): Promise<{
         orderBy: { updatedAt: "desc" },
         take: ITEMS_PER_KIND_LIMIT,
       }),
-      db.session.count({
-        where: user.ownerId
-          ? { userId: ownerId, status: true, assignedAdvisorId: user.id }
-          : { userId: ownerId, status: true, assignedAdvisorId: null },
+      db.chatConversation.findMany({
+        where: { userId: ownerId, lastMessageFromMe: false },
+        select: { remoteJid: true },
       }),
       db.user.findUnique({
         where: { id: ownerId },
         select: { apiKeyId: true },
       }),
     ]);
+
+    const unreadJids = new Set(unreadConversations.map((c) => c.remoteJid));
+    const unreadChats = activeChats.filter((chat) => unreadJids.has(chat.remoteJid));
+    const chatCount = unreadChats.length;
 
     const connectionItems: NotificationCenterItem[] = [];
     if (instances.length === 0) {
@@ -117,11 +120,11 @@ export async function getNotificationCenterData(): Promise<{
     }
     const items: NotificationCenterItem[] = [
       ...connectionItems,
-      ...activeChats.map((chat) => ({
+      ...unreadChats.map((chat) => ({
         id: `chat-${chat.id}`,
         kind: "chat" as const,
         title: chat.pushName || chat.remoteJid,
-        description: user.ownerId ? "Chat activo asignado a ti" : "Chat activo sin asignar",
+        description: user.ownerId ? "Mensaje sin responder (asignado a ti)" : "Mensaje sin responder (sin asignar)",
         href: `/chats?jid=${encodeURIComponent(chat.remoteJid)}`,
         date: chat.updatedAt.toISOString(),
       })),
