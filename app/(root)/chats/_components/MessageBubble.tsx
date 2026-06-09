@@ -107,6 +107,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const timeAndStatus = (
     <div className="flex items-center gap-0.5">
       {senderIcon}
+      {senderIcon && timestamp && (
+        <span className="text-[0.6rem] leading-none text-gray-400/70 mx-0.5">|</span>
+      )}
       {timestamp && (
         <span
           className={cn(
