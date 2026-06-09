@@ -46,6 +46,7 @@ export type ChatInfoMeta = {
   remoteJid?: string;
   remoteJidAliases?: string[];
   apiKeyData?: { url: string; key: string };
+  contactName?: string;
 };
 
 export type MediaData = {

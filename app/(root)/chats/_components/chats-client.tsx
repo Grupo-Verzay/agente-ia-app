@@ -400,6 +400,8 @@ export function ChatsClient({
         if (push && !isBadContactName(push)) return push;
         const contactPush = currentContact?.pushName?.trim();
         if (contactPush && !isBadContactName(contactPush)) return contactPush;
+        const infoName = info?.contactName?.trim();
+        if (infoName && !isBadContactName(infoName)) return infoName;
         return extractWhatsAppDigits(selectedJid) || selectedJid?.split("@")[0] || "Sin nombre";
       })(),
       avatarSrc: currentContact?.profilePicUrl || "/placeholder.svg",
@@ -730,6 +732,9 @@ export function ChatsClient({
         remoteJid,
         remoteJidAliases,
         apiKeyData: effectiveApiKeyData,
+        contactName: selectedContact?.pushName && !isBadContactName(selectedContact.pushName)
+          ? selectedContact.pushName
+          : undefined,
       }));
       const requestId = selectionRequestRef.current + 1;
       selectionRequestRef.current = requestId;
