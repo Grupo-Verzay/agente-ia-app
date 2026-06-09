@@ -22,7 +22,7 @@ export async function getAiMessageContentsAction(
     const aiContents = new Set<string>();
     for (const row of rows) {
       const msg = row.message as { type?: string; content?: string } | null;
-      if (msg?.type === 'ai' && typeof msg.content === 'string' && msg.content.trim()) {
+      if ((msg?.type === 'ai' || msg?.type === 'ia') && typeof msg.content === 'string' && msg.content.trim()) {
         aiContents.add(normalize(msg.content));
       }
     }
