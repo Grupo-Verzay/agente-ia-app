@@ -8,6 +8,7 @@ import type { Session, SingleSessionResponse } from '@/types/session';
 
 interface UseChatSessionOptions {
   userId: string;
+  sessionUserIds?: string[];
   remoteJid?: string;
   remoteJidAliases?: string[];
   onSessionResolved?: (remoteJid: string, session: Session | null) => void;
@@ -27,6 +28,7 @@ interface UseChatSessionReturn {
 
 export function useChatSession({
   userId,
+  sessionUserIds,
   remoteJid,
   remoteJidAliases,
   onSessionResolved,
@@ -48,9 +50,10 @@ export function useChatSession({
         new Set([remoteJid, ...(remoteJidAliases ?? [])].filter(Boolean)),
       );
 
+      const effectiveUserIds = sessionUserIds?.length ? sessionUserIds : [userId];
       let resolved: SingleSessionResponse | null = null;
       for (const candidate of candidates) {
-        const result: SingleSessionResponse = await getSessionByRemoteJid(userId, candidate, {
+        const result: SingleSessionResponse = await getSessionByRemoteJid(effectiveUserIds, candidate, {
           aliases: candidates,
         });
         if (result.success && result.data) {

@@ -51,6 +51,7 @@ export type { OutgoingMessagePayload };
 
 type ChatMainProps = {
   userId: string;
+  sessionUserIds?: string[];
   header: ChatHeaderData;
   messages: EvolutionMessage[];
   info?: ChatInfoMeta;
@@ -91,6 +92,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   onBackToList,
   quickReplies,
   userId,
+  sessionUserIds,
   allTags,
   workflows,
   onSessionResolved,
@@ -170,6 +172,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     handleSaveContactName,
   } = useChatSession({
     userId,
+    sessionUserIds,
     remoteJid: info?.remoteJid,
     remoteJidAliases: info?.remoteJidAliases,
     onSessionResolved,

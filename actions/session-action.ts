@@ -863,7 +863,7 @@ export async function registerSession(input: z.infer<typeof registerSessionSchem
 * Obtiene una única sesión por su remoteJid asociado a un userId.
 */
 export async function getSessionByRemoteJid(
-  userId: string,
+  userId: string | string[],
   remoteJid: string,
   options?: GetSessionByRemoteJidOptions,
 ): Promise<SingleSessionResponse> {
@@ -885,10 +885,11 @@ export async function getSessionByRemoteJid(
     const candidates = buildRemoteJidCandidates(trimmedRemoteJid, observedAliases);
     const preferredRemoteJid = resolvePreferredRemoteJid(observedAliases);
     const trimmedInstanceId = options?.instanceId?.trim();
+    const userIds = Array.isArray(userId) ? userId : [userId];
 
     const sessions = await db.session.findMany({
       where: {
-        userId,
+        userId: userIds.length === 1 ? userIds[0] : { in: userIds },
         ...(trimmedInstanceId ? { instanceId: trimmedInstanceId } : {}),
         OR: [
           { remoteJid: { in: candidates } },

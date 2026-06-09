@@ -1356,6 +1356,7 @@ export function ChatsClient({
             onSessionTagsChange={handleSessionTagsChange}
             quickReplies={quickReplies}
             userId={userId}
+            sessionUserIds={sessionUserIds?.length ? sessionUserIds : undefined}
             workflows={workflows}
             advisors={advisors}
             currentAdvisorId={currentAdvisorId}
