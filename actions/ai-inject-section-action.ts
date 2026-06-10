@@ -101,7 +101,7 @@ export async function analyzeInstructionAction(
       data: {
         sectionKey,
         sectionLabel: INJECT_SECTION_LABELS[sectionKey],
-        title: (parsed.title || "Sin título").slice(0, 50),
+        title: (parsed.title || "Sin título").slice(0, 50).toUpperCase(),
         mainMessage: parsed.mainMessage || "",
       },
     };
