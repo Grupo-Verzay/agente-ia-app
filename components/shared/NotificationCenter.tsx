@@ -1,10 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import Link from "next/link";
-
-// Persiste entre re-mounts para que el dismiss sobreviva navegaciones
-const _dismissed = new Set<string>();
 import {
   AlertTriangle,
   Bell,
@@ -33,6 +29,19 @@ import {
   type NotificationKind,
 } from "@/actions/notification-center-actions";
 import { cn } from "@/lib/utils";
+
+const NC_KEY = "nc_dismissed_v1";
+function loadDismissed(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try { return new Set(JSON.parse(window.sessionStorage.getItem(NC_KEY) ?? "[]") as string[]); }
+  catch { return new Set(); }
+}
+function saveDismissed(id: string): void {
+  try {
+    const s = loadDismissed(); s.add(id);
+    window.sessionStorage.setItem(NC_KEY, JSON.stringify([...s]));
+  } catch {}
+}
 
 const KIND_META: Record<
   NotificationKind,
@@ -99,7 +108,8 @@ export function NotificationCenter() {
     startTransition(async () => {
       const res = await getNotificationCenterData();
       if (res.success) {
-        const items = res.data.items.filter((i) => !_dismissed.has(i.id));
+        const dismissed = loadDismissed();
+        const items = res.data.items.filter((i) => !dismissed.has(i.id));
         const counts = { task: 0, appointment: 0, connection: 0, chat: 0 } as Record<NotificationKind, number>;
         for (const item of items) counts[item.kind] = (counts[item.kind] ?? 0) + 1;
         setData({ items, counts, total: items.length });
@@ -115,13 +125,15 @@ export function NotificationCenter() {
     if (open) load();
   }, [load, open]);
 
-  const dismiss = useCallback((id: string, kind: NotificationKind) => {
-    _dismissed.add(id);
+  const dismiss = useCallback((id: string, kind: NotificationKind, href: string) => {
+    saveDismissed(id);
     setData((prev) => ({
       items: prev.items.filter((i) => i.id !== id),
       counts: { ...prev.counts, [kind]: Math.max(0, (prev.counts[kind] ?? 0) - 1) },
       total: Math.max(0, prev.total - 1),
     }));
+    setOpen(false);
+    window.location.href = href;
   }, []);
 
   const summary = useMemo(
@@ -207,11 +219,11 @@ export function NotificationCenter() {
                 const Icon = meta.Icon;
                 const date = formatDate(item.date);
                 return (
-                  <Link
+                  <button
                     key={item.id}
-                    href={item.href}
-                    onClick={() => { dismiss(item.id, item.kind); setOpen(false); }}
-                    className="flex gap-2 px-3 py-2 text-sm hover:bg-muted/60"
+                    type="button"
+                    onClick={() => dismiss(item.id, item.kind, item.href)}
+                    className="flex w-full gap-2 px-3 py-2 text-left text-sm hover:bg-muted/60"
                   >
                     <span className="self-center flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
                       <Icon className={cn("h-4 w-4", meta.color)} />
@@ -234,7 +246,7 @@ export function NotificationCenter() {
                         </span>
                       )}
                     </span>
-                  </Link>
+                  </button>
                 );
               })}
             </div>
