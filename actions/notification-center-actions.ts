@@ -79,8 +79,8 @@ export async function getNotificationCenterData(): Promise<{
       }),
       db.session.findMany({
         where: user.ownerId
-          ? { userId: ownerId, status: true, assignedAdvisorId: user.id, agentDisabled: true }
-          : { userId: ownerId, status: true, assignedAdvisorId: null, agentDisabled: true },
+          ? { userId: ownerId, status: true, assignedAdvisorId: user.id }
+          : { userId: ownerId, status: true },
         orderBy: { updatedAt: "desc" },
         take: ITEMS_PER_KIND_LIMIT,
       }),
@@ -90,7 +90,7 @@ export async function getNotificationCenterData(): Promise<{
       }),
     ]);
 
-    // Sesiones con agente OFF y último mensaje del contacto sin responder
+    // Sesiones activas con último mensaje del contacto (sin responder)
     const activeJids = activeChats.map((c) => c.remoteJid);
     const unreadConversations = activeJids.length > 0
       ? await db.chatConversation.findMany({
@@ -132,7 +132,7 @@ export async function getNotificationCenterData(): Promise<{
         id: `chat-${chat.id}`,
         kind: "chat" as const,
         title: chat.pushName || chat.remoteJid,
-        description: user.ownerId ? "Mensaje sin responder (asignado a ti)" : "Mensaje sin responder (sin asignar)",
+        description: user.ownerId ? "Mensaje sin responder (asignado a ti)" : "Mensaje sin responder",
         href: `/chats?jid=${encodeURIComponent(chat.remoteJid)}`,
         date: chat.updatedAt.toISOString(),
       })),
