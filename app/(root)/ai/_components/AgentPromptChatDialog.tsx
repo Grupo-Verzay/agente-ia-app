@@ -891,7 +891,7 @@ export function AgentPromptChatDialog({
           <aside className="hidden min-h-0 flex-col bg-muted/30 lg:flex overflow-y-auto">
 
             {/* Atajos */}
-            <div className="flex flex-col gap-1.5 px-4 py-3">
+            <div className="flex flex-col gap-2 px-4 py-4">
               <div className="flex items-center gap-2">
                 <div className="h-px flex-1 bg-border" />
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground/60">Sugerencias</span>
