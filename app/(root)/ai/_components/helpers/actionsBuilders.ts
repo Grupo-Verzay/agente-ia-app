@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { buildSectionedMarkdown } from "./markdownBuilder";
 import { buildMotorFromTrainingSteps } from "./buildMotor";
-import { ExtrasDraftSchema, FaqDraftSchema, flowBehaviorText, ProductsDraftSchema, TrainingDraftSchema, ManagementDraftSchema } from "@/types/agentAi";
+import { ExtrasDraftSchema, FaqDraftSchema, flowBehaviorText, ProductsDraftSchema, TrainingDraftSchema, ManagementDraftSchema, KeywordsDraftSchema } from "@/types/agentAi";
 
 // FAQ: título + label + mainMessage como respuesta directa
 const FAQ_CFG = { sectionPrefix: "PREGUNTA", joinSeparator: "\n\n---\n\n", flowBehaviorText, renderMode: "answer" as const, mainMessageLabel: (n: number) => `OBJETIVO/RESPUESTA PRINCIPAL DE LA PREGUNTA ${n}:`, elementsLabel: (n: number) => `ELEMENTOS DE LA PREGUNTA ${n}:` };
@@ -35,4 +35,18 @@ export function buildTrainingMarkdown(training: z.infer<typeof TrainingDraftSche
 
 export function buildManagementMarkdown(management: z.infer<typeof ManagementDraftSchema>): string {
     return buildSectionedMarkdown(management, MGMT_CFG);
+}
+
+export function buildKeywordsMarkdown(keywords: z.infer<typeof KeywordsDraftSchema> | undefined | null): string {
+    const rules = keywords?.rules ?? [];
+    const lines = rules
+        .filter((r) => r.keywords.length > 0 && (r.action === "escalar" || r.response.trim()))
+        .map((r) => {
+            const kws = r.keywords.map((k) => `"${k}"`).join(", ");
+            if (r.action === "escalar")
+                return `- Si el mensaje contiene ${kws}: Transfiere INMEDIATAMENTE a un asesor humano. No respondas tú.`;
+            return `- Si el mensaje contiene ${kws}: Responde EXACTAMENTE con: "${r.response}"`;
+        });
+    if (!lines.length) return "";
+    return `## 🔑 PALABRAS CLAVE — RESPUESTAS DIRECTAS\nCuando el mensaje del cliente contenga alguna de estas palabras, aplica la acción indicada sin agregar nada más:\n\n${lines.join("\n")}`;
 }

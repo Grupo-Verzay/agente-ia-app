@@ -16,6 +16,7 @@ import {
     ExtrasDraftSchema,
     SectionsStrictSchema,
     ManagementDraftSchema,
+    KeywordsDraftSchema,
 } from '@/types/agentAi';
 import { composePromptFromSections } from '@/app/(root)/ai/_components/helpers/composePromptFromSections';
 import { denormalizeBusiness } from '@/app/(root)/ai/_components/helpers/denormalizeBusiness';
@@ -431,6 +432,16 @@ export async function restoreRevision(input: {
     } catch (e) {
         return { ok: false as const, error: "No se pudo restaurar la revisión" };
     }
+}
+
+export async function patchKeywordsSection(input: {
+    promptId: string;
+    version: number;
+    data: z.input<typeof KeywordsDraftSchema>;
+}) {
+    const { promptId, version, data } = input;
+    const parsed = KeywordsDraftSchema.parse(data);
+    return await patchSection({ promptId, version, sectionKey: "keywords", patch: parsed });
 }
 
 export async function patchManagementSection(input: {

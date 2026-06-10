@@ -264,6 +264,19 @@ export const ManagementDraftSchema = z.object({
 });
 
 
+export const KeywordRuleSchema = z.object({
+    id: z.string(),
+    keywords: z.array(z.string()).default([]),
+    response: z.string().default(""),
+    action: z.enum(["responder", "escalar"]).default("responder"),
+});
+
+export const KeywordsDraftSchema = z.object({
+    rules: z.array(KeywordRuleSchema).default([]),
+});
+
+export type KeywordRule = z.infer<typeof KeywordRuleSchema>;
+
 export const SectionsDraftSchema = z.object({
     business: BusinessDraftSchema,
     training: TrainingDraftSchema,
@@ -271,6 +284,7 @@ export const SectionsDraftSchema = z.object({
     products: ProductsDraftSchema,
     extras: ExtrasDraftSchema,
     management: ManagementDraftSchema,
+    keywords: KeywordsDraftSchema.optional(),
 });
 
 /* ---------- STRICT (para publicar/validación fuerte) ---------- */

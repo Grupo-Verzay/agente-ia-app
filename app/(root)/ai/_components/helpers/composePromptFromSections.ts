@@ -2,7 +2,7 @@ import z from "zod";
 import { buildBusinessHeader } from "./buildBusinessHeader";
 import { nonEmpty } from "./nonEmpty";
 import { SectionsDraftSchema } from "@/types/agentAi";
-import { buildExtrasMarkdown, buildFaqMarkdown, buildManagementMarkdown, buildProductsMarkdown, buildTrainingMarkdown } from "./actionsBuilders";
+import { buildExtrasMarkdown, buildFaqMarkdown, buildManagementMarkdown, buildProductsMarkdown, buildTrainingMarkdown, buildKeywordsMarkdown } from "./actionsBuilders";
 
 export function composePromptFromSections(sections: z.infer<typeof SectionsDraftSchema>): string {
     if (!nonEmpty(sections.business?.nombre)) {
@@ -62,6 +62,13 @@ export function composePromptFromSections(sections: z.infer<typeof SectionsDraft
             out.push('\n---\n\n## 📦 GESTIÓN / CIERRE\n');
             out.push(managementMd);
         }
+    }
+
+    // 8. Palabras clave
+    const keywordsMd = buildKeywordsMarkdown(sections.keywords);
+    if (nonEmpty(keywordsMd)) {
+        out.push('\n---\n\n');
+        out.push(keywordsMd);
     }
 
     return out.join('\n');

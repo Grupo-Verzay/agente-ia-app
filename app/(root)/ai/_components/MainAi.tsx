@@ -30,6 +30,7 @@ import {
     buildTrainingMarkdown,
 } from "./helpers/actionsBuilders";
 import { ManagementBuilder } from "./ManagementBuilder";
+import { KeywordsBuilder } from "./KeywordsBuilder";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -553,6 +554,17 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 }}
                                 initialItems={sections?.management?.steps ?? []}
                                 registerSaveHandler={(fn) => registerSaveHandler("management", fn)}
+                            />
+                        </TabsContent>
+
+                        <TabsContent value="keywords" className="m-0">
+                            <KeywordsBuilder
+                                promptId={promptMeta.id}
+                                version={promptVersion}
+                                onVersionChange={setPromptVersion}
+                                onConflict={() => {}}
+                                initialRules={sections?.keywords?.rules ?? []}
+                                registerSaveHandler={(fn) => registerSaveHandler("keywords", fn)}
                             />
                         </TabsContent>
 
