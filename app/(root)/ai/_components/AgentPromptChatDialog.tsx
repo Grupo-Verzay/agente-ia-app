@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle, ArrowLeft, Bot, CheckCircle2, ClipboardList,
-  Copy, GitBranch, Lightbulb, Loader2, MessageSquare, PenLine, PlusCircle, RefreshCw,
+  Copy, GitBranch, Layers, Lightbulb, Loader2, MessageSquare, PenLine, PlusCircle, RefreshCw,
   RotateCcw, ScanSearch, SendHorizontal, ShieldAlert, Sparkles, Trash2, Wand2, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import { simulateChatMessage } from "@/actions/simulate-chat-actions";
 import { autoSaveBeforeGenerate, generateFlowSections, applyAllGeneratedSections } from "@/actions/generate-agent-flow";
 import { analyzeInstructionAction, applyInstructionAction, type AnalyzedInstruction, type InjectableSectionKey } from "@/actions/ai-inject-section-action";
 import { formatFirmaName } from "@/app/(root)/ai/_components/helpers/firmaTemplate";
+import { TemplatePickerSheet } from "./TemplatePickerSheet";
 import type { ChatMessage } from "@/types/ai-assistence-chat";
 import { Button } from "@/components/ui/button";
 import {
@@ -273,6 +274,9 @@ export function AgentPromptChatDialog({
   const [injectDone, setInjectDone] = useState(false);
   const [injectError, setInjectError] = useState<string | null>(null);
 
+  // ── Templates state
+  const [showTemplates, setShowTemplates] = useState(false);
+
   // ── Generate flow state
   const [genDescription, setGenDescription] = useState("");
   const [genStage, setGenStage] = useState<GenStage>("idle");
@@ -506,6 +510,7 @@ export function AgentPromptChatDialog({
   ];
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[min(585px,92dvh)] w-[min(960px,calc(100vw-1.5rem))] max-w-none flex-col overflow-hidden p-0 [&>button]:text-destructive/60 [&>button]:hover:text-destructive [&>button]:hover:bg-destructive/10">
 
@@ -941,6 +946,15 @@ export function AgentPromptChatDialog({
                 type="button"
                 variant="outline"
                 className="h-auto w-full justify-start gap-2 px-3 py-2 text-left text-sm"
+                onClick={() => { exitAllModes(); setShowTemplates(true); }}
+              >
+                <Layers className="h-4 w-4 shrink-0 text-primary" />
+                Plantillas por rubro
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto w-full justify-start gap-2 px-3 py-2 text-left text-sm"
                 onClick={() => { exitAllModes(); setGeneratorMode(true); }}
               >
                 <GitBranch className="h-4 w-4 shrink-0 text-primary" />
@@ -974,5 +988,16 @@ export function AgentPromptChatDialog({
         </div>{/* fin wrapper relative */}
       </DialogContent>
     </Dialog>
+
+    {promptId && (
+      <TemplatePickerSheet
+        open={showTemplates}
+        onOpenChange={setShowTemplates}
+        promptId={promptId}
+        hasContent
+        onApplied={() => { setShowTemplates(false); }}
+      />
+    )}
+    </>
   );
 }

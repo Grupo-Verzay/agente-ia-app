@@ -18,7 +18,7 @@ import {
 } from "@/types/agentAi";
 import { ProductBuilder } from "./ProductBuilder";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, BarChart2, Bot, History, MoreVertical, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart2, Bot, History, Layers, MoreVertical, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PromptToolbar } from "./PromptToolbar";
@@ -41,6 +41,7 @@ import { GenericDeleteDialog } from "@/components/shared/GenericDeleteDialog";
 import { deleteAgentPromptsByUserId } from "@/actions/prompt-actions";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { AgentMetricsPanel } from "./AgentMetricsPanel";
+import { TemplatePickerSheet } from "./TemplatePickerSheet";
 import { AgentPromptChatDialog } from "./AgentPromptChatDialog";
 import { TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
 
@@ -60,6 +61,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     const [showAlertDialog, setShowAlertDialog] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     const [showMetrics, setShowMetrics] = useState(false);
+    const [showTemplates, setShowTemplates] = useState(false);
     const [showPromptChat, setShowPromptChat] = useState(false);
 
     const trainingMd = sections?.training
@@ -109,7 +111,15 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     const [signatureName, setSignatureName] = useState<string>(_initialSignatureName);
     const [firmaEnabled, setFirmaEnabled] = useState<boolean>(_initialSignatureName.trim().length > 0);
     const [promptVersion, setPromptVersion] = useState<number>(promptMeta.version);
+    const [emptyStateDismissed, setEmptyStateDismissed] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    const isEmpty =
+        !emptyStateDismissed &&
+        (sections?.training?.steps ?? []).length === 0 &&
+        (sections?.faq?.steps ?? []).length === 0 &&
+        (sections?.products?.steps ?? []).length === 0 &&
+        (sections?.management?.steps ?? []).length === 0;
     const saveHandlersRef = useRef<Record<string, () => Promise<void>>>({});
 
     const registerSaveHandler = useCallback((key: string, handler: () => Promise<void>) => {
@@ -341,6 +351,10 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent className="w-48" align="end">
                                     <DropdownMenuGroup>
+                                        <DropdownMenuItem onSelect={() => setShowTemplates(true)}>
+                                            <Layers className="mr-2 h-4 w-4" />
+                                            Plantillas por rubro
+                                        </DropdownMenuItem>
                                         <DropdownMenuItem onSelect={() => setShowMetrics(true)}>
                                             <BarChart2 className="mr-2 h-4 w-4" />
                                             Métricas del agente
@@ -383,6 +397,36 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
 
                 <div className="flex flex-row w-full gap-2 flex-1 min-h-0">
                     <div className="flex flex-1 flex-col min-h-0 overflow-y-auto pr-1">
+
+                        {/* Empty state: ofrecer plantilla cuando el agente no tiene contenido */}
+                        {isEmpty && (
+                            <div className="flex flex-col items-center justify-center gap-4 py-12 px-6 text-center">
+                                <span className="text-5xl">🤖</span>
+                                <div>
+                                    <p className="text-base font-semibold">¡Configura tu Agente IA!</p>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        Empieza con una plantilla de tu rubro o construye desde cero.
+                                    </p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowTemplates(true)}
+                                        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                                    >
+                                        Elegir plantilla
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEmptyStateDismissed(true)}
+                                        className="rounded-md border px-4 py-2 text-sm text-muted-foreground hover:bg-muted"
+                                    >
+                                        Empezar desde cero
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         <TabsContent value="business" className="m-0">
                             <BusinessPromptBuilder
                                 user={user}
@@ -528,6 +572,14 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                 itemId={user.effectiveId ?? user.id}
                 mutationFn={() => deleteAgentPromptsByUserId(user.effectiveId ?? user.id)}
                 entityLabel="todo el auto prompt"
+            />
+
+            <TemplatePickerSheet
+                open={showTemplates}
+                onOpenChange={setShowTemplates}
+                promptId={promptMeta.id}
+                hasContent={!isEmpty}
+                onApplied={() => { setEmptyStateDismissed(false); router.refresh(); }}
             />
 
             <AgentMetricsPanel open={showMetrics} onOpenChange={setShowMetrics} />
