@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -87,6 +88,7 @@ function formatDate(value?: string | null) {
 }
 
 export function NotificationCenter() {
+  const router = useRouter();
   const [data, setData] = useState<NotificationCenterData>(EMPTY_DATA);
   const [open, setOpen] = useState(false);
   const [activeKind, setActiveKind] = useState<NotificationKind | "all">("all");
@@ -107,7 +109,8 @@ export function NotificationCenter() {
     if (open) load();
   }, [load, open]);
 
-  const dismiss = useCallback((id: string, kind: NotificationKind) => {
+  const dismiss = useCallback((id: string, kind: NotificationKind, href: string) => {
+    setOpen(false);
     setData((prev) => {
       const newCount = Math.max(0, (prev.counts[kind] ?? 0) - 1);
       return {
@@ -116,8 +119,8 @@ export function NotificationCenter() {
         total: Math.max(0, prev.total - 1),
       };
     });
-    setOpen(false);
-  }, []);
+    router.push(href);
+  }, [router]);
 
   const summary = useMemo(
     () => FILTER_ORDER.map((kind) => [kind, data.counts[kind] ?? 0] as [NotificationKind, number]),
@@ -202,11 +205,11 @@ export function NotificationCenter() {
                 const Icon = meta.Icon;
                 const date = formatDate(item.date);
                 return (
-                  <Link
+                  <button
                     key={item.id}
-                    href={item.href}
-                    onClick={() => dismiss(item.id, item.kind)}
-                    className="flex gap-2 px-3 py-2 text-sm hover:bg-muted/60"
+                    type="button"
+                    onClick={() => dismiss(item.id, item.kind, item.href)}
+                    className="flex w-full gap-2 px-3 py-2 text-sm hover:bg-muted/60 text-left"
                   >
                     <span className="self-center flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
                       <Icon className={cn("h-4 w-4", meta.color)} />
@@ -229,7 +232,7 @@ export function NotificationCenter() {
                         </span>
                       )}
                     </span>
-                  </Link>
+                  </button>
                 );
               })}
             </div>
