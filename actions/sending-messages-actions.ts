@@ -68,8 +68,9 @@ export const sendingMessages = async ({
         });
 
         if (!response.ok) {
+            const bodyText = await response.text().catch(() => '');
             const errorText = `Error HTTP: ${response.status}`;
-            console.error(errorText);
+            console.error(errorText, { url, remoteJid: normalizedRemoteJid, body: bodyText });
             return { success: false, message: errorText, error: errorText };
         }
 
