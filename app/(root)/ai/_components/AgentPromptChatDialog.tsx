@@ -2,9 +2,9 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertCircle, ArrowLeft, Bot, CheckCircle2,
+  AlertCircle, ArrowLeft, Bot, CheckCircle2, ClipboardList,
   Copy, GitBranch, Lightbulb, Loader2, MessageSquare, PenLine, PlusCircle, RefreshCw,
-  RotateCcw, SendHorizontal, Sparkles, Trash2, Wand2, Zap,
+  RotateCcw, ScanSearch, SendHorizontal, ShieldAlert, Sparkles, Trash2, Wand2, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -100,6 +100,12 @@ const INJECT_PROMPT: QuickPrompt = {
   icon: PlusCircle,
   text: "",
 };
+
+const ANALYZE_PROMPTS: QuickPrompt[] = [
+  { label: "Revisar cobertura", icon: ScanSearch, text: "Analiza la configuración actual del agente y dime qué temas o preguntas frecuentes de clientes NO están cubiertas. Lista los vacíos más importantes." },
+  { label: "Detectar contradicciones", icon: ShieldAlert, text: "Revisa todas las instrucciones del agente y detecta si hay reglas o respuestas contradictorias entre sí. Explica qué conflictos encontraste." },
+  { label: "Diagnóstico general", icon: ClipboardList, text: "Haz un diagnóstico completo del agente: qué secciones están bien configuradas, cuáles están vacías o incompletas, y cuáles necesitan mejoras urgentes." },
+];
 
 const INJECT_SECTION_COLORS: Record<InjectableSectionKey, string> = {
   training: "bg-blue-100 text-blue-700 border-blue-200",
@@ -947,6 +953,27 @@ export function AgentPromptChatDialog({
                 <GitBranch className="h-4 w-4 shrink-0 text-primary" />
                 Generar flujo del negocio
               </Button>
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground/60">Analizar</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              {ANALYZE_PROMPTS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Button
+                    key={item.label}
+                    type="button"
+                    variant="outline"
+                    className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
+                    disabled={isSending}
+                    onClick={() => { exitAllModes(); void sendText(item.text); }}
+                  >
+                    <Icon className="h-4 w-4 shrink-0 text-primary" />
+                    {item.label}
+                  </Button>
+                );
+              })}
             </div>
 
             {/* Descripción de la sección */}
