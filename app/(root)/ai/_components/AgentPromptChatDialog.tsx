@@ -279,6 +279,7 @@ export function AgentPromptChatDialog({
   const [injectApplying, setInjectApplying] = useState(false);
   const [injectDone, setInjectDone] = useState(false);
   const [injectError, setInjectError] = useState<string | null>(null);
+  const [injectDuplicate, setInjectDuplicate] = useState<string | null>(null);
 
   // ── Templates state
   const [showTemplates, setShowTemplates] = useState(false);
@@ -312,7 +313,7 @@ export function AgentPromptChatDialog({
     setSimError(null);
     setInjectMode(false);
     setInjectText("");
-    setInjectPreview(null);
+    setInjectPreview(null); setInjectDuplicate(null);
     setInjectApplying(false);
     setInjectDone(false);
     setInjectError(null);
@@ -428,7 +429,7 @@ export function AgentPromptChatDialog({
     setSimError(null);
     setInjectMode(false);
     setInjectText("");
-    setInjectPreview(null);
+    setInjectPreview(null); setInjectDuplicate(null);
     setInjectApplying(false);
     setInjectDone(false);
     setInjectError(null);
@@ -465,7 +466,7 @@ export function AgentPromptChatDialog({
   const handleAnalyze = async () => {
     if (!injectText.trim() || injectAnalyzing) return;
     setInjectError(null);
-    setInjectPreview(null);
+    setInjectPreview(null); setInjectDuplicate(null);
     setInjectAnalyzing(true);
     try {
       const res = await analyzeInstructionAction(injectText);
@@ -474,6 +475,16 @@ export function AgentPromptChatDialog({
         return;
       }
       setInjectPreview(res.data);
+
+      // Detectar posible duplicado buscando palabras clave del título en el prompt actual
+      const titleWords = res.data.title.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+      const promptLower = promptPreview.toLowerCase();
+      const hasSimilar = titleWords.some((word) => promptLower.includes(word));
+      setInjectDuplicate(
+        hasSimilar
+          ? `Ya existe contenido relacionado con "${res.data.title}" en ${res.data.sectionLabel}. Verifica si debes editar ese paso en lugar de agregar uno nuevo.`
+          : null
+      );
     } catch {
       setInjectError("Error al analizar. Intenta de nuevo.");
     } finally {
@@ -620,6 +631,12 @@ export function AgentPromptChatDialog({
                           <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
                             {injectPreview.sectionKey === "firma" ? formatFirmaName(injectPreview.mainMessage) : injectPreview.mainMessage}
                           </p>
+                          {injectDuplicate && (
+                            <div className="flex items-start gap-2 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-400">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                              <span>{injectDuplicate}</span>
+                            </div>
+                          )}
                         </div>
                         {/* Textarea compacto + botones abajo */}
                         <div className="shrink-0 border-t p-3 space-y-2">
@@ -641,7 +658,7 @@ export function AgentPromptChatDialog({
                               size="sm"
                               variant="outline"
                               className="flex-1 text-xs h-8"
-                              onClick={() => { setInjectPreview(null); void handleAnalyze(); }}
+                              onClick={() => { setInjectPreview(null); setInjectDuplicate(null); void handleAnalyze(); }}
                               disabled={injectApplying || !injectText.trim()}
                             >
                               <RefreshCw className="h-3 w-3 mr-1" />
