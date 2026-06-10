@@ -12,6 +12,7 @@ import { sendAgentPromptChatAction } from "@/actions/ai-prompt-chat-actions";
 import { simulateChatMessage } from "@/actions/simulate-chat-actions";
 import { autoSaveBeforeGenerate, generateFlowSections, applyAllGeneratedSections } from "@/actions/generate-agent-flow";
 import { analyzeInstructionAction, applyInstructionAction, type AnalyzedInstruction, type InjectableSectionKey } from "@/actions/ai-inject-section-action";
+import { formatFirmaName } from "@/app/(root)/ai/_components/helpers/firmaTemplate";
 import type { ChatMessage } from "@/types/ai-assistence-chat";
 import { Button } from "@/components/ui/button";
 import {
@@ -599,7 +600,9 @@ export function AgentPromptChatDialog({
                             <span className="text-xs text-muted-foreground">Se agregará aquí</span>
                           </div>
                           <p className="text-base font-semibold leading-snug">{injectPreview.title}</p>
-                          <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">{injectPreview.mainMessage}</p>
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+                            {injectPreview.sectionKey === "firma" ? formatFirmaName(injectPreview.mainMessage) : injectPreview.mainMessage}
+                          </p>
                         </div>
                         {/* Textarea compacto + botones abajo */}
                         <div className="shrink-0 border-t p-3 space-y-2">
