@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+// Persiste entre re-mounts para que el dismiss sobreviva navegaciones
+const _dismissed = new Set<string>();
 import {
   AlertTriangle,
   Bell,
@@ -88,7 +90,6 @@ function formatDate(value?: string | null) {
 }
 
 export function NotificationCenter() {
-  const router = useRouter();
   const [data, setData] = useState<NotificationCenterData>(EMPTY_DATA);
   const [open, setOpen] = useState(false);
   const [activeKind, setActiveKind] = useState<NotificationKind | "all">("all");
@@ -97,7 +98,12 @@ export function NotificationCenter() {
   const load = useCallback(() => {
     startTransition(async () => {
       const res = await getNotificationCenterData();
-      if (res.success) setData(res.data);
+      if (res.success) {
+        const items = res.data.items.filter((i) => !_dismissed.has(i.id));
+        const counts = { task: 0, appointment: 0, connection: 0, chat: 0 } as Record<NotificationKind, number>;
+        for (const item of items) counts[item.kind] = (counts[item.kind] ?? 0) + 1;
+        setData({ items, counts, total: items.length });
+      }
     });
   }, []);
 
@@ -109,18 +115,14 @@ export function NotificationCenter() {
     if (open) load();
   }, [load, open]);
 
-  const dismiss = useCallback((id: string, kind: NotificationKind, href: string) => {
-    setOpen(false);
-    setData((prev) => {
-      const newCount = Math.max(0, (prev.counts[kind] ?? 0) - 1);
-      return {
-        items: prev.items.filter((i) => i.id !== id),
-        counts: { ...prev.counts, [kind]: newCount },
-        total: Math.max(0, prev.total - 1),
-      };
-    });
-    router.push(href);
-  }, [router]);
+  const dismiss = useCallback((id: string, kind: NotificationKind) => {
+    _dismissed.add(id);
+    setData((prev) => ({
+      items: prev.items.filter((i) => i.id !== id),
+      counts: { ...prev.counts, [kind]: Math.max(0, (prev.counts[kind] ?? 0) - 1) },
+      total: Math.max(0, prev.total - 1),
+    }));
+  }, []);
 
   const summary = useMemo(
     () => FILTER_ORDER.map((kind) => [kind, data.counts[kind] ?? 0] as [NotificationKind, number]),
@@ -205,11 +207,11 @@ export function NotificationCenter() {
                 const Icon = meta.Icon;
                 const date = formatDate(item.date);
                 return (
-                  <button
+                  <Link
                     key={item.id}
-                    type="button"
-                    onClick={() => dismiss(item.id, item.kind, item.href)}
-                    className="flex w-full gap-2 px-3 py-2 text-sm hover:bg-muted/60 text-left"
+                    href={item.href}
+                    onClick={() => { dismiss(item.id, item.kind); setOpen(false); }}
+                    className="flex gap-2 px-3 py-2 text-sm hover:bg-muted/60"
                   >
                     <span className="self-center flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
                       <Icon className={cn("h-4 w-4", meta.color)} />
@@ -232,7 +234,7 @@ export function NotificationCenter() {
                         </span>
                       )}
                     </span>
-                  </button>
+                  </Link>
                 );
               })}
             </div>
