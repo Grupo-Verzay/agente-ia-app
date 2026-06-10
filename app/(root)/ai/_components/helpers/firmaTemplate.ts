@@ -27,7 +27,7 @@ function pickEmoji(name: string): string {
 }
 
 /** Devuelve el nombre listo para insertar en @name: con emoji al inicio, sin asteriscos. */
-function formatFirmaName(rawName: string): string {
+export function formatFirmaName(rawName: string): string {
     const clean = rawName.trim().replace(/^\*+|\*+$/g, "");
     if (EMOJI_REGEX.test(clean)) return clean;
     return `${pickEmoji(clean)} ${clean}`;

@@ -11,7 +11,7 @@ import {
   patchExtrasSection,
   patchManagementSection,
 } from "./system-prompt-actions";
-import { buildFirmaBlock } from "@/app/(root)/ai/_components/helpers/firmaTemplate";
+import { buildFirmaBlock, formatFirmaName } from "@/app/(root)/ai/_components/helpers/firmaTemplate";
 
 const INJECTABLE_SECTION_KEYS = ["training", "faq", "products", "extras", "management", "firma"] as const;
 export type InjectableSectionKey = typeof INJECTABLE_SECTION_KEYS[number];
@@ -141,7 +141,7 @@ export async function applyInstructionAction(input: {
         version: promptVersion,
         data: {
           firmaEnabled: true,
-          firmaName: agentName,
+          firmaName: formatFirmaName(agentName),
           firmaText: buildFirmaBlock(agentName),
           steps: extrasData.steps ?? extrasData.items ?? [],
         },
