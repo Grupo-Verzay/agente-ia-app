@@ -47,11 +47,11 @@ Analiza el texto del usuario y extrae:
 3. mainMessage: la respuesta que el agente debe dar, siguiendo SIEMPRE estas reglas:
    - Redacción clara, natural y correcta para WhatsApp (sin errores ortográficos)
    - Si hay una lista de opciones, preséntala con viñetas o numerada
-   - OBLIGATORIO: terminar SIEMPRE con una pregunta contextual que guíe al usuario al siguiente paso lógico de la conversación. Ejemplo: "¿Cuál de estos métodos te queda mejor para realizar tu pago?"
+   - OBLIGATORIO: terminar SIEMPRE con una pregunta contextual que guíe al usuario al siguiente paso lógico de la conversación, separada del resto del texto con DOS saltos de línea (\\n\\n). Ejemplo: "...PayPal\\n\\n¿Cuál de estos métodos te queda mejor para realizar tu pago?"
    - Máx 300 chars
 
 IMPORTANTE: Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
-{"sectionKey":"faq","title":"Medios de pago","mainMessage":"Aceptamos los siguientes medios de pago:\\n- Nequi\\n- Bancolombia\\n- PayPal\\n\\n¿Cuál de ellos te queda bien para realizar tu pago?"}`.trim();
+{"sectionKey":"faq","title":"Medios de pago","mainMessage":"Los medios de pago que manejamos son:\\n- Nequi\\n- Bancolombia\\n- PayPal\\n\\n¿Cuál de ellos te queda bien para realizar tu pago?"}`.trim();
 }
 
 export async function analyzeInstructionAction(
