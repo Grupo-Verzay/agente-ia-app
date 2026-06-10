@@ -199,8 +199,7 @@ export function MyDataImport({ userId }: Props) {
             <CardTitle className="text-lg">Importar desde Google Sheets</CardTitle>
           </div>
           <CardDescription>
-            Sincroniza información (cédula, correo, servicio, monto, etc.) desde una hoja de Google
-            Sheets. El agente IA usará estos datos automáticamente en cada conversación.
+            Sincroniza información desde Google Sheets. El agente IA usará estos datos automáticamente en cada conversación.
           </CardDescription>
         </CardHeader>
 
@@ -234,33 +233,35 @@ export function MyDataImport({ userId }: Props) {
           {/* Tipo de importación */}
           <div className="space-y-1.5">
             <Label className="text-xs">Tipo de datos</Label>
-            <Select
-              value={catalogMode ? 'catalog' : 'clients'}
-              onValueChange={(v) => {
-                setCatalogMode(v === 'catalog');
-                setColumnName(v === 'catalog' ? '' : 'WHATSAPP');
-                setPreviewHeaders([]);
-                setPreviewRows([]);
-              }}
-              disabled={isLoading}
-            >
-              <SelectTrigger className="max-w-72 text-xs h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="clients" className="text-xs">
-                  👤 Clientes — clave por número WhatsApp
-                </SelectItem>
-                <SelectItem value="catalog" className="text-xs">
-                  📋 Catálogo / Referencia — clave por cualquier campo
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {catalogMode
-                ? 'Todos los campos se guardan tal cual. El agente los busca por cualquier columna.'
-                : 'Los datos se asocian al cliente por su número de WhatsApp.'}
-            </p>
+            <div className="flex items-center gap-3">
+              <Select
+                value={catalogMode ? 'catalog' : 'clients'}
+                onValueChange={(v) => {
+                  setCatalogMode(v === 'catalog');
+                  setColumnName(v === 'catalog' ? '' : 'WHATSAPP');
+                  setPreviewHeaders([]);
+                  setPreviewRows([]);
+                }}
+                disabled={isLoading}
+              >
+                <SelectTrigger className="max-w-72 text-xs h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="clients" className="text-xs">
+                    👤 Clientes — clave por número WhatsApp
+                  </SelectItem>
+                  <SelectItem value="catalog" className="text-xs">
+                    📋 Catálogo / Referencia — clave por cualquier campo
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {catalogMode
+                  ? 'Todos los campos se guardan tal cual. El agente los busca por cualquier columna.'
+                  : 'Los datos se asocian al cliente por su número de WhatsApp.'}
+              </p>
+            </div>
           </div>
 
           <div className="flex gap-2">
@@ -339,40 +340,49 @@ export function MyDataImport({ userId }: Props) {
           {previewHeaders.length === 0 && (
             <div className="space-y-1.5">
               <Label htmlFor="col-name" className="text-xs">Columna con el número WhatsApp</Label>
-              <Input
-                id="col-name"
-                placeholder="WHATSAPP"
-                value={columnName}
-                onChange={(e) => setColumnName(e.target.value)}
-                disabled={isLoading}
-                className="max-w-52 text-xs"
-              />
-              <p className="text-xs text-muted-foreground">
-                Usa &ldquo;Ver columnas del sheet&rdquo; para detectarlas automáticamente.
-              </p>
+              <div className="flex items-center gap-3">
+                <Input
+                  id="col-name"
+                  placeholder="WHATSAPP"
+                  value={columnName}
+                  onChange={(e) => setColumnName(e.target.value)}
+                  disabled={isLoading}
+                  className="max-w-52 text-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Usa &ldquo;Ver columnas del sheet&rdquo; para detectarlas automáticamente.
+                </p>
+              </div>
             </div>
           )}
 
           <Separator />
 
-          <div className="flex items-center gap-2">
-            <Button onClick={handleImport} disabled={!canImport} className="gap-2">
-              {isLoading
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <FileSpreadsheet className="h-4 w-4" />}
-              {isLoading ? 'Importando...' : 'Iniciar importación'}
-            </Button>
-            {(hasLogs || url) && !isLoading && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleReset}
-                className="gap-1.5 text-muted-foreground"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Limpiar
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs text-muted-foreground">
+              {catalogMode
+                ? 'Cada fila del sheet define un registro → disponible para consulta del agente.'
+                : 'Cada fila del sheet define un cliente → vinculado por su número de WhatsApp.'}
+            </p>
+            <div className="flex items-center gap-2 shrink-0">
+              {(hasLogs || url) && !isLoading && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleReset}
+                  className="gap-1.5 text-muted-foreground"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Limpiar
+                </Button>
+              )}
+              <Button onClick={handleImport} disabled={!canImport} className="gap-2">
+                {isLoading
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <FileSpreadsheet className="h-4 w-4" />}
+                {isLoading ? 'Importando...' : 'Iniciar importación'}
               </Button>
-            )}
+            </div>
           </div>
         </CardContent>
       </Card>
