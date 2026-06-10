@@ -891,7 +891,7 @@ export function AgentPromptChatDialog({
           <aside className="hidden min-h-0 flex-col bg-muted/30 lg:flex overflow-y-auto">
 
             {/* Atajos */}
-            <div className="flex flex-col gap-3 px-4 py-4">
+            <div className="flex flex-col gap-1.5 px-4 py-3">
               <div className="flex items-center gap-2">
                 <div className="h-px flex-1 bg-border" />
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground/60">Sugerencias</span>
@@ -904,7 +904,7 @@ export function AgentPromptChatDialog({
                     key={item.label}
                     type="button"
                     variant="outline"
-                    className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
+                    className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-1.5 text-left text-sm"
                     disabled={isSending}
                     onClick={() => { exitAllModes(); void sendText(item.text); }}
                   >
@@ -921,7 +921,7 @@ export function AgentPromptChatDialog({
               <Button
                 type="button"
                 variant="outline"
-                className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
+                className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-1.5 text-left text-sm"
                 disabled={isSending}
                 onClick={() => { exitAllModes(); setSimulatorMode(true); }}
               >
@@ -931,7 +931,7 @@ export function AgentPromptChatDialog({
               <Button
                 type="button"
                 variant="outline"
-                className="h-auto w-full justify-start gap-2 px-3 py-2 text-left text-sm"
+                className="h-auto w-full justify-start gap-2 px-3 py-1.5 text-left text-sm"
                 onClick={() => { exitAllModes(); setInjectMode(true); }}
               >
                 <PlusCircle className="h-4 w-4 shrink-0 text-primary" />
@@ -940,7 +940,7 @@ export function AgentPromptChatDialog({
               <Button
                 type="button"
                 variant="outline"
-                className="h-auto w-full justify-start gap-2 px-3 py-2 text-left text-sm"
+                className="h-auto w-full justify-start gap-2 px-3 py-1.5 text-left text-sm"
                 onClick={() => { exitAllModes(); setGeneratorMode(true); }}
               >
                 <GitBranch className="h-4 w-4 shrink-0 text-primary" />
@@ -958,7 +958,7 @@ export function AgentPromptChatDialog({
                     key={item.label}
                     type="button"
                     variant="outline"
-                    className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
+                    className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-1.5 text-left text-sm"
                     disabled={isSending}
                     onClick={() => { exitAllModes(); void sendText(item.text); }}
                   >
