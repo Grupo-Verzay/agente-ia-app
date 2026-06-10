@@ -73,6 +73,11 @@ const QUICK_PROMPTS: Record<AiSectionKey, QuickPrompt[]> = {
     { label: "Flujo de escalación", icon: Lightbulb, text: "Crea un flujo claro para escalar casos complejos a un agente humano sin frustrar al cliente." },
     { label: "Optimizar respuestas", icon: Sparkles, text: "Revisa la configuración de gestión y dime cómo mejorar las respuestas para situaciones difíciles." },
   ],
+  keywords: [
+    { label: "Mejorar respuestas", icon: Wand2, text: "Revisa las respuestas directas configuradas y mejóralas para que sean más claras y útiles para el cliente." },
+    { label: "Sugerir variaciones", icon: Sparkles, text: "Revisa las palabras clave configuradas y sugiere variaciones o sinónimos que los clientes podrían usar y que aún no están capturadas." },
+    { label: "Nuevas palabras clave", icon: Lightbulb, text: "Sugiere palabras clave adicionales que los clientes podrían usar y que aún no están configuradas." },
+  ],
 };
 
 const SECTION_DESCRIPTIONS: Record<AiSectionKey, string> = {
@@ -82,6 +87,7 @@ const SECTION_DESCRIPTIONS: Record<AiSectionKey, string> = {
   products: "Lista los productos o servicios con nombre, descripción y precio. El agente los usa para presentar, comparar y cotizar según lo que el cliente necesite en la conversación.",
   more: "Espacio para información complementaria: políticas, condiciones, horarios especiales o instrucciones que el agente aplica en situaciones puntuales que no cubre otra sección.",
   management: "Define cómo el agente maneja quejas, reclamos, seguimientos y cuándo escalar a un humano. Una buena configuración aquí evita fricciones y mejora la experiencia del cliente.",
+  keywords: "Configura palabras o frases clave con respuestas directas pre-definidas. El agente las detecta antes de consultar la IA y responde de forma inmediata, reduciendo latencia y costos.",
 };
 
 const OPTIMIZE_PROMPT: QuickPrompt = {
@@ -941,15 +947,6 @@ export function AgentPromptChatDialog({
               >
                 <PlusCircle className="h-4 w-4 shrink-0 text-primary" />
                 Agregar instrucción IA
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-auto w-full justify-start gap-2 px-3 py-2 text-left text-sm"
-                onClick={() => { exitAllModes(); setShowTemplates(true); }}
-              >
-                <Layers className="h-4 w-4 shrink-0 text-primary" />
-                Plantillas por rubro
               </Button>
               <Button
                 type="button"

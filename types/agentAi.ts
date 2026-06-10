@@ -18,7 +18,7 @@ export type CapturaDatosCardProps = PropsDataCapture & {
    0) Zod Schemas (payloads)
 ========================= */
 
-export const SectionKeySchema = z.enum(['business', 'training', 'faq', 'products', 'extras', 'management']);
+export const SectionKeySchema = z.enum(['business', 'training', 'faq', 'products', 'extras', 'management', 'keywords']);
 
 /* ---------- DRAFT (para edición/autosave) ---------- */
 export const BusinessDraftSchema = z.object({

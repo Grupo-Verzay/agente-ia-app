@@ -4,8 +4,8 @@ export const TYPE_AI_LABELS = {
   faq: "Preguntas",
   products: "Productos",
   more: "Extras",
-  management: "Gestion",
   keywords: "Palabras clave",
+  management: "Gestion",
 } as const;
 
 export type AiSectionKey = keyof typeof TYPE_AI_LABELS;

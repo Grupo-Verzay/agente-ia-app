@@ -52,6 +52,7 @@ const CADENA_PHASES: Record<keyof typeof TYPE_AI_LABELS, string> = {
     faq:        "Fases 2-3 · Averiguación + Diagnóstico — Calificación secuencial",
     products:   "Fase 4 · Exposición — Catálogo, precios y propuesta de valor",
     more:       "Fase 5 · Negociación — Objeciones, Q&A y casos especiales",
+    keywords:   "Atajos directos — Respuestas sin IA · palabras clave frecuentes o urgentes",
     management: "Fases 6-7 · Acuerdo + Postventa — Cierre, herramientas y seguimiento",
 };
 

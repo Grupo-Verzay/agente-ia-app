@@ -284,9 +284,10 @@ export async function patchSection(input: z.infer<typeof PatchSectionSchema>) {
             return { ok: false as const, conflict: true as const, data: current };
         }
 
-        // ⬇️ Fallback para registros viejos sin "management"
+        // ⬇️ Fallback para registros viejos sin "management" o "keywords"
         const sectionsRaw = (current.sections ?? {}) as Record<string, any>;
-        if (!sectionsRaw.management) sectionsRaw.management = {};  // 👈 clave
+        if (!sectionsRaw.management) sectionsRaw.management = {};
+        if (!sectionsRaw.keywords) sectionsRaw.keywords = { rules: [] };
         const parsed = SectionsDraftSchema.parse(sectionsRaw);
 
         // Aplica patch validando contra el schema específico
@@ -309,6 +310,10 @@ export async function patchSection(input: z.infer<typeof PatchSectionSchema>) {
                 break;
             case 'management': {
                 next.management = ManagementDraftSchema.parse({ ...parsed.management, ...(patch || {}) });
+                break;
+            }
+            case 'keywords': {
+                next.keywords = KeywordsDraftSchema.parse({ ...parsed.keywords, ...(patch || {}) });
                 break;
             }
         }
