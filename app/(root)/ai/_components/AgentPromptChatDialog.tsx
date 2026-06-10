@@ -104,7 +104,7 @@ const INJECT_PROMPT: QuickPrompt = {
 const ANALYZE_PROMPTS: QuickPrompt[] = [
   { label: "Revisar cobertura", icon: ScanSearch, text: "Analiza la configuración actual del agente y dime qué temas o preguntas frecuentes de clientes NO están cubiertas. Lista los vacíos más importantes." },
   { label: "Detectar contradicciones", icon: ShieldAlert, text: "Revisa todas las instrucciones del agente y detecta si hay reglas o respuestas contradictorias entre sí. Explica qué conflictos encontraste." },
-  { label: "Diagnóstico general", icon: ClipboardList, text: "Haz un diagnóstico completo del agente: qué secciones están bien configuradas, cuáles están vacías o incompletas, y cuáles necesitan mejoras urgentes." },
+  { label: "Evaluar tono y claridad IA", icon: ClipboardList, text: "Evalúa si el agente suena natural, claro y coherente con el rubro del negocio. Indica qué respuestas suenan robóticas, confusas o fuera de tono." },
 ];
 
 const INJECT_SECTION_COLORS: Record<InjectableSectionKey, string> = {
@@ -918,23 +918,16 @@ export function AgentPromptChatDialog({
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground/60">Herramientas</span>
                 <div className="h-px flex-1 bg-border" />
               </div>
-              {[OPTIMIZE_PROMPT, SIMULATE_PROMPT].map((item) => {
-                const Icon = item.icon;
-                const isSimulate = item.label === SIMULATE_PROMPT.label;
-                return (
-                  <Button
-                    key={item.label}
-                    type="button"
-                    variant="outline"
-                    className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
-                    disabled={isSending}
-                    onClick={() => { if (isSimulate) { exitAllModes(); setSimulatorMode(true); } else { exitAllModes(); void sendText(item.text); } }}
-                  >
-                    <Icon className="h-4 w-4 shrink-0 text-primary" />
-                    {item.label}
-                  </Button>
-                );
-              })}
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
+                disabled={isSending}
+                onClick={() => { exitAllModes(); setSimulatorMode(true); }}
+              >
+                <MessageSquare className="h-4 w-4 shrink-0 text-primary" />
+                Simular conversación
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -942,7 +935,7 @@ export function AgentPromptChatDialog({
                 onClick={() => { exitAllModes(); setInjectMode(true); }}
               >
                 <PlusCircle className="h-4 w-4 shrink-0 text-primary" />
-                Agregar instrucción
+                Agregar instrucción IA
               </Button>
               <Button
                 type="button"
