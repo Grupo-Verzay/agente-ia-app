@@ -392,6 +392,7 @@ export async function listPromptRevisions(promptId: string) {
                 publishedAt: true,
                 notes: true,
                 publishedBy: true,
+                sectionsSnapshot: true,
             },
             take: 20,
         });
