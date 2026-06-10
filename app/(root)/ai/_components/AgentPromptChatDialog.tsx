@@ -951,11 +951,8 @@ export function AgentPromptChatDialog({
 
             {/* Descripción de la sección */}
             <div className="mt-auto shrink-0 border-t border-primary/20 bg-primary/5 px-4 pt-5 pb-4">
-              <p className="text-sm font-semibold uppercase tracking-wide text-primary mb-1.5">
+              <p className="text-sm font-semibold uppercase tracking-wide text-primary">
                 {TYPE_AI_LABELS[activeTab]}
-              </p>
-              <p className="text-sm leading-relaxed text-foreground font-normal">
-                {SECTION_DESCRIPTIONS[activeTab]}
               </p>
             </div>
           </aside>
