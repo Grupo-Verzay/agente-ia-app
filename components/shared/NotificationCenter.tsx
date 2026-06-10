@@ -107,6 +107,18 @@ export function NotificationCenter() {
     if (open) load();
   }, [load, open]);
 
+  const dismiss = useCallback((id: string, kind: NotificationKind) => {
+    setData((prev) => {
+      const newCount = Math.max(0, (prev.counts[kind] ?? 0) - 1);
+      return {
+        items: prev.items.filter((i) => i.id !== id),
+        counts: { ...prev.counts, [kind]: newCount },
+        total: Math.max(0, prev.total - 1),
+      };
+    });
+    setOpen(false);
+  }, []);
+
   const summary = useMemo(
     () => FILTER_ORDER.map((kind) => [kind, data.counts[kind] ?? 0] as [NotificationKind, number]),
     [data.counts],
@@ -193,7 +205,7 @@ export function NotificationCenter() {
                   <Link
                     key={item.id}
                     href={item.href}
-                    onClick={() => setOpen(false)}
+                    onClick={() => dismiss(item.id, item.kind)}
                     className="flex gap-2 px-3 py-2 text-sm hover:bg-muted/60"
                   >
                     <span className="self-center flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
