@@ -551,74 +551,98 @@ export function AgentPromptChatDialog({
                   </button>
                 </div>
                 {!injectDone ? (
-                  <div className="flex flex-1 flex-col gap-3 p-4 min-h-0 overflow-y-auto">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary shrink-0 self-start">
-                      <PlusCircle className="h-3 w-3" />
-                      Agregar instrucción al Agente
-                    </span>
-                    <p className="text-xs text-muted-foreground shrink-0">
-                      Describe en lenguaje natural lo que quieres que el agente responda. La IA detectará la sección correcta y lo agregará automáticamente.
-                    </p>
-                    <textarea
-                      className="flex-1 w-full min-h-[80px] rounded-md border bg-background p-2.5 text-sm resize-none overflow-y-auto focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
-                      placeholder="Ej: cuando me pregunten por medios de pago diles que aceptamos transferencia bancaria, tarjeta y Nequi"
-                      value={injectText}
-                      onChange={(e) => { setInjectText(e.target.value); setInjectPreview(null); setInjectError(null); }}
-                      disabled={injectAnalyzing || injectApplying}
-                    />
-                    {injectError ? (
-                      <div className="flex items-start gap-1.5 text-xs text-destructive shrink-0">
-                        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                        {injectError}
-                      </div>
-                    ) : null}
+                  <div className="flex flex-1 flex-col min-h-0">
+                    {/* ── Sin preview: input principal ── */}
                     {!injectPreview ? (
-                      <Button
-                        size="sm"
-                        className="w-full gap-2 shrink-0"
-                        disabled={!injectText.trim() || injectAnalyzing}
-                        onClick={() => void handleAnalyze()}
-                      >
-                        {injectAnalyzing ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Sparkles className="h-3.5 w-3.5" />
-                        )}
-                        {injectAnalyzing ? "Analizando..." : "Analizar con IA"}
-                      </Button>
+                      <div className="flex flex-1 flex-col gap-3 p-4 min-h-0">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary shrink-0 self-start">
+                          <PlusCircle className="h-3 w-3" />
+                          Agregar instrucción al Agente
+                        </span>
+                        <p className="text-xs text-muted-foreground shrink-0">
+                          Describe en lenguaje natural lo que quieres que el agente responda. La IA detectará la sección correcta y lo agregará automáticamente.
+                        </p>
+                        <textarea
+                          className="flex-1 w-full min-h-[80px] rounded-md border bg-background p-2.5 text-sm resize-none overflow-y-auto focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+                          placeholder="Ej: cuando me pregunten por medios de pago diles que aceptamos transferencia bancaria, tarjeta y Nequi"
+                          value={injectText}
+                          onChange={(e) => { setInjectText(e.target.value); setInjectError(null); }}
+                          disabled={injectAnalyzing}
+                        />
+                        {injectError ? (
+                          <div className="flex items-start gap-1.5 text-xs text-destructive shrink-0">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                            {injectError}
+                          </div>
+                        ) : null}
+                        <Button
+                          size="sm"
+                          className="w-full gap-2 shrink-0"
+                          disabled={!injectText.trim() || injectAnalyzing}
+                          onClick={() => void handleAnalyze()}
+                        >
+                          {injectAnalyzing ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-3.5 w-3.5" />
+                          )}
+                          {injectAnalyzing ? "Analizando..." : "Analizar con IA"}
+                        </Button>
+                      </div>
                     ) : (
-                      <div className="shrink-0 rounded-lg border bg-muted/40 p-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-semibold", INJECT_SECTION_COLORS[injectPreview.sectionKey])}>
-                            {injectPreview.sectionLabel}
-                          </span>
-                          <span className="text-xs text-muted-foreground">Se agregará aquí</span>
+                      /* ── Con preview: preview arriba, textarea compacto abajo ── */
+                      <div className="flex flex-1 flex-col min-h-0">
+                        {/* Preview ocupa el espacio principal */}
+                        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-semibold", INJECT_SECTION_COLORS[injectPreview.sectionKey])}>
+                              {injectPreview.sectionLabel}
+                            </span>
+                            <span className="text-xs text-muted-foreground">Se agregará aquí</span>
+                          </div>
+                          <p className="text-base font-semibold leading-snug">{injectPreview.title}</p>
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">{injectPreview.mainMessage}</p>
                         </div>
-                        <p className="text-sm font-medium">{injectPreview.title}</p>
-                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{injectPreview.mainMessage}</p>
-                        <div className="flex gap-2 pt-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex-1 text-xs h-8"
-                            onClick={() => setInjectPreview(null)}
+                        {/* Textarea compacto + botones abajo */}
+                        <div className="shrink-0 border-t p-3 space-y-2">
+                          {injectError ? (
+                            <div className="flex items-start gap-1.5 text-xs text-destructive">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                              {injectError}
+                            </div>
+                          ) : null}
+                          <textarea
+                            className="w-full h-16 rounded-md border bg-muted/40 p-2 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+                            placeholder="Edita tu instrucción y vuelve a analizar si quieres cambiarla..."
+                            value={injectText}
+                            onChange={(e) => { setInjectText(e.target.value); }}
                             disabled={injectApplying}
-                          >
-                            Cambiar
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="flex-1 gap-1.5 text-xs h-8 bg-emerald-500 hover:bg-emerald-600"
-                            disabled={injectApplying || !promptId || promptVersion === undefined}
-                            onClick={() => void handleApplyInject()}
-                          >
-                            {injectApplying ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                            )}
-                            {injectApplying ? "Aplicando..." : "Aplicar"}
-                          </Button>
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 text-xs h-8"
+                              onClick={() => { setInjectPreview(null); void handleAnalyze(); }}
+                              disabled={injectApplying || !injectText.trim()}
+                            >
+                              <RefreshCw className="h-3 w-3 mr-1" />
+                              Re-analizar
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="flex-1 gap-1.5 text-xs h-8 bg-emerald-500 hover:bg-emerald-600"
+                              disabled={injectApplying || !promptId || promptVersion === undefined}
+                              onClick={() => void handleApplyInject()}
+                            >
+                              {injectApplying ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                              )}
+                              {injectApplying ? "Aplicando..." : "Aplicar al Agente"}
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     )}
