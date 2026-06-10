@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle, ArrowLeft, Bot, CheckCircle2,
-  Copy, GitBranch, Lightbulb, Loader2, MessageSquare, PenLine, RefreshCw,
+  Copy, GitBranch, Lightbulb, Loader2, MessageSquare, PenLine, PlusCircle, RefreshCw,
   RotateCcw, SendHorizontal, Sparkles, Trash2, Wand2, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { sendAgentPromptChatAction } from "@/actions/ai-prompt-chat-actions";
 import { simulateChatMessage } from "@/actions/simulate-chat-actions";
 import { autoSaveBeforeGenerate, generateFlowSections, applyAllGeneratedSections } from "@/actions/generate-agent-flow";
+import { analyzeInstructionAction, applyInstructionAction, type AnalyzedInstruction, type InjectableSectionKey } from "@/actions/ai-inject-section-action";
 import type { ChatMessage } from "@/types/ai-assistence-chat";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,7 @@ type AgentPromptChatDialogProps = {
   currentDraft: string;
   promptPreview: string;
   promptId?: string;
+  promptVersion?: number;
   businessName?: string;
   onApplyDraft?: (text: string) => void;
 };
@@ -90,6 +92,20 @@ const SIMULATE_PROMPT: QuickPrompt = {
   label: "Simular conversación",
   icon: MessageSquare,
   text: "",
+};
+
+const INJECT_PROMPT: QuickPrompt = {
+  label: "Agregar instrucción",
+  icon: PlusCircle,
+  text: "",
+};
+
+const INJECT_SECTION_COLORS: Record<InjectableSectionKey, string> = {
+  training: "bg-blue-100 text-blue-700 border-blue-200",
+  faq: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  products: "bg-violet-100 text-violet-700 border-violet-200",
+  extras: "bg-amber-100 text-amber-700 border-amber-200",
+  management: "bg-slate-100 text-slate-700 border-slate-200",
 };
 
 // ── Markdown renderer ──────────────────────────────────────────────────────
@@ -221,6 +237,7 @@ export function AgentPromptChatDialog({
   currentDraft,
   promptPreview,
   promptId,
+  promptVersion,
   businessName,
   onApplyDraft,
 }: AgentPromptChatDialogProps) {
@@ -238,6 +255,15 @@ export function AgentPromptChatDialog({
   const [simIsLoading, setSimIsLoading] = useState(false);
   const [simError, setSimError] = useState<string | null>(null);
   const simBottomRef = useRef<HTMLDivElement>(null);
+
+  // ── Inject instruction state
+  const [injectMode, setInjectMode] = useState(false);
+  const [injectText, setInjectText] = useState("");
+  const [injectAnalyzing, setInjectAnalyzing] = useState(false);
+  const [injectPreview, setInjectPreview] = useState<AnalyzedInstruction | null>(null);
+  const [injectApplying, setInjectApplying] = useState(false);
+  const [injectDone, setInjectDone] = useState(false);
+  const [injectError, setInjectError] = useState<string | null>(null);
 
   // ── Generate flow state
   const [genDescription, setGenDescription] = useState("");
@@ -266,6 +292,12 @@ export function AgentPromptChatDialog({
     setSimMessages([]);
     setSimInput("");
     setSimError(null);
+    setInjectMode(false);
+    setInjectText("");
+    setInjectPreview(null);
+    setInjectApplying(false);
+    setInjectDone(false);
+    setInjectError(null);
     setGeneratorMode(false);
     setGenStage("idle");
     setGenStep(0);
@@ -376,6 +408,12 @@ export function AgentPromptChatDialog({
     setSimMessages([]);
     setSimInput("");
     setSimError(null);
+    setInjectMode(false);
+    setInjectText("");
+    setInjectPreview(null);
+    setInjectApplying(false);
+    setInjectDone(false);
+    setInjectError(null);
     setGeneratorMode(false);
     setGenStage("idle");
     setGenStep(0);
@@ -403,6 +441,50 @@ export function AgentPromptChatDialog({
     } catch (e: any) {
       setGenError(e?.message ?? "Error inesperado. Intenta de nuevo.");
       setGenStage("error");
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!injectText.trim() || injectAnalyzing) return;
+    setInjectError(null);
+    setInjectPreview(null);
+    setInjectAnalyzing(true);
+    try {
+      const res = await analyzeInstructionAction(injectText);
+      if (!res.success || !res.data) {
+        setInjectError(res.message || "No se pudo analizar. Intenta de nuevo.");
+        return;
+      }
+      setInjectPreview(res.data);
+    } catch {
+      setInjectError("Error al analizar. Intenta de nuevo.");
+    } finally {
+      setInjectAnalyzing(false);
+    }
+  };
+
+  const handleApplyInject = async () => {
+    if (!injectPreview || !promptId || promptVersion === undefined || injectApplying) return;
+    setInjectError(null);
+    setInjectApplying(true);
+    try {
+      const res = await applyInstructionAction({
+        promptId,
+        promptVersion,
+        sectionKey: injectPreview.sectionKey,
+        title: injectPreview.title,
+        mainMessage: injectPreview.mainMessage,
+      });
+      if (!res.success) {
+        setInjectError(res.message || "Error al aplicar.");
+        return;
+      }
+      setInjectDone(true);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch {
+      setInjectError("Error inesperado. Intenta de nuevo.");
+    } finally {
+      setInjectApplying(false);
     }
   };
 
@@ -454,7 +536,102 @@ export function AgentPromptChatDialog({
           {/* ── Columna izquierda ── */}
           <div className="flex flex-col min-h-0">
 
-            {generatorMode ? (
+            {injectMode ? (
+              /* ── Modo inyectar instrucción ── */
+              <>
+                <div className="shrink-0 border-b px-3 py-2 flex items-center lg:hidden">
+                  <button
+                    type="button"
+                    onClick={exitAllModes}
+                    disabled={injectApplying}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Salir
+                  </button>
+                </div>
+                {!injectDone ? (
+                  <div className="flex flex-1 flex-col gap-3 p-4 min-h-0 overflow-y-auto">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary shrink-0 self-start">
+                      <PlusCircle className="h-3 w-3" />
+                      Agregar instrucción al Agente
+                    </span>
+                    <p className="text-xs text-muted-foreground shrink-0">
+                      Describe en lenguaje natural lo que quieres que el agente responda. La IA detectará la sección correcta y lo agregará automáticamente.
+                    </p>
+                    <textarea
+                      className="flex-1 w-full min-h-[80px] rounded-md border bg-background p-2.5 text-sm resize-none overflow-y-auto focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+                      placeholder="Ej: cuando me pregunten por medios de pago diles que aceptamos transferencia bancaria, tarjeta y Nequi"
+                      value={injectText}
+                      onChange={(e) => { setInjectText(e.target.value); setInjectPreview(null); setInjectError(null); }}
+                      disabled={injectAnalyzing || injectApplying}
+                    />
+                    {injectError ? (
+                      <div className="flex items-start gap-1.5 text-xs text-destructive shrink-0">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        {injectError}
+                      </div>
+                    ) : null}
+                    {!injectPreview ? (
+                      <Button
+                        size="sm"
+                        className="w-full gap-2 shrink-0"
+                        disabled={!injectText.trim() || injectAnalyzing}
+                        onClick={() => void handleAnalyze()}
+                      >
+                        {injectAnalyzing ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5" />
+                        )}
+                        {injectAnalyzing ? "Analizando..." : "Analizar con IA"}
+                      </Button>
+                    ) : (
+                      <div className="shrink-0 rounded-lg border bg-muted/40 p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-semibold", INJECT_SECTION_COLORS[injectPreview.sectionKey])}>
+                            {injectPreview.sectionLabel}
+                          </span>
+                          <span className="text-xs text-muted-foreground">Se agregará aquí</span>
+                        </div>
+                        <p className="text-sm font-medium">{injectPreview.title}</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{injectPreview.mainMessage}</p>
+                        <div className="flex gap-2 pt-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 text-xs h-8"
+                            onClick={() => setInjectPreview(null)}
+                            disabled={injectApplying}
+                          >
+                            Cambiar
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="flex-1 gap-1.5 text-xs h-8 bg-emerald-500 hover:bg-emerald-600"
+                            disabled={injectApplying || !promptId || promptVersion === undefined}
+                            onClick={() => void handleApplyInject()}
+                          >
+                            {injectApplying ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                            )}
+                            {injectApplying ? "Aplicando..." : "Aplicar"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center p-6">
+                    <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+                    <p className="text-sm font-medium">¡Instrucción agregada!</p>
+                    <p className="text-xs text-muted-foreground">Recargando...</p>
+                  </div>
+                )}
+              </>
+          ) : generatorMode ? (
               /* ── Modo generador ── */
               <>
                 <div className="shrink-0 border-b px-3 py-2 flex items-center lg:hidden">
@@ -620,15 +797,20 @@ export function AgentPromptChatDialog({
                 {!simulatorMode ? (
                   <div className="shrink-0 overflow-x-auto border-t px-3 py-2 lg:hidden">
                     <div className="flex gap-2 w-max">
-                      {[...quickPrompts, OPTIMIZE_PROMPT, SIMULATE_PROMPT].map((item) => {
+                      {[...quickPrompts, OPTIMIZE_PROMPT, SIMULATE_PROMPT, INJECT_PROMPT].map((item) => {
                         const Icon = item.icon;
                         const isSimulate = item.label === SIMULATE_PROMPT.label;
+                        const isInject = item.label === INJECT_PROMPT.label;
                         return (
                           <button
                             key={item.label}
                             type="button"
                             disabled={isSending}
-                            onClick={() => { if (isSimulate) { exitAllModes(); setSimulatorMode(true); } else { exitAllModes(); void sendText(item.text); } }}
+                            onClick={() => {
+                              if (isSimulate) { exitAllModes(); setSimulatorMode(true); }
+                              else if (isInject) { exitAllModes(); setInjectMode(true); }
+                              else { exitAllModes(); void sendText(item.text); }
+                            }}
                             className="flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-50"
                           >
                             <Icon className="h-3 w-3 shrink-0 text-primary" />
@@ -722,6 +904,15 @@ export function AgentPromptChatDialog({
                   </Button>
                 );
               })}
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto w-full justify-start gap-2 px-3 py-2 text-left text-sm"
+                onClick={() => { exitAllModes(); setInjectMode(true); }}
+              >
+                <PlusCircle className="h-4 w-4 shrink-0 text-primary" />
+                Agregar instrucción
+              </Button>
               <Button
                 type="button"
                 variant="outline"

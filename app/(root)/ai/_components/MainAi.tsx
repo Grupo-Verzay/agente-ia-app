@@ -538,6 +538,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                 currentDraft={currentDraft}
                 promptPreview={prompt}
                 promptId={promptMeta.id}
+                promptVersion={promptVersion}
                 onApplyDraft={activeTab !== "business" ? (text) => setValues((prev) => ({ ...prev, [activeTab]: text })) : undefined}
                 businessName={promptMeta.businessName ?? ""}
             />
