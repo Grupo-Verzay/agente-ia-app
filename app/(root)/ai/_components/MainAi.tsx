@@ -18,7 +18,7 @@ import {
 } from "@/types/agentAi";
 import { ProductBuilder } from "./ProductBuilder";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, Bot, History, MoreVertical, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart2, Bot, History, MoreVertical, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PromptToolbar } from "./PromptToolbar";
@@ -40,6 +40,7 @@ import {
 import { GenericDeleteDialog } from "@/components/shared/GenericDeleteDialog";
 import { deleteAgentPromptsByUserId } from "@/actions/prompt-actions";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
+import { AgentMetricsPanel } from "./AgentMetricsPanel";
 import { AgentPromptChatDialog } from "./AgentPromptChatDialog";
 import { TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
 
@@ -58,6 +59,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     const router = useRouter();
     const [showAlertDialog, setShowAlertDialog] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
+    const [showMetrics, setShowMetrics] = useState(false);
     const [showPromptChat, setShowPromptChat] = useState(false);
 
     const trainingMd = sections?.training
@@ -339,6 +341,10 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent className="w-48" align="end">
                                     <DropdownMenuGroup>
+                                        <DropdownMenuItem onSelect={() => setShowMetrics(true)}>
+                                            <BarChart2 className="mr-2 h-4 w-4" />
+                                            Métricas del agente
+                                        </DropdownMenuItem>
                                         <DropdownMenuItem onSelect={() => setShowHistory(true)}>
                                             <History className="mr-2 h-4 w-4" />
                                             Historial de versiones
@@ -523,6 +529,8 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                 mutationFn={() => deleteAgentPromptsByUserId(user.effectiveId ?? user.id)}
                 entityLabel="todo el auto prompt"
             />
+
+            <AgentMetricsPanel open={showMetrics} onOpenChange={setShowMetrics} />
 
             <VersionHistoryPanel
                 open={showHistory}
