@@ -559,12 +559,9 @@ export function AgentPromptChatDialog({
                           <PlusCircle className="h-3 w-3" />
                           Agregar instrucción al Agente
                         </span>
-                        <p className="text-xs text-muted-foreground shrink-0">
-                          Describe en lenguaje natural lo que quieres que el agente responda. La IA detectará la sección correcta y lo agregará automáticamente.
-                        </p>
                         <textarea
                           className="flex-1 w-full min-h-[80px] rounded-md border bg-background p-2.5 text-sm resize-none overflow-y-auto focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
-                          placeholder="Ej: cuando me pregunten por medios de pago diles que aceptamos transferencia bancaria, tarjeta y Nequi"
+                          placeholder={"Describe lo que quieres que el agente responda y la IA lo clasificará automáticamente.\n\nEj: cuando me pregunten por medios de pago, diles que aceptamos transferencia bancaria, tarjeta y Nequi"}
                           value={injectText}
                           onChange={(e) => { setInjectText(e.target.value); setInjectError(null); }}
                           disabled={injectAnalyzing}
