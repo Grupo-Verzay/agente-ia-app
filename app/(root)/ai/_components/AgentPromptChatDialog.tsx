@@ -106,6 +106,7 @@ const INJECT_SECTION_COLORS: Record<InjectableSectionKey, string> = {
   products: "bg-violet-100 text-violet-700 border-violet-200",
   extras: "bg-amber-100 text-amber-700 border-amber-200",
   management: "bg-slate-100 text-slate-700 border-slate-200",
+  firma: "bg-primary/10 text-primary border-primary/20",
 };
 
 // ── Markdown renderer ──────────────────────────────────────────────────────

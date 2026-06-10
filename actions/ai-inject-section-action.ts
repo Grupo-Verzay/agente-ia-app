@@ -12,7 +12,7 @@ import {
   patchManagementSection,
 } from "./system-prompt-actions";
 
-const INJECTABLE_SECTION_KEYS = ["training", "faq", "products", "extras", "management"] as const;
+const INJECTABLE_SECTION_KEYS = ["training", "faq", "products", "extras", "management", "firma"] as const;
 export type InjectableSectionKey = typeof INJECTABLE_SECTION_KEYS[number];
 
 const INJECT_SECTION_LABELS: Record<InjectableSectionKey, string> = {
@@ -21,6 +21,7 @@ const INJECT_SECTION_LABELS: Record<InjectableSectionKey, string> = {
   products: "PRODUCTOS",
   extras: "EXTRAS",
   management: "GESTIÓN",
+  firma: "PERFIL",
 };
 
 export type AnalyzedInstruction = {
@@ -39,16 +40,13 @@ SECCIONES DISPONIBLES:
 - "products": Catálogo de productos o servicios. Nombres, descripciones, precios, características.
 - "extras": Información complementaria, políticas especiales, objeciones, condiciones, restricciones, casos especiales que el agente debe manejar de forma puntual.
 - "management": Cierre de ventas, seguimiento post-venta, escalación a agente humano, quejas, reclamos.
+- "firma": ÚNICAMENTE cuando el usuario quiere ponerle un nombre al agente, IA, chatbot o bot. En ese caso, title="FIRMA DEL AGENTE" y mainMessage=SOLO el nombre (sin frases adicionales, sin signos de puntuación). Ej: "Sofia", "Max", "Valentina".
 
-TAREA:
-Analiza el texto del usuario y extrae:
-1. sectionKey: la sección más adecuada (solo: training, faq, products, extras, management)
-2. title: título corto y descriptivo (máx 50 chars, sin puntuación final)
-3. mainMessage: la respuesta que el agente debe dar, siguiendo SIEMPRE estas reglas:
-   - Redacción clara, natural y correcta para WhatsApp (sin errores ortográficos)
-   - Si hay una lista de opciones, preséntala con viñetas o numerada
-   - OBLIGATORIO: terminar SIEMPRE con una pregunta contextual que guíe al usuario al siguiente paso lógico de la conversación, separada del resto del texto con DOS saltos de línea (\\n\\n). Ejemplo: "...PayPal\\n\\n¿Cuál de estos métodos te queda mejor para realizar tu pago?"
-   - Máx 300 chars
+REGLAS para mainMessage (excepto sección "firma"):
+- Redacción clara, natural y correcta para WhatsApp (sin errores ortográficos)
+- Si hay lista de opciones, preséntala con viñetas
+- OBLIGATORIO: terminar SIEMPRE con una pregunta contextual separada del texto con DOS saltos de línea (\\n\\n). Ej: "...PayPal\\n\\n¿Cuál de ellos te queda bien?"
+- Máx 300 chars
 
 IMPORTANTE: Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
 {"sectionKey":"faq","title":"Medios de pago","mainMessage":"Los medios de pago que manejamos son:\\n- Nequi\\n- Bancolombia\\n- PayPal\\n\\n¿Cuál de ellos te queda bien para realizar tu pago?"}`.trim();
@@ -131,47 +129,56 @@ export async function applyInstructionAction(input: {
     if (!prompt) return { success: false, message: "Prompt no encontrado." };
 
     const sections = (prompt.sections ?? {}) as Record<string, any>;
-    const sectionData = sections[sectionKey] ?? {};
-    const existingSteps: any[] = sectionData.steps ?? sectionData.items ?? [];
-
-    const newStep = {
-      id: crypto.randomUUID(),
-      title,
-      mainMessage,
-      elements: [],
-    };
-
-    const updatedSteps = [...existingSteps, newStep];
+    const extrasData = sections.extras ?? {};
 
     let result: { ok: boolean; conflict?: boolean; data?: any; error?: string };
 
-    switch (sectionKey) {
-      case "training":
-        result = await patchTrainingSection({ promptId, version: promptVersion, data: { steps: updatedSteps } });
-        break;
-      case "faq":
-        result = await patchFaqSection({ promptId, version: promptVersion, data: { steps: updatedSteps } });
-        break;
-      case "products":
-        result = await patchProductsSection({ promptId, version: promptVersion, data: { steps: updatedSteps } });
-        break;
-      case "extras":
-        result = await patchExtrasSection({
-          promptId,
-          version: promptVersion,
-          data: {
-            firmaEnabled: sectionData.firmaEnabled ?? false,
-            firmaText: sectionData.firmaText ?? "",
-            firmaName: sectionData.firmaName ?? "",
-            steps: updatedSteps,
-          },
-        });
-        break;
-      case "management":
-        result = await patchManagementSection({ promptId, version: promptVersion, data: { steps: updatedSteps } });
-        break;
-      default:
-        return { success: false, message: "Sección no válida." };
+    if (sectionKey === "firma") {
+      const agentName = mainMessage.trim();
+      result = await patchExtrasSection({
+        promptId,
+        version: promptVersion,
+        data: {
+          firmaEnabled: true,
+          firmaName: agentName,
+          firmaText: extrasData.firmaText ?? "",
+          steps: extrasData.steps ?? extrasData.items ?? [],
+        },
+      });
+    } else {
+      const sectionData = sections[sectionKey] ?? {};
+      const existingSteps: any[] = sectionData.steps ?? sectionData.items ?? [];
+      const newStep = { id: crypto.randomUUID(), title, mainMessage, elements: [] };
+      const updatedSteps = [...existingSteps, newStep];
+
+      switch (sectionKey) {
+        case "training":
+          result = await patchTrainingSection({ promptId, version: promptVersion, data: { steps: updatedSteps } });
+          break;
+        case "faq":
+          result = await patchFaqSection({ promptId, version: promptVersion, data: { steps: updatedSteps } });
+          break;
+        case "products":
+          result = await patchProductsSection({ promptId, version: promptVersion, data: { steps: updatedSteps } });
+          break;
+        case "extras":
+          result = await patchExtrasSection({
+            promptId,
+            version: promptVersion,
+            data: {
+              firmaEnabled: extrasData.firmaEnabled ?? false,
+              firmaText: extrasData.firmaText ?? "",
+              firmaName: extrasData.firmaName ?? "",
+              steps: updatedSteps,
+            },
+          });
+          break;
+        case "management":
+          result = await patchManagementSection({ promptId, version: promptVersion, data: { steps: updatedSteps } });
+          break;
+        default:
+          return { success: false, message: "Sección no válida." };
+      }
     }
 
     if (!result.ok) {
