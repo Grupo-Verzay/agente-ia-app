@@ -15,7 +15,7 @@ import {
 const INJECTABLE_SECTION_KEYS = ["training", "faq", "products", "extras", "management"] as const;
 export type InjectableSectionKey = typeof INJECTABLE_SECTION_KEYS[number];
 
-export const INJECT_SECTION_LABELS: Record<InjectableSectionKey, string> = {
+const INJECT_SECTION_LABELS: Record<InjectableSectionKey, string> = {
   training: "INICIO",
   faq: "PREGUNTAS",
   products: "PRODUCTOS",
