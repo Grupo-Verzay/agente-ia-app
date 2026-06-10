@@ -44,10 +44,14 @@ TAREA:
 Analiza el texto del usuario y extrae:
 1. sectionKey: la sección más adecuada (solo: training, faq, products, extras, management)
 2. title: título corto y descriptivo (máx 50 chars, sin puntuación final)
-3. mainMessage: la respuesta que el agente debe dar (clara, natural para WhatsApp, máx 300 chars)
+3. mainMessage: la respuesta que el agente debe dar, siguiendo SIEMPRE estas reglas:
+   - Redacción clara, natural y correcta para WhatsApp (sin errores ortográficos)
+   - Si hay una lista de opciones, preséntala con viñetas o numerada
+   - OBLIGATORIO: terminar SIEMPRE con una pregunta contextual que guíe al usuario al siguiente paso lógico de la conversación. Ejemplo: "¿Cuál de estos métodos te queda mejor para realizar tu pago?"
+   - Máx 300 chars
 
 IMPORTANTE: Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
-{"sectionKey":"faq","title":"Medios de pago","mainMessage":"Aceptamos transferencia bancaria, tarjeta débito/crédito y Nequi. Si tienes alguna duda con tu pago, con gusto te ayudo."}`.trim();
+{"sectionKey":"faq","title":"Medios de pago","mainMessage":"Aceptamos los siguientes medios de pago:\\n- Nequi\\n- Bancolombia\\n- PayPal\\n\\n¿Cuál de ellos te queda bien para realizar tu pago?"}`.trim();
 }
 
 export async function analyzeInstructionAction(
