@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { Database, FileSpreadsheet, Lock, Sparkles } from 'lucide-react';
+import { BookOpen, Database, FileSpreadsheet, Lock, Sparkles } from 'lucide-react';
 import { currentUser } from '@/lib/auth';
 import Header from '@/components/shared/header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -7,12 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { MyDataManagement } from './_components/MyDataManagement';
 import { MyDataImport } from './_components/MyDataImport';
+import { KnowledgeBaseSection } from './_components/KnowledgeBaseSection';
 import type { Plan } from '@prisma/client';
 import { PLAN_LABELS } from '@/types/plans';
 
 export const dynamic = 'force-dynamic';
 
-// Planes que tienen acceso a esta funcionalidad
 const ALLOWED_PLANS: Plan[] = ['intermedio', 'avanzado', 'enterprise', 'personalizado'];
 
 function UpgradeRequired({ currentPlan }: { currentPlan: Plan }) {
@@ -72,7 +72,6 @@ export default async function MyDataPage() {
         </>
       ) : (
         <Tabs defaultValue="import" className="flex flex-col flex-1 min-h-0 overflow-hidden">
-          {/* Header fijo con título y tabs en la misma línea */}
           <div className="sticky top-0 z-10 bg-muted/60 border-b border-border/40 px-4 pt-4 pb-2 shrink-0 flex items-center justify-between">
             <h2 className="h3-bold text-gray-900 dark:text-white">Mis Datos Externos</h2>
             <TabsList>
@@ -84,6 +83,10 @@ export default async function MyDataPage() {
                 <Database className="h-4 w-4" />
                 Gestión
               </TabsTrigger>
+              <TabsTrigger value="knowledge" className="gap-2">
+                <BookOpen className="h-4 w-4" />
+                Base de Conocimiento
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -93,6 +96,10 @@ export default async function MyDataPage() {
 
           <TabsContent value="management" className="flex-1 min-h-0 overflow-y-auto mt-0">
             <MyDataManagement userId={user.id} />
+          </TabsContent>
+
+          <TabsContent value="knowledge" className="flex-1 min-h-0 overflow-y-auto mt-0 p-4">
+            <KnowledgeBaseSection userId={user.id} />
           </TabsContent>
         </Tabs>
       )}
