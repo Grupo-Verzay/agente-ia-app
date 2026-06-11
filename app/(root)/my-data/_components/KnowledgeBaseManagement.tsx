@@ -286,7 +286,7 @@ export function KnowledgeBaseManagement({ userId, refreshKey }: Props) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-3 py-2 pr-1">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3 py-2 pr-1 outline-none">
             <div className="space-y-1.5">
               <Label htmlFor="kb-title" className="text-xs">Título *</Label>
               <Input
