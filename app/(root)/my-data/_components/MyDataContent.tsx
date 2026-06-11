@@ -62,7 +62,7 @@ export function MyDataContent({ userId }: Props) {
       </div>
 
       {/* Contenido */}
-      <div className="flex-1 min-h-0 overflow-y-auto py-2">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {!section ? (
           <div className="flex flex-col justify-center min-h-[60vh]">
             <div className="w-full space-y-5">
