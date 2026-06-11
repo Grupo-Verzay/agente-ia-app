@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ArrowLeft, BookOpen, FileSpreadsheet, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MyDataImport } from './MyDataImport';
 import { MyDataManagement } from './MyDataManagement';
@@ -36,11 +36,13 @@ export function MyDataContent({ userId }: Props) {
               onClick={() => setSection('sheets')}
             >
               <CardContent className="p-8 flex flex-col gap-5 h-full">
-                <div className="h-16 w-16 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center group-hover:bg-green-500/15 transition-colors">
-                  <FileSpreadsheet className="h-8 w-8 text-green-600 dark:text-green-400" />
+                <div className="flex items-center gap-4">
+                  <div className="h-14 w-14 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center shrink-0 group-hover:bg-green-500/15 transition-colors">
+                    <FileSpreadsheet className="h-7 w-7 text-green-600 dark:text-green-400" />
+                  </div>
+                  <h4 className="font-semibold text-lg leading-snug">Importar desde Google Sheets</h4>
                 </div>
                 <div className="flex-1 space-y-2">
-                  <h4 className="font-semibold text-lg">Importar desde Google Sheets</h4>
                   <p className="text-sm text-muted-foreground">
                     Sincroniza clientes o catálogos desde una hoja de cálculo pública.
                   </p>
@@ -72,11 +74,13 @@ export function MyDataContent({ userId }: Props) {
               onClick={() => setSection('knowledge')}
             >
               <CardContent className="p-8 flex flex-col gap-5 h-full">
-                <div className="h-16 w-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center group-hover:bg-blue-500/15 transition-colors">
-                  <BookOpen className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                <div className="flex items-center gap-4">
+                  <div className="h-14 w-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0 group-hover:bg-blue-500/15 transition-colors">
+                    <BookOpen className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h4 className="font-semibold text-lg leading-snug">Base de Conocimiento (RAG)</h4>
                 </div>
                 <div className="flex-1 space-y-2">
-                  <h4 className="font-semibold text-lg">Base de Conocimiento (RAG)</h4>
                   <p className="text-sm text-muted-foreground">
                     Divide tu catálogo en bloques y el agente inyecta solo lo relevante según la pregunta.
                   </p>
