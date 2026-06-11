@@ -85,7 +85,7 @@ export async function getNotificationCenterData(): Promise<{
       }),
     ]);
 
-    // Chats sin leer: misma fuente que el badge del sidebar (Evolution/Baileys unreadCount)
+    // Chats sin leer: combina Evolution/Baileys unreadCount + sesiones con agente inactivo
     let unreadChats: { remoteJid: string; pushName?: string | null; updatedAt?: string | null }[] = [];
     if (instances.length > 0 && owner?.apiKeyId) {
       const instance =
@@ -99,12 +99,27 @@ export async function getNotificationCenterData(): Promise<{
         const apiKey = resApikey.success && resApikey.data ? resApikey.data : null;
         if (apiKey) {
           const isBaileys = instance.instanceType === "baileys";
-          const chatsResult = isBaileys
-            ? await fetchChatsFromBaileys(instance.instanceName)
-            : await fetchChatsFromEvolution({ url: apiKey.url, key: apiKey.key }, instance.instanceName);
+          const [chatsResult, inactiveSessions] = await Promise.all([
+            isBaileys
+              ? fetchChatsFromBaileys(instance.instanceName)
+              : fetchChatsFromEvolution({ url: apiKey.url, key: apiKey.key }, instance.instanceName),
+            db.session.findMany({
+              where: { userId: ownerId, OR: [{ status: false }, { agentDisabled: true }] },
+              select: { remoteJid: true, remoteJidAlt: true },
+            }),
+          ]);
+
           if (chatsResult.success && chatsResult.data) {
+            const inactiveJids = new Set<string>([
+              ...inactiveSessions.map((s) => s.remoteJid),
+              ...inactiveSessions.flatMap((s) => (s.remoteJidAlt ? [s.remoteJidAlt] : [])),
+            ]);
+
             unreadChats = chatsResult.data
-              .filter((c) => (c.unreadCount ?? 0) > 0 && !c.lastMessage?.key?.fromMe)
+              .filter((c) => {
+                if (!c.lastMessage || c.lastMessage.key?.fromMe) return false;
+                return (c.unreadCount ?? 0) > 0 || inactiveJids.has(c.remoteJid);
+              })
               .slice(0, ITEMS_PER_KIND_LIMIT);
           }
         }
