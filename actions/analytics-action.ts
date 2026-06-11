@@ -303,12 +303,15 @@ export async function getAnalyticsDataByUserId(userId: string, period: Analytics
                     byCategory: expensesByCategory,
                 },
                 iaCredit: iaCreditRaw
-                    ? {
-                          total: iaCreditRaw.total,
-                          used: iaCreditRaw.used,
-                          available: Math.max(0, iaCreditRaw.total - iaCreditRaw.used),
-                          renewalDate: iaCreditRaw.renewalDate?.toISOString() ?? null,
-                      }
+                    ? (() => {
+                          const usedCredits = Math.floor(iaCreditRaw.used / 3085);
+                          return {
+                              total: iaCreditRaw.total,
+                              used: usedCredits,
+                              available: Math.max(0, iaCreditRaw.total - usedCredits),
+                              renewalDate: iaCreditRaw.renewalDate?.toISOString() ?? null,
+                          };
+                      })()
                     : null,
                 activityByDay,
             },
