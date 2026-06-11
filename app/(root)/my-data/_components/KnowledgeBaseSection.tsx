@@ -18,14 +18,14 @@ export function KnowledgeBaseSection({ userId }: Props) {
 
   return (
     <Tabs defaultValue="import" className="w-full">
-      <div className="flex items-center justify-between mb-4">
-        <TabsList>
-          <TabsTrigger value="import" className="gap-2 text-xs">
-            <BookOpen className="h-3.5 w-3.5" />
+      <div className="flex items-center justify-between py-2 px-4 border-b border-border/40 bg-muted/40">
+        <TabsList className="h-10">
+          <TabsTrigger value="import" className="gap-2 px-5 h-9 text-sm font-medium">
+            <BookOpen className="h-4 w-4" />
             Importar contenido
           </TabsTrigger>
-          <TabsTrigger value="management" className="gap-2 text-xs">
-            <BookMarked className="h-3.5 w-3.5" />
+          <TabsTrigger value="management" className="gap-2 px-5 h-9 text-sm font-medium">
+            <BookMarked className="h-4 w-4" />
             Gestionar bloques
           </TabsTrigger>
         </TabsList>

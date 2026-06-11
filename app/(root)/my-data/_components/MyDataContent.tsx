@@ -62,7 +62,7 @@ export function MyDataContent({ userId }: Props) {
       </div>
 
       {/* Contenido */}
-      <div className="flex-1 min-h-0 overflow-y-auto py-4">
+      <div className="flex-1 min-h-0 overflow-y-auto py-2">
         {!section ? (
           <div className="flex flex-col justify-center min-h-[60vh]">
             <div className="w-full space-y-5">
@@ -180,14 +180,14 @@ function SheetsSection({ userId }: { userId: string }) {
 
   return (
     <Tabs defaultValue="import">
-      <div className="flex items-center justify-between mb-4">
-        <TabsList>
-          <TabsTrigger value="import" className="gap-2 text-xs">
-            <FileSpreadsheet className="h-3.5 w-3.5" />
+      <div className="flex items-center justify-between py-2 px-4 border-b border-border/40 bg-muted/40">
+        <TabsList className="h-10">
+          <TabsTrigger value="import" className="gap-2 px-5 h-9 text-sm font-medium">
+            <FileSpreadsheet className="h-4 w-4" />
             Importar
           </TabsTrigger>
-          <TabsTrigger value="management" className="gap-2 text-xs">
-            <Database className="h-3.5 w-3.5" />
+          <TabsTrigger value="management" className="gap-2 px-5 h-9 text-sm font-medium">
+            <Database className="h-4 w-4" />
             Gestión
           </TabsTrigger>
         </TabsList>
