@@ -52,7 +52,7 @@ export function PlanBillingCard({ userPlan }: Props) {
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent className="flex flex-col flex-1 justify-between space-y-3">
+                <CardContent className="flex flex-col flex-1 space-y-3">
                     {loading ? (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
@@ -78,7 +78,7 @@ export function PlanBillingCard({ userPlan }: Props) {
                                     </Badge>
                                 )}
                             </div>
-                            <div className="space-y-1.5 text-sm">
+                            <div className="space-y-1.5 text-sm mt-auto">
                                 <div className="flex justify-between">
                                     <span className="text-muted-foreground">Monto</span>
                                     <span className="font-medium">{fmtPrice(billing?.price, billing?.currencyCode)}</span>

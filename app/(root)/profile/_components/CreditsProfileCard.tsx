@@ -45,7 +45,7 @@ export function CreditsProfileCard() {
                     </div>
                 </div>
             </CardHeader>
-            <CardContent className="flex flex-col flex-1 justify-between">
+            <CardContent className="flex flex-col flex-1">
                 {loading ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
