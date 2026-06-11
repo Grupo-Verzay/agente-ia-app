@@ -74,7 +74,7 @@ export function CreditsProfileCard() {
                                 <span className="font-medium">{renewalLabel}</span>
                             </div>
                         </div>
-                        <div className="space-y-1 mt-3">
+                        <div className="space-y-1 mt-auto pt-3">
                             <Progress value={usedPercent} className={`h-2 rounded ${barColor}`} />
                             <p className="text-xs text-muted-foreground text-right">{usedPercent}% consumido</p>
                         </div>
