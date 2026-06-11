@@ -63,7 +63,7 @@ export function MyDataContent({ userId }: Props) {
       {/* Contenido */}
       <div className="flex-1 min-h-0 overflow-y-auto py-4">
         {!section ? (
-          <div className="flex flex-col justify-center min-h-[60vh] px-4">
+          <div className="flex flex-col justify-center min-h-[60vh]">
             <div className="w-full space-y-5">
               <div className="text-center space-y-1 mb-2">
                 <h3 className="text-lg font-semibold">¿Qué deseas configurar?</h3>
@@ -158,7 +158,7 @@ export function MyDataContent({ userId }: Props) {
             </div>
           </div>
         ) : (
-          <div className="space-y-4 px-4">
+          <div className="space-y-4">
             {section === 'sheets' && (
               <Tabs defaultValue="import">
                 <TabsList className="mb-4">
