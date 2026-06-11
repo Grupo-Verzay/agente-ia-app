@@ -13,6 +13,7 @@ import {
   toggleKnowledgeBlock,
   updateKnowledgeBlock,
 } from '@/actions/knowledge-block-actions';
+import { KnowledgeBaseActionsMenu } from './KnowledgeBaseActionsMenu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -180,6 +181,13 @@ export function KnowledgeBaseManagement({ userId, refreshKey }: Props) {
                   <Plus className="h-4 w-4" />
                   Nuevo bloque
                 </Button>
+                <KnowledgeBaseActionsMenu
+                  userId={userId}
+                  total={blocks.length}
+                  activeCount={blocks.filter((b) => b.isActive).length}
+                  inactiveCount={blocks.filter((b) => !b.isActive).length}
+                  onDataChanged={load}
+                />
               </div>
             </div>
           </CardHeader>

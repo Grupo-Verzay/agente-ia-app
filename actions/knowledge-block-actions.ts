@@ -54,6 +54,46 @@ export async function toggleKnowledgeBlock(id: string, userId: string, isActive:
   return block;
 }
 
+export async function deleteAllKnowledgeBlocks(userId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const result = await db.knowledgeBlock.deleteMany({ where: { userId } });
+    revalidatePath('/my-data');
+    return { success: true, message: `${result.count} bloque(s) eliminados correctamente.` };
+  } catch {
+    return { success: false, message: 'Error al eliminar los bloques.' };
+  }
+}
+
+export async function deleteInactiveKnowledgeBlocks(userId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const result = await db.knowledgeBlock.deleteMany({ where: { userId, isActive: false } });
+    revalidatePath('/my-data');
+    return { success: true, message: `${result.count} bloque(s) inactivos eliminados.` };
+  } catch {
+    return { success: false, message: 'Error al eliminar los bloques inactivos.' };
+  }
+}
+
+export async function activateAllKnowledgeBlocks(userId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const result = await db.knowledgeBlock.updateMany({ where: { userId, isActive: false }, data: { isActive: true } });
+    revalidatePath('/my-data');
+    return { success: true, message: `${result.count} bloque(s) activados correctamente.` };
+  } catch {
+    return { success: false, message: 'Error al activar los bloques.' };
+  }
+}
+
+export async function deactivateAllKnowledgeBlocks(userId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const result = await db.knowledgeBlock.updateMany({ where: { userId, isActive: true }, data: { isActive: false } });
+    revalidatePath('/my-data');
+    return { success: true, message: `${result.count} bloque(s) desactivados correctamente.` };
+  } catch {
+    return { success: false, message: 'Error al desactivar los bloques.' };
+  }
+}
+
 export async function autoSplitAndImport(
   userId: string,
   rawText: string,
