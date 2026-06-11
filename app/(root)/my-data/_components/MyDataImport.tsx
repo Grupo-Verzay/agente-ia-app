@@ -199,7 +199,7 @@ export function MyDataImport({ userId }: Props) {
             <CardTitle className="text-lg">Importar desde Google Sheets</CardTitle>
           </div>
           <CardDescription>
-            Sincroniza información desde Google Sheets. El agente IA usará estos datos automáticamente en cada conversación.
+            Sincroniza información desde una URL de Google Sheets. El agente IA usará estos datos automáticamente en cada conversación.
           </CardDescription>
         </CardHeader>
 
