@@ -134,7 +134,7 @@ export async function getNotificationCenterData(): Promise<{
         kind: "connection",
         title: "Sin instancia de WhatsApp",
         description: "Crea o conecta una instancia para enviar y recibir mensajes.",
-        href: "/connection",
+        href: "/profile",
       });
     }
     if (!owner?.apiKeyId) {
@@ -143,7 +143,7 @@ export async function getNotificationCenterData(): Promise<{
         kind: "connection",
         title: "API Key sin configurar",
         description: "Configura una API Key para habilitar envios y automatizaciones.",
-        href: "/connection",
+        href: "/profile",
       });
     }
     const items: NotificationCenterItem[] = [
