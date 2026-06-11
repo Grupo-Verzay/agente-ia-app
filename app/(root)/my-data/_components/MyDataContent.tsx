@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ArrowLeft, BookOpen, FileSpreadsheet, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MyDataImport } from './MyDataImport';
 import { MyDataManagement } from './MyDataManagement';
@@ -20,49 +20,90 @@ export function MyDataContent({ userId }: Props) {
 
   if (!section) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
-        <div className="w-full max-w-lg space-y-4">
-          <div className="text-center mb-6">
+      <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
+        <div className="w-full max-w-3xl space-y-6">
+          <div className="text-center space-y-1">
+            <h3 className="text-lg font-semibold">¿Qué deseas configurar?</h3>
             <p className="text-sm text-muted-foreground">
-              ¿Qué deseas hacer?
+              Elige una opción para enriquecer las respuestas del agente IA
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            {/* Google Sheets */}
             <Card
-              className="cursor-pointer hover:border-primary/60 hover:bg-primary/5 transition-colors"
+              className="cursor-pointer group hover:border-primary/50 hover:shadow-md transition-all duration-200"
               onClick={() => setSection('sheets')}
             >
-              <CardHeader className="items-center text-center gap-3 pb-5 pt-6">
-                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                  <FileSpreadsheet className="h-6 w-6 text-primary" />
+              <CardHeader className="pb-3 pt-6 px-6">
+                <div className="h-14 w-14 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center mb-4 group-hover:bg-green-500/15 transition-colors">
+                  <FileSpreadsheet className="h-7 w-7 text-green-600 dark:text-green-400" />
                 </div>
-                <div>
-                  <CardTitle className="text-base">Importar desde</CardTitle>
-                  <CardTitle className="text-base">Google Sheets</CardTitle>
-                  <CardDescription className="text-xs mt-1.5">
-                    Sincroniza clientes o catálogos desde una hoja de cálculo
-                  </CardDescription>
-                </div>
+                <CardTitle className="text-lg">Importar desde Google Sheets</CardTitle>
+                <CardDescription className="text-sm mt-1">
+                  Sincroniza clientes o catálogos desde una hoja de cálculo pública.
+                </CardDescription>
               </CardHeader>
+              <CardContent className="px-6 pb-6 space-y-2">
+                <ul className="space-y-1.5 text-sm text-muted-foreground">
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-500 mt-0.5 shrink-0">✓</span>
+                    Asocia datos a clientes por número WhatsApp
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-500 mt-0.5 shrink-0">✓</span>
+                    Importa catálogos, listas de precios o referencias
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-500 mt-0.5 shrink-0">✓</span>
+                    El agente usa estos datos automáticamente en cada conversación
+                  </li>
+                </ul>
+                <div className="pt-3">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary group-hover:gap-2.5 transition-all">
+                    Configurar
+                    <ArrowLeft className="h-3.5 w-3.5 rotate-180" />
+                  </span>
+                </div>
+              </CardContent>
             </Card>
 
+            {/* Base de Conocimiento */}
             <Card
-              className="cursor-pointer hover:border-primary/60 hover:bg-primary/5 transition-colors"
+              className="cursor-pointer group hover:border-primary/50 hover:shadow-md transition-all duration-200"
               onClick={() => setSection('knowledge')}
             >
-              <CardHeader className="items-center text-center gap-3 pb-5 pt-6">
-                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                  <BookOpen className="h-6 w-6 text-primary" />
+              <CardHeader className="pb-3 pt-6 px-6">
+                <div className="h-14 w-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-4 group-hover:bg-blue-500/15 transition-colors">
+                  <BookOpen className="h-7 w-7 text-blue-600 dark:text-blue-400" />
                 </div>
-                <div>
-                  <CardTitle className="text-base">Base de</CardTitle>
-                  <CardTitle className="text-base">Conocimiento</CardTitle>
-                  <CardDescription className="text-xs mt-1.5">
-                    El agente consulta bloques de contenido según lo que pregunta el cliente
-                  </CardDescription>
-                </div>
+                <CardTitle className="text-lg">Base de Conocimiento</CardTitle>
+                <CardDescription className="text-sm mt-1">
+                  Divide tu catálogo en bloques y el agente inyecta solo lo relevante.
+                </CardDescription>
               </CardHeader>
+              <CardContent className="px-6 pb-6 space-y-2">
+                <ul className="space-y-1.5 text-sm text-muted-foreground">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 mt-0.5 shrink-0">✓</span>
+                    Reduce tokens de 10,000 a ~300 por consulta
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 mt-0.5 shrink-0">✓</span>
+                    Pega tu catálogo y el sistema lo divide automáticamente
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 mt-0.5 shrink-0">✓</span>
+                    El agente consulta solo los bloques que coinciden con la pregunta
+                  </li>
+                </ul>
+                <div className="pt-3">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary group-hover:gap-2.5 transition-all">
+                    Configurar
+                    <ArrowLeft className="h-3.5 w-3.5 rotate-180" />
+                  </span>
+                </div>
+              </CardContent>
             </Card>
           </div>
         </div>
