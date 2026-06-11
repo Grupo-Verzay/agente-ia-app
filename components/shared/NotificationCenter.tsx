@@ -28,6 +28,7 @@ import {
   type NotificationCenterData,
   type NotificationKind,
 } from "@/actions/notification-center-actions";
+import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
 import { cn } from "@/lib/utils";
 
 const NC_KEY = "nc_dismissed_v1";
@@ -103,6 +104,7 @@ export function NotificationCenter() {
   const [open, setOpen] = useState(false);
   const [activeKind, setActiveKind] = useState<NotificationKind | "all">("all");
   const [isPending, startTransition] = useTransition();
+  const storeChatCount = useChatUnreadStore((s) => s.unreadCount);
 
   const load = useCallback(() => {
     startTransition(async () => {
@@ -136,9 +138,19 @@ export function NotificationCenter() {
     window.location.href = href;
   }, []);
 
+  // Conteo de chats viene del mismo store que el badge izquierdo del sidebar
+  const effectiveCounts = useMemo(
+    () => ({ ...data.counts, chat: storeChatCount }),
+    [data.counts, storeChatCount],
+  );
+  const badgeTotal = useMemo(
+    () => Object.values(effectiveCounts).reduce((sum, n) => sum + n, 0),
+    [effectiveCounts],
+  );
+
   const summary = useMemo(
-    () => FILTER_ORDER.map((kind) => [kind, data.counts[kind] ?? 0] as [NotificationKind, number]),
-    [data.counts],
+    () => FILTER_ORDER.map((kind) => [kind, effectiveCounts[kind] ?? 0] as [NotificationKind, number]),
+    [effectiveCounts],
   );
 
   const filteredItems = useMemo(
@@ -156,9 +168,9 @@ export function NotificationCenter() {
           aria-label="Centro de notificaciones"
         >
           <Bell className="h-4 w-4 text-amber-500" />
-          {data.total > 0 && (
+          {badgeTotal > 0 && (
             <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-background">
-              {data.total > 99 ? "99+" : data.total}
+              {badgeTotal > 99 ? "99+" : badgeTotal}
             </span>
           )}
         </Button>
