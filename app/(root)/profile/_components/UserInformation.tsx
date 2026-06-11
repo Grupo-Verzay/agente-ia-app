@@ -942,9 +942,10 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                     <TabsContent value="cuenta" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             <SectionTitle>Plan y facturación</SectionTitle>
-                            <PlanBillingCard userPlan={user.plan} />
-                            <SectionTitle className="mt-6">Créditos IA</SectionTitle>
-                            <CreditsProfileCard />
+                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                <PlanBillingCard userPlan={user.plan} />
+                                <CreditsProfileCard />
+                            </div>
                             <SectionTitle className="mt-6">Sesiones activas</SectionTitle>
                             <SesionesCard userName={user.name ?? user.email ?? ''} userEmail={user.email ?? ''} />
                         </TabPanel>

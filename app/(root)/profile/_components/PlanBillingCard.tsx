@@ -38,7 +38,7 @@ export function PlanBillingCard({ userPlan }: Props) {
     const isActive = billing?.accessStatus === 'ACTIVE';
 
     return (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <>
             {/* Card: Plan actual */}
             <Card className="border-border">
                 <CardHeader className="pb-3">
@@ -128,6 +128,6 @@ export function PlanBillingCard({ userPlan }: Props) {
                     </Button>
                 </CardContent>
             </Card>
-        </div>
+        </>
     );
 }
