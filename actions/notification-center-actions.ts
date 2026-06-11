@@ -104,7 +104,7 @@ export async function getNotificationCenterData(): Promise<{
             : await fetchChatsFromEvolution({ url: apiKey.url, key: apiKey.key }, instance.instanceName);
           if (chatsResult.success && chatsResult.data) {
             unreadChats = chatsResult.data
-              .filter((c) => (c.unreadCount ?? 0) > 0)
+              .filter((c) => (c.unreadCount ?? 0) > 0 && !c.lastMessage?.key?.fromMe)
               .slice(0, ITEMS_PER_KIND_LIMIT);
           }
         }
