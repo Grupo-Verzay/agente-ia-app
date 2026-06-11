@@ -55,18 +55,22 @@ export default async function MyDataPage() {
   const userPlan = user.plan;
   const hasAccess = ALLOWED_PLANS.includes(userPlan);
 
+  if (!hasAccess) {
+    return (
+      <div className="flex flex-col h-full min-h-0 overflow-hidden">
+        <div className="sticky top-0 z-10 bg-muted/60 border-b border-border/40 px-4 pt-4 pb-3 shrink-0">
+          <h2 className="h3-bold text-gray-900 dark:text-white">Mis Datos Externos</h2>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+          <UpgradeRequired currentPlan={userPlan} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <div className="sticky top-0 z-10 bg-muted/60 border-b border-border/40 px-4 pt-4 pb-3 shrink-0">
-        <h2 className="h3-bold text-gray-900 dark:text-white">Mis Datos Externos</h2>
-      </div>
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
-        {hasAccess ? (
-          <MyDataContent userId={user.id} />
-        ) : (
-          <UpgradeRequired currentPlan={userPlan} />
-        )}
-      </div>
+      <MyDataContent userId={user.id} />
     </div>
   );
 }
