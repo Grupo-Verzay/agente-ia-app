@@ -52,7 +52,7 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
                     <MetricCard icon={<PackageX className="h-4 w-4" />} label="Sin stock" value={stats.outOfStock} helper="Productos agotados" color="#EF4444" />
                 </div>
                 <div className="min-w-0 sm:flex-1">
-                    <MetricCard icon={<Boxes className="h-4 w-4" />} label="Cupos disponibles" value={stats.availableSlots} helper="Productos que aún puedes agregar según tu plan" color="#8B5CF6" />
+                    <MetricCard icon={<Boxes className="h-4 w-4" />} label="Cupos disponibles" value={stats.availableSlots ?? '∞'} helper="Productos que aún puedes agregar según tu plan" color="#8B5CF6" />
                 </div>
             </div>
 
@@ -67,7 +67,7 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
                     />
                 </div>
                 <div className="flex items-center gap-3">
-                    {limitInfo && (
+                    {limitInfo && limitInfo.limit !== null && (
                         <span className={`flex items-center gap-1.5 text-sm font-semibold ${limitInfo.reached ? 'text-destructive' : 'text-foreground'}`}>
                             <Package className="h-4 w-4" />
                             {limitInfo.current}/{limitInfo.limit} productos

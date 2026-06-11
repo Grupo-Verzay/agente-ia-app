@@ -21,7 +21,7 @@ export interface ProductTableInterface {
 
 export interface ProductLimitInfo {
     current: number;
-    limit: number;
+    limit: number | null;
     reached: boolean;
 }
 
@@ -29,7 +29,7 @@ export interface ProductStats {
     total: number;
     active: number;
     outOfStock: number;
-    availableSlots: number;
+    availableSlots: number | null; // null = sin límite (plan personalizado)
 }
 
 export interface MainProductsProps extends ProductTableInterface {

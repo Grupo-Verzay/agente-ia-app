@@ -7,23 +7,24 @@ import { listParams, productSchema } from "@/lib/validators/product";
 import { db } from "@/lib/db"; // tu prisma client
 import { Prisma, Plan } from "@prisma/client";
 
-const PLAN_PRODUCT_LIMITS: Record<Plan, number> = {
-    lite:          10,
+const PLAN_PRODUCT_LIMITS: Record<Plan, number | null> = {
+    lite:           0,
     basico:        10,
     intermedio:    25,
     avanzado:      50,
-    enterprise:   200,
-    personalizado: 50,
+    enterprise:   100,
+    personalizado: null, // sin límite fijo; depende del productLimit asignado por el admin
 };
 
-async function getProductLimit(userId: string): Promise<number> {
+async function getProductLimit(userId: string): Promise<number | null> {
     const user = await db.user.findUnique({
         where: { id: userId },
         select: { plan: true, productLimit: true },
     });
-    if (!user) return 10;
+    if (!user) return 0;
     if (user.productLimit != null) return user.productLimit;
-    return PLAN_PRODUCT_LIMITS[user.plan] ?? 10;
+    const planLimit = PLAN_PRODUCT_LIMITS[user.plan];
+    return planLimit !== undefined ? planLimit : 0;
 }
 
 export async function listProducts(raw: z.input<typeof listParams>) {
@@ -69,8 +70,13 @@ export async function createProduct(raw: unknown) {
         db.product.count({ where: { userId: input.userId } }),
     ]);
 
-    if (current >= limit) {
-        throw new Error(`Límite de ${limit} productos alcanzado para tu plan.`);
+    // null = sin límite (plan personalizado sin productLimit asignado aún)
+    if (limit !== null && current >= limit) {
+        throw new Error(
+            limit === 0
+                ? 'Tu plan no incluye el módulo de productos. Actualiza tu plan para acceder.'
+                : `Límite de ${limit} productos alcanzado para tu plan.`,
+        );
     }
 
     // 2️⃣ Verificar si el SKU ya existe
@@ -138,7 +144,7 @@ export async function getProductLimitInfo(userId: string) {
         getProductLimit(userId),
         db.product.count({ where: { userId } }),
     ]);
-    return { current, limit, reached: current >= limit };
+    return { current, limit, reached: limit !== null && current >= limit };
 }
 
 export async function getProductStats(userId: string) {
@@ -153,7 +159,7 @@ export async function getProductStats(userId: string) {
         total,
         active,
         outOfStock,
-        availableSlots: Math.max(0, limit - total),
+        availableSlots: limit !== null ? Math.max(0, limit - total) : null,
     };
 }
 
