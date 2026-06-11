@@ -157,6 +157,8 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
         [values, firmaEnabled, signatureName]
     );
 
+    const estimatedTokens = useMemo(() => Math.ceil(prompt.length / 4), [prompt]);
+
     const currentDraft = useMemo(() => {
         if (activeTab === "business") {
             return [
@@ -344,6 +346,20 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 <Bot className="h-4 w-4" />
                                 <span className="hidden sm:inline">IA Prompts</span>
                             </Button>
+
+                            <span
+                                title={`~${estimatedTokens.toLocaleString()} tokens estimados del prompt completo`}
+                                className={[
+                                    "hidden sm:inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium tabular-nums select-none cursor-default",
+                                    estimatedTokens < 4000
+                                        ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+                                        : estimatedTokens < 6000
+                                        ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-400"
+                                        : "border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-400",
+                                ].join(" ")}
+                            >
+                                ~{estimatedTokens.toLocaleString()} tk
+                            </span>
 
 <DropdownMenu modal={false}>
                                 <DropdownMenuTrigger asChild>
