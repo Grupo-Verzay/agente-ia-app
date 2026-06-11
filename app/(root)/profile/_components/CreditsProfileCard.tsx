@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Zap, CalendarCheck2, Loader2 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Zap, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { getOwnIaCredits } from '@/actions/actions-ia-credits';
 
@@ -41,10 +41,6 @@ export function CreditsProfileCard() {
                     </div>
                     <div className="flex-1">
                         <CardTitle className="text-sm font-semibold">Créditos IA</CardTitle>
-                        <CardDescription className="text-xs flex items-center gap-1">
-                            <CalendarCheck2 className="h-3 w-3" />
-                            Renovación: {loading ? '...' : renewalLabel}
-                        </CardDescription>
                     </div>
                 </div>
             </CardHeader>
@@ -71,6 +67,10 @@ export function CreditsProfileCard() {
                                 <span className={`font-medium ${data.available > 0 ? 'text-green-600' : 'text-red-500'}`}>
                                     {data.available.toLocaleString()}
                                 </span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">Renovación</span>
+                                <span className="font-medium">{renewalLabel}</span>
                             </div>
                         </div>
                         <div className="space-y-1">
