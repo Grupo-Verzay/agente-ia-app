@@ -1074,6 +1074,16 @@ model IaCredit {
   @@map("ia_credits")
 }
 
+model PlanConfig {
+  id        String   @id @default(uuid())
+  plan      Plan     @unique
+  credits   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("plan_configs")
+}
+
 model ExternalClientData {
   id        String   @id @default(uuid())
   userId    String

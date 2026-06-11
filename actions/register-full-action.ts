@@ -19,7 +19,8 @@ const DEFAULT_API_KEY_ID = "0c3a9266-4eb1-4a19-824e-844dcfe7a485";
 const DEFAULT_WEBHOOK_URL = "https://backend.ia-app.com/webhook";
 const DEFAULT_API_URL = process.env.SECRET_API_KEY;
 const DEFAULT_DEL_SEGUIMIENTO = "Estamos para servirle.";
-const DEFAULT_IA_CREDITS = 10000;
+const DEFAULT_REGISTER_PLAN = "avanzado" as const;
+const FALLBACK_IA_CREDITS = 8000;
 const TRIAL_DAYS = 3;
 
 const DEFAULT_TAGS = [
@@ -192,6 +193,12 @@ export async function fullRegisterAction(
 
   const resolvedApiKeyId = apiKeyExists ? targetApiKeyId : null;
 
+  /* ── Look up plan credits before transaction ── */
+  const planCreditsConfig = await db.planConfig
+    .findUnique({ where: { plan: DEFAULT_REGISTER_PLAN } })
+    .catch(() => null);
+  const initialCredits = planCreditsConfig?.credits ?? FALLBACK_IA_CREDITS;
+
   const completedSteps: RegisterCompletedStep[] = [];
   let userId: string | null = null;
 
@@ -208,7 +215,7 @@ export async function fullRegisterAction(
           company,
           notificationNumber,
           role: "user",
-          plan: "avanzado",
+          plan: DEFAULT_REGISTER_PLAN,
           apiKeyId: resolvedApiKeyId,
           delSeguimiento: DEFAULT_DEL_SEGUIMIENTO,
           webhookUrl: DEFAULT_WEBHOOK_URL,
@@ -244,11 +251,11 @@ export async function fullRegisterAction(
         },
       });
 
-      // 3. IaCredit — 1000 credits
+      // 3. IaCredit — créditos según plan
       await tx.iaCredit.create({
         data: {
           userId: created.id,
-          total: DEFAULT_IA_CREDITS,
+          total: initialCredits,
           used: 0,
           renewalDate: trialEndsAt,
         },

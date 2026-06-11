@@ -3,8 +3,8 @@
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { isAdminLike } from '@/lib/rbac';
-import { IaCredit } from '@prisma/client';
-
+import { IaCredit, Plan } from '@prisma/client';
+import { randomUUID } from 'crypto';
 
 interface IaCreditResponse {
   success: boolean;
@@ -12,7 +12,82 @@ interface IaCreditResponse {
   data?: IaCredit[];
 }
 
-// Obtener créditos por usuario
+export interface PlanConfigItem {
+  plan: Plan;
+  credits: number;
+}
+
+const PLAN_CREDIT_DEFAULTS: Record<Plan, number> = {
+  lite: 1_000,
+  basico: 3_000,
+  intermedio: 5_000,
+  avanzado: 8_000,
+  enterprise: 10_000,
+  personalizado: 0,
+};
+
+// ── Plan Config ───────────────────────────────────────────────────
+
+export async function getAllPlanConfigs(): Promise<{
+  success: boolean;
+  message: string;
+  data?: PlanConfigItem[];
+}> {
+  try {
+    const me = await currentUser();
+    if (!me || !isAdminLike(me.role)) {
+      return { success: false, message: 'No autorizado' };
+    }
+
+    const configs = await db.planConfig.findMany();
+
+    const data: PlanConfigItem[] = (Object.keys(PLAN_CREDIT_DEFAULTS) as Plan[]).map((plan) => {
+      const existing = configs.find((c) => c.plan === plan);
+      return { plan, credits: existing?.credits ?? PLAN_CREDIT_DEFAULTS[plan] };
+    });
+
+    return { success: true, message: 'OK', data };
+  } catch (error) {
+    console.error('[GET_PLAN_CONFIGS_ERROR]', error);
+    return { success: false, message: 'Error al obtener configuración de planes' };
+  }
+}
+
+export async function updatePlanConfigAction(
+  plan: Plan,
+  credits: number,
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const me = await currentUser();
+    if (!me || !isAdminLike(me.role)) {
+      return { success: false, message: 'No autorizado' };
+    }
+
+    await db.planConfig.upsert({
+      where: { plan },
+      create: { id: randomUUID(), plan, credits },
+      update: { credits },
+    });
+
+    return { success: true, message: `Plan ${plan} actualizado a ${credits} créditos` };
+  } catch (error) {
+    console.error('[UPDATE_PLAN_CONFIG_ERROR]', error);
+    return { success: false, message: 'Error al actualizar configuración del plan' };
+  }
+}
+
+/** Returns the credits configured for a given plan (falls back to defaults). */
+export async function getPlanCredits(plan: Plan): Promise<number> {
+  try {
+    const config = await db.planConfig.findUnique({ where: { plan } });
+    return config?.credits ?? PLAN_CREDIT_DEFAULTS[plan] ?? 0;
+  } catch {
+    return PLAN_CREDIT_DEFAULTS[plan] ?? 0;
+  }
+}
+
+// ── Per-user Credits ──────────────────────────────────────────────
+
 export async function getIaCreditByUser(userId: string): Promise<IaCreditResponse> {
   try {
     const me = await currentUser();
@@ -24,9 +99,7 @@ export async function getIaCreditByUser(userId: string): Promise<IaCreditRespons
       return { success: false, message: 'userId es requerido' };
     }
 
-    const record = await db.iaCredit.findUnique({
-      where: { userId },
-    });
+    const record = await db.iaCredit.findUnique({ where: { userId } });
 
     if (!record) {
       return { success: false, message: 'No se encontraron créditos para este usuario' };
@@ -39,12 +112,11 @@ export async function getIaCreditByUser(userId: string): Promise<IaCreditRespons
   }
 }
 
-// Crear créditos para un usuario
 export async function createIaCreditForUser(
   userId: string,
   total: number,
   renewalDate: Date,
-  used?: number
+  used?: number,
 ): Promise<IaCreditResponse> {
   try {
     const me = await currentUser();
@@ -62,12 +134,7 @@ export async function createIaCreditForUser(
     }
 
     const created = await db.iaCredit.create({
-      data: {
-        userId,
-        total,
-        used,
-        renewalDate,
-      },
+      data: { userId, total, used, renewalDate },
     });
 
     return { success: true, message: 'Créditos creados correctamente', data: [created] };
@@ -77,12 +144,11 @@ export async function createIaCreditForUser(
   }
 }
 
-// Recargar créditos
 export async function rechargeIaCredit(
   userId: string,
   newTotal: number,
   newRenewalDate?: Date,
-  used?: number
+  used?: number,
 ): Promise<IaCreditResponse> {
   try {
     const me = await currentUser();

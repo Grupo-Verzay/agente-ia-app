@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ClientInterface } from "@/lib/types"
-import { ApiKey, Role } from "@prisma/client"
+import { ApiKey, Plan, Role } from "@prisma/client"
 import {
   Select,
   SelectContent,
@@ -25,7 +25,7 @@ import { TimezoneCombobox } from "@/components/shared/TimezoneCombobox"
 import { useEffect, useState } from "react"
 import { Switch } from "@/components/ui/switch"
 import { ApiKeyConfigurator } from "@/app/(root)/profile/_components/ApiKeyConfigurator"
-import { getIaCreditByUser } from "@/actions/actions-ia-credits"
+import { getIaCreditByUser, getPlanCredits } from "@/actions/actions-ia-credits"
 import { onTokensToCredits } from "@/utils/onTokensToCredits"
 import { setUserConnectionType } from "@/actions/instances-actions"
 import { Loader2 } from "lucide-react"
@@ -78,6 +78,7 @@ export const EditDialog = ({
     waInstance?.instanceType === 'baileys' ? 'baileys' : 'Whatsapp'
   );
   const [applyingType, setApplyingType] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<Plan>(user.plan as Plan);
 
   useEffect(() => {
     if (!openEditDialog || currentUserRol === 'reseller') return;
@@ -195,7 +196,19 @@ export const EditDialog = ({
         )
       case 'plan':
         return (
-          <Select name={id} defaultValue={defaultValue?.toString() ?? ""} disabled={readOnly}>
+          <Select
+            name={id}
+            value={selectedPlan}
+            disabled={readOnly}
+            onValueChange={async (val) => {
+              const plan = val as Plan;
+              setSelectedPlan(plan);
+              if (plan !== 'personalizado') {
+                const credits = await getPlanCredits(plan);
+                setCreditTotal(credits);
+              }
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder={label ?? "Selecciona un plan"} />
             </SelectTrigger>

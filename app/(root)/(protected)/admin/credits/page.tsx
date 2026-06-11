@@ -16,13 +16,7 @@ const CreditPage = async ({ searchParams }: Props) => {
     return <AccessDenied />;
   }
 
-  const userId = searchParams.userId;
-
-  if (!userId) {
-    return <p className="text-red-500">Error: userId no proporcionado</p>;
-  }
-
-  return <CreditMain userId={userId} />;
+  return <CreditMain userId={searchParams.userId} />;
 };
 
 export default CreditPage;
