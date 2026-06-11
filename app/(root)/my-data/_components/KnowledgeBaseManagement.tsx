@@ -13,7 +13,6 @@ import {
   toggleKnowledgeBlock,
   updateKnowledgeBlock,
 } from '@/actions/knowledge-block-actions';
-import { KnowledgeBaseActionsMenu } from './KnowledgeBaseActionsMenu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +32,7 @@ import { Textarea } from '@/components/ui/textarea';
 interface Props {
   userId: string;
   refreshKey?: number;
+  onDataChanged?: () => void;
 }
 
 interface BlockFormState {
@@ -44,7 +44,7 @@ interface BlockFormState {
 
 const emptyForm: BlockFormState = { title: '', keywordsRaw: '', content: '', category: '' };
 
-export function KnowledgeBaseManagement({ userId, refreshKey }: Props) {
+export function KnowledgeBaseManagement({ userId, refreshKey, onDataChanged }: Props) {
   const [blocks, setBlocks] = useState<KnowledgeBlock[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -181,13 +181,6 @@ export function KnowledgeBaseManagement({ userId, refreshKey }: Props) {
                   <Plus className="h-4 w-4" />
                   Nuevo bloque
                 </Button>
-                <KnowledgeBaseActionsMenu
-                  userId={userId}
-                  total={blocks.length}
-                  activeCount={blocks.filter((b) => b.isActive).length}
-                  inactiveCount={blocks.filter((b) => !b.isActive).length}
-                  onDataChanged={load}
-                />
               </div>
             </div>
           </CardHeader>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ArrowLeft, BookOpen, FileSpreadsheet, Database } from 'lucide-react';
+import { MyDataActionsMenu } from './MyDataActionsMenu';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -160,24 +161,7 @@ export function MyDataContent({ userId }: Props) {
         ) : (
           <div className="space-y-4">
             {section === 'sheets' && (
-              <Tabs defaultValue="import">
-                <TabsList className="mb-4">
-                  <TabsTrigger value="import" className="gap-2 text-xs">
-                    <FileSpreadsheet className="h-3.5 w-3.5" />
-                    Importar
-                  </TabsTrigger>
-                  <TabsTrigger value="management" className="gap-2 text-xs">
-                    <Database className="h-3.5 w-3.5" />
-                    Gestión
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="import" className="mt-0">
-                  <MyDataImport userId={userId} />
-                </TabsContent>
-                <TabsContent value="management" className="mt-0">
-                  <MyDataManagement userId={userId} />
-                </TabsContent>
-              </Tabs>
+              <SheetsSection userId={userId} />
             )}
 
             {section === 'knowledge' && (
@@ -187,5 +171,38 @@ export function MyDataContent({ userId }: Props) {
         )}
       </div>
     </div>
+  );
+}
+
+function SheetsSection({ userId }: { userId: string }) {
+  const [total, setTotal] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  return (
+    <Tabs defaultValue="import">
+      <div className="flex items-center justify-between mb-4">
+        <TabsList>
+          <TabsTrigger value="import" className="gap-2 text-xs">
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            Importar
+          </TabsTrigger>
+          <TabsTrigger value="management" className="gap-2 text-xs">
+            <Database className="h-3.5 w-3.5" />
+            Gestión
+          </TabsTrigger>
+        </TabsList>
+        <MyDataActionsMenu
+          userId={userId}
+          total={total}
+          onDataChanged={() => setReloadKey((k) => k + 1)}
+        />
+      </div>
+      <TabsContent value="import" className="mt-0">
+        <MyDataImport userId={userId} />
+      </TabsContent>
+      <TabsContent value="management" className="mt-0">
+        <MyDataManagement userId={userId} key={reloadKey} onTotalChange={setTotal} />
+      </TabsContent>
+    </Tabs>
   );
 }

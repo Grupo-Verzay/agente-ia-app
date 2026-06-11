@@ -10,13 +10,13 @@ import { ExternalClientDataTable } from '../../(protected)/admin/external-data/_
 import { ExternalClientDataFormDialog } from '../../(protected)/admin/external-data/_components/ExternalClientDataFormDialog';
 import { ExternalClientDataDeleteDialog } from '../../(protected)/admin/external-data/_components/ExternalClientDataDeleteDialog';
 import type { ExternalClientData } from '@/types/external-client-data';
-import { MyDataActionsMenu } from './MyDataActionsMenu';
 
 interface Props {
   userId: string;
+  onTotalChange?: (total: number) => void;
 }
 
-export function MyDataManagement({ userId }: Props) {
+export function MyDataManagement({ userId, onTotalChange }: Props) {
   const [records, setRecords] = useState<ExternalClientData[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -31,6 +31,7 @@ export function MyDataManagement({ userId }: Props) {
       const result = await listExternalClientData(userId, 1, 200);
       setRecords(result.items);
       setTotal(result.total);
+      onTotalChange?.(result.total);
     } catch {
       setRecords([]);
       setTotal(0);
@@ -98,7 +99,6 @@ export function MyDataManagement({ userId }: Props) {
               <Button size="sm" onClick={handleCreateNew} className="bg-blue-600 hover:bg-blue-700 text-white">
                 + Nuevo registro
               </Button>
-              <MyDataActionsMenu userId={userId} total={total} onDataChanged={loadRecords} />
             </div>
           </div>
           <CardDescription>

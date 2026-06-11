@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { MoreVertical, PowerOff, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -8,6 +8,7 @@ import {
   deactivateAllKnowledgeBlocks,
   deleteAllKnowledgeBlocks,
   deleteInactiveKnowledgeBlocks,
+  getKnowledgeBlockCounts,
 } from '@/actions/knowledge-block-actions';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,46 +25,52 @@ type ActionId = 'activate-all' | 'deactivate-all' | 'delete-inactive' | 'delete-
 
 interface Props {
   userId: string;
-  total: number;
-  activeCount: number;
-  inactiveCount: number;
+  refreshKey?: number;
   onDataChanged?: () => void;
 }
 
-export function KnowledgeBaseActionsMenu({ userId, total, activeCount, inactiveCount, onDataChanged }: Props) {
+export function KnowledgeBaseActionsMenu({ userId, refreshKey, onDataChanged }: Props) {
+  const [counts, setCounts] = useState({ total: 0, active: 0, inactive: 0 });
   const [selectedAction, setSelectedAction] = useState<ActionId | null>(null);
+
+  const loadCounts = useCallback(async () => {
+    const c = await getKnowledgeBlockCounts(userId);
+    setCounts(c);
+  }, [userId]);
+
+  useEffect(() => { loadCounts(); }, [loadCounts, refreshKey]);
 
   const actions: Record<ActionId, { label: string; description: string; confirmLabel: string; tone: 'default' | 'destructive'; disabled: boolean; execute: () => Promise<{ success: boolean; message: string }> }> = {
     'activate-all': {
-      label: `Activar todos los bloques (${inactiveCount})`,
-      description: `Se activarán ${inactiveCount} bloque(s) inactivos. Comenzarán a ser consultados por el agente.`,
+      label: `Activar todos los bloques (${counts.inactive})`,
+      description: `Se activarán ${counts.inactive} bloque(s) inactivos.`,
       confirmLabel: 'Activar todos',
       tone: 'default',
-      disabled: inactiveCount === 0,
+      disabled: counts.inactive === 0,
       execute: () => activateAllKnowledgeBlocks(userId),
     },
     'deactivate-all': {
-      label: `Desactivar todos los bloques (${activeCount})`,
-      description: `Se desactivarán ${activeCount} bloque(s). El agente dejará de consultarlos temporalmente.`,
+      label: `Desactivar todos los bloques (${counts.active})`,
+      description: `Se desactivarán ${counts.active} bloque(s).`,
       confirmLabel: 'Desactivar todos',
       tone: 'destructive',
-      disabled: activeCount === 0,
+      disabled: counts.active === 0,
       execute: () => deactivateAllKnowledgeBlocks(userId),
     },
     'delete-inactive': {
-      label: `Eliminar bloques inactivos (${inactiveCount})`,
-      description: `Se eliminarán ${inactiveCount} bloque(s) inactivos. Esta acción no se puede deshacer.`,
+      label: `Eliminar bloques inactivos (${counts.inactive})`,
+      description: `Se eliminarán ${counts.inactive} bloque(s) inactivos. Esta acción no se puede deshacer.`,
       confirmLabel: 'Eliminar inactivos',
       tone: 'destructive',
-      disabled: inactiveCount === 0,
+      disabled: counts.inactive === 0,
       execute: () => deleteInactiveKnowledgeBlocks(userId),
     },
     'delete-all': {
-      label: `Eliminar todos los bloques (${total})`,
-      description: `Se eliminarán ${total} bloque(s) de la base de conocimiento. Esta acción no se puede deshacer.`,
+      label: `Eliminar todos los bloques (${counts.total})`,
+      description: `Se eliminarán ${counts.total} bloque(s). Esta acción no se puede deshacer.`,
       confirmLabel: 'Eliminar todos',
       tone: 'destructive',
-      disabled: total === 0,
+      disabled: counts.total === 0,
       execute: () => deleteAllKnowledgeBlocks(userId),
     },
   };
@@ -79,6 +86,7 @@ export function KnowledgeBaseActionsMenu({ userId, total, activeCount, inactiveC
       toast.error(result.message, { id: toastId });
       throw new Error(result.message);
     }
+    await loadCounts();
     onDataChanged?.();
     toast.success(result.message, { id: toastId });
   };
@@ -87,46 +95,26 @@ export function KnowledgeBaseActionsMenu({ userId, total, activeCount, inactiveC
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="icon" className="h-8 w-8">
+          <Button variant="outline" size="icon" className="h-9 w-9">
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-72">
           <DropdownMenuLabel>Base de Conocimiento</DropdownMenuLabel>
-
-          <DropdownMenuItem
-            disabled={actions['activate-all'].disabled}
-            onSelect={() => setSelectedAction('activate-all')}
-          >
+          <DropdownMenuItem disabled={actions['activate-all'].disabled} onSelect={() => setSelectedAction('activate-all')}>
             <RefreshCw className="h-4 w-4" />
             {actions['activate-all'].label}
           </DropdownMenuItem>
-
-          <DropdownMenuItem
-            disabled={actions['deactivate-all'].disabled}
-            onSelect={() => setSelectedAction('deactivate-all')}
-            className="text-destructive focus:text-destructive"
-          >
+          <DropdownMenuItem disabled={actions['deactivate-all'].disabled} onSelect={() => setSelectedAction('deactivate-all')} className="text-destructive focus:text-destructive">
             <PowerOff className="h-4 w-4" />
             {actions['deactivate-all'].label}
           </DropdownMenuItem>
-
           <DropdownMenuSeparator />
-
-          <DropdownMenuItem
-            disabled={actions['delete-inactive'].disabled}
-            onSelect={() => setSelectedAction('delete-inactive')}
-            className="text-destructive focus:text-destructive"
-          >
+          <DropdownMenuItem disabled={actions['delete-inactive'].disabled} onSelect={() => setSelectedAction('delete-inactive')} className="text-destructive focus:text-destructive">
             <Trash2 className="h-4 w-4" />
             {actions['delete-inactive'].label}
           </DropdownMenuItem>
-
-          <DropdownMenuItem
-            disabled={actions['delete-all'].disabled}
-            onSelect={() => setSelectedAction('delete-all')}
-            className="text-destructive focus:text-destructive"
-          >
+          <DropdownMenuItem disabled={actions['delete-all'].disabled} onSelect={() => setSelectedAction('delete-all')} className="text-destructive focus:text-destructive">
             <Trash2 className="h-4 w-4" />
             {actions['delete-all'].label}
           </DropdownMenuItem>

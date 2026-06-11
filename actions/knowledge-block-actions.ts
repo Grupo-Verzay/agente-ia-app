@@ -54,6 +54,14 @@ export async function toggleKnowledgeBlock(id: string, userId: string, isActive:
   return block;
 }
 
+export async function getKnowledgeBlockCounts(userId: string) {
+  const [total, active] = await Promise.all([
+    db.knowledgeBlock.count({ where: { userId } }),
+    db.knowledgeBlock.count({ where: { userId, isActive: true } }),
+  ]);
+  return { total, active, inactive: total - active };
+}
+
 export async function deleteAllKnowledgeBlocks(userId: string): Promise<{ success: boolean; message: string }> {
   try {
     const result = await db.knowledgeBlock.deleteMany({ where: { userId } });
