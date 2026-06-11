@@ -70,11 +70,11 @@ export function CreditsProfileCard() {
                                 </span>
                             </div>
                         </div>
-                        <div className="space-y-1 mt-auto pt-3">
+                        <div className="space-y-1 pt-3">
                             <Progress value={usedPercent} className={`h-2 rounded ${barColor}`} />
                             <p className="text-xs text-muted-foreground text-right">{usedPercent}% consumido</p>
                         </div>
-                        <div className="flex justify-between text-sm mt-2">
+                        <div className="flex justify-between text-sm mt-auto pt-3">
                             <span className="text-muted-foreground">Renovación</span>
                             <span className="font-medium">{renewalLabel}</span>
                         </div>
