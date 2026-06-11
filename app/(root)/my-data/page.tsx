@@ -1,13 +1,9 @@
 import { redirect } from 'next/navigation';
-import { BookOpen, Database, FileSpreadsheet, Lock, Sparkles } from 'lucide-react';
+import { Lock, Sparkles } from 'lucide-react';
 import { currentUser } from '@/lib/auth';
-import Header from '@/components/shared/header';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MyDataManagement } from './_components/MyDataManagement';
-import { MyDataImport } from './_components/MyDataImport';
-import { KnowledgeBaseSection } from './_components/KnowledgeBaseSection';
+import { MyDataContent } from './_components/MyDataContent';
 import type { Plan } from '@prisma/client';
 import { PLAN_LABELS } from '@/types/plans';
 
@@ -61,48 +57,16 @@ export default async function MyDataPage() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      {!hasAccess ? (
-        <>
-          <div className="sticky top-0 z-10 bg-background px-4 pt-4 pb-2 shrink-0">
-            <Header title="Mis Datos Externos" />
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
-            <UpgradeRequired currentPlan={userPlan} />
-          </div>
-        </>
-      ) : (
-        <Tabs defaultValue="import" className="flex flex-col flex-1 min-h-0 overflow-hidden">
-          <div className="sticky top-0 z-10 bg-muted/60 border-b border-border/40 px-4 pt-4 pb-2 shrink-0 flex items-center justify-between">
-            <h2 className="h3-bold text-gray-900 dark:text-white">Mis Datos Externos</h2>
-            <TabsList>
-              <TabsTrigger value="import" className="gap-2">
-                <FileSpreadsheet className="h-4 w-4" />
-                Importar
-              </TabsTrigger>
-              <TabsTrigger value="management" className="gap-2">
-                <Database className="h-4 w-4" />
-                Gestión
-              </TabsTrigger>
-              <TabsTrigger value="knowledge" className="gap-2">
-                <BookOpen className="h-4 w-4" />
-                Base de Conocimiento
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value="import" className="flex-1 min-h-0 overflow-y-auto mt-0">
-            <MyDataImport userId={user.id} />
-          </TabsContent>
-
-          <TabsContent value="management" className="flex-1 min-h-0 overflow-y-auto mt-0">
-            <MyDataManagement userId={user.id} />
-          </TabsContent>
-
-          <TabsContent value="knowledge" className="flex-1 min-h-0 overflow-y-auto mt-0 p-4">
-            <KnowledgeBaseSection userId={user.id} />
-          </TabsContent>
-        </Tabs>
-      )}
+      <div className="sticky top-0 z-10 bg-muted/60 border-b border-border/40 px-4 pt-4 pb-3 shrink-0">
+        <h2 className="h3-bold text-gray-900 dark:text-white">Mis Datos Externos</h2>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+        {hasAccess ? (
+          <MyDataContent userId={user.id} />
+        ) : (
+          <UpgradeRequired currentPlan={userPlan} />
+        )}
+      </div>
     </div>
   );
 }
