@@ -161,7 +161,7 @@ export function PromptToolbar(props: {
                                     rows={3}
                                     className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-emerald-500 placeholder:text-muted-foreground/50"
                                 />
-                                <div className="flex gap-2 justify-end">
+                                <div className="flex gap-2 justify-between">
                                     <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setNoteOpen(false)}>
                                         Cancelar
                                     </Button>
