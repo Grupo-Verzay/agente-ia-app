@@ -41,6 +41,8 @@ export const getCountryCodes = async () => {
 
     const data = await res.json();
 
+    if (!Array.isArray(data)) throw new Error('Respuesta inesperada de la API');
+
     const countries = data
       .map((country: any) => {
         const root = country?.idd?.root;
