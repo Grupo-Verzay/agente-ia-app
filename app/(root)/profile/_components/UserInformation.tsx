@@ -58,6 +58,7 @@ import { PLAN_LABELS } from "@/types/plans";
 import { PlanBillingCard } from "./PlanBillingCard";
 import { SesionesCard } from "./SesionesCard";
 import { CreditsProfileCard } from "./CreditsProfileCard";
+import { PlanSpeedDial } from "./PlanSpeedDial";
 
 const MyDataManagement = dynamic(() => import("../../my-data/_components/MyDataManagement").then(m => ({ default: m.MyDataManagement })), { ssr: false });
 const MyDataImport = dynamic(() => import("../../my-data/_components/MyDataImport").then(m => ({ default: m.MyDataImport })), { ssr: false });
@@ -942,12 +943,13 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                     <TabsContent value="cuenta" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             <SectionTitle>Plan y facturación</SectionTitle>
-                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            <div className="grid gap-4 sm:grid-cols-2">
                                 <PlanBillingCard userPlan={user.plan} />
                                 <CreditsProfileCard />
                             </div>
                             <SectionTitle className="mt-6">Sesiones activas</SectionTitle>
                             <SesionesCard userName={user.name ?? user.email ?? ''} userEmail={user.email ?? ''} />
+                            <PlanSpeedDial />
                         </TabPanel>
                     </TabsContent>
 

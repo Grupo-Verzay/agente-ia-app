@@ -103,31 +103,6 @@ export function PlanBillingCard({ userPlan }: Props) {
                 </CardContent>
             </Card>
 
-            {/* Card: Solicitar upgrade */}
-            <Card className="border-border border-dashed">
-                <CardHeader className="pb-3">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                            <ArrowUpCircle className="w-4 h-4 text-primary" />
-                        </div>
-                        <div>
-                            <CardTitle className="text-sm font-semibold">Cambiar de plan</CardTitle>
-                            <CardDescription className="text-xs">Solicita un upgrade a tu administrador</CardDescription>
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-sm text-muted-foreground mb-4">
-                        ¿Necesitas más funcionalidades? Contacta a tu administrador para explorar los planes disponibles.
-                    </p>
-                    <Button variant="save" size="sm" className="gap-2 w-full" asChild>
-                        <a href="https://wa.me/573115616975?text=Hola%2C%20me%20gustar%C3%ADa%20conocer%20los%20planes%20disponibles%20para%20ampliar%20las%20funcionalidades%20de%20mi%20Agente%20IA." target="_blank" rel="noopener noreferrer">
-                            <Phone className="h-3.5 w-3.5" />
-                            Contactar Administrador
-                        </a>
-                    </Button>
-                </CardContent>
-            </Card>
         </>
     );
 }
