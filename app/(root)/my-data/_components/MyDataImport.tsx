@@ -196,9 +196,9 @@ export function MyDataImport({ userId }: Props) {
         <CardHeader className="pb-4">
           <div className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">Importar desde Google Sheets</CardTitle>
+            <CardTitle className="text-base">Importar desde Google Sheets</CardTitle>
           </div>
-          <CardDescription>
+          <CardDescription className="text-sm">
             Sincroniza información desde una URL de Google Sheets. El agente IA usará estos datos automáticamente en cada conversación.
           </CardDescription>
         </CardHeader>

@@ -64,16 +64,16 @@ export function KnowledgeBaseImport({ userId, onImported }: Props) {
         <CardHeader className="pb-4">
           <div className="flex items-center gap-2">
             <BookOpen className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">Base de Conocimiento</CardTitle>
+            <CardTitle className="text-base">Base de Conocimiento</CardTitle>
           </div>
-          <CardDescription>
+          <CardDescription className="text-sm">
             El agente IA consulta estos bloques automáticamente según lo que pregunta el cliente, reduciendo el uso de tokens hasta 10×.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="kb-text">Pega tu catálogo o contenido estructurado</Label>
+            <Label htmlFor="kb-text" className="text-xs">Pega tu catálogo o contenido estructurado</Label>
             <Textarea
               id="kb-text"
               placeholder={`### Producto A\nDescripción del producto A.\nPrecio: $100\n\n### Producto B\nDescripción del producto B.\nPrecio: $200`}
