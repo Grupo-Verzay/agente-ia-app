@@ -2,6 +2,9 @@
 
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { getApiKeyById } from "@/actions/api-action";
+import { fetchChatsFromEvolution } from "@/actions/chat-actions";
+import { fetchChatsFromBaileys } from "@/actions/baileys-chat-actions";
 
 export type NotificationKind =
   | "task"
@@ -53,7 +56,6 @@ export async function getNotificationCenterData(): Promise<{
       pendingAppointments,
       appointmentCount,
       instances,
-      activeChats,
       owner,
     ] = await Promise.all([
       (db as any).task.findMany({
@@ -77,34 +79,37 @@ export async function getNotificationCenterData(): Promise<{
         where: { userId: ownerId },
         select: { id: true, instanceName: true, instanceType: true },
       }),
-      db.session.findMany({
-        where: user.ownerId
-          ? { userId: ownerId, status: true, assignedAdvisorId: user.id }
-          : { userId: ownerId, status: true },
-        orderBy: { updatedAt: "desc" },
-        take: ITEMS_PER_KIND_LIMIT,
-      }),
       db.user.findUnique({
         where: { id: ownerId },
         select: { apiKeyId: true },
       }),
     ]);
 
-    // Sesiones activas con último mensaje del contacto (sin responder)
-    const activeJids = activeChats.map((c) => c.remoteJid);
-    const unreadConversations = activeJids.length > 0
-      ? await db.chatConversation.findMany({
-          where: {
-            userId: ownerId,
-            remoteJid: { in: activeJids },
-            lastMessageFromMe: { not: true },
-          },
-          select: { remoteJid: true },
-        })
-      : [];
+    // Chats sin leer: misma fuente que el badge del sidebar (Evolution/Baileys unreadCount)
+    let unreadChats: { remoteJid: string; pushName?: string | null; updatedAt?: string | null }[] = [];
+    if (instances.length > 0 && owner?.apiKeyId) {
+      const instance =
+        instances.find((i) => i.instanceType === "Whatsapp") ??
+        instances.find((i) => i.instanceType == null) ??
+        instances.find((i) => i.instanceType === "baileys") ??
+        instances[0];
 
-    const unreadJids = new Set(unreadConversations.map((c) => c.remoteJid));
-    const unreadChats = activeChats.filter((chat) => unreadJids.has(chat.remoteJid));
+      if (instance) {
+        const resApikey = await getApiKeyById(owner.apiKeyId);
+        const apiKey = resApikey.success && resApikey.data ? resApikey.data : null;
+        if (apiKey) {
+          const isBaileys = instance.instanceType === "baileys";
+          const chatsResult = isBaileys
+            ? await fetchChatsFromBaileys(instance.instanceName)
+            : await fetchChatsFromEvolution({ url: apiKey.url, key: apiKey.key }, instance.instanceName);
+          if (chatsResult.success && chatsResult.data) {
+            unreadChats = chatsResult.data
+              .filter((c) => (c.unreadCount ?? 0) > 0)
+              .slice(0, ITEMS_PER_KIND_LIMIT);
+          }
+        }
+      }
+    }
     const chatCount = unreadChats.length;
 
     const connectionItems: NotificationCenterItem[] = [];
@@ -129,12 +134,12 @@ export async function getNotificationCenterData(): Promise<{
     const items: NotificationCenterItem[] = [
       ...connectionItems,
       ...unreadChats.map((chat) => ({
-        id: `chat-${chat.id}`,
+        id: `chat-${chat.remoteJid}`,
         kind: "chat" as const,
         title: chat.pushName || chat.remoteJid,
-        description: user.ownerId ? "Mensaje sin responder (asignado a ti)" : "Mensaje sin responder",
+        description: "Mensaje sin leer",
         href: `/chats?jid=${encodeURIComponent(chat.remoteJid)}`,
-        date: chat.updatedAt.toISOString(),
+        date: chat.updatedAt ?? null,
       })),
       ...pendingAppointments.map((appointment) => ({
         id: `appointment-${appointment.id}`,
