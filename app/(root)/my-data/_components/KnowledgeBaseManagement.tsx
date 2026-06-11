@@ -278,15 +278,15 @@ export function KnowledgeBaseManagement({ userId, refreshKey }: Props) {
 
       {/* Dialog editar / crear */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="max-w-lg h-[585px] flex flex-col">
+          <DialogHeader className="shrink-0">
             <DialogTitle>{editBlock ? 'Editar bloque' : 'Nuevo bloque'}</DialogTitle>
             <DialogDescription>
               Define el contenido que el agente IA inyectará cuando el cliente mencione las keywords.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 py-2">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3 py-2 pr-1">
             <div className="space-y-1.5">
               <Label htmlFor="kb-title" className="text-xs">Título *</Label>
               <Input
@@ -339,7 +339,7 @@ export function KnowledgeBaseManagement({ userId, refreshKey }: Props) {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={isSaving}>
               Cancelar
             </Button>
