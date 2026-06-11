@@ -86,6 +86,34 @@ export async function getPlanCredits(plan: Plan): Promise<number> {
   }
 }
 
+// ── Own Credits (para el usuario autenticado) ────────────────────
+
+export async function getOwnIaCredits(): Promise<{
+  success: boolean;
+  message: string;
+  data?: { total: number; used: number; available: number; renewalDate: Date };
+}> {
+  try {
+    const me = await currentUser();
+    if (!me?.id) return { success: false, message: 'No autenticado' };
+
+    const record = await db.iaCredit.findUnique({ where: { userId: me.id } });
+    if (!record) return { success: false, message: 'Sin créditos configurados' };
+
+    const usedCredits = Math.floor(record.used / 3085);
+    const available = Math.max(0, record.total - usedCredits);
+
+    return {
+      success: true,
+      message: 'OK',
+      data: { total: record.total, used: usedCredits, available, renewalDate: record.renewalDate },
+    };
+  } catch (error) {
+    console.error('[GET_OWN_CREDITS_ERROR]', error);
+    return { success: false, message: 'Error al obtener créditos' };
+  }
+}
+
 // ── Per-user Credits ──────────────────────────────────────────────
 
 export async function getIaCreditByUser(userId: string): Promise<IaCreditResponse> {

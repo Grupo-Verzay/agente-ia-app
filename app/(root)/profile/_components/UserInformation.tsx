@@ -57,6 +57,7 @@ import type { Plan } from "@prisma/client";
 import { PLAN_LABELS } from "@/types/plans";
 import { PlanBillingCard } from "./PlanBillingCard";
 import { SesionesCard } from "./SesionesCard";
+import { CreditsProfileCard } from "./CreditsProfileCard";
 
 const MyDataManagement = dynamic(() => import("../../my-data/_components/MyDataManagement").then(m => ({ default: m.MyDataManagement })), { ssr: false });
 const MyDataImport = dynamic(() => import("../../my-data/_components/MyDataImport").then(m => ({ default: m.MyDataImport })), { ssr: false });
@@ -937,11 +938,13 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                         </TabPanel>
                     </TabsContent>
 
-                    {/* ── Tab: Cuenta (Plan + Sesiones) ────────── */}
+                    {/* ── Tab: Cuenta (Plan + Créditos + Sesiones) ────────── */}
                     <TabsContent value="cuenta" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             <SectionTitle>Plan y facturación</SectionTitle>
                             <PlanBillingCard userPlan={user.plan} />
+                            <SectionTitle className="mt-6">Créditos IA</SectionTitle>
+                            <CreditsProfileCard />
                             <SectionTitle className="mt-6">Sesiones activas</SectionTitle>
                             <SesionesCard userName={user.name ?? user.email ?? ''} userEmail={user.email ?? ''} />
                         </TabPanel>
