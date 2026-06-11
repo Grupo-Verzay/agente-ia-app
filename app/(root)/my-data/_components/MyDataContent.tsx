@@ -104,7 +104,7 @@ export function MyDataContent({ userId }: Props) {
                         </li>
                       </ul>
                     </div>
-                <div className="flex items-center justify-between gap-4 pt-1 border-t border-border/50">
+                <div className="flex items-center justify-between gap-4 pt-3 border-t border-border/50">
                   <p className="text-xs text-muted-foreground truncate">Sincroniza tu hoja y el agente la usa automáticamente</p>
                   <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-600 dark:text-green-400 shrink-0 group-hover:gap-3 transition-all whitespace-nowrap">
                     Configurar
@@ -145,7 +145,7 @@ export function MyDataContent({ userId }: Props) {
                         </li>
                       </ul>
                     </div>
-                <div className="flex items-center justify-between gap-4 pt-1 border-t border-border/50">
+                <div className="flex items-center justify-between gap-4 pt-3 border-t border-border/50">
                   <p className="text-xs text-muted-foreground truncate">Inyecta solo los bloques relevantes según la pregunta</p>
                   <span className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 shrink-0 group-hover:gap-3 transition-all whitespace-nowrap">
                     Configurar
