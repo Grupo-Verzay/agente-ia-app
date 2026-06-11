@@ -40,7 +40,7 @@ export function PlanBillingCard({ userPlan }: Props) {
     return (
         <>
             {/* Card: Plan actual */}
-            <Card className="border-border">
+            <Card className="border-border h-full flex flex-col">
                 <CardHeader className="pb-3">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -52,7 +52,7 @@ export function PlanBillingCard({ userPlan }: Props) {
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="flex flex-col flex-1 justify-between space-y-3">
                     {loading ? (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Loader2 className="h-4 w-4 animate-spin" /> Cargando...

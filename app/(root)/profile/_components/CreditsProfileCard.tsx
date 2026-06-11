@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Zap, Loader2 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { getOwnIaCredits } from '@/actions/actions-ia-credits';
 
@@ -33,7 +33,7 @@ export function CreditsProfileCard() {
         'bg-green-500';
 
     return (
-        <Card className="border-border">
+        <Card className="border-border h-full flex flex-col">
             <CardHeader className="pb-3">
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -41,10 +41,11 @@ export function CreditsProfileCard() {
                     </div>
                     <div className="flex-1">
                         <CardTitle className="text-sm font-semibold">Créditos IA</CardTitle>
+                        <CardDescription className="text-xs">Consumo y renovación de créditos</CardDescription>
                     </div>
                 </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col flex-1 justify-between">
                 {loading ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
@@ -52,7 +53,7 @@ export function CreditsProfileCard() {
                 ) : !data ? (
                     <p className="text-sm text-muted-foreground">Sin créditos configurados.</p>
                 ) : (
-                    <div className="space-y-3">
+                    <>
                         <div className="space-y-1.5 text-sm">
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Totales</span>
@@ -73,11 +74,11 @@ export function CreditsProfileCard() {
                                 <span className="font-medium">{renewalLabel}</span>
                             </div>
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-1 mt-3">
                             <Progress value={usedPercent} className={`h-2 rounded ${barColor}`} />
                             <p className="text-xs text-muted-foreground text-right">{usedPercent}% consumido</p>
                         </div>
-                    </div>
+                    </>
                 )}
             </CardContent>
         </Card>
