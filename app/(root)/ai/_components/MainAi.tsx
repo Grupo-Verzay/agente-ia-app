@@ -350,7 +350,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                             <span
                                 title={`~${estimatedTokens.toLocaleString()} tokens estimados del prompt completo`}
                                 className={[
-                                    "hidden sm:inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium tabular-nums select-none cursor-default",
+                                    "hidden sm:inline-flex items-center h-9 rounded-md border px-3 text-xs font-medium tabular-nums select-none cursor-default",
                                     estimatedTokens < 4000
                                         ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
                                         : estimatedTokens < 6000
