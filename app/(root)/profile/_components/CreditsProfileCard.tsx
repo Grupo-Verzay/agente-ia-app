@@ -70,9 +70,9 @@ export function CreditsProfileCard() {
                                 </span>
                             </div>
                         </div>
-                        <div className="space-y-1 pt-3">
-                            <Progress value={usedPercent} className={`h-2 rounded ${barColor}`} />
-                            <p className="text-xs text-muted-foreground text-right">{usedPercent}% consumido</p>
+                        <div className="flex items-center gap-2 pt-3">
+                            <Progress value={usedPercent} className={`h-2 rounded flex-1 ${barColor}`} />
+                            <p className="text-xs text-muted-foreground whitespace-nowrap">{usedPercent}% consumido</p>
                         </div>
                         <div className="flex justify-between text-sm mt-auto pt-3">
                             <span className="text-muted-foreground">Renovación</span>
