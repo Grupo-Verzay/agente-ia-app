@@ -80,7 +80,7 @@ export function KnowledgeBaseImport({ userId, onImported }: Props) {
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
               disabled={isLoading}
-              className="min-h-48 font-mono text-xs resize-y"
+              className="min-h-36 font-mono text-xs resize-y"
             />
             <p className="text-xs text-muted-foreground">
               El sistema detecta los separadores automáticamente. Cada sección se convierte en un bloque independiente.
