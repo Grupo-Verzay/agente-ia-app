@@ -205,7 +205,6 @@ export function MyDataImport({ userId }: Props) {
 
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="sheet-url">URL de Google Sheets</Label>
             <div className="flex gap-2">
               <Input
                 id="sheet-url"
