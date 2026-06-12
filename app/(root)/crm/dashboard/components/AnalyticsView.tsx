@@ -46,16 +46,16 @@ type SectionKey = keyof typeof ANALYTICS_SECTIONS;
 
 /* --- colores --- */
 const LEAD_COLORS: Record<string, string> = {
-    FRIO: "#3B82F6", TIBIO: "#F59E0B", CALIENTE: "#F97316",
-    FINALIZADO: "#22C55E", DESCARTADO: "#EF4444",
+    FRIO: "#5288E0", TIBIO: "#E49E25", CALIENTE: "#E67A33",
+    FINALIZADO: "#32BD65", DESCARTADO: "#E05252",
 };
 const LEAD_LABELS: Record<string, string> = {
     FRIO: "Frío", TIBIO: "Tibio", CALIENTE: "Caliente",
     FINALIZADO: "Finalizado", DESCARTADO: "Descartado",
 };
 const APPT_COLORS: Record<string, string> = {
-    PENDIENTE: "#F59E0B", CONFIRMADA: "#22C55E", CANCELADA: "#EF4444",
-    ATENDIDA: "#3B82F6", NO_ASISTIDA: "#6B7280",
+    PENDIENTE: "#E49E25", CONFIRMADA: "#32BD65", CANCELADA: "#E05252",
+    ATENDIDA: "#5288E0", NO_ASISTIDA: "#6B7280",
 };
 const APPT_LABELS: Record<string, string> = {
     PENDIENTE: "Pendiente", CONFIRMADA: "Confirmada", CANCELADA: "Cancelada",
@@ -285,9 +285,9 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
         { key: "CALIENTE",    label: "Caliente",     value: a?.leadStatusCounts.CALIENTE ?? 0,    color: LEAD_COLORS.CALIENTE },
         { key: "FINALIZADO",  label: "Finalizado",   value: a?.leadStatusCounts.FINALIZADO ?? 0,  color: LEAD_COLORS.FINALIZADO },
         { key: "DESCARTADO",  label: "Descartado",   value: a?.leadStatusCounts.DESCARTADO ?? 0,  color: LEAD_COLORS.DESCARTADO },
-        { key: "CITAS",       label: "Citas",        value: a?.appointments.total ?? 0,           color: "#3B82F6" },
-        { key: "FOLLOW_UPS",  label: "Follow-ups",   value: stats?.crmFollowUps.active ?? 0,      color: "#0EA5E9" },
-        { key: "FLUJOS",      label: "Flujos",       value: a?.totalWorkflows ?? 0,               color: "#8B5CF6" },
+        { key: "CITAS",       label: "Citas",        value: a?.appointments.total ?? 0,           color: "#5288E0" },
+        { key: "FOLLOW_UPS",  label: "Follow-ups",   value: stats?.crmFollowUps.active ?? 0,      color: "#24A1DB" },
+        { key: "FLUJOS",      label: "Flujos",       value: a?.totalWorkflows ?? 0,               color: "#8E67E9" },
     ];
 
     return (
