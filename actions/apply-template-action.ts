@@ -92,6 +92,27 @@ export async function applyTemplateToPrompt(input: {
         elements: [],
       }));
 
+    const CAPTURE_SUBTYPES: Record<string, "Solicitudes" | "Reclamos" | "Pedidos" | "Reservas" | "Citas"> = {
+      SOLICITUDES: "Solicitudes",
+      RECLAMOS:    "Reclamos",
+      PEDIDOS:     "Pedidos",
+      RESERVAS:    "Reservas",
+      CITAS:       "Citas",
+    };
+
+    const makeManagementSteps = (steps?: { title: string; mainMessage: string }[]) =>
+      (steps ?? []).map((s) => {
+        const subtype = CAPTURE_SUBTYPES[s.title.toUpperCase()];
+        return {
+          id: crypto.randomUUID(),
+          title: s.title,
+          mainMessage: s.mainMessage,
+          elements: subtype
+            ? [{ id: crypto.randomUUID(), kind: "function", fn: "captura_datos", subtype, prompt: s.mainMessage }]
+            : [],
+        };
+      });
+
     const newSections = {
       ...existing,
       business: existing.business ?? {},
@@ -102,7 +123,7 @@ export async function applyTemplateToPrompt(input: {
         ? { steps: makeSteps(template.sections.faq) }
         : existing.faq ?? { steps: [] },
       management: template.sections.management
-        ? { steps: makeSteps(template.sections.management) }
+        ? { steps: makeManagementSteps(template.sections.management) }
         : existing.management ?? { steps: [] },
     };
 

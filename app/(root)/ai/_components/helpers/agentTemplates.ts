@@ -204,8 +204,6 @@ modo_bienvenida = inteligente
       ],
       faq: [
         { title: "PREGUNTAS FRECUENTES", mainMessage: "" },
-        { title: "PRODUCTOS", mainMessage: "" },
-        { title: "EXTRAS Y ADICIONALES", mainMessage: "" },
       ],
       management: [
         {
@@ -435,8 +433,6 @@ modo_bienvenida = obligatoria
       ],
       faq: [
         { title: "PREGUNTAS FRECUENTES", mainMessage: "" },
-        { title: "PRODUCTOS Y SERVICIOS", mainMessage: "" },
-        { title: "EXTRAS Y BENEFICIOS", mainMessage: "" },
       ],
       management: [
         {
@@ -642,8 +638,6 @@ modo_bienvenida = inteligente
       ],
       faq: [
         { title: "PREGUNTAS FRECUENTES", mainMessage: "" },
-        { title: "SERVICIOS DISPONIBLES", mainMessage: "" },
-        { title: "EXTRAS Y COMPLEMENTOS", mainMessage: "" },
       ],
       management: [
         {
@@ -883,8 +877,6 @@ modo_bienvenida = inteligente
       ],
       faq: [
         { title: "PREGUNTAS FRECUENTES", mainMessage: "" },
-        { title: "PRODUCTOS Y SERVICIOS", mainMessage: "" },
-        { title: "EXTRAS Y BENEFICIOS", mainMessage: "" },
       ],
       management: [
         {
@@ -1114,8 +1106,6 @@ modo_bienvenida = inteligente
       ],
       faq: [
         { title: "PREGUNTAS FRECUENTES", mainMessage: "" },
-        { title: "SERVICIOS Y SOLUCIONES", mainMessage: "" },
-        { title: "EXTRAS Y ALTERNATIVAS", mainMessage: "" },
       ],
       management: [
         {
@@ -1369,8 +1359,6 @@ modo_bienvenida = inteligente
       ],
       faq: [
         { title: "PREGUNTAS FRECUENTES", mainMessage: "" },
-        { title: "MENÚ Y PRODUCTOS", mainMessage: "" },
-        { title: "EXTRAS Y ADICIONALES", mainMessage: "" },
       ],
       management: [
         {
