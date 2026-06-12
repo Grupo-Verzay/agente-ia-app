@@ -1,7 +1,7 @@
 // app/(root)/ai/_components/MainAi.tsx
 "use client";
 
-import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { BusinessPromptBuilder, ExtraInfoBuilder, FqaBuilder, PromptPreview, TrainingBuilder } from "./";
@@ -43,6 +43,8 @@ import { deleteAgentPromptsByUserId } from "@/actions/prompt-actions";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { AgentMetricsPanel } from "./AgentMetricsPanel";
 import { TemplatePickerSheet } from "./TemplatePickerSheet";
+import { applyTemplateToPrompt } from "@/actions/apply-template-action";
+import { toast } from "sonner";
 import { AgentPromptChatDialog } from "./AgentPromptChatDialog";
 import { TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
 
@@ -114,10 +116,41 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     const [firmaEnabled, setFirmaEnabled] = useState<boolean>(_initialSignatureName.trim().length > 0);
     const [promptVersion, setPromptVersion] = useState<number>(promptMeta.version);
     const [emptyStateDismissed, setEmptyStateDismissed] = useState(false);
+    const [applyingChip, setApplyingChip] = useState<string | null>(null);
+    const [, startChipTransition] = useTransition();
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Chips de plantillas con conteo dinámico según ancho del contenedor
     const ALL_TEMPLATE_CHIPS = ["Venta Directa","Venta Consultiva","Agendamiento citas","Calificación leads","Atención/soporte","Toma pedidos/delivery"];
+
+    const CHIP_TEMPLATE_ID: Record<string, string> = {
+        "Venta Directa":         "venta-directa",
+        "Venta Consultiva":      "venta-consultiva",
+        "Agendamiento citas":    "agendamiento-citas",
+        "Calificación leads":    "calificacion-leads",
+        "Atención/soporte":      "atencion-cliente",
+        "Toma pedidos/delivery": "pedidos-delivery",
+    };
+
+    const handleChipApply = (chipName: string) => {
+        const templateId = CHIP_TEMPLATE_ID[chipName];
+        if (!templateId || applyingChip) return;
+        setApplyingChip(chipName);
+        startChipTransition(async () => {
+            const res = await applyTemplateToPrompt({ promptId: promptMeta.id, templateId });
+            if (res.ok) {
+                toast.success(
+                    res.flowsCreated && res.flowsCreated > 0
+                        ? `Plantilla aplicada — ${res.flowsCreated} flujo(s) creado(s)`
+                        : "Plantilla aplicada correctamente"
+                );
+                router.refresh();
+            } else {
+                toast.error(res.error ?? "No se pudo aplicar la plantilla");
+            }
+            setApplyingChip(null);
+        });
+    };
     const chipsContainerRef = useRef<HTMLDivElement>(null);
     const [visibleChipCount, setVisibleChipCount] = useState(ALL_TEMPLATE_CHIPS.length);
 
@@ -497,10 +530,11 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                             <button
                                                 key={r}
                                                 type="button"
-                                                onClick={() => setShowTemplates(true)}
-                                                className="rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary hover:text-primary transition-colors shrink-0"
+                                                disabled={!!applyingChip}
+                                                onClick={() => handleChipApply(r)}
+                                                className="rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary hover:text-primary transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
-                                                {r}
+                                                {applyingChip === r ? "..." : r}
                                             </button>
                                         ))}
                                         {visibleChipCount < ALL_TEMPLATE_CHIPS.length && (
