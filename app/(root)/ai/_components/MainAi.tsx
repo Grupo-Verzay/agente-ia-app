@@ -117,7 +117,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Chips de plantillas con conteo dinámico según ancho del contenedor
-    const ALL_TEMPLATE_CHIPS = ["Restaurante","Clínica","E-commerce","Inmobiliaria","Academia","Belleza","Viajes","Venta Consultiva","Venta Directa","Agendamiento","Leads","Soporte","Delivery"];
+    const ALL_TEMPLATE_CHIPS = ["Venta Directa","Venta Consultiva","Agendamiento","Calificación","Soporte","Delivery"];
     const chipsContainerRef = useRef<HTMLDivElement>(null);
     const [visibleChipCount, setVisibleChipCount] = useState(ALL_TEMPLATE_CHIPS.length);
 
