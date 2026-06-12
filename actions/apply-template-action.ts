@@ -36,6 +36,13 @@ const TEMPLATE_FLOWS: Record<string, string[]> = {
     "PRESUPUESTO",
     "HANDOFF",
   ],
+  "atencion-cliente": [
+    "BIENVENIDA",
+    "IDENTIFICACION",
+    "VALIDACION",
+    "RESOLUCION",
+    "CIERRE",
+  ],
 };
 
 // Planes que habilitan creación de flujos y si son isPro
