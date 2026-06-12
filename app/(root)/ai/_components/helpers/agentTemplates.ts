@@ -917,4 +917,209 @@ modo_bienvenida = inteligente
       ],
     },
   },
+  {
+    id: "calificacion-leads",
+    category: "objetivo",
+    name: "Calificación de Leads",
+    emoji: "🧲",
+    description: "Flujo de 5 pasos para calificar leads: descubrimiento de necesidad, urgencia, presupuesto y enrutamiento automático por score.",
+    color: "bg-amber-500/10 text-amber-600 border-amber-200",
+    sections: {
+      training: [
+        {
+          title: "INICIO FLUJO INTELIGENTE",
+          mainMessage: `🔒 GATE: collected == {} AND current_step == 1
+🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
+
+modo_bienvenida = inteligente
+   → Solo ejecuta BIENVENIDA si el mensaje NO tiene intención clara.
+   → Si trae frase clave de campaña: omite BIENVENIDA y va al flujo de calificación contextualizado.
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ MODO "inteligente":
+   → Analizar el primer mensaje del usuario:
+      • Si trae FRASE CLAVE de campaña → reconocer origen y entrar a calificación contextual.
+      • Si tiene intención directa (info, precio, asesor) → ir al PASO de destino.
+      • Si NO detecta intención clara → ejecutar BIENVENIDA como respaldo (cascada abajo).
+
+🎯 INTENCIONES DIRECTAS / ENRUTAMIENTO:
+   • Frase clave de campaña (vz-X, nombre producto del anuncio) → entrar a calificación con contexto del anuncio.
+   • Pedir información general → PASO_CALIFICACION (Paso 2)
+   • Hablar con un humano / asesor → PASO_HANDOFF
+   • Postventa / soporte (cliente existente) → PASO_POSTVENTA
+
+📚 CASCADA DE FUENTES PARA BIENVENIDA (si NO hay intención directa):
+1️⃣ FLUJO 'BIENVENIDA' disponible: si existe → ejecutar.
+2️⃣ REGLA/PARÁMETRO (1): si no hay flujo → emitir texto literal.
+3️⃣ BLOQUE PERFIL: saludo contextual ("Vi que te interesa [PRODUCTO/SERVICIO]...") + pedir nombre.
+4️⃣ FALLBACK: "¡Hola! 👋 Soy el asistente de [NEGOCIO]. Para darte la mejor info, ¿cuál es tu nombre?"
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   A) Si se saltó BIENVENIDA por intención directa / frase clave:
+      → Ir al PASO de destino. Marcar \`origen_campaña = [frase clave detectada]\`.
+   B) Si se ejecutó BIENVENIDA:
+      → saludo_completado = true → current_step = 2.
+
+🚫 PROHIBIDO:
+- Hacer venta dura o presentar precios en el primer turno.
+- Reformular, inventar o parafrasear el texto.
+- Enviar más de un (1) mensaje en este turno.
+- Inventar intenciones que no estén en la lista.
+- Saltar pasos de la cascada (siempre ir en orden 1→4).`,
+        },
+        {
+          title: "DESCUBRIMIENTO DE NECESIDAD",
+          mainMessage: `🔒 CONDICIÓN GATE: nombre != null AND necesidad_detectada == null
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ Buscar la respuesta recorriendo la cascada en orden estricto.
+▶ En el nivel 1️⃣, si hay flujos disponibles, buscar coincidencia con lo que el lead expresa (sinónimos / variaciones LATAM).
+▶ Si no hay flujo disponible o ninguno coincide → continuar al siguiente nivel.
+▶ Evaluar la respuesta para asignar puntaje de calificación (necesidad clara = 🟢, exploración = 🔵).
+
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO disponible en este paso:
+   → Si existen flujos creados por el usuario → buscar coincidencia con la necesidad expresada.
+   → Si coincide → ejecutar ese flujo.
+   → Si no hay flujos o ninguno coincide → continuar a nivel 2️⃣.
+2️⃣ REGLA/PARÁMETRO (1): pregunta literal sobre el motivo de contacto.
+3️⃣ BLOQUE PERFIL: pregunta contextualizada al rubro del negocio.
+4️⃣ TOOL externa: si hay guion de descubrimiento en Sheet → usarlo.
+5️⃣ FALLBACK: "Cuéntame, [NOMBRE], ¿qué te llevó a buscar [PRODUCTO/SERVICIO]?"
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   → Capturar \`necesidad_detectada\`
+   → Asignar puntaje: necesidad concreta (+1) / explorando (-1) / neutral (0)
+   → Marcar \`flujo_disparado = [nombre del flujo ejecutado o "fallback"]\` (trazabilidad)
+   → current_step = 3
+
+🚫 PROHIBIDO:
+- Inventar un flujo que no exista en el paso.
+- Presentar oferta o precio antes de calificar.
+- Hacer dos preguntas en el mismo mensaje.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
+
+💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó. Esperar respuesta.`,
+        },
+        {
+          title: "DETECCIÓN DE URGENCIA",
+          mainMessage: `🔒 CONDICIÓN GATE: necesidad_detectada != null AND urgencia_detectada == null
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ Ejecutar pregunta de plazo/urgencia (cascada abajo).
+▶ Evaluar respuesta para acumular puntaje (urgente = 🟢, sin plazo = 🔵).
+
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO disponible en este paso: si existe → ejecutar.
+2️⃣ REGLA/PARÁMETRO (1): pregunta literal sobre plazo/urgencia.
+3️⃣ BLOQUE PREGUNTAS: pregunta de urgencia definida según el rubro.
+4️⃣ TOOL externa: si hay guion de calificación en Sheet → usarlo.
+5️⃣ FALLBACK: "¿Para cuándo te gustaría tener esto resuelto?"
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   → Capturar \`urgencia_detectada\`
+   → Asignar puntaje: urgente <30 días (+1) / 1-3 meses (0) / sin plazo (-1)
+   → current_step = 4
+
+🚫 PROHIBIDO:
+- Hacer dos preguntas en el mismo mensaje.
+- Presionar al lead si indica que solo está explorando.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
+
+💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó. Esperar respuesta.`,
+        },
+        {
+          title: "PRESUPUESTO Y AUTORIDAD",
+          mainMessage: `🔒 CONDICIÓN GATE: urgencia_detectada != null AND calificacion_completa == false
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ Ejecutar pregunta de presupuesto (sutil) y, si aplica B2B, de autoridad de decisión.
+▶ Evaluar respuestas para cerrar el puntaje de calificación.
+
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO disponible en este paso: si existe → ejecutar.
+2️⃣ REGLA/PARÁMETRO (1): pregunta literal de presupuesto / autoridad.
+3️⃣ BLOQUE PREGUNTAS: pregunta de presupuesto definida según el rubro.
+4️⃣ TOOL externa: si hay rangos de inversión en Sheet → ofrecerlos como opciones.
+5️⃣ FALLBACK: "Para recomendarte la mejor opción, ¿tienes un rango de inversión en mente?"
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   → Capturar \`presupuesto_detectado\` (y \`autoridad_decision\` si B2B)
+   → Asignar puntaje: presupuesto definido + decisor (+1 c/u) / sin definir (-1)
+   → Calcular SCORE TOTAL acumulado (pasos 2+3+4)
+   → Marcar \`calificacion_completa = true\`
+   → current_step = 5
+
+🚫 PROHIBIDO:
+- Insistir en el presupuesto si el lead evade dos veces (registrar como no definido).
+- Hacer dos preguntas en el mismo mensaje.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
+
+💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó. Esperar respuesta.`,
+        },
+        {
+          title: "SEGMENTACIÓN Y ROUTING",
+          mainMessage: `🔒 CONDICIÓN GATE: calificacion_completa == true AND lead_enrutado == false
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ Clasificar el lead según SCORE TOTAL y enrutarlo a su destino (cascada abajo).
+
+🗂️ CLASIFICACIÓN POR SCORE:
+   • CALIENTE (3+ puntos) → handoff humano inmediato.
+   • TIBIO (0 a 2 puntos) → agendar demo / enviar material.
+   • FRÍO (negativo) → entrar a secuencia de nurturing.
+
+📚 CASCADA DE FUENTES (según segmento, en orden estricto):
+
+▶ Si CALIENTE:
+1️⃣ FLUJO 'HANDOFF' disponible → ejecutar.
+2️⃣ REGLA/PARÁMETRO (1): script de transferencia a asesor.
+3️⃣ TOOL externa: notificar a equipo de ventas + crear lead en CRM como prioritario.
+4️⃣ FALLBACK: "[NOMBRE], creo que es momento de que hables con [ASESOR]. ¿Te contacta hoy?"
+
+▶ Si TIBIO:
+1️⃣ FLUJO 'DEMO' disponible → ejecutar.
+2️⃣ REGLA/PARÁMETRO (2): script de invitación a demo / envío de material.
+3️⃣ TOOL externa: ofrecer slots de Calendar / enviar PDF.
+4️⃣ FALLBACK: "Te propongo una demo de [DURACION] min esta semana. ¿Qué día te queda bien?"
+
+▶ Si FRÍO:
+1️⃣ FLUJO 'NURTURING' disponible → ejecutar + activar secuencia.
+2️⃣ REGLA/PARÁMETRO (3): script de cierre amable + envío de contenido.
+3️⃣ TOOL externa: inscribir en secuencia de nurturing / newsletter.
+4️⃣ FALLBACK: "Te entiendo, [NOMBRE]. Te envío material útil y quedo atento cuando estés listo."
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   → Marcar \`lead_enrutado = true\`
+   → Registrar en CRM: nombre + origen_campaña + score + segmento + necesidad + próxima acción.
+   → Activar trigger correspondiente (handoff / demo agendada / secuencia nurturing).
+   → Fin del flujo de calificación.
+
+🚫 PROHIBIDO:
+- Enrutar un lead sin haber calculado el score.
+- Tratar a un lead frío con presión de venta.
+- Descartar un lead frío sin ofrecer nurturing.
+- Enviar más de un mensaje por turno.
+- Saltar pasos de la cascada según fuente (siempre ir en orden 1→4).
+
+💬 EMIT SALIDA LITERAL: Texto del segmento que aplicó. Esperar respuesta.`,
+        },
+      ],
+    },
+  },
 ];
