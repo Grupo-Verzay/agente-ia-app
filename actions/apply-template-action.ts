@@ -5,14 +5,34 @@ import { currentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { AGENT_TEMPLATES } from "@/app/(root)/ai/_components/helpers/agentTemplates";
 
-const VENTA_CONSULTIVA_FLOWS = [
-  "BIENVENIDA",
-  "PREGUNTA_1",
-  "PREGUNTA_2",
-  "PRESENTACION",
-  "PROPUESTA_AGENDAMIENTO",
-  "ACUERDO",
-] as const;
+// Flujos por defecto que se crean al aplicar cada plantilla por objetivo
+const TEMPLATE_FLOWS: Record<string, string[]> = {
+  "venta-consultiva": [
+    "BIENVENIDA",
+    "PREGUNTA_1",
+    "PREGUNTA_2",
+    "PRESENTACION",
+    "PROPUESTA_AGENDAMIENTO",
+    "ACUERDO",
+  ],
+  "venta-directa": [
+    "BIENVENIDA",
+    "AVERIGUACION",
+    "EXPOSICION",
+    "ACUERDO",
+    "POSTVENTA",
+  ],
+};
+
+// Planes que habilitan creación de flujos y si son isPro
+const PLAN_FLOW_CONFIG: Record<string, { isPro: boolean } | null> = {
+  lite:          null,          // no crear flujos
+  basico:        null,          // no crear flujos
+  intermedio:    { isPro: false }, // Disparadores IA
+  avanzado:      { isPro: true },  // Creación de Flujos
+  enterprise:    { isPro: true },  // Creación de Flujos
+  personalizado: null,          // no crear flujos
+};
 
 export async function applyTemplateToPrompt(input: {
   promptId: string;
@@ -65,43 +85,34 @@ export async function applyTemplateToPrompt(input: {
       },
     });
 
-    // Crear flujos por defecto para la plantilla Venta Consultiva según el plan
+    // Crear flujos por defecto si la plantilla tiene flujos definidos
     let flowsCreated = 0;
-    if (templateId === "venta-consultiva") {
-      const plan = user.plan;
+    const flowNames = TEMPLATE_FLOWS[templateId];
+    const planConfig = PLAN_FLOW_CONFIG[user.plan];
 
-      // Lite, Básico y Personalizado: no crear flujos
-      const shouldCreate =
-        plan === "intermedio" || plan === "avanzado" || plan === "enterprise";
+    if (flowNames && planConfig) {
+      const maxOrderResult = await db.workflow.aggregate({
+        where: { userId: user.id },
+        _max: { order: true },
+      });
+      let nextOrder = (maxOrderResult._max.order ?? 0) + 1;
 
-      if (shouldCreate) {
-        // Intermedio → Disparadores IA (isPro: false)
-        // Avanzado / Enterprise → Creación de Flujos (isPro: true)
-        const isPro = plan === "avanzado" || plan === "enterprise";
-
-        const maxOrderResult = await db.workflow.aggregate({
-          where: { userId: user.id },
-          _max: { order: true },
+      for (const name of flowNames) {
+        const exists = await db.workflow.findUnique({
+          where: { name_userId: { name, userId: user.id } },
         });
-        let nextOrder = (maxOrderResult._max.order ?? 0) + 1;
-
-        for (const name of VENTA_CONSULTIVA_FLOWS) {
-          const exists = await db.workflow.findUnique({
-            where: { name_userId: { name, userId: user.id } },
+        if (!exists) {
+          await db.workflow.create({
+            data: {
+              userId: user.id,
+              name,
+              status: "DRAFT",
+              definition: "workflow",
+              isPro: planConfig.isPro,
+              order: nextOrder++,
+            },
           });
-          if (!exists) {
-            await db.workflow.create({
-              data: {
-                userId: user.id,
-                name,
-                status: "DRAFT",
-                definition: "workflow",
-                isPro,
-                order: nextOrder++,
-              },
-            });
-            flowsCreated++;
-          }
+          flowsCreated++;
         }
       }
     }
