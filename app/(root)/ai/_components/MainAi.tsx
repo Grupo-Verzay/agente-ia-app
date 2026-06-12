@@ -419,26 +419,26 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                         {/* Empty state: ofrecer plantilla cuando el agente no tiene contenido */}
                         {isEmpty && (
                             <div className="rounded-xl border bg-muted/30 p-4 mb-3">
-                                <div className="flex items-center justify-between gap-4 flex-wrap">
-                                    <div className="flex items-center gap-3 min-w-0">
+                                <div className="flex items-center justify-between gap-3 flex-nowrap">
+                                    <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
                                         <span className="text-3xl shrink-0">🤖</span>
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-semibold leading-tight">¡Configura tu Agente IA!</p>
-                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                        <div className="min-w-0 overflow-hidden">
+                                            <p className="text-sm font-semibold leading-tight truncate">¡Configura tu Agente IA!</p>
+                                            <p className="text-xs text-muted-foreground mt-0.5 truncate">
                                                 Elige una plantilla por rubro u objetivo, o construye desde cero.
                                             </p>
-                                            <div className="flex flex-wrap gap-1 mt-2">
+                                            <div className="flex flex-nowrap gap-1 mt-2 overflow-hidden">
                                                 {["Restaurante","Clínica","E-commerce","Venta Consultiva","Venta Directa"].map((r) => (
                                                     <button
                                                         key={r}
                                                         type="button"
                                                         onClick={() => setShowTemplates(true)}
-                                                        className="rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                                                        className="rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary hover:text-primary transition-colors shrink-0"
                                                     >
                                                         {r}
                                                     </button>
                                                 ))}
-                                                <span className="rounded-full border border-dashed px-2 py-0.5 text-[10px] text-muted-foreground/60">+más</span>
+                                                <span className="rounded-full border border-dashed px-2 py-0.5 text-[10px] text-muted-foreground/60 shrink-0">+más</span>
                                             </div>
                                         </div>
                                     </div>
