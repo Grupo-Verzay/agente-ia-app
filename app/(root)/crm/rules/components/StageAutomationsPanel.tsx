@@ -386,8 +386,9 @@ function AutomationCard({
 }
 
 // ----- Main panel -----
-export function StageAutomationsPanel({ userId }: { userId: string }) {
-  const [activeStage, setActiveStage] = useState<LeadStatus>("FRIO");
+export function StageAutomationsPanel({ userId, initialStage }: { userId: string; initialStage?: LeadStatus }) {
+  const [activeStage, setActiveStage] = useState<LeadStatus>(initialStage ?? "FRIO");
+  const fixedStage = !!initialStage;
   const [automations, setAutomations] = useState<StageAutomationRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState("");
@@ -478,21 +479,23 @@ export function StageAutomationsPanel({ userId }: { userId: string }) {
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {STAGES.map((s) => (
-          <button
-            key={s.value}
-            onClick={() => setActiveStage(s.value)}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-              activeStage === s.value ? cn(s.rowCn, s.labelCn) : "border-border bg-background text-muted-foreground hover:bg-muted",
-            )}
-          >
-            <span className={activeStage === s.value ? s.iconCn : "text-muted-foreground"}>{s.icon}</span>
-            {s.label}
-          </button>
-        ))}
-      </div>
+      {!fixedStage && (
+        <div className="flex flex-wrap gap-2">
+          {STAGES.map((s) => (
+            <button
+              key={s.value}
+              onClick={() => setActiveStage(s.value)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                activeStage === s.value ? cn(s.rowCn, s.labelCn) : "border-border bg-background text-muted-foreground hover:bg-muted",
+              )}
+            >
+              <span className={activeStage === s.value ? s.iconCn : "text-muted-foreground"}>{s.icon}</span>
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

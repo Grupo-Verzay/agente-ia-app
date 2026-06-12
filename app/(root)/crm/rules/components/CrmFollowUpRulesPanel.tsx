@@ -48,7 +48,6 @@ export function CrmFollowUpRulesPanel({
       value: "followUps" | "leadStatus" | "leadFunnel" | "automations";
       label: string;
     }> = [];
-    tabs.push({ value: "automations", label: "Automaciones" });
 
     if (features.enabledSynthesizer) {
       tabs.push({ value: "leadFunnel", label: "Sintetizador" });

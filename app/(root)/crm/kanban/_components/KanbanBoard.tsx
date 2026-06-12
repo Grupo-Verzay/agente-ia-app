@@ -16,7 +16,9 @@ import {
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, User, Users, Bell, Tag, Clock, X, Search, Sparkles, TrendingUp } from 'lucide-react';
+import { Loader2, RefreshCw, User, Users, Bell, Tag, Clock, X, Search, Sparkles, TrendingUp, Settings2 } from 'lucide-react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { StageAutomationsPanel } from '../../rules/components/StageAutomationsPanel';
 import { cn } from '@/lib/utils';
 import { fmtPhone } from '@/lib/whatsapp-jid';
 import { getKanbanSessionsAction, type KanbanCard } from '@/actions/crm-kanban-actions';
@@ -258,13 +260,16 @@ function KanbanColumn({
     cards,
     onScore,
     scoringIds,
+    userId,
 }: {
     col: (typeof COLUMNS)[number];
     cards: KanbanCard[];
     onScore?: (id: number) => void;
     scoringIds?: Set<number>;
+    userId?: string;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: col.id });
+    const [automationsOpen, setAutomationsOpen] = useState(false);
 
     return (
         <div
@@ -274,10 +279,35 @@ function KanbanColumn({
             {/* Header */}
             <div className={cn('px-3 py-2 flex items-center justify-between shrink-0', col.headerClass)}>
                 <span className="text-white text-sm font-semibold">{col.label}</span>
-                <Badge className="bg-white/20 text-white border-0 text-xs font-medium">
-                    {cards.length}
-                </Badge>
+                <div className="flex items-center gap-1">
+                    <Badge className="bg-white/20 text-white border-0 text-xs font-medium">
+                        {cards.length}
+                    </Badge>
+                    {col.status && userId && (
+                        <button
+                            onClick={() => setAutomationsOpen(true)}
+                            className="p-0.5 rounded hover:bg-white/20 transition-colors"
+                            title="Automaciones"
+                        >
+                            <Settings2 className="h-3.5 w-3.5 text-white/80" />
+                        </button>
+                    )}
+                </div>
             </div>
+
+            {col.status && userId && (
+                <Sheet open={automationsOpen} onOpenChange={setAutomationsOpen}>
+                    <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto">
+                        <SheetHeader className="mb-4">
+                            <SheetTitle className="flex items-center gap-2">
+                                <span className={cn('h-2.5 w-2.5 rounded-full', col.dotClass)} />
+                                Automaciones — {col.label}
+                            </SheetTitle>
+                        </SheetHeader>
+                        <StageAutomationsPanel userId={userId} initialStage={col.status} />
+                    </SheetContent>
+                </Sheet>
+            )}
 
             {/* Cards area — crece con el alto disponible */}
             <div
@@ -303,10 +333,12 @@ function KanbanColumn({
 // ─── Main Board ───────────────────────────────────────────────────────────────
 
 export function KanbanBoard({
+    userId,
     selectedScoreRanges = new Set(),
     onToggleScoreRange,
     onScoreCountsChange,
 }: {
+    userId?: string;
     selectedScoreRanges?: Set<string>;
     onToggleScoreRange?: (key: string) => void;
     onScoreCountsChange?: (counts: Record<string, number>) => void;
@@ -490,7 +522,7 @@ export function KanbanBoard({
                 <div className="overflow-x-auto w-full flex-1 min-h-0 pb-3">
                     <div className="flex gap-3 h-full" style={{ width: 'max-content', minWidth: '100%' }}>
                         {COLUMNS.map((col) => (
-                            <KanbanColumn key={col.id} col={col} cards={columnCards(col)} onScore={handleScore} scoringIds={scoringIds} />
+                            <KanbanColumn key={col.id} col={col} cards={columnCards(col)} onScore={handleScore} scoringIds={scoringIds} userId={userId} />
                         ))}
                     </div>
                 </div>
