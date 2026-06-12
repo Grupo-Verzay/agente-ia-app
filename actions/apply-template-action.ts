@@ -92,6 +92,23 @@ export async function applyTemplateToPrompt(input: {
         elements: [],
       }));
 
+    const makeTrainingSteps = (
+      steps?: { title: string; mainMessage: string }[],
+      flowNames?: string[]
+    ) =>
+      (steps ?? []).map((s, i) => {
+        const flowName = flowNames?.[i] ?? null;
+        return {
+          id: crypto.randomUUID(),
+          title: s.title,
+          mainMessage: s.mainMessage,
+          elements: [
+            { id: crypto.randomUUID(), kind: "function", fn: "ejecutar_flujo", flowId: null, flowName },
+            { id: crypto.randomUUID(), kind: "text", text: "" },
+          ],
+        };
+      });
+
     const CAPTURE_SUBTYPES: Record<string, "Solicitudes" | "Reclamos" | "Pedidos" | "Reservas" | "Citas"> = {
       SOLICITUDES: "Solicitudes",
       RECLAMOS:    "Reclamos",
@@ -117,7 +134,7 @@ export async function applyTemplateToPrompt(input: {
       ...existing,
       business: existing.business ?? {},
       training: template.sections.training
-        ? { steps: makeSteps(template.sections.training) }
+        ? { steps: makeTrainingSteps(template.sections.training, TEMPLATE_FLOWS[templateId]) }
         : existing.training ?? { steps: [] },
       faq: template.sections.faq
         ? { steps: makeSteps(template.sections.faq) }
