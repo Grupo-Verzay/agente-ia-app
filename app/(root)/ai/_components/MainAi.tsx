@@ -121,21 +121,18 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Chips de plantillas con conteo dinámico según ancho del contenedor
-    const ALL_TEMPLATE_CHIPS = ["Venta Directa","Venta Consultiva","Agendamiento citas","Calificación leads","Atención/soporte","Toma pedidos/delivery"];
+    const ALL_TEMPLATE_CHIPS = [
+        { label: "Venta Directa",        emoji: "⚡", color: "bg-rose-500/10 text-rose-600 border-rose-200 hover:bg-rose-500/20",     templateId: "venta-directa"      },
+        { label: "Venta Consultiva",      emoji: "🎯", color: "bg-indigo-500/10 text-indigo-600 border-indigo-200 hover:bg-indigo-500/20", templateId: "venta-consultiva"   },
+        { label: "Agendamiento citas",    emoji: "📅", color: "bg-teal-500/10 text-teal-600 border-teal-200 hover:bg-teal-500/20",     templateId: "agendamiento-citas" },
+        { label: "Calificación leads",    emoji: "🧲", color: "bg-amber-500/10 text-amber-600 border-amber-200 hover:bg-amber-500/20", templateId: "calificacion-leads" },
+        { label: "Atención/soporte",      emoji: "🎧", color: "bg-cyan-500/10 text-cyan-600 border-cyan-200 hover:bg-cyan-500/20",     templateId: "atencion-cliente"   },
+        { label: "Toma pedidos/delivery", emoji: "🛵", color: "bg-orange-500/10 text-orange-600 border-orange-200 hover:bg-orange-500/20", templateId: "pedidos-delivery"   },
+    ];
 
-    const CHIP_TEMPLATE_ID: Record<string, string> = {
-        "Venta Directa":         "venta-directa",
-        "Venta Consultiva":      "venta-consultiva",
-        "Agendamiento citas":    "agendamiento-citas",
-        "Calificación leads":    "calificacion-leads",
-        "Atención/soporte":      "atencion-cliente",
-        "Toma pedidos/delivery": "pedidos-delivery",
-    };
-
-    const handleChipApply = (chipName: string) => {
-        const templateId = CHIP_TEMPLATE_ID[chipName];
+    const handleChipApply = (templateId: string, chipLabel: string) => {
         if (!templateId || applyingChip) return;
-        setApplyingChip(chipName);
+        setApplyingChip(chipLabel);
         startChipTransition(async () => {
             const res = await applyTemplateToPrompt({ promptId: promptMeta.id, templateId });
             if (res.ok) {
@@ -167,7 +164,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
             return Math.ceil(ctx.measureText(text).width) + 18;
         };
 
-        const chipWidths = ALL_TEMPLATE_CHIPS.map(measureChipW);
+        const chipWidths = ALL_TEMPLATE_CHIPS.map((c) => measureChipW(c.emoji + " " + c.label));
         const moreW = measureChipW("+9 más") + 16; // buffer extra para que el botón "+más" nunca se corte
 
         const measure = () => {
@@ -526,15 +523,18 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                         Elige una plantilla por objetivo, o construye desde cero.
                                     </p>
                                     <div ref={chipsContainerRef} className="flex flex-nowrap justify-between mt-1.5 overflow-hidden">
-                                        {ALL_TEMPLATE_CHIPS.slice(0, visibleChipCount).map((r) => (
+                                        {ALL_TEMPLATE_CHIPS.slice(0, visibleChipCount).map((c) => (
                                             <button
-                                                key={r}
+                                                key={c.templateId}
                                                 type="button"
                                                 disabled={!!applyingChip}
-                                                onClick={() => handleChipApply(r)}
-                                                className="rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary hover:text-primary transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                onClick={() => handleChipApply(c.templateId, c.label)}
+                                                className={cn(
+                                                    "rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed",
+                                                    c.color
+                                                )}
                                             >
-                                                {applyingChip === r ? "..." : r}
+                                                {applyingChip === c.label ? "..." : `${c.emoji} ${c.label}`}
                                             </button>
                                         ))}
                                         {visibleChipCount < ALL_TEMPLATE_CHIPS.length && (
