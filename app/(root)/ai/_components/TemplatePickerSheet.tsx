@@ -48,45 +48,56 @@ export function TemplatePickerSheet({ open, onOpenChange, promptId, hasContent, 
         <SheetHeader className="px-4 pt-4 pb-3 border-b shrink-0">
           <SheetTitle className="flex items-center gap-2 text-base">
             <Layers className="h-4 w-4" />
-            Plantillas por rubro
+            Plantillas
           </SheetTitle>
           <p className="text-xs text-muted-foreground">
             Elige una plantilla para pre-configurar las secciones del agente. Puedes editar todo después.
           </p>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="grid grid-cols-2 gap-2">
-            {AGENT_TEMPLATES.map((t) => {
-              const isSelected = selected === t.id;
-              const faqCount = t.sections.faq?.length ?? 0;
-              const trainingCount = t.sections.training?.length ?? 0;
-              const managementCount = t.sections.management?.length ?? 0;
-              const total = faqCount + trainingCount + managementCount;
+        <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          {(["rubro", "objetivo"] as const).map((cat) => {
+            const group = AGENT_TEMPLATES.filter((t) => t.category === cat);
+            if (!group.length) return null;
+            return (
+              <div key={cat}>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                  {cat === "rubro" ? "Por rubro" : "Por objetivo"}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {group.map((t) => {
+                    const isSelected = selected === t.id;
+                    const faqCount = t.sections.faq?.length ?? 0;
+                    const trainingCount = t.sections.training?.length ?? 0;
+                    const managementCount = t.sections.management?.length ?? 0;
+                    const total = faqCount + trainingCount + managementCount;
 
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => { setSelected(t.id); setConfirmed(false); }}
-                  className={cn(
-                    "relative rounded-lg border p-3 text-left transition-all hover:shadow-sm",
-                    isSelected
-                      ? "border-primary bg-primary/5 ring-1 ring-primary"
-                      : "border-border bg-card hover:border-primary/40",
-                  )}
-                >
-                  {isSelected && (
-                    <CheckCircle2 className="absolute right-2 top-2 h-4 w-4 text-primary" />
-                  )}
-                  <span className="text-2xl">{t.emoji}</span>
-                  <p className="mt-1.5 text-sm font-semibold leading-tight">{t.name}</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground leading-snug line-clamp-2">{t.description}</p>
-                  <p className="mt-1.5 text-[10px] text-muted-foreground/70">{total} instrucciones</p>
-                </button>
-              );
-            })}
-          </div>
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => { setSelected(t.id); setConfirmed(false); }}
+                        className={cn(
+                          "relative rounded-lg border p-3 text-left transition-all hover:shadow-sm",
+                          isSelected
+                            ? "border-primary bg-primary/5 ring-1 ring-primary"
+                            : "border-border bg-card hover:border-primary/40",
+                        )}
+                      >
+                        {isSelected && (
+                          <CheckCircle2 className="absolute right-2 top-2 h-4 w-4 text-primary" />
+                        )}
+                        <span className="text-2xl">{t.emoji}</span>
+                        <p className="mt-1.5 text-sm font-semibold leading-tight">{t.name}</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground leading-snug line-clamp-2">{t.description}</p>
+                        <p className="mt-1.5 text-[10px] text-muted-foreground/70">{total} instrucciones</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
 
           {selected && template && (
             <div className="mt-4 rounded-lg border bg-muted/30 p-3 space-y-2 text-xs">
