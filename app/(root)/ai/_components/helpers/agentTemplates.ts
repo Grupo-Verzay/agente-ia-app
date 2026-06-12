@@ -1331,4 +1331,223 @@ modo_bienvenida = inteligente
       ],
     },
   },
+  {
+    id: "pedidos-delivery",
+    category: "objetivo",
+    name: "Pedidos / Delivery",
+    emoji: "🛵",
+    description: "Flujo de 6 pasos para toma de pedidos: menú, carrito, cross-sell, entrega, pago y confirmación con seguimiento.",
+    color: "bg-orange-500/10 text-orange-600 border-orange-200",
+    sections: {
+      training: [
+        {
+          title: "INICIO FLUJO INTELIGENTE",
+          mainMessage: `🔒 GATE: collected == {} AND current_step == 1
+🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
+
+modo_bienvenida = inteligente
+   → Solo ejecuta BIENVENIDA si el mensaje NO tiene intención clara.
+   → Si tiene intención directa (producto del menú, "quiero pedir"): omite y va al PASO correspondiente.
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ MODO "inteligente":
+   → Analizar el primer mensaje del usuario:
+      • Si detecta una INTENCIÓN DIRECTA → ir al PASO de destino, sin BIENVENIDA.
+      • Si NO detecta intención clara → ejecutar BIENVENIDA como respaldo (cascada abajo).
+
+🎯 INTENCIONES DIRECTAS (omiten BIENVENIDA):
+   • Pedir producto del menú / "quiero ordenar" → PASO_PEDIDO (Paso 2)
+   • Ver menú / carta / catálogo → PASO_PEDIDO
+   • Consultar estado de pedido → PASO_SEGUIMIENTO
+   • Preguntar cobertura / zona de entrega → PASO_ENTREGA
+   • Hablar con un humano / asesor → PASO_HANDOFF
+   • Frase clave de campaña → PASO según regla de enrutamiento
+
+📚 CASCADA DE FUENTES PARA BIENVENIDA (si NO hay intención directa):
+1️⃣ FLUJO 'BIENVENIDA' disponible: si existe → ejecutar.
+2️⃣ REGLA/PARÁMETRO (1): si no hay flujo → emitir texto literal.
+3️⃣ BLOQUE PERFIL: saludo con nombre del negocio + invitación a ver el menú.
+4️⃣ FALLBACK: "¡Hola! 👋 Bienvenido a [NEGOCIO]. ¿Te muestro el menú o ya sabes qué pedir?"
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   A) Si se saltó BIENVENIDA por intención directa:
+      → Ir al PASO de destino. Ese paso gestiona su propio current_step.
+   B) Si se ejecutó BIENVENIDA:
+      → saludo_completado = true → current_step = 2.
+
+🚫 PROHIBIDO:
+- Ejecutar BIENVENIDA si hay una intención directa detectada.
+- Reformular, inventar o parafrasear el texto.
+- Enviar más de un (1) mensaje en este turno.
+- Inventar intenciones que no estén en la lista.
+- Saltar pasos de la cascada (siempre ir en orden 1→4).`,
+        },
+        {
+          title: "TOMA DE PEDIDO",
+          mainMessage: `🔒 CONDICIÓN GATE: nombre != null AND carrito_cerrado == false
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ Buscar la respuesta recorriendo la cascada en orden estricto.
+▶ En el nivel 1️⃣, si hay flujos disponibles, buscar coincidencia con el producto pedido (sinónimos / variaciones LATAM).
+▶ Si no hay flujo disponible o ninguno coincide → continuar al siguiente nivel.
+▶ Validar disponibilidad del producto ANTES de agregarlo al carrito.
+▶ Tras agregar cada ítem → preguntar "¿algo más o cerramos el pedido?".
+
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO disponible en este paso:
+   → Si existen flujos de producto/categoría creados por el usuario → buscar coincidencia con lo pedido.
+   → Si coincide → ejecutar ese flujo (puede incluir personalización: tamaño, extras, términos).
+   → Si no hay flujos o ninguno coincide → continuar a nivel 2️⃣.
+2️⃣ REGLA/PARÁMETRO (1): script literal para tomar el pedido.
+3️⃣ BLOQUE MENÚ/CATÁLOGO: ficha del producto desde el menú del prompt (nombre + precio + descripción).
+4️⃣ TOOL externa (Google Sheets / POS / API): consultar producto, precio y disponibilidad real.
+5️⃣ FAQ: si la consulta coincide con pregunta frecuente (ingredientes, alergias, porciones).
+6️⃣ FALLBACK: "¿Qué te gustaría ordenar? Te puedo mostrar nuestro menú."
+
+⏸️ DESPUÉS de cada ítem: PREGUNTAR si desea agregar algo más. ESPERAR respuesta.
+
+➡️ TRANSICIÓN:
+   → Agregar ítem validado a \`carrito[]\` (nombre + cantidad + precio + personalización).
+   → Marcar \`flujo_disparado = [nombre del flujo ejecutado o "fallback"]\` (trazabilidad).
+   → Cuando el cliente diga "es todo / cerrar" → \`carrito_cerrado = true\` → current_step = 3.
+
+🚫 PROHIBIDO:
+- Inventar un flujo que no exista en el paso.
+- Agregar productos sin validar disponibilidad.
+- Inventar precios, productos o extras fuera del menú o tool.
+- Cerrar el carrito sin confirmar con el cliente.
+- Saltar pasos de la cascada (siempre ir en orden 1→6).
+
+💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó + estado del carrito. Esperar respuesta.`,
+        },
+        {
+          title: "RESUMEN Y CROSS-SELL",
+          mainMessage: `🔒 CONDICIÓN GATE: carrito_cerrado == true AND pedido_confirmado == false
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ Mostrar resumen del carrito con subtotal + ofrecer extras/complementos (cascada abajo).
+▶ Confirmar que el pedido está correcto antes de avanzar a entrega.
+
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO 'CROSS_SELL' disponible: si existe → ejecutar (ofrecer complementos).
+2️⃣ REGLA/PARÁMETRO (1): script de resumen + sugerencia de extras.
+3️⃣ BLOQUE MENÚ/CATÁLOGO: complementos sugeridos (bebida, postre, adicional).
+4️⃣ TOOL externa: combos o promociones desde Sheet/POS.
+5️⃣ FALLBACK: mostrar resumen del carrito + subtotal + "¿Confirmamos tu pedido?"
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   → Si el cliente agrega extra → volver a Paso 2 (carrito abierto).
+   → Si confirma → \`pedido_confirmado = true\` → current_step = 4.
+
+🚫 PROHIBIDO:
+- Insistir en el cross-sell más de una vez.
+- Modificar el carrito sin que el cliente lo pida.
+- Inventar promociones que no estén en las fuentes.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
+
+💬 EMIT SALIDA LITERAL: Resumen del carrito (ítems + subtotal) + sugerencia. Esperar respuesta.`,
+        },
+        {
+          title: "DATOS DE ENTREGA",
+          mainMessage: `🔒 CONDICIÓN GATE: pedido_confirmado == true AND datos_entrega == null
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ Determinar modalidad (delivery o recoger en local), capturar dirección si es delivery, validar cobertura (cascada abajo).
+▶ NUNCA confirmar entrega a una zona sin validar cobertura real.
+
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO 'ENTREGA' disponible: si existe → ejecutar.
+2️⃣ REGLA/PARÁMETRO (1): script de captura de modalidad + dirección.
+3️⃣ BLOQUE GESTIÓN: zonas de cobertura + costos de envío definidos.
+4️⃣ TOOL externa (Sheet / API de zonas): validar dirección contra cobertura real + calcular costo de envío.
+5️⃣ FALLBACK: "¿Es para delivery o lo recoges en el local? Si es delivery, ¿cuál es tu dirección?"
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   → Capturar \`datos_entrega\` (modalidad + dirección + referencia + costo de envío).
+   → Validar cobertura. Si fuera de zona → ofrecer recoger en local o disculpar.
+   → Calcular total final (subtotal + envío).
+   → current_step = 5.
+
+🚫 PROHIBIDO:
+- Confirmar entrega a zona sin validar cobertura.
+- Inventar costos de envío fuera de las fuentes.
+- Solicitar dirección si el cliente eligió recoger en local.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
+
+💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó (modalidad + costo envío + total). Esperar respuesta.`,
+        },
+        {
+          title: "PAGO Y CONFIRMACIÓN",
+          mainMessage: `🔒 CONDICIÓN GATE: datos_entrega != null AND pago_confirmado == false
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ Ofrecer métodos de pago disponibles + confirmar el pedido completo (cascada abajo).
+
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO 'PAGO' disponible: si existe → ejecutar.
+2️⃣ REGLA/PARÁMETRO (1): script de métodos de pago + confirmación.
+3️⃣ BLOQUE GESTIÓN: métodos de pago aceptados definidos.
+4️⃣ TOOL externa: generar link de pago / registrar en POS.
+5️⃣ FALLBACK: "¿Cómo prefieres pagar? Aceptamos [efectivo / transferencia / tarjeta / método local]."
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   → Capturar método de pago.
+   → Si requiere comprobante (transferencia) → solicitarlo y confirmar recepción.
+   → Marcar \`pago_confirmado = true\` → current_step = 6.
+
+🚫 PROHIBIDO:
+- Confirmar el pedido sin método de pago definido.
+- Inventar métodos de pago no disponibles.
+- Enviar más de un mensaje por turno.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
+
+💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó (métodos de pago). Esperar respuesta.`,
+        },
+        {
+          title: "CONFIRMACIÓN Y SEGUIMIENTO",
+          mainMessage: `🔒 CONDICIÓN GATE: pago_confirmado == true AND pedido_despachado == false
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ Confirmar el pedido completo + dar tiempo estimado + activar seguimiento (cascada abajo).
+
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO 'SEGUIMIENTO' disponible: si existe → ejecutar + activar triggers.
+2️⃣ REGLA/PARÁMETRO (1): mensaje literal de confirmación + tiempo estimado.
+3️⃣ BLOQUE GESTIÓN: tiempos de preparación/entrega definidos + resumen del pedido.
+4️⃣ TOOL externa: registrar pedido en POS/CRM + notificar a cocina/despacho + programar updates de estado.
+5️⃣ FALLBACK: confirmación: resumen del pedido + total + tiempo estimado de entrega + agradecimiento.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   → Marcar \`pedido_despachado = true\`.
+   → Registrar pedido completo en CRM/POS.
+   → Programar: aviso "en preparación" → "en camino" → "entregado" → encuesta postventa.
+   → Fin del flujo de pedido.
+
+🚫 PROHIBIDO:
+- Confirmar pedido sin tener \`pago_confirmado == true\`.
+- Inventar tiempos de entrega no definidos en las fuentes.
+- Enviar más de un mensaje por turno.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
+
+💬 EMIT SALIDA LITERAL: Confirmación final (resumen + total + tiempo estimado). Activar triggers de seguimiento.`,
+        },
+      ],
+    },
+  },
 ];
