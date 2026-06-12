@@ -125,29 +125,32 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
         const el = chipsContainerRef.current;
         if (!el) return;
 
-        // Mide el ancho real del texto usando Canvas para mayor precisión
+        // Mide el ancho del chip con Canvas (px-2 = 16px padding + 2px border)
         const measureChipW = (text: string): number => {
             const canvas = document.createElement("canvas");
             const ctx = canvas.getContext("2d");
-            if (!ctx) return text.length * 7 + 16;
+            if (!ctx) return text.length * 7 + 18;
             ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
-            return Math.ceil(ctx.measureText(text).width) + 16 + 2; // px-2 + border
+            return Math.ceil(ctx.measureText(text).width) + 18;
         };
 
         const chipWidths = ALL_TEMPLATE_CHIPS.map(measureChipW);
-        const moreW = measureChipW("+9 más");
+        const moreW = measureChipW("+9 más") + 16; // buffer extra para que el botón "+más" nunca se corte
 
         const measure = () => {
             const available = el.clientWidth;
             let total = 0;
             let count = 0;
             for (let i = 0; i < ALL_TEMPLATE_CHIPS.length; i++) {
-                const isLast = i === ALL_TEMPLATE_CHIPS.length - 1;
-                // Con justify-between no hay gap fijo; solo verificar si los anchos suman menos que el contenedor
-                const needed = total + chipWidths[i] + (isLast ? 0 : moreW);
+                const isArrayLast = i === ALL_TEMPLATE_CHIPS.length - 1;
+                const needed = total + chipWidths[i] + (isArrayLast ? 0 : moreW);
                 if (needed > available) break;
                 total += chipWidths[i];
                 count++;
+            }
+            // Canvas subestima ~10% vs render real; si todos caben con poco margen, mostrar N-2 + "+más"
+            if (count === ALL_TEMPLATE_CHIPS.length && total > available * 0.90) {
+                count -= 2;
             }
             setVisibleChipCount(Math.max(1, count));
         };
@@ -312,6 +315,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 </Tooltip>
                             ))}
                             </TooltipProvider>
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
                             <PromptToolbar
                                     promptId={promptMeta.id}
                                     version={promptVersion}
@@ -430,6 +434,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                     </DropdownMenuGroup>
                                 </DropdownMenuContent>
                             </DropdownMenu>
+                            </div>
                         </div>
                         <Button
                             variant="ghost"
