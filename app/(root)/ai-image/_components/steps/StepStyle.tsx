@@ -85,11 +85,11 @@ export const StepStyle = ({
             </div>
 
             <div className="flex gap-2">
-              <Button type="button" onClick={onAddStyle} className="rounded-xl">
-                Guardar estilo
-              </Button>
               <Button type="button" variant="outline" onClick={onCancelAddStyle} className="rounded-xl">
                 Cancelar
+              </Button>
+              <Button type="button" onClick={onAddStyle} className="rounded-xl">
+                Guardar estilo
               </Button>
             </div>
           </div>
