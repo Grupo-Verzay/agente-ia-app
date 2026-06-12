@@ -235,7 +235,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                         <div
                             ref={scrollRef}
                             className={cn(
-                                "flex items-center overflow-x-auto gap-2 pb-1 scrollbar-none",
+                                "flex items-center overflow-x-auto gap-0 pb-1 scrollbar-none",
                                 "sm:overflow-visible sm:justify-start sm:flex-wrap"
                             )}
                         >
@@ -246,7 +246,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                         <button
                                             onClick={() => handleTabClick(key)}
                                             className={cn(
-                                                "px-4 py-2 rounded-t-md font-medium text-sm border-b-2 transition-colors duration-150 whitespace-nowrap",
+                                                "px-2.5 py-1.5 rounded-t-md font-medium text-xs border-b-2 transition-colors duration-150 whitespace-nowrap",
                                                 activeTab === key
                                                     ? "border-primary text-primary"
                                                     : "border-transparent text-muted-foreground hover:text-foreground"
