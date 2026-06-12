@@ -660,6 +660,7 @@ model User {
   userNotes                          UserNote[]
   noteFolders                        NoteFolder[]
   leadStatusWorkflowConfigs          LeadStatusWorkflowConfig[]
+  stageAutomations                   StageAutomation[]
   affiliateProfile                   AffiliateProfile?
   referredBy                         AffiliateReferral?           @relation("ReferredBy")
 }
@@ -1410,6 +1411,53 @@ model LeadStatusWorkflowExecution {
   @@unique([sessionId, leadStatus])
   @@index([sessionId])
   @@map("lead_status_workflow_execution")
+}
+
+enum StageActionType {
+  TAG_ADD
+  TAG_REMOVE
+  TASK
+  ASSIGN
+  EXECUTE_FLOW
+  MESSAGE
+  REMINDER
+  NOTIFY_ADVISOR
+  TOGGLE_AI
+  SEND_FILE
+  WEBHOOK
+  CHANGE_STATUS
+}
+
+model StageAutomation {
+  id        String     @id @default(cuid())
+  userId    String
+  stage     LeadStatus
+  name      String
+  enabled   Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user    User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actions StageAutomationAction[]
+
+  @@index([userId, stage])
+  @@map("stage_automations")
+}
+
+model StageAutomationAction {
+  id           String          @id @default(cuid())
+  automationId String
+  type         StageActionType
+  order        Int             @default(0)
+  config       Json
+  delayMinutes Int             @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  automation StageAutomation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  @@index([automationId])
+  @@map("stage_automation_actions")
 }
 
 enum CrmFollowUpStatus {

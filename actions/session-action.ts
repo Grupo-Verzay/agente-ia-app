@@ -1225,6 +1225,11 @@ export async function updateSessionLeadStatus(
       instanceName: session.user?.instancias[0]?.instanceName,
     }).catch(() => undefined);
 
+    // Ejecutar automaciones de etapa (fire-and-forget)
+    if (leadStatus) {
+      void triggerStageAutomations(sessionId, leadStatus).catch(() => undefined);
+    }
+
     return { success: true, message: 'Estado del lead actualizado correctamente' };
   } catch (error) {
     console.error("[updateSessionLeadStatus]", error);
@@ -1233,5 +1238,16 @@ export async function updateSessionLeadStatus(
       message: error instanceof Error ? error.message : 'No se pudo actualizar el estado del lead',
     };
   }
+}
+
+async function triggerStageAutomations(sessionId: number, newStage: string): Promise<void> {
+  const backendUrl = (process.env.BACKEND_URL ?? '').replace(/\/$/, '');
+  if (!backendUrl) return;
+  const key = process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? '';
+  await fetch(`${backendUrl}/stage-automations/execute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-internal-secret': key },
+    body: JSON.stringify({ sessionId, newStage }),
+  });
 }
 

@@ -21,6 +21,7 @@ import { CrmLeadStatusPromptWizard } from "./CrmLeadStatusPromptWizard";
 import { LoadingState } from "./LoadingState";
 import { Separator } from "@/components/ui/separator";
 import type { CrmFeatureFlags } from "@/types/crm-feature-flags";
+import { StageAutomationsPanel } from "./StageAutomationsPanel";
 
 type ManagedCrmPromptKind = keyof CrmPromptRecordMap;
 
@@ -44,9 +45,10 @@ export function CrmFollowUpRulesPanel({
 }) {
   const availableTabs = useMemo(() => {
     const tabs: Array<{
-      value: "followUps" | "leadStatus" | "leadFunnel";
+      value: "followUps" | "leadStatus" | "leadFunnel" | "automations";
       label: string;
     }> = [];
+    tabs.push({ value: "automations", label: "Automaciones" });
 
     if (features.enabledSynthesizer) {
       tabs.push({ value: "leadFunnel", label: "Sintetizador" });
@@ -63,8 +65,8 @@ export function CrmFollowUpRulesPanel({
     return tabs;
   }, [features]);
   const [activeTab, setActiveTab] = useState<
-    "followUps" | "leadStatus" | "leadFunnel"
-  >(availableTabs[0]?.value ?? "followUps");
+    "followUps" | "leadStatus" | "leadFunnel" | "automations"
+  >(availableTabs[0]?.value ?? "automations");
   const [rulesLoading, setRulesLoading] = useState(false);
   const [promptsLoading, setPromptsLoading] = useState(false);
   const [timezone, setTimezone] = useState<string | null>(null);
@@ -293,11 +295,11 @@ export function CrmFollowUpRulesPanel({
     <Tabs
       value={activeTab}
       onValueChange={(value) =>
-        setActiveTab(value as "followUps" | "leadStatus" | "leadFunnel")
+        setActiveTab(value as "followUps" | "leadStatus" | "leadFunnel" | "automations")
       }
       className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
     >
-      <TabsList className="flex justify-start shrink-0">
+      <TabsList className="flex justify-start shrink-0 flex-wrap">
         {availableTabs.map((tab) => (
           <TabsTrigger key={tab.value} value={tab.value} className="font-semibold">
             {tab.label}
@@ -349,6 +351,13 @@ export function CrmFollowUpRulesPanel({
         ) : (
           <LoadingState label="Sin configuracion disponible." />
         )}
+      </TabsContent>
+
+      <TabsContent
+        value="automations"
+        className="mt-0 flex-1 min-h-0 min-w-0 overflow-y-auto p-1"
+      >
+        <StageAutomationsPanel userId={userId} />
       </TabsContent>
 
       <TabsContent
