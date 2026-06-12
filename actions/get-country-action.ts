@@ -30,40 +30,4 @@ const FALLBACK_COUNTRIES = [
   { name: 'Uruguay',           codes: ['+598'],       flag: 'https://flagcdn.com/uy.svg' },
 ].sort((a, b) => a.name.localeCompare(b.name));
 
-export const getCountryCodes = async () => {
-  try {
-    const res = await fetch(
-      'https://restcountries.com/v3.1/region/americas?fields=name,idd,flags',
-      { next: { revalidate: 60 * 60 } }
-    );
-
-    if (!res.ok) throw new Error('Error al obtener países');
-
-    const data = await res.json();
-
-    if (!Array.isArray(data)) throw new Error('Respuesta inesperada de la API');
-
-    const countries = data
-      .map((country: any) => {
-        const root = country?.idd?.root;
-        const suffixes = country?.idd?.suffixes;
-
-        if (!root || !Array.isArray(suffixes) || suffixes.length === 0) return null;
-
-        const codes = suffixes.map((s: string) => `${root}${s}`);
-
-        return {
-          name: country.name.common,
-          codes,
-          flag: country.flags?.svg || '',
-        };
-      })
-      .filter(Boolean)
-      .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name));
-
-    return countries.length > 0 ? countries : FALLBACK_COUNTRIES;
-  } catch (error) {
-    console.error('[getCountryCodes] API falló, usando lista local:', error);
-    return FALLBACK_COUNTRIES;
-  }
-};
+export const getCountryCodes = async () => FALLBACK_COUNTRIES;
