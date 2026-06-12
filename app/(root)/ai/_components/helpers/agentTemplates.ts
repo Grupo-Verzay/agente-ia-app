@@ -372,9 +372,9 @@ modo_bienvenida = inteligente
    • Frase clave de campaña (vz-basico, vz-avanzado, etc.) → PASO según regla de enrutamiento
 
 📚 CASCADA DE FUENTES PARA BIENVENIDA (si NO hay intención directa):
-1️⃣ FLUJO 'BIENVENIDA': si existe → ejecutar.
+1️⃣ FLUJO 'BIENVENIDA' disponible: si existe → ejecutar.
 2️⃣ REGLA/PARÁMETRO (1): si no hay flujo → emitir texto literal.
-3️⃣ BLOQUE PERFIL: si no hay regla → construir saludo con nombre del negocio + propuesta de valor.
+3️⃣ BLOQUE PERFIL: construir saludo con nombre del negocio + propuesta de valor.
 4️⃣ FALLBACK: "¡Hola! 👋 Gracias por escribir. ¿En qué puedo ayudarte hoy?"
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -400,10 +400,11 @@ modo_bienvenida = inteligente
 ✅ LÓGICA DE EJECUCIÓN:
 
 ▶ Ejecutar pregunta directa para identificar qué producto/servicio quiere (cascada abajo).
+▶ Capturar \`producto_interes\` para uso posterior en paso 3.
 
-📚 CASCADA DE FUENTES (en orden estricto):
-1️⃣ FLUJO 'AVERIGUACION': si existe → ejecutar.
-2️⃣ REGLA/PARÁMETRO (1): pregunta literal sobre qué busca.
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO disponible en este paso: si existe → ejecutar.
+2️⃣ REGLA/PARÁMETRO (1): si no hay flujo → emitir pregunta literal sobre qué busca.
 3️⃣ BLOQUE PRODUCTOS Y SERVICIOS: preguntar con categorías del catálogo ("¿Te interesa [CAT_1], [CAT_2] o [CAT_3]?").
 4️⃣ TOOL externa: si hay catálogo en Google Sheets / API → listar categorías disponibles.
 5️⃣ FALLBACK: "Cuéntame, [NOMBRE], ¿qué producto o servicio te interesa?"
@@ -418,7 +419,7 @@ modo_bienvenida = inteligente
 - Inventar productos o categorías fuera del catálogo.
 - Hacer dos preguntas en el mismo mensaje.
 - Reformular o inventar texto.
-- Saltar pasos de la cascada.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
 
 💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó. Esperar respuesta.`,
         },
@@ -428,27 +429,16 @@ modo_bienvenida = inteligente
 
 ✅ LÓGICA DE EJECUCIÓN:
 
-▶ Paso 3.1 — Mapear \`producto_interes\` capturado al flujo/fuente correspondiente.
-▶ Paso 3.2 — Ejecutar cascada de fuentes para presentar el producto.
+▶ Buscar la respuesta recorriendo la cascada en orden estricto.
+▶ En el nivel 1️⃣, si hay flujos disponibles en este paso, buscar coincidencia con \`producto_interes\` (sinónimos / variaciones LATAM).
+▶ Si no hay flujo disponible o ninguno coincide → continuar al siguiente nivel.
 
-🗺️ EJEMPLO MAPA DE COINCIDENCIA producto_interes → FLUJO:
-   El agente busca COINCIDENCIA PARCIAL (sinónimos / variaciones) en el mensaje del usuario:
-
-   • "zapatos" / "tenis" / "calzado" / "zapatillas" / "botas" → FLUJO_ZAPATOS
-   • "camisas" / "camisetas" / "polos" / "blusas" / "playeras" → FLUJO_CAMISAS
-   • "pantalones" / "jeans" / "shorts" / "bermudas" / "leggings" → FLUJO_PANTALONES
-   • "accesorios" / "bolsos" / "carteras" / "mochilas" / "billeteras" → FLUJO_ACCESORIOS
-   • [flujo, tool, detalles según catálogo del cliente: FORMATO_CATEGORIA → FLUJO_NOMBRE]
-
-   🔍 REGLAS DE MATCHING:
-      • Se ignoran mayúsculas/minúsculas y tildes.
-      • Se aceptan variaciones regionales LATAM (zapatos/tenis/zapatillas).
-      • Si hay coincidencia múltiple → priorizar la categoría más específica.
-      • Si NO hay coincidencia clara → ir a nivel 6️⃣ (fallback) de la cascada.
-
-📚 CASCADA DE FUENTES (en orden estricto):
-1️⃣ FLUJO específico mapeado (ej: FLUJO_ZAPATOS): si existe → ejecutar.
-2️⃣ REGLA/PARÁMETRO específica para el \`producto_interes\` (ej: REGLA_ZAPATOS).
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO disponible en este paso:
+   → Si existen flujos creados por el usuario → buscar coincidencia con \`producto_interes\`.
+   → Si coincide → ejecutar ese flujo.
+   → Si no hay flujos o ninguno coincide → continuar a nivel 2️⃣.
+2️⃣ REGLA/PARÁMETRO específica para el \`producto_interes\`.
 3️⃣ BLOQUE PRODUCTOS Y SERVICIOS: ficha del producto desde el catálogo del prompt.
 4️⃣ TOOL externa (Google Sheets / Base de Conocimiento / API): consultar precio, stock, variantes.
 5️⃣ FAQ: si la consulta coincide con pregunta frecuente predefinida.
@@ -458,18 +448,18 @@ modo_bienvenida = inteligente
 
 ➡️ TRANSICIÓN:
    → Marcar \`oferta_presentada = true\`
-   → Marcar \`flujo_disparado = [nombre del flujo ejecutado]\` (para trazabilidad)
+   → Marcar \`flujo_disparado = [nombre del flujo ejecutado o "fallback"]\` (trazabilidad)
    → current_step = 4
 
 🚫 PROHIBIDO:
-- Disparar un flujo que NO coincida con producto_interes.
-- Inventar productos, categorías, precios, stock o detalles fuera de las fuentes.
+- Inventar un flujo que no exista en el paso.
+- Inventar productos, categorías, precios o stock fuera de las fuentes.
 - Ejecutar dos flujos a la vez (un solo flujo por turno).
 - Mezclar información de dos fuentes en una sola respuesta.
 - Mencionar productos fuera del catálogo o tools conectadas.
 - Saltar pasos de la cascada (siempre ir en orden 1→6).
 
-💬 EMIT SALIDA LITERAL: Texto del flujo/fuente que aplicó en la cascada (producto + precio + beneficio + pregunta de cierre).`,
+💬 EMIT SALIDA LITERAL: Texto del flujo/fuente que aplicó (producto + precio + beneficio + pregunta de cierre).`,
         },
         {
           title: "CIERRE Y CAPTURA DE DATOS",
@@ -479,8 +469,8 @@ modo_bienvenida = inteligente
 
 ▶ Confirmar compra + capturar datos para pago/envío (cascada abajo).
 
-📚 CASCADA DE FUENTES (en orden estricto):
-1️⃣ FLUJO 'ACUERDO': si existe → ejecutar.
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO 'ACUERDO' disponible: si existe → ejecutar.
 2️⃣ REGLA/PARÁMETRO (1): script literal de captura de datos.
 3️⃣ BLOQUE GESTIÓN: usar campos de captura definidos en el bloque GESTIÓN del prompt.
 4️⃣ TOOL externa: si hay formulario/CRM conectado → solicitar campos requeridos.
@@ -497,7 +487,7 @@ modo_bienvenida = inteligente
 - Solicitar datos ya entregados por el cliente.
 - Enviar más de un mensaje por turno.
 - Saltar campos requeridos por la tool/formulario conectado.
-- Saltar pasos de la cascada.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
 
 💬 EMIT SALIDA LITERAL: Una pregunta por turno. Esperar respuesta.`,
         },
@@ -509,8 +499,8 @@ modo_bienvenida = inteligente
 
 ▶ Confirmar el pedido + activar triggers de seguimiento postventa (cascada abajo).
 
-📚 CASCADA DE FUENTES (en orden estricto):
-1️⃣ FLUJO 'POSTVENTA': si existe → ejecutar + activar triggers programados.
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO 'POSTVENTA' disponible: si existe → ejecutar + activar triggers programados.
 2️⃣ REGLA/PARÁMETRO (1): mensaje literal de confirmación.
 3️⃣ BLOQUE GESTIÓN: resumen del pedido + instrucciones de pago + datos de seguimiento.
 4️⃣ TOOL externa: registrar venta en CRM + agendar mensajes automáticos (día 1, 7, 30).
@@ -527,7 +517,7 @@ modo_bienvenida = inteligente
 - Confirmar pedido sin tener \`compra_confirmada == true\`.
 - Inventar datos del pedido que no fueron capturados.
 - Enviar más de un mensaje por turno.
-- Saltar pasos de la cascada.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
 
 💬 EMIT SALIDA LITERAL: Confirma pedido (producto + total + entrega) + instrucciones de pago + activa trigger postventa.`,
         },
