@@ -559,7 +559,7 @@ modo_bienvenida = obligatoria
    → Ignorar intención directa del mensaje del usuario.
 
 📚 CASCADA DE FUENTES PARA BIENVENIDA:
-1️⃣ FLUJO 'BIENVENIDA': si existe → ejecutar.
+1️⃣ FLUJO 'BIENVENIDA' disponible: si existe → ejecutar.
 2️⃣ REGLA/PARÁMETRO (1): si no hay flujo → emitir texto literal de bienvenida.
 3️⃣ BLOQUE PERFIL: si no hay regla → construir saludo con nombre del negocio + propuesta de valor + nombre del agente.
 4️⃣ FALLBACK: "¡Hola! 👋 Soy [Agente IA] de [NEGOCIO]. Antes de empezar, ¿con quién tengo el gusto?"
@@ -569,7 +569,6 @@ modo_bienvenida = obligatoria
 ➡️ TRANSICIÓN:
    → saludo_completado = true
    → current_step = 2
-   → El siguiente turno evalúa el gate del Paso 2.
 
 🚫 PROHIBIDO:
 - Saltar BIENVENIDA por intención directa del usuario.
@@ -585,10 +584,11 @@ modo_bienvenida = obligatoria
 ✅ LÓGICA DE EJECUCIÓN:
 
 ▶ Ejecutar pregunta de averiguación abierta (cascada abajo).
+▶ Capturar \`productos_servicios\` para uso posterior en pasos 3 y 4.
 
-📚 CASCADA DE FUENTES (en orden estricto):
-1️⃣ FLUJO 'PREGUNTA_1': si existe → ejecutar.
-2️⃣ REGLA/PARÁMETRO (2): pregunta literal de averiguación.
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO disponible en este paso: si existe → ejecutar.
+2️⃣ REGLA/PARÁMETRO (2): si no hay flujo → emitir pregunta literal de averiguación.
 3️⃣ BLOQUE PERFIL: pregunta contextualizada al rubro del negocio.
 4️⃣ TOOL externa: si hay categorías en Google Sheets / API → ofrecer opciones.
 5️⃣ FALLBACK: "Cuéntame, [NOMBRE], ¿qué te llevó a contactarnos hoy?"
@@ -603,7 +603,7 @@ modo_bienvenida = obligatoria
 - Avanzar al siguiente paso sin capturar \`productos_servicios\`.
 - Hacer dos preguntas en el mismo mensaje.
 - Reformular o inventar texto.
-- Saltar pasos de la cascada.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
 
 💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó. Esperar respuesta.`,
         },
@@ -613,26 +613,32 @@ modo_bienvenida = obligatoria
 
 ✅ LÓGICA DE EJECUCIÓN:
 
-▶ Ejecutar pregunta de diagnóstico sobre dolor/necesidad específica (cascada abajo).
+▶ Buscar la respuesta recorriendo la cascada en orden estricto.
+▶ En el nivel 1️⃣, si hay flujos disponibles en este paso, buscar coincidencia con \`productos_servicios\` (sinónimos / variaciones LATAM).
+▶ Si no hay flujo disponible o ninguno coincide → continuar al siguiente nivel.
 
-📚 CASCADA DE FUENTES (en orden estricto):
-1️⃣ FLUJO 'PREGUNTA_2': si existe → ejecutar.
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO disponible en este paso:
+   → Si existen flujos creados por el usuario → buscar coincidencia con \`productos_servicios\`.
+   → Si coincide → ejecutar ese flujo.
+   → Si no hay flujos o ninguno coincide → continuar a nivel 2️⃣.
 2️⃣ REGLA/PARÁMETRO (2): pregunta literal de diagnóstico.
-3️⃣ BLOQUE PREGUNTAS: usar pregunta diagnóstica definida según \`productos_servicios\`.
-4️⃣ TOOL externa: si hay tabla de dolores por producto en Sheet → consultar y preguntar contextual.
+3️⃣ BLOQUE PREGUNTAS: pregunta diagnóstica definida según \`productos_servicios\`.
+4️⃣ TOOL externa: consultar tabla de dolores por producto en Sheet/API.
 5️⃣ FALLBACK: "Para recomendarte la mejor opción, ¿cuál es tu principal necesidad o desafío con [productos_servicios]?"
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 ➡️ TRANSICIÓN:
    → Capturar \`dolor_especifico\`
+   → Marcar \`flujo_disparado = [nombre del flujo ejecutado o "fallback"]\` (trazabilidad)
    → current_step = 4
 
 🚫 PROHIBIDO:
 - Presentar solución antes de capturar \`dolor_especifico\`.
+- Inventar un flujo que no exista en el paso.
 - Hacer dos preguntas en el mismo mensaje.
-- Reformular o inventar texto.
-- Saltar pasos de la cascada.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
 
 💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó. Esperar respuesta.`,
         },
@@ -642,13 +648,18 @@ modo_bienvenida = obligatoria
 
 ✅ LÓGICA DE EJECUCIÓN:
 
-▶ Resumir diagnóstico capturado + presentar solución según \`dolor_especifico\` (cascada abajo).
+▶ Buscar la respuesta recorriendo la cascada en orden estricto.
+▶ En el nivel 1️⃣, si hay flujos disponibles en este paso, buscar coincidencia con \`dolor_especifico\` (sinónimos / variaciones LATAM).
+▶ Si no hay flujo disponible o ninguno coincide → continuar al siguiente nivel.
 
-📚 CASCADA DE FUENTES (en orden estricto):
-1️⃣ FLUJO 'PRESENTACION': si existe y aplica al \`dolor_especifico\` → ejecutar.
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO disponible en este paso:
+   → Si existen flujos creados por el usuario → buscar coincidencia con \`dolor_especifico\`.
+   → Si coincide → ejecutar ese flujo.
+   → Si no hay flujos o ninguno coincide → continuar a nivel 2️⃣.
 2️⃣ REGLA/PARÁMETRO específica al \`dolor_especifico\` capturado.
 3️⃣ BLOQUE PRODUCTOS Y SERVICIOS: ficha del servicio recomendado + cómo resuelve el dolor.
-4️⃣ TOOL externa (Google Sheets / Base de Conocimiento / API): consultar caso/solución relacionada.
+4️⃣ TOOL externa: consultar caso/solución relacionada en Sheet o API.
 5️⃣ FAQ: si el dolor coincide con caso típico documentado.
 6️⃣ FALLBACK: "Por lo que me cuentas, creo que [SERVICIO_GENERICO] podría ayudarte. ¿Quieres que te explique cómo?"
 
@@ -656,14 +667,16 @@ modo_bienvenida = obligatoria
 
 ➡️ TRANSICIÓN:
    → Marcar \`presentacion_emitida = true\`
+   → Marcar \`flujo_disparado = [nombre del flujo ejecutado o "fallback"]\` (trazabilidad)
    → Esperar confirmación de interés del cliente
    → Si confirma interés → \`interes_confirmado = true\` → current_step = 5
 
 🚫 PROHIBIDO:
-- Presentar productos/servicios fuera del catálogo o tools conectadas.
+- Inventar un flujo que no exista en el paso.
+- Presentar servicios fuera del catálogo o tools conectadas.
 - Inventar casos de éxito o resultados específicos.
 - Mezclar información de dos fuentes en una sola respuesta.
-- Saltar pasos de la cascada.
+- Saltar pasos de la cascada (siempre ir en orden 1→6).
 
 💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó (resumen diagnóstico + solución + beneficio + pregunta de cierre).`,
         },
@@ -673,12 +686,12 @@ modo_bienvenida = obligatoria
 
 ✅ LÓGICA DE EJECUCIÓN:
 
-▶ Manejar objeciones si las hay, luego proponer siguiente paso (reunión/demo/agenda).
+▶ Manejar objeciones si las hay, luego proponer siguiente paso (cascada abajo).
 
-📚 CASCADA DE FUENTES (en orden estricto):
-1️⃣ FLUJO 'PROPUESTA_AGENDAMIENTO': si existe → ejecutar.
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO disponible en este paso: si existe → ejecutar.
 2️⃣ REGLA/PARÁMETRO (1): script literal de propuesta de siguiente paso.
-3️⃣ BLOQUE EXTRAS: usar guion de manejo de objeciones + invitación a demo/reunión.
+3️⃣ BLOQUE EXTRAS: guion de manejo de objeciones + invitación a demo/reunión.
 4️⃣ TOOL externa: si hay Calendly/Calendar conectado → ofrecer slots disponibles.
 5️⃣ FALLBACK: "¿Te parece si agendamos una reunión de [DURACION] minutos esta semana para revisarlo a detalle?"
 
@@ -692,7 +705,7 @@ modo_bienvenida = obligatoria
 - Saltar este paso sin manejar objeciones expresadas.
 - Forzar el cierre si el cliente expresó dudas no resueltas.
 - Reformular o inventar texto.
-- Saltar pasos de la cascada.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
 
 💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó. Esperar respuesta.`,
         },
@@ -704,10 +717,10 @@ modo_bienvenida = obligatoria
 
 ▶ Confirmar decisión explícita + capturar datos finales + dejar siguiente paso claro.
 
-📚 CASCADA DE FUENTES (en orden estricto):
-1️⃣ FLUJO 'ACUERDO': si existe → ejecutar + activar triggers postventa.
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO 'ACUERDO' disponible: si existe → ejecutar + activar triggers postventa.
 2️⃣ REGLA/PARÁMETRO (1): script literal de cierre + captura de datos.
-3️⃣ BLOQUE GESTIÓN: usar campos de captura + instrucciones de seguimiento del bloque GESTIÓN.
+3️⃣ BLOQUE GESTIÓN: usar campos de captura + instrucciones de seguimiento.
 4️⃣ TOOL externa: registrar acuerdo en CRM + crear evento en Calendar + notificar a equipo.
 5️⃣ FALLBACK: confirmación genérica → nombre completo + correo + teléfono + resumen del acuerdo + próximo paso claro.
 
@@ -722,7 +735,7 @@ modo_bienvenida = obligatoria
 - Solicitar datos ya entregados por el cliente.
 - Cerrar sin dejar definido el siguiente paso (fecha, hora, contacto).
 - Enviar más de un mensaje por turno.
-- Saltar pasos de la cascada.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
 
 💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó (confirmación + datos finales + resumen + siguiente paso).`,
         },
