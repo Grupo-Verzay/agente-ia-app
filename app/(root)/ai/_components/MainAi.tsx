@@ -1,7 +1,7 @@
 // app/(root)/ai/_components/MainAi.tsx
 "use client";
 
-import { ChangeEvent, useCallback, useMemo, useRef, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { BusinessPromptBuilder, ExtraInfoBuilder, FqaBuilder, PromptPreview, TrainingBuilder } from "./";
@@ -115,6 +115,34 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     const [promptVersion, setPromptVersion] = useState<number>(promptMeta.version);
     const [emptyStateDismissed, setEmptyStateDismissed] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Chips de plantillas con conteo dinámico según ancho del contenedor
+    const ALL_TEMPLATE_CHIPS = ["Restaurante","Clínica","E-commerce","Inmobiliaria","Academia","Belleza","Viajes","Venta Consultiva","Venta Directa"];
+    const chipsContainerRef = useRef<HTMLDivElement>(null);
+    const [visibleChipCount, setVisibleChipCount] = useState(ALL_TEMPLATE_CHIPS.length);
+
+    useEffect(() => {
+        const el = chipsContainerRef.current;
+        if (!el) return;
+        const measure = () => {
+            const available = el.clientWidth;
+            const GAP = 4;
+            const MORE_W = 52; // ancho estimado del chip "+N más"
+            let used = MORE_W;
+            let count = 0;
+            for (const label of ALL_TEMPLATE_CHIPS) {
+                const chipW = label.length * 7 + 16;
+                if (used + chipW + GAP > available) break;
+                used += chipW + GAP;
+                count++;
+            }
+            setVisibleChipCount(Math.max(1, count));
+        };
+        const obs = new ResizeObserver(measure);
+        obs.observe(el);
+        measure();
+        return () => obs.disconnect();
+    }, []);
 
     const isEmpty =
         !emptyStateDismissed &&
@@ -445,17 +473,26 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                     <p className="text-xs text-muted-foreground">
                                         Elige una plantilla por rubro u objetivo, o construye desde cero.
                                     </p>
-                                    <div className="flex flex-wrap gap-1 mt-1.5">
-                                        {["Restaurante","Clínica","E-commerce","Inmobiliaria","Academia","Belleza","Viajes","Venta Consultiva","Venta Directa"].map((r) => (
+                                    <div ref={chipsContainerRef} className="flex flex-nowrap gap-1 mt-1.5 overflow-hidden">
+                                        {ALL_TEMPLATE_CHIPS.slice(0, visibleChipCount).map((r) => (
                                             <button
                                                 key={r}
                                                 type="button"
                                                 onClick={() => setShowTemplates(true)}
-                                                className="rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                                                className="rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary hover:text-primary transition-colors shrink-0"
                                             >
                                                 {r}
                                             </button>
                                         ))}
+                                        {visibleChipCount < ALL_TEMPLATE_CHIPS.length && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowTemplates(true)}
+                                                className="rounded-full border border-dashed bg-background px-2 py-0.5 text-[10px] text-muted-foreground/70 hover:border-primary hover:text-primary transition-colors shrink-0"
+                                            >
+                                                +{ALL_TEMPLATE_CHIPS.length - visibleChipCount} más
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
