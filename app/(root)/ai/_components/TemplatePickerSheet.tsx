@@ -29,7 +29,11 @@ export function TemplatePickerSheet({ open, onOpenChange, promptId, hasContent, 
     startTransition(async () => {
       const res = await applyTemplateToPrompt({ promptId, templateId: selected });
       if (res.ok) {
-        toast.success("Plantilla aplicada correctamente");
+        if (res.flowsCreated && res.flowsCreated > 0) {
+          toast.success(`Plantilla aplicada — ${res.flowsCreated} flujo(s) creado(s) en tu módulo de flujos`);
+        } else {
+          toast.success("Plantilla aplicada correctamente");
+        }
         onApplied();
         onOpenChange(false);
         setSelected(null);
