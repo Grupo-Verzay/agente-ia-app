@@ -230,7 +230,7 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
                         </AlertDialogDescription>
                     </AlertDialogHeader>
 
-                    <AlertDialogFooter className="flex justify-center gap-4 pt-2">
+                    <AlertDialogFooter className="pt-2">
                         <AlertDialogCancel className="font-medium">Cancelar</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={confirmAction}

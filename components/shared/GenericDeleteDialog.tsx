@@ -79,7 +79,7 @@ export function GenericDeleteDialog({
                     )}
                 </AlertDialogHeader>
 
-                <AlertDialogFooter className="sm:justify-between">
+                <AlertDialogFooter>
                     <AlertDialogCancel onClick={() => setConfirmText("")} className="text-black dark:text-gray-100">Cancelar</AlertDialogCancel>
                     <AlertDialogAction
                         disabled={isConfirmDisabled}

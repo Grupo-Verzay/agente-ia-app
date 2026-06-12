@@ -663,7 +663,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
 
-                    <AlertDialogFooter className="gap-2 sm:justify-between">
+                    <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
 
                         <AlertDialogAction
