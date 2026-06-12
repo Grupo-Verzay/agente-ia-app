@@ -236,6 +236,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                     now,
                     dispatcher,
                     source: "billing-cron-state",
+                    sendStateChangeMessage: false, // el cron suspende en silencio; los recordatorios ya fueron enviados
                 });
 
                 if (!syncResult.success || !syncResult.billing || !syncResult.evaluation) {
