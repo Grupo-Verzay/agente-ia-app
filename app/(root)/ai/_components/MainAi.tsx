@@ -417,7 +417,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                     <DropdownMenuGroup>
                                         <DropdownMenuItem onSelect={() => setShowTemplates(true)}>
                                             <Layers className="mr-2 h-4 w-4" />
-                                            Plantillas por rubro
+                                            Plantillas por objetivo
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onSelect={() => setShowMetrics(true)}>
                                             <BarChart2 className="mr-2 h-4 w-4" />
@@ -490,7 +490,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 {/* Fila 2: descripción + chips */}
                                 <div className="mt-1.5">
                                     <p className="text-xs text-muted-foreground pl-10">
-                                        Elige una plantilla por rubro u objetivo, o construye desde cero.
+                                        Elige una plantilla por objetivo, o construye desde cero.
                                     </p>
                                     <div ref={chipsContainerRef} className="flex flex-nowrap justify-between mt-1.5 overflow-hidden">
                                         {ALL_TEMPLATE_CHIPS.slice(0, visibleChipCount).map((r) => (
