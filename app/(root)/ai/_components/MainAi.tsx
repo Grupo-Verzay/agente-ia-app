@@ -124,20 +124,34 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     useEffect(() => {
         const el = chipsContainerRef.current;
         if (!el) return;
+
+        // Mide el ancho real del texto usando Canvas para mayor precisión
+        const measureChipW = (text: string): number => {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return text.length * 7 + 16;
+            ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+            return Math.ceil(ctx.measureText(text).width) + 16 + 2; // px-2 + border
+        };
+
+        const chipWidths = ALL_TEMPLATE_CHIPS.map(measureChipW);
+        const moreW = measureChipW("+9 más"); // estimación conservadora del chip "+más"
+        const GAP = 4;
+
         const measure = () => {
             const available = el.clientWidth;
-            const GAP = 4;
-            const MORE_W = 52; // ancho estimado del chip "+N más"
-            let used = MORE_W;
+            let used = 0;
             let count = 0;
-            for (const label of ALL_TEMPLATE_CHIPS) {
-                const chipW = label.length * 7 + 16;
-                if (used + chipW + GAP > available) break;
-                used += chipW + GAP;
+            for (let i = 0; i < ALL_TEMPLATE_CHIPS.length; i++) {
+                const isLast = i === ALL_TEMPLATE_CHIPS.length - 1;
+                const extra = isLast ? 0 : moreW + GAP; // reservar espacio para "+más" si no es el último
+                if (used + chipWidths[i] + GAP + extra > available) break;
+                used += chipWidths[i] + GAP;
                 count++;
             }
             setVisibleChipCount(Math.max(1, count));
         };
+
         const obs = new ResizeObserver(measure);
         obs.observe(el);
         measure();
