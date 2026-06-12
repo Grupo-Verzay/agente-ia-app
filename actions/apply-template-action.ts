@@ -22,6 +22,13 @@ const TEMPLATE_FLOWS: Record<string, string[]> = {
     "ACUERDO",
     "POSTVENTA",
   ],
+  "agendamiento-citas": [
+    "BIENVENIDA",
+    "SERVICIO",
+    "DISPONIBILIDAD",
+    "CONFIRMACION",
+    "RECORDATORIO",
+  ],
 };
 
 // Planes que habilitan creación de flujos y si son isPro

@@ -732,4 +732,189 @@ modo_bienvenida = obligatoria
       ],
     },
   },
+  {
+    id: "agendamiento-citas",
+    category: "objetivo",
+    name: "Agendamiento de Citas",
+    emoji: "📅",
+    description: "Flujo de 5 pasos para agendar citas: selección de servicio, consulta de disponibilidad y confirmación con recordatorios.",
+    color: "bg-teal-500/10 text-teal-600 border-teal-200",
+    sections: {
+      training: [
+        {
+          title: "INICIO FLUJO INTELIGENTE",
+          mainMessage: `🔒 GATE: collected == {} AND current_step == 1
+🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
+
+modo_bienvenida = inteligente
+   → Solo ejecuta BIENVENIDA si el mensaje NO tiene intención clara.
+   → Si tiene intención directa: omite y va al PASO correspondiente.
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ MODO "inteligente":
+   → Analizar el primer mensaje del usuario:
+      • Si detecta una INTENCIÓN DIRECTA → ir al PASO de destino, sin BIENVENIDA.
+      • Si NO detecta intención clara → ejecutar BIENVENIDA como respaldo (cascada abajo).
+
+🎯 INTENCIONES DIRECTAS (omiten BIENVENIDA):
+   • Agendar / reservar / pedir cita → PASO_AGENDA (Paso 2)
+   • Reagendar / cambiar / mover cita → PASO_REAGENDAR
+   • Cancelar cita → PASO_CANCELAR
+   • Preguntar precio/info de servicio → PASO_SERVICIOS
+   • Hablar con un humano / asesor → PASO_HANDOFF
+   • Frase clave de campaña → PASO según regla de enrutamiento
+
+📚 CASCADA DE FUENTES PARA BIENVENIDA (si NO hay intención directa):
+1️⃣ FLUJO 'BIENVENIDA' disponible: si existe → ejecutar.
+2️⃣ REGLA/PARÁMETRO (1): si no hay flujo → emitir texto literal.
+3️⃣ BLOQUE PERFIL: construir saludo con nombre del negocio + servicios principales.
+4️⃣ FALLBACK: "¡Hola! 👋 Bienvenido a [NEGOCIO]. ¿Te gustaría agendar una cita?"
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   A) Si se saltó BIENVENIDA por intención directa:
+      → Ir al PASO de destino. Ese paso gestiona su propio current_step.
+   B) Si se ejecutó BIENVENIDA:
+      → saludo_completado = true → current_step = 2.
+
+🚫 PROHIBIDO:
+- Ejecutar BIENVENIDA si hay una intención directa detectada.
+- Reformular, inventar o parafrasear el texto.
+- Enviar más de un (1) mensaje en este turno.
+- Pedir datos que el cliente ya entregó en su primer mensaje.
+- Inventar intenciones que no estén en la lista de INTENCIONES DIRECTAS.
+- Saltar pasos de la cascada (siempre ir en orden 1→4).`,
+        },
+        {
+          title: "SELECCIÓN DE SERVICIO",
+          mainMessage: `🔒 CONDICIÓN GATE: nombre != null AND servicio_seleccionado == null
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ Buscar la respuesta recorriendo la cascada en orden estricto.
+▶ En el nivel 1️⃣, si hay flujos disponibles en este paso, buscar coincidencia con el servicio mencionado por el cliente (sinónimos / variaciones LATAM).
+▶ Si no hay flujo disponible o ninguno coincide → continuar al siguiente nivel.
+
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO disponible en este paso:
+   → Si existen flujos de servicio creados por el usuario → buscar coincidencia con lo que pide el cliente.
+   → Si coincide → ejecutar ese flujo.
+   → Si no hay flujos o ninguno coincide → continuar a nivel 2️⃣.
+2️⃣ REGLA/PARÁMETRO (1): pregunta literal sobre qué servicio desea.
+3️⃣ BLOQUE SERVICIOS: listar servicios disponibles del catálogo ("¿Cuál te interesa: [SERV_1], [SERV_2], [SERV_3]?").
+4️⃣ TOOL externa: si hay catálogo de servicios en Google Sheets / API → listar opciones.
+5️⃣ FALLBACK: "¿Qué servicio te gustaría agendar?"
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   → Capturar \`servicio_seleccionado\`
+   → Marcar \`flujo_disparado = [nombre del flujo ejecutado o "fallback"]\` (trazabilidad)
+   → current_step = 3
+
+🚫 PROHIBIDO:
+- Inventar servicios que no existan en el catálogo o tools.
+- Hacer dos preguntas en el mismo mensaje.
+- Avanzar sin capturar \`servicio_seleccionado\`.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
+
+💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó. Esperar respuesta.`,
+        },
+        {
+          title: "CONSULTA DE DISPONIBILIDAD",
+          mainMessage: `🔒 CONDICIÓN GATE: servicio_seleccionado != null AND fecha_hora_elegida == null
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ Capturar preferencia de fecha/hora del cliente, luego consultar disponibilidad real (cascada abajo).
+▶ NUNCA ofrecer un horario sin validarlo contra la fuente de disponibilidad.
+
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO disponible en este paso: si existe → ejecutar (puede incluir lógica de preferencia mañana/tarde).
+2️⃣ REGLA/PARÁMETRO (1): script literal para pedir preferencia de fecha/hora.
+3️⃣ TOOL externa (Calendar / Calendly / Google Sheets): consultar slots reales disponibles y ofrecerlos.
+4️⃣ BLOQUE SERVICIOS: usar horarios estándar definidos en el catálogo.
+5️⃣ FALLBACK: "¿Qué día y horario te quedan mejor? Te confirmo disponibilidad."
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   → Capturar \`fecha_hora_elegida\` (solo si validada contra disponibilidad real)
+   → current_step = 4
+
+🚫 PROHIBIDO:
+- Confirmar un horario sin validarlo contra Calendar/Sheet/fuente real.
+- Inventar disponibilidad que no existe.
+- Ofrecer fechas fuera del horario de atención definido.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
+
+💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó (horarios disponibles reales). Esperar respuesta.`,
+        },
+        {
+          title: "CONFIRMACIÓN DE CITA",
+          mainMessage: `🔒 CONDICIÓN GATE: fecha_hora_elegida != null AND cita_confirmada == false
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ Capturar datos de contacto faltantes + crear la cita en el calendario + confirmar (cascada abajo).
+
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO 'CONFIRMACION' disponible: si existe → ejecutar.
+2️⃣ REGLA/PARÁMETRO (1): script literal de captura de datos + confirmación.
+3️⃣ BLOQUE GESTIÓN: usar campos de captura definidos (nombre, teléfono, correo).
+4️⃣ TOOL externa (Calendar / CRM): crear evento + registrar cliente + asignar profesional.
+5️⃣ FALLBACK: solicitar nombre completo + teléfono, luego confirmar resumen de la cita.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   → Capturar datos requeridos
+   → Crear la cita en la fuente de disponibilidad
+   → Marcar \`cita_confirmada = true\`
+   → current_step = 5
+
+🚫 PROHIBIDO:
+- Confirmar la cita sin haber capturado los datos mínimos (nombre + contacto).
+- Solicitar datos ya entregados por el cliente.
+- Crear la cita sin escribir en Calendar/CRM si la tool está conectada.
+- Enviar más de un mensaje por turno.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
+
+💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó (confirmación: servicio + fecha + hora + lugar + profesional). Esperar respuesta.`,
+        },
+        {
+          title: "RECORDATORIO Y POSTCITA",
+          mainMessage: `🔒 CONDICIÓN GATE: cita_confirmada == true AND recordatorio_activado == false
+
+✅ LÓGICA DE EJECUCIÓN:
+
+▶ Activar recordatorios programados + cerrar la conversación (cascada abajo).
+
+📚 CASCADA DE FUENTES (en orden estricto, detenerse en la primera que aplique):
+1️⃣ FLUJO 'RECORDATORIO' disponible: si existe → ejecutar + activar triggers programados.
+2️⃣ REGLA/PARÁMETRO (1): mensaje literal de cierre + aviso de recordatorio.
+3️⃣ BLOQUE GESTIÓN: política de recordatorios + datos de la cita.
+4️⃣ TOOL externa (Calendar / WhatsApp API): programar recordatorios (24h antes, 1h antes) + registrar en CRM.
+5️⃣ FALLBACK: "¡Listo! Te esperamos el [FECHA] a las [HORA]. Te enviaré un recordatorio antes."
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   → Marcar \`recordatorio_activado = true\`
+   → Programar: recordatorio 24h antes + recordatorio 1h antes + encuesta postcita.
+   → Fin del flujo de agendamiento.
+
+🚫 PROHIBIDO:
+- Cerrar sin confirmar fecha y hora de la cita.
+- Inventar datos de la cita que no fueron capturados.
+- Enviar más de un mensaje por turno.
+- Saltar pasos de la cascada (siempre ir en orden 1→5).
+
+💬 EMIT SALIDA LITERAL: Confirmación final + aviso de recordatorio. Activar triggers programados.`,
+        },
+      ],
+    },
+  },
 ];
