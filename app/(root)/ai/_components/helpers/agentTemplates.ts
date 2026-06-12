@@ -349,12 +349,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
       training: [
         {
           title: "PASO 1 INICIO FLUJO",
-          mainMessage: `## 🎯 OBJETIVO: VENTA CONSULTIVA
-CONEXIÓN → AVERIGUACIÓN → DIAGNÓSTICO → EXPOSICIÓN → NEGOCIACIÓN → ACUERDO
-
-## PASO 1 — INICIO FLUJO CONEXIÓN (OBLIGATORIO)
-
-🔒 GATE: collected == {} AND current_step == 1
+          mainMessage: `🔒 GATE: collected == {} AND current_step == 1
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
 modo_bienvenida = obligatoria
@@ -381,12 +376,7 @@ modo_bienvenida = obligatoria
         },
         {
           title: "PASO 2 AVERIGUACIÓN",
-          mainMessage: `## FASE 2: AVERIGUACIÓN 🔍
-Pregunta abierta sobre el motivo de contacto.
-
-## PASO 2 — AVERIGUACIÓN PREGUNTA 1 (OBLIGATORIO)
-
-🔒 CONDICIÓN GATE: nombre != null AND productos_servicios == null
+          mainMessage: `🔒 CONDICIÓN GATE: nombre != null AND productos_servicios == null
 ✅ OBLIGATORIO EJECUTAR SIEMPRE — flujo 'PREGUNTA_1' ANTES de responder. SIN EXCEPCIÓN. SIN PARAFRASEAR. SIN OMITIR.
 🚫 PROHIBIDO: usar el Comportamiento obligatorio como sustituto de la ejecución del flujo.
 ❌ PROHIBIDO: responder sin ejecutar, reformular, inventar texto o enviar más de un mensaje.
@@ -394,12 +384,7 @@ Pregunta abierta sobre el motivo de contacto.
         },
         {
           title: "PASO 3 DIAGNÓSTICO",
-          mainMessage: `## FASE 3: DIAGNÓSTICO 🎯
-Preguntas de calificación, una por turno.
-
-## PASO 3 — AVERIGUACIÓN PREGUNTA 2 (OBLIGATORIO)
-
-🔒 CONDICIÓN GATE: productos_servicios != null AND dolor_especifico == null
+          mainMessage: `🔒 CONDICIÓN GATE: productos_servicios != null AND dolor_especifico == null
 ✅ OBLIGATORIO EJECUTAR SIEMPRE — flujo 'PREGUNTA_2' ANTES de responder. SIN EXCEPCIÓN. SIN PARAFRASEAR. SIN OMITIR.
 🚫 PROHIBIDO: usar el Comportamiento obligatorio como sustituto de la ejecución del flujo.
 ❌ PROHIBIDO: responder sin ejecutar, reformular, inventar texto o enviar más de un mensaje.
@@ -407,12 +392,7 @@ Preguntas de calificación, una por turno.
         },
         {
           title: "PASO 4 EXPOSICIÓN",
-          mainMessage: `## FASE 4: EXPOSICIÓN 💎
-Resumir el diagnóstico antes de proponer.
-
-## PASO 4 — PRESENTACIÓN SOLUCIÓN (OBLIGATORIO)
-
-🔒 CONDICIÓN GATE: dolor_especifico != null AND interes_confirmado == false
+          mainMessage: `🔒 CONDICIÓN GATE: dolor_especifico != null AND interes_confirmado == false
 ✅ OBLIGATORIO EJECUTAR SIEMPRE — flujo 'PRESENTACION' ANTES de responder. SIN EXCEPCIÓN. SIN PARAFRASEAR. SIN OMITIR.
 🚫 PROHIBIDO: usar el Comportamiento obligatorio como sustituto de la ejecución del flujo.
 ❌ PROHIBIDO: responder sin ejecutar, reformular, inventar texto o enviar más de un mensaje.
@@ -420,24 +400,14 @@ Resumir el diagnóstico antes de proponer.
         },
         {
           title: "PASO 5 NEGOCIACIÓN",
-          mainMessage: `## FASE 5: NEGOCIACIÓN ⚖️
-Validar la objeción ("Entiendo perfectamente...").
-
-## PASO 5 — PROPUESTA DE AGENDAMIENTO/CONTACTO (OBLIGATORIO)
-
-🔒 CONDICIÓN GATE: interes_confirmado == true AND presentacion_emitida == true
+          mainMessage: `🔒 CONDICIÓN GATE: interes_confirmado == true AND presentacion_emitida == true
 ✅ OBLIGATORIO ENVIAR SIEMPRE — la 'REGLA/PARÁMETRO(1)' ANTES de responder. SIN EXCEPCIÓN. SIN PARAFRASEAR. SIN OMITIR.
 ❌ PROHIBIDO: responder sin enviar, reformular, inventar texto o enviar más de un mensaje.
 💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto exacto de la Regla/parámetro (1). Esperar respuesta.`,
         },
         {
           title: "PASO 6 ACUERDO",
-          mainMessage: `## FASE 6: ACUERDO ✅
-Confirmar decisión explícita ("¿Procedemos entonces?").
-
-## PASO 6 — CIERRE Y CONFIRMACIÓN DEL ACUERDO (PASO FINAL)
-
-🔒 CONDICIÓN GATE: propuesta_agendamiento_enviada == true AND acuerdo_confirmado == false
+          mainMessage: `🔒 CONDICIÓN GATE: propuesta_agendamiento_enviada == true AND acuerdo_confirmado == false
 ✅ OBLIGATORIO EJECUTAR SIEMPRE — flujo 'ACUERDO' ANTES de responder. SIN EXCEPCIÓN. SIN PARAFRASEAR. SIN OMITIR.
 🚫 PROHIBIDO: usar el Comportamiento obligatorio como sustituto de la ejecución del flujo.
 ❌ PROHIBIDO: responder sin ejecutar, reformular, inventar texto, enviar más de un mensaje o solicitar datos ya entregados.
