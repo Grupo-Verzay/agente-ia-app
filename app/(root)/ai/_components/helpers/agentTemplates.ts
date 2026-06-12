@@ -428,37 +428,48 @@ modo_bienvenida = inteligente
 
 ✅ LÓGICA DE EJECUCIÓN:
 
-▶ Mapear \`producto_interes\` capturado al flujo correspondiente:
+▶ Paso 3.1 — Mapear \`producto_interes\` capturado al flujo/fuente correspondiente.
+▶ Paso 3.2 — Ejecutar cascada de fuentes para presentar el producto.
 
 🗺️ EJEMPLO MAPA DE COINCIDENCIA producto_interes → FLUJO:
-   • "zapatos" / "tenis" / "calzado" → FLUJO_ZAPATOS
-   • "camisas" / "camisetas" / "polos" → FLUJO_CAMISAS
-   • "pantalones" / "jeans" / "shorts" → FLUJO_PANTALONES
-   • "accesorios" / "bolsos" / "carteras" → FLUJO_ACCESORIOS
-   • [flujo, tool, detalles según catálogo del cliente]
+   El agente busca COINCIDENCIA PARCIAL (sinónimos / variaciones) en el mensaje del usuario:
+
+   • "zapatos" / "tenis" / "calzado" / "zapatillas" / "botas" → FLUJO_ZAPATOS
+   • "camisas" / "camisetas" / "polos" / "blusas" / "playeras" → FLUJO_CAMISAS
+   • "pantalones" / "jeans" / "shorts" / "bermudas" / "leggings" → FLUJO_PANTALONES
+   • "accesorios" / "bolsos" / "carteras" / "mochilas" / "billeteras" → FLUJO_ACCESORIOS
+   • [flujo, tool, detalles según catálogo del cliente: FORMATO_CATEGORIA → FLUJO_NOMBRE]
+
+   🔍 REGLAS DE MATCHING:
+      • Se ignoran mayúsculas/minúsculas y tildes.
+      • Se aceptan variaciones regionales LATAM (zapatos/tenis/zapatillas).
+      • Si hay coincidencia múltiple → priorizar la categoría más específica.
+      • Si NO hay coincidencia clara → ir a nivel 6️⃣ (fallback) de la cascada.
 
 📚 CASCADA DE FUENTES (en orden estricto):
-1️⃣ FLUJO 'EXPOSICION': si existe y aplica al \`producto_interes\` → ejecutar.
-2️⃣ REGLA/PARÁMETRO específica para el \`producto_interes\`.
+1️⃣ FLUJO específico mapeado (ej: FLUJO_ZAPATOS): si existe → ejecutar.
+2️⃣ REGLA/PARÁMETRO específica para el \`producto_interes\` (ej: REGLA_ZAPATOS).
 3️⃣ BLOQUE PRODUCTOS Y SERVICIOS: ficha del producto desde el catálogo del prompt.
-4️⃣ TOOL externa (Google Sheets / Base de Conocimiento / API): consultar precio, stock, detalles.
+4️⃣ TOOL externa (Google Sheets / Base de Conocimiento / API): consultar precio, stock, variantes.
 5️⃣ FAQ: si la consulta coincide con pregunta frecuente predefinida.
-6️⃣ FALLBACK: "No encontré ese producto. ¿Te conecto con un asesor?"
+6️⃣ FALLBACK: "No encontré información de [producto_interes]. ¿Te conecto con un asesor?"
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 ➡️ TRANSICIÓN:
    → Marcar \`oferta_presentada = true\`
+   → Marcar \`flujo_disparado = [nombre del flujo ejecutado]\` (para trazabilidad)
    → current_step = 4
 
 🚫 PROHIBIDO:
-- Disparar un flujo que no coincida con producto_interes.
-- Inventar productos, precios, stock o detalles fuera de las fuentes, catálogo o tools conectadas.
+- Disparar un flujo que NO coincida con producto_interes.
+- Inventar productos, categorías, precios, stock o detalles fuera de las fuentes.
+- Ejecutar dos flujos a la vez (un solo flujo por turno).
 - Mezclar información de dos fuentes en una sola respuesta.
-- Mezclar dos flujos en una sola respuesta.
-- Saltar pasos de la cascada.
+- Mencionar productos fuera del catálogo o tools conectadas.
+- Saltar pasos de la cascada (siempre ir en orden 1→6).
 
-💬 EMIT SALIDA LITERAL: Texto de la fuente que aplicó (producto + precio + beneficio + pregunta de cierre).`,
+💬 EMIT SALIDA LITERAL: Texto del flujo/fuente que aplicó en la cascada (producto + precio + beneficio + pregunta de cierre).`,
         },
         {
           title: "CIERRE Y CAPTURA DE DATOS",
