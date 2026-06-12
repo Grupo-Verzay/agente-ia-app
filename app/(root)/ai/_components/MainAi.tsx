@@ -483,8 +483,8 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                     </div>
                                 </div>
                                 {/* Fila 2: descripción + chips */}
-                                <div className="mt-1.5 pl-10">
-                                    <p className="text-xs text-muted-foreground">
+                                <div className="mt-1.5">
+                                    <p className="text-xs text-muted-foreground pl-10">
                                         Elige una plantilla por rubro u objetivo, o construye desde cero.
                                     </p>
                                     <div ref={chipsContainerRef} className="flex flex-nowrap gap-1 mt-1.5 overflow-hidden">
