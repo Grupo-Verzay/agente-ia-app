@@ -418,30 +418,11 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
 
                         {/* Empty state: ofrecer plantilla cuando el agente no tiene contenido */}
                         {isEmpty && (
-                            <div className="rounded-xl border bg-muted/30 p-4 mb-3">
-                                <div className="flex items-center justify-between gap-3 flex-nowrap">
-                                    <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
-                                        <span className="text-3xl shrink-0">🤖</span>
-                                        <div className="min-w-0 overflow-hidden">
-                                            <p className="text-sm font-semibold leading-tight truncate">¡Configura tu Agente IA!</p>
-                                            <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                                                Elige una plantilla por rubro u objetivo, o construye desde cero.
-                                            </p>
-                                            <div className="flex flex-nowrap gap-1 mt-2 overflow-hidden">
-                                                {["Restaurante","Clínica","E-commerce","Venta Consultiva","Venta Directa"].map((r) => (
-                                                    <button
-                                                        key={r}
-                                                        type="button"
-                                                        onClick={() => setShowTemplates(true)}
-                                                        className="rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary hover:text-primary transition-colors shrink-0"
-                                                    >
-                                                        {r}
-                                                    </button>
-                                                ))}
-                                                <span className="rounded-full border border-dashed px-2 py-0.5 text-[10px] text-muted-foreground/60 shrink-0">+más</span>
-                                            </div>
-                                        </div>
-                                    </div>
+                            <div className="rounded-xl border bg-muted/30 px-4 py-3 mb-3">
+                                {/* Fila 1: ícono + título + botones */}
+                                <div className="flex items-center gap-3 flex-nowrap">
+                                    <span className="text-3xl shrink-0">🤖</span>
+                                    <p className="text-sm font-semibold leading-tight flex-1 min-w-0 truncate">¡Configura tu Agente IA!</p>
                                     <div className="flex gap-2 shrink-0">
                                         <button
                                             type="button"
@@ -457,6 +438,24 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                         >
                                             Desde cero
                                         </button>
+                                    </div>
+                                </div>
+                                {/* Fila 2: descripción + chips */}
+                                <div className="mt-1.5 pl-10">
+                                    <p className="text-xs text-muted-foreground">
+                                        Elige una plantilla por rubro u objetivo, o construye desde cero.
+                                    </p>
+                                    <div className="flex flex-wrap gap-1 mt-1.5">
+                                        {["Restaurante","Clínica","E-commerce","Inmobiliaria","Academia","Belleza","Viajes","Venta Consultiva","Venta Directa"].map((r) => (
+                                            <button
+                                                key={r}
+                                                type="button"
+                                                onClick={() => setShowTemplates(true)}
+                                                className="rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                                            >
+                                                {r}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
