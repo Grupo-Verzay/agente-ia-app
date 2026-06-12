@@ -135,18 +135,18 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
         };
 
         const chipWidths = ALL_TEMPLATE_CHIPS.map(measureChipW);
-        const moreW = measureChipW("+9 más"); // estimación conservadora del chip "+más"
-        const GAP = 4;
+        const moreW = measureChipW("+9 más");
 
         const measure = () => {
             const available = el.clientWidth;
-            let used = 0;
+            let total = 0;
             let count = 0;
             for (let i = 0; i < ALL_TEMPLATE_CHIPS.length; i++) {
                 const isLast = i === ALL_TEMPLATE_CHIPS.length - 1;
-                const extra = isLast ? 0 : moreW + GAP; // reservar espacio para "+más" si no es el último
-                if (used + chipWidths[i] + GAP + extra > available) break;
-                used += chipWidths[i] + GAP;
+                // Con justify-between no hay gap fijo; solo verificar si los anchos suman menos que el contenedor
+                const needed = total + chipWidths[i] + (isLast ? 0 : moreW);
+                if (needed > available) break;
+                total += chipWidths[i];
                 count++;
             }
             setVisibleChipCount(Math.max(1, count));
@@ -487,7 +487,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                     <p className="text-xs text-muted-foreground pl-10">
                                         Elige una plantilla por rubro u objetivo, o construye desde cero.
                                     </p>
-                                    <div ref={chipsContainerRef} className="flex flex-nowrap gap-1 mt-1.5 overflow-hidden">
+                                    <div ref={chipsContainerRef} className="flex flex-nowrap justify-between mt-1.5 overflow-hidden">
                                         {ALL_TEMPLATE_CHIPS.slice(0, visibleChipCount).map((r) => (
                                             <button
                                                 key={r}
