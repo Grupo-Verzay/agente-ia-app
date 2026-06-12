@@ -348,7 +348,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     sections: {
       training: [
         {
-          title: "PASO 1 INICIO FLUJO",
+          title: "INICIO FLUJO",
           mainMessage: `🔒 GATE: collected == {} AND current_step == 1
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
@@ -375,7 +375,7 @@ modo_bienvenida = obligatoria
 - Pedir datos que el cliente ya entregó en su primer mensaje.`,
         },
         {
-          title: "PASO 2 AVERIGUACIÓN",
+          title: "AVERIGUACIÓN",
           mainMessage: `🔒 CONDICIÓN GATE: nombre != null AND productos_servicios == null
 ✅ OBLIGATORIO EJECUTAR SIEMPRE — flujo 'PREGUNTA_1' ANTES de responder. SIN EXCEPCIÓN. SIN PARAFRASEAR. SIN OMITIR.
 🚫 PROHIBIDO: usar el Comportamiento obligatorio como sustituto de la ejecución del flujo.
@@ -383,7 +383,7 @@ modo_bienvenida = obligatoria
 💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto exacto de la Regla/parámetro (2). Esperar respuesta.`,
         },
         {
-          title: "PASO 3 DIAGNÓSTICO",
+          title: "DIAGNÓSTICO",
           mainMessage: `🔒 CONDICIÓN GATE: productos_servicios != null AND dolor_especifico == null
 ✅ OBLIGATORIO EJECUTAR SIEMPRE — flujo 'PREGUNTA_2' ANTES de responder. SIN EXCEPCIÓN. SIN PARAFRASEAR. SIN OMITIR.
 🚫 PROHIBIDO: usar el Comportamiento obligatorio como sustituto de la ejecución del flujo.
@@ -391,7 +391,7 @@ modo_bienvenida = obligatoria
 💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto exacto de la Regla/parámetro (2). Esperar respuesta.`,
         },
         {
-          title: "PASO 4 EXPOSICIÓN",
+          title: "EXPOSICIÓN",
           mainMessage: `🔒 CONDICIÓN GATE: dolor_especifico != null AND interes_confirmado == false
 ✅ OBLIGATORIO EJECUTAR SIEMPRE — flujo 'PRESENTACION' ANTES de responder. SIN EXCEPCIÓN. SIN PARAFRASEAR. SIN OMITIR.
 🚫 PROHIBIDO: usar el Comportamiento obligatorio como sustituto de la ejecución del flujo.
@@ -399,14 +399,14 @@ modo_bienvenida = obligatoria
 💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto exacto de la Regla/parámetro correspondiente al dolor_especifico capturado. Esperar respuesta.`,
         },
         {
-          title: "PASO 5 NEGOCIACIÓN",
+          title: "NEGOCIACIÓN",
           mainMessage: `🔒 CONDICIÓN GATE: interes_confirmado == true AND presentacion_emitida == true
 ✅ OBLIGATORIO ENVIAR SIEMPRE — la 'REGLA/PARÁMETRO(1)' ANTES de responder. SIN EXCEPCIÓN. SIN PARAFRASEAR. SIN OMITIR.
 ❌ PROHIBIDO: responder sin enviar, reformular, inventar texto o enviar más de un mensaje.
 💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto exacto de la Regla/parámetro (1). Esperar respuesta.`,
         },
         {
-          title: "PASO 6 ACUERDO",
+          title: "ACUERDO",
           mainMessage: `🔒 CONDICIÓN GATE: propuesta_agendamiento_enviada == true AND acuerdo_confirmado == false
 ✅ OBLIGATORIO EJECUTAR SIEMPRE — flujo 'ACUERDO' ANTES de responder. SIN EXCEPCIÓN. SIN PARAFRASEAR. SIN OMITIR.
 🚫 PROHIBIDO: usar el Comportamiento obligatorio como sustituto de la ejecución del flujo.
