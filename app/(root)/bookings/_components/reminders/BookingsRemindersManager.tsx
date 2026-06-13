@@ -1,8 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { BellRing, Loader2, Pencil, Plus, Search, Trash2, Wrench } from 'lucide-react';
+import {
+    BellRing, FileAudio, FileText, ImageIcon, Loader2, Paperclip,
+    Pencil, Plus, Search, Trash2, Video, Wrench,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,12 +16,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { TimeInput } from '@/components/shared/TimeInput';
 import { getTeamServices, updateTeamService } from '@/actions/bookings-actions';
 import TooltipWrapper from '@/components/TooltipWrapper';
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 interface ServiceReminder {
+    title?: string;
     timeMinutes: number;
     message: string;
+    media?: string;
+    mediaType?: string;
+    nameFile?: string;
 }
 
 interface TeamService {
@@ -29,101 +39,262 @@ interface TeamService {
     remindersConfig: ServiceReminder[] | null;
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 function fmtTime(mins: number) {
     if (mins < 60) return `${mins} min antes`;
     if (mins < 1440) return `${mins / 60}h antes`;
     return `${mins / 1440}d antes`;
 }
 
-function reminderTitle(mins: number): string {
-    if (mins < 60) return `RECORDATORIO ${mins} MIN ANTES`;
-    if (mins < 1440) return `RECORDATORIO ${mins / 60}H ANTES`;
-    return `RECORDATORIO ${mins / 1440}D ANTES`;
+function reminderDisplayTitle(rem: ServiceReminder): string {
+    if (rem.title?.trim()) return rem.title.trim().toUpperCase();
+    if (rem.timeMinutes < 60) return `RECORDATORIO ${rem.timeMinutes} MIN ANTES`;
+    if (rem.timeMinutes < 1440) return `RECORDATORIO ${rem.timeMinutes / 60}H ANTES`;
+    return `RECORDATORIO ${rem.timeMinutes / 1440}D ANTES`;
 }
 
-const DEFAULT_MSG = 'Hola @client_name, te recordamos tu cita: @appointment_datetime';
-
-interface ReminderFormState {
-    timeMinutes: string;
-    message: string;
+function minsToTimeInput(mins: number): string {
+    if (mins >= 1440 && mins % 1440 === 0) return `days-${mins / 1440}`;
+    if (mins >= 60 && mins % 60 === 0) return `hours-${mins / 60}`;
+    return `minutes-${mins}`;
 }
 
-function ReminderFormDialog({
-    open,
-    initial,
-    onClose,
-    onSave,
-    saving,
-}: {
+function timeInputToMins(value: string): number {
+    const [unit, numStr] = value.split('-');
+    const n = parseInt(numStr, 10) || 0;
+    if (unit === 'hours') return n * 60;
+    if (unit === 'days') return n * 1440;
+    return n;
+}
+
+function formatFileSize(bytes: number) {
+    if (!bytes) return '0 KB';
+    const mb = bytes / 1024 / 1024;
+    if (mb >= 1) return `${mb.toFixed(1)} MB`;
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+const MEDIA_OPTIONS = [
+    { type: 'image',    label: 'Imagen', accept: 'image/*',                                           Icon: ImageIcon,  iconClass: 'text-sky-600'     },
+    { type: 'video',    label: 'Video',  accept: 'video/*',                                           Icon: Video,      iconClass: 'text-rose-600'    },
+    { type: 'audio',    label: 'Audio',  accept: 'audio/*',                                           Icon: FileAudio,  iconClass: 'text-emerald-600' },
+    { type: 'document', label: 'Doc.',   accept: '.pdf,.doc,.docx,.xls,.xlsx,.csv,application/pdf',   Icon: FileText,   iconClass: 'text-amber-600'   },
+] as const;
+
+type MediaType = (typeof MEDIA_OPTIONS)[number]['type'];
+
+// ─── ReminderFormDialog ───────────────────────────────────────────────────────
+
+interface ReminderFormDialogProps {
     open: boolean;
     initial?: ServiceReminder;
+    userId: string;
     onClose: () => void;
     onSave: (r: ServiceReminder) => void;
     saving: boolean;
-}) {
-    const [form, setForm] = useState<ReminderFormState>({
-        timeMinutes: initial ? String(initial.timeMinutes) : '60',
-        message: initial?.message ?? DEFAULT_MSG,
-    });
+}
+
+function ReminderFormDialog({ open, initial, userId, onClose, onSave, saving }: ReminderFormDialogProps) {
+    const isEdit = Boolean(initial);
+
+    const [title, setTitle]           = useState(initial?.title ?? '');
+    const [message, setMessage]       = useState(initial?.message ?? 'Hola @client_name, te recordamos tu cita: @appointment_datetime');
+    const [timeValue, setTimeValue]   = useState(minsToTimeInput(initial?.timeMinutes ?? 60));
+    const [mediaPreview, setMediaPreview] = useState<{ fileName: string; mimeType: string; size: number; type: MediaType } | null>(null);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [mediaAccept, setMediaAccept] = useState('image/*');
+    const [uploading, setUploading]   = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (open) {
-            setForm({
-                timeMinutes: initial ? String(initial.timeMinutes) : '60',
-                message: initial?.message ?? DEFAULT_MSG,
-            });
+            setTitle(initial?.title ?? '');
+            setMessage(initial?.message ?? 'Hola @client_name, te recordamos tu cita: @appointment_datetime');
+            setTimeValue(minsToTimeInput(initial?.timeMinutes ?? 60));
+            setMediaPreview(null);
+            setSelectedFile(null);
         }
     }, [open, initial]);
 
-    const handleSave = () => {
-        const mins = parseInt(form.timeMinutes, 10);
-        if (!mins || mins <= 0) { toast.error('Ingresa un tiempo válido'); return; }
-        if (!form.message.trim()) { toast.error('El mensaje no puede estar vacío'); return; }
-        onSave({ timeMinutes: mins, message: form.message.trim() });
+    const handlePickMedia = (option: (typeof MEDIA_OPTIONS)[number]) => {
+        setMediaAccept(option.accept);
+        requestAnimationFrame(() => fileInputRef.current?.click());
     };
+
+    const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const detectedType: MediaType =
+            file.type.startsWith('image/') ? 'image'
+            : file.type.startsWith('video/') ? 'video'
+            : file.type.startsWith('audio/') ? 'audio'
+            : 'document';
+        setMediaPreview({ fileName: file.name, mimeType: file.type || 'application/octet-stream', size: file.size, type: detectedType });
+        setSelectedFile(file);
+    };
+
+    const clearMedia = () => {
+        setMediaPreview(null);
+        setSelectedFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const handleSave = async () => {
+        const mins = timeInputToMins(timeValue);
+        if (!mins || mins <= 0) { toast.error('Ingresa un tiempo válido'); return; }
+        if (!message.trim()) { toast.error('El mensaje no puede estar vacío'); return; }
+
+        let mediaPayload: Pick<ServiceReminder, 'media' | 'mediaType' | 'nameFile'> = {};
+        if (selectedFile && mediaPreview) {
+            try {
+                setUploading(true);
+                const fd = new FormData();
+                fd.append('file', selectedFile);
+                fd.append('userID', userId);
+                fd.append('workflowID', 'reminders');
+                const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                const data = await res.json().catch(() => null);
+                if (!res.ok || !data?.url) throw new Error(data?.error || 'No se pudo subir el archivo.');
+                mediaPayload = { media: data.url, mediaType: mediaPreview.type, nameFile: selectedFile.name };
+            } catch (err) {
+                toast.error(err instanceof Error ? err.message : 'Error al subir archivo');
+                return;
+            } finally {
+                setUploading(false);
+            }
+        }
+
+        onSave({
+            title: title.trim() || undefined,
+            timeMinutes: mins,
+            message: message.trim(),
+            media: initial?.media,
+            mediaType: initial?.mediaType,
+            nameFile: initial?.nameFile,
+            ...mediaPayload,
+        });
+    };
+
+    const isBusy = saving || uploading;
 
     return (
         <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>{initial ? 'Editar recordatorio' : 'Agregar recordatorio'}</DialogTitle>
+                    <DialogTitle>{isEdit ? 'Editar recordatorio' : 'Crear recordatorio'}</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-2">
-                    <div className="flex items-center gap-2">
-                        <div className="space-y-1 flex-1">
-                            <Label className="text-xs">Tiempo (minutos antes)</Label>
-                            <Input
-                                type="number"
-                                min={1}
-                                value={form.timeMinutes}
-                                onChange={(e) => setForm((p) => ({ ...p, timeMinutes: e.target.value }))}
-                                className="h-8 text-sm"
-                            />
-                        </div>
-                        <div className="pt-5 text-xs text-muted-foreground whitespace-nowrap">
-                            = {form.timeMinutes ? fmtTime(parseInt(form.timeMinutes) || 0) : '—'}
-                        </div>
+
+                <div className="flex flex-col gap-4 py-1">
+                    {/* Título */}
+                    <div className="flex flex-col gap-1.5">
+                        <Label className="text-sm font-semibold">Título</Label>
+                        <Input
+                            placeholder="Ej: Recordatorio cita"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                        />
                     </div>
-                    <div className="space-y-1">
-                        <Label className="text-xs">Mensaje</Label>
+
+                    {/* Mensaje */}
+                    <div className="flex flex-col gap-1.5">
+                        <Label className="text-sm font-semibold">Mensaje</Label>
                         <Textarea
-                            value={form.message}
-                            onChange={(e) => setForm((p) => ({ ...p, message: e.target.value }))}
-                            className="min-h-[80px] text-sm"
-                            placeholder="Mensaje del recordatorio..."
+                            placeholder="Hola @client_name, te recordamos que..."
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            className="min-h-[72px] max-h-[180px] resize-y text-sm"
                         />
                         <p className="text-[10px] text-muted-foreground">
                             Variables: @client_name · @appointment_datetime · @appointment_duration
                         </p>
                     </div>
+
+                    {/* Archivo multimedia */}
+                    <div className="flex flex-col gap-3 rounded-md border border-dashed border-blue-200 bg-blue-50/30 px-3 py-3">
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept={mediaAccept}
+                            className="hidden"
+                            onChange={handleFileSelected}
+                        />
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-2">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white text-blue-600 shadow-sm">
+                                    <Paperclip className="h-4 w-4" />
+                                </span>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-semibold leading-none">Archivo multimedia</p>
+                                    <p className="mt-1 truncate text-xs text-muted-foreground">Opcional para enviar junto al recordatorio</p>
+                                </div>
+                            </div>
+                            {(mediaPreview || initial?.media) && (
+                                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={clearMedia}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-4 gap-2">
+                            {MEDIA_OPTIONS.map((opt) => {
+                                const Icon = opt.Icon;
+                                const active = mediaPreview?.type === opt.type;
+                                return (
+                                    <Button
+                                        key={opt.type}
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className={`h-9 gap-1.5 px-2 text-sm font-medium ${active ? 'border-blue-300 bg-blue-100 text-blue-700 hover:bg-blue-100' : 'bg-background hover:border-blue-200 hover:bg-blue-50/60'}`}
+                                        onClick={() => handlePickMedia(opt)}
+                                    >
+                                        <Icon className={`h-4 w-4 ${opt.iconClass}`} />
+                                        <span className="truncate">{opt.label}</span>
+                                    </Button>
+                                );
+                            })}
+                        </div>
+
+                        {mediaPreview ? (
+                            <div className="flex items-center gap-2 rounded-md border bg-background px-2.5 py-2">
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                                    {mediaPreview.type === 'image' ? <ImageIcon className="h-4 w-4" /> :
+                                     mediaPreview.type === 'video' ? <Video className="h-4 w-4" /> :
+                                     mediaPreview.type === 'audio' ? <FileAudio className="h-4 w-4" /> :
+                                     <FileText className="h-4 w-4" />}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="truncate text-xs font-medium">{mediaPreview.fileName}</p>
+                                    <p className="text-xs text-muted-foreground">{formatFileSize(mediaPreview.size)} · {mediaPreview.mimeType}</p>
+                                </div>
+                            </div>
+                        ) : initial?.media ? (
+                            <div className="flex items-center gap-2 rounded-md border bg-background px-2.5 py-2">
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                                    <FileText className="h-4 w-4" />
+                                </div>
+                                <p className="truncate text-xs font-medium">{initial.nameFile ?? 'Archivo adjunto'}</p>
+                            </div>
+                        ) : (
+                            <p className="text-xs text-muted-foreground">Selecciona una imagen, video, audio o documento.</p>
+                        )}
+                    </div>
+
+                    {/* Duración de retraso */}
+                    <TimeInput
+                        currentValue={timeValue}
+                        onChange={setTimeValue}
+                    />
                 </div>
+
                 <DialogFooter>
-                    <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving}>
+                    <Button type="button" variant="outline" onClick={onClose} disabled={isBusy}>
                         Cancelar
                     </Button>
-                    <Button type="button" size="sm" onClick={handleSave} disabled={saving}>
-                        {saving && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
-                        Guardar
+                    <Button type="button" onClick={handleSave} disabled={isBusy}>
+                        {isBusy && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                        {isEdit ? 'Actualizar recordatorio' : 'Crear recordatorio'}
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -131,13 +302,17 @@ function ReminderFormDialog({
     );
 }
 
+// ─── ServiceSection ───────────────────────────────────────────────────────────
+
 function ServiceSection({
     service,
     search,
+    userId,
     onUpdated,
 }: {
     service: TeamService;
     search: string;
+    userId: string;
     onUpdated: (id: string, reminders: ServiceReminder[]) => void;
 }) {
     const [saving, setSaving] = useState(false);
@@ -149,11 +324,10 @@ function ServiceSection({
         : [];
 
     const filteredReminders = search
-        ? reminders.filter((r) =>
-            reminderTitle(r.timeMinutes).toLowerCase().includes(search.toLowerCase()) ||
-            fmtTime(r.timeMinutes).toLowerCase().includes(search.toLowerCase()) ||
-            r.message.toLowerCase().includes(search.toLowerCase())
-        )
+        ? reminders.filter((r) => {
+            const haystack = `${reminderDisplayTitle(r)} ${fmtTime(r.timeMinutes)} ${r.message}`.toLowerCase();
+            return haystack.includes(search.toLowerCase());
+          })
         : reminders;
 
     const persist = async (updated: ServiceReminder[]) => {
@@ -170,8 +344,7 @@ function ServiceSection({
 
     const handleSave = (r: ServiceReminder) => {
         if (editIdx !== null) {
-            const updated = reminders.map((rem, i) => (i === editIdx ? r : rem));
-            persist(updated);
+            persist(reminders.map((rem, i) => (i === editIdx ? r : rem)));
         } else {
             persist([...reminders, r]);
         }
@@ -224,7 +397,7 @@ function ServiceSection({
                 </p>
             ) : (
                 <div className="space-y-1.5 pl-4">
-                    {filteredReminders.map((rem, idx) => {
+                    {filteredReminders.map((rem) => {
                         const realIdx = reminders.indexOf(rem);
                         return (
                             <Card
@@ -237,7 +410,7 @@ function ServiceSection({
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <h3 className="app-item-title truncate text-foreground">
-                                            {reminderTitle(rem.timeMinutes)}
+                                            {reminderDisplayTitle(rem)}
                                         </h3>
                                         <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
                                             {rem.message}
@@ -247,6 +420,12 @@ function ServiceSection({
                                         <Badge className="h-5 px-1.5 py-0 text-[10px] font-medium border-0 bg-blue-100 text-blue-700">
                                             {fmtTime(rem.timeMinutes)}
                                         </Badge>
+                                        {rem.media && (
+                                            <Badge className="h-5 px-1.5 py-0 text-[10px] font-medium border-0 bg-sky-100 text-sky-700">
+                                                <Paperclip className="h-2.5 w-2.5 mr-0.5" />
+                                                Media
+                                            </Badge>
+                                        )}
                                         <div className="h-5 w-0.5 shrink-0 rounded-full bg-border" />
                                         <div className="flex items-center gap-0.5">
                                             <TooltipWrapper content="Editar">
@@ -283,6 +462,7 @@ function ServiceSection({
             <ReminderFormDialog
                 open={dialogOpen}
                 initial={editIdx !== null ? reminders[editIdx] : undefined}
+                userId={userId}
                 onClose={() => { setDialogOpen(false); setEditIdx(null); }}
                 onSave={handleSave}
                 saving={saving}
@@ -291,7 +471,9 @@ function ServiceSection({
     );
 }
 
-export function BookingsRemindersManager({ teamId }: { teamId: string }) {
+// ─── BookingsRemindersManager ─────────────────────────────────────────────────
+
+export function BookingsRemindersManager({ teamId, userId }: { teamId: string; userId: string }) {
     const [services, setServices] = useState<TeamService[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -358,6 +540,7 @@ export function BookingsRemindersManager({ teamId }: { teamId: string }) {
                     key={s.id}
                     service={s}
                     search={search}
+                    userId={userId}
                     onUpdated={handleUpdated}
                 />
             ))}

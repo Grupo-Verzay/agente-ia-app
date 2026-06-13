@@ -128,7 +128,7 @@ export const MainBookings = ({ user, team }: Props) => {
 
                 {tab === 'reminders' && (
                     <div className="h-full overflow-y-auto pb-4">
-                        <BookingsRemindersManager teamId={team.id} />
+                        <BookingsRemindersManager teamId={team.id} userId={userId} />
                     </div>
                 )}
 
