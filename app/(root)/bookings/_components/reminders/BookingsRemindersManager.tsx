@@ -42,16 +42,19 @@ interface TeamService {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmtTime(mins: number) {
-    if (mins < 60) return `${mins} min antes`;
-    if (mins < 1440) return `${mins / 60}h antes`;
-    return `${mins / 1440}d antes`;
+    if (mins === 0) return 'Al momento';
+    if (mins < 60) return mins === 1 ? '1 minuto antes' : `${mins} minutos antes`;
+    if (mins < 1440) {
+        const h = mins / 60;
+        return h === 1 ? '1 hora antes' : `${h} horas antes`;
+    }
+    const d = mins / 1440;
+    return d === 1 ? '1 día antes' : `${d} días antes`;
 }
 
 function reminderDisplayTitle(rem: ServiceReminder): string {
     if (rem.title?.trim()) return rem.title.trim();
-    if (rem.timeMinutes < 60) return `Recordatorio ${rem.timeMinutes} min antes`;
-    if (rem.timeMinutes < 1440) return `Recordatorio ${rem.timeMinutes / 60}h antes`;
-    return `Recordatorio ${rem.timeMinutes / 1440}d antes`;
+    return `Recordatorio ${fmtTime(rem.timeMinutes)}`;
 }
 
 function minsToTimeInput(mins: number): string {
