@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { Loader2, Plus, Info } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { FaWhatsapp } from 'react-icons/fa';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -51,11 +52,11 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
   return (
     <>
       <Card className="border-border flex-1 border-dashed">
-        <CardHeader>
-          <CardTitle className="text-base">Meta Cloud API</CardTitle>
-          <CardDescription className="text-xs">
-            Conecta un número con la API oficial de WhatsApp Business (Meta Developer, Gupshup, Twilio, etc.)
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-center p-6">
+          <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
+            <FaWhatsapp className="text-green-500 w-6 h-6" />
+            Meta Cloud API
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-1">
@@ -65,8 +66,7 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
               <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </div>
           </div>
-          <Button onClick={() => setOpen(true)} className="w-full gap-2" variant="outline">
-            <Plus className="w-4 h-4" />
+          <Button onClick={() => setOpen(true)} className="w-full">
             Nueva instancia Meta
           </Button>
         </CardContent>
