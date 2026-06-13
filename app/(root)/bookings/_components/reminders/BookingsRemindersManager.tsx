@@ -329,12 +329,13 @@ function ServiceSection({
         ? service.remindersConfig
         : [];
 
-    const filteredReminders = search
+    const filteredReminders = (search
         ? reminders.filter((r) => {
             const haystack = `${reminderDisplayTitle(r)} ${fmtTime(r.timeMinutes)} ${r.message}`.toLowerCase();
             return haystack.includes(search.toLowerCase());
           })
-        : reminders;
+        : reminders
+    ).slice().sort((a, b) => b.timeMinutes - a.timeMinutes);
 
     const persist = async (updated: ServiceReminder[]) => {
         setSaving(true);
