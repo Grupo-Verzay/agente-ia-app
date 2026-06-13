@@ -645,15 +645,11 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     </div>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="flex items-center justify-between">
-                                        <Button
-                                            variant={"outline"}
-                                            className={`text-xs ${!isMuted ? "text-green-600 border-green-600 dark:text-green-400 dark:border-green-400" : ""}`}
-                                        >
-                                            {isMuted ? "Silenciado" : "Activo"}
-                                        </Button>
-                                        <Switch checked={!isMuted} onCheckedChange={(v) => handleMuteToggle(!v)} />
-                                    </div>
+                                    <Switch
+                                        checked={!isMuted}
+                                        onCheckedChange={(v) => handleMuteToggle(!v)}
+                                        className="data-[state=checked]:bg-green-600"
+                                    />
                                 </CardContent>
                             </Card>
                             <SectionTitle>Tiempos de respuesta</SectionTitle>
