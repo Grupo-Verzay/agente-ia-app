@@ -489,7 +489,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                             wabaId={(inst as any).metaWabaId}
                                         />
                                     ))}
-                                    <MetaInstanceCreator userId={userId} />
+                                    <MetaInstanceCreator userId={userId} company={user?.company as string} />
                                 </div>
                             </div>
                         </TabPanel>

@@ -1,42 +1,48 @@
 'use client';
 
-import { useState } from 'react';
-import { Loader2, Plus } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Loader2, Plus, Info } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { createMetaInstance } from '@/actions/instances-actions';
+import { sanitizeInstanceName } from '@/schema/connection';
 import { toast } from 'sonner';
 
 interface MetaInstanceCreatorProps {
   userId: string;
+  company?: string | null;
 }
 
-export const MetaInstanceCreator = ({ userId }: MetaInstanceCreatorProps) => {
+export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProps) => {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    instanceName: '',
     phoneNumberId: '',
     accessToken: '',
     wabaId: '',
     verifyToken: '',
   });
 
+  const instanceName = useMemo(
+    () => sanitizeInstanceName(company ?? userId ?? 'instancia'),
+    [company, userId]
+  );
+
   const handleCreate = async () => {
-    if (!form.instanceName || !form.phoneNumberId || !form.accessToken) {
-      toast.error('Nombre, Phone Number ID y Access Token son requeridos.');
+    if (!form.phoneNumberId || !form.accessToken) {
+      toast.error('Phone Number ID y Access Token son requeridos.');
       return;
     }
     setSaving(true);
-    const res = await createMetaInstance({ ...form, userId });
+    const res = await createMetaInstance({ ...form, instanceName, userId });
     setSaving(false);
     if (res.success) {
       toast.success(res.message);
       setOpen(false);
-      setForm({ instanceName: '', phoneNumberId: '', accessToken: '', wabaId: '', verifyToken: '' });
+      setForm({ phoneNumberId: '', accessToken: '', wabaId: '', verifyToken: '' });
     } else {
       toast.error(res.message);
     }
@@ -65,13 +71,13 @@ export const MetaInstanceCreator = ({ userId }: MetaInstanceCreatorProps) => {
             <DialogTitle>Nueva instancia Meta Cloud API</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
+            {/* Nombre de instancia — solo lectura, derivado de la empresa */}
             <div className="space-y-1">
-              <Label>Nombre de instancia <span className="text-red-500">*</span></Label>
-              <Input
-                value={form.instanceName}
-                onChange={(e) => setForm(f => ({ ...f, instanceName: e.target.value }))}
-                placeholder="mi-empresa-meta"
-              />
+              <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
+              <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                <span className="flex-1 font-mono text-foreground">{instanceName}</span>
+                <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              </div>
             </div>
             <div className="space-y-1">
               <Label>Phone Number ID <span className="text-red-500">*</span></Label>

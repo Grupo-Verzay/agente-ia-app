@@ -137,7 +137,7 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
                     wabaId={(inst as any).metaWabaId}
                 />
             ))}
-            <MetaInstanceCreator userId={effectiveId} />
+            <MetaInstanceCreator userId={effectiveId} company={user.company as string} />
         </div>
     );
 };
