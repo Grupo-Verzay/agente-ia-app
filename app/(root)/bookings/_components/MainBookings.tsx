@@ -1,19 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { Users, Wrench, Settings2, LayoutDashboard } from 'lucide-react';
+import { Users, Wrench, Settings2, LayoutDashboard, Building2 } from 'lucide-react';
 import { MembersManager } from './members/MembersManager';
 import { BookingServicesManager } from './services/BookingServicesManager';
 import { BookingTeamSettings } from './settings/BookingTeamSettings';
 import { BookingsCalendar } from './dashboard/BookingsCalendar';
+import { BookingTeamConfig } from './team/BookingTeamConfig';
 
-type TabValue = 'dashboard' | 'members' | 'services' | 'settings';
+type TabValue = 'dashboard' | 'team' | 'members' | 'services' | 'settings';
 
 const TABS: { value: TabValue; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
-    { value: 'dashboard',  label: 'Dashboard',     Icon: LayoutDashboard },
-    { value: 'members',   label: 'Especialistas',  Icon: Users },
-    { value: 'services',  label: 'Servicios',      Icon: Wrench },
-    { value: 'settings',  label: 'Ajustes',        Icon: Settings2 },
+    { value: 'dashboard', label: 'Dashboard',    Icon: LayoutDashboard },
+    { value: 'team',      label: 'Equipo',       Icon: Building2 },
+    { value: 'members',   label: 'Especialistas', Icon: Users },
+    { value: 'services',  label: 'Servicios',    Icon: Wrench },
+    { value: 'settings',  label: 'Ajustes',      Icon: Settings2 },
 ];
 
 interface Props {
@@ -52,9 +54,10 @@ export const MainBookings = ({ user, team }: Props) => {
             {/* Contenido */}
             <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-4">
                 {tab === 'dashboard' && <BookingsCalendar teamId={team.id} />}
+                {tab === 'team'      && <BookingTeamConfig team={team} />}
                 {tab === 'members'   && <MembersManager teamId={team.id} teamTimezone={team.timezone} />}
                 {tab === 'services'  && <BookingServicesManager teamId={team.id} />}
-                {tab === 'settings'  && <BookingTeamSettings team={team} userId={userId} />}
+                {tab === 'settings'  && <BookingTeamSettings userId={userId} />}
             </div>
         </div>
     );
