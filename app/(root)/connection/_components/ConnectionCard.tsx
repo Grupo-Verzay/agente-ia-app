@@ -70,7 +70,7 @@ const SocialIconSelector = ({ instanceType }: SocialIconSelectorProps) => {
         return (
             <>
                 <FaWhatsapp className="text-green-500 rounded-sm w-6 h-6" />
-                <span className="text-xl font-bold">WhatsApp</span>
+                <span className="text-xl font-bold">WhatsApp Business QR</span>
             </>
         )
     }
