@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-    BellRing, FileAudio, FileText, ImageIcon, Loader2, Paperclip,
+    BellRing, CalendarDays, FileAudio, FileText, ImageIcon, Loader2, Paperclip,
     Pencil, Plus, Search, Trash2, Video, Wrench,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -418,13 +418,16 @@ function ServiceSection({
                                         <h3 className="app-item-title truncate text-foreground">
                                             {reminderDisplayTitle(rem)}
                                         </h3>
-                                        <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
-                                            {rem.message}
-                                        </p>
+                                        <div className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
+                                            <span className="flex items-center gap-1 whitespace-nowrap">
+                                                <CalendarDays className="h-3 w-3 shrink-0" />
+                                                {fmtTime(rem.timeMinutes)}
+                                            </span>
+                                        </div>
                                     </div>
                                     <div className="flex shrink-0 items-center gap-2">
                                         <Badge className="h-5 px-1.5 py-0 text-[10px] font-medium border-0 bg-blue-100 text-blue-700">
-                                            {fmtTime(rem.timeMinutes)}
+                                            Único
                                         </Badge>
                                         {rem.media && (
                                             <Badge className="h-5 px-1.5 py-0 text-[10px] font-medium border-0 bg-sky-100 text-sky-700">
