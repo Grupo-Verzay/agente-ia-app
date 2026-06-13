@@ -51,14 +51,14 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
 
   return (
     <>
-      <Card className="border-border flex-1 border-dashed">
+      <Card className="border-border flex-1 border-dashed flex flex-col">
         <CardHeader className="flex flex-row items-center justify-center p-6">
           <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
             <FaWhatsapp className="text-green-500 rounded-sm w-6 h-6" />
             <span className="text-xl font-bold">Meta Cloud API</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 flex-1">
           <div className="space-y-1.5">
             <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
             <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">

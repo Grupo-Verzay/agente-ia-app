@@ -166,7 +166,7 @@ export const ConnectionCard = ({
 
     // Renderizado Condicional: Tarjeta de Formulario
     return (
-        <Card className="border-border flex-1">
+        <Card className="border-border flex-1 flex flex-col">
             <CardHeader className="flex flex-row items-center justify-center p-6">
                 <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
                     <SocialIconSelector instanceType={instanceType} />
@@ -174,8 +174,8 @@ export const ConnectionCard = ({
             </CardHeader>
 
             <Form {...form}>
-                <form id="instance-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <CardContent className="space-y-4">
+                <form id="instance-form" onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col">
+                    <CardContent className="space-y-4 flex-1">
                         <FormField
                             control={form.control}
                             name="instanceName"
