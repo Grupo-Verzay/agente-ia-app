@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Loader2, Clock } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -26,9 +26,8 @@ interface Team {
 }
 
 const schema = z.object({
-    name:             z.string().min(2, 'El nombre es obligatorio'),
-    description:      z.string().optional(),
-    minNoticeMinutes: z.coerce.number().min(0).max(10080),
+    name:        z.string().min(2, 'El nombre es obligatorio'),
+    description: z.string().optional(),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -39,17 +38,15 @@ export function BookingTeamConfig({ team }: { team: Team }) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: {
-            name:             team.name,
-            description:      team.description ?? '',
-            minNoticeMinutes: team.minNoticeMinutes,
+            name:        team.name,
+            description: team.description ?? '',
         },
     });
 
     useEffect(() => {
         form.reset({
-            name:             team.name,
-            description:      team.description ?? '',
-            minNoticeMinutes: team.minNoticeMinutes,
+            name:        team.name,
+            description: team.description ?? '',
         });
     }, [team]);
 
@@ -96,30 +93,6 @@ export function BookingTeamConfig({ team }: { team: Team }) {
                                             {...field}
                                         />
                                     </FormControl>
-                                </FormItem>
-                            )} />
-                            <FormField control={form.control} name="minNoticeMinutes" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className="flex items-center gap-1.5">
-                                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                                        Tiempo mínimo de anticipación
-                                    </FormLabel>
-                                    <div className="flex items-center gap-3">
-                                        <FormControl>
-                                            <Input
-                                                type="number"
-                                                min={0}
-                                                max={10080}
-                                                className="w-28"
-                                                {...field}
-                                            />
-                                        </FormControl>
-                                        <span className="text-sm text-muted-foreground">minutos</span>
-                                    </div>
-                                    <FormDescription className="text-xs">
-                                        Mínimo de minutos de antelación para agendar. Ej: 60 = no permite citas en menos de 1 hora.
-                                    </FormDescription>
-                                    <FormMessage />
                                 </FormItem>
                             )} />
                             <Button type="submit" disabled={saving} className="w-full">

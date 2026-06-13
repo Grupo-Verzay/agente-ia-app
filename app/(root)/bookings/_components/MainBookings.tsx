@@ -57,7 +57,7 @@ export const MainBookings = ({ user, team }: Props) => {
                 {tab === 'team'      && <BookingTeamConfig team={team} />}
                 {tab === 'members'   && <MembersManager teamId={team.id} teamTimezone={team.timezone} />}
                 {tab === 'services'  && <BookingServicesManager teamId={team.id} />}
-                {tab === 'settings'  && <BookingTeamSettings userId={userId} />}
+                {tab === 'settings'  && <BookingTeamSettings userId={userId} team={team} />}
             </div>
         </div>
     );
