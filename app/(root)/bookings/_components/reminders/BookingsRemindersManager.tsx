@@ -165,15 +165,21 @@ function ReminderFormDialog({ open, initial, userId, onClose, onSave, saving }: 
             }
         }
 
-        onSave({
-            title: title.trim() || undefined,
-            timeMinutes: mins,
-            message: message.trim(),
-            media: initial?.media,
-            mediaType: initial?.mediaType,
-            nameFile: initial?.nameFile,
-            ...mediaPayload,
-        });
+        const reminder: ServiceReminder = { timeMinutes: mins, message: message.trim() };
+        if (title.trim()) reminder.title = title.trim();
+
+        // Preserve existing media if no new file selected
+        const existingMedia = initial?.media
+            ? { media: initial.media, mediaType: initial.mediaType, nameFile: initial.nameFile }
+            : {};
+        const finalMedia = Object.keys(mediaPayload).length ? mediaPayload : existingMedia;
+        if (finalMedia.media) {
+            reminder.media = finalMedia.media;
+            if (finalMedia.mediaType) reminder.mediaType = finalMedia.mediaType;
+            if (finalMedia.nameFile) reminder.nameFile = finalMedia.nameFile;
+        }
+
+        onSave(reminder);
     };
 
     const isBusy = saving || uploading;
