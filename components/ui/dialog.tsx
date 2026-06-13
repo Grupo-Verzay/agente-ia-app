@@ -73,7 +73,7 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-row flex-wrap items-center justify-end gap-2",
+      "flex flex-row flex-wrap items-center justify-between gap-2",
       className
     )}
     {...props}
