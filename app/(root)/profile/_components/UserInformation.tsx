@@ -42,6 +42,8 @@ import { ApiKeyConfigurator, ChangePasswordCard, ChangeEmailCard } from "./";
 import { NotificationContactsManager } from "./NotificationContactsManager";
 import { UserInformationProps } from "../page";
 import { ConnectionMain } from "../../connection/_components";
+import { MetaInstanceCard } from "../../connection/_components/MetaInstanceCard";
+import { MetaInstanceCreator } from "../../connection/_components/MetaInstanceCreator";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -149,7 +151,7 @@ const CardLabel = ({ icon: Icon, children }: { icon: React.ElementType; children
 );
 
 // ── Main component ────────────────────────────────────────────────────────────
-export const UserInformation = ({ userId, countries, instancesData }: UserInformationProps) => {
+export const UserInformation = ({ userId, countries, instancesData, metaInstances }: UserInformationProps) => {
     useResellerStore((state) => state.reseller);
 
     const [user, setUser] = useState<(UserWithPausar & { openMsg?: string })>();
@@ -477,42 +479,18 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                                     instanceType={"Whatsapp"}
                                     prompts={instancesData["Whatsapp"].prompts}
                                 />
-                                {/* Instagram no está en uso actualmente */}
-                                {/* <ConnectionMain
-                                user={user}
-                                instance={instancesData["Instagram"].instance}
-                                instanceInfo={instancesData["Instagram"].info}
-                                instanceType={"Instagram"}
-                                prompts={instancesData["Instagram"].prompts}
-                            /> */}
-
-                                {/* Estado del agente */}
-                                <Card className="border-border flex flex-1 flex-col">
-                                    <CardHeader className="pb-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                                {isMuted ? <BotOff className="w-4 h-4 text-primary" /> : <Bot className="w-4 h-4 text-primary" />}
-                                            </div>
-                                            <div>
-                                                <CardTitle className="text-sm font-semibold">Estado del agente</CardTitle>
-                                                <CardDescription className="text-xs">
-                                                    {isMuted ? "El bot no enviará respuestas automáticas." : "El bot responde automáticamente a tus contactos."}
-                                                </CardDescription>
-                                            </div>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="flex flex-col flex-1">
-                                        <div className="flex items-center justify-between mt-auto">
-                                            <Button
-                                                variant={"outline"}
-                                                className={`text-xs ${!isMuted ? "text-green-600 border-green-600 dark:text-green-400 dark:border-green-400" : ""}`}
-                                            >
-                                                {isMuted ? "Silenciado" : "Activo"}
-                                            </Button>
-                                            <Switch checked={!isMuted} onCheckedChange={(v) => handleMuteToggle(!v)} />
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                                {/* Meta Cloud API */}
+                                <div className="flex flex-col flex-1 gap-2">
+                                    {metaInstances.map((inst) => (
+                                        <MetaInstanceCard
+                                            key={inst.instanceName}
+                                            instanceName={inst.instanceName}
+                                            phoneNumberId={(inst as any).metaPhoneNumberId ?? ''}
+                                            wabaId={(inst as any).metaWabaId}
+                                        />
+                                    ))}
+                                    <MetaInstanceCreator userId={userId} />
+                                </div>
                             </div>
                         </TabPanel>
                     </TabsContent>
@@ -651,6 +629,33 @@ export const UserInformation = ({ userId, countries, instancesData }: UserInform
                     {/* ── Tab: Comportamiento ───────────────────── */}
                     <TabsContent value="comportamiento" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
+                            {/* Estado del agente */}
+                            <Card className="border-border flex flex-col mb-4">
+                                <CardHeader className="pb-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                            {isMuted ? <BotOff className="w-4 h-4 text-primary" /> : <Bot className="w-4 h-4 text-primary" />}
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-sm font-semibold">Estado del agente</CardTitle>
+                                            <CardDescription className="text-xs">
+                                                {isMuted ? "El bot no enviará respuestas automáticas." : "El bot responde automáticamente a tus contactos."}
+                                            </CardDescription>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="flex items-center justify-between">
+                                        <Button
+                                            variant={"outline"}
+                                            className={`text-xs ${!isMuted ? "text-green-600 border-green-600 dark:text-green-400 dark:border-green-400" : ""}`}
+                                        >
+                                            {isMuted ? "Silenciado" : "Activo"}
+                                        </Button>
+                                        <Switch checked={!isMuted} onCheckedChange={(v) => handleMuteToggle(!v)} />
+                                    </div>
+                                </CardContent>
+                            </Card>
                             <SectionTitle>Tiempos de respuesta</SectionTitle>
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <Card className="border-border">

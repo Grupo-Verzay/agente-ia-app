@@ -26,6 +26,7 @@ export interface UserInformationProps {
   userId: string;
   countries: any[];
   instancesData: InstancesData;
+  metaInstances: Instancia[];
 }
 
 // Adapta las funciones de tipo para manejar arrays
@@ -83,11 +84,15 @@ const ProfilePage = async () => {
     Desconocido: { prompts: [] },
   };
 
+  const metaInstances: Instancia[] = [];
+
   // Asignar instancias sin sobrescribir otras
   instancias.forEach((instancia) => {
-    const type = normalizeType(instancia.instanceType);
-    if (!instancesData[type].instance) {
-      instancesData[type].instance = instancia;
+    const type = instancia.instanceType?.trim();
+    if (type === 'meta') { metaInstances.push(instancia); return; }
+    const normalized = normalizeType(instancia.instanceType);
+    if (!instancesData[normalized].instance) {
+      instancesData[normalized].instance = instancia;
     }
   });
 
@@ -121,7 +126,7 @@ const ProfilePage = async () => {
 
   return (
     <>
-      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} />
+      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} metaInstances={metaInstances} />
     </>
   );
 }
