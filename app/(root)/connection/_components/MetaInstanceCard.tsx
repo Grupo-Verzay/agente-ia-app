@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Loader2, Trash2, Pencil, Copy, CheckCircle2 } from 'lucide-react';
+import { FaFacebook, FaInstagram, FaWhatsapp } from 'react-icons/fa';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,18 +21,48 @@ import { toast } from 'sonner';
 
 interface MetaInstanceCardProps {
   instanceName: string;
-  phoneNumberId: string;
+  metaChannel?: string | null;
+  phoneNumberId?: string | null;
   wabaId?: string | null;
+  pageId?: string | null;
 }
 
-export const MetaInstanceCard = ({ instanceName, phoneNumberId, wabaId }: MetaInstanceCardProps) => {
+const CHANNEL_META = {
+  whatsapp: {
+    label: 'WhatsApp Cloud API',
+    icon: <FaWhatsapp className="w-3 h-3" />,
+    color: 'text-green-500 border-green-500',
+  },
+  facebook: {
+    label: 'Facebook Messenger',
+    icon: <FaFacebook className="w-3 h-3" />,
+    color: 'text-blue-600 border-blue-600',
+  },
+  instagram: {
+    label: 'Instagram DMs',
+    icon: <FaInstagram className="w-3 h-3" />,
+    color: 'text-pink-500 border-pink-500',
+  },
+} as const;
+
+export const MetaInstanceCard = ({
+  instanceName,
+  metaChannel,
+  phoneNumberId,
+  wabaId,
+  pageId,
+}: MetaInstanceCardProps) => {
+  const channel = (metaChannel ?? 'whatsapp') as keyof typeof CHANNEL_META;
+  const channelMeta = CHANNEL_META[channel] ?? CHANNEL_META.whatsapp;
+
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [draft, setDraft] = useState({
-    phoneNumberId,
+    phoneNumberId: phoneNumberId ?? '',
+    pageId: pageId ?? '',
     accessToken: '',
     wabaId: wabaId ?? '',
     verifyToken: '',
@@ -50,12 +81,24 @@ export const MetaInstanceCard = ({ instanceName, phoneNumberId, wabaId }: MetaIn
   };
 
   const handleSave = async () => {
-    if (!draft.phoneNumberId || !draft.accessToken) {
-      toast.error('Phone Number ID y Access Token son requeridos.');
+    if (channel === 'whatsapp' && !draft.phoneNumberId) {
+      toast.error('Phone Number ID es requerido.');
+      return;
+    }
+    if ((channel === 'facebook' || channel === 'instagram') && !draft.pageId) {
+      toast.error(channel === 'facebook' ? 'Page ID es requerido.' : 'Instagram Account ID es requerido.');
       return;
     }
     setSaving(true);
-    const res = await updateMetaInstance({ instanceName, ...draft });
+    const res = await updateMetaInstance({
+      instanceName,
+      metaChannel: channel,
+      phoneNumberId: channel === 'whatsapp' ? draft.phoneNumberId : undefined,
+      pageId: channel !== 'whatsapp' ? draft.pageId : undefined,
+      accessToken: draft.accessToken || undefined,
+      wabaId: channel === 'whatsapp' ? draft.wabaId : undefined,
+      verifyToken: draft.verifyToken,
+    });
     setSaving(false);
     if (res.success) { toast.success(res.message); setShowEditDialog(false); }
     else toast.error(res.message);
@@ -66,6 +109,13 @@ export const MetaInstanceCard = ({ instanceName, phoneNumberId, wabaId }: MetaIn
     toast.success('URL del webhook copiada');
   };
 
+  const primaryId = channel === 'whatsapp' ? phoneNumberId : pageId;
+  const primaryLabel = channel === 'whatsapp'
+    ? 'PHONE NUMBER ID'
+    : channel === 'facebook'
+      ? 'PAGE ID'
+      : 'INSTAGRAM ACCOUNT ID';
+
   return (
     <>
       <Card className="border-border flex-1">
@@ -73,9 +123,9 @@ export const MetaInstanceCard = ({ instanceName, phoneNumberId, wabaId }: MetaIn
           <div className="flex justify-between items-center">
             <CardTitle>{instanceName}</CardTitle>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-blue-500 border-blue-500 gap-1">
+              <Badge variant="outline" className={`${channelMeta.color} gap-1`}>
                 <CheckCircle2 className="w-3 h-3" />
-                Meta Cloud API
+                {channelMeta.label}
               </Badge>
               <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)}>
                 <Trash2 className="w-4 h-4" />
@@ -85,11 +135,13 @@ export const MetaInstanceCard = ({ instanceName, phoneNumberId, wabaId }: MetaIn
         </CardHeader>
 
         <CardContent className="space-y-3">
-          <div className="text-sm space-y-1">
-            <p className="text-muted-foreground text-xs font-medium">PHONE NUMBER ID</p>
-            <p className="font-mono text-sm">{phoneNumberId}</p>
-          </div>
-          {wabaId && (
+          {primaryId && (
+            <div className="text-sm space-y-1">
+              <p className="text-muted-foreground text-xs font-medium">{primaryLabel}</p>
+              <p className="font-mono text-sm">{primaryId}</p>
+            </div>
+          )}
+          {channel === 'whatsapp' && wabaId && (
             <div className="text-sm space-y-1">
               <p className="text-muted-foreground text-xs font-medium">WABA ID</p>
               <p className="font-mono text-sm">{wabaId}</p>
@@ -121,17 +173,27 @@ export const MetaInstanceCard = ({ instanceName, phoneNumberId, wabaId }: MetaIn
             <DialogTitle>Editar — {instanceName}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <div className="space-y-1">
-              <Label>Phone Number ID</Label>
-              <Input value={draft.phoneNumberId} onChange={(e) => setDraft(d => ({ ...d, phoneNumberId: e.target.value }))} placeholder="123456789..." />
-            </div>
+            {channel === 'whatsapp' && (
+              <>
+                <div className="space-y-1">
+                  <Label>Phone Number ID</Label>
+                  <Input value={draft.phoneNumberId} onChange={(e) => setDraft(d => ({ ...d, phoneNumberId: e.target.value }))} placeholder="123456789..." />
+                </div>
+                <div className="space-y-1">
+                  <Label>WABA ID <span className="text-xs text-muted-foreground">(opcional)</span></Label>
+                  <Input value={draft.wabaId} onChange={(e) => setDraft(d => ({ ...d, wabaId: e.target.value }))} placeholder="123456789..." />
+                </div>
+              </>
+            )}
+            {(channel === 'facebook' || channel === 'instagram') && (
+              <div className="space-y-1">
+                <Label>{channel === 'facebook' ? 'Page ID' : 'Instagram Account ID'}</Label>
+                <Input value={draft.pageId} onChange={(e) => setDraft(d => ({ ...d, pageId: e.target.value }))} placeholder="123456789..." />
+              </div>
+            )}
             <div className="space-y-1">
               <Label>Access Token <span className="text-xs text-muted-foreground">(nuevo — dejar vacío para mantener el actual)</span></Label>
               <Input type="password" value={draft.accessToken} onChange={(e) => setDraft(d => ({ ...d, accessToken: e.target.value }))} placeholder="EAAxxxxx..." />
-            </div>
-            <div className="space-y-1">
-              <Label>WABA ID <span className="text-xs text-muted-foreground">(opcional)</span></Label>
-              <Input value={draft.wabaId} onChange={(e) => setDraft(d => ({ ...d, wabaId: e.target.value }))} placeholder="123456789..." />
             </div>
             <div className="space-y-1">
               <Label>Verify Token <span className="text-xs text-muted-foreground">(opcional)</span></Label>
@@ -152,9 +214,9 @@ export const MetaInstanceCard = ({ instanceName, phoneNumberId, wabaId }: MetaIn
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar instancia Meta?</AlertDialogTitle>
+            <AlertDialogTitle>¿Eliminar instancia {channelMeta.label}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se eliminará <strong>{instanceName}</strong> y sus credenciales de Meta Cloud API.
+              Se eliminará <strong>{instanceName}</strong> y sus credenciales.
               Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>

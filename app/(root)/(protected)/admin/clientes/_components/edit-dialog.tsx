@@ -67,6 +67,7 @@ export const EditDialog = ({
   const [userStatus, setUserStatus] = useState<boolean>(user.status ?? false);
   const [enMute, setEnMute] = useState<boolean>(user.muteAgentResponses ?? false);
   const [enFacebook, setEnFacebook] = useState<boolean>(user.onFacebook ?? false);
+  const [enInstagram, setEnInstagram] = useState<boolean>(user.onInstagram ?? false);
   const [creditTotal, setCreditTotal] = useState(0);
   const [creditUsed, setCreditUsed] = useState(0);
   const [creditHasRecord, setCreditHasRecord] = useState(false);
@@ -105,6 +106,7 @@ export const EditDialog = ({
     setUserStatus(user.status ?? false);
     setEnMute(user.muteAgentResponses ?? false);
     setEnFacebook(user.onFacebook ?? false);
+    setEnInstagram(user.onInstagram ?? false);
   }, [
     user.id,
     openEditDialog,
@@ -115,6 +117,7 @@ export const EditDialog = ({
     user.status,
     user.muteAgentResponses,
     user.onFacebook,
+    user.onInstagram,
   ]);
 
   let fields = [
@@ -123,6 +126,8 @@ export const EditDialog = ({
     { id: "enabledSynthesizer",        label: "Sintetizador",  defaultValue: user.enabledSynthesizer ?? false,        readOnly: false },
     { id: "enabledLeadStatusClassifier", label: "Clasificacion", defaultValue: user.enabledLeadStatusClassifier ?? false, readOnly: false },
     { id: "enabledCrmFollowUps",       label: "Follow ups",    defaultValue: user.enabledCrmFollowUps ?? false,       readOnly: false },
+    { id: "onFacebook",  label: "Facebook",   defaultValue: user.onFacebook ?? false,   readOnly: false },
+    { id: "onInstagram", label: "Instagram",  defaultValue: user.onInstagram ?? false,  readOnly: false },
     // Campos regulares — en el orden pedido
     { id: "name",        label: "Nombre",       defaultValue: user.name,          readOnly: false },
     { id: "company",     label: "Empresa",      defaultValue: user.company,       readOnly: false },
@@ -354,7 +359,7 @@ export const EditDialog = ({
     }
   }
 
-  const switchFieldIds = ['status', 'muteAgentResponses', 'enabledSynthesizer', 'enabledLeadStatusClassifier', 'enabledCrmFollowUps', 'onFacebook'];
+  const switchFieldIds = ['status', 'muteAgentResponses', 'enabledSynthesizer', 'enabledLeadStatusClassifier', 'enabledCrmFollowUps', 'onFacebook', 'onInstagram'];
 
   const getSwitchState = (id: string) => {
     const map: Record<string, { checked: boolean; onChange: (v: boolean) => void }> = {
@@ -364,6 +369,7 @@ export const EditDialog = ({
       enabledLeadStatusClassifier: { checked: enLeadStatus, onChange: setEnLeadStatus },
       enabledCrmFollowUps: { checked: enCrmFollowUps, onChange: setEnCrmFollowUps },
       onFacebook: { checked: enFacebook, onChange: setEnFacebook },
+      onInstagram: { checked: enInstagram, onChange: setEnInstagram },
     };
     return map[id] ?? { checked: false, onChange: () => {} };
   };

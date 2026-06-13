@@ -319,6 +319,7 @@ export async function createMetaInstance(params: {
         metaAccessToken: accessToken,
         metaWabaId: wabaId || null,
         metaVerifyToken: verifyToken || null,
+        metaChannel: 'whatsapp',
       } as any,
     });
     revalidatePath('/connection');
@@ -329,6 +330,70 @@ export async function createMetaInstance(params: {
   }
 }
 
+export async function createFacebookInstance(params: {
+  instanceName: string;
+  userId: string;
+  pageId: string;
+  accessToken: string;
+  verifyToken: string;
+}): Promise<{ success: boolean; message: string }> {
+  const { instanceName, userId, pageId, accessToken, verifyToken } = params;
+  if (!instanceName || !userId || !pageId || !accessToken) {
+    return { success: false, message: 'Page ID y Access Token son requeridos.' };
+  }
+  try {
+    await db.instancia.create({
+      data: {
+        instanceName,
+        instanceType: 'meta',
+        userId,
+        instanceId: `meta-fb-${pageId}`,
+        metaAccessToken: accessToken,
+        metaVerifyToken: verifyToken || null,
+        metaChannel: 'facebook',
+        metaPageId: pageId,
+      } as any,
+    });
+    revalidatePath('/connection');
+    return { success: true, message: 'Instancia Facebook creada. Configura el webhook en Meta Developer.' };
+  } catch (error: any) {
+    console.error('[createFacebookInstance]', error);
+    return { success: false, message: error?.message ?? 'Error al crear la instancia Facebook.' };
+  }
+}
+
+export async function createInstagramInstance(params: {
+  instanceName: string;
+  userId: string;
+  instagramAccountId: string;
+  accessToken: string;
+  verifyToken: string;
+}): Promise<{ success: boolean; message: string }> {
+  const { instanceName, userId, instagramAccountId, accessToken, verifyToken } = params;
+  if (!instanceName || !userId || !instagramAccountId || !accessToken) {
+    return { success: false, message: 'Instagram Account ID y Access Token son requeridos.' };
+  }
+  try {
+    await db.instancia.create({
+      data: {
+        instanceName,
+        instanceType: 'meta',
+        userId,
+        instanceId: `meta-ig-${instagramAccountId}`,
+        metaAccessToken: accessToken,
+        metaVerifyToken: verifyToken || null,
+        metaChannel: 'instagram',
+        metaPageId: instagramAccountId,
+      } as any,
+    });
+    revalidatePath('/connection');
+    return { success: true, message: 'Instancia Instagram creada. Configura el webhook en Meta Developer.' };
+  } catch (error: any) {
+    console.error('[createInstagramInstance]', error);
+    return { success: false, message: error?.message ?? 'Error al crear la instancia Instagram.' };
+  }
+}
+
 export async function deleteMetaInstance(
   instanceName: string,
 ): Promise<{ success: boolean; message: string }> {
@@ -336,29 +401,32 @@ export async function deleteMetaInstance(
   try {
     await db.instancia.deleteMany({ where: { instanceName } });
     revalidatePath('/connection');
-    return { success: true, message: 'Instancia Meta eliminada.' };
+    return { success: true, message: 'Instancia eliminada.' };
   } catch (error: any) {
     console.error('[deleteMetaInstance]', error);
-    return { success: false, message: 'Error al eliminar la instancia Meta.' };
+    return { success: false, message: 'Error al eliminar la instancia.' };
   }
 }
 
 export async function updateMetaInstance(params: {
   instanceName: string;
-  phoneNumberId: string;
-  accessToken: string;
-  wabaId: string;
-  verifyToken: string;
+  phoneNumberId?: string;
+  pageId?: string;
+  accessToken?: string;
+  wabaId?: string;
+  verifyToken?: string;
+  metaChannel?: string;
 }): Promise<{ success: boolean; message: string }> {
-  const { instanceName, phoneNumberId, accessToken, wabaId, verifyToken } = params;
+  const { instanceName, phoneNumberId, pageId, accessToken, wabaId, verifyToken } = params;
   try {
     await db.instancia.updateMany({
       where: { instanceName },
       data: {
-        metaPhoneNumberId: phoneNumberId,
-        metaAccessToken: accessToken,
-        metaWabaId: wabaId || null,
-        metaVerifyToken: verifyToken || null,
+        ...(phoneNumberId !== undefined && { metaPhoneNumberId: phoneNumberId }),
+        ...(pageId !== undefined && { metaPageId: pageId }),
+        ...(accessToken && { metaAccessToken: accessToken }),
+        ...(wabaId !== undefined && { metaWabaId: wabaId || null }),
+        ...(verifyToken !== undefined && { metaVerifyToken: verifyToken || null }),
       } as any,
     });
     revalidatePath('/connection');

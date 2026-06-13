@@ -10,6 +10,8 @@ import { ConnectionMain } from "./_components";
 import { BaileysInstanceCard } from "./_components/BaileysInstanceCard";
 import { MetaInstanceCard } from "./_components/MetaInstanceCard";
 import { MetaInstanceCreator } from "./_components/MetaInstanceCreator";
+import { FacebookInstanceCreator } from "./_components/FacebookInstanceCreator";
+import { InstagramInstanceCreator } from "./_components/InstagramInstanceCreator";
 
 // Tipo de la respuesta esperada
 interface ActionResponse<T> {
@@ -71,7 +73,9 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
 
     // Instancias Baileys y Meta (puede haber varias de cada tipo)
     const baileysInstances: Instancia[] = [];
-    const metaInstances: Instancia[] = [];
+    const metaWhatsappInstances: Instancia[] = [];
+    const metaFacebookInstances: Instancia[] = [];
+    const metaInstagramInstances: Instancia[] = [];
 
     // Asignar instancias sin interferir entre tipos
     instancias.forEach(instancia => {
@@ -81,7 +85,10 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
             return;
         }
         if (type === 'meta') {
-            metaInstances.push(instancia);
+            const ch = (instancia as any).metaChannel ?? 'whatsapp';
+            if (ch === 'facebook') metaFacebookInstances.push(instancia);
+            else if (ch === 'instagram') metaInstagramInstances.push(instancia);
+            else metaWhatsappInstances.push(instancia);
             return;
         }
         if (!instancesData[type]) instancesData[type] = { prompts: [] };
@@ -129,15 +136,34 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
             {baileysInstances.map((inst) => (
                 <BaileysInstanceCard key={inst.instanceName} instanceName={inst.instanceName} />
             ))}
-            {metaInstances.map((inst) => (
+            {metaWhatsappInstances.map((inst) => (
                 <MetaInstanceCard
                     key={inst.instanceName}
                     instanceName={inst.instanceName}
+                    metaChannel="whatsapp"
                     phoneNumberId={(inst as any).metaPhoneNumberId ?? ''}
                     wabaId={(inst as any).metaWabaId}
                 />
             ))}
+            {metaFacebookInstances.map((inst) => (
+                <MetaInstanceCard
+                    key={inst.instanceName}
+                    instanceName={inst.instanceName}
+                    metaChannel="facebook"
+                    pageId={(inst as any).metaPageId ?? ''}
+                />
+            ))}
+            {metaInstagramInstances.map((inst) => (
+                <MetaInstanceCard
+                    key={inst.instanceName}
+                    instanceName={inst.instanceName}
+                    metaChannel="instagram"
+                    pageId={(inst as any).metaPageId ?? ''}
+                />
+            ))}
             <MetaInstanceCreator userId={effectiveId} company={user.company as string} />
+            <FacebookInstanceCreator userId={effectiveId} company={user.company as string} />
+            <InstagramInstanceCreator userId={effectiveId} company={user.company as string} />
         </div>
     );
 };

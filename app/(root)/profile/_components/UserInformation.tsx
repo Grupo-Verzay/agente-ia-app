@@ -44,6 +44,8 @@ import { UserInformationProps } from "../page";
 import { ConnectionMain } from "../../connection/_components";
 import { MetaInstanceCard } from "../../connection/_components/MetaInstanceCard";
 import { MetaInstanceCreator } from "../../connection/_components/MetaInstanceCreator";
+import { FacebookInstanceCreator } from "../../connection/_components/FacebookInstanceCreator";
+import { InstagramInstanceCreator } from "../../connection/_components/InstagramInstanceCreator";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -479,32 +481,64 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     instanceType={"Whatsapp"}
                                     prompts={instancesData["Whatsapp"].prompts}
                                 />
-                                {/* Meta Cloud API */}
-                                <div className="flex flex-col gap-2">
-                                    {metaInstances.map((inst) => (
+                                {metaInstances
+                                    .filter((inst) => ((inst as any).metaChannel ?? 'whatsapp') === 'whatsapp')
+                                    .map((inst) => (
                                         <MetaInstanceCard
                                             key={inst.instanceName}
                                             instanceName={inst.instanceName}
+                                            metaChannel="whatsapp"
                                             phoneNumberId={(inst as any).metaPhoneNumberId ?? ''}
                                             wabaId={(inst as any).metaWabaId}
                                         />
                                     ))}
-                                    <MetaInstanceCreator userId={userId} company={user?.company as string} />
-                                </div>
-                                <ConnectionMain
-                                    user={user}
-                                    instance={instancesData["Facebook"].instance}
-                                    instanceInfo={instancesData["Facebook"].info}
-                                    instanceType={"Facebook"}
-                                    prompts={instancesData["Facebook"].prompts}
-                                />
-                                <ConnectionMain
-                                    user={user}
-                                    instance={instancesData["Instagram"].instance}
-                                    instanceInfo={instancesData["Instagram"].info}
-                                    instanceType={"Instagram"}
-                                    prompts={instancesData["Instagram"].prompts}
-                                />
+                                <MetaInstanceCreator userId={userId} company={user?.company as string} />
+                                {user?.onFacebook ? (
+                                    <>
+                                        {metaInstances
+                                            .filter((inst) => (inst as any).metaChannel === 'facebook')
+                                            .map((inst) => (
+                                                <MetaInstanceCard
+                                                    key={inst.instanceName}
+                                                    instanceName={inst.instanceName}
+                                                    metaChannel="facebook"
+                                                    pageId={(inst as any).metaPageId ?? ''}
+                                                />
+                                            ))}
+                                        <FacebookInstanceCreator userId={userId} company={user?.company as string} />
+                                    </>
+                                ) : (
+                                    <ConnectionMain
+                                        user={user}
+                                        instance={instancesData["Facebook"].instance}
+                                        instanceInfo={instancesData["Facebook"].info}
+                                        instanceType={"Facebook"}
+                                        prompts={instancesData["Facebook"].prompts}
+                                    />
+                                )}
+                                {user?.onInstagram ? (
+                                    <>
+                                        {metaInstances
+                                            .filter((inst) => (inst as any).metaChannel === 'instagram')
+                                            .map((inst) => (
+                                                <MetaInstanceCard
+                                                    key={inst.instanceName}
+                                                    instanceName={inst.instanceName}
+                                                    metaChannel="instagram"
+                                                    pageId={(inst as any).metaPageId ?? ''}
+                                                />
+                                            ))}
+                                        <InstagramInstanceCreator userId={userId} company={user?.company as string} />
+                                    </>
+                                ) : (
+                                    <ConnectionMain
+                                        user={user}
+                                        instance={instancesData["Instagram"].instance}
+                                        instanceInfo={instancesData["Instagram"].info}
+                                        instanceType={"Instagram"}
+                                        prompts={instancesData["Instagram"].prompts}
+                                    />
+                                )}
                             </div>
                         </TabPanel>
                     </TabsContent>
