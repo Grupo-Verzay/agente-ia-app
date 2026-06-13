@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     DndContext, DragEndEvent, DragOverlay, DragStartEvent,
     PointerSensor, useDraggable, useDroppable, useSensor, useSensors,
@@ -8,7 +8,8 @@ import {
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, User, Calendar, Wrench } from 'lucide-react';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { Loader2, RefreshCw, User, Calendar, Wrench, Search, X, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -21,7 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { STATUS_LABELS } from '@/types/schedule';
 
-// ─── Column config (mismo que schedule) ──────────────────────────────────────
+// ─── Column config ─────────────────────────────────────────────────────────────
 
 const COLUMNS: { id: AppointmentStatus; label: string; headerClass: string; borderColor: string }[] = [
     { id: 'PENDIENTE',   label: 'Pendiente',   headerClass: 'bg-yellow-500',  borderColor: '#EAB308' },
@@ -48,11 +49,10 @@ interface BookingCard {
 
 // ─── Card UI ─────────────────────────────────────────────────────────────────
 
-function BookingCardItem({ card, isDragging = false, onDelete, onStatusChange }: {
+function BookingCardItem({ card, isDragging = false, onDelete }: {
     card: BookingCard;
     isDragging?: boolean;
     onDelete?: (id: string) => void;
-    onStatusChange?: (id: string, status: AppointmentStatus) => void;
 }) {
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [deleting, setDeleting] = useState(false);
@@ -78,7 +78,6 @@ function BookingCardItem({ card, isDragging = false, onDelete, onStatusChange }:
                 'bg-background rounded-lg border border-border p-3 shadow-sm space-y-2 select-none',
                 isDragging && 'opacity-80 shadow-lg rotate-1 scale-105',
             )}>
-                {/* Cliente */}
                 <div className="flex items-start gap-2 min-w-0">
                     <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
                         <User className="h-3.5 w-3.5 text-primary" />
@@ -97,13 +96,11 @@ function BookingCardItem({ card, isDragging = false, onDelete, onStatusChange }:
                     )}
                 </div>
 
-                {/* Fecha */}
                 <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                     <Calendar className="h-3 w-3 shrink-0" />
-                    {format(localStart, "dd MMM · h:mm a", { locale: es })}
+                    {format(localStart, "dd MMM · HH:mm", { locale: es })}
                 </div>
 
-                {/* Servicio */}
                 <div className="flex items-center gap-1 flex-wrap">
                     <Badge variant="secondary" className="text-[10px] h-4 px-1.5 py-0 font-normal">
                         <Wrench className="h-2.5 w-2.5 mr-0.5" />
@@ -148,11 +145,7 @@ function BookingCardItem({ card, isDragging = false, onDelete, onStatusChange }:
 
 // ─── Draggable wrapper ────────────────────────────────────────────────────────
 
-function DraggableCard({ card, onDelete, onStatusChange }: {
-    card: BookingCard;
-    onDelete: (id: string) => void;
-    onStatusChange: (id: string, status: AppointmentStatus) => void;
-}) {
+function DraggableCard({ card, onDelete }: { card: BookingCard; onDelete: (id: string) => void }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: card.id,
         data: { card },
@@ -164,18 +157,17 @@ function DraggableCard({ card, onDelete, onStatusChange }: {
 
     return (
         <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="cursor-grab active:cursor-grabbing">
-            <BookingCardItem card={card} isDragging={isDragging} onDelete={onDelete} onStatusChange={onStatusChange} />
+            <BookingCardItem card={card} isDragging={isDragging} onDelete={onDelete} />
         </div>
     );
 }
 
 // ─── Droppable Column ─────────────────────────────────────────────────────────
 
-function BookingColumn({ col, cards, onDelete, onStatusChange }: {
+function BookingColumn({ col, cards, onDelete }: {
     col: (typeof COLUMNS)[number];
     cards: BookingCard[];
     onDelete: (id: string) => void;
-    onStatusChange: (id: string, status: AppointmentStatus) => void;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: col.id });
 
@@ -192,13 +184,18 @@ function BookingColumn({ col, cards, onDelete, onStatusChange }: {
             <div
                 ref={setNodeRef}
                 className={cn(
-                    'flex-1 overflow-y-auto p-2 space-y-2 min-h-[80px] transition-colors',
-                    isOver && 'bg-white/10',
+                    'flex-1 min-h-0 p-2 space-y-2 transition-colors overflow-y-auto',
+                    isOver && 'ring-2 ring-inset ring-primary/30 bg-primary/5',
                 )}
             >
                 {cards.map((card) => (
-                    <DraggableCard key={card.id} card={card} onDelete={onDelete} onStatusChange={onStatusChange} />
+                    <DraggableCard key={card.id} card={card} onDelete={onDelete} />
                 ))}
+                {cards.length === 0 && (
+                    <div className="flex items-center justify-center h-20 text-xs text-muted-foreground/40">
+                        Sin citas
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -213,8 +210,10 @@ export function BookingsKanban({ teamId, onStatusCountsChange }: {
     const [cards, setCards] = useState<BookingCard[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeCard, setActiveCard] = useState<BookingCard | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
 
-    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -235,16 +234,44 @@ export function BookingsKanban({ teamId, onStatusCountsChange }: {
 
     useEffect(() => { load(); }, [load]);
 
-    const handleStatusChange = (id: string, status: AppointmentStatus) => {
-        setCards((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
+    // Servicios únicos para filtro
+    const allServices = useMemo(() => {
+        const map = new Map<string, string>();
+        for (const c of cards) map.set(c.teamService.name, c.teamService.name);
+        return Array.from(map.keys()).sort((a, b) => a.localeCompare(b, 'es'));
+    }, [cards]);
+
+    const toggleService = (name: string) => {
+        setSelectedServices((prev) => {
+            const next = new Set(prev);
+            next.has(name) ? next.delete(name) : next.add(name);
+            return next;
+        });
     };
+
+    const filteredCards = useMemo(() => {
+        let result = cards;
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            result = result.filter((c) =>
+                (c.clientName ?? '').toLowerCase().includes(q) ||
+                (c.clientPhone ?? '').toLowerCase().includes(q) ||
+                c.teamService.name.toLowerCase().includes(q)
+            );
+        }
+        if (selectedServices.size > 0) {
+            result = result.filter((c) => selectedServices.has(c.teamService.name));
+        }
+        return result;
+    }, [cards, searchQuery, selectedServices]);
 
     const handleDelete = (id: string) => {
         setCards((prev) => prev.filter((c) => c.id !== id));
     };
 
     const onDragStart = (e: DragStartEvent) => {
-        setActiveCard(e.active.data.current?.card ?? null);
+        const card = filteredCards.find((c) => c.id === e.active.id);
+        setActiveCard(card ?? null);
     };
 
     const onDragEnd = async (e: DragEndEvent) => {
@@ -269,40 +296,135 @@ export function BookingsKanban({ teamId, onStatusCountsChange }: {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-48">
+            <div className="flex items-center justify-center h-64">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
         );
     }
 
-    const colCards = (status: AppointmentStatus) => cards.filter((c) => c.status === status);
+    const isFiltered = searchQuery || selectedServices.size > 0;
 
     return (
-        <div className="flex flex-col h-full gap-2">
-            <div className="flex items-center justify-between shrink-0">
-                <p className="text-sm text-muted-foreground">{cards.length} cita{cards.length !== 1 ? 's' : ''} en total</p>
-                <Button variant="ghost" size="sm" onClick={load} className="h-7 gap-1 text-xs">
-                    <RefreshCw className="h-3 w-3" /> Actualizar
-                </Button>
-            </div>
+        <TooltipProvider delayDuration={120}>
+            <div className="flex flex-col gap-3 min-w-0 w-full h-full">
+                <div className="flex flex-col gap-3 min-w-0 w-full flex-1 min-h-0">
 
-            <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-                <div className="flex gap-3 overflow-x-auto pb-2 flex-1 min-h-0">
-                    {COLUMNS.map((col) => (
-                        <BookingColumn
-                            key={col.id}
-                            col={col}
-                            cards={colCards(col.id)}
-                            onDelete={handleDelete}
-                            onStatusChange={handleStatusChange}
-                        />
-                    ))}
+                    {/* Toolbar */}
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                        {/* Buscador */}
+                        <div className="relative flex-1 sm:flex-none sm:w-72 min-w-0">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                            <input
+                                type="text"
+                                placeholder="Buscar por nombre o teléfono…"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-8 pr-7 py-1.5 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                            />
+                            {searchQuery && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Filtro por servicio */}
+                        {allServices.length > 1 && (
+                            <div className="flex items-center gap-1.5 overflow-x-auto flex-1 min-w-0 pb-0.5">
+                                <Wrench className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                {allServices.map((name) => {
+                                    const active = selectedServices.has(name);
+                                    return (
+                                        <button
+                                            key={name}
+                                            type="button"
+                                            onClick={() => toggleService(name)}
+                                            className={cn(
+                                                'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-all shrink-0 text-foreground border-border',
+                                                active ? 'bg-primary/10 border-primary/50 text-primary shadow-sm' : 'opacity-70 hover:opacity-100',
+                                            )}
+                                        >
+                                            {name}
+                                            {active && <X className="h-2.5 w-2.5 ml-0.5" />}
+                                        </button>
+                                    );
+                                })}
+                                {selectedServices.size > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedServices(new Set())}
+                                        className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 shrink-0"
+                                    >
+                                        Limpiar
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Status pills */}
+                        <div className="hidden sm:flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-1">
+                            {COLUMNS.map((col) => {
+                                const count = cards.filter((c) => c.status === col.id).length;
+                                return (
+                                    <span key={col.id} className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs text-muted-foreground whitespace-nowrap">
+                                        <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: col.borderColor }} />
+                                        {col.label}
+                                        {count > 0 && (
+                                            <span className="font-bold text-white px-1 rounded-full text-[10px]" style={{ backgroundColor: col.borderColor }}>
+                                                {count}
+                                            </span>
+                                        )}
+                                    </span>
+                                );
+                            })}
+                        </div>
+
+                        {/* Total + refresh */}
+                        <div className="flex items-center gap-2 shrink-0 ml-auto">
+                            <span className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
+                                <Clock className="h-3.5 w-3.5" />
+                                <span className="font-medium text-foreground">
+                                    {isFiltered ? `${filteredCards.length}/${cards.length}` : cards.length}
+                                </span>
+                            </span>
+                            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={load} title="Actualizar">
+                                <RefreshCw className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Board */}
+                    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+                        <div className="relative flex-1 min-h-0">
+                            <div className="pointer-events-none absolute right-0 top-0 bottom-3 w-8 bg-gradient-to-l from-card/80 to-transparent z-10 sm:hidden" />
+                            <div className="overflow-x-auto w-full h-full pb-3" style={{ minHeight: 0 }}>
+                                <div className="flex gap-3 h-full" style={{ width: 'max-content', minWidth: '100%' }}>
+                                    {COLUMNS.map((col) => (
+                                        <BookingColumn
+                                            key={col.id}
+                                            col={col}
+                                            cards={filteredCards.filter((c) => c.status === col.id)}
+                                            onDelete={handleDelete}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <DragOverlay>
+                            {activeCard && (
+                                <div className="w-[224px] rotate-2 shadow-2xl">
+                                    <BookingCardItem card={activeCard} isDragging />
+                                </div>
+                            )}
+                        </DragOverlay>
+                    </DndContext>
                 </div>
-
-                <DragOverlay>
-                    {activeCard && <BookingCardItem card={activeCard} isDragging />}
-                </DragOverlay>
-            </DndContext>
-        </div>
+            </div>
+        </TooltipProvider>
     );
 }
