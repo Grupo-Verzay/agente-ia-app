@@ -60,10 +60,10 @@ export const LeadCreateForm = ({ userId, instanceId, onCreated, onCancel }: regi
             {errors.pushName && <p className="text-sm text-red-500">{errors.pushName.message}</p>}
 
             <div className="flex gap-2">
+                {onCancel && <Button type="button" variant="ghost" onClick={onCancel}>Cancelar</Button>}
                 <Button type="submit" disabled={mutation.isPending}>
                     {mutation.isPending ? "Creando..." : "Crear lead"}
                 </Button>
-                {onCancel && <Button type="button" variant="ghost" onClick={onCancel}>Cancelar</Button>}
             </div>
         </form>
     )
