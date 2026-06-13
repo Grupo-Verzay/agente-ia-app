@@ -207,8 +207,6 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                             setFlowType(opt.value);
                             if (opt.value === "Bienvenida") {
                               form.setValue("name", "BIENVENIDA");
-                            } else {
-                              form.setValue("name", "");
                             }
                           }}
                           className={`h-[72px] flex flex-col items-center justify-center gap-1 rounded-lg border px-2 transition-colors ${opt.bg} ${opt.border}`}
@@ -228,7 +226,7 @@ function CreateWorflowDialog({ triggerText, isPro = false }: { triggerText?: Str
                       <button
                         key={selected.value}
                         type="button"
-                        onClick={() => { setFlowType(null); form.setValue("name", ""); }}
+                        onClick={() => { setFlowType(null); if (flowType === "Bienvenida") form.setValue("name", ""); }}
                         className="col-span-2 h-10 px-4 flex items-center gap-2 rounded-lg border border-primary bg-primary/5 text-primary transition-colors"
                       >
                         <Icon className="h-4 w-4 shrink-0" />
