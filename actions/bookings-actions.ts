@@ -85,6 +85,27 @@ export async function updateTeam(
     }
 }
 
+export async function getBookingStatusCounts(teamId: string): Promise<{
+    success: boolean;
+    data?: { status: AppointmentStatus; count: number }[];
+    message?: string;
+}> {
+    try {
+        const counts = await db.bookingAppointment.groupBy({
+            by: ['status'],
+            where: { teamId },
+            _count: { id: true },
+        });
+        return {
+            success: true,
+            data: counts.map((c) => ({ status: c.status as AppointmentStatus, count: c._count.id })),
+        };
+    } catch (error) {
+        console.error('[getBookingStatusCounts]', error);
+        return { success: false, message: 'Error al obtener conteos.' };
+    }
+}
+
 // ─── ESPECIALISTAS (TeamMember) ───────────────────────────────────────────────
 
 export async function getTeamMembers(teamId: string) {

@@ -143,7 +143,7 @@ export const ConnectionCard = ({
                     </div>
                 </CardContent>
                 <CardFooter className="mt-auto px-6 pb-4 pt-0">
-                    <Button className="w-full" disabled title="Contacta con un administrador para activar este canal.">
+                    <Button variant="secondary" className="w-full cursor-not-allowed bg-muted-foreground/35 text-foreground/60 hover:bg-muted-foreground/35" disabled title="Contacta con un administrador para activar este canal.">
                         <Lock className="w-4 h-4 mr-2" />
                         Canal no habilitado
                     </Button>

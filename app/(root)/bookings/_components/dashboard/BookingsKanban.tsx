@@ -206,7 +206,10 @@ function BookingColumn({ col, cards, onDelete, onStatusChange }: {
 
 // ─── Main Kanban ──────────────────────────────────────────────────────────────
 
-export function BookingsKanban({ teamId }: { teamId: string }) {
+export function BookingsKanban({ teamId, onStatusCountsChange }: {
+    teamId: string;
+    onStatusCountsChange?: (counts: { status: any; count: number }[]) => void;
+}) {
     const [cards, setCards] = useState<BookingCard[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeCard, setActiveCard] = useState<BookingCard | null>(null);
@@ -216,8 +219,17 @@ export function BookingsKanban({ teamId }: { teamId: string }) {
     const load = useCallback(async () => {
         setLoading(true);
         const res = await getBookingAppointments(teamId);
-        if (res.success && res.data) setCards(res.data as BookingCard[]);
-        else toast.error(res.message);
+        if (res.success && res.data) {
+            const data = res.data as BookingCard[];
+            setCards(data);
+            if (onStatusCountsChange) {
+                const counts: Record<string, number> = {};
+                for (const c of data) counts[c.status] = (counts[c.status] ?? 0) + 1;
+                onStatusCountsChange(Object.entries(counts).map(([status, count]) => ({ status, count })));
+            }
+        } else {
+            toast.error(res.message);
+        }
         setLoading(false);
     }, [teamId]);
 
