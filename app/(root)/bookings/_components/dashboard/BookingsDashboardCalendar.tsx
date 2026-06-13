@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -8,27 +8,26 @@ import interactionPlugin from '@fullcalendar/interaction';
 import esLocale from '@fullcalendar/core/locales/es';
 import { toast } from 'sonner';
 import { startOfDay } from 'date-fns';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
-import { Loader2, User, Calendar, Clock, Wrench } from 'lucide-react';
+import { Loader2, User, Calendar, Clock, Wrench, XCircleIcon } from 'lucide-react';
 import { AppointmentStatus } from '@prisma/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-    Dialog, DialogContent, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog';
-import {
-    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
-import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { STATUS_LABELS } from '@/types/schedule';
 import {
     getBookingAppointments, updateBookingAppointmentStatus, deleteBookingAppointment,
 } from '@/actions/bookings-actions';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_COLOR: Record<AppointmentStatus, string> = {
     PENDIENTE:   '#EAB308',
@@ -40,7 +39,19 @@ const STATUS_COLOR: Record<AppointmentStatus, string> = {
     DESCARTADO:  '#52525B',
 };
 
+const CARD_STATUS_STYLE: Record<AppointmentStatus, string> = {
+    PENDIENTE:   'border-l-4 border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/20',
+    CONFIRMADA:  'border-l-4 border-l-green-500 bg-green-50 dark:bg-green-950/20',
+    ATENDIDA:    'border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/20',
+    NO_ASISTIDA: 'border-l-4 border-l-violet-500 bg-violet-50 dark:bg-violet-950/20',
+    CANCELADA:   'border-l-4 border-l-red-500 bg-red-50 dark:bg-red-950/20',
+    FINALIZADO:  'border-l-4 border-l-emerald-500 bg-emerald-50 dark:bg-emerald-950/20',
+    DESCARTADO:  'border-l-4 border-l-zinc-400 bg-zinc-50 dark:bg-zinc-900/20',
+};
+
 const ALL_STATUSES: AppointmentStatus[] = ['PENDIENTE', 'CONFIRMADA', 'ATENDIDA', 'NO_ASISTIDA', 'CANCELADA', 'FINALIZADO', 'DESCARTADO'];
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Appt {
     id: string;
@@ -54,6 +65,8 @@ interface Appt {
     teamService: { name: string; duration: number };
 }
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string; timezone: string }) {
     const [appts, setAppts] = useState<Appt[]>([]);
     const [loading, setLoading] = useState(true);
@@ -62,10 +75,11 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
     const [changingStatus, setChangingStatus] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [deleting, setDeleting] = useState(false);
-    const [activeView, setActiveView] = useState<'agenda' | 'week' | 'month'>('agenda');
     const [agendaMode, setAgendaMode] = useState(true);
+    const [agendaDate, setAgendaDate] = useState(() => startOfDay(new Date()));
+    const [activeView, setActiveView] = useState<'agenda' | 'week' | 'month'>('agenda');
     const calendarRef = useRef<FullCalendar>(null);
-    const wrapRef = useRef<HTMLDivElement>(null);
+    const calendarWrapRef = useRef<HTMLDivElement>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -77,14 +91,16 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
 
     useEffect(() => { load(); }, [load]);
 
+    // Oculta/muestra el cuerpo del calendario según el modo
     useEffect(() => {
-        const el = wrapRef.current?.querySelector('.fc-view-harness') as HTMLElement | null;
+        const el = calendarWrapRef.current?.querySelector('.fc-view-harness') as HTMLElement | null;
         if (el) el.style.display = agendaMode ? 'none' : '';
         if (!agendaMode) requestAnimationFrame(() => calendarRef.current?.getApi().updateSize());
     }, [agendaMode]);
 
+    // Resalta el botón activo en el grupo Día/Semana/Mes
     useEffect(() => {
-        const wrapper = wrapRef.current;
+        const wrapper = calendarWrapRef.current;
         if (!wrapper) return;
         wrapper.querySelector('.fc-agendaToggle-button')?.classList.toggle('fc-button-active', activeView === 'agenda');
         wrapper.querySelector('.fc-semanaBtn-button')?.classList.toggle('fc-button-active', activeView === 'week');
@@ -100,6 +116,11 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
         borderColor: STATUS_COLOR[a.status],
         extendedProps: { appt: a },
     }));
+
+    const openApptDialog = (appt: Appt) => {
+        setSelected(appt);
+        setNewStatus(appt.status);
+    };
 
     const handleStatusChange = async () => {
         if (!selected) return;
@@ -130,6 +151,21 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
         setConfirmDelete(false);
     };
 
+    // Agenda panels
+    const dayAppts = useMemo(() =>
+        appts
+            .filter((a) =>
+                formatInTimeZone(new Date(a.startTime), timezone, 'yyyy-MM-dd') ===
+                formatInTimeZone(agendaDate, timezone, 'yyyy-MM-dd')
+            )
+            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()),
+        [appts, agendaDate, timezone]
+    );
+    const morningAppts   = dayAppts.filter((a) => toZonedTime(new Date(a.startTime), timezone).getHours() < 12);
+    const afternoonAppts = dayAppts.filter((a) => { const h = toZonedTime(new Date(a.startTime), timezone).getHours(); return h >= 12 && h < 18; });
+    const nightAppts     = dayAppts.filter((a) => toZonedTime(new Date(a.startTime), timezone).getHours() >= 18);
+    const agendaColumnClass = nightAppts.length > 0 ? 'grid-cols-3' : 'grid-cols-2';
+
     const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches;
 
     if (loading) {
@@ -142,7 +178,8 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
 
     return (
         <>
-            <div ref={wrapRef}>
+            {/* FullCalendar — toolbar siempre visible, cuerpo oculto en modo agenda */}
+            <div ref={calendarWrapRef}>
                 <FullCalendar
                     ref={calendarRef}
                     plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -152,7 +189,7 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
                     events={events}
                     datesSet={(info) => {
                         const next = startOfDay(info.start).getTime();
-                        setActiveView((v) => v);
+                        setAgendaDate((prev) => prev.getTime() === next ? prev : new Date(next));
                     }}
                     customButtons={{
                         agendaToggle: {
@@ -186,148 +223,208 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
                             : { left: 'prev,next today', center: 'title', right: 'agendaToggle,semanaBtn,mesBtn' }
                     }
                     buttonText={{ today: 'Hoy' }}
-                    height={agendaMode ? 'auto' : 'calc(100vh - 200px)'}
+                    height={agendaMode ? 'auto' : 'calc(100vh - 175px)'}
                     fixedWeekCount={false}
                     allDaySlot={false}
                     slotMinTime="07:00:00"
                     slotMaxTime="20:00:00"
+                    titleFormat={
+                        isMobile
+                            ? { day: 'numeric', month: 'short' }
+                            : { year: 'numeric', month: 'long', day: 'numeric' }
+                    }
                     eventClick={(info) => {
-                        const appt: Appt = info.event.extendedProps.appt;
-                        setSelected(appt);
-                        setNewStatus(appt.status);
+                        const appt = appts.find((a) => a.id === info.event.id);
+                        if (!appt) return;
+                        openApptDialog(appt);
                     }}
                 />
-
-                {/* Agenda manual (modo Día) */}
-                {agendaMode && (() => {
-                    const todayStr = formatInTimeZone(new Date(), timezone, 'yyyy-MM-dd');
-                    const dayAppts = appts
-                        .filter((a) => formatInTimeZone(new Date(a.startTime), timezone, 'yyyy-MM-dd') === todayStr)
-                        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-                    const morning = dayAppts.filter((a) => toZonedTime(new Date(a.startTime), timezone).getHours() < 12);
-                    const afternoon = dayAppts.filter((a) => {
-                        const h = toZonedTime(new Date(a.startTime), timezone).getHours();
-                        return h >= 12 && h < 18;
-                    });
-                    const night = dayAppts.filter((a) => toZonedTime(new Date(a.startTime), timezone).getHours() >= 18);
-
-                    return (
-                        <div className={`grid gap-4 mt-4 ${night.length > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                            {[{ label: 'MAÑANA', items: morning }, { label: 'TARDE', items: afternoon }, ...(night.length > 0 ? [{ label: 'NOCHE', items: night }] : [])].map(({ label, items }) => (
-                                <div key={label}>
-                                    <p className="text-xs font-semibold text-muted-foreground mb-2">{label}</p>
-                                    {items.length === 0 ? (
-                                        <p className="text-sm text-muted-foreground text-center py-4">Sin citas</p>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            {items.map((a) => {
-                                                const localStart = toZonedTime(new Date(a.startTime), timezone);
-                                                return (
-                                                    <div
-                                                        key={a.id}
-                                                        onClick={() => { setSelected(a); setNewStatus(a.status); }}
-                                                        className="cursor-pointer rounded-lg border border-border p-3 space-y-1.5 hover:bg-muted/40 transition-colors"
-                                                        style={{ borderLeftWidth: 4, borderLeftColor: STATUS_COLOR[a.status] }}
-                                                    >
-                                                        <div className="flex items-center justify-between">
-                                                            <p className="text-sm font-medium truncate">{a.clientName}</p>
-                                                            <Badge className="text-[10px] shrink-0 ml-1" style={{ backgroundColor: STATUS_COLOR[a.status] + '20', color: STATUS_COLOR[a.status], border: 'none' }}>
-                                                                {STATUS_LABELS[a.status]}
-                                                            </Badge>
-                                                        </div>
-                                                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                                            <Clock className="h-3 w-3" />
-                                                            {format(localStart, 'h:mm a', { locale: es })}
-                                                            <span className="mx-1">·</span>
-                                                            <Wrench className="h-3 w-3" />
-                                                            {a.teamService.name}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    );
-                })()}
             </div>
 
+            {/* Panel Agenda: columnas Mañana / Tarde / Noche */}
+            {agendaMode && (
+                <div className={`grid ${agendaColumnClass} gap-4 pt-3`} style={{ height: 'calc(100vh - 230px)' }}>
+                    {[
+                        { label: 'Mañana', items: morningAppts },
+                        { label: 'Tarde',  items: afternoonAppts },
+                        ...(nightAppts.length > 0 ? [{ label: 'Noche', items: nightAppts }] : []),
+                    ].map(({ label, items }) => (
+                        <div key={label} className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-background/60 overflow-hidden">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-3 py-2 border-b border-border/70">
+                                {label}
+                            </p>
+                            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2">
+                                {items.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground text-center pt-6">Sin citas</p>
+                                ) : items.map((appt) => {
+                                    const color = STATUS_COLOR[appt.status];
+                                    return (
+                                        <button
+                                            key={appt.id}
+                                            type="button"
+                                            onClick={() => openApptDialog(appt)}
+                                            className={`w-full text-left rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80 ${CARD_STATUS_STYLE[appt.status]}`}
+                                        >
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <p className="text-sm font-bold leading-tight text-muted-foreground">
+                                                        {formatInTimeZone(new Date(appt.startTime), timezone, 'HH:mm')} – {formatInTimeZone(new Date(appt.endTime), timezone, 'HH:mm')}
+                                                    </p>
+                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-primary/30 bg-primary/10 text-primary leading-tight shrink-0">
+                                                        {appt.teamService.name}
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm font-semibold leading-tight truncate">
+                                                    {appt.clientName || 'Sin nombre'}
+                                                </p>
+                                                <div className="flex items-end justify-between gap-3">
+                                                    <span className="text-xs text-muted-foreground truncate">
+                                                        {appt.teamMember.name}
+                                                    </span>
+                                                    <span
+                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold leading-tight shrink-0"
+                                                        style={{ borderColor: color, backgroundColor: `${color}20`, color }}
+                                                    >
+                                                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                                                        {STATUS_LABELS[appt.status]}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             {/* Detail dialog */}
-            <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-                <DialogContent className="sm:max-w-sm">
-                    <DialogHeader>
-                        <DialogTitle>Detalle de cita</DialogTitle>
-                    </DialogHeader>
-                    {selected && (() => {
-                        const localStart = toZonedTime(new Date(selected.startTime), timezone);
-                        const localEnd   = toZonedTime(new Date(selected.endTime),   timezone);
-                        return (
-                            <div className="space-y-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                        <User className="h-4 w-4 text-primary" />
-                                    </div>
-                                    <div>
-                                        <p className="font-semibold">{selected.clientName}</p>
-                                        <p className="text-xs text-muted-foreground">{selected.clientPhone}</p>
-                                    </div>
-                                </div>
-                                <div className="space-y-1.5 text-sm">
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Calendar className="h-3.5 w-3.5" />
-                                        {format(localStart, "d 'de' MMMM yyyy", { locale: es })}
-                                    </div>
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Clock className="h-3.5 w-3.5" />
-                                        {format(localStart, 'h:mm a')} – {format(localEnd, 'h:mm a')}
-                                    </div>
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Wrench className="h-3.5 w-3.5" />
-                                        {selected.teamService.name} · {selected.teamService.duration} min
-                                    </div>
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <User className="h-3.5 w-3.5" />
-                                        {selected.teamMember.name}
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
+            <AlertDialog
+                open={!!selected}
+                onOpenChange={(open) => { if (!open) { setSelected(null); setNewStatus('CONFIRMADA'); } }}
+            >
+                <AlertDialogContent className="border-border">
+                    <Tabs defaultValue="details">
+                        <div className="flex justify-between flex-row w-full items-center">
+                            <TabsList>
+                                <TabsTrigger value="details">Detalles</TabsTrigger>
+                            </TabsList>
+                            <div className="flex items-center gap-1">
+                                <TabsList>
+                                    <TabsTrigger value="status">Estado</TabsTrigger>
+                                </TabsList>
+                                <Button variant="ghost" onClick={() => setSelected(null)}>
+                                    <XCircleIcon />
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Estado */}
+                        <TabsContent value="status">
+                            <Card className="border-border min-h-[10rem]">
+                                <CardHeader>
+                                    <p className="text-sm text-muted-foreground">
+                                        Estás por modificar el estado de la cita de{' '}
+                                        <span className="font-medium">{selected?.clientName || 'este cliente'}</span>
+                                    </p>
+                                </CardHeader>
+                                <CardContent>
                                     <Select value={newStatus} onValueChange={(v) => setNewStatus(v as AppointmentStatus)}>
-                                        <SelectTrigger className="h-8 text-xs flex-1">
+                                        <SelectTrigger>
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {ALL_STATUSES.map((s) => (
-                                                <SelectItem key={s} value={s} className="text-xs">{STATUS_LABELS[s]}</SelectItem>
+                                                <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
-                                    <Button size="sm" className="h-8 text-xs" onClick={handleStatusChange} disabled={changingStatus || newStatus === selected.status}>
-                                        {changingStatus && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-                                        Guardar
-                                    </Button>
-                                </div>
-                                <Button variant="destructive" size="sm" className="w-full h-8 text-xs" onClick={() => setConfirmDelete(true)}>
-                                    Eliminar cita
+                                </CardContent>
+                            </Card>
+                            <div className="flex justify-between pt-4">
+                                <Button variant="outline" onClick={() => setSelected(null)}>Cancelar</Button>
+                                <Button
+                                    onClick={async () => {
+                                        await handleStatusChange();
+                                        setSelected(null);
+                                    }}
+                                    disabled={changingStatus || newStatus === selected?.status}
+                                >
+                                    {changingStatus && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                    Actualizar
                                 </Button>
                             </div>
-                        );
-                    })()}
-                </DialogContent>
-            </Dialog>
+                        </TabsContent>
+
+                        {/* Detalles */}
+                        <TabsContent value="details">
+                            <Card className="border-border">
+                                <CardHeader>
+                                    <CardTitle className="text-lg font-medium">Detalles de la cita</CardTitle>
+                                </CardHeader>
+                                {selected && (
+                                    <CardContent className="space-y-3 text-sm">
+                                        <div className="flex gap-1">
+                                            <strong className="uppercase font-medium">Cliente:</strong>
+                                            {selected.clientName || 'Sin nombre'}
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <strong className="uppercase font-medium">Teléfono:</strong>
+                                            {selected.clientPhone || 'No disponible'}
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <strong className="uppercase font-medium">Servicio:</strong>
+                                            {selected.teamService.name}
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <strong className="uppercase font-medium">Especialista:</strong>
+                                            {selected.teamMember.name}
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <strong className="uppercase font-medium">Estado:</strong>
+                                            <span style={{ color: STATUS_COLOR[selected.status] }}>
+                                                {STATUS_LABELS[selected.status]}
+                                            </span>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <strong className="uppercase font-medium">Fecha:</strong>
+                                            {formatInTimeZone(new Date(selected.startTime), timezone, 'dd/MM/yyyy')}
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <strong className="uppercase font-medium">Hora:</strong>
+                                            {formatInTimeZone(new Date(selected.startTime), timezone, 'HH:mm')} – {formatInTimeZone(new Date(selected.endTime), timezone, 'HH:mm')}
+                                        </div>
+                                    </CardContent>
+                                )}
+                            </Card>
+                            <div className="flex justify-between pt-4">
+                                <Button variant="outline" onClick={() => setSelected(null)}>Cancelar</Button>
+                                <Button variant="destructive" onClick={() => setConfirmDelete(true)}>Eliminar</Button>
+                            </div>
+                        </TabsContent>
+                    </Tabs>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-                <AlertDialogContent>
+                <AlertDialogContent className="border-border">
                     <AlertDialogHeader>
                         <AlertDialogTitle>Eliminar cita</AlertDialogTitle>
-                        <AlertDialogDescription>¿Deseas eliminar la cita de {selected?.clientName}? Esta acción no se puede deshacer.</AlertDialogDescription>
+                        <AlertDialogDescription>
+                            ¿Estás seguro de que quieres eliminar la cita de{' '}
+                            <strong>{selected?.clientName || 'este cliente'}</strong>? Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} disabled={deleting}>
+                        <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={handleDelete}
+                            disabled={deleting}
+                        >
                             {deleting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                            Eliminar
+                            Sí, eliminar
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
