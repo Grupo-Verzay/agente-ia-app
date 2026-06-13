@@ -471,7 +471,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                     <TabsContent value="conexion" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             <SectionTitle>Canal de comunicación</SectionTitle>
-                            <div className="flex flex-col lg:flex-row gap-2">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                                 <ConnectionMain
                                     user={user}
                                     instance={instancesData["Whatsapp"].instance}
@@ -480,7 +480,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     prompts={instancesData["Whatsapp"].prompts}
                                 />
                                 {/* Meta Cloud API */}
-                                <div className="flex flex-col flex-1 gap-2">
+                                <div className="flex flex-col gap-2">
                                     {metaInstances.map((inst) => (
                                         <MetaInstanceCard
                                             key={inst.instanceName}
@@ -491,6 +491,20 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     ))}
                                     <MetaInstanceCreator userId={userId} company={user?.company as string} />
                                 </div>
+                                <ConnectionMain
+                                    user={user}
+                                    instance={instancesData["Facebook"].instance}
+                                    instanceInfo={instancesData["Facebook"].info}
+                                    instanceType={"Facebook"}
+                                    prompts={instancesData["Facebook"].prompts}
+                                />
+                                <ConnectionMain
+                                    user={user}
+                                    instance={instancesData["Instagram"].instance}
+                                    instanceInfo={instancesData["Instagram"].info}
+                                    instanceType={"Instagram"}
+                                    prompts={instancesData["Instagram"].prompts}
+                                />
                             </div>
                         </TabPanel>
                     </TabsContent>
