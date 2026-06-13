@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Calendar, CheckCircle2, ClipboardList, Eye, EyeOff, Kanban, List, Loader2, Phone, RefreshCw, Search, Trash2, User, Users, Mail, CalendarClock, X } from "lucide-react";
+import { Calendar, CheckCircle2, ClipboardList, Eye, EyeOff, Kanban, List, Loader2, Phone, RefreshCw, Search, Settings2, Trash2, User, Users, Mail, CalendarClock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +23,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { TaskTypeAutomationsPanel } from "@/app/(root)/crm/rules/components/TaskTypeAutomationsPanel";
 import { cn } from "@/lib/utils";
 import { fmtPhone } from "@/lib/whatsapp-jid";
 import { TASK_TYPES, type TaskData } from "@/lib/task-types";
@@ -304,6 +311,7 @@ export function TasksClient({ userId, userName }: Props) {
         <KanbanView
           tasks={filteredTasks.filter((t) => t.status !== "cancelled")}
           allTypes={allTypes}
+          userId={userId}
           onComplete={beginComplete}
           onCancel={(task) => void handleCancel(task)}
           onDelete={(task) => void handleDelete(task)}
@@ -435,13 +443,15 @@ const TASK_COL: Record<string, { headerClass: string; borderColor: string }> = {
 };
 
 /* ─── KanbanView — copia exacta de AgendaKanban ─── */
-function KanbanView({ tasks, allTypes, onComplete, onCancel, onDelete }: {
+function KanbanView({ tasks, allTypes, userId, onComplete, onCancel, onDelete }: {
   tasks: TaskData[];
   allTypes: readonly string[] | string[];
+  userId: string;
   onComplete: (t: TaskData) => void;
   onCancel: (t: TaskData) => void;
   onDelete: (t: TaskData) => void;
 }) {
+  const [automationsOpen, setAutomationsOpen] = useState<string | null>(null);
   const knownTypes = new Set(allTypes);
   const others = tasks.filter((t) => !knownTypes.has(t.type));
   const columns = [
@@ -467,13 +477,33 @@ function KanbanView({ tasks, allTypes, onComplete, onCancel, onDelete }: {
                   backgroundColor: col.borderColor + "0A",
                 }}
               >
-                {/* Header — exacto de AgendaColumn */}
+                {/* Header */}
                 <div className={cn("px-3 py-2 flex items-center justify-between shrink-0", col.headerClass)}>
                   <span className="text-white text-sm font-semibold">{type}</span>
-                  <Badge className="bg-white/20 text-white border-0 text-xs font-medium">
-                    {pendingItems.length}
-                  </Badge>
+                  <div className="flex items-center gap-1.5">
+                    <Badge className="bg-white/20 text-white border-0 text-xs font-medium">
+                      {pendingItems.length}
+                    </Badge>
+                    <button
+                      type="button"
+                      className="text-white/70 hover:text-white transition-colors"
+                      onClick={() => setAutomationsOpen(type)}
+                      title="Configurar automatizaciones"
+                    >
+                      <Settings2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
+                <Sheet open={automationsOpen === type} onOpenChange={(v) => !v && setAutomationsOpen(null)}>
+                  <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto">
+                    <SheetHeader>
+                      <SheetTitle>Automatizaciones · {type}</SheetTitle>
+                    </SheetHeader>
+                    <div className="mt-4">
+                      <TaskTypeAutomationsPanel userId={userId} taskType={type} />
+                    </div>
+                  </SheetContent>
+                </Sheet>
 
                 {/* Body — exacto de AgendaColumn */}
                 <div className="flex-1 min-h-0 p-2 space-y-2 overflow-y-auto">

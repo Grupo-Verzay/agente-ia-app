@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { ReminderListClient, ReminderSkeleton, ReminderModal } from './';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Bell, CalendarDays, Clock3, Kanban, List, Repeat2, Search } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarDays, Clock3, Kanban, List, Repeat2, Search, Settings2 } from 'lucide-react';
 import { MainReminderInterface } from '@/schema/reminder';
 import { Input } from '@/components/ui/input';
 import { closeDialog, openCreateDialog, useReminderDialogStore } from '@/stores';
@@ -18,6 +18,13 @@ import { SortableReminderList } from './SortableReminderList';
 import { Badge } from '@/components/ui/badge';
 import type { Reminders } from '@prisma/client';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { ReminderGroupAutomationsPanel } from '@/app/(root)/crm/rules/components/ReminderGroupAutomationsPanel';
 
 const parseReminderTime = (time: string | null) => {
   if (!time) return null;
@@ -50,6 +57,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
   }, [isCampaignPage, setCampaignPage]);
 
   const [search, setSearch] = useState("");
+  const [automationsOpen, setAutomationsOpen] = useState<string | null>(null);
   const [showDeleteAll, setShowDeleteAll] = useState(false);
   const [view, setView] = useState<'list' | 'kanban'>('list');
 
@@ -262,8 +270,28 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
                     <CalendarDays className="h-3.5 w-3.5 text-white/80" />
                     <span className="text-sm font-semibold text-white">{column.label}</span>
                   </div>
-                  <Badge className="border-0 bg-white/20 text-xs font-medium text-white">{column.items.length}</Badge>
+                  <div className="flex items-center gap-1.5">
+                    <Badge className="border-0 bg-white/20 text-xs font-medium text-white">{column.items.length}</Badge>
+                    <button
+                      type="button"
+                      className="text-white/70 hover:text-white transition-colors"
+                      onClick={() => setAutomationsOpen(column.key)}
+                      title="Configurar automatizaciones"
+                    >
+                      <Settings2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
+                <Sheet open={automationsOpen === column.key} onOpenChange={(v) => !v && setAutomationsOpen(null)}>
+                  <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto">
+                    <SheetHeader>
+                      <SheetTitle>Automatizaciones · {column.label}</SheetTitle>
+                    </SheetHeader>
+                    <div className="mt-4">
+                      <ReminderGroupAutomationsPanel userId={user.id} reminderGroup={column.key} groupLabel={column.label} />
+                    </div>
+                  </SheetContent>
+                </Sheet>
                 <div className="flex-1 min-h-0 space-y-2 overflow-y-auto p-2">
                   {column.items.map((reminder) => (
                     <ReminderList
