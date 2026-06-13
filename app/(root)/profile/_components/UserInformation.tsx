@@ -650,64 +650,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     </div>
                                 </CardHeader>
                             </Card>
-                            <SectionTitle>Tiempos de respuesta</SectionTitle>
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <Card className="border-border">
-                                    <CardHeader className="pb-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                                <Clock className="w-4 h-4 text-primary" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <CardTitle className="text-sm font-semibold">Reactivación automática</CardTitle>
-                                                <CardDescription className="text-xs">Tiempo sin mensajes antes de reactivar</CardDescription>
-                                            </div>
-                                            {loadingField === "autoReactivate" && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <InputSuffix
-                                            id="autoReactivate"
-                                            type="number"
-                                            min={0}
-                                            suffix="min"
-                                            value={user.autoReactivate != null ? String(user.autoReactivate) : ""}
-                                            disabled={loadingField === "autoReactivate"}
-                                            onChange={(e) => handleChange("autoReactivate", e.target.value)}
-                                            onBlur={() => handleBlur("autoReactivate")}
-                                        />
-                                    </CardContent>
-                                </Card>
-
-                                <Card className="border-border">
-                                    <CardHeader className="pb-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                                <Timer className="w-4 h-4 text-primary" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <CardTitle className="text-sm font-semibold">Retraso de respuesta IA</CardTitle>
-                                                <CardDescription className="text-xs">Espera antes de enviar cada respuesta</CardDescription>
-                                            </div>
-                                            {loadingField === "delayTimeGpt" && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <InputSuffix
-                                            id="delayTimeGpt"
-                                            type="number"
-                                            min={0}
-                                            suffix="seg"
-                                            value={user.delayTimeGpt != null ? String(user.delayTimeGpt) : ""}
-                                            disabled={loadingField === "delayTimeGpt"}
-                                            onChange={(e) => handleChange("delayTimeGpt", e.target.value)}
-                                            onBlur={() => handleBlur("delayTimeGpt")}
-                                        />
-                                    </CardContent>
-                                </Card>
-                            </div>
-
-                            <SectionTitle>Frases automáticas</SectionTitle>
+                            <SectionTitle>Respuestas de voz</SectionTitle>
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <Card className="border-border">
                                     <CardHeader className="pb-3">
@@ -907,6 +850,118 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     </CardContent>
                                 )}
                             </Card>
+
+                            <SectionTitle>Tiempos de respuesta</SectionTitle>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <Card className="border-border">
+                                    <CardHeader className="pb-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                <Clock className="w-4 h-4 text-primary" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <CardTitle className="text-sm font-semibold">Reactivación automática</CardTitle>
+                                                <CardDescription className="text-xs">Tiempo sin mensajes antes de reactivar</CardDescription>
+                                            </div>
+                                            {loadingField === "autoReactivate" && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <InputSuffix
+                                            id="autoReactivate"
+                                            type="number"
+                                            min={0}
+                                            suffix="min"
+                                            value={user.autoReactivate != null ? String(user.autoReactivate) : ""}
+                                            disabled={loadingField === "autoReactivate"}
+                                            onChange={(e) => handleChange("autoReactivate", e.target.value)}
+                                            onBlur={() => handleBlur("autoReactivate")}
+                                        />
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="border-border">
+                                    <CardHeader className="pb-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                <Timer className="w-4 h-4 text-primary" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <CardTitle className="text-sm font-semibold">Retraso de respuesta IA</CardTitle>
+                                                <CardDescription className="text-xs">Espera antes de enviar cada respuesta</CardDescription>
+                                            </div>
+                                            {loadingField === "delayTimeGpt" && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <InputSuffix
+                                            id="delayTimeGpt"
+                                            type="number"
+                                            min={0}
+                                            suffix="seg"
+                                            value={user.delayTimeGpt != null ? String(user.delayTimeGpt) : ""}
+                                            disabled={loadingField === "delayTimeGpt"}
+                                            onChange={(e) => handleChange("delayTimeGpt", e.target.value)}
+                                            onBlur={() => handleBlur("delayTimeGpt")}
+                                        />
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            <SectionTitle>Frases automáticas</SectionTitle>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <Card className="border-border">
+                                    <CardHeader className="pb-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                <MessageSquare className="w-4 h-4 text-primary" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <CardTitle className="text-sm font-semibold">Frase de reactivación</CardTitle>
+                                                <CardDescription className="text-xs">Mensaje enviado al reactivar una conversación</CardDescription>
+                                            </div>
+                                            {loadingField === "openMsg" && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <Input
+                                            id="openMsg"
+                                            name="openMsg"
+                                            placeholder="Fue un gusto ayudarle."
+                                            value={(user.openMsg as string) ?? ""}
+                                            disabled={loadingField === "openMsg"}
+                                            onChange={(e) => handleChange("openMsg", e.target.value)}
+                                            onBlur={() => handleBlur("openMsg")}
+                                        />
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="border-border">
+                                    <CardHeader className="pb-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                <MessageSquare className="w-4 h-4 text-primary" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <CardTitle className="text-sm font-semibold">Frase de desactivación</CardTitle>
+                                                <CardDescription className="text-xs">Mensaje enviado al finalizar el seguimiento</CardDescription>
+                                            </div>
+                                            {loadingField === "delSeguimiento" && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <Input
+                                            id="delSeguimiento"
+                                            name="delSeguimiento"
+                                            placeholder="Fue un gusto ayudarle."
+                                            value={(user.delSeguimiento as string) ?? ""}
+                                            disabled={loadingField === "delSeguimiento"}
+                                            onChange={(e) => handleChange("delSeguimiento", e.target.value)}
+                                            onBlur={() => handleBlur("delSeguimiento")}
+                                        />
+                                    </CardContent>
+                                </Card>
+                            </div>
                         </TabPanel>
                     </TabsContent>
 
