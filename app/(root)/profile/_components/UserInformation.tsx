@@ -651,61 +651,6 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                 </CardHeader>
                             </Card>
                             <SectionTitle>Respuestas de voz</SectionTitle>
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <Card className="border-border">
-                                    <CardHeader className="pb-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                                <MessageSquare className="w-4 h-4 text-primary" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <CardTitle className="text-sm font-semibold">Frase de reactivación</CardTitle>
-                                                <CardDescription className="text-xs">Mensaje enviado al reactivar una conversación</CardDescription>
-                                            </div>
-                                            {loadingField === "openMsg" && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <Input
-                                            id="openMsg"
-                                            name="openMsg"
-                                            placeholder="Fue un gusto ayudarle."
-                                            value={(user.openMsg as string) ?? ""}
-                                            disabled={loadingField === "openMsg"}
-                                            onChange={(e) => handleChange("openMsg", e.target.value)}
-                                            onBlur={() => handleBlur("openMsg")}
-                                        />
-                                    </CardContent>
-                                </Card>
-
-                                <Card className="border-border">
-                                    <CardHeader className="pb-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                                <MessageSquare className="w-4 h-4 text-primary" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <CardTitle className="text-sm font-semibold">Frase de desactivación</CardTitle>
-                                                <CardDescription className="text-xs">Mensaje enviado al finalizar el seguimiento</CardDescription>
-                                            </div>
-                                            {loadingField === "delSeguimiento" && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <Input
-                                            id="delSeguimiento"
-                                            name="delSeguimiento"
-                                            placeholder="Fue un gusto ayudarle."
-                                            value={(user.delSeguimiento as string) ?? ""}
-                                            disabled={loadingField === "delSeguimiento"}
-                                            onChange={(e) => handleChange("delSeguimiento", e.target.value)}
-                                            onBlur={() => handleBlur("delSeguimiento")}
-                                        />
-                                    </CardContent>
-                                </Card>
-                            </div>
-
-                            <SectionTitle>Respuestas de voz</SectionTitle>
                             <Card className="border-border">
                                 <CardHeader className="pb-3">
                                     <div className="flex items-center gap-3">
