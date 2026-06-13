@@ -400,11 +400,11 @@ function ServiceSection({
 
             {/* Reminder list */}
             {filteredReminders.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic pl-4">
+                <p className="text-xs text-muted-foreground italic">
                     Sin recordatorios — se usarán los globales del módulo Recordatorios.
                 </p>
             ) : (
-                <div className="space-y-1.5 pl-4">
+                <div className="flex flex-col gap-2">
                     {filteredReminders.map((rem) => {
                         const realIdx = reminders.indexOf(rem);
                         return (
