@@ -127,39 +127,27 @@ export const ConnectionCard = ({
     // Renderizado Condicional: Tarjeta de Bloqueo con Tema Dual
     if (isFacebookOrInstagram && !isChannelEnabled) {
         return (
-            // <Card className="border-border max-w-60 text-center shadow-lg">
-            <Card className="border-border flex-1">
-                <CardHeader className="flex flex-col items-start justify-center p-6 space-y-3">
-                    <div className="flex items-center gap-2">
+            <Card className="border-border flex-1 flex flex-col">
+                <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
+                    <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
                         <SocialIconSelector instanceType={instanceType} />
-                    </div>
-
+                    </CardTitle>
                 </CardHeader>
-
-                <CardContent className="flex flex-col items-center justify-center space-y-4 pt-0">
-
-                    {/* ICONO: Azul en Claro, Ámbar en Oscuro */}
-                    <Lock
-                        className="h-8 w-8 
-                                   text-blue-500/70 dark:text-amber-400"
-                    />
-
-                    <div
-                        role="status"
-                        aria-live="polite"
-                        // RECUADRO: Azul en Claro, Ámbar en Oscuro, Sombra interior
-                        className="p-4 rounded-lg w-full shadow-inner 
-                                   border border-blue-200 dark:border-amber-900 
-                                   bg-blue-50 dark:bg-amber-950/40 
-                                   text-blue-700 dark:text-amber-300 
-                                   shadow-blue-100/50 dark:shadow-amber-900/20"
-                    >
-                        <p className="font-medium text-center text-sm"> {/* UX: Texto más pequeño */}
-                            Contacta con un administrador para activar este canal.
-                        </p>
+                <CardContent className="px-6 pb-3 pt-0">
+                    <div className="space-y-1.5">
+                        <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
+                        <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                            <span className="flex-1 font-mono text-foreground">{defaultValues.instanceName}</span>
+                            <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        </div>
                     </div>
-
                 </CardContent>
+                <CardFooter className="mt-auto px-6 pb-4 pt-0">
+                    <Button className="w-full" disabled title="Contacta con un administrador para activar este canal.">
+                        <Lock className="w-4 h-4 mr-2" />
+                        Canal no habilitado
+                    </Button>
+                </CardFooter>
             </Card>
         )
     }
