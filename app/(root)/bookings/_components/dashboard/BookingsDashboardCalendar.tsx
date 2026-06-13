@@ -91,12 +91,14 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
 
     useEffect(() => { load(); }, [load]);
 
-    // Oculta/muestra el cuerpo del calendario según el modo
-    useEffect(() => {
+    const hideViewHarness = useCallback(() => {
         const el = calendarWrapRef.current?.querySelector('.fc-view-harness') as HTMLElement | null;
         if (el) el.style.display = agendaMode ? 'none' : '';
         if (!agendaMode) requestAnimationFrame(() => calendarRef.current?.getApi().updateSize());
     }, [agendaMode]);
+
+    // Oculta/muestra el cuerpo al cambiar de modo
+    useEffect(() => { hideViewHarness(); }, [hideViewHarness]);
 
     // Resalta el botón activo en el grupo Día/Semana/Mes
     useEffect(() => {
@@ -233,6 +235,7 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
                             ? { day: 'numeric', month: 'short' }
                             : { year: 'numeric', month: 'long', day: 'numeric' }
                     }
+                    viewDidMount={() => hideViewHarness()}
                     eventClick={(info) => {
                         const appt = appts.find((a) => a.id === info.event.id);
                         if (!appt) return;
