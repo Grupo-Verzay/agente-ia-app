@@ -122,19 +122,22 @@ model GuideUrl {
 }
 
 model Instancia {
-  id                 Int     @id @default(autoincrement())
-  instanceName       String
-  userId             String
-  instanceId         String
-  instanceType       String? @default("Whatsapp")
-  metaPhoneNumberId  String? @map("meta_phone_number_id")
-  metaAccessToken    String? @map("meta_access_token")
-  metaWabaId         String? @map("meta_waba_id")
-  metaVerifyToken    String? @map("meta_verify_token")
-  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                     Int     @id @default(autoincrement())
+  instanceName           String
+  userId                 String
+  instanceId             String
+  instanceType           String? @default("Whatsapp")
+  metaPhoneNumberId      String? @map("meta_phone_number_id")
+  metaAccessToken        String? @map("meta_access_token")
+  metaWabaId             String? @map("meta_waba_id")
+  metaVerifyToken        String? @map("meta_verify_token")
+  metaChannel            String? @default("whatsapp") @map("meta_channel")
+  metaPageId             String? @map("meta_page_id")
+  user                   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([metaPhoneNumberId])
+  @@index([metaPageId])
   @@map("Instancias")
 }
 
@@ -1783,19 +1786,22 @@ model Team {
 }
 
 model TeamMember {
-  id           String                   @id @default(uuid())
-  teamId       String
-  name         String
-  bio          String?
-  photo        String?
-  color        String?
-  isActive     Boolean                  @default(true)
-  createdAt    DateTime                 @default(now())
-  updatedAt    DateTime                 @updatedAt
-  team         Team                     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  availability TeamMemberAvailability[]
-  services     TeamMemberService[]
-  appointments BookingAppointment[]
+  id               String                   @id @default(uuid())
+  teamId           String
+  name             String
+  bio              String?
+  photo            String?
+  color            String?
+  isActive         Boolean                  @default(true)
+  defaultDuration  Int                      @default(30)
+  meetingLink      String?
+  minNoticeMinutes Int                      @default(0)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  team             Team                     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  availability     TeamMemberAvailability[]
+  services         TeamMemberService[]
+  appointments     BookingAppointment[]
 
   @@index([teamId])
   @@map("team_members")

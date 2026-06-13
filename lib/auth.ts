@@ -23,6 +23,7 @@ const USER_SELECT = {
     onFacebook: true,
     onInstagram: true,
     meetingDuration: true,
+    minNoticeMinutes: true,
     timezone: true,
     meetingUrl: true,
     enabledSynthesizer: true,

@@ -101,39 +101,39 @@ export const MainBookings = ({ user, team }: Props) => {
             </div>
 
             {/* Contenido */}
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 relative">
                 {tab === 'dashboard' && (
-                    <div className="h-full min-h-0 overflow-hidden pb-4">
+                    <div className="absolute inset-0 overflow-hidden pb-4">
                         <BookingsDashboardCalendar teamId={team.id} timezone={team.timezone} />
                     </div>
                 )}
 
                 {tab === 'kanban' && (
-                    <div className="h-full flex flex-col">
+                    <div className="absolute inset-0 flex flex-col">
                         <BookingsKanban teamId={team.id} userId={userId} onStatusCountsChange={setStatusCounts} />
                     </div>
                 )}
 
                 {tab === 'members' && (
-                    <div className="h-full overflow-y-auto pb-4">
+                    <div className="absolute inset-0 overflow-y-auto pb-4">
                         <MembersManager teamId={team.id} teamTimezone={team.timezone} />
                     </div>
                 )}
 
                 {tab === 'services' && (
-                    <div className="h-full overflow-y-auto pb-4">
+                    <div className="absolute inset-0 overflow-y-auto pb-4">
                         <BookingServicesManager teamId={team.id} />
                     </div>
                 )}
 
                 {tab === 'reminders' && (
-                    <div className="h-full overflow-y-auto pb-4">
+                    <div className="absolute inset-0 overflow-y-auto pb-4">
                         <BookingsRemindersManager teamId={team.id} userId={userId} />
                     </div>
                 )}
 
                 {tab === 'settings' && (
-                    <div className="h-full overflow-y-auto pb-4">
+                    <div className="absolute inset-0 overflow-y-auto pb-4">
                         <BookingTeamSettings userId={userId} team={team} />
                     </div>
                 )}

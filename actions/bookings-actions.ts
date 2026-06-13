@@ -140,7 +140,7 @@ export async function createTeamMember(
 
 export async function updateTeamMember(
     memberId: string,
-    data: { name?: string; bio?: string; photo?: string; color?: string; isActive?: boolean },
+    data: { name?: string; bio?: string; photo?: string; color?: string; isActive?: boolean; defaultDuration?: number; meetingLink?: string | null; minNoticeMinutes?: number },
 ) {
     try {
         const member = await db.teamMember.update({ where: { id: memberId }, data });
@@ -313,12 +313,18 @@ export async function createBookingAppointment(input: CreateBookingInput) {
     }
 
     try {
-        // Validar tiempo mínimo de anticipación
-        const team = await db.team.findUnique({ where: { id: teamId }, select: { minNoticeMinutes: true } });
-        if (team && team.minNoticeMinutes > 0) {
-            const earliestAllowed = addMinutes(new Date(), team.minNoticeMinutes);
+        // Validar tiempo mínimo de anticipación (especialista sobreescribe al equipo)
+        const [team, member] = await Promise.all([
+            db.team.findUnique({ where: { id: teamId }, select: { minNoticeMinutes: true } }),
+            db.teamMember.findUnique({ where: { id: teamMemberId }, select: { minNoticeMinutes: true } }),
+        ]);
+        const effectiveNotice = (member?.minNoticeMinutes ?? 0) > 0
+            ? member!.minNoticeMinutes
+            : (team?.minNoticeMinutes ?? 0);
+        if (effectiveNotice > 0) {
+            const earliestAllowed = addMinutes(new Date(), effectiveNotice);
             if (isBefore(start, earliestAllowed)) {
-                return { success: false, message: `Debes agendar con al menos ${team.minNoticeMinutes} minutos de anticipación.` };
+                return { success: false, message: `Debes agendar con al menos ${effectiveNotice} minutos de anticipación.` };
             }
         }
         const overlap = await db.bookingAppointment.findFirst({
@@ -475,7 +481,7 @@ export async function getPublicTeamData(userId: string) {
                 // Todos los miembros activos del equipo (fallback cuando un servicio no tiene asignados)
                 members: {
                     where: { isActive: true },
-                    select: { id: true, name: true, bio: true, photo: true, color: true },
+                    select: { id: true, name: true, bio: true, photo: true, color: true, minNoticeMinutes: true },
                     orderBy: { name: 'asc' },
                 },
                 services: {
@@ -491,7 +497,7 @@ export async function getPublicTeamData(userId: string) {
                         members: {
                             select: {
                                 teamMember: {
-                                    select: { id: true, name: true, bio: true, photo: true, color: true },
+                                    select: { id: true, name: true, bio: true, photo: true, color: true, minNoticeMinutes: true },
                                 },
                             },
                         },

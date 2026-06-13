@@ -2,67 +2,70 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Copy, ExternalLink, Loader2, Clock } from 'lucide-react';
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { Copy, ExternalLink, Loader2, Timer } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import {
-    Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription,
-} from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { updateTeam } from '@/actions/bookings-actions';
+
+type NoticeUnit = 'minutes' | 'hours' | 'days';
+const noticeToMinutes: Record<NoticeUnit, number> = { minutes: 1, hours: 60, days: 1440 };
+
+function fromMinutes(total: number): { value: number; unit: NoticeUnit } {
+    if (total > 0 && total % 1440 === 0) return { value: total / 1440, unit: 'days' };
+    if (total > 0 && total % 60 === 0)   return { value: total / 60,   unit: 'hours' };
+    return { value: total, unit: 'minutes' };
+}
 
 interface Team {
     id: string;
     minNoticeMinutes: number;
 }
 
-const schema = z.object({
-    minNoticeMinutes: z.coerce.number().min(0).max(10080),
-});
-type FormValues = z.infer<typeof schema>;
-
 export function BookingTeamSettings({ userId, team }: { userId: string; team: Team }) {
-    const [saving, setSaving] = useState(false);
     const router = useRouter();
 
     const publicUrl = typeof window !== 'undefined'
         ? `${window.location.origin}/bookings/${userId}`
         : `/bookings/${userId}`;
 
+    const { value: initVal, unit: initUnit } = fromMinutes(team.minNoticeMinutes);
+    const [noticeValue, setNoticeValue] = useState<number>(initVal);
+    const [noticeUnit,  setNoticeUnit]  = useState<NoticeUnit>(initUnit);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        const { value, unit } = fromMinutes(team.minNoticeMinutes);
+        setNoticeValue(value);
+        setNoticeUnit(unit);
+    }, [team.minNoticeMinutes]);
+
     const copyLink = () => {
         navigator.clipboard.writeText(publicUrl);
         toast.success('Enlace copiado al portapapeles');
     };
 
-    const form = useForm<FormValues>({
-        resolver: zodResolver(schema),
-        defaultValues: { minNoticeMinutes: team.minNoticeMinutes },
-    });
+    const handleCancel = () => {
+        const { value, unit } = fromMinutes(team.minNoticeMinutes);
+        setNoticeValue(value);
+        setNoticeUnit(unit);
+    };
 
-    useEffect(() => {
-        form.reset({ minNoticeMinutes: team.minNoticeMinutes });
-    }, [team]);
-
-    const onSubmit = async (values: FormValues) => {
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
         setSaving(true);
-        try {
-            const res = await updateTeam(team.id, values);
-            if (res.success) {
-                toast.success('Ajustes guardados');
-                router.refresh();
-            } else {
-                toast.error(res.message);
-            }
-        } catch {
-            toast.error('Error al guardar');
-        } finally {
-            setSaving(false);
+        const minNoticeMinutes = noticeValue * noticeToMinutes[noticeUnit];
+        const res = await updateTeam(team.id, { minNoticeMinutes });
+        if (res.success) {
+            toast.success('Ajustes guardados');
+            router.refresh();
+        } else {
+            toast.error(res.message);
         }
+        setSaving(false);
     };
 
     return (
@@ -90,44 +93,52 @@ export function BookingTeamSettings({ userId, team }: { userId: string; team: Te
                 </CardContent>
             </Card>
 
-            {/* Tiempo mínimo */}
+            {/* Configuración avanzada */}
             <Card>
                 <CardHeader className="pb-2">
                     <CardTitle className="text-base">Configuración avanzada</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                            <FormField control={form.control} name="minNoticeMinutes" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className="flex items-center gap-1.5">
-                                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                                        Tiempo mínimo de anticipación
-                                    </FormLabel>
-                                    <div className="flex items-center gap-3">
-                                        <FormControl>
-                                            <Input
-                                                type="number"
-                                                min={0}
-                                                max={10080}
-                                                className="w-28"
-                                                {...field}
-                                            />
-                                        </FormControl>
-                                        <span className="text-sm text-muted-foreground">minutos</span>
-                                    </div>
-                                    <FormDescription className="text-xs">
-                                        Mínimo de minutos de antelación para agendar. Ej: 60 = no permite citas en menos de 1 hora.
-                                    </FormDescription>
-                                    <FormMessage />
-                                </FormItem>
-                            )} />
-                            <Button type="submit" disabled={saving} className="w-full">
-                                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                                Guardar cambios
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <div className="space-y-1.5">
+                            <label className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                                <Timer className="h-3.5 w-3.5 text-muted-foreground" />
+                                Tiempo mínimo de anticipación
+                            </label>
+                            <div className="flex items-center gap-3 w-full">
+                                <Select value={noticeUnit} onValueChange={(v) => setNoticeUnit(v as NoticeUnit)}>
+                                    <SelectTrigger className="w-32 shrink-0">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="minutes">Minutos</SelectItem>
+                                        <SelectItem value="hours">Horas</SelectItem>
+                                        <SelectItem value="days">Días</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <p className="flex-1 text-xs text-muted-foreground text-center">0 = sin restricción</p>
+                                <Input
+                                    type="number"
+                                    value={noticeValue}
+                                    onChange={(e) => setNoticeValue(Math.max(0, parseInt(e.target.value) || 0))}
+                                    min="0"
+                                    className="w-28 text-center text-lg font-bold shrink-0"
+                                />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Default global del equipo. Cada especialista puede sobrescribir este valor.
+                            </p>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 pt-2">
+                            <Button type="button" variant="secondary" onClick={handleCancel} disabled={saving}>
+                                Cancelar
                             </Button>
-                        </form>
-                    </Form>
+                            <Button type="submit" variant="save" disabled={saving}>
+                                {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Guardando...</> : 'Guardar'}
+                            </Button>
+                        </div>
+                    </form>
                 </CardContent>
             </Card>
         </div>

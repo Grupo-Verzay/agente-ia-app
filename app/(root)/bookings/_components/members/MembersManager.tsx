@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Loader2, ChevronDown, ChevronUp, PlusCircle, Copy } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, ChevronDown, ChevronUp, PlusCircle, Copy, Clock, Link2, Settings2, Timer } from 'lucide-react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -40,6 +40,9 @@ interface Member {
     photo: string | null;
     color: string | null;
     isActive: boolean;
+    defaultDuration: number;
+    meetingLink: string | null;
+    minNoticeMinutes: number;
     availability: { dayOfWeek: number; startTime: string; endTime: string }[];
     services: { teamServiceId: string }[];
 }
@@ -403,6 +406,183 @@ function ServiceAssignment({
     );
 }
 
+// ─── Member config editor ─────────────────────────────────────────────────────
+
+type DurUnit = 'minutes' | 'hours';
+type NoticeUnit = 'minutes' | 'hours' | 'days';
+const durToMinutes: Record<DurUnit, number> = { minutes: 1, hours: 60 };
+const noticeToMinutes: Record<NoticeUnit, number> = { minutes: 1, hours: 60, days: 1440 };
+
+function fromMinutesDur(total: number): { value: number; unit: DurUnit } {
+    if (total > 0 && total % 60 === 0) return { value: total / 60, unit: 'hours' };
+    return { value: total, unit: 'minutes' };
+}
+
+function fromMinutesNotice(total: number): { value: number; unit: NoticeUnit } {
+    if (total > 0 && total % 1440 === 0) return { value: total / 1440, unit: 'days' };
+    if (total > 0 && total % 60 === 0)   return { value: total / 60,   unit: 'hours' };
+    return { value: total, unit: 'minutes' };
+}
+
+function MemberConfigEditor({
+    member,
+    onSaved,
+}: {
+    member: Member;
+    onSaved: (updated: Pick<Member, 'defaultDuration' | 'meetingLink' | 'minNoticeMinutes'>) => void;
+}) {
+    const { value: initDurVal, unit: initDurUnit } = fromMinutesDur(member.defaultDuration);
+    const [durValue, setDurValue] = useState<number>(initDurVal);
+    const [durUnit, setDurUnit] = useState<DurUnit>(initDurUnit);
+
+    const [url, setUrl] = useState<string>(member.meetingLink ?? '');
+
+    const { value: initNoticeVal, unit: initNoticeUnit } = fromMinutesNotice(member.minNoticeMinutes);
+    const [noticeValue, setNoticeValue] = useState<number>(initNoticeVal);
+    const [noticeUnit, setNoticeUnit] = useState<NoticeUnit>(initNoticeUnit);
+
+    const [saving, setSaving] = useState(false);
+
+    const handleCancel = () => {
+        const { value: dv, unit: du } = fromMinutesDur(member.defaultDuration);
+        setDurValue(dv);
+        setDurUnit(du);
+        setUrl(member.meetingLink ?? '');
+        const { value: nv, unit: nu } = fromMinutesNotice(member.minNoticeMinutes);
+        setNoticeValue(nv);
+        setNoticeUnit(nu);
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        const durationMinutes = durValue * durToMinutes[durUnit];
+        if (durationMinutes < 1 || durationMinutes > 480) {
+            toast.error('La duración debe estar entre 1 y 480 minutos.');
+            return;
+        }
+
+        const trimmedUrl = url.trim();
+        if (trimmedUrl) {
+            const normalized = /^https?:\/\//i.test(trimmedUrl) ? trimmedUrl : `https://${trimmedUrl}`;
+            try { new URL(normalized); } catch { toast.error('La URL de reunión no es válida.'); return; }
+        }
+
+        setSaving(true);
+        const minNoticeMinutes = noticeValue * noticeToMinutes[noticeUnit];
+        const res = await updateTeamMember(member.id, {
+            defaultDuration: durationMinutes,
+            meetingLink: trimmedUrl || null,
+            minNoticeMinutes,
+        });
+        setSaving(false);
+
+        if (res.success) {
+            toast.success('Configuración actualizada');
+            onSaved({ defaultDuration: durationMinutes, meetingLink: trimmedUrl || null, minNoticeMinutes });
+        } else {
+            toast.error(res.message);
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="flex items-center gap-3 pb-3 border-b">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+                    <Settings2 className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                    <p className="text-sm font-semibold">Configuración</p>
+                    <p className="text-xs text-muted-foreground">Duración, enlace y anticipación mínima</p>
+                </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Duración */}
+                <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                        Duración de la reunión
+                    </label>
+                    <div className="flex items-center gap-3 w-full">
+                        <Select value={durUnit} onValueChange={(v) => setDurUnit(v as DurUnit)}>
+                            <SelectTrigger className="w-32 shrink-0">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="minutes">Minutos</SelectItem>
+                                <SelectItem value="hours">Horas</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p className="flex-1 text-xs text-muted-foreground text-center">Elige entre 1 y 480 min</p>
+                        <Input
+                            type="number"
+                            value={durValue}
+                            onChange={(e) => setDurValue(Math.max(1, parseInt(e.target.value) || 1))}
+                            min="1"
+                            className="w-28 text-center text-lg font-bold shrink-0"
+                        />
+                    </div>
+                </div>
+
+                {/* Enlace */}
+                <div className="space-y-1.5">
+                    <label htmlFor={`meetingUrl-${member.id}`} className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                        <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        Enlace de reunión virtual
+                    </label>
+                    <Input
+                        id={`meetingUrl-${member.id}`}
+                        type="text"
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                        placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                    />
+                    <p className="text-xs text-muted-foreground">Zoom, Google Meet, Skype u otra plataforma de videoconferencia</p>
+                </div>
+
+                {/* Anticipación mínima */}
+                <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                        <Timer className="h-3.5 w-3.5 text-muted-foreground" />
+                        Tiempo mínimo de anticipación
+                    </label>
+                    <div className="flex items-center gap-3 w-full">
+                        <Select value={noticeUnit} onValueChange={(v) => setNoticeUnit(v as NoticeUnit)}>
+                            <SelectTrigger className="w-32 shrink-0">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="minutes">Minutos</SelectItem>
+                                <SelectItem value="hours">Horas</SelectItem>
+                                <SelectItem value="days">Días</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p className="flex-1 text-xs text-muted-foreground text-center">0 = sin restricción</p>
+                        <Input
+                            type="number"
+                            value={noticeValue}
+                            onChange={(e) => setNoticeValue(Math.max(0, parseInt(e.target.value) || 0))}
+                            min="0"
+                            className="w-28 text-center text-lg font-bold shrink-0"
+                        />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Ej: 60 = clientes no pueden agendar en menos de 1 hora.</p>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-2">
+                    <Button type="button" variant="secondary" onClick={handleCancel} disabled={saving}>
+                        Cancelar
+                    </Button>
+                    <Button type="submit" variant="save" disabled={saving}>
+                        {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Guardando...</> : 'Guardar'}
+                    </Button>
+                </div>
+            </form>
+        </div>
+    );
+}
+
 // ─── Member card ──────────────────────────────────────────────────────────────
 
 function MemberCard({
@@ -519,6 +699,11 @@ function MemberCard({
                                         availability: slots.map((s) => ({ ...s, id: '', teamMemberId: member.id })),
                                     })
                                 }
+                            />
+                            <div className="h-px bg-border" />
+                            <MemberConfigEditor
+                                member={member}
+                                onSaved={(cfg) => onUpdated({ ...member, ...cfg })}
                             />
                         </div>
                     )}
