@@ -50,7 +50,7 @@ export const FacebookInstanceCreator = ({ userId, company }: FacebookInstanceCre
 
   return (
     <>
-      <Card className="border-border flex-1 border-dashed flex flex-col">
+      <Card className="border-blue-200 dark:border-blue-900 flex-1 border-dashed flex flex-col">
         <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
           <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
             <FaFacebook className="text-blue-600 rounded-sm w-6 h-6" />
@@ -67,7 +67,10 @@ export const FacebookInstanceCreator = ({ userId, company }: FacebookInstanceCre
           </div>
         </CardContent>
         <CardFooter className="mt-auto px-6 pb-4 pt-0">
-          <Button onClick={() => setOpen(true)} className="w-full" variant="outline">
+          <Button
+            onClick={() => setOpen(true)}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0"
+          >
             <Plus className="w-4 h-4 mr-1" />
             Conectar Facebook Messenger
           </Button>
