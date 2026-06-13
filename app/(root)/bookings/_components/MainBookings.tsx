@@ -2,29 +2,27 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-    LayoutDashboard, Kanban, Users, Wrench, Bell, Settings2, Building2, Calendar,
+    LayoutDashboard, Kanban, Users, Wrench, Bell, Settings2, Calendar,
 } from 'lucide-react';
 import { AppointmentStatus } from '@prisma/client';
 import { MetricCard } from '@/components/custom/MetricCard';
 import { BookingsDashboardCalendar } from './dashboard/BookingsDashboardCalendar';
 import { BookingsKanban } from './dashboard/BookingsKanban';
-import { BookingTeamConfig } from './team/BookingTeamConfig';
 import { MembersManager } from './members/MembersManager';
 import { BookingServicesManager } from './services/BookingServicesManager';
 import { BookingsRemindersManager } from './reminders/BookingsRemindersManager';
 import { BookingTeamSettings } from './settings/BookingTeamSettings';
 import { getBookingStatusCounts } from '@/actions/bookings-actions';
 
-type TabValue = 'dashboard' | 'kanban' | 'team' | 'members' | 'services' | 'reminders' | 'settings';
+type TabValue = 'dashboard' | 'kanban' | 'members' | 'services' | 'reminders' | 'settings';
 
 const TABS: { value: TabValue; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
-    { value: 'dashboard', label: 'Dashboard',    Icon: LayoutDashboard },
-    { value: 'kanban',    label: 'Kanban',       Icon: Kanban },
-    { value: 'team',      label: 'Equipo',       Icon: Building2 },
+    { value: 'dashboard', label: 'Dashboard',     Icon: LayoutDashboard },
+    { value: 'kanban',    label: 'Kanban',        Icon: Kanban },
     { value: 'members',   label: 'Especialistas', Icon: Users },
-    { value: 'services',  label: 'Servicios',    Icon: Wrench },
+    { value: 'services',  label: 'Servicios',     Icon: Wrench },
     { value: 'reminders', label: 'Recordatorios', Icon: Bell },
-    { value: 'settings',  label: 'Ajustes',      Icon: Settings2 },
+    { value: 'settings',  label: 'Ajustes',       Icon: Settings2 },
 ];
 
 const STATUS_META: Record<AppointmentStatus, { label: string; color: string }> = {
@@ -113,12 +111,6 @@ export const MainBookings = ({ user, team }: Props) => {
                 {tab === 'kanban' && (
                     <div className="h-full flex flex-col">
                         <BookingsKanban teamId={team.id} userId={userId} onStatusCountsChange={setStatusCounts} />
-                    </div>
-                )}
-
-                {tab === 'team' && (
-                    <div className="h-full overflow-y-auto pb-4">
-                        <BookingTeamConfig team={team} />
                     </div>
                 )}
 
