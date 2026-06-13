@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Clock } from 'lucide-react';
 import { z } from 'zod';
@@ -56,6 +56,15 @@ export function BookingTeamConfig({ team }: { team: Team }) {
             minNoticeMinutes: team.minNoticeMinutes,
         },
     });
+
+    useEffect(() => {
+        form.reset({
+            name:             team.name,
+            description:      team.description ?? '',
+            timezone:         team.timezone,
+            minNoticeMinutes: team.minNoticeMinutes,
+        });
+    }, [team]);
 
     const onSubmit = async (values: FormValues) => {
         setSaving(true);
