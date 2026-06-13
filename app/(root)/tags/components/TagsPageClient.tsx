@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Kanban, Settings2, TrendingUp, X, Tag } from 'lucide-react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { MetricCard } from '@/components/custom/MetricCard';
@@ -8,6 +8,9 @@ import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import { TagKanbanBoard } from './TagKanbanBoard';
 import { SessionTagsManager } from './SessionTagsManager';
 import type { SimpleTag } from '@/types/session';
+import { getCrmDashboardStatsByUserId } from '@/actions/registro-action';
+import type { DashboardStats } from '@/app/(root)/crm/dashboard/components/MainDashboard';
+import { CrmGlobalActionsMenu } from '@/app/(root)/crm/dashboard/components/CrmGlobalActionsMenu';
 
 const SCORE_RANGES = [
     { key: 'bajo',     label: 'Bajo',     range: '0–25',   color: '#EF4444' },
@@ -39,6 +42,14 @@ export function TagsPageClient({
     const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreKey>>(new Set());
     const [scoreCounts, setScoreCounts] = useState<Record<string, number>>({});
     const [tagCounts, setTagCounts] = useState<Record<string, number>>({});
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+
+    const loadStats = useCallback(async () => {
+        const res = await getCrmDashboardStatsByUserId(userId, {});
+        if (res.success && res.data) setStats(res.data);
+    }, [userId]);
+
+    useEffect(() => { void loadStats(); }, [loadStats]);
 
     // Top 4 etiquetas por conteo de contactos (los más relevantes)
     const topMetrics = useMemo(() => {
@@ -148,6 +159,14 @@ export function TagsPageClient({
                             </div>
                         )}
                     </div>
+
+                    {view === 'kanban' && (
+                        <CrmGlobalActionsMenu
+                            userId={userId}
+                            stats={stats}
+                            onDataChanged={loadStats}
+                        />
+                    )}
                 </ModuleToolbar>
 
                 {/* Content */}
