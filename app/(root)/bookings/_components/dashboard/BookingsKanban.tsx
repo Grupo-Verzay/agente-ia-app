@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Loader2, RefreshCw, User, Calendar, Wrench, Search, X, Clock } from 'lucide-react';
+import { Loader2, RefreshCw, User, Calendar, Wrench, Search, X, Clock, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -21,6 +21,8 @@ import {
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { STATUS_LABELS } from '@/types/schedule';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { ApptAutomationsPanel } from '@/app/(root)/crm/rules/components/ApptAutomationsPanel';
 
 // ─── Column config ─────────────────────────────────────────────────────────────
 
@@ -164,12 +166,14 @@ function DraggableCard({ card, onDelete }: { card: BookingCard; onDelete: (id: s
 
 // ─── Droppable Column ─────────────────────────────────────────────────────────
 
-function BookingColumn({ col, cards, onDelete }: {
+function BookingColumn({ col, cards, onDelete, userId }: {
     col: (typeof COLUMNS)[number];
     cards: BookingCard[];
     onDelete: (id: string) => void;
+    userId: string;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: col.id });
+    const [automationsOpen, setAutomationsOpen] = useState(false);
 
     return (
         <div
@@ -178,8 +182,26 @@ function BookingColumn({ col, cards, onDelete }: {
         >
             <div className={cn('px-3 py-2 flex items-center justify-between shrink-0', col.headerClass)}>
                 <span className="text-white text-sm font-semibold">{col.label}</span>
-                <Badge className="bg-white/20 text-white border-0 text-xs font-medium">{cards.length}</Badge>
+                <div className="flex items-center gap-1">
+                    <Badge className="bg-white/20 text-white border-0 text-xs font-medium">{cards.length}</Badge>
+                    <button
+                        onClick={() => setAutomationsOpen(true)}
+                        className="p-0.5 rounded hover:bg-white/20 transition-colors"
+                        title="Automaciones"
+                    >
+                        <Settings2 className="h-3.5 w-3.5 text-white/80" />
+                    </button>
+                </div>
             </div>
+
+            <Sheet open={automationsOpen} onOpenChange={setAutomationsOpen}>
+                <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto">
+                    <SheetHeader className="mb-4">
+                        <SheetTitle>Automaciones — {col.label}</SheetTitle>
+                    </SheetHeader>
+                    <ApptAutomationsPanel userId={userId} apptStatus={col.id} />
+                </SheetContent>
+            </Sheet>
 
             <div
                 ref={setNodeRef}
@@ -203,8 +225,9 @@ function BookingColumn({ col, cards, onDelete }: {
 
 // ─── Main Kanban ──────────────────────────────────────────────────────────────
 
-export function BookingsKanban({ teamId, onStatusCountsChange }: {
+export function BookingsKanban({ teamId, userId, onStatusCountsChange }: {
     teamId: string;
+    userId: string;
     onStatusCountsChange?: (counts: { status: any; count: number }[]) => void;
 }) {
     const [cards, setCards] = useState<BookingCard[]>([]);
@@ -409,6 +432,7 @@ export function BookingsKanban({ teamId, onStatusCountsChange }: {
                                             col={col}
                                             cards={filteredCards.filter((c) => c.status === col.id)}
                                             onDelete={handleDelete}
+                                            userId={userId}
                                         />
                                     ))}
                                 </div>

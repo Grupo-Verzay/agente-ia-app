@@ -112,7 +112,7 @@ export const MainBookings = ({ user, team }: Props) => {
 
                 {tab === 'kanban' && (
                     <div className="h-full flex flex-col">
-                        <BookingsKanban teamId={team.id} onStatusCountsChange={setStatusCounts} />
+                        <BookingsKanban teamId={team.id} userId={userId} onStatusCountsChange={setStatusCounts} />
                     </div>
                 )}
 
