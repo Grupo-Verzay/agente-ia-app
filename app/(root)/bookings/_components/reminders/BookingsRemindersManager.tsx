@@ -48,10 +48,10 @@ function fmtTime(mins: number) {
 }
 
 function reminderDisplayTitle(rem: ServiceReminder): string {
-    if (rem.title?.trim()) return rem.title.trim().toUpperCase();
-    if (rem.timeMinutes < 60) return `RECORDATORIO ${rem.timeMinutes} MIN ANTES`;
-    if (rem.timeMinutes < 1440) return `RECORDATORIO ${rem.timeMinutes / 60}H ANTES`;
-    return `RECORDATORIO ${rem.timeMinutes / 1440}D ANTES`;
+    if (rem.title?.trim()) return rem.title.trim();
+    if (rem.timeMinutes < 60) return `Recordatorio ${rem.timeMinutes} min antes`;
+    if (rem.timeMinutes < 1440) return `Recordatorio ${rem.timeMinutes / 60}h antes`;
+    return `Recordatorio ${rem.timeMinutes / 1440}d antes`;
 }
 
 function minsToTimeInput(mins: number): string {
@@ -387,13 +387,11 @@ function ServiceSection({
                 <Button
                     type="button"
                     size="sm"
-                    variant="outline"
-                    className="h-6 px-2 text-[11px]"
+                    className="h-7 px-2.5 text-xs bg-blue-600 hover:bg-blue-700 text-white"
                     onClick={openAdd}
                     disabled={saving}
                 >
-                    <Plus className="h-3 w-3 mr-0.5" />
-                    Agregar
+                    + Agregar
                 </Button>
             </div>
 
