@@ -105,7 +105,7 @@ export const MainBookings = ({ user, team }: Props) => {
             {/* Contenido */}
             <div className="flex-1 min-h-0">
                 {tab === 'dashboard' && (
-                    <div className="h-full overflow-y-auto pb-4">
+                    <div className="h-full min-h-0 overflow-hidden pb-4">
                         <BookingsDashboardCalendar teamId={team.id} timezone={team.timezone} />
                     </div>
                 )}
