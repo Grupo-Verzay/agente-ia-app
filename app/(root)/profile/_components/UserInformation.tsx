@@ -645,11 +645,13 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     </div>
                                 </CardHeader>
                                 <CardContent>
-                                    <Switch
-                                        checked={!isMuted}
-                                        onCheckedChange={(v) => handleMuteToggle(!v)}
-                                        className="data-[state=checked]:bg-green-600"
-                                    />
+                                    <div className="flex justify-end">
+                                        <Switch
+                                            checked={!isMuted}
+                                            onCheckedChange={(v) => handleMuteToggle(!v)}
+                                            className="data-[state=checked]:bg-green-600"
+                                        />
+                                    </div>
                                 </CardContent>
                             </Card>
                             <SectionTitle>Tiempos de respuesta</SectionTitle>
