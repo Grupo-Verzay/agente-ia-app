@@ -661,6 +661,8 @@ model User {
   noteFolders                        NoteFolder[]
   leadStatusWorkflowConfigs          LeadStatusWorkflowConfig[]
   stageAutomations                   StageAutomation[]
+  tagAutomations                     TagAutomation[]
+  apptAutomations                    ApptAutomation[]
   affiliateProfile                   AffiliateProfile?
   referredBy                         AffiliateReferral?           @relation("ReferredBy")
 }
@@ -1458,6 +1460,70 @@ model StageAutomationAction {
 
   @@index([automationId])
   @@map("stage_automation_actions")
+}
+
+model TagAutomation {
+  id        String   @id @default(cuid())
+  userId    String
+  tagId     Int?
+  name      String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actions TagAutomationAction[]
+
+  @@index([userId, tagId])
+  @@map("tag_automations")
+}
+
+model TagAutomationAction {
+  id           String          @id @default(cuid())
+  automationId String
+  type         StageActionType
+  order        Int             @default(0)
+  config       Json
+  delayMinutes Int             @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  automation TagAutomation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  @@index([automationId])
+  @@map("tag_automation_actions")
+}
+
+model ApptAutomation {
+  id         String            @id @default(cuid())
+  userId     String
+  apptStatus AppointmentStatus
+  name       String
+  enabled    Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actions ApptAutomationAction[]
+
+  @@index([userId, apptStatus])
+  @@map("appt_automations")
+}
+
+model ApptAutomationAction {
+  id           String            @id @default(cuid())
+  automationId String
+  type         StageActionType
+  order        Int               @default(0)
+  config       Json
+  delayMinutes Int               @default(0)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  automation ApptAutomation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  @@index([automationId])
+  @@map("appt_automation_actions")
 }
 
 enum CrmFollowUpStatus {

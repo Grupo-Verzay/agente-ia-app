@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Loader2, RefreshCw, User, Users, Bell, Tag, Clock,
-    X, Search, Sparkles, TrendingUp,
+    X, Search, Sparkles, TrendingUp, Settings2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fmtPhone } from '@/lib/whatsapp-jid';
@@ -26,6 +26,8 @@ import { getKanbanSessionsAction, type KanbanCard } from '@/actions/crm-kanban-a
 import { assignTagToSessionAction, removeTagFromSessionAction } from '@/actions/tag-actions';
 import { scoreLeadBySessionId, scoreAllLeadsByUserId } from '@/actions/lead-score-action';
 import type { SimpleTag } from '@/types/session';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { TagAutomationsPanel } from '@/app/(root)/crm/rules/components/TagAutomationsPanel';
 
 // ─── Score ranges (para filtrado interno) ────────────────────────────────────
 
@@ -245,16 +247,19 @@ function DraggableCard({
 function TagKanbanColumn({
     col,
     cards,
+    userId,
     onScore,
     scoringIds,
 }: {
     col: TagColumn;
     cards: KanbanCard[];
+    userId: string;
     onScore?: (id: number) => void;
     scoringIds?: Set<number>;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: columnDropId(col.id) });
     const headerColor = col.color ?? DEFAULT_TAG_COLOR;
+    const [automationsOpen, setAutomationsOpen] = useState(false);
 
     return (
         <div
@@ -269,10 +274,31 @@ function TagKanbanColumn({
                     <Tag className="h-3.5 w-3.5 text-white/80" />
                     <span className="text-white text-sm font-semibold uppercase">{col.label}</span>
                 </div>
-                <Badge className="bg-white/20 text-white border-0 text-xs font-medium">
-                    {cards.length}
-                </Badge>
+                <div className="flex items-center gap-1">
+                    <Badge className="bg-white/20 text-white border-0 text-xs font-medium">
+                        {cards.length}
+                    </Badge>
+                    <button
+                        onClick={() => setAutomationsOpen(true)}
+                        className="p-0.5 rounded hover:bg-white/20 transition-colors"
+                        title="Automaciones"
+                    >
+                        <Settings2 className="h-3.5 w-3.5 text-white/80" />
+                    </button>
+                </div>
             </div>
+
+            <Sheet open={automationsOpen} onOpenChange={setAutomationsOpen}>
+                <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto">
+                    <SheetHeader className="mb-4">
+                        <SheetTitle className="flex items-center gap-2">
+                            <Tag className="h-4 w-4" style={{ color: headerColor }} />
+                            Automaciones — {col.label}
+                        </SheetTitle>
+                    </SheetHeader>
+                    <TagAutomationsPanel userId={userId} tagId={col.id} tagLabel={col.label} />
+                </SheetContent>
+            </Sheet>
 
             <div
                 ref={setNodeRef}
@@ -542,6 +568,7 @@ export function TagKanbanBoard({
                                 key={col.id ?? 'none'}
                                 col={col}
                                 cards={columnCards(col.id)}
+                                userId={userId}
                                 onScore={handleScore}
                                 scoringIds={scoringIds}
                             />

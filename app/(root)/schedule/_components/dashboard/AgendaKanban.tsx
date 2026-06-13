@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Loader2, RefreshCw, User, Search, X, Calendar, Clock, Tag } from 'lucide-react';
+import { Loader2, RefreshCw, User, Search, X, Calendar, Clock, Tag, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fmtPhone } from '@/lib/whatsapp-jid';
 import { format } from 'date-fns';
@@ -29,6 +29,8 @@ import {
     sendAppointmentStatusNotification,
     type AgendaKanbanCard,
 } from '@/actions/appointments-actions';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { ApptAutomationsPanel } from '@/app/(root)/crm/rules/components/ApptAutomationsPanel';
 
 // ─── Column config ─────────────────────────────────────────────────────────────
 
@@ -138,8 +140,17 @@ function DraggableCard({ card }: { card: AgendaKanbanCard }) {
 
 // ─── Droppable Column ─────────────────────────────────────────────────────────
 
-function AgendaColumn({ col, cards }: { col: (typeof COLUMNS)[number]; cards: AgendaKanbanCard[] }) {
+function AgendaColumn({
+    col,
+    cards,
+    userId,
+}: {
+    col: (typeof COLUMNS)[number];
+    cards: AgendaKanbanCard[];
+    userId: string;
+}) {
     const { setNodeRef, isOver } = useDroppable({ id: col.id });
+    const [automationsOpen, setAutomationsOpen] = useState(false);
 
     return (
         <div
@@ -148,8 +159,26 @@ function AgendaColumn({ col, cards }: { col: (typeof COLUMNS)[number]; cards: Ag
         >
             <div className={cn('px-3 py-2 flex items-center justify-between shrink-0', col.headerClass)}>
                 <span className="text-white text-sm font-semibold">{col.label}</span>
-                <Badge className="bg-white/20 text-white border-0 text-xs font-medium">{cards.length}</Badge>
+                <div className="flex items-center gap-1">
+                    <Badge className="bg-white/20 text-white border-0 text-xs font-medium">{cards.length}</Badge>
+                    <button
+                        onClick={() => setAutomationsOpen(true)}
+                        className="p-0.5 rounded hover:bg-white/20 transition-colors"
+                        title="Automaciones"
+                    >
+                        <Settings2 className="h-3.5 w-3.5 text-white/80" />
+                    </button>
+                </div>
             </div>
+
+            <Sheet open={automationsOpen} onOpenChange={setAutomationsOpen}>
+                <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto">
+                    <SheetHeader className="mb-4">
+                        <SheetTitle>Automaciones — {col.label}</SheetTitle>
+                    </SheetHeader>
+                    <ApptAutomationsPanel userId={userId} apptStatus={col.id} />
+                </SheetContent>
+            </Sheet>
 
             <div
                 ref={setNodeRef}
@@ -394,7 +423,7 @@ export function AgendaKanban({
                             <div className="overflow-x-auto w-full h-full pb-3" style={{ minHeight: 0 }}>
                                 <div className="flex gap-3 h-full" style={{ width: 'max-content', minWidth: '100%' }}>
                                     {COLUMNS.map((col) => (
-                                        <AgendaColumn key={col.id} col={col} cards={columnCards(col)} />
+                                        <AgendaColumn key={col.id} col={col} cards={columnCards(col)} userId={userId} />
                                     ))}
                                 </div>
                             </div>
