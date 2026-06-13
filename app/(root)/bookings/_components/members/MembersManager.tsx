@@ -8,7 +8,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -135,13 +135,12 @@ function AvailabilityEditor({
             {DISPLAY_ORDER.map((day) => {
                 const daySlots = slotsByDay(day);
                 return (
-                    <div key={day} className="flex items-start gap-1 py-1">
-                        <div className="shrink-0 flex items-center gap-0.5 w-14">
-                            <span className="font-medium text-sm">{DAY_LABELS[day]}</span>
+                    <div key={day} className="flex items-start sm:items-center gap-1 py-1">
+                        <div className="shrink-0 flex items-center gap-0.5">
+                            <span className="font-medium text-sm sm:text-base">{DAY_LABELS[day]}</span>
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7"
                                 onClick={() => addSlot(day)}
                                 title="Añadir franja"
                                 disabled={saving}
@@ -152,44 +151,48 @@ function AvailabilityEditor({
 
                         <div className="flex-1">
                             {daySlots.length === 0 ? (
-                                <span className="text-muted-foreground text-sm leading-9">No disponible</span>
+                                <span className="text-muted-foreground">No disponible</span>
                             ) : (
-                                <div className="flex flex-col gap-2">
+                                <div className="flex flex-row flex-wrap gap-2">
                                     {daySlots.map((slot) => (
-                                        <div key={slot.uid} className="flex items-center gap-2 flex-wrap">
-                                            <Select
-                                                value={slot.startTime}
-                                                onValueChange={(v) => updateSlot(slot.uid, 'startTime', v)}
-                                                disabled={saving}
-                                            >
-                                                <SelectTrigger className="flex-1 min-w-[90px]">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {HOURS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
-                                                </SelectContent>
-                                            </Select>
+                                        <Card
+                                            key={slot.uid}
+                                            className="flex-1 min-w-full sm:min-w-[240px] flex items-center justify-between gap-2 border-none shadow-none px-2 py-1"
+                                        >
+                                            <div className="flex items-center gap-2 flex-1">
+                                                <Select
+                                                    value={slot.startTime}
+                                                    onValueChange={(v) => updateSlot(slot.uid, 'startTime', v)}
+                                                    disabled={saving}
+                                                >
+                                                    <SelectTrigger className="flex-1 min-w-[80px]">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {HOURS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                                                    </SelectContent>
+                                                </Select>
 
-                                            <span className="text-muted-foreground shrink-0">–</span>
+                                                <span className="text-muted-foreground shrink-0">–</span>
 
-                                            <Select
-                                                value={slot.endTime}
-                                                onValueChange={(v) => updateSlot(slot.uid, 'endTime', v)}
-                                                disabled={saving}
-                                            >
-                                                <SelectTrigger className="flex-1 min-w-[90px]">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {HOURS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
-                                                </SelectContent>
-                                            </Select>
+                                                <Select
+                                                    value={slot.endTime}
+                                                    onValueChange={(v) => updateSlot(slot.uid, 'endTime', v)}
+                                                    disabled={saving}
+                                                >
+                                                    <SelectTrigger className="flex-1 min-w-[80px]">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {HOURS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
 
                                             <div className="flex items-center gap-1 shrink-0">
                                                 <Button
                                                     variant="secondary"
                                                     size="icon"
-                                                    className="h-8 w-8"
                                                     onClick={() => duplicateSlot(slot)}
                                                     disabled={saving}
                                                     title="Duplicar franja"
@@ -199,7 +202,6 @@ function AvailabilityEditor({
                                                 <Button
                                                     variant="destructive"
                                                     size="icon"
-                                                    className="h-8 w-8"
                                                     onClick={() => deleteSlot(slot.uid)}
                                                     disabled={saving}
                                                     title="Eliminar franja"
@@ -207,12 +209,11 @@ function AvailabilityEditor({
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>
                                             </div>
-                                        </div>
+                                        </Card>
                                     ))}
                                 </div>
                             )}
                         </div>
-                        {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0 mt-2.5" />}
                     </div>
                 );
             })}
