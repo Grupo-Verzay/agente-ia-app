@@ -12,20 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
     Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription,
 } from '@/components/ui/form';
 import { updateTeam } from '@/actions/bookings-actions';
-import { AMERICA_TIMEZONES } from '@/lib/timezones';
-
-const ALL_TIMEZONES: { label: string; value: string }[] = [
-    ...AMERICA_TIMEZONES.flatMap((c) =>
-        c.timezones.map((tz) => ({ label: `${c.country} – ${tz}`, value: tz }))
-    ),
-    { label: 'Europe – Europe/Madrid', value: 'Europe/Madrid' },
-    { label: 'Europe – Europe/London', value: 'Europe/London' },
-];
 
 interface Team {
     id: string;
@@ -38,7 +28,6 @@ interface Team {
 const schema = z.object({
     name:             z.string().min(2, 'El nombre es obligatorio'),
     description:      z.string().optional(),
-    timezone:         z.string().min(1, 'Selecciona una zona horaria'),
     minNoticeMinutes: z.coerce.number().min(0).max(10080),
 });
 type FormValues = z.infer<typeof schema>;
@@ -52,7 +41,6 @@ export function BookingTeamConfig({ team }: { team: Team }) {
         defaultValues: {
             name:             team.name,
             description:      team.description ?? '',
-            timezone:         team.timezone,
             minNoticeMinutes: team.minNoticeMinutes,
         },
     });
@@ -61,7 +49,6 @@ export function BookingTeamConfig({ team }: { team: Team }) {
         form.reset({
             name:             team.name,
             description:      team.description ?? '',
-            timezone:         team.timezone,
             minNoticeMinutes: team.minNoticeMinutes,
         });
     }, [team]);
@@ -109,27 +96,6 @@ export function BookingTeamConfig({ team }: { team: Team }) {
                                             {...field}
                                         />
                                     </FormControl>
-                                </FormItem>
-                            )} />
-                            <FormField control={form.control} name="timezone" render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Zona horaria</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Selecciona zona horaria" />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent className="max-h-60">
-                                            {ALL_TIMEZONES.map(({ label, value }) => (
-                                                <SelectItem key={value} value={value} className="text-xs">{label}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormDescription className="text-xs">
-                                        Zona horaria en la que se muestran los horarios a tus clientes.
-                                    </FormDescription>
-                                    <FormMessage />
                                 </FormItem>
                             )} />
                             <FormField control={form.control} name="minNoticeMinutes" render={({ field }) => (
