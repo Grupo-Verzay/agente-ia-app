@@ -630,29 +630,25 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                     <TabsContent value="comportamiento" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             {/* Estado del agente */}
-                            <Card className="border-border flex flex-col mb-4">
+                            <Card className="border-border mb-4">
                                 <CardHeader className="pb-3">
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                                             {isMuted ? <BotOff className="w-4 h-4 text-primary" /> : <Bot className="w-4 h-4 text-primary" />}
                                         </div>
-                                        <div>
+                                        <div className="flex-1">
                                             <CardTitle className="text-sm font-semibold">Estado del agente</CardTitle>
                                             <CardDescription className="text-xs">
                                                 {isMuted ? "El bot no enviará respuestas automáticas." : "El bot responde automáticamente a tus contactos."}
                                             </CardDescription>
                                         </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="flex justify-end">
                                         <Switch
                                             checked={!isMuted}
                                             onCheckedChange={(v) => handleMuteToggle(!v)}
                                             className="data-[state=checked]:bg-green-600"
                                         />
                                     </div>
-                                </CardContent>
+                                </CardHeader>
                             </Card>
                             <SectionTitle>Tiempos de respuesta</SectionTitle>
                             <div className="grid gap-4 sm:grid-cols-2">
