@@ -58,7 +58,7 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
             <span className="text-xl font-bold">Meta Cloud API</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 flex-1">
+        <CardContent className="space-y-4">
           <div className="space-y-1.5">
             <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
             <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
@@ -67,9 +67,9 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
             </div>
           </div>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="mt-auto">
           <Button onClick={() => setOpen(true)} className="w-full">
-            Nueva instancia Meta
+            Crear instancia Meta API
           </Button>
         </CardFooter>
       </Card>

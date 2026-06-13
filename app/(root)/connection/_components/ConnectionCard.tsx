@@ -175,7 +175,7 @@ export const ConnectionCard = ({
 
             <Form {...form}>
                 <form id="instance-form" onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col">
-                    <CardContent className="space-y-4 flex-1">
+                    <CardContent className="space-y-4">
                         <FormField
                             control={form.control}
                             name="instanceName"
@@ -211,7 +211,7 @@ export const ConnectionCard = ({
                         />
                     </CardContent>
 
-                    <CardFooter>
+                    <CardFooter className="mt-auto">
                         <Button
                             type="submit"
                             className="w-full"
@@ -220,7 +220,7 @@ export const ConnectionCard = ({
                             title="Crear Instancia"
                         >
                             {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
-                            Crear Instancia
+                            Crear instancia Business QR
                         </Button>
                     </CardFooter>
                 </form>
