@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { Loader2, Plus, Info } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -58,18 +58,20 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
             <span className="text-xl font-bold">Meta Cloud API</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-1">
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
             <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
             <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
               <span className="flex-1 font-mono text-foreground">{instanceName}</span>
               <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </div>
           </div>
+        </CardContent>
+        <CardFooter>
           <Button onClick={() => setOpen(true)} className="w-full">
             Nueva instancia Meta
           </Button>
-        </CardContent>
+        </CardFooter>
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
