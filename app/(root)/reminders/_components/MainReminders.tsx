@@ -14,7 +14,6 @@ import { themeClass } from '@/types/generic';
 import { convertToSeconds } from '../../workflow/[workflowId]/helpers';
 import { MetricCard } from '@/components/custom/MetricCard';
 import { ReminderList } from './ReminderList';
-import { SortableReminderList } from './SortableReminderList';
 import { Badge } from '@/components/ui/badge';
 import type { Reminders } from '@prisma/client';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
@@ -86,14 +85,16 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
     return counts;
   }, [reminders]);
 
-  // Schedule view: sorted by order ASC, then by time seconds DESC (mayor tiempo primero)
+  // Schedule view: sorted by time DESC (mayor tiempo primero, automático)
   const scheduleReminders = useMemo(() => {
     const timeToSeconds = (time: string | null): number => {
       if (!time) return 0;
-      const m = time.match(/^(hours|minutes)-(\d+)$/);
+      const m = time.match(/^(hours|minutes|days)-(\d+)$/);
       if (!m) return 0;
       const n = Number(m[2]);
-      return m[1] === 'hours' ? n * 3600 : n * 60;
+      if (m[1] === 'hours') return n * 3600;
+      if (m[1] === 'days') return n * 86400;
+      return n * 60;
     };
 
     return reminders
@@ -103,10 +104,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
         const text = `${r.title} ${r.description ?? ""} ${r.pushName ?? ""} ${r.remoteJid ?? ""}`.toLowerCase();
         return text.includes(search.toLowerCase());
       })
-      .sort((a, b) => {
-        if (a.order !== b.order) return a.order - b.order;
-        return timeToSeconds(b.time) - timeToSeconds(a.time);
-      });
+      .sort((a, b) => timeToSeconds(b.time) - timeToSeconds(a.time));
   }, [reminders, search]);
 
   const filteredReminders = useMemo(() => {
@@ -253,10 +251,21 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
       {/* Scroll interno para el content */}
       <div className="flex-1 overflow-y-auto">
         {isScheduleView ? (
-          <SortableReminderList
-            reminders={scheduleReminders}
-            workflows={workflows}
-          />
+          scheduleReminders.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center mt-8">
+              No se encontraron recordatorios.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {scheduleReminders.map((reminder) => (
+                <ReminderList
+                  key={reminder.id}
+                  reminder={reminder}
+                  workflow={workflows.find((w) => w.id === reminder.workflowId)}
+                />
+              ))}
+            </div>
+          )
         ) : view === 'kanban' ? (
           <div className="flex h-full min-h-0 gap-3 overflow-x-auto pb-3">
             {kanbanColumns.map((column) => (
