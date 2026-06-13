@@ -55,9 +55,11 @@ export function CrmGlobalActionsMenu({
   userId,
   stats,
   onDataChanged,
+  hideRegistros = false,
 }: {
   userId: string;
   stats: DashboardStats | null;
+  hideRegistros?: boolean;
   onDataChanged?: () => Promise<void> | void;
 }) {
   const [selectedAction, setSelectedAction] = useState<GlobalActionId | null>(null);
@@ -224,37 +226,40 @@ export function CrmGlobalActionsMenu({
             {actions["reactivate-sent-follow-ups"].label}
           </DropdownMenuItem>
 
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Registros</DropdownMenuLabel>
-          <DropdownMenuItem
-            disabled={actions["delete-all-records"].disabled}
-            onSelect={() => setSelectedAction("delete-all-records")}
-            className="text-destructive focus:text-destructive"
-          >
-            <Trash2 className="h-4 w-4" />
-            {actions["delete-all-records"].label}
-          </DropdownMenuItem>
-
-          {Object.keys(countsByTipo).length > 0 && (
+          {!hideRegistros && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel>Registros por tipo</DropdownMenuLabel>
-              {(Object.entries(countsByTipo) as Array<[TipoRegistro, number]>).map(([tipo, count]) => {
-                const actionId: `delete-tipo-${TipoRegistro}` = `delete-tipo-${tipo}`;
-                const action = actions[actionId];
+              <DropdownMenuLabel>Registros</DropdownMenuLabel>
+              <DropdownMenuItem
+                disabled={actions["delete-all-records"].disabled}
+                onSelect={() => setSelectedAction("delete-all-records")}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+                {actions["delete-all-records"].label}
+              </DropdownMenuItem>
 
-                return (
-                  <DropdownMenuItem
-                    key={actionId}
-                    disabled={action.disabled}
-                    onSelect={() => setSelectedAction(actionId)}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {action.label}
-                  </DropdownMenuItem>
-                );
-              })}
+              {Object.keys(countsByTipo).length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Registros por tipo</DropdownMenuLabel>
+                  {(Object.entries(countsByTipo) as Array<[TipoRegistro, number]>).map(([tipo, count]) => {
+                    const actionId: `delete-tipo-${TipoRegistro}` = `delete-tipo-${tipo}`;
+                    const action = actions[actionId];
+                    return (
+                      <DropdownMenuItem
+                        key={actionId}
+                        disabled={action.disabled}
+                        onSelect={() => setSelectedAction(actionId)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {action.label}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </>
+              )}
             </>
           )}
         </DropdownMenuContent>

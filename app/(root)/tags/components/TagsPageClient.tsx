@@ -165,6 +165,7 @@ export function TagsPageClient({
                             userId={userId}
                             stats={stats}
                             onDataChanged={loadStats}
+                            hideRegistros
                         />
                     )}
                 </ModuleToolbar>
