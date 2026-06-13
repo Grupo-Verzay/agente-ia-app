@@ -54,8 +54,8 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
       <Card className="border-border flex-1 border-dashed">
         <CardHeader className="flex flex-row items-center justify-center p-6">
           <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
-            <FaWhatsapp className="text-green-500 w-6 h-6" />
-            Meta Cloud API
+            <FaWhatsapp className="text-green-500 rounded-sm w-6 h-6" />
+            <span className="text-xl font-bold">Meta Cloud API</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
