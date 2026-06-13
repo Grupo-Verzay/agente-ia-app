@@ -173,58 +173,50 @@ export const ConnectionCard = ({
                 </CardTitle>
             </CardHeader>
 
+            {/* Formulario oculto — solo campos para submit, sin afectar layout */}
             <Form {...form}>
-                <form id="instance-form" onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col">
-                    <CardContent className="space-y-4">
-                        <FormField
-                            control={form.control}
-                            name="instanceName"
-                            render={({ field }) => (
-                                <>
-                                    <FormItem className="hidden">
-                                        <FormControl>
-                                            <Input type="hidden" {...field} />
-                                        </FormControl>
-                                    </FormItem>
-                                    <div className="space-y-1.5">
-                                        <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
-                                        <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-                                            <span className="flex-1 font-mono text-foreground">{field.value}</span>
-                                            <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        />
-
-                        {/* Campo oculto para el tipo de instancia */}
-                        <FormField
-                            control={form.control}
-                            name="instanceType"
-                            render={({ field }) => (
-                                <FormItem className="hidden">
-                                    <FormControl>
-                                        <Input type="hidden" {...field} value={isWhatsapp ? 'Whatsapp' : instanceType} readOnly />
-                                    </FormControl>
-                                </FormItem>
-                            )}
-                        />
-                    </CardContent>
-
-                    <CardFooter className="mt-auto">
-                        <Button
-                            type="submit"
-                            className="w-full"
-                            disabled={loading}
-                            aria-disabled={loading}
-                            title="Crear Instancia"
-                        >
-                            {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
-                            Crear instancia Business QR
-                        </Button>
-                    </CardFooter>
+                <form id="instance-form" onSubmit={form.handleSubmit(onSubmit)} className="hidden">
+                    <FormField
+                        control={form.control}
+                        name="instanceName"
+                        render={({ field }) => (
+                            <FormItem><FormControl><Input type="hidden" {...field} /></FormControl></FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="instanceType"
+                        render={({ field }) => (
+                            <FormItem><FormControl>
+                                <Input type="hidden" {...field} value={isWhatsapp ? 'Whatsapp' : instanceType} readOnly />
+                            </FormControl></FormItem>
+                        )}
+                    />
                 </form>
             </Form>
+
+            <CardContent className="space-y-4">
+                <div className="space-y-1.5">
+                    <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
+                    <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                        <span className="flex-1 font-mono text-foreground">{defaultValues.instanceName}</span>
+                        <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    </div>
+                </div>
+            </CardContent>
+
+            <CardFooter className="mt-auto">
+                <Button
+                    type="submit"
+                    form="instance-form"
+                    className="w-full"
+                    disabled={loading}
+                    aria-disabled={loading}
+                >
+                    {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
+                    Crear instancia Business QR
+                </Button>
+            </CardFooter>
         </Card>
     )
 }
