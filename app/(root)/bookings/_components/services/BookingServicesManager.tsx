@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, ChevronDown, ChevronUp, Bell, X } from 'lucide-react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -29,12 +29,18 @@ import {
     assignServiceToMember, removeServiceFromMember,
 } from '@/actions/bookings-actions';
 
+interface ServiceReminder {
+    timeMinutes: number;
+    message: string;
+}
+
 interface TeamService {
     id: string;
     name: string;
     description: string | null;
     duration: number;
     messageText: string | null;
+    remindersConfig: ServiceReminder[] | null;
     color: string | null;
     isActive: boolean;
     order: number;
@@ -56,23 +62,131 @@ const serviceSchema = z.object({
 });
 type ServiceFormValues = z.infer<typeof serviceSchema>;
 
-const DEFAULT_MSG = `¡Hola {{nombre}}! 👋
+const DEFAULT_MSG = `¡Hola @client_name! 👋
 
 Tu cita ha sido confirmada:
-📅 Fecha: {{fecha}}
-⏰ Hora: {{hora}}
-🩺 Servicio: {{servicio}}
-👤 Especialista: {{especialista}}
+📅 @appointment_datetime
+⏱ Duración: @appointment_duration
 
 Te esperamos puntualmente. ¡Gracias!`;
+
+// ─── Reminders editor ──────────────────────────────────────────────────────────
+
+function ServiceRemindersEditor({
+    serviceId,
+    reminders,
+    onUpdated,
+}: {
+    serviceId: string;
+    reminders: ServiceReminder[];
+    onUpdated: (reminders: ServiceReminder[]) => void;
+}) {
+    const [saving, setSaving] = useState(false);
+    const [newMinutes, setNewMinutes] = useState('60');
+    const [newMsg, setNewMsg] = useState('Hola @client_name, te recordamos tu cita: @appointment_datetime');
+
+    const save = async (updated: ServiceReminder[]) => {
+        setSaving(true);
+        const res = await updateTeamService(serviceId, { remindersConfig: updated });
+        if (res.success) {
+            onUpdated(updated);
+            toast.success('Recordatorios guardados');
+        } else {
+            toast.error(res.message);
+        }
+        setSaving(false);
+    };
+
+    const addReminder = async () => {
+        const mins = parseInt(newMinutes, 10);
+        if (!mins || mins <= 0) { toast.error('Ingresa un tiempo válido'); return; }
+        if (!newMsg.trim()) { toast.error('El mensaje no puede estar vacío'); return; }
+        await save([...reminders, { timeMinutes: mins, message: newMsg.trim() }]);
+        setNewMinutes('60');
+        setNewMsg('Hola @client_name, te recordamos tu cita: @appointment_datetime');
+    };
+
+    const removeReminder = (idx: number) => {
+        save(reminders.filter((_, i) => i !== idx));
+    };
+
+    const fmtTime = (mins: number) => {
+        if (mins < 60) return `${mins} min antes`;
+        if (mins < 1440) return `${mins / 60}h antes`;
+        return `${mins / 1440}d antes`;
+    };
+
+    return (
+        <div className="space-y-3">
+            <p className="text-sm font-medium flex items-center gap-1.5">
+                <Bell className="h-3.5 w-3.5 text-muted-foreground" />
+                Recordatorios automáticos
+            </p>
+            <p className="text-xs text-muted-foreground">
+                Se envían al cliente antes de la cita. Variables: @client_name, @appointment_datetime, @appointment_duration
+            </p>
+
+            {reminders.length === 0 && (
+                <p className="text-xs text-muted-foreground italic">Sin recordatorios configurados — se usarán los globales del módulo Recordatorios.</p>
+            )}
+
+            {reminders.map((rem, idx) => (
+                <div key={idx} className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-2">
+                    <div className="flex-1 min-w-0">
+                        <Badge variant="outline" className="text-[10px] mb-1">{fmtTime(rem.timeMinutes)}</Badge>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{rem.message}</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => removeReminder(idx)}
+                        disabled={saving}
+                        className="shrink-0 text-muted-foreground hover:text-destructive transition-colors mt-0.5"
+                    >
+                        <X className="h-3.5 w-3.5" />
+                    </button>
+                </div>
+            ))}
+
+            {/* Nuevo recordatorio */}
+            <div className="rounded-md border border-dashed border-border p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Agregar recordatorio</p>
+                <div className="flex items-center gap-2">
+                    <Input
+                        type="number"
+                        min={1}
+                        value={newMinutes}
+                        onChange={(e) => setNewMinutes(e.target.value)}
+                        className="w-20 h-7 text-xs"
+                        placeholder="60"
+                    />
+                    <span className="text-xs text-muted-foreground shrink-0">min antes</span>
+                </div>
+                <Textarea
+                    value={newMsg}
+                    onChange={(e) => setNewMsg(e.target.value)}
+                    className="min-h-[60px] text-xs"
+                    placeholder="Mensaje del recordatorio..."
+                />
+                <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-full h-7 text-xs"
+                    onClick={addReminder}
+                    disabled={saving}
+                >
+                    {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
+                    Agregar
+                </Button>
+            </div>
+        </div>
+    );
+}
 
 // ─── Specialist assignment ─────────────────────────────────────────────────────
 
 function SpecialistAssignment({
-    serviceId,
-    assignedMemberIds,
-    allMembers,
-    onToggle,
+    serviceId, assignedMemberIds, allMembers, onToggle,
 }: {
     serviceId: string;
     assignedMemberIds: string[];
@@ -121,10 +235,7 @@ function SpecialistAssignment({
                             ].join(' ')}
                         >
                             {loading === m.id && <Loader2 className="h-3 w-3 animate-spin" />}
-                            <span
-                                className="h-2 w-2 rounded-full shrink-0"
-                                style={{ backgroundColor: m.color ?? '#3B82F6' }}
-                            />
+                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: m.color ?? '#3B82F6' }} />
                             {assigned ? '✓ ' : '+ '}{m.name}
                         </button>
                     );
@@ -142,11 +253,7 @@ function SpecialistAssignment({
 // ─── Service form dialog ───────────────────────────────────────────────────────
 
 function ServiceFormDialog({
-    teamId,
-    mode,
-    initial,
-    onSaved,
-    trigger,
+    teamId, mode, initial, onSaved, trigger,
 }: {
     teamId: string;
     mode: 'create' | 'edit';
@@ -180,7 +287,7 @@ function ServiceFormDialog({
             if (res.success && res.data) {
                 const data = res.data as TeamService;
                 const svc: TeamService = {
-                    ...(initial ?? { id: data.id, isActive: true, order: 0, members: [] }),
+                    ...(initial ?? { id: data.id, isActive: true, order: 0, members: [], remindersConfig: null }),
                     ...data,
                 };
                 onSaved(svc);
@@ -202,9 +309,7 @@ function ServiceFormDialog({
             <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>{mode === 'create' ? 'Nuevo servicio' : 'Editar servicio'}</DialogTitle>
-                    <DialogDescription>
-                        Define el servicio que ofrecerán los especialistas de tu equipo.
-                    </DialogDescription>
+                    <DialogDescription>Define el servicio que ofrecerán los especialistas de tu equipo.</DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -239,9 +344,7 @@ function ServiceFormDialog({
                             <FormField control={form.control} name="description" render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Descripción (opcional)</FormLabel>
-                                    <FormControl>
-                                        <Input placeholder="Breve descripción para el cliente" {...field} />
-                                    </FormControl>
+                                    <FormControl><Input placeholder="Breve descripción para el cliente" {...field} /></FormControl>
                                 </FormItem>
                             )} />
                             <FormField control={form.control} name="messageText" render={({ field }) => (
@@ -251,7 +354,7 @@ function ServiceFormDialog({
                                         <Textarea className="min-h-[120px] text-xs" {...field} />
                                     </FormControl>
                                     <FormDescription className="text-xs">
-                                        Variables: {'{{'} nombre {'}}'}, {'{{'} fecha {'}}'}, {'{{'} hora {'}}'}, {'{{'} servicio {'}}'}, {'{{'} especialista {'}}'}
+                                        Variables: @client_name, @appointment_datetime, @appointment_duration
                                     </FormDescription>
                                 </FormItem>
                             )} />
@@ -273,11 +376,7 @@ function ServiceFormDialog({
 // ─── Service card ──────────────────────────────────────────────────────────────
 
 function ServiceCard({
-    teamId,
-    service,
-    allMembers,
-    onUpdated,
-    onDeleted,
+    teamId, service, allMembers, onUpdated, onDeleted,
 }: {
     teamId: string;
     service: TeamService;
@@ -302,6 +401,8 @@ function ServiceCard({
         setConfirmDelete(false);
     };
 
+    const reminders: ServiceReminder[] = Array.isArray(service.remindersConfig) ? service.remindersConfig : [];
+
     return (
         <>
             <Card className="border-border">
@@ -314,10 +415,14 @@ function ServiceCard({
                                 <div className="flex items-center gap-2 mt-0.5">
                                     <Badge variant="outline" className="text-xs">{service.duration} min</Badge>
                                     <Badge variant="outline" className="text-xs">
-                                        {service.members.length === 0
-                                            ? 'Todos los especialistas'
-                                            : `${service.members.length} especialista(s)`}
+                                        {service.members.length === 0 ? 'Todos los especialistas' : `${service.members.length} especialista(s)`}
                                     </Badge>
+                                    {reminders.length > 0 && (
+                                        <Badge variant="outline" className="text-xs">
+                                            <Bell className="h-2.5 w-2.5 mr-1" />
+                                            {reminders.length} recordatorio(s)
+                                        </Badge>
+                                    )}
                                     {service.description && (
                                         <span className="text-xs text-muted-foreground truncate hidden sm:inline">{service.description}</span>
                                     )}
@@ -344,19 +449,14 @@ function ServiceCard({
                             >
                                 <Trash2 className="h-3.5 w-3.5" />
                             </Button>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => setExpanded((p) => !p)}
-                            >
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpanded((p) => !p)}>
                                 {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                             </Button>
                         </div>
                     </div>
 
                     {expanded && (
-                        <div className="border-t pt-3">
+                        <div className="border-t pt-3 space-y-4">
                             <SpecialistAssignment
                                 serviceId={service.id}
                                 assignedMemberIds={service.members.map((m) => m.teamMemberId)}
@@ -370,6 +470,13 @@ function ServiceCard({
                                     });
                                 }}
                             />
+                            <div className="border-t pt-3">
+                                <ServiceRemindersEditor
+                                    serviceId={service.id}
+                                    reminders={reminders}
+                                    onUpdated={(updated) => onUpdated({ ...service, remindersConfig: updated })}
+                                />
+                            </div>
                         </div>
                     )}
                 </CardContent>
@@ -379,9 +486,7 @@ function ServiceCard({
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Eliminar servicio</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            ¿Deseas eliminar "{service.name}"? Esta acción no se puede deshacer.
-                        </AlertDialogDescription>
+                        <AlertDialogDescription>¿Deseas eliminar "{service.name}"? Esta acción no se puede deshacer.</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>

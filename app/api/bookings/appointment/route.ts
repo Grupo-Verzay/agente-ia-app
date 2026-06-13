@@ -76,10 +76,10 @@ async function runPostBookingTasks({
   serviceId: string;
   memberId: string;
 }) {
-  const [service, member, instance, user, reminders, notificationContacts] = await Promise.all([
+  const [service, member, instance, user, globalReminders, notificationContacts] = await Promise.all([
     db.teamService.findFirst({
       where: { id: serviceId },
-      select: { messageText: true, name: true, duration: true },
+      select: { messageText: true, name: true, duration: true, remindersConfig: true },
     }),
     db.teamMember.findFirst({
       where: { id: memberId },
@@ -90,6 +90,15 @@ async function runPostBookingTasks({
     db.reminders.findMany({ where: { userId, isSchedule: true }, orderBy: { id: 'asc' } }),
     db.userNotificationContact.findMany({ where: { userId }, select: { phone: true } }).catch(() => []),
   ]);
+
+  // Usar recordatorios del servicio si están configurados; si no, los globales
+  type ServiceReminder = { timeMinutes: number; message: string };
+  const serviceReminders: ServiceReminder[] = Array.isArray(service?.remindersConfig)
+    ? (service.remindersConfig as ServiceReminder[]).filter(
+        (r) => typeof r?.timeMinutes === 'number' && r.timeMinutes > 0 && typeof r?.message === 'string',
+      )
+    : [];
+  const reminders = serviceReminders.length > 0 ? null : globalReminders;
 
   const apiKey = user?.apiKeyId
     ? await db.apiKey.findUnique({ where: { id: user.apiKeyId }, select: { url: true, key: true } })
@@ -169,33 +178,59 @@ async function runPostBookingTasks({
   }
 
   // 3. Recordatorios programados
-  if (reminders.length === 0) return;
+  if (serviceReminders.length > 0) {
+    // Recordatorios específicos del servicio
+    await Promise.allSettled(
+      serviceReminders.map(async (rem, idx) => {
+        const seconds = rem.timeMinutes * 60;
+        const reminderDate = new Date(new Date(startTime).getTime() - seconds * 1000);
+        if (reminderDate.getTime() <= Date.now()) return;
 
-  await Promise.allSettled(
-    reminders.map(async (rem) => {
-      const normalizedSeconds = normalizeTimeToSeconds(rem.time ?? '');
-      if (!normalizedSeconds) return;
+        const seguimientoTime = subtractSecondsFromTime(new Date(startTime), seconds);
+        const mensaje = formatReminderMessage(rem.message, pushName, startTime, timezone, slotDuration, clientTimezone);
 
-      const reminderDate = new Date(new Date(startTime).getTime() - normalizedSeconds * 1000);
-      if (reminderDate.getTime() <= Date.now()) return;
+        await db.seguimiento.create({
+          data: {
+            idNodo: `booking-svc-reminder-${serviceId}-${idx}`,
+            serverurl: serverUrl,
+            instancia: instanceName,
+            apikey: evolutionApiKey,
+            remoteJid: phone,
+            mensaje,
+            tipo: 'text',
+            time: seguimientoTime,
+          },
+        });
+      }),
+    );
+  } else if (reminders && reminders.length > 0) {
+    // Recordatorios globales del usuario (isSchedule: true)
+    await Promise.allSettled(
+      reminders.map(async (rem) => {
+        const normalizedSeconds = normalizeTimeToSeconds(rem.time ?? '');
+        if (!normalizedSeconds) return;
 
-      const seguimientoTime = subtractSecondsFromTime(new Date(startTime), normalizedSeconds);
-      const mensaje = formatReminderMessage(rem.description ?? rem.title, pushName, startTime, timezone, slotDuration, clientTimezone);
+        const reminderDate = new Date(new Date(startTime).getTime() - normalizedSeconds * 1000);
+        if (reminderDate.getTime() <= Date.now()) return;
 
-      await db.seguimiento.create({
-        data: {
-          idNodo: `booking-reminder-${rem.id}`,
-          serverurl: serverUrl,
-          instancia: instanceName,
-          apikey: evolutionApiKey,
-          remoteJid: phone,
-          mensaje,
-          tipo: 'text',
-          time: seguimientoTime,
-        },
-      });
-    }),
-  );
+        const seguimientoTime = subtractSecondsFromTime(new Date(startTime), normalizedSeconds);
+        const mensaje = formatReminderMessage(rem.description ?? rem.title, pushName, startTime, timezone, slotDuration, clientTimezone);
+
+        await db.seguimiento.create({
+          data: {
+            idNodo: `booking-reminder-${rem.id}`,
+            serverurl: serverUrl,
+            instancia: instanceName,
+            apikey: evolutionApiKey,
+            remoteJid: phone,
+            mensaje,
+            tipo: 'text',
+            time: seguimientoTime,
+          },
+        });
+      }),
+    );
+  }
 }
 
 /**

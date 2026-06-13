@@ -185,7 +185,7 @@ export async function getTeamServices(teamId: string) {
 
 export async function createTeamService(
     teamId: string,
-    data: { name: string; description?: string; duration: number; messageText?: string; color?: string; order?: number },
+    data: { name: string; description?: string; duration: number; messageText?: string; remindersConfig?: any; color?: string; order?: number },
 ) {
     try {
         const service = await db.teamService.create({ data: { teamId, ...data } });
@@ -198,7 +198,7 @@ export async function createTeamService(
 
 export async function updateTeamService(
     serviceId: string,
-    data: { name?: string; description?: string; duration?: number; messageText?: string; color?: string; order?: number; isActive?: boolean },
+    data: { name?: string; description?: string; duration?: number; messageText?: string; remindersConfig?: any; color?: string; order?: number; isActive?: boolean },
 ) {
     try {
         const service = await db.teamService.update({ where: { id: serviceId }, data });

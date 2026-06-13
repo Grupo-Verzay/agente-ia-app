@@ -5,7 +5,7 @@ import { Users, Wrench, Settings2, LayoutDashboard, Building2 } from 'lucide-rea
 import { MembersManager } from './members/MembersManager';
 import { BookingServicesManager } from './services/BookingServicesManager';
 import { BookingTeamSettings } from './settings/BookingTeamSettings';
-import { BookingsCalendar } from './dashboard/BookingsCalendar';
+import { BookingsKanban } from './dashboard/BookingsKanban';
 import { BookingTeamConfig } from './team/BookingTeamConfig';
 
 type TabValue = 'dashboard' | 'team' | 'members' | 'services' | 'settings';
@@ -53,7 +53,7 @@ export const MainBookings = ({ user, team }: Props) => {
 
             {/* Contenido */}
             <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-4">
-                {tab === 'dashboard' && <BookingsCalendar teamId={team.id} />}
+                {tab === 'dashboard' && <BookingsKanban teamId={team.id} />}
                 {tab === 'team'      && <BookingTeamConfig team={team} />}
                 {tab === 'members'   && <MembersManager teamId={team.id} teamTimezone={team.timezone} />}
                 {tab === 'services'  && <BookingServicesManager teamId={team.id} />}
