@@ -57,7 +57,14 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
             Conecta un número con la API oficial de WhatsApp Business (Meta Developer, Gupshup, Twilio, etc.)
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
+            <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+              <span className="flex-1 font-mono text-foreground">{instanceName}</span>
+              <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            </div>
+          </div>
           <Button onClick={() => setOpen(true)} className="w-full gap-2" variant="outline">
             <Plus className="w-4 h-4" />
             Nueva instancia Meta
