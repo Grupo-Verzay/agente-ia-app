@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, ChevronDown, ChevronUp, PlusCircle, Copy } from 'lucide-react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -71,6 +71,12 @@ type MemberFormValues = z.infer<typeof memberSchema>;
 
 // ─── Availability editor ──────────────────────────────────────────────────────
 
+type LocalSlot = { uid: string; dayOfWeek: number; startTime: string; endTime: string };
+
+const DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Lun → Dom
+
+function uid() { return Math.random().toString(36).slice(2, 9); }
+
 function AvailabilityEditor({
     memberId,
     initial,
@@ -80,86 +86,136 @@ function AvailabilityEditor({
     initial: { dayOfWeek: number; startTime: string; endTime: string }[];
     onSaved: (slots: AvailabilitySlot[]) => void;
 }) {
-    const [saving, setSaving] = useState(false);
-    const [slots, setSlots] = useState<AvailabilitySlot[]>(
-        initial.map(({ dayOfWeek, startTime, endTime }) => ({ dayOfWeek, startTime, endTime }))
+    const [slots, setSlots] = useState<LocalSlot[]>(
+        initial.map((s) => ({ uid: uid(), ...s }))
     );
+    const [saving, setSaving] = useState(false);
 
-    const hasDay = (day: number) => slots.some((s) => s.dayOfWeek === day);
-
-    const toggleDay = (day: number) => {
-        if (hasDay(day)) {
-            setSlots((prev) => prev.filter((s) => s.dayOfWeek !== day));
-        } else {
-            setSlots((prev) => [...prev, { dayOfWeek: day, startTime: '09:00', endTime: '17:00' }]);
-        }
-    };
-
-    const updateSlot = (day: number, field: 'startTime' | 'endTime', value: string) => {
-        setSlots((prev) =>
-            prev.map((s) => (s.dayOfWeek === day ? { ...s, [field]: value } : s))
-        );
-    };
-
-    const handleSave = async () => {
+    const persist = async (next: LocalSlot[]) => {
         setSaving(true);
-        const res = await setMemberAvailability(memberId, slots);
+        const payload = next.map(({ dayOfWeek, startTime, endTime }) => ({ dayOfWeek, startTime, endTime }));
+        const res = await setMemberAvailability(memberId, payload);
         if (res.success) {
-            onSaved(slots);
-            toast.success('Disponibilidad guardada');
+            onSaved(payload);
         } else {
             toast.error(res.message);
         }
         setSaving(false);
     };
 
+    const addSlot = async (day: number) => {
+        const next = [...slots, { uid: uid(), dayOfWeek: day, startTime: '09:00', endTime: '17:00' }];
+        setSlots(next);
+        await persist(next);
+    };
+
+    const duplicateSlot = async (slot: LocalSlot) => {
+        const next = [...slots, { ...slot, uid: uid() }];
+        setSlots(next);
+        await persist(next);
+    };
+
+    const deleteSlot = async (id: string) => {
+        const next = slots.filter((s) => s.uid !== id);
+        setSlots(next);
+        await persist(next);
+    };
+
+    const updateSlot = async (id: string, field: 'startTime' | 'endTime', value: string) => {
+        const next = slots.map((s) => s.uid === id ? { ...s, [field]: value } : s);
+        setSlots(next);
+        await persist(next);
+    };
+
+    const slotsByDay = (day: number) => slots.filter((s) => s.dayOfWeek === day);
+
     return (
-        <div className="space-y-3">
+        <div className="space-y-4">
             <p className="text-sm font-medium">Disponibilidad semanal</p>
-            <div className="space-y-2">
-                {Array.from({ length: 7 }, (_, day) => {
-                    const active = hasDay(day);
-                    const slot = slots.find((s) => s.dayOfWeek === day);
-                    return (
-                        <div key={day} className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => toggleDay(day)}
-                                className={[
-                                    'w-10 text-xs font-medium rounded py-1 transition-colors shrink-0',
-                                    active
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                                ].join(' ')}
+            {DISPLAY_ORDER.map((day) => {
+                const daySlots = slotsByDay(day);
+                return (
+                    <div key={day} className="flex items-start gap-1 py-1">
+                        <div className="shrink-0 flex items-center gap-0.5 w-14">
+                            <span className="font-medium text-sm">{DAY_LABELS[day]}</span>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => addSlot(day)}
+                                title="Añadir franja"
+                                disabled={saving}
                             >
-                                {DAY_LABELS[day]}
-                            </button>
-                            {active && slot && (
-                                <>
-                                    <Select value={slot.startTime} onValueChange={(v) => updateSlot(day, 'startTime', v)}>
-                                        <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            {HOURS.map((h) => <SelectItem key={h} value={h} className="text-xs">{h}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                    <span className="text-xs text-muted-foreground">–</span>
-                                    <Select value={slot.endTime} onValueChange={(v) => updateSlot(day, 'endTime', v)}>
-                                        <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            {HOURS.map((h) => <SelectItem key={h} value={h} className="text-xs">{h}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </>
-                            )}
-                            {!active && <span className="text-xs text-muted-foreground">No disponible</span>}
+                                <PlusCircle className="w-4 h-4" />
+                            </Button>
                         </div>
-                    );
-                })}
-            </div>
-            <Button size="sm" onClick={handleSave} disabled={saving}>
-                {saving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-                Guardar disponibilidad
-            </Button>
+
+                        <div className="flex-1">
+                            {daySlots.length === 0 ? (
+                                <span className="text-muted-foreground text-sm leading-9">No disponible</span>
+                            ) : (
+                                <div className="flex flex-col gap-2">
+                                    {daySlots.map((slot) => (
+                                        <div key={slot.uid} className="flex items-center gap-2 flex-wrap">
+                                            <Select
+                                                value={slot.startTime}
+                                                onValueChange={(v) => updateSlot(slot.uid, 'startTime', v)}
+                                                disabled={saving}
+                                            >
+                                                <SelectTrigger className="flex-1 min-w-[90px]">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {HOURS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+
+                                            <span className="text-muted-foreground shrink-0">–</span>
+
+                                            <Select
+                                                value={slot.endTime}
+                                                onValueChange={(v) => updateSlot(slot.uid, 'endTime', v)}
+                                                disabled={saving}
+                                            >
+                                                <SelectTrigger className="flex-1 min-w-[90px]">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {HOURS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <Button
+                                                    variant="secondary"
+                                                    size="icon"
+                                                    className="h-8 w-8"
+                                                    onClick={() => duplicateSlot(slot)}
+                                                    disabled={saving}
+                                                    title="Duplicar franja"
+                                                >
+                                                    <Copy className="w-4 h-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="destructive"
+                                                    size="icon"
+                                                    className="h-8 w-8"
+                                                    onClick={() => deleteSlot(slot.uid)}
+                                                    disabled={saving}
+                                                    title="Eliminar franja"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0 mt-2.5" />}
+                    </div>
+                );
+            })}
         </div>
     );
 }
