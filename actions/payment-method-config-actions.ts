@@ -58,7 +58,7 @@ export async function getActivePaymentMethodConfigs() {
 }
 
 export async function upsertPaymentMethodConfig(data: {
-  method: PaymentMethodType;
+  method: string;
   label: string;
   isActive: boolean;
   instructions: string;
@@ -66,7 +66,7 @@ export async function upsertPaymentMethodConfig(data: {
 }) {
   try {
     await db.paymentMethodConfig.upsert({
-      where: { method: data.method },
+      where: { method: data.method as PaymentMethodType },
       update: {
         label: data.label,
         isActive: data.isActive,
@@ -74,7 +74,7 @@ export async function upsertPaymentMethodConfig(data: {
         accountInfo: data.accountInfo,
       },
       create: {
-        method: data.method,
+        method: data.method as PaymentMethodType,
         label: data.label,
         isActive: data.isActive,
         instructions: data.instructions,

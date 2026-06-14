@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { PaymentMethodType } from "@prisma/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,20 +12,14 @@ import { Loader2, Save } from "lucide-react";
 import {
   getAllPaymentMethodConfigs,
   upsertPaymentMethodConfig,
-  PAYMENT_METHOD_LABELS,
   type PaymentMethodConfigItem,
 } from "@/actions/payment-method-config-actions";
-
-const ALL_METHODS = Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethodType[];
-
-const ACCOUNT_INFO_FIELDS: Record<PaymentMethodType, { key: string; label: string }[]> = {
-  WOMPI:       [{ key: "publicKey", label: "Llave pública (pub_test/pub_prod)" }, { key: "redirectUrl", label: "URL de redirección" }],
-  NEQUI:       [{ key: "phone", label: "Número Nequi" }, { key: "name", label: "Nombre titular" }],
-  BANCOLOMBIA: [{ key: "accountType", label: "Tipo de cuenta" }, { key: "accountNumber", label: "Número de cuenta" }, { key: "name", label: "Nombre titular" }],
-  BINANCE:     [{ key: "uid", label: "UID Binance" }, { key: "name", label: "Nombre" }],
-  ZELLE:       [{ key: "email", label: "Email Zelle" }, { key: "name", label: "Nombre" }],
-  PAGO_MOVIL:  [{ key: "phone", label: "Número" }, { key: "bank", label: "Banco" }, { key: "name", label: "Nombre titular" }],
-};
+import {
+  PAYMENT_METHOD_LABELS,
+  ALL_PAYMENT_METHODS,
+  ACCOUNT_INFO_FIELDS,
+  type PaymentMethodKey,
+} from "@/constants/payment-methods";
 
 type FormState = {
   label: string;
@@ -36,38 +29,40 @@ type FormState = {
 };
 
 export function PagosMain() {
-  const [configs, setConfigs] = useState<Record<PaymentMethodType, PaymentMethodConfigItem | null>>(
-    {} as Record<PaymentMethodType, PaymentMethodConfigItem | null>
-  );
-  const [forms, setForms] = useState<Record<PaymentMethodType, FormState>>(
-    {} as Record<PaymentMethodType, FormState>
-  );
+  const [forms, setForms] = useState<Record<string, FormState>>({});
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<PaymentMethodType | null>(null);
+  const [saving, setSaving] = useState<PaymentMethodKey | null>(null);
 
   const fetchConfigs = useCallback(async () => {
     setLoading(true);
     try {
-    const res = await getAllPaymentMethodConfigs();
-    if (res.success) {
-      const map = {} as Record<PaymentMethodType, PaymentMethodConfigItem | null>;
-      const formMap = {} as Record<PaymentMethodType, FormState>;
-
-      for (const method of ALL_METHODS) {
-        const existing = res.data.find((c) => c.method === method) ?? null;
-        map[method] = existing;
+      const res = await getAllPaymentMethodConfigs();
+      const formMap: Record<string, FormState> = {};
+      for (const method of ALL_PAYMENT_METHODS) {
+        const existing = res.success
+          ? res.data.find((c) => c.method === method) ?? null
+          : null;
         formMap[method] = {
           label: existing?.label ?? PAYMENT_METHOD_LABELS[method],
           isActive: existing?.isActive ?? false,
           instructions: existing?.instructions ?? "",
-          accountInfo: existing?.accountInfo ?? {},
+          accountInfo: (existing?.accountInfo as Record<string, string>) ?? {},
         };
       }
-      setConfigs(map);
       setForms(formMap);
-    }
     } catch (e) {
       console.error("Error cargando métodos de pago:", e);
+      // Inicializar forms con valores vacíos para que las tarjetas rendericen
+      const formMap: Record<string, FormState> = {};
+      for (const method of ALL_PAYMENT_METHODS) {
+        formMap[method] = {
+          label: PAYMENT_METHOD_LABELS[method],
+          isActive: false,
+          instructions: "",
+          accountInfo: {},
+        };
+      }
+      setForms(formMap);
     } finally {
       setLoading(false);
     }
@@ -75,18 +70,19 @@ export function PagosMain() {
 
   useEffect(() => { void fetchConfigs(); }, [fetchConfigs]);
 
-  const updateForm = (method: PaymentMethodType, patch: Partial<FormState>) =>
+  const updateForm = (method: string, patch: Partial<FormState>) =>
     setForms((prev) => ({ ...prev, [method]: { ...prev[method], ...patch } }));
 
-  const updateAccountInfo = (method: PaymentMethodType, key: string, value: string) =>
+  const updateAccountInfo = (method: string, key: string, value: string) =>
     setForms((prev) => ({
       ...prev,
-      [method]: { ...prev[method], accountInfo: { ...prev[method].accountInfo, [key]: value } },
+      [method]: { ...prev[method], accountInfo: { ...prev[method]?.accountInfo, [key]: value } },
     }));
 
-  const handleSave = async (method: PaymentMethodType) => {
-    setSaving(method);
+  const handleSave = async (method: PaymentMethodKey) => {
     const f = forms[method];
+    if (!f) return;
+    setSaving(method);
     const res = await upsertPaymentMethodConfig({
       method,
       label: f.label,
@@ -96,7 +92,6 @@ export function PagosMain() {
     });
     if (res.success) {
       toast.success(res.message);
-      void fetchConfigs();
     } else {
       toast.error(res.message);
     }
@@ -121,7 +116,7 @@ export function PagosMain() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {ALL_METHODS.map((method) => {
+        {ALL_PAYMENT_METHODS.map((method) => {
           const f = forms[method];
           const fields = ACCOUNT_INFO_FIELDS[method];
           const isSaving = saving === method;
@@ -145,7 +140,7 @@ export function PagosMain() {
                   <div key={key} className="space-y-1">
                     <Label className="text-xs">{label}</Label>
                     <Input
-                      value={f?.accountInfo[key] ?? ""}
+                      value={f?.accountInfo?.[key] ?? ""}
                       onChange={(e) => updateAccountInfo(method, key, e.target.value)}
                       placeholder={label}
                     />
