@@ -61,11 +61,16 @@ export function SuscripcionesMain() {
 
   const fetchSubs = useCallback(async () => {
     setLoading(true);
-    const res = await getAllSubscriptionsAdmin(
-      filter === "ALL" ? {} : { status: filter }
-    );
-    if (res.success) setSubs(res.data as UserSubscriptionWithPlan[]);
-    setLoading(false);
+    try {
+      const res = await getAllSubscriptionsAdmin(
+        filter === "ALL" ? {} : { status: filter }
+      );
+      if (res.success) setSubs(res.data as UserSubscriptionWithPlan[]);
+    } catch (e) {
+      console.error("Error cargando suscripciones:", e);
+    } finally {
+      setLoading(false);
+    }
   }, [filter]);
 
   useEffect(() => { void fetchSubs(); }, [fetchSubs]);

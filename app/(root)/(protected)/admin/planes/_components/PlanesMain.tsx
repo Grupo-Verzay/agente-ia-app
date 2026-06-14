@@ -62,9 +62,14 @@ export function PlanesMain() {
 
   const fetchPlans = useCallback(async () => {
     setLoading(true);
-    const res = await getAllSubscriptionPlans();
-    if (res.success) setPlans(res.data);
-    setLoading(false);
+    try {
+      const res = await getAllSubscriptionPlans();
+      if (res.success) setPlans(res.data);
+    } catch (e) {
+      console.error("Error cargando planes:", e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { void fetchPlans(); }, [fetchPlans]);

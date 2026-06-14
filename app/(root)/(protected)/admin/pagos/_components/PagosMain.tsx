@@ -47,6 +47,7 @@ export function PagosMain() {
 
   const fetchConfigs = useCallback(async () => {
     setLoading(true);
+    try {
     const res = await getAllPaymentMethodConfigs();
     if (res.success) {
       const map = {} as Record<PaymentMethodType, PaymentMethodConfigItem | null>;
@@ -65,7 +66,11 @@ export function PagosMain() {
       setConfigs(map);
       setForms(formMap);
     }
-    setLoading(false);
+    } catch (e) {
+      console.error("Error cargando métodos de pago:", e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { void fetchConfigs(); }, [fetchConfigs]);
