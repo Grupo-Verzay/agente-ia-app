@@ -107,7 +107,7 @@ export function PagosMain() {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4 p-4 h-full overflow-y-auto">
       <div>
         <h2 className="text-lg font-semibold">Métodos de Pago</h2>
         <p className="text-xs text-muted-foreground">

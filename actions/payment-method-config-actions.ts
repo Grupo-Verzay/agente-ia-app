@@ -65,22 +65,22 @@ export async function upsertPaymentMethodConfig(data: {
   accountInfo: Record<string, string>;
 }) {
   try {
-    await db.paymentMethodConfig.upsert({
+    const payload = {
+      label: data.label,
+      isActive: data.isActive,
+      instructions: data.instructions,
+      accountInfo: data.accountInfo,
+    };
+    const existing = await db.paymentMethodConfig.findFirst({
       where: { method: data.method as PaymentMethodType },
-      update: {
-        label: data.label,
-        isActive: data.isActive,
-        instructions: data.instructions,
-        accountInfo: data.accountInfo,
-      },
-      create: {
-        method: data.method as PaymentMethodType,
-        label: data.label,
-        isActive: data.isActive,
-        instructions: data.instructions,
-        accountInfo: data.accountInfo,
-      },
     });
+    if (existing) {
+      await db.paymentMethodConfig.update({ where: { id: existing.id }, data: payload });
+    } else {
+      await db.paymentMethodConfig.create({
+        data: { method: data.method as PaymentMethodType, ...payload },
+      });
+    }
     revalidatePath("/planes");
     return { success: true, message: "Método de pago guardado" };
   } catch {

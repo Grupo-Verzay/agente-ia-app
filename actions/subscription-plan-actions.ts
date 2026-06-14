@@ -66,31 +66,26 @@ export async function upsertSubscriptionPlan(data: {
   order?: number;
 }) {
   try {
-    await db.subscriptionPlan.upsert({
-      where: { plan_assistanceType: { plan: data.plan, assistanceType: data.assistanceType } },
-      update: {
-        priceUSD: data.priceUSD,
-        credits: data.credits,
-        features: data.features,
-        description: data.description ?? null,
-        isPopular: data.isPopular ?? false,
-        isActive: data.isActive ?? true,
-        color: data.color ?? null,
-        order: data.order ?? 0,
-      },
-      create: {
-        plan: data.plan,
-        assistanceType: data.assistanceType,
-        priceUSD: data.priceUSD,
-        credits: data.credits,
-        features: data.features,
-        description: data.description ?? null,
-        isPopular: data.isPopular ?? false,
-        isActive: data.isActive ?? true,
-        color: data.color ?? null,
-        order: data.order ?? 0,
-      },
+    const payload = {
+      priceUSD: data.priceUSD,
+      credits: data.credits,
+      features: data.features,
+      description: data.description ?? null,
+      isPopular: data.isPopular ?? false,
+      isActive: data.isActive ?? true,
+      color: data.color ?? null,
+      order: data.order ?? 0,
+    };
+    const existing = await db.subscriptionPlan.findFirst({
+      where: { plan: data.plan, assistanceType: data.assistanceType },
     });
+    if (existing) {
+      await db.subscriptionPlan.update({ where: { id: existing.id }, data: payload });
+    } else {
+      await db.subscriptionPlan.create({
+        data: { plan: data.plan, assistanceType: data.assistanceType, ...payload },
+      });
+    }
     revalidatePath("/planes");
     return { success: true, message: "Plan guardado" };
   } catch {
