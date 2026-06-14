@@ -289,7 +289,17 @@ function Step2Fields({
 /* ─────────────────────────────────────────
    Main Component
 ───────────────────────────────────────── */
-const FormRegister = ({ countries, apiKeyRef, affiliateCode }: { countries: Country[]; apiKeyRef?: string; affiliateCode?: string }) => {
+const PLAN_DISPLAY: Record<string, string> = {
+  lite: "Lite", basico: "Básico", intermedio: "Intermedio",
+  avanzado: "Avanzado", enterprise: "Enterprise",
+};
+
+const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan }: {
+  countries: Country[];
+  apiKeyRef?: string;
+  affiliateCode?: string;
+  defaultPlan?: string;
+}) => {
   const [step, setStep] = useState(1);
   const [areaCode, setAreaCode] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -354,10 +364,12 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode }: { countries: Coun
           `¡Bienvenido! Tu periodo de prueba gratuito ha iniciado. Vence el ${result.trialEndsLabel}`,
           {
             duration: 8000,
-            description: "Ve a tu perfil para escanear el QR y comenzar a usar la app.",
+            description: defaultPlan
+              ? "Completa tu compra eligiendo el método de pago."
+              : "Ve a tu perfil para escanear el QR y comenzar a usar la app.",
           }
         );
-        router.push("/profile");
+        router.push(defaultPlan ? `/planes?plan=${defaultPlan}` : "/profile");
       }, welcomeDelay);
     });
   };
@@ -370,6 +382,12 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode }: { countries: Coun
         <p className="text-muted-foreground mt-2 text-sm">
           3 días de prueba · Sin tarjeta de crédito
         </p>
+        {defaultPlan && PLAN_DISPLAY[defaultPlan] && (
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm text-primary">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Plan seleccionado: <strong>{PLAN_DISPLAY[defaultPlan]}</strong>
+          </div>
+        )}
       </div>
 
       {/* Step indicator */}

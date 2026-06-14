@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from '@/auth';
-const publicRoutes = ["/", "/prices"];
+const publicRoutes = ["/", "/prices", "/inicio"];
 const authRoutes = ["/login", "/register"];
 const apiAuthPrefix = "/api/auth";
 const apiCronPrefix = "/api/cron";

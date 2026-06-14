@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check, Zap, Users, Star, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,11 +16,18 @@ type AssistanceType = "IA" | "HUMANO";
 interface Props {
   plans: SubscriptionPlanItem[];
   paymentMethods: PaymentMethodConfigItem[];
+  defaultPlan?: string;
 }
 
-export function PlanesClient({ plans, paymentMethods }: Props) {
+export function PlanesClient({ plans, paymentMethods, defaultPlan }: Props) {
   const [assistanceType, setAssistanceType] = useState<AssistanceType>("IA");
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlanItem | null>(null);
+
+  useEffect(() => {
+    if (!defaultPlan) return;
+    const match = plans.find((p) => p.plan === defaultPlan && p.assistanceType === assistanceType);
+    if (match) setSelectedPlan(match);
+  }, [defaultPlan, plans, assistanceType]);
 
   const visiblePlans = plans.filter((p) => p.assistanceType === assistanceType);
 
