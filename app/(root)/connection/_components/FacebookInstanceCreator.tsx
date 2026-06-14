@@ -50,7 +50,7 @@ export const FacebookInstanceCreator = ({ userId, company }: FacebookInstanceCre
 
   return (
     <>
-      <Card className="border-blue-200 dark:border-blue-900 flex-1 border-dashed flex flex-col">
+      <Card className="flex-1 border-dashed flex flex-col" style={{ borderColor: '#93c5fd' }}>
         <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
           <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
             <FaFacebook className="text-blue-600 rounded-sm w-6 h-6" />

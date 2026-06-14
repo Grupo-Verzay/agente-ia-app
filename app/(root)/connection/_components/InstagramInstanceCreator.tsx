@@ -50,7 +50,7 @@ export const InstagramInstanceCreator = ({ userId, company }: InstagramInstanceC
 
   return (
     <>
-      <Card className="border-pink-200 dark:border-pink-900 flex-1 border-dashed flex flex-col">
+      <Card className="flex-1 border-dashed flex flex-col" style={{ borderColor: '#f9a8d4' }}>
         <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
           <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
             <FaInstagram className="text-pink-500 rounded-sm w-6 h-6" />
