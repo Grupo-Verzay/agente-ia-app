@@ -854,7 +854,7 @@ export function LandingClient() {
 function WhatsAppButton() {
   return (
     <a
-      href="https://wa.me/573001234567"
+      href="https://wa.me/573233612620"
       target="_blank"
       rel="noopener noreferrer"
       title="Chatea con nosotros"
@@ -951,7 +951,7 @@ function PlanCard({ plan, assistanceType, billingPeriod }: {
       )}
       <div className="mt-auto">
         {isCustom ? (
-          <a href="https://wa.me/573001234567" target="_blank" rel="noopener noreferrer">
+          <a href="https://wa.me/573233612620" target="_blank" rel="noopener noreferrer">
             <Button variant="outline" className="w-full gap-2 border-white/20 bg-transparent text-white hover:bg-white/10">
               <MessageCircle className="h-4 w-4" /> Contactar
             </Button>

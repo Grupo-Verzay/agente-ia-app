@@ -12,6 +12,24 @@ import { PaymentModal } from "./PaymentModal";
 import { cn } from "@/lib/utils";
 
 type AssistanceType = "IA" | "HUMANO";
+type BillingPeriod = "monthly" | "quarterly" | "yearly";
+
+const PRICES: Record<string, Record<string, Record<BillingPeriod, number>>> = {
+  IA: {
+    lite:       { monthly: 19, quarterly: 17, yearly: 15 },
+    basico:     { monthly: 39, quarterly: 30, yearly: 25 },
+    intermedio: { monthly: 59, quarterly: 50, yearly: 45 },
+    avanzado:   { monthly: 79, quarterly: 65, yearly: 55 },
+    enterprise: { monthly: 99, quarterly: 85, yearly: 75 },
+  },
+  HUMANO: {
+    lite:       { monthly: 29, quarterly: 25, yearly: 19 },
+    basico:     { monthly: 49, quarterly: 45, yearly: 39 },
+    intermedio: { monthly: 99, quarterly: 85, yearly: 79 },
+    avanzado:   { monthly: 149, quarterly: 129, yearly: 119 },
+    enterprise: { monthly: 199, quarterly: 169, yearly: 149 },
+  },
+};
 
 interface Props {
   plans: SubscriptionPlanItem[];
@@ -21,12 +39,17 @@ interface Props {
 
 export function PlanesClient({ plans, paymentMethods, defaultPlan }: Props) {
   const [assistanceType, setAssistanceType] = useState<AssistanceType>("IA");
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("yearly");
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlanItem | null>(null);
+  const [selectedPrice, setSelectedPrice] = useState<number>(0);
 
   useEffect(() => {
     if (!defaultPlan) return;
     const match = plans.find((p) => p.plan === defaultPlan && p.assistanceType === assistanceType);
-    if (match) setSelectedPlan(match);
+    if (match) {
+      setSelectedPlan(match);
+      setSelectedPrice(PRICES[assistanceType]?.[match.plan]?.[billingPeriod] ?? match.priceUSD);
+    }
   }, [defaultPlan, plans, assistanceType]);
 
   const visiblePlans = plans.filter((p) => p.assistanceType === assistanceType);
@@ -78,6 +101,33 @@ export function PlanesClient({ plans, paymentMethods, defaultPlan }: Props) {
             Incluye configuración personalizada y acompañamiento de nuestro equipo
           </p>
         )}
+
+        {/* Toggle período de facturación */}
+        <div className="mt-4 inline-flex items-center rounded-full border p-1 bg-muted gap-1">
+          {([
+            { value: "monthly",   label: "Mensual",    badge: null      },
+            { value: "quarterly", label: "Trimestral", badge: "−14.5%"  },
+            { value: "yearly",    label: "Anual",      badge: "−22.5%"  },
+          ] as { value: BillingPeriod; label: string; badge: string | null }[]).map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setBillingPeriod(opt.value)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all",
+                billingPeriod === opt.value
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {opt.label}
+              {opt.badge && (
+                <span className="rounded-full bg-green-500/15 px-1.5 py-px text-[9px] font-bold text-green-600">
+                  {opt.badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Cards */}
@@ -88,14 +138,19 @@ export function PlanesClient({ plans, paymentMethods, defaultPlan }: Props) {
           </div>
         ) : (
           <div className="mx-auto grid max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sorted.map((plan) => (
-              <PlanCard
-                key={plan.id}
-                plan={plan}
-                assistanceType={assistanceType}
-                onSelect={() => setSelectedPlan(plan)}
-              />
-            ))}
+            {sorted.map((plan) => {
+              const price = PRICES[assistanceType]?.[plan.plan]?.[billingPeriod] ?? plan.priceUSD;
+              return (
+                <PlanCard
+                  key={plan.id}
+                  plan={plan}
+                  assistanceType={assistanceType}
+                  price={price}
+                  billingPeriod={billingPeriod}
+                  onSelect={() => { setSelectedPlan(plan); setSelectedPrice(price); }}
+                />
+              );
+            })}
           </div>
         )}
       </div>
@@ -104,6 +159,8 @@ export function PlanesClient({ plans, paymentMethods, defaultPlan }: Props) {
       {selectedPlan && (
         <PaymentModal
           plan={selectedPlan}
+          price={selectedPrice}
+          billingPeriod={billingPeriod}
           paymentMethods={paymentMethods}
           open={!!selectedPlan}
           onClose={() => setSelectedPlan(null)}
@@ -116,13 +173,23 @@ export function PlanesClient({ plans, paymentMethods, defaultPlan }: Props) {
 function PlanCard({
   plan,
   assistanceType,
+  price,
+  billingPeriod,
   onSelect,
 }: {
   plan: SubscriptionPlanItem;
   assistanceType: AssistanceType;
+  price: number;
+  billingPeriod: BillingPeriod;
   onSelect: () => void;
 }) {
   const isCustom = plan.plan === "personalizado";
+  const billedNote =
+    billingPeriod === "monthly"
+      ? "Facturado mensualmente"
+      : billingPeriod === "quarterly"
+      ? `Facturado $${price * 3} USD cada 3 meses`
+      : `Facturado $${price * 12} USD al año`;
 
   return (
     <div
@@ -161,10 +228,13 @@ function PlanCard({
         {isCustom ? (
           <div className="text-2xl font-bold text-muted-foreground">A consultar</div>
         ) : (
-          <div className="flex items-baseline gap-1">
-            <span className="text-3xl font-bold">${plan.priceUSD}</span>
-            <span className="text-sm text-muted-foreground">USD/mes</span>
-          </div>
+          <>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-bold">${price}</span>
+              <span className="text-sm text-muted-foreground">USD/mes</span>
+            </div>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{billedNote}</p>
+          </>
         )}
         <p className="mt-0.5 text-xs text-muted-foreground">
           {plan.credits.toLocaleString()} créditos incluidos
@@ -190,7 +260,7 @@ function PlanCard({
             variant="outline"
             className="w-full gap-2"
             onClick={() => {
-              window.open("https://wa.me/", "_blank");
+              window.open("https://wa.me/573233612620", "_blank");
             }}
           >
             <MessageCircle className="h-4 w-4" />

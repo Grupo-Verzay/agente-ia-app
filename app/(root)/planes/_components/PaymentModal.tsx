@@ -15,8 +15,18 @@ import { createUserSubscription } from "@/actions/user-subscription-actions";
 import { PLAN_LABELS } from "@/types/plans";
 import { cn } from "@/lib/utils";
 
+type BillingPeriod = "monthly" | "quarterly" | "yearly";
+
+const BILLING_LABELS: Record<BillingPeriod, string> = {
+  monthly:   "mensual",
+  quarterly: "trimestral",
+  yearly:    "anual",
+};
+
 interface Props {
   plan: SubscriptionPlanItem;
+  price: number;
+  billingPeriod: BillingPeriod;
   paymentMethods: PaymentMethodConfigItem[];
   open: boolean;
   onClose: () => void;
@@ -24,7 +34,7 @@ interface Props {
 
 type Step = "method" | "instructions" | "success";
 
-export function PaymentModal({ plan, paymentMethods, open, onClose }: Props) {
+export function PaymentModal({ plan, price, billingPeriod, paymentMethods, open, onClose }: Props) {
   const [step, setStep] = useState<Step>("method");
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethodConfigItem | null>(null);
   const [receiptUrl, setReceiptUrl] = useState("");
@@ -53,7 +63,7 @@ export function PaymentModal({ plan, paymentMethods, open, onClose }: Props) {
     const res = await createUserSubscription({
       subscriptionPlanId: plan.id,
       paymentMethod: selectedMethod.method,
-      amountUSD: plan.priceUSD,
+      amountUSD: price,
       receiptUrl: receiptUrl || undefined,
     });
     if (res.success) {
@@ -73,7 +83,7 @@ export function PaymentModal({ plan, paymentMethods, open, onClose }: Props) {
           <DialogTitle>
             {step === "success"
               ? "¡Pago registrado!"
-              : `Plan ${PLAN_LABELS[plan.plan as Plan]} — $${plan.priceUSD} USD/mes`}
+              : `Plan ${PLAN_LABELS[plan.plan as Plan]} — $${price} USD/mes · ${BILLING_LABELS[billingPeriod]}`}
           </DialogTitle>
         </DialogHeader>
 
@@ -121,7 +131,7 @@ export function PaymentModal({ plan, paymentMethods, open, onClose }: Props) {
                 {selectedMethod.icon && <span className="text-lg">{selectedMethod.icon}</span>}
                 <span className="font-semibold text-sm">{selectedMethod.label}</span>
                 <Badge variant="outline" className="ml-auto text-xs">
-                  ${plan.priceUSD} USD
+                  ${price} USD/{BILLING_LABELS[billingPeriod]}
                 </Badge>
               </div>
 
