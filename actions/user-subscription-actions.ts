@@ -10,7 +10,7 @@ export type UserSubscriptionWithPlan = {
   id: string;
   userId: string;
   status: SubscriptionStatus;
-  paymentMethod: PaymentMethodType | null;
+  paymentMethod: string | null;
   amountUSD: number;
   receiptUrl: string | null;
   wompiReference: string | null;
@@ -40,7 +40,7 @@ export type UserSubscriptionWithPlan = {
 
 export async function createUserSubscription(data: {
   subscriptionPlanId: string;
-  paymentMethod: PaymentMethodType;
+  paymentMethod: string;
   amountUSD: number;
   receiptUrl?: string;
   wompiReference?: string;

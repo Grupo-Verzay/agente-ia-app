@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { PaymentMethodType } from "@prisma/client";
 import { toast } from "sonner";
 import { Plan } from "@prisma/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, CheckCircle2, Upload, ExternalLink, ArrowLeft } from "lucide-react";
 import { type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
-import { type PaymentMethodConfigItem, PAYMENT_METHOD_LABELS } from "@/actions/payment-method-config-actions";
+import { type PaymentMethodConfigItem } from "@/actions/payment-method-config-actions";
 import { createUserSubscription } from "@/actions/user-subscription-actions";
 import { PLAN_LABELS } from "@/types/plans";
 import { cn } from "@/lib/utils";
@@ -65,7 +64,7 @@ export function PaymentModal({ plan, paymentMethods, open, onClose }: Props) {
     setSaving(false);
   };
 
-  const accountInfo = selectedMethod?.accountInfo ?? {};
+  const accountFields = selectedMethod?.accountFields ?? [];
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -94,7 +93,7 @@ export function PaymentModal({ plan, paymentMethods, open, onClose }: Props) {
                     selectedMethod?.method === m.method && "border-primary bg-primary/5"
                   )}
                 >
-                  <span className="text-base">{getMethodEmoji(m.method)}</span>
+                  {m.icon && <span className="text-base">{m.icon}</span>}
                   <span className="mt-1">{m.label}</span>
                 </button>
               ))}
@@ -119,7 +118,7 @@ export function PaymentModal({ plan, paymentMethods, open, onClose }: Props) {
 
             <div className="rounded-lg bg-muted p-4 space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-lg">{getMethodEmoji(selectedMethod.method)}</span>
+                {selectedMethod.icon && <span className="text-lg">{selectedMethod.icon}</span>}
                 <span className="font-semibold text-sm">{selectedMethod.label}</span>
                 <Badge variant="outline" className="ml-auto text-xs">
                   ${plan.priceUSD} USD
@@ -128,14 +127,12 @@ export function PaymentModal({ plan, paymentMethods, open, onClose }: Props) {
 
               {/* Datos de cuenta */}
               <div className="space-y-1.5">
-                {Object.entries(accountInfo)
-                  .filter(([, v]) => v)
-                  .map(([key, value]) => (
-                    <div key={key} className="flex justify-between text-xs">
-                      <span className="text-muted-foreground capitalize">{formatKey(key)}:</span>
-                      <span className="font-medium text-right ml-2">{value}</span>
-                    </div>
-                  ))}
+                {accountFields.filter((f) => f.value).map((field, i) => (
+                  <div key={i} className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">{field.label}:</span>
+                    <span className="font-medium text-right ml-2">{field.value}</span>
+                  </div>
+                ))}
               </div>
 
               {selectedMethod.instructions && (
@@ -211,22 +208,3 @@ export function PaymentModal({ plan, paymentMethods, open, onClose }: Props) {
   );
 }
 
-function getMethodEmoji(method: PaymentMethodType): string {
-  const map: Record<PaymentMethodType, string> = {
-    WOMPI: "💳",
-    NEQUI: "🟣",
-    BANCOLOMBIA: "🏦",
-    BINANCE: "🟡",
-    ZELLE: "💙",
-    PAGO_MOVIL: "📱",
-  };
-  return map[method] ?? "💰";
-}
-
-function formatKey(key: string): string {
-  return key
-    .replace(/([A-Z])/g, " $1")
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/^\w/, (c) => c.toUpperCase());
-}

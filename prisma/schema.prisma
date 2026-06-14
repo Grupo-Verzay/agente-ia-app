@@ -1119,7 +1119,7 @@ model UserSubscription {
   userId             String
   subscriptionPlanId String
   status             SubscriptionStatus @default(PENDING_PAYMENT)
-  paymentMethod      PaymentMethodType?
+  paymentMethod      String?
   amountUSD          Decimal            @db.Decimal(10, 2)
   receiptUrl         String?
   wompiReference     String?
@@ -1144,14 +1144,16 @@ model UserSubscription {
 }
 
 model PaymentMethodConfig {
-  id           String            @id @default(uuid())
-  method       PaymentMethodType @unique
+  id           String   @id @default(uuid())
+  method       String   @unique  // slug único, ej: "nequi", "bancolombia"
   label        String
-  isActive     Boolean           @default(true)
+  icon         String?           // emoji o texto, ej: "🟣"
+  isActive     Boolean  @default(true)
   instructions String?
-  accountInfo  Json              @default("{}")
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  accountFields Json    @default("[]") // [{label, value}]
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@map("payment_method_configs")
 }
