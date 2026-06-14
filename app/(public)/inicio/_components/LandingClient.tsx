@@ -17,7 +17,7 @@ import { getActiveSubscriptionPlans, type SubscriptionPlanItem } from "@/actions
 
 const PLAN_LABELS: Record<string, string> = {
   lite: "Lite", basico: "Básico", intermedio: "Intermedio",
-  avanzado: "Avanzado", enterprise: "Enterprise", personalizado: "Personalizado",
+  avanzado: "Avanzado", enterprise: "Enterprise", personalizado: "Agencias",
 };
 const PLAN_ORDER = ["lite", "basico", "intermedio", "avanzado", "enterprise", "personalizado"];
 

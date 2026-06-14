@@ -35,7 +35,7 @@ const PLANS: PlanRow[] = [
       "Toma de solicitudes, citas, etc.",
       "Captura de datos en WhatsApp",
       "Notificación eventos otro número",
-      "Incluye 1.000 créditos totalmente gratis",
+      "1.000 créditos totalmente gratis",
     ],
   },
   {
@@ -54,7 +54,7 @@ const PLANS: PlanRow[] = [
       "Mis tareas con notificaciones",
       "Módulo de agregar notas varias",
       "Embudos Kanban con etapas/tags",
-      "Incluye 3.000 créditos totalmente gratis",
+      "3.000 créditos totalmente gratis",
     ],
   },
   {
@@ -73,7 +73,7 @@ const PLANS: PlanRow[] = [
       "Captura datos dashboard CRM",
       "Agenda citas con recordatorios",
       "CRM, Chats, creación de eventos",
-      "Incluye 5.000 créditos totalmente gratis",
+      "5.000 créditos totalmente gratis",
     ],
   },
   {
@@ -92,7 +92,7 @@ const PLANS: PlanRow[] = [
       "Sincroniza datos en Google Sheets",
       "Reportes, etiquetado, Follow Ups",
       "Chats, CRM y ficha de contactos",
-      "Incluye 8.000 créditos totalmente gratis",
+      "8.000 créditos totalmente gratis",
     ],
   },
   {
@@ -111,7 +111,7 @@ const PLANS: PlanRow[] = [
       "Métricas de resultados agentes",
       "Importación metadatos multiplex",
       "Multiusuarios con autoasignación",
-      "Incluye 10.000 créditos totalmente gratis",
+      "10.000 créditos totalmente gratis",
     ],
   },
   {
@@ -121,7 +121,7 @@ const PLANS: PlanRow[] = [
     credits: 0,
     isPopular: false,
     order: 6,
-    description: "Solución a medida para tu empresa",
+    description: "Solución para agencias y revendedores",
     features: [
       "Incluye paquetes de licencias",
       "Capacitación personalizada App",
@@ -130,6 +130,8 @@ const PLANS: PlanRow[] = [
       "Personalización marca, logo y color",
       "Acompañamiento proceso adopción",
       "Cuenta adicional admin plan gratis",
+      "Multiusuarios y tus administradores",
+      "Facturación a nombre de tu empresa",
     ],
   },
 

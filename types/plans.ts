@@ -6,7 +6,7 @@ export const PLAN_LABELS: Record<Plan, string> = {
     intermedio: 'Intermedio',
     avanzado: 'Avanzado',
     enterprise: 'Enterprise',
-    personalizado: 'Personalizado',
+    personalizado: 'Agencias',
 };
 
 export const PLANS: Plan[] = ['lite', 'basico', 'intermedio', 'avanzado', 'enterprise', 'personalizado'];
