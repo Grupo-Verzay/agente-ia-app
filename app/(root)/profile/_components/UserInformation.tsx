@@ -86,6 +86,36 @@ const clientSchema = z.object({
 
 const defaultImgUrl = 'https://images.pexels.com/photos/133356/pexels-photo-133356.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1';
 
+const DEFAULT_VOICE_INSTRUCTIONS = 'Habla con voz cálida, cercana y entusiasta, como un asesor de ventas latinoamericano que genuinamente quiere ayudar. Usa un ritmo natural con pausas breves entre ideas. Transmite confianza y energía positiva sin sonar apresurado. Al mencionar beneficios o precios, enfatiza levemente esas palabras. Evita un tono plano o robótico. Habla en español latinoamericano neutro, fluido y natural.';
+
+type VoiceGender = 'masculino' | 'femenino';
+
+const VOICE_TEMPLATES: Record<string, Record<VoiceGender, string>> = {
+    ventas: {
+        masculino: 'Habla con voz cálida, enérgica y persuasiva, como un asesor de ventas latinoamericano que genuinamente quiere ayudar al cliente a tomar la mejor decisión. Usa un ritmo natural con pausas estratégicas antes de mencionar beneficios o precios. Transmite confianza y entusiasmo sin sonar apresurado. Enfatiza levemente palabras clave como beneficios, ahorro y valor. Evita un tono plano o robótico. Habla en español latinoamericano neutro, fluido y natural.',
+        femenino:  'Habla con voz cálida, cercana y entusiasta, como una asesora de ventas latinoamericana que genuinamente quiere ayudar al cliente a tomar la mejor decisión. Usa un ritmo natural con pausas estratégicas antes de mencionar beneficios o precios. Transmite confianza y energía positiva sin sonar apresurada. Enfatiza levemente palabras clave como beneficios, ahorro y valor. Evita un tono plano o robótico. Habla en español latinoamericano neutro, fluido y natural.',
+    },
+    soporte: {
+        masculino: 'Habla con voz tranquila, empática y profesional, como un asesor de soporte latinoamericano comprometido con resolver cada situación. Usa un ritmo pausado y claro, con énfasis en los pasos a seguir. Transmite calma y seguridad en todo momento. Evita sonar apresurado o robótico. Habla en español latinoamericano neutro, fluido y natural.',
+        femenino:  'Habla con voz tranquila, empática y amable, como una asesora de soporte latinoamericana comprometida con resolver cada situación. Usa un ritmo pausado y claro, con énfasis en los pasos a seguir. Transmite calma y seguridad en todo momento. Evita sonar apresurada o robótica. Habla en español latinoamericano neutro, fluido y natural.',
+    },
+    corporativo: {
+        masculino: 'Habla con voz clara, segura y profesional, como un ejecutivo latinoamericano. Usa un ritmo moderado con pausas breves entre ideas. Transmite autoridad y confianza sin sonar frío o distante. Cuida la dicción y pronuncia con claridad. Evita un tono informal o robótico. Habla en español latinoamericano neutro, formal y natural.',
+        femenino:  'Habla con voz clara, segura y profesional, como una ejecutiva latinoamericana. Usa un ritmo moderado con pausas breves entre ideas. Transmite autoridad y confianza sin sonar fría o distante. Cuida la dicción y pronuncia con claridad. Evita un tono informal o robótico. Habla en español latinoamericano neutro, formal y natural.',
+    },
+    casual: {
+        masculino: 'Habla con voz relajada, cercana y animada, como un amigo latinoamericano que comparte información útil. Usa un ritmo ágil y dinámico con entonación variada. Transmite energía y naturalidad usando expresiones cotidianas. Evita sonar formal o robótico. Habla en español latinoamericano neutro, casual y fluido.',
+        femenino:  'Habla con voz relajada, cercana y animada, como una amiga latinoamericana que comparte información útil. Usa un ritmo ágil y dinámico con entonación variada. Transmite energía y naturalidad usando expresiones cotidianas. Evita sonar formal o robótica. Habla en español latinoamericano neutro, casual y fluido.',
+    },
+};
+
+const TEMPLATE_LABELS: Record<string, string> = {
+    ventas:      'Ventas / Persuasivo',
+    soporte:     'Atención al cliente',
+    corporativo: 'Formal / Corporativo',
+    casual:      'Amigable / Casual',
+};
+
 const ROLE_LABELS: Record<string, string> = {
     user: 'Usuario',
     affiliate: 'Afiliado',
@@ -301,13 +331,14 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
     const [elVoiceSearch, setElVoiceSearch] = useState('');
     const [loadingElVoices, setLoadingElVoices] = useState(false);
     const [savingVoice, setSavingVoice] = useState(false);
+    const [voiceGender, setVoiceGender] = useState<VoiceGender>('masculino');
 
     useEffect(() => {
         if (!user) return;
         setVoiceEnabled(!!user.enableVoiceResponses);
         setVoiceId(user.voiceId ?? 'nova');
         setVoiceModel(user.voiceModel ?? 'gpt-4o-mini-tts');
-        setVoiceInstructions(user.voiceInstructions ?? '');
+        setVoiceInstructions(user.voiceInstructions || DEFAULT_VOICE_INSTRUCTIONS);
         setTtsProvider(user.ttsProvider ?? 'openai');
         setElApiKey(user.elevenLabsApiKey ?? '');
         setElVoiceId(user.elevenLabsVoiceId ?? '');
@@ -720,10 +751,11 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     </div>
                                 </CardHeader>
                                 {voiceEnabled && (
-                                    <CardContent className="space-y-5">
-                                        <div className="space-y-2">
-                                            <Label className="text-sm font-medium">Proveedor de voz</Label>
-                                            <div className="grid grid-cols-2 gap-3">
+                                    <CardContent className="space-y-3 pt-0">
+                                        {/* Proveedor */}
+                                        <div className="space-y-1.5">
+                                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Proveedor de voz</p>
+                                            <div className="flex rounded-md border overflow-hidden divide-x">
                                                 {([
                                                     { id: 'openai', label: 'OpenAI TTS', desc: 'GPT-4o Mini / HD' },
                                                     { id: 'elevenlabs', label: 'ElevenLabs', desc: 'Clonación de voz' },
@@ -731,19 +763,21 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                     <button
                                                         key={p.id}
                                                         onClick={() => { setTtsProvider(p.id); handleVoiceSave(voiceEnabled, voiceId, voiceModel, voiceInstructions, p.id, elApiKey, elVoiceId); }}
-                                                        className={`px-4 py-3 rounded-md border text-sm font-medium transition-colors text-left ${ttsProvider === p.id ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                                                        className={`flex-1 h-12 px-3 text-sm font-medium transition-colors text-center leading-tight ${ttsProvider === p.id ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground'}`}
                                                     >
-                                                        <div>{p.label}</div>
-                                                        <div className={`text-xs mt-0.5 ${ttsProvider === p.id ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{p.desc}</div>
+                                                        {p.label}
+                                                        <span className={`block text-xs font-normal ${ttsProvider === p.id ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{p.desc}</span>
                                                     </button>
                                                 ))}
                                             </div>
                                         </div>
+
                                         {ttsProvider === 'openai' && (
                                             <>
-                                                <div className="space-y-2">
-                                                    <Label className="text-sm font-medium">Modelo TTS</Label>
-                                                    <div className="grid grid-cols-3 gap-2">
+                                                {/* Modelo */}
+                                                <div className="space-y-1.5">
+                                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Modelo TTS</p>
+                                                    <div className="flex rounded-md border overflow-hidden divide-x">
                                                         {([
                                                             { id: 'gpt-4o-mini-tts', label: 'GPT-4o Mini', desc: 'Más natural' },
                                                             { id: 'tts-1-hd', label: 'TTS-1 HD', desc: 'Alta calidad' },
@@ -752,32 +786,62 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                             <button
                                                                 key={m.id}
                                                                 onClick={() => { setVoiceModel(m.id); handleVoiceSave(voiceEnabled, voiceId, m.id, voiceInstructions, ttsProvider, elApiKey, elVoiceId); }}
-                                                                className={`px-3 py-2.5 rounded-md border text-sm font-medium transition-colors text-left ${voiceModel === m.id ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                                                                className={`flex-1 h-12 px-2 text-xs font-medium transition-colors text-center leading-tight ${voiceModel === m.id ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground'}`}
                                                             >
-                                                                <div>{m.label}</div>
-                                                                <div className={`text-xs mt-0.5 ${voiceModel === m.id ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{m.desc}</div>
+                                                                {m.label}
+                                                                <span className={`block text-xs font-normal ${voiceModel === m.id ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{m.desc}</span>
                                                             </button>
                                                         ))}
                                                     </div>
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <Label className="text-sm font-medium">Voz</Label>
-                                                    <div className="grid grid-cols-3 gap-2">
+
+                                                {/* Voz */}
+                                                <div className="space-y-1.5">
+                                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Voz</p>
+                                                    <div className="grid grid-cols-3 gap-1.5">
                                                         {(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const).map((v) => (
                                                             <button
                                                                 key={v}
                                                                 onClick={() => { setVoiceId(v); handleVoiceSave(voiceEnabled, v, voiceModel, voiceInstructions, ttsProvider, elApiKey, elVoiceId); }}
-                                                                className={`px-3 py-2.5 rounded-md border text-sm font-medium capitalize transition-colors ${voiceId === v ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                                                                className={`h-10 px-2 rounded-md border text-sm font-medium capitalize transition-colors ${voiceId === v ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
                                                             >
                                                                 {v}
                                                             </button>
                                                         ))}
                                                     </div>
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <Label className="text-sm font-medium">Instrucciones de voz</Label>
+
+                                                {/* Instrucciones */}
+                                                <div className="space-y-1.5">
+                                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Instrucciones de voz</p>
+                                                    {/* Selector de género */}
+                                                    <div className="flex rounded-md border overflow-hidden divide-x">
+                                                        {(['masculino', 'femenino'] as const).map((g) => (
+                                                            <button
+                                                                key={g}
+                                                                type="button"
+                                                                onClick={() => setVoiceGender(g)}
+                                                                className={`flex-1 h-8 text-xs font-medium capitalize transition-colors ${voiceGender === g ? (g === 'masculino' ? 'bg-blue-600 text-white' : 'bg-pink-500 text-white') : 'hover:bg-muted text-foreground'}`}
+                                                            >
+                                                                {g === 'masculino' ? '♂ Masculino' : '♀ Femenino'}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    {/* Plantillas */}
+                                                    <div className="grid grid-cols-2 gap-1.5">
+                                                        {Object.entries(TEMPLATE_LABELS).map(([key, label]) => (
+                                                            <button
+                                                                key={key}
+                                                                type="button"
+                                                                onClick={() => setVoiceInstructions(VOICE_TEMPLATES[key][voiceGender])}
+                                                                className="h-8 px-2 rounded-md border border-input text-xs font-medium hover:bg-muted transition-colors truncate"
+                                                            >
+                                                                {label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                     <Textarea
-                                                        placeholder="Ej: Habla de forma amable y cálida, como un asesor de servicio al cliente. Usa frases cortas y naturales."
+                                                        placeholder="Selecciona una plantilla o escribe tus propias instrucciones de voz..."
                                                         value={voiceInstructions}
                                                         onChange={(e) => setVoiceInstructions(e.target.value)}
                                                         onBlur={() => handleVoiceSave(voiceEnabled, voiceId, voiceModel, voiceInstructions, ttsProvider, elApiKey, elVoiceId)}
@@ -788,10 +852,12 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                 </div>
                                             </>
                                         )}
+
                                         {ttsProvider === 'elevenlabs' && (
                                             <>
-                                                <div className="space-y-2">
-                                                    <Label className="text-sm font-medium">API Key de ElevenLabs</Label>
+                                                {/* API Key */}
+                                                <div className="space-y-1.5">
+                                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">API Key de ElevenLabs</p>
                                                     <div className="flex gap-2">
                                                         <Input
                                                             type="password"
@@ -803,6 +869,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                         />
                                                         <Button
                                                             variant="outline"
+                                                            size="sm"
                                                             onClick={handleLoadElVoices}
                                                             disabled={loadingElVoices || !elApiKey.trim()}
                                                             className="shrink-0"
@@ -812,19 +879,19 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                     </div>
                                                 </div>
                                                 {elVoices.length > 0 && (
-                                                    <div className="space-y-2">
-                                                        <Label className="text-sm font-medium">Selecciona una voz</Label>
+                                                    <div className="space-y-1.5">
+                                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Selecciona una voz</p>
                                                         <Input
                                                             placeholder="Buscar voz..."
                                                             value={elVoiceSearch}
                                                             onChange={(e) => setElVoiceSearch(e.target.value)}
                                                         />
-                                                        <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                                                        <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
                                                             {elVoices.filter(v => v.name.toLowerCase().includes(elVoiceSearch.toLowerCase())).map((v) => (
                                                                 <button
                                                                     key={v.voice_id}
                                                                     onClick={() => { setElVoiceId(v.voice_id); handleVoiceSave(voiceEnabled, voiceId, voiceModel, voiceInstructions, ttsProvider, elApiKey, v.voice_id); }}
-                                                                    className={`w-full px-4 py-2.5 rounded-md border text-sm font-medium transition-colors text-left flex items-center justify-between ${elVoiceId === v.voice_id ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
+                                                                    className={`w-full px-3 py-1.5 rounded-md border text-sm font-medium transition-colors text-left flex items-center justify-between ${elVoiceId === v.voice_id ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}
                                                                 >
                                                                     <span>{v.name}</span>
                                                                     <span className={`text-xs px-2 py-0.5 rounded-full ${elVoiceId === v.voice_id ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
@@ -836,7 +903,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                     </div>
                                                 )}
                                                 {elVoiceId && elVoices.length === 0 && (
-                                                    <p className="text-sm text-muted-foreground">Voz guardada. Haz clic en &quot;Cargar voces&quot; para ver y cambiar.</p>
+                                                    <p className="text-xs text-muted-foreground">Voz guardada. Haz clic en &quot;Cargar voces&quot; para ver y cambiar.</p>
                                                 )}
                                             </>
                                         )}
