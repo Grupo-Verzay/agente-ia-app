@@ -393,9 +393,9 @@ export function LandingClient() {
             <Link href="/login">
               <Button variant="ghost" size="sm" className="text-slate-300 hover:bg-white/10 hover:text-white">Iniciar sesión</Button>
             </Link>
-            <Link href="/register">
+            <a href="https://verzay.com/completar-registro-reunión" target="_blank" rel="noopener noreferrer">
               <Button size="sm" className="bg-blue-600 text-white hover:bg-blue-500">Comenzar gratis</Button>
-            </Link>
+            </a>
           </div>
           <button className="p-2 text-slate-400 sm:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -410,9 +410,9 @@ export function LandingClient() {
               <Link href="/login" className="flex-1">
                 <Button variant="outline" size="sm" className="w-full border-white/20 bg-transparent text-white hover:bg-white/10">Iniciar sesión</Button>
               </Link>
-              <Link href="/register" className="flex-1">
+              <a href="https://verzay.com/completar-registro-reunión" target="_blank" rel="noopener noreferrer" className="flex-1">
                 <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-500">Registrarse</Button>
-              </Link>
+              </a>
             </div>
           </div>
         )}
@@ -443,11 +443,11 @@ export function LandingClient() {
                 atención al cliente — desde el primer día, sin programación.
               </p>
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:flex-nowrap">
-                <Link href="/register">
+                <a href="https://verzay.com/completar-registro-reunión" target="_blank" rel="noopener noreferrer">
                   <Button size="lg" className="w-full gap-2 bg-blue-600 px-8 text-white hover:bg-blue-500 md:w-auto">
                     Comenzar gratis <ArrowRight className="h-4 w-4" />
                   </Button>
-                </Link>
+                </a>
                 <a href="#pricing">
                   <Button size="lg" variant="outline" className="w-full border-white/20 bg-transparent px-8 text-white hover:bg-white/10 md:w-auto">
                     Ver planes
@@ -806,11 +806,11 @@ export function LandingClient() {
                 Configúralo en 5 minutos. Tu agente empieza a responder desde el primer día.
               </p>
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <Link href="/register">
+                <a href="https://verzay.com/completar-registro-reunión" target="_blank" rel="noopener noreferrer">
                   <Button size="lg" className="gap-2 bg-blue-600 px-10 text-white hover:bg-blue-500">
                     Crear cuenta gratis <ArrowRight className="h-4 w-4" />
                   </Button>
-                </Link>
+                </a>
                 <Link href="/login">
                   <Button size="lg" variant="ghost" className="text-slate-300 hover:bg-white/10 hover:text-white">
                     Ya tengo cuenta →

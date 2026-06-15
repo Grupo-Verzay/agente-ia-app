@@ -12,10 +12,15 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         where: { route: { in: ["/panel", "/admin"] } },
         include: { moduleItems: { orderBy: { createdAt: "asc" } } },
     });
-    const panelTabs = (panelModule?.moduleItems ?? []).map((item) => ({
+    const allTabs = (panelModule?.moduleItems ?? []).map((item) => ({
         url: item.url.replace("/admin/", "/panel/"),
         title: item.title,
     }));
+
+    const RESELLER_ALLOWED_TABS = ['/panel/clientes', '/panel/client-billing'];
+    const panelTabs = user.role === 'reseller'
+        ? allTabs.filter(tab => RESELLER_ALLOWED_TABS.includes(tab.url))
+        : allTabs;
 
     return (
         <div className="flex h-full min-w-0 w-full flex-col">
