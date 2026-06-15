@@ -7,6 +7,7 @@ import { useChatUnreadStore } from '@/stores/useChatUnreadStore';
 
 import { canAccessRoute } from '@/utils/access';
 import { PremiumModule } from './shared/PremiumModule';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 import {
     SidebarGroup,
@@ -14,6 +15,9 @@ import {
     SidebarMenuButton,
     SidebarMenuBadge,
     SidebarMenuItem,
+    SidebarMenuSub,
+    SidebarMenuSubItem,
+    SidebarMenuSubButton,
     useSidebar,
 } from '@/components/ui/sidebar';
 
@@ -21,6 +25,8 @@ import { User } from '@prisma/client';
 import clsx from 'clsx';
 import { iconMap } from '@/schema/module';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
+
+const PANEL_ROUTES = ['/panel', '/admin'];
 
 export function NavMain({ user }: { user: User }) {
     const { modules, navPrefs, setLabelModule, labelModule, setCanvaUrl } = useModuleStore();
@@ -59,7 +65,7 @@ export function NavMain({ user }: { user: User }) {
             if (pathname === '/canva') {
                 isActive = labelModule === link.label;
             } else {
-                isActive = pathname === link.route;
+                isActive = pathname === link.route || pathname.startsWith(link.route + '/');
             }
 
             return { ...link, isActive, isHidden, displayLabel, sortOrder };
@@ -121,18 +127,74 @@ export function NavMain({ user }: { user: User }) {
                         );
                     }
 
-                    // Con sub-ítems: navega directo al primer sub-ítem (evita /panel en blanco)
-                    const firstSubItem = moduleItems[0];
-                    const firstDest = firstSubItem?.url?.replace('/admin/', '/panel/') ?? targetRoute;
+                    // Admin/Panel: submódulos van a la barra superior — navegar al primero
+                    if (PANEL_ROUTES.includes(route)) {
+                        const firstSubItem = moduleItems[0];
+                        const firstDest = firstSubItem?.url?.replace('/admin/', '/panel/') ?? targetRoute;
+                        return (
+                            <SidebarMenuItem key={id}>
+                                <SidebarMenuButton className={linkClasses} tooltip={displayLabel} onClick={() => handleRoute(label, firstDest, firstSubItem?.customUrl ?? item.customUrl)}>
+                                    {Icon && <Icon className={iconClasses} />}
+                                    <span>{displayLabel}</span>
+                                    <ChevronRight className="invisible ml-auto" />
+                                    {requiresPremium && <PremiumModule />}
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        );
+                    }
+
+                    // Cualquier otro módulo con submódulos: desplegable en el sidebar
+                    const isAnySubActive = moduleItems.some(subItem => {
+                        const dest = subItem.url?.replace('/admin/', '/panel/') ?? '';
+                        return pathname === dest || pathname.startsWith(dest + '/');
+                    });
+                    const parentClasses = clsx(
+                        'flex items-center justify-between py-2 rounded-md text-sm font-medium transition',
+                        isAnySubActive
+                            ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white'
+                            : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                    );
+                    const parentIconClasses = clsx(
+                        'h-5',
+                        isAnySubActive ? 'invert brightness-200' : ''
+                    );
+
                     return (
-                        <SidebarMenuItem key={id}>
-                            <SidebarMenuButton className={linkClasses} tooltip={displayLabel} onClick={() => handleRoute(label, firstDest, firstSubItem?.customUrl ?? item.customUrl)}>
-                                {Icon && <Icon className={iconClasses} />}
-                                <span>{displayLabel}</span>
-                                <ChevronRight className="invisible ml-auto" />
-                                {requiresPremium && <PremiumModule />}
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
+                        <Collapsible key={id} asChild defaultOpen={isAnySubActive} className="group/collapsible">
+                            <SidebarMenuItem>
+                                <CollapsibleTrigger asChild>
+                                    <SidebarMenuButton className={parentClasses} tooltip={displayLabel}>
+                                        {Icon && <Icon className={parentIconClasses} />}
+                                        <span>{displayLabel}</span>
+                                        <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                                        {requiresPremium && <PremiumModule />}
+                                    </SidebarMenuButton>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                    <SidebarMenuSub>
+                                        {moduleItems.map((subItem) => {
+                                            const dest = subItem.url?.replace('/admin/', '/panel/') ?? targetRoute;
+                                            const isSubActive = pathname === dest || pathname.startsWith(dest + '/');
+                                            return (
+                                                <SidebarMenuSubItem key={subItem.id}>
+                                                    <button
+                                                        onClick={() => handleRoute(label, dest, subItem.customUrl ?? item.customUrl)}
+                                                        className={clsx(
+                                                            'flex w-full items-center rounded-md px-2 py-1.5 text-sm transition-colors',
+                                                            isSubActive
+                                                                ? 'bg-zinc-200 text-zinc-800 font-medium dark:bg-zinc-700 dark:text-zinc-100'
+                                                                : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
+                                                        )}
+                                                    >
+                                                        {subItem.title}
+                                                    </button>
+                                                </SidebarMenuSubItem>
+                                            );
+                                        })}
+                                    </SidebarMenuSub>
+                                </CollapsibleContent>
+                            </SidebarMenuItem>
+                        </Collapsible>
                     );
                 })}
             </SidebarMenu>

@@ -2,8 +2,23 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -17,7 +32,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Loader2, Plus, Pencil, Trash2, ChevronUp, ChevronDown,
+  Loader2, Plus, Pencil, Trash2, GripVertical,
 } from "lucide-react";
 import {
   getAllPaymentMethodConfigs,
@@ -27,6 +42,71 @@ import {
   type PaymentMethodConfigItem,
   type AccountField,
 } from "@/actions/payment-method-config-actions";
+
+function SortableMethodItem({
+  method: m,
+  onEdit,
+  onDelete,
+}: {
+  method: PaymentMethodConfigItem;
+  onEdit: (m: PaymentMethodConfigItem) => void;
+  onDelete: (m: PaymentMethodConfigItem) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: m.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-1.5">
+      <div
+        className="cursor-grab rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted shrink-0"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </div>
+      <Card className="flex-1 border-border">
+        <CardHeader className="p-3">
+          <div className="flex items-center gap-3">
+            {m.icon && <span className="text-xl shrink-0">{m.icon}</span>}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium">{m.label}</span>
+                <span className="text-[10px] text-muted-foreground font-mono">{m.method}</span>
+                {!m.isActive && (
+                  <Badge variant="secondary" className="text-[10px]">Inactivo</Badge>
+                )}
+              </div>
+              {m.accountFields.length > 0 && (
+                <p className="text-xs text-muted-foreground truncate">
+                  {m.accountFields.map((f) => f.value).filter(Boolean).join(" · ")}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEdit(m)}>
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50"
+                onClick={() => onDelete(m)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+    </div>
+  );
+}
 
 type FormState = {
   id?: string;
@@ -53,7 +133,8 @@ export function PagosMain() {
   const [form, setForm] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PaymentMethodConfigItem | null>(null);
-  const [reordering, setReordering] = useState(false);
+
+  const sensors = useSensors(useSensor(PointerSensor));
 
   const fetchMethods = useCallback(async () => {
     setLoading(true);
@@ -114,15 +195,21 @@ export function PagosMain() {
     }
   };
 
-  const move = async (index: number, dir: -1 | 1) => {
-    const newList = [...methods];
-    const swapIdx = index + dir;
-    if (swapIdx < 0 || swapIdx >= newList.length) return;
-    [newList[index], newList[swapIdx]] = [newList[swapIdx], newList[index]];
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = methods.findIndex((m) => m.id === active.id);
+    const newIndex = methods.findIndex((m) => m.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const newList = arrayMove(methods, oldIndex, newIndex);
     setMethods(newList);
-    setReordering(true);
-    await reorderPaymentMethods(newList.map((m) => m.id));
-    setReordering(false);
+    const toastId = toast.loading("Guardando orden...");
+    const res = await reorderPaymentMethods(newList.map((m) => m.id));
+    if (res.success) {
+      toast.success("Orden actualizado", { id: toastId });
+    } else {
+      toast.error("Error al guardar el orden", { id: toastId });
+    }
   };
 
   const updateField = (i: number, patch: Partial<AccountField>) =>
@@ -178,74 +265,27 @@ export function PagosMain() {
           No hay métodos configurados. Agrega el primero.
         </p>
       ) : (
-        <div className="space-y-2">
-          {methods.map((m, i) => (
-            <Card key={m.id} className="border-border">
-              <CardHeader className="p-3">
-                <div className="flex items-center gap-3">
-                  {/* Flechas de orden */}
-                  <div className="flex flex-col gap-0.5 shrink-0">
-                    <button
-                      onClick={() => void move(i, -1)}
-                      disabled={i === 0 || reordering}
-                      className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                    >
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => void move(i, 1)}
-                      disabled={i === methods.length - 1 || reordering}
-                      className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                    >
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Emoji/icon */}
-                  {m.icon && (
-                    <span className="text-xl shrink-0">{m.icon}</span>
-                  )}
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium">{m.label}</span>
-                      <span className="text-[10px] text-muted-foreground font-mono">{m.method}</span>
-                      {!m.isActive && (
-                        <Badge variant="secondary" className="text-[10px]">Inactivo</Badge>
-                      )}
-                    </div>
-                    {m.accountFields.length > 0 && (
-                      <p className="text-xs text-muted-foreground truncate">
-                        {m.accountFields.map((f) => f.value).filter(Boolean).join(" · ")}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Acciones */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      onClick={() => openEdit(m)}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50"
-                      onClick={() => setDeleteTarget(m)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={methods.map((m) => m.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-2">
+              {methods.map((m) => (
+                <SortableMethodItem
+                  key={m.id}
+                  method={m}
+                  onEdit={openEdit}
+                  onDelete={setDeleteTarget}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* Dialog crear/editar */}
