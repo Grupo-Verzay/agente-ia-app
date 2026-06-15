@@ -442,15 +442,20 @@ export function LandingClient() {
                 Transforma tus mensajes en un sistema automático de ventas y
                 atención al cliente — desde el primer día, sin programación.
               </p>
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:flex-nowrap">
                 <Link href="/register">
-                  <Button size="lg" className="w-full gap-2 bg-blue-600 px-8 text-white hover:bg-blue-500 sm:w-auto">
+                  <Button size="lg" className="w-full gap-2 bg-blue-600 px-8 text-white hover:bg-blue-500 md:w-auto">
                     Comenzar gratis <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
                 <a href="#pricing">
-                  <Button size="lg" variant="outline" className="w-full border-white/20 bg-transparent px-8 text-white hover:bg-white/10 sm:w-auto">
+                  <Button size="lg" variant="outline" className="w-full border-white/20 bg-transparent px-8 text-white hover:bg-white/10 md:w-auto">
                     Ver planes
+                  </Button>
+                </a>
+                <a href="https://verzay.com/agendar-una-reunion" target="_blank" rel="noopener noreferrer">
+                  <Button size="lg" variant="outline" className="w-full gap-2 border-cyan-500/40 bg-cyan-500/10 px-8 text-cyan-300 hover:bg-cyan-500/20 hover:text-cyan-200 md:w-auto">
+                    <Calendar className="h-4 w-4" /> Agendar asesoría
                   </Button>
                 </a>
               </div>
