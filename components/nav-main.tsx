@@ -98,7 +98,7 @@ export function NavMain({ user }: { user: User }) {
                         isActive && 'invert brightness-200'
                     );
 
-                    const validateRouteAndRole = user.role === 'reseller' && route === '/admin';
+                    const validateRouteAndRole = user.role === 'reseller' && PANEL_ROUTES.includes(route);
                     const targetRoute = validateRouteAndRole ? '/admin/clientes' : route;
 
                     // Si NO hay subitems, renderizar directamente como link
