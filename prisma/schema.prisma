@@ -173,6 +173,7 @@ model Module {
   updatedAt              DateTime     @updatedAt
   showOnlySelectedPlans  Boolean?     @default(false)
   customUrl              String?
+  isContainer            Boolean      @default(false)
   moduleItems            ModuleItem[]
   userModules            UserModule[]
   navPreferences         UserNavPreference[]

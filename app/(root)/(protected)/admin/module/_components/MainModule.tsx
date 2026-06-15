@@ -30,6 +30,7 @@ export const MainModule = () => {
     const normalizeModule = (moduleComponent: ModuleWithItems): FormModuleValues => ({
         id: moduleComponent.id,
         label: moduleComponent.label,
+        isContainer: moduleComponent.isContainer ?? false,
         route: moduleComponent.route,
         customUrl: moduleComponent.customUrl ?? '',
         icon: moduleComponent.icon,

@@ -79,6 +79,7 @@ export const ItemModuleSchema = z.object({
 export const FormModuleSchema = z.object({
     id: z.string().optional(),
     label: z.string().min(1, "Campo requerido"),
+    isContainer: z.boolean().default(false),
     route: z.string().min(1, "Campo requerido"),
     customUrl: z.string().optional(),
     icon: z.string().min(1, "Campo requerido"),

@@ -36,6 +36,7 @@ export const ModuleForm = ({
         resolver: zodResolver(FormModuleSchema),
         defaultValues: {
             showInSidebar: true,
+            isContainer: false,
             ...defaultValues,
         },
     });
@@ -49,6 +50,8 @@ export const ModuleForm = ({
 
     const selectedRoute = form.watch("route");
     const watchedItems = form.watch("items");
+
+    const isContainerRoute = selectedRoute === "#container";
 
     return (
         <Form {...form}>
@@ -73,8 +76,12 @@ export const ModuleForm = ({
                         <FormItem>
                             <FormLabel className="text-xs font-semibold text-foreground">Ruta</FormLabel>
                             <Select
-                                onValueChange={field.onChange}
+                                onValueChange={(val) => {
+                                    field.onChange(val);
+                                    form.setValue("isContainer", val === "#container");
+                                }}
                                 defaultValue={field.value}
+                                value={field.value}
                             >
                                 <FormControl>
                                     <SelectTrigger>
@@ -82,6 +89,9 @@ export const ModuleForm = ({
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
+                                    <SelectItem value="#container">
+                                        Sin ruta — Módulo contenedor (solo sub-módulos)
+                                    </SelectItem>
                                     {[...navigationRoutes]
                                         .sort((a, b) => a.route.localeCompare(b.route))
                                         .map((item) => (
@@ -89,14 +99,14 @@ export const ModuleForm = ({
                                                 {item.route}
                                             </SelectItem>
                                         ))}
-
                                 </SelectContent>
                             </Select>
+                            <FormMessage />
                         </FormItem>
                     )}
                 />
 
-                {selectedRoute === "/canva" && (
+                {!isContainerRoute && selectedRoute === "/canva" && (
                     <FormField
                         control={form.control}
                         name="customUrl"
@@ -228,7 +238,6 @@ export const ModuleForm = ({
                             </div>
 
                             <div className="flex gap-2 flex-col">
-                                {/* SELECT para URL */}
                                 <Select
                                     onValueChange={(value) => form.setValue(`items.${index}.url`, value)}
                                     defaultValue={form.watch(`items.${index}.url`)}
@@ -246,7 +255,6 @@ export const ModuleForm = ({
                                             ))}
                                     </SelectContent>
                                 </Select>
-                                {/* Ruta personalizada cuando la URL es /canva */}
                                 {watchedItems?.[index]?.url === "/canva" && (
                                     <Input
                                         placeholder="https://bot.verzay.co/es/typebots"
@@ -254,7 +262,6 @@ export const ModuleForm = ({
                                         className="w-full"
                                     />
                                 )}
-                                {/* INPUT para título */}
                                 <Input
                                     placeholder="Título"
                                     {...form.register(`items.${index}.title`)}

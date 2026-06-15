@@ -15,7 +15,8 @@ import {
     Star,
     Edit2Icon,
     Trash2,
-    GripVertical
+    GripVertical,
+    Layers
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { iconMap, ModuleWithItems } from '@/schema/module'
@@ -73,11 +74,18 @@ export const ModuleCard = ({
                     {Icon && <Icon className="h-5 w-5 text-primary" />}
                     {moduleComponent.label}
                 </CardTitle>
-                <p className="text-xs text-muted-foreground truncate">{moduleComponent.route}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                    {moduleComponent.isContainer ? 'Módulo contenedor' : moduleComponent.route}
+                </p>
             </CardHeader>
 
             <CardContent className="pl-8 pr-4 pt-2 pb-2 space-y-4 text-sm">
                 <div className="flex flex-wrap gap-2">
+                    {moduleComponent.isContainer && (
+                        <Badge variant="outline" className="flex items-center gap-1 border-violet-400 text-violet-600">
+                            <Layers className="h-4 w-4" /> Contenedor
+                        </Badge>
+                    )}
                     {moduleComponent.adminOnly && (
                         <Badge variant="secondary" className="flex items-center gap-1">
                             <ShieldCheck className="h-4 w-4" /> Admin
