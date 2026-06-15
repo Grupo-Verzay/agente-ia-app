@@ -128,9 +128,12 @@ export function NavMain({ user }: { user: User }) {
                     }
 
                     // Admin/Panel: submódulos van a la barra superior — navegar al primero
+                    // Resellers van directo a /admin/clientes sin importar los sub-items
                     if (PANEL_ROUTES.includes(route)) {
                         const firstSubItem = moduleItems[0];
-                        const firstDest = firstSubItem?.url?.replace('/admin/', '/panel/') ?? targetRoute;
+                        const firstDest = validateRouteAndRole
+                            ? targetRoute
+                            : firstSubItem?.url?.replace('/admin/', '/panel/') ?? targetRoute;
                         return (
                             <SidebarMenuItem key={id}>
                                 <SidebarMenuButton className={linkClasses} tooltip={displayLabel} onClick={() => handleRoute(label, firstDest, firstSubItem?.customUrl ?? item.customUrl)}>
