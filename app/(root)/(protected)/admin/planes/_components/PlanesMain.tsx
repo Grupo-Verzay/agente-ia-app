@@ -51,6 +51,7 @@ type EditForm = {
   isActive: boolean;
   color: string;
   order: number;
+  checkoutUrl: string;
 };
 
 export function PlanesMain() {
@@ -90,6 +91,7 @@ export function PlanesMain() {
       isActive: existing?.isActive ?? true,
       color: existing?.color ?? "",
       order: existing?.order ?? PLANS.indexOf(plan),
+      checkoutUrl: existing?.checkoutUrl ?? "",
     });
     setEditOpen(true);
   };
@@ -102,6 +104,7 @@ export function PlanesMain() {
       features: form.features.split("\n").map((f) => f.trim()).filter(Boolean),
       description: form.description || undefined,
       color: form.color || undefined,
+      checkoutUrl: form.checkoutUrl || undefined,
     });
     if (res.success) {
       toast.success(res.message);
@@ -229,14 +232,14 @@ export function PlanesMain() {
       )}
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="flex h-[585px] max-w-md flex-col">
           <DialogHeader>
             <DialogTitle>
               Editar Plan — {form ? `${PLAN_LABELS[form.plan]} (${form.assistanceType})` : ""}
             </DialogTitle>
           </DialogHeader>
           {form && (
-            <div className="space-y-4 py-2">
+            <div className="flex-1 space-y-4 overflow-y-auto py-2 pr-1">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Precio (USD/mes)</Label>
@@ -275,6 +278,17 @@ export function PlanesMain() {
                   placeholder={"Asistente IA 24/7\nSoporte básico\n1 instancia WhatsApp"}
                 />
               </div>
+              <div className="space-y-1">
+                <Label>Link de pago (Checkout URL)</Label>
+                <Input
+                  value={form.checkoutUrl}
+                  onChange={(e) => setForm({ ...form, checkoutUrl: e.target.value })}
+                  placeholder="https://checkout.stripe.com/..."
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Si se configura, el botón "Comenzar ahora" del landing llevará a este link en lugar del registro.
+                </p>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Color (hex o nombre)</Label>
@@ -293,7 +307,7 @@ export function PlanesMain() {
                   />
                 </div>
               </div>
-              <div className="flex items-center gap-4 pt-1">
+              <div className="flex items-center justify-between pt-1">
                 <label className="flex items-center gap-2 text-sm">
                   <Switch
                     checked={form.isPopular}
@@ -302,11 +316,11 @@ export function PlanesMain() {
                   Popular
                 </label>
                 <label className="flex items-center gap-2 text-sm">
+                  Activo
                   <Switch
                     checked={form.isActive}
                     onCheckedChange={(v) => setForm({ ...form, isActive: v })}
                   />
-                  Activo
                 </label>
               </div>
             </div>

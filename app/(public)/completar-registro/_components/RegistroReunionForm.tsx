@@ -168,7 +168,7 @@ export function RegistroReunionForm() {
         error={errors.nombreNegocio?.message}
       />
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:items-end">
         <SelectField
           label="¿Cuántos mensajes recibes al día aprox.?"
           name="mensajesAlDia"
@@ -184,7 +184,7 @@ export function RegistroReunionForm() {
           error={errors.asesores?.message}
         />
         <SelectField
-          label="¿Ya cuentas con un proceso/embudo de ventas?"
+          label="¿Ya cuentas con un proceso de ventas?"
           name="procesoVentas"
           options={PROCESO}
           register={register}

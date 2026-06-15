@@ -2,7 +2,7 @@ import { Bot } from 'lucide-react';
 import Link from 'next/link';
 import { RegistroReunionForm } from './_components/RegistroReunionForm';
 
-export const metadata = { title: 'Completa tu registro | Agente IA' };
+export const metadata = { title: 'Activa tu cuenta gratis | Agente IA' };
 
 export default function CompletarRegistroPage() {
   return (
@@ -17,11 +17,10 @@ export default function CompletarRegistroPage() {
         </Link>
         <div className="mt-2">
           <h1 className="text-2xl font-bold text-white sm:text-3xl">
-            📋 Registro reunión
+            🚀 Activa tu cuenta gratis
           </h1>
           <p className="mt-2 max-w-md text-sm text-slate-400">
-            Cuéntanos sobre tu negocio para preparar tu cuenta y que tu agente
-            funcione desde el primer día.
+            Cuéntanos sobre tu negocio para que tu agente esté listo desde el primer día.
           </p>
         </div>
       </div>

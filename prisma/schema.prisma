@@ -1106,6 +1106,7 @@ model SubscriptionPlan {
   isActive       Boolean  @default(true)
   color          String?
   order          Int      @default(0)
+  checkoutUrl    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

@@ -16,6 +16,7 @@ export type SubscriptionPlanItem = {
   isActive: boolean;
   color: string | null;
   order: number;
+  checkoutUrl: string | null;
 };
 
 export async function getAllSubscriptionPlans() {
@@ -64,6 +65,7 @@ export async function upsertSubscriptionPlan(data: {
   isActive?: boolean;
   color?: string;
   order?: number;
+  checkoutUrl?: string;
 }) {
   try {
     const payload = {
@@ -75,6 +77,7 @@ export async function upsertSubscriptionPlan(data: {
       isActive: data.isActive ?? true,
       color: data.color ?? null,
       order: data.order ?? 0,
+      checkoutUrl: data.checkoutUrl ?? null,
     };
     const existing = await db.subscriptionPlan.findFirst({
       where: { plan: data.plan, assistanceType: data.assistanceType },

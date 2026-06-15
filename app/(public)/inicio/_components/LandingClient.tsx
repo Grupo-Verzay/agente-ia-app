@@ -419,26 +419,26 @@ export function LandingClient() {
       </header>
 
       {/* ══ HERO ════════════════════════════════════════════════════════════ */}
-      <section className="relative pb-10 pt-12">
+      <section className="relative pb-6 pt-8">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute right-0 top-0 h-[500px] w-[500px] rounded-full bg-blue-600/15 blur-3xl" />
           <div className="absolute -left-20 top-20 h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl" />
         </div>
         <div className="relative mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
-          <div className="grid min-h-[80vh] grid-cols-1 items-center gap-12 lg:grid-cols-2">
+          <div className="grid min-h-[75vh] grid-cols-1 items-center gap-8 lg:grid-cols-2">
 
             {/* Columna izquierda */}
             <div className="flex flex-col justify-center">
-              <Badge className="mb-5 inline-flex w-fit items-center gap-1.5 border-blue-500/20 bg-blue-500/10 px-3 py-1 text-blue-400">
+              <Badge className="mb-4 inline-flex w-fit items-center gap-1.5 border-blue-500/20 bg-blue-500/10 px-3 py-1 text-blue-400">
                 <MessageCircle className="h-3 w-3" /> Agente IA para WhatsApp
               </Badge>
-              <h1 className="mb-5 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl xl:text-6xl">
+              <h1 className="mb-4 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl xl:text-6xl">
                 Automatiza tu WhatsApp
                 <span className="block bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
                   con estructura profesional
                 </span>
               </h1>
-              <p className="mb-7 text-base text-slate-400 sm:text-lg xl:text-xl">
+              <p className="mb-5 text-base text-slate-400 sm:text-lg xl:text-xl">
                 Transforma tus mensajes en un sistema automático de ventas y
                 atención al cliente — desde el primer día, sin programación.
               </p>
@@ -467,7 +467,7 @@ export function LandingClient() {
                   </span>
                 ))}
               </div>
-              <div className="mt-8 grid grid-cols-3 gap-6 border-t border-white/10 pt-8">
+              <div className="mt-5 grid grid-cols-3 gap-6 border-t border-white/10 pt-5">
                 {[
                   { value: "+500", label: "Negocios activos" },
                   { value: "4.9★", label: "Calificación promedio" },
@@ -961,8 +961,16 @@ function PlanCard({ plan, assistanceType, billingPeriod }: {
               <MessageCircle className="h-4 w-4" /> Contactar
             </Button>
           </a>
+        ) : plan.checkoutUrl ? (
+          <a href={plan.checkoutUrl} target="_blank" rel="noopener noreferrer">
+            <Button className={cn("w-full", plan.isPopular
+              ? "bg-blue-600 text-white hover:bg-blue-500"
+              : "border border-white/10 bg-white/10 text-white hover:bg-white/20")}>
+              Comenzar ahora
+            </Button>
+          </a>
         ) : (
-          <Link href={`/register?plan=${plan.plan}`}>
+          <Link href={`/completar-registro?plan=${plan.plan}`}>
             <Button className={cn("w-full", plan.isPopular
               ? "bg-blue-600 text-white hover:bg-blue-500"
               : "border border-white/10 bg-white/10 text-white hover:bg-white/20")}>
