@@ -9,6 +9,8 @@ export type SubscriptionPlanItem = {
   plan: Plan;
   assistanceType: string;
   priceUSD: number;
+  priceQuarterly: number | null;
+  priceYearly: number | null;
   credits: number;
   features: string[];
   description: string | null;
@@ -16,7 +18,9 @@ export type SubscriptionPlanItem = {
   isActive: boolean;
   color: string | null;
   order: number;
-  checkoutUrl: string | null;
+  checkoutUrlMonthly: string | null;
+  checkoutUrlQuarterly: string | null;
+  checkoutUrlYearly: string | null;
 };
 
 export async function getAllSubscriptionPlans() {
@@ -29,6 +33,8 @@ export async function getAllSubscriptionPlans() {
       data: plans.map((p) => ({
         ...p,
         priceUSD: Number(p.priceUSD),
+        priceQuarterly: p.priceQuarterly != null ? Number(p.priceQuarterly) : null,
+        priceYearly: p.priceYearly != null ? Number(p.priceYearly) : null,
       })) as SubscriptionPlanItem[],
     };
   } catch {
@@ -47,6 +53,8 @@ export async function getActiveSubscriptionPlans() {
       data: plans.map((p) => ({
         ...p,
         priceUSD: Number(p.priceUSD),
+        priceQuarterly: p.priceQuarterly != null ? Number(p.priceQuarterly) : null,
+        priceYearly: p.priceYearly != null ? Number(p.priceYearly) : null,
       })) as SubscriptionPlanItem[],
     };
   } catch {
@@ -58,6 +66,8 @@ export async function upsertSubscriptionPlan(data: {
   plan: Plan;
   assistanceType: string;
   priceUSD: number;
+  priceQuarterly?: number | null;
+  priceYearly?: number | null;
   credits: number;
   features: string[];
   description?: string;
@@ -65,11 +75,15 @@ export async function upsertSubscriptionPlan(data: {
   isActive?: boolean;
   color?: string;
   order?: number;
-  checkoutUrl?: string;
+  checkoutUrlMonthly?: string;
+  checkoutUrlQuarterly?: string;
+  checkoutUrlYearly?: string;
 }) {
   try {
     const payload = {
       priceUSD: data.priceUSD,
+      priceQuarterly: data.priceQuarterly ?? null,
+      priceYearly: data.priceYearly ?? null,
       credits: data.credits,
       features: data.features,
       description: data.description ?? null,
@@ -77,7 +91,9 @@ export async function upsertSubscriptionPlan(data: {
       isActive: data.isActive ?? true,
       color: data.color ?? null,
       order: data.order ?? 0,
-      checkoutUrl: data.checkoutUrl ?? null,
+      checkoutUrlMonthly: data.checkoutUrlMonthly ?? null,
+      checkoutUrlQuarterly: data.checkoutUrlQuarterly ?? null,
+      checkoutUrlYearly: data.checkoutUrlYearly ?? null,
     };
     const existing = await db.subscriptionPlan.findFirst({
       where: { plan: data.plan, assistanceType: data.assistanceType },

@@ -23,22 +23,6 @@ const PLAN_ORDER = ["lite", "basico", "intermedio", "avanzado", "enterprise", "p
 
 type BillingPeriod = "monthly" | "quarterly" | "yearly";
 
-const PRICES: Record<string, Record<string, Record<BillingPeriod, number>>> = {
-  IA: {
-    lite:       { monthly: 19, quarterly: 17, yearly: 15 },
-    basico:     { monthly: 39, quarterly: 30, yearly: 25 },
-    intermedio: { monthly: 59, quarterly: 50, yearly: 45 },
-    avanzado:   { monthly: 79, quarterly: 65, yearly: 55 },
-    enterprise: { monthly: 99, quarterly: 85, yearly: 75 },
-  },
-  HUMANO: {
-    lite:       { monthly: 29, quarterly: 25, yearly: 19 },
-    basico:     { monthly: 49, quarterly: 45, yearly: 39 },
-    intermedio: { monthly: 99, quarterly: 85, yearly: 79 },
-    avanzado:   { monthly: 149, quarterly: 129, yearly: 119 },
-    enterprise: { monthly: 199, quarterly: 169, yearly: 149 },
-  },
-};
 
 const INTEGRATIONS = [
   { name: "WhatsApp Business",   color: "text-green-400 border-green-500/20 bg-green-500/5",      emoji: "💬" },
@@ -900,17 +884,25 @@ function StepCard({ step, accent, icon, title, description, items, checkColor }:
   );
 }
 
-function PlanCard({ plan, assistanceType, billingPeriod }: {
+function PlanCard({ plan, billingPeriod }: {
   plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod;
 }) {
-  const isCustom  = plan.plan === "personalizado";
-  const planPrices = PRICES[assistanceType]?.[plan.plan];
-  const price      = planPrices?.[billingPeriod] ?? 0;
+  const isCustom = plan.plan === "personalizado";
+  const price = billingPeriod === "monthly"
+    ? plan.priceUSD
+    : billingPeriod === "quarterly"
+    ? (plan.priceQuarterly ?? plan.priceUSD)
+    : (plan.priceYearly ?? plan.priceUSD);
+  const checkoutUrl = billingPeriod === "monthly"
+    ? plan.checkoutUrlMonthly
+    : billingPeriod === "quarterly"
+    ? (plan.checkoutUrlQuarterly ?? plan.checkoutUrlMonthly)
+    : (plan.checkoutUrlYearly ?? plan.checkoutUrlMonthly);
   const billedNote = billingPeriod === "monthly"
     ? "Facturado mensualmente"
     : billingPeriod === "quarterly"
-    ? `Facturado $${price * 3} cada 3 meses`
-    : `Facturado $${price * 12} al año`;
+    ? `Facturado $${(price * 3).toFixed(0)} cada 3 meses`
+    : `Facturado $${(price * 12).toFixed(0)} al año`;
 
   return (
     <div className={cn("relative flex flex-col rounded-xl border p-5 transition-all hover:bg-white/[0.07]",
@@ -961,8 +953,8 @@ function PlanCard({ plan, assistanceType, billingPeriod }: {
               <MessageCircle className="h-4 w-4" /> Contactar
             </Button>
           </a>
-        ) : plan.checkoutUrl ? (
-          <a href={plan.checkoutUrl} target="_blank" rel="noopener noreferrer">
+        ) : checkoutUrl ? (
+          <a href={checkoutUrl} target="_blank" rel="noopener noreferrer">
             <Button className={cn("w-full", plan.isPopular
               ? "bg-blue-600 text-white hover:bg-blue-500"
               : "border border-white/10 bg-white/10 text-white hover:bg-white/20")}>

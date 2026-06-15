@@ -40,10 +40,14 @@ const defaultCredits: Record<Plan, Record<string, number>> = {
   personalizado: { IA: 0,     HUMANO: 0 },
 };
 
+type BillingPeriod = "monthly" | "quarterly" | "yearly";
+
 type EditForm = {
   plan: Plan;
   assistanceType: string;
   priceUSD: number;
+  priceQuarterly: number;
+  priceYearly: number;
   credits: number;
   features: string;
   description: string;
@@ -51,7 +55,9 @@ type EditForm = {
   isActive: boolean;
   color: string;
   order: number;
-  checkoutUrl: string;
+  checkoutUrlMonthly: string;
+  checkoutUrlQuarterly: string;
+  checkoutUrlYearly: string;
 };
 
 export function PlanesMain() {
@@ -60,6 +66,7 @@ export function PlanesMain() {
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<EditForm | null>(null);
+  const [period, setPeriod] = useState<BillingPeriod>("monthly");
 
   const fetchPlans = useCallback(async () => {
     setLoading(true);
@@ -84,6 +91,8 @@ export function PlanesMain() {
       plan,
       assistanceType: type,
       priceUSD: existing?.priceUSD ?? defaultPrices[plan][type],
+      priceQuarterly: existing?.priceQuarterly ?? 0,
+      priceYearly: existing?.priceYearly ?? 0,
       credits: existing?.credits ?? defaultCredits[plan][type],
       features: existing?.features.join("\n") ?? "",
       description: existing?.description ?? "",
@@ -91,7 +100,9 @@ export function PlanesMain() {
       isActive: existing?.isActive ?? true,
       color: existing?.color ?? "",
       order: existing?.order ?? PLANS.indexOf(plan),
-      checkoutUrl: existing?.checkoutUrl ?? "",
+      checkoutUrlMonthly: existing?.checkoutUrlMonthly ?? "",
+      checkoutUrlQuarterly: existing?.checkoutUrlQuarterly ?? "",
+      checkoutUrlYearly: existing?.checkoutUrlYearly ?? "",
     });
     setEditOpen(true);
   };
@@ -104,7 +115,11 @@ export function PlanesMain() {
       features: form.features.split("\n").map((f) => f.trim()).filter(Boolean),
       description: form.description || undefined,
       color: form.color || undefined,
-      checkoutUrl: form.checkoutUrl || undefined,
+      priceQuarterly: form.priceQuarterly || null,
+      priceYearly: form.priceYearly || null,
+      checkoutUrlMonthly: form.checkoutUrlMonthly || undefined,
+      checkoutUrlQuarterly: form.checkoutUrlQuarterly || undefined,
+      checkoutUrlYearly: form.checkoutUrlYearly || undefined,
     });
     if (res.success) {
       toast.success(res.message);
@@ -240,87 +255,99 @@ export function PlanesMain() {
           </DialogHeader>
           {form && (
             <div className="flex-1 space-y-4 overflow-y-auto py-2 pr-1">
+
+              {/* Selector de período */}
+              <div className="flex rounded-lg border border-border overflow-hidden">
+                {([ ["monthly", "Mensual"], ["quarterly", "Trimestral"], ["yearly", "Anual"] ] as [BillingPeriod, string][]).map(([p, label]) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPeriod(p)}
+                    className={`flex-1 py-1.5 text-xs font-medium transition-colors ${period === p ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Campos por período */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Precio (USD/mes)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={form.priceUSD}
-                    onChange={(e) => setForm({ ...form, priceUSD: parseFloat(e.target.value) || 0 })}
-                  />
+                  {period === "monthly" && (
+                    <Input type="number" min={0} step={0.01} value={form.priceUSD}
+                      onChange={(e) => setForm({ ...form, priceUSD: parseFloat(e.target.value) || 0 })} />
+                  )}
+                  {period === "quarterly" && (
+                    <Input type="number" min={0} step={0.01} value={form.priceQuarterly}
+                      onChange={(e) => setForm({ ...form, priceQuarterly: parseFloat(e.target.value) || 0 })} />
+                  )}
+                  {period === "yearly" && (
+                    <Input type="number" min={0} step={0.01} value={form.priceYearly}
+                      onChange={(e) => setForm({ ...form, priceYearly: parseFloat(e.target.value) || 0 })} />
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label>Créditos</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.credits}
-                    onChange={(e) => setForm({ ...form, credits: parseInt(e.target.value) || 0 })}
-                  />
+                  <Input type="number" min={0} value={form.credits}
+                    onChange={(e) => setForm({ ...form, credits: parseInt(e.target.value) || 0 })} />
                 </div>
               </div>
+
+              <div className="space-y-1">
+                <Label>Link de pago</Label>
+                {period === "monthly" && (
+                  <Input value={form.checkoutUrlMonthly}
+                    onChange={(e) => setForm({ ...form, checkoutUrlMonthly: e.target.value })}
+                    placeholder="https://checkout.stripe.com/..." />
+                )}
+                {period === "quarterly" && (
+                  <Input value={form.checkoutUrlQuarterly}
+                    onChange={(e) => setForm({ ...form, checkoutUrlQuarterly: e.target.value })}
+                    placeholder="https://checkout.stripe.com/..." />
+                )}
+                {period === "yearly" && (
+                  <Input value={form.checkoutUrlYearly}
+                    onChange={(e) => setForm({ ...form, checkoutUrlYearly: e.target.value })}
+                    placeholder="https://checkout.stripe.com/..." />
+                )}
+                <p className="text-[11px] text-muted-foreground">El botón "Comenzar ahora" usará este link si está configurado.</p>
+              </div>
+
+              {/* Campos compartidos */}
               <div className="space-y-1">
                 <Label>Descripción breve</Label>
-                <Input
-                  value={form.description}
+                <Input value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Ideal para pequeños negocios..."
-                />
+                  placeholder="Ideal para pequeños negocios..." />
               </div>
               <div className="space-y-1">
                 <Label>Características (una por línea)</Label>
-                <Textarea
-                  rows={5}
-                  value={form.features}
+                <Textarea rows={4} value={form.features}
                   onChange={(e) => setForm({ ...form, features: e.target.value })}
-                  placeholder={"Asistente IA 24/7\nSoporte básico\n1 instancia WhatsApp"}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Link de pago (Checkout URL)</Label>
-                <Input
-                  value={form.checkoutUrl}
-                  onChange={(e) => setForm({ ...form, checkoutUrl: e.target.value })}
-                  placeholder="https://checkout.stripe.com/..."
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Si se configura, el botón "Comenzar ahora" del landing llevará a este link en lugar del registro.
-                </p>
+                  placeholder={"Asistente IA 24/7\nSoporte básico\n1 instancia WhatsApp"} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Color (hex o nombre)</Label>
-                  <Input
-                    value={form.color}
+                  <Input value={form.color}
                     onChange={(e) => setForm({ ...form, color: e.target.value })}
-                    placeholder="#F59E0B"
-                  />
+                    placeholder="#F59E0B" />
                 </div>
                 <div className="space-y-1">
                   <Label>Orden</Label>
-                  <Input
-                    type="number"
-                    value={form.order}
-                    onChange={(e) => setForm({ ...form, order: parseInt(e.target.value) || 0 })}
-                  />
+                  <Input type="number" value={form.order}
+                    onChange={(e) => setForm({ ...form, order: parseInt(e.target.value) || 0 })} />
                 </div>
               </div>
               <div className="flex items-center justify-between pt-1">
                 <label className="flex items-center gap-2 text-sm">
-                  <Switch
-                    checked={form.isPopular}
-                    onCheckedChange={(v) => setForm({ ...form, isPopular: v })}
-                  />
+                  <Switch checked={form.isPopular} onCheckedChange={(v) => setForm({ ...form, isPopular: v })} />
                   Popular
                 </label>
                 <label className="flex items-center gap-2 text-sm">
                   Activo
-                  <Switch
-                    checked={form.isActive}
-                    onCheckedChange={(v) => setForm({ ...form, isActive: v })}
-                  />
+                  <Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} />
                 </label>
               </div>
             </div>

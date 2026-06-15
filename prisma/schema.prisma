@@ -1104,10 +1104,14 @@ model SubscriptionPlan {
   description    String?
   isPopular      Boolean  @default(false)
   isActive       Boolean  @default(true)
-  color          String?
-  order          Int      @default(0)
-  checkoutUrl    String?
-  createdAt      DateTime @default(now())
+  color               String?
+  order               Int      @default(0)
+  checkoutUrlMonthly  String?
+  checkoutUrlQuarterly String?
+  checkoutUrlYearly   String?
+  priceQuarterly      Decimal? @db.Decimal(10, 2)
+  priceYearly         Decimal? @db.Decimal(10, 2)
+  createdAt           DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   subscriptions  UserSubscription[]
