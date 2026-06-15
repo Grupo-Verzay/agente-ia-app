@@ -37,7 +37,8 @@ export async function getAllSubscriptionPlans() {
         priceYearly: p.priceYearly != null ? Number(p.priceYearly) : null,
       })) as SubscriptionPlanItem[],
     };
-  } catch {
+  } catch (e) {
+    console.error("[getAllSubscriptionPlans] Error:", e);
     return { success: false, data: [] as SubscriptionPlanItem[] };
   }
 }

@@ -884,7 +884,7 @@ function StepCard({ step, accent, icon, title, description, items, checkColor }:
   );
 }
 
-function PlanCard({ plan, billingPeriod }: {
+function PlanCard({ plan, assistanceType, billingPeriod }: {
   plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod;
 }) {
   const isCustom = plan.plan === "personalizado";

@@ -294,6 +294,20 @@ export function PlanesMain() {
                 </div>
               </div>
 
+              {/* Campos compartidos */}
+              <div className="space-y-1">
+                <Label>Descripción breve</Label>
+                <Input value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Ideal para pequeños negocios..." />
+              </div>
+              <div className="space-y-1">
+                <Label>Características (una por línea)</Label>
+                <Textarea rows={4} value={form.features}
+                  onChange={(e) => setForm({ ...form, features: e.target.value })}
+                  placeholder={"Asistente IA 24/7\nSoporte básico\n1 instancia WhatsApp"} />
+              </div>
+
               <div className="space-y-1">
                 <Label>Link de pago</Label>
                 {period === "monthly" && (
@@ -312,20 +326,6 @@ export function PlanesMain() {
                     placeholder="https://checkout.stripe.com/..." />
                 )}
                 <p className="text-[11px] text-muted-foreground">El botón "Comenzar ahora" usará este link si está configurado.</p>
-              </div>
-
-              {/* Campos compartidos */}
-              <div className="space-y-1">
-                <Label>Descripción breve</Label>
-                <Input value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Ideal para pequeños negocios..." />
-              </div>
-              <div className="space-y-1">
-                <Label>Características (una por línea)</Label>
-                <Textarea rows={4} value={form.features}
-                  onChange={(e) => setForm({ ...form, features: e.target.value })}
-                  placeholder={"Asistente IA 24/7\nSoporte básico\n1 instancia WhatsApp"} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
