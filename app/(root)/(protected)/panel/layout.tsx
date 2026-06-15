@@ -1,12 +1,12 @@
 import { currentUser } from "@/lib/auth";
-import { isAdminLike } from "@/lib/rbac";
+import { isAdminOrReseller } from "@/lib/rbac";
 import AccessDenied from "@/app/AccessDenied";
 import { db } from "@/lib/db";
 import { PanelAwareTabNav } from "@/components/custom/PanelAwareTabNav";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
     const user = await currentUser();
-    if (!user || !isAdminLike(user.role)) return <AccessDenied />;
+    if (!user || !isAdminOrReseller(user.role)) return <AccessDenied />;
 
     const panelModule = await db.module.findFirst({
         where: { route: { in: ["/panel", "/admin"] } },
