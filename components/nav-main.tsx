@@ -44,6 +44,8 @@ export function NavMain({ user }: { user: User }) {
         .filter(link => {
             // /equipo solo visible para dueños, nunca para asesores
             if (link.route === '/equipo' && isAdvisor) return false;
+            // /panel/mis-planes solo para resellers
+            if (link.route === '/panel/mis-planes' && user.role !== 'reseller') return false;
             const access = canAccessRoute({
                 route: link.route,
                 userRole: user.role,

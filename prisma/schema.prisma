@@ -672,6 +672,7 @@ model User {
   affiliateProfile                   AffiliateProfile?
   referredBy                         AffiliateReferral?           @relation("ReferredBy")
   userSubscriptions                  UserSubscription[]
+  resellerPlans                      ResellerPlan[]
 }
 
 model UserNotificationContact {
@@ -1236,6 +1237,8 @@ model Reseller {
   id                             Int      @id @default(autoincrement())
   resellerid                     String?
   userId                         String?
+  slug                           String?  @unique
+  businessName                   String?
   createdAt                      DateTime @default(now())
   updatedAt                      DateTime @updatedAt
   theme                          ThemeApp @default(Default)
@@ -1243,6 +1246,32 @@ model Reseller {
   user_reseller_userIdToUser     User?    @relation("reseller_userIdToUser", fields: [userId], references: [id])
 
   @@map("reseller")
+}
+
+model ResellerPlan {
+  id                   String   @id @default(uuid())
+  resellerUserId       String
+  plan                 Plan
+  assistanceType       String   @default("IA")
+  priceMonthly         Decimal  @default(0) @db.Decimal(10, 2)
+  priceQuarterly       Decimal? @db.Decimal(10, 2)
+  priceYearly          Decimal? @db.Decimal(10, 2)
+  checkoutUrlMonthly   String?
+  checkoutUrlQuarterly String?
+  checkoutUrlYearly    String?
+  credits              Int      @default(0)
+  features             String[]
+  description          String?
+  isPopular            Boolean  @default(false)
+  isActive             Boolean  @default(true)
+  color                String?
+  order                Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  resellerUser         User     @relation(fields: [resellerUserId], references: [id], onDelete: Cascade)
+
+  @@unique([resellerUserId, plan, assistanceType])
+  @@map("reseller_plans")
 }
 
 model QuickReply {

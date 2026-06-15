@@ -36,7 +36,9 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/", nextUrl));
   }
   const isPublicRoute =
-    publicRoutes.includes(currentPath) || currentPath.startsWith("/schedule/");
+    publicRoutes.includes(currentPath) ||
+    currentPath.startsWith("/schedule/") ||
+    currentPath.startsWith("/r/");
 
   if (!isLoggedIn && !authRoutes.includes(currentPath) && !isPublicRoute) {
     // if (!isLoggedIn && !authRoutes.includes(currentPath) && !publicRoutes.includes(currentPath)) {
