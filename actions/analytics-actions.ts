@@ -92,8 +92,8 @@ export async function getResellerAnalytics(): Promise<{
   const twelveMonthsAgo = new Date()
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12)
 
-  const tenDaysFromNow = new Date()
-  tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10)
+  const sevenDaysFromNow = new Date()
+  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7)
 
   const assignments = await db.reseller.findMany({
     where: { resellerid: user.id },
@@ -162,7 +162,7 @@ export async function getResellerAnalytics(): Promise<{
       return (
         end != null &&
         end >= new Date() &&
-        end <= tenDaysFromNow &&
+        end <= sevenDaysFromNow &&
         c?.billing?.accessStatus === ServiceAccessStatus.ACTIVE
       )
     })
@@ -214,8 +214,8 @@ export async function getVerzayPlatformAnalytics(): Promise<{
   const twelveMonthsAgo = new Date()
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12)
 
-  const tenDaysFromNow = new Date()
-  tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10)
+  const sevenDaysFromNow = new Date()
+  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7)
 
   const [totalUsers, activeUsers, suspendedUsers, unpaidUsers, totalResellers, usersByPlan] =
     await Promise.all([
@@ -276,7 +276,7 @@ export async function getVerzayPlatformAnalytics(): Promise<{
   // Users expiring soon — two-step to avoid relation name uncertainty
   const expiringBillings = await db.userBilling.findMany({
     where: {
-      serviceEndsAt: { gte: new Date(), lte: tenDaysFromNow },
+      serviceEndsAt: { gte: new Date(), lte: sevenDaysFromNow },
       accessStatus: ServiceAccessStatus.ACTIVE,
     },
     orderBy: { serviceEndsAt: "asc" },
