@@ -301,8 +301,8 @@ function StepCard({ step, accent, icon, title, description, items, checkColor }:
 
 /* ─── PlanCard ────────────────────────────────────────────────────────────── */
 
-function PlanCard({ plan, assistanceType, billingPeriod, whatsapp, resellerSlug }: {
-  plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod; whatsapp: string; resellerSlug: string;
+function PlanCard({ plan, assistanceType, billingPeriod, whatsapp, resellerSlug, brand }: {
+  plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod; whatsapp: string; resellerSlug: string; brand: string | null;
 }) {
   const isCustom = plan.plan === "personalizado";
   const price = billingPeriod === "monthly" ? plan.priceUSD
@@ -317,10 +317,11 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsapp, resellerSlug 
 
   return (
     <div className={cn("relative flex flex-col rounded-xl border p-5 transition-all hover:bg-white/[0.07]",
-      plan.isPopular ? "border-blue-500/50 bg-white/[0.07] shadow-lg shadow-blue-500/10" : "border-white/10 bg-white/5")}>
+      plan.isPopular && !brand ? "border-blue-500/50 bg-white/[0.07] shadow-lg shadow-blue-500/10" : plan.isPopular ? "bg-white/[0.07] shadow-lg" : "border-white/10 bg-white/5")}
+         style={plan.isPopular && brand ? { borderColor: `${brand}66`, boxShadow: `0 10px 30px ${brand}18` } : undefined}>
       {plan.isPopular && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-          <Badge className="flex items-center gap-1 bg-blue-600 px-3 text-xs text-white"><Star className="h-3 w-3" /> Popular</Badge>
+          <Badge className={cn("flex items-center gap-1 px-3 text-xs text-white", brand ? "brand-btn" : "bg-blue-600")}><Star className="h-3 w-3" /> Popular</Badge>
         </div>
       )}
       <div className="mb-3">
@@ -352,7 +353,7 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsapp, resellerSlug 
         <ul className="mb-5 flex-1 space-y-1.5">
           {plan.features.map((f, i) => (
             <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
-              <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" />{f}
+              <Check className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", brand ? "brand-text" : "text-blue-400")} />{f}
             </li>
           ))}
         </ul>
@@ -366,13 +367,13 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsapp, resellerSlug 
           </a>
         ) : checkoutUrl ? (
           <a href={checkoutUrl} target="_blank" rel="noopener noreferrer">
-            <Button className={cn("w-full", plan.isPopular ? "bg-blue-600 text-white hover:bg-blue-500" : "border border-white/10 bg-white/10 text-white hover:bg-white/20")}>
+            <Button className={cn("w-full text-white", plan.isPopular ? (brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500") : "border border-white/10 bg-white/10 hover:bg-white/20")}>
               Comenzar ahora
             </Button>
           </a>
         ) : (
           <Link href={`/completar-registro?r=${resellerSlug}&plan=${plan.plan}`}>
-            <Button className={cn("w-full", plan.isPopular ? "bg-blue-600 text-white hover:bg-blue-500" : "border border-white/10 bg-white/10 text-white hover:bg-white/20")}>
+            <Button className={cn("w-full text-white", plan.isPopular ? (brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500") : "border border-white/10 bg-white/10 hover:bg-white/20")}>
               Comenzar ahora
             </Button>
           </Link>
@@ -482,13 +483,15 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       {/* ══ HERO ════════════════════════════════════════════════════════════ */}
       <section className="relative pb-6 pt-8">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute right-0 top-0 h-[500px] w-[500px] rounded-full bg-blue-600/15 blur-3xl" />
-          <div className="absolute -left-20 top-20 h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl" />
+          <div className={cn("absolute right-0 top-0 h-[500px] w-[500px] rounded-full blur-3xl", !brand && "bg-blue-600/15")}
+               style={brand ? { backgroundColor: `${brand}22` } : undefined} />
+          <div className={cn("absolute -left-20 top-20 h-80 w-80 rounded-full blur-3xl", !brand && "bg-cyan-500/10")}
+               style={brand ? { backgroundColor: `${brand}12` } : undefined} />
         </div>
         <div className="relative mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
           <div className="grid min-h-[75vh] grid-cols-1 items-center gap-8 lg:grid-cols-2">
             <div className="flex flex-col justify-center">
-              <Badge className="mb-4 inline-flex w-fit items-center gap-1.5 border-blue-500/20 bg-blue-500/10 px-3 py-1 text-blue-400">
+              <Badge className={cn("mb-4 inline-flex w-fit items-center gap-1.5 border px-3 py-1", brand ? "brand-text brand-bg-soft brand-border" : "border-blue-500/20 bg-blue-500/10 text-blue-400")}>
                 <MessageCircle className="h-3 w-3" /> Agente IA para WhatsApp
               </Badge>
               <h1 className="mb-4 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl xl:text-6xl">
@@ -531,7 +534,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
                   <div className={`mt-5 grid grid-cols-${heroStats.length} gap-6 border-t border-white/10 pt-5`}>
                     {heroStats.map((s) => (
                       <div key={s.label}>
-                        <div className="text-2xl font-bold text-blue-400">{s.value}</div>
+                        <div className={cn("text-2xl font-bold", brand ? "brand-text" : "text-blue-400")}>{s.value}</div>
                         <div className="mt-0.5 text-xs text-slate-500">{s.label}</div>
                       </div>
                     ))}
@@ -542,7 +545,8 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
             <div className="flex items-center justify-center lg:justify-end">
               <div className="relative">
                 <AnimatedChat />
-                <div className="absolute -inset-8 -z-10 rounded-full bg-blue-600/15 blur-3xl" />
+                <div className={cn("absolute -inset-8 -z-10 rounded-full blur-3xl", !brand && "bg-blue-600/15")}
+                     style={brand ? { backgroundColor: `${brand}20` } : undefined} />
               </div>
             </div>
           </div>
@@ -556,7 +560,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
             <div className="grid grid-cols-2 gap-6 rounded-2xl border border-white/5 bg-white/[0.02] px-8 py-6 text-center sm:grid-cols-4">
               {[{ to: 500, suffix: "+", label: "Negocios activos" }, { to: 1, suffix: "M+", label: "Mensajes respondidos" }, { to: 4.9, suffix: "★", label: "Calificación promedio", decimals: 1 }, { to: 40, suffix: "%", label: "Aumento en ventas" }].map((s) => (
                 <div key={s.label}>
-                  <div className="text-3xl font-bold text-blue-400"><AnimatedCounter to={s.to} suffix={s.suffix} decimals={s.decimals} /></div>
+                  <div className={cn("text-3xl font-bold", brand ? "brand-text" : "text-blue-400")}><AnimatedCounter to={s.to} suffix={s.suffix} decimals={s.decimals} /></div>
                   <div className="mt-1 text-xs text-slate-500">{s.label}</div>
                 </div>
               ))}
@@ -669,7 +673,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
           : videoUrl;
         return (
           <section className="py-6 bg-white/[0.02]">
-            <div className="mx-auto max-w-4xl px-8 sm:px-12 lg:px-16">
+            <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
               <FadeIn>
                 <div className="overflow-hidden rounded-2xl border border-white/10" style={{ aspectRatio: "16/9" }}>
                   <iframe src={embedUrl} className="h-full w-full" allowFullScreen title="Video de presentación" />
@@ -784,7 +788,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {visiblePlans.map((plan) => (
-                  <PlanCard key={plan.id} plan={plan} assistanceType={assistanceType} billingPeriod={billingPeriod} whatsapp={waNumber} resellerSlug={slug} />
+                  <PlanCard key={plan.id} plan={plan} assistanceType={assistanceType} billingPeriod={billingPeriod} whatsapp={waNumber} resellerSlug={slug} brand={brand} />
                 ))}
               </div>
             )}
@@ -823,7 +827,8 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       <section className="py-6">
         <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
           <FadeIn>
-            <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60 px-10 py-8 text-center">
+            <div className={cn("rounded-2xl border px-10 py-8 text-center", !brand && "border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60")}
+                 style={brand ? { borderColor: `${brand}44`, background: `linear-gradient(to bottom right, ${brand}28, #1e293b66, #0f172a99)` } : undefined}>
               <h2 className="text-3xl font-bold text-white sm:text-4xl">{ctaHeadline ?? "¿Listo para empezar?"}</h2>
               <p className="mt-4 text-lg text-slate-400">{ctaSubtitle ?? "Configúralo en 5 minutos. Tu agente empieza a responder desde el primer día."}</p>
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">

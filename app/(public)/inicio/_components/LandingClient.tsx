@@ -439,15 +439,17 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, headli
       {/* ══ HERO ════════════════════════════════════════════════════════════ */}
       <section className="relative pb-6 pt-8">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute right-0 top-0 h-[500px] w-[500px] rounded-full bg-blue-600/15 blur-3xl" />
-          <div className="absolute -left-20 top-20 h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl" />
+          <div className={cn("absolute right-0 top-0 h-[500px] w-[500px] rounded-full blur-3xl", !brand && "bg-blue-600/15")}
+               style={brand ? { backgroundColor: `${brand}22` } : undefined} />
+          <div className={cn("absolute -left-20 top-20 h-80 w-80 rounded-full blur-3xl", !brand && "bg-cyan-500/10")}
+               style={brand ? { backgroundColor: `${brand}12` } : undefined} />
         </div>
         <div className="relative mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
           <div className="grid min-h-[75vh] grid-cols-1 items-center gap-8 lg:grid-cols-2">
 
             {/* Columna izquierda */}
             <div className="flex flex-col justify-center">
-              <Badge className="mb-4 inline-flex w-fit items-center gap-1.5 border-blue-500/20 bg-blue-500/10 px-3 py-1 text-blue-400">
+              <Badge className={cn("mb-4 inline-flex w-fit items-center gap-1.5 border px-3 py-1", brand ? "brand-text brand-bg-soft brand-border" : "border-blue-500/20 bg-blue-500/10 text-blue-400")}>
                 <MessageCircle className="h-3 w-3" /> Agente IA para WhatsApp
               </Badge>
               <h1 className="mb-4 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl xl:text-6xl">
@@ -491,7 +493,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, headli
                   <div className={`mt-5 grid grid-cols-${heroStats.length} gap-6 border-t border-white/10 pt-5`}>
                     {heroStats.map((s) => (
                       <div key={s.label}>
-                        <div className="text-2xl font-bold text-blue-400">{s.value}</div>
+                        <div className={cn("text-2xl font-bold", brand ? "brand-text" : "text-blue-400")}>{s.value}</div>
                         <div className="mt-0.5 text-xs text-slate-500">{s.label}</div>
                       </div>
                     ))}
@@ -504,7 +506,8 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, headli
             <div className="flex items-center justify-center lg:justify-end">
               <div className="relative">
                 <AnimatedChat />
-                <div className="absolute -inset-8 -z-10 rounded-full bg-blue-600/15 blur-3xl" />
+                <div className={cn("absolute -inset-8 -z-10 rounded-full blur-3xl", !brand && "bg-blue-600/15")}
+                     style={brand ? { backgroundColor: `${brand}20` } : undefined} />
                 <div className="absolute -inset-4 -z-10 rounded-full bg-green-500/5 blur-2xl" />
               </div>
             </div>
@@ -524,7 +527,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, headli
                 { to: 40,  suffix: "%",  label: "Aumento en ventas" },
               ].map((s) => (
                 <div key={s.label}>
-                  <div className="text-3xl font-bold text-blue-400">
+                  <div className={cn("text-3xl font-bold", brand ? "brand-text" : "text-blue-400")}>
                     <AnimatedCounter to={s.to} suffix={s.suffix} decimals={s.decimals} />
                   </div>
                   <div className="mt-1 text-xs text-slate-500">{s.label}</div>
@@ -663,7 +666,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, headli
           : videoUrl;
         return (
           <section className="py-6">
-            <div className="mx-auto max-w-4xl px-8 sm:px-12 lg:px-16">
+            <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
               <FadeIn>
                 <div className="overflow-hidden rounded-2xl border border-white/10" style={{ aspectRatio: "16/9" }}>
                   <iframe src={embedUrl} className="h-full w-full" allowFullScreen title="Video de presentación" />
@@ -843,7 +846,8 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, headli
       <section className="py-6">
         <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
           <FadeIn>
-            <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60 px-10 py-8 text-center">
+            <div className={cn("rounded-2xl border px-10 py-8 text-center", !brand && "border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60")}
+                 style={brand ? { borderColor: `${brand}44`, background: `linear-gradient(to bottom right, ${brand}28, #1e293b66, #0f172a99)` } : undefined}>
               <h2 className="text-3xl font-bold text-white sm:text-4xl">{ctaHeadline ?? "¿Listo para empezar?"}</h2>
               <p className="mt-4 text-lg text-slate-400">{ctaSubtitle ?? "Configúralo en 5 minutos. Tu agente empieza a responder desde el primer día."}</p>
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
