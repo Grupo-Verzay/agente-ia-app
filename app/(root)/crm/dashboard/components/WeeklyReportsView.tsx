@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Sparkles, TrendingUp, Users, CheckCheck, Send, ChevronDown, ChevronUp, RefreshCw, Trash2 } from 'lucide-react';
+import { Download, Loader2, Sparkles, TrendingUp, Users, CheckCheck, Send, ChevronDown, ChevronUp, RefreshCw, Trash2 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -262,6 +263,22 @@ export function WeeklyReportsView({ onStatsLoaded }: { onStatsLoaded?: (s: Repor
         setReports((prev) => prev.filter((r) => r.id !== id));
     };
 
+    const handleExport = () => {
+        const rows = reports.map((r) => ({
+            Período: fmtPeriod(r.periodStart, r.periodEnd),
+            'Total leads': r.metrics.totalLeads,
+            'Nuevos leads': r.metrics.newLeads,
+            Conversiones: r.metrics.conversions,
+            'Puntuación promedio': r.metrics.avgScore,
+            'Enviado por WhatsApp': r.sentAt ? fmtDate(r.sentAt) : 'No',
+            Generado: fmtDate(r.createdAt),
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Reportes');
+        XLSX.writeFile(wb, `reportes-semanales-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    };
+
     const handleDeleteAll = async () => {
         if (!confirm('¿Eliminar todos los reportes? Esta acción no se puede deshacer.')) return;
         setDeletingAll(true);
@@ -284,6 +301,12 @@ export function WeeklyReportsView({ onStatsLoaded }: { onStatsLoaded?: (s: Repor
                     Últimos <span className="font-medium text-foreground">{reports.length}</span> reportes generados por IA
                 </p>
                 <div className="flex items-center gap-2">
+                    {reports.length > 0 && (
+                        <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
+                            <Download className="h-3.5 w-3.5" />
+                            Exportar
+                        </Button>
+                    )}
                     {reports.length > 0 && (
                         <Button variant="outline" size="sm" onClick={handleDeleteAll} disabled={deletingAll} className="gap-1.5 text-destructive hover:text-destructive">
                             {deletingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
