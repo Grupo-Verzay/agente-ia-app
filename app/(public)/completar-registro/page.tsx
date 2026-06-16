@@ -1,10 +1,21 @@
 import { Bot } from 'lucide-react';
 import Link from 'next/link';
 import { RegistroReunionForm } from './_components/RegistroReunionForm';
+import { getResellerPublicConfig } from '@/actions/reseller-plan-actions';
+import { getSiteConfig } from '@/actions/admin/site-config-actions';
 
 export const metadata = { title: 'Activa tu cuenta gratis | Agente IA' };
 
-export default function CompletarRegistroPage() {
+interface Props {
+  searchParams: { r?: string };
+}
+
+export default async function CompletarRegistroPage({ searchParams }: Props) {
+  const resellerSlug = searchParams.r;
+  const resellerSheetsUrl = resellerSlug
+    ? (await getResellerPublicConfig(resellerSlug)).sheetsUrl
+    : (await getSiteConfig()).sheetsUrl;
+
   return (
     <div className="flex min-h-full flex-col items-center px-4 py-12">
       {/* Header */}
@@ -27,7 +38,7 @@ export default function CompletarRegistroPage() {
 
       {/* Card */}
       <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-white/[0.04] p-6 sm:p-8">
-        <RegistroReunionForm />
+        <RegistroReunionForm resellerSlug={resellerSlug} resellerSheetsUrl={resellerSheetsUrl} />
       </div>
 
       <p className="mt-6 text-xs text-slate-600">

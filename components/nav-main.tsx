@@ -46,6 +46,10 @@ export function NavMain({ user }: { user: User }) {
             if (link.route === '/equipo' && isAdvisor) return false;
             // /panel/mis-planes solo para resellers
             if (link.route === '/panel/mis-planes' && user.role !== 'reseller') return false;
+            // El módulo Admin (/panel) nunca aparece en el sidebar para resellers
+            if (PANEL_ROUTES.includes(link.route) && user.role === 'reseller') return false;
+            // El módulo /reseller-panel solo se muestra en sidebar para resellers (no admins)
+            if (link.route === '/reseller-panel' && user.role !== 'reseller') return false;
             const access = canAccessRoute({
                 route: link.route,
                 userRole: user.role,
@@ -66,6 +70,11 @@ export function NavMain({ user }: { user: User }) {
             let isActive = false;
             if (pathname === '/canva') {
                 isActive = labelModule === link.label;
+            } else if (link.route === '/reseller-panel') {
+                isActive = (link.moduleItems ?? []).some(sub => {
+                    const dest = (sub.url ?? '').replace('/admin/', '/panel/');
+                    return dest && (pathname === dest || pathname.startsWith(dest + '/'));
+                });
             } else {
                 isActive = pathname === link.route || pathname.startsWith(link.route + '/');
             }
@@ -129,9 +138,9 @@ export function NavMain({ user }: { user: User }) {
                         );
                     }
 
-                    // Admin/Panel: submódulos van a la barra superior — navegar al primero
-                    // Resellers van directo a /admin/clientes sin importar los sub-items
-                    if (PANEL_ROUTES.includes(route)) {
+                    // Admin/Panel y reseller-panel: submódulos van a la barra superior — navegar al primero
+                    // Resellers (panel admin) van directo a /admin/clientes sin importar los sub-items
+                    if (PANEL_ROUTES.includes(route) || route === '/reseller-panel') {
                         const firstSubItem = moduleItems[0];
                         const firstDest = validateRouteAndRole
                             ? targetRoute

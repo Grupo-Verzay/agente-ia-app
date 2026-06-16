@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import type { CheckedState } from "@radix-ui/react-checkbox"
 import { FormModuleSchema, FormModuleValues, iconMap } from "@/schema/module"
-import { ChevronsUpDown, Trash2 } from "lucide-react"
+import { ChevronsUpDown, GripVertical, Trash2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { navigationRoutes } from "@/lib/navigation-routes"
 import { PLAN_LABELS, PLANS } from "@/types/plans"
@@ -17,11 +17,102 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
 import { useState } from "react"
 import { Label } from "@/components/ui/label"
+import {
+    DndContext,
+    closestCenter,
+    useSensor,
+    useSensors,
+    PointerSensor,
+    type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+    SortableContext,
+    useSortable,
+    verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 const labelMap: Record<string, string> = {
     showInSidebar: 'Mostrar en Sidebar',
     adminOnly: 'Solo Admin',
     requiresPremium: 'Requiere Premium',
+}
+
+function SortableSubmodule({
+    id,
+    index,
+    url,
+    titleValue,
+    customUrlValue,
+    onRemove,
+    onUrlChange,
+    onTitleChange,
+    onCustomUrlChange,
+}: {
+    id: string
+    index: number
+    url: string
+    titleValue: string
+    customUrlValue: string
+    onRemove: () => void
+    onUrlChange: (value: string) => void
+    onTitleChange: (value: string) => void
+    onCustomUrlChange: (value: string) => void
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id })
+    const style = { transform: CSS.Transform.toString(transform), transition }
+
+    return (
+        <div ref={setNodeRef} style={style} className="flex flex-col gap-2">
+            <div className="flex w-full items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        className="cursor-grab touch-none text-muted-foreground"
+                        {...attributes}
+                        {...listeners}
+                    >
+                        <GripVertical className="h-4 w-4" />
+                    </button>
+                    <Label className="text-xs text-muted-foreground">Submódulo #{index + 1}</Label>
+                </div>
+                <Button type="button" variant="destructive" size="icon" onClick={onRemove}>
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            </div>
+
+            <div className="flex flex-col gap-2">
+                <Select onValueChange={onUrlChange} value={url}>
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Selecciona URL" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {[...navigationRoutes]
+                            .sort((a, b) => a.route.localeCompare(b.route))
+                            .map((item) => (
+                                <SelectItem key={item.route} value={item.route}>
+                                    {item.route}
+                                </SelectItem>
+                            ))}
+                    </SelectContent>
+                </Select>
+                {url === "/canva" && (
+                    <Input
+                        placeholder="https://bot.verzay.co/es/typebots"
+                        value={customUrlValue}
+                        onChange={(e) => onCustomUrlChange(e.target.value)}
+                        className="w-full"
+                    />
+                )}
+                <Input
+                    placeholder="Título"
+                    value={titleValue}
+                    onChange={(e) => onTitleChange(e.target.value)}
+                    className="w-full"
+                />
+            </div>
+        </div>
+    )
 }
 
 export const ModuleForm = ({
@@ -41,7 +132,7 @@ export const ModuleForm = ({
         },
     });
 
-    const { fields, append, remove } = useFieldArray({
+    const { fields, append, remove, move } = useFieldArray({
         control: form.control,
         name: "items",
     });
@@ -52,6 +143,16 @@ export const ModuleForm = ({
     const watchedItems = form.watch("items");
 
     const isContainerRoute = selectedRoute === "#container";
+
+    const sensors = useSensors(useSensor(PointerSensor))
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event
+        if (!over || active.id === over.id) return
+        const oldIndex = fields.findIndex((f) => f.id === active.id)
+        const newIndex = fields.findIndex((f) => f.id === over.id)
+        if (oldIndex !== -1 && newIndex !== -1) move(oldIndex, newIndex)
+    }
 
     return (
         <Form {...form}>
@@ -226,51 +327,29 @@ export const ModuleForm = ({
                     }}
                 />
 
-                <div className="flex flex-col flex-1 gap-2">
+                <div className="flex flex-col flex-1 gap-3">
                     <FormLabel className="text-xs font-semibold text-foreground">Submódulos</FormLabel>
-                    {fields.map((field, index) => (
-                        <div key={field.id} className="flex flex-col flex-1 justify-between gap-2">
-                            <div className="flex w-full justify-between items-center">
-                                <Label className="text-xs text-muted-foreground">Submodulo #{index + 1}</Label>
-                                <Button type="button" variant="destructive" onClick={() => remove(index)}>
-                                    <Trash2 />
-                                </Button>
-                            </div>
-
-                            <div className="flex gap-2 flex-col">
-                                <Select
-                                    onValueChange={(value) => form.setValue(`items.${index}.url`, value)}
-                                    defaultValue={form.watch(`items.${index}.url`)}
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Selecciona URL" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {[...navigationRoutes]
-                                            .sort((a, b) => a.route.localeCompare(b.route))
-                                            .map((item) => (
-                                                <SelectItem key={item.route} value={item.route}>
-                                                    {item.route}
-                                                </SelectItem>
-                                            ))}
-                                    </SelectContent>
-                                </Select>
-                                {watchedItems?.[index]?.url === "/canva" && (
-                                    <Input
-                                        placeholder="https://bot.verzay.co/es/typebots"
-                                        {...form.register(`items.${index}.customUrl`)}
-                                        className="w-full"
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                        <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+                            <div className="flex flex-col gap-4">
+                                {fields.map((field, index) => (
+                                    <SortableSubmodule
+                                        key={field.id}
+                                        id={field.id}
+                                        index={index}
+                                        url={watchedItems?.[index]?.url ?? ""}
+                                        titleValue={watchedItems?.[index]?.title ?? ""}
+                                        customUrlValue={watchedItems?.[index]?.customUrl ?? ""}
+                                        onRemove={() => remove(index)}
+                                        onUrlChange={(value) => form.setValue(`items.${index}.url`, value)}
+                                        onTitleChange={(value) => form.setValue(`items.${index}.title`, value)}
+                                        onCustomUrlChange={(value) => form.setValue(`items.${index}.customUrl`, value)}
                                     />
-                                )}
-                                <Input
-                                    placeholder="Título"
-                                    {...form.register(`items.${index}.title`)}
-                                    className="w-full"
-                                />
+                                ))}
                             </div>
-                        </div>
-                    ))}
-                    <Button type="button" variant={"outline"} onClick={() => append({ url: "", title: "" })}>
+                        </SortableContext>
+                    </DndContext>
+                    <Button type="button" variant="outline" onClick={() => append({ url: "", title: "" })}>
                         Agregar submódulo
                     </Button>
                 </div>

@@ -82,4 +82,8 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/panel/planes" },
     { route: "/panel/suscripciones" },
     { route: "/panel/tools" },
+    { route: "/panel/mis-planes" },
+    { route: "/panel/mi-landing" },
+    { route: "/panel/landing" },
+    { route: "/reseller-panel" },
 ];

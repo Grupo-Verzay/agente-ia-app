@@ -2,7 +2,7 @@
 
 import { google } from 'googleapis';
 
-const SPREADSHEET_ID = '11s450vRmAayrxqodQXpwIDwEI7r7jWlaeairvQ6qFUg';
+const MASTER_SPREADSHEET_ID = '11s450vRmAayrxqodQXpwIDwEI7r7jWlaeairvQ6qFUg';
 const SHEET_NAME = 'Registro reunión';
 
 function getAuth() {
@@ -14,6 +14,11 @@ function getAuth() {
   });
 }
 
+function extractSpreadsheetId(url: string): string | null {
+  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  return match?.[1] ?? null;
+}
+
 export type RegistroReunionPayload = {
   pais: string;
   contacto: string;
@@ -23,6 +28,8 @@ export type RegistroReunionPayload = {
   procesoVentas: string;
   urgencia: string;
   tareasObjetivos: string;
+  resellerSlug?: string;
+  resellerSheetsUrl?: string | null;
 };
 
 export async function submitRegistroReunion(
@@ -35,12 +42,12 @@ export async function submitRegistroReunion(
     const fecha = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
 
     // Columnas A=ID Registro, B=Chat ID, C=Formulario, D=Fecha, E=País, F=WhatsApp,
-    // G=Nombre negocio, H=Mensajes aprox, I=Asesores, J=Proceso ventas, K=Urgencia, L=Tareas
+    // G=Nombre negocio, H=Mensajes aprox, I=Asesores, J=Proceso ventas, K=Urgencia, L=Tareas, M=Reseller
     const row = [
-      '',    // A: ID Registro (vacío — rellenar con fórmula en Sheets)
-      'WEB', // B: Chat ID
-      'Registro web', // C: Formulario (fuente)
-      fecha,        // D: Fecha Actualización
+      '',
+      'WEB',
+      data.resellerSlug ? `Reseller: ${data.resellerSlug}` : 'Registro web',
+      fecha,
       data.pais,
       data.contacto,
       data.nombreNegocio,
@@ -49,15 +56,32 @@ export async function submitRegistroReunion(
       data.procesoVentas,
       data.urgencia,
       data.tareasObjetivos,
+      data.resellerSlug ?? '',
     ];
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'${SHEET_NAME}'!A:L`,
-      valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
+    const appendParams = {
+      range: `'${SHEET_NAME}'!A:M`,
+      valueInputOption: 'RAW' as const,
+      insertDataOption: 'INSERT_ROWS' as const,
       requestBody: { values: [row] },
+    };
+
+    // Siempre escribir en la hoja maestra
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: MASTER_SPREADSHEET_ID,
+      ...appendParams,
     });
+
+    // Si el reseller tiene su propia hoja, escribir también ahí
+    if (data.resellerSheetsUrl) {
+      const resellerSheetId = extractSpreadsheetId(data.resellerSheetsUrl);
+      if (resellerSheetId && resellerSheetId !== MASTER_SPREADSHEET_ID) {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId: resellerSheetId,
+          ...appendParams,
+        }).catch(() => null); // No bloquear el flujo si falla la hoja del reseller
+      }
+    }
 
     return { success: true };
   } catch (e) {

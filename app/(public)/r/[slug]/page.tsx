@@ -27,6 +27,7 @@ export default async function ResellerLandingPage({ params }: Props) {
       whatsappNumber={result.whatsappNumber}
       meetingUrl={result.meetingUrl}
       primaryColor={result.primaryColor}
+      bgColor={result.bgColor}
       headline={result.headline}
       subheadline={result.subheadline}
       logoUrl={result.logoUrl}

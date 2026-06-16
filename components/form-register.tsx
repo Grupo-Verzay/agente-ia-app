@@ -294,11 +294,12 @@ const PLAN_DISPLAY: Record<string, string> = {
   avanzado: "Avanzado", enterprise: "Enterprise",
 };
 
-const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan }: {
+const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, resellerSlug }: {
   countries: Country[];
   apiKeyRef?: string;
   affiliateCode?: string;
   defaultPlan?: string;
+  resellerSlug?: string;
 }) => {
   const [step, setStep] = useState(1);
   const [areaCode, setAreaCode] = useState("");
@@ -337,7 +338,7 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan }: {
     startTransition(async () => {
       const toastId = toast.loading("Iniciando configuración de tu cuenta...");
 
-      const result = await fullRegisterAction({ ...values, notificationNumber: e164, timezone }, apiKeyRef, affiliateCode);
+      const result = await fullRegisterAction({ ...values, notificationNumber: e164, timezone }, apiKeyRef, affiliateCode, resellerSlug);
 
       if (!result.success) {
         toast.error(result.error, { id: toastId });

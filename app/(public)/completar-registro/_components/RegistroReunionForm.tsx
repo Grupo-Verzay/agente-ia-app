@@ -111,7 +111,12 @@ function TextareaField({
   );
 }
 
-export function RegistroReunionForm() {
+interface Props {
+  resellerSlug?: string;
+  resellerSheetsUrl?: string | null;
+}
+
+export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl }: Props) {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -122,13 +127,18 @@ export function RegistroReunionForm() {
 
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
-    const result = await submitRegistroReunion(values as RegistroReunionPayload);
+    const result = await submitRegistroReunion({
+      ...values,
+      resellerSlug,
+      resellerSheetsUrl,
+    } as RegistroReunionPayload);
     if (!result.success) {
       setServerError(result.error ?? 'Error al enviar. Intenta de nuevo.');
       return;
     }
     setSuccess(true);
-    setTimeout(() => router.push('/register'), 2000);
+    const registerUrl = resellerSlug ? `/register?r=${resellerSlug}` : '/register';
+    setTimeout(() => router.push(registerUrl), 2000);
   };
 
   if (success) {

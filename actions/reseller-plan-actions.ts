@@ -36,6 +36,7 @@ export type ResellerProfileData = {
   sheetsUrl: string | null;
   whatsappNumber: string | null;
   primaryColor: string | null;
+  bgColor: string | null;
   headline: string | null;
   subheadline: string | null;
   logoUrl: string | null;
@@ -92,7 +93,7 @@ export async function getMyResellerPlans(): Promise<{
     const [resellerRow, resellerUser] = await Promise.all([
       db.reseller.findFirst({
         where: { resellerid: user.id },
-        select: { slug: true, businessName: true, sheetsUrl: true, primaryColor: true, headline: true, subheadline: true, logoUrl: true, instagram: true, facebook: true, videoUrl: true, ctaHeadline: true, ctaSubtitle: true, testimonials: true, stats: true },
+        select: { slug: true, businessName: true, sheetsUrl: true, primaryColor: true, bgColor: true, headline: true, subheadline: true, logoUrl: true, instagram: true, facebook: true, videoUrl: true, ctaHeadline: true, ctaSubtitle: true, testimonials: true, stats: true },
       }),
       db.user.findUnique({
         where: { id: user.id },
@@ -110,6 +111,7 @@ export async function getMyResellerPlans(): Promise<{
             sheetsUrl: resellerRow.sheetsUrl ?? null,
             whatsappNumber: resellerUser?.notificationNumber ?? null,
             primaryColor: resellerRow.primaryColor ?? null,
+            bgColor: resellerRow.bgColor ?? null,
             headline: resellerRow.headline ?? null,
             subheadline: resellerRow.subheadline ?? null,
             logoUrl: resellerRow.logoUrl ?? null,
@@ -214,6 +216,7 @@ export async function updateResellerProfile(data: {
   sheetsUrl?: string;
   whatsappNumber?: string;
   primaryColor?: string;
+  bgColor?: string;
   headline?: string;
   subheadline?: string;
   logoUrl?: string;
@@ -238,6 +241,7 @@ export async function updateResellerProfile(data: {
       businessName: data.businessName,
       sheetsUrl: data.sheetsUrl || null,
       primaryColor: data.primaryColor || null,
+      bgColor: data.bgColor || null,
       headline: data.headline || null,
       subheadline: data.subheadline || null,
       logoUrl: data.logoUrl || null,
@@ -263,6 +267,7 @@ export async function updateResellerProfile(data: {
       await db.user.update({ where: { id: user.id }, data: userUpdates });
     }
     revalidatePath("/panel/mis-planes");
+    revalidatePath("/panel/mi-landing");
     return { success: true, message: "Perfil actualizado" };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -327,6 +332,7 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
   whatsappNumber: string | null;
   meetingUrl: string | null;
   primaryColor: string | null;
+  bgColor: string | null;
   headline: string | null;
   subheadline: string | null;
   logoUrl: string | null;
@@ -338,11 +344,11 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
   testimonials: TestimonialData[] | null;
   stats: StatData[] | null;
 }> {
-  const EMPTY_EXTRA = { primaryColor: null, headline: null, subheadline: null, logoUrl: null, instagram: null, facebook: null, videoUrl: null, ctaHeadline: null, ctaSubtitle: null, testimonials: null, stats: null };
+  const EMPTY_EXTRA = { primaryColor: null, bgColor: null, headline: null, subheadline: null, logoUrl: null, instagram: null, facebook: null, videoUrl: null, ctaHeadline: null, ctaSubtitle: null, testimonials: null, stats: null };
   try {
     const resellerRow = await db.reseller.findFirst({
       where: { slug },
-      select: { resellerid: true, businessName: true, primaryColor: true, headline: true, subheadline: true, logoUrl: true, instagram: true, facebook: true, videoUrl: true, ctaHeadline: true, ctaSubtitle: true, testimonials: true, stats: true },
+      select: { resellerid: true, businessName: true, primaryColor: true, bgColor: true, headline: true, subheadline: true, logoUrl: true, instagram: true, facebook: true, videoUrl: true, ctaHeadline: true, ctaSubtitle: true, testimonials: true, stats: true },
     });
     if (!resellerRow?.resellerid) {
       return { success: false, plans: [], businessName: null, resellerUserId: null, whatsappNumber: null, meetingUrl: null, ...EMPTY_EXTRA };
@@ -370,15 +376,15 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
     const merged: SubscriptionPlanItem[] = masterPlans.map((master) => {
       const key = `${master.plan}:${master.assistanceType}`;
       const rp = resellerMap.get(key);
-      if (!rp) return master;
+      if (!rp) return { ...master, checkoutUrlMonthly: null, checkoutUrlQuarterly: null, checkoutUrlYearly: null };
       return {
         ...master,
         priceUSD: Number(rp.priceMonthly),
         priceQuarterly: rp.priceQuarterly != null ? Number(rp.priceQuarterly) : null,
         priceYearly: rp.priceYearly != null ? Number(rp.priceYearly) : null,
-        checkoutUrlMonthly: rp.checkoutUrlMonthly ?? master.checkoutUrlMonthly,
-        checkoutUrlQuarterly: rp.checkoutUrlQuarterly ?? master.checkoutUrlQuarterly,
-        checkoutUrlYearly: rp.checkoutUrlYearly ?? master.checkoutUrlYearly,
+        checkoutUrlMonthly: rp.checkoutUrlMonthly ?? null,
+        checkoutUrlQuarterly: rp.checkoutUrlQuarterly ?? null,
+        checkoutUrlYearly: rp.checkoutUrlYearly ?? null,
         credits: rp.credits || master.credits,
         features: rp.features.length ? rp.features : master.features,
         description: rp.description ?? master.description,
@@ -396,6 +402,7 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
       whatsappNumber: resellerUser?.notificationNumber ?? null,
       meetingUrl: resellerUser?.meetingUrl ?? null,
       primaryColor: resellerRow.primaryColor ?? null,
+      bgColor: resellerRow.bgColor ?? null,
       headline: resellerRow.headline ?? null,
       subheadline: resellerRow.subheadline ?? null,
       logoUrl: resellerRow.logoUrl ?? null,

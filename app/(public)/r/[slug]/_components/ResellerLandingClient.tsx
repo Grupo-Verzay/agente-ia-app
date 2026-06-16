@@ -392,6 +392,7 @@ interface Props {
   whatsappNumber: string | null;
   meetingUrl: string | null;
   primaryColor: string | null;
+  bgColor: string | null;
   headline: string | null;
   subheadline: string | null;
   logoUrl: string | null;
@@ -404,7 +405,7 @@ interface Props {
   stats: StatData[] | null;
 }
 
-export function ResellerLandingClient({ plans, businessName, slug, whatsappNumber, meetingUrl, primaryColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats }: Props) {
+export function ResellerLandingClient({ plans, businessName, slug, whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats }: Props) {
   const [assistanceType, setAssistanceType] = useState<AssistanceType>("IA");
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("yearly");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -421,8 +422,10 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
     .filter((p) => p.assistanceType === assistanceType && p.isActive)
     .sort((a, b) => PLAN_ORDER.indexOf(a.plan) - PLAN_ORDER.indexOf(b.plan));
 
+  const bg = bgColor && /^#[0-9a-fA-F]{3,8}$/.test(bgColor) ? bgColor : null;
+
   return (
-    <div className="min-h-full text-white">
+    <div className="min-h-full text-white" style={bg ? { backgroundColor: bg } : undefined}>
       {brand && (
         <style>{`
           .brand-btn { background-color: ${brand} !important; }
@@ -827,8 +830,12 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
       <section className="py-6">
         <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
           <FadeIn>
-            <div className={cn("rounded-2xl border px-10 py-8 text-center", !brand && "border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60")}
-                 style={brand ? { borderColor: `${brand}44`, background: `linear-gradient(to bottom right, ${brand}28, #1e293b66, #0f172a99)` } : undefined}>
+            <div
+              className={cn("rounded-2xl border px-10 py-8 text-center", !brand && !bg && "border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60")}
+              style={brand || bg
+                ? { borderColor: brand ? `${brand}55` : "#3b82f620", background: `linear-gradient(to bottom right, #1e293b, ${bg ?? "#0f172a"})` }
+                : undefined
+              }>
               <h2 className="text-3xl font-bold text-white sm:text-4xl">{ctaHeadline ?? "¿Listo para empezar?"}</h2>
               <p className="mt-4 text-lg text-slate-400">{ctaSubtitle ?? "Configúralo en 5 minutos. Tu agente empieza a responder desde el primer día."}</p>
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">

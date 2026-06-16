@@ -138,7 +138,8 @@ async function createInstanceForUser(
 export async function fullRegisterAction(
   values: z.infer<typeof fullRegisterSchema>,
   apiKeyRef?: string,
-  affiliateCode?: string
+  affiliateCode?: string,
+  resellerSlug?: string
 ): Promise<FullRegisterResult> {
   const parsed = fullRegisterSchema.safeParse(values);
   if (!parsed.success) {
@@ -356,6 +357,19 @@ export async function fullRegisterAction(
       if (affiliate) {
         await db.affiliateReferral.create({
           data: { affiliateId: affiliate.id, referredUserId: userId },
+        }).catch(() => null);
+      }
+    }
+
+    /* ── STEP 7b: Reseller association ── */
+    if (resellerSlug) {
+      const resellerRow = await db.reseller.findFirst({
+        where: { slug: resellerSlug },
+        select: { resellerid: true },
+      }).catch(() => null);
+      if (resellerRow?.resellerid) {
+        await db.reseller.create({
+          data: { resellerid: resellerRow.resellerid, userId },
         }).catch(() => null);
       }
     }

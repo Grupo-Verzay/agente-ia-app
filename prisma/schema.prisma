@@ -1241,6 +1241,7 @@ model Reseller {
   businessName                   String?
   sheetsUrl                      String?
   primaryColor                   String?
+  bgColor                        String?
   headline                       String?
   subheadline                    String?
   logoUrl                        String?
@@ -1266,6 +1267,7 @@ model SiteConfig {
   meetingUrl     String?
   sheetsUrl      String?
   primaryColor   String?
+  bgColor        String?
   headline       String?
   subheadline    String?
   logoUrl        String?

@@ -12,6 +12,7 @@ export type SiteConfigData = {
   meetingUrl: string | null;
   sheetsUrl: string | null;
   primaryColor: string | null;
+  bgColor: string | null;
   headline: string | null;
   subheadline: string | null;
   logoUrl: string | null;
@@ -26,7 +27,7 @@ export type SiteConfigData = {
 
 const EMPTY: SiteConfigData = {
   whatsappNumber: null, meetingUrl: null, sheetsUrl: null,
-  primaryColor: null, headline: null, subheadline: null,
+  primaryColor: null, bgColor: null, headline: null, subheadline: null,
   logoUrl: null, instagram: null, facebook: null,
   videoUrl: null, ctaHeadline: null, ctaSubtitle: null,
   testimonials: null, stats: null,
@@ -41,6 +42,7 @@ export async function getSiteConfig(): Promise<SiteConfigData> {
       meetingUrl: c.meetingUrl ?? null,
       sheetsUrl: c.sheetsUrl ?? null,
       primaryColor: c.primaryColor ?? null,
+      bgColor: c.bgColor ?? null,
       headline: c.headline ?? null,
       subheadline: c.subheadline ?? null,
       logoUrl: c.logoUrl ?? null,
@@ -68,6 +70,7 @@ export async function updateSiteConfig(data: SiteConfigData): Promise<{ success:
       meetingUrl: data.meetingUrl || null,
       sheetsUrl: data.sheetsUrl || null,
       primaryColor: data.primaryColor || null,
+      bgColor: data.bgColor || null,
       headline: data.headline || null,
       subheadline: data.subheadline || null,
       logoUrl: data.logoUrl || null,

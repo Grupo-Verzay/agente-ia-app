@@ -37,6 +37,7 @@ export default async function InicioPage() {
       whatsappNumber={config.whatsappNumber}
       meetingUrl={config.meetingUrl}
       primaryColor={config.primaryColor}
+      bgColor={config.bgColor}
       headline={config.headline}
       subheadline={config.subheadline}
       logoUrl={config.logoUrl}

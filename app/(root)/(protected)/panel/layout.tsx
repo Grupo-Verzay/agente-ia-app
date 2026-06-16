@@ -8,19 +8,33 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     const user = await currentUser();
     if (!user || !isAdminOrReseller(user.role)) return <AccessDenied />;
 
-    const panelModule = await db.module.findFirst({
-        where: { route: { in: ["/panel", "/admin"] } },
-        include: { moduleItems: { orderBy: { createdAt: "asc" } } },
-    });
-    const allTabs = (panelModule?.moduleItems ?? []).map((item) => ({
+    const [panelModule, resellerModule] = await Promise.all([
+        db.module.findFirst({
+            where: { route: { in: ["/panel", "/admin"] } },
+            include: { moduleItems: { orderBy: { createdAt: "asc" } } },
+        }),
+        user.role === 'reseller'
+            ? db.module.findFirst({
+                where: { route: "/reseller-panel" },
+                include: { moduleItems: { orderBy: { createdAt: "asc" } } },
+              })
+            : Promise.resolve(null),
+    ]);
+
+    const RESELLER_ONLY_URLS = ['/panel/mis-planes', '/panel/mi-landing'];
+    const allTabs = (panelModule?.moduleItems ?? [])
+        .filter((item) => !RESELLER_ONLY_URLS.includes(item.url.replace("/admin/", "/panel/")))
+        .map((item) => ({
+            url: item.url.replace("/admin/", "/panel/"),
+            title: item.title,
+        }));
+
+    const resellerExtraTabs = (resellerModule?.moduleItems ?? []).map((item) => ({
         url: item.url.replace("/admin/", "/panel/"),
         title: item.title,
     }));
 
-    const RESELLER_ALLOWED_TABS = ['/panel/clientes', '/panel/client-billing'];
-    const panelTabs = user.role === 'reseller'
-        ? allTabs.filter(tab => RESELLER_ALLOWED_TABS.includes(tab.url))
-        : allTabs;
+    const panelTabs = user.role === 'reseller' ? resellerExtraTabs : allTabs;
 
     return (
         <div className="flex h-full min-w-0 w-full flex-col">
