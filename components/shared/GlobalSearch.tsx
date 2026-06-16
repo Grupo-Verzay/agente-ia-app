@@ -38,7 +38,18 @@ export function GlobalSearch() {
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    if (!open) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setOpen((prev) => !prev);
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, []);
+
+  useEffect(() => {
+    if (!open) { setQuery(""); setResults([]); return; }
     const trimmed = query.trim();
     if (trimmed.length < 2) {
       setResults([]);
@@ -74,7 +85,10 @@ export function GlobalSearch() {
           className="h-9 w-9 justify-center px-0 sm:w-64 sm:justify-start sm:px-3"
         >
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="ml-2 hidden truncate text-sm text-muted-foreground sm:inline">Buscar en la app...</span>
+          <span className="ml-2 hidden flex-1 truncate text-sm text-muted-foreground sm:inline">Buscar en la app...</span>
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            <span>Ctrl</span><span>K</span>
+          </kbd>
         </Button>
       </DialogTrigger>
       <DialogContent className="top-[12%] max-w-lg translate-y-0 p-0">
