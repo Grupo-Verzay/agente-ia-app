@@ -34,7 +34,10 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         title: item.title,
     }));
 
-    const panelTabs = user.role === 'reseller' ? resellerExtraTabs : allTabs;
+    const panelTabs =
+        user.role === 'reseller'
+            ? [...resellerExtraTabs, { url: '/panel/mis-estadisticas', title: 'Mis Estadísticas' }]
+            : [...allTabs, { url: '/panel/analytics', title: 'Analytics' }];
 
     return (
         <div className="flex h-full min-w-0 w-full flex-col">
