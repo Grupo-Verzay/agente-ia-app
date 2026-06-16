@@ -159,7 +159,7 @@ const SortableTagItem = ({
           type="button"
           size="icon"
           variant="ghost"
-          className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive"
+          className="h-8 w-8 rounded-lg text-destructive hover:text-destructive/80"
           onClick={() => onDelete(tag)}
         >
           <Trash2 className="h-4 w-4" />
