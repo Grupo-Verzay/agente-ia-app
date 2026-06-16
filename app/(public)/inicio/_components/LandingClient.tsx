@@ -654,6 +654,26 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, headli
         </div>
       </section>
 
+      {/* ══ VIDEO ══════════════════════════════════════════════════════════ */}
+      {videoUrl && (() => {
+        const embedUrl = videoUrl.includes("youtube.com/watch?v=")
+          ? videoUrl.replace("youtube.com/watch?v=", "youtube.com/embed/").split("&")[0]
+          : videoUrl.includes("youtu.be/")
+          ? `https://www.youtube.com/embed/${videoUrl.split("youtu.be/")[1].split("?")[0]}`
+          : videoUrl;
+        return (
+          <section className="py-6">
+            <div className="mx-auto max-w-4xl px-8 sm:px-12 lg:px-16">
+              <FadeIn>
+                <div className="overflow-hidden rounded-2xl border border-white/10" style={{ aspectRatio: "16/9" }}>
+                  <iframe src={embedUrl} className="h-full w-full" allowFullScreen title="Video de presentación" />
+                </div>
+              </FadeIn>
+            </div>
+          </section>
+        );
+      })()}
+
       {/* ══ FUNCIONES ══════════════════════════════════════════════════════ */}
       <section id="features" className="py-6 bg-white/[0.02]">
         <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
@@ -791,26 +811,6 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, headli
           </FadeIn>
         </div>
       </section>
-
-      {/* ══ VIDEO ══════════════════════════════════════════════════════════ */}
-      {videoUrl && (() => {
-        const embedUrl = videoUrl.includes("youtube.com/watch?v=")
-          ? videoUrl.replace("youtube.com/watch?v=", "youtube.com/embed/").split("&")[0]
-          : videoUrl.includes("youtu.be/")
-          ? `https://www.youtube.com/embed/${videoUrl.split("youtu.be/")[1].split("?")[0]}`
-          : videoUrl;
-        return (
-          <section className="py-6">
-            <div className="mx-auto max-w-4xl px-8 sm:px-12 lg:px-16">
-              <FadeIn>
-                <div className="overflow-hidden rounded-2xl border border-white/10" style={{ aspectRatio: "16/9" }}>
-                  <iframe src={embedUrl} className="h-full w-full" allowFullScreen title="Video de presentación" />
-                </div>
-              </FadeIn>
-            </div>
-          </section>
-        );
-      })()}
 
       {/* ══ FAQ ════════════════════════════════════════════════════════════ */}
       <section id="faq" className="py-6">
