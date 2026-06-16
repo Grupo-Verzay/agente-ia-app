@@ -1,13 +1,77 @@
 "use server";
 
-
 import { GoogleGenAI } from "@google/genai";
+import { currentUser } from "@/lib/auth";
+import { db } from "@/lib/db";
 
-const getGeminiApiKey = () =>
-  process.env.GEMINI_API_KEY ||
-  process.env.GOOGLE_API_KEY ||
-  process.env.GOOGLE_GENAI_API_KEY ||
-  "";
+async function getGeminiApiKey(): Promise<string> {
+  const user = await currentUser();
+  if (!user) throw new Error("Falta la API key de Gemini. Configura tu clave de Google en Mi Perfil.");
+
+  const googleProvider = await db.aiProvider.findFirst({
+    where: { name: "google" },
+    select: { id: true },
+  });
+
+  if (googleProvider) {
+    const config = await db.userAiConfig.findFirst({
+      where: { userId: user.effectiveId, providerId: googleProvider.id, isActive: true },
+      select: { apiKey: true },
+    });
+    if (config?.apiKey) return config.apiKey;
+  }
+
+  throw new Error("Falta la API key de Gemini. Configura tu clave de Google en Mi Perfil.");
+}
+
+export async function saveUserGoogleApiKey(apiKey: string): Promise<{ success: boolean; message: string }> {
+  const user = await currentUser();
+  if (!user) return { success: false, message: "No autenticado" };
+
+  const googleProvider = await db.aiProvider.findFirst({
+    where: { name: "google" },
+    select: { id: true },
+  });
+  if (!googleProvider) return { success: false, message: "Proveedor Google no encontrado en el sistema" };
+
+  await db.userAiConfig.upsert({
+    where: { userId_providerId: { userId: user.effectiveId, providerId: googleProvider.id } },
+    update: { apiKey, isActive: true },
+    create: { userId: user.effectiveId, providerId: googleProvider.id, apiKey, isActive: true },
+  });
+
+  return { success: true, message: "API key guardada correctamente" };
+}
+
+export async function getUserVisualStyles(): Promise<{ id: string; name: string; description: string }[]> {
+  const user = await currentUser();
+  if (!user) return [];
+  return db.userVisualStyle.findMany({
+    where: { userId: user.effectiveId },
+    select: { id: true, name: true, description: true },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+export async function saveUserVisualStyle(
+  name: string,
+  description: string
+): Promise<{ success: boolean; style?: { id: string; name: string; description: string }; message?: string }> {
+  const user = await currentUser();
+  if (!user) return { success: false, message: "No autenticado" };
+  const style = await db.userVisualStyle.create({
+    data: { userId: user.effectiveId, name: name.trim(), description: description.trim() },
+    select: { id: true, name: true, description: true },
+  });
+  return { success: true, style };
+}
+
+export async function deleteUserVisualStyle(id: string): Promise<{ success: boolean }> {
+  const user = await currentUser();
+  if (!user) return { success: false };
+  await db.userVisualStyle.deleteMany({ where: { id, userId: user.effectiveId } });
+  return { success: true };
+}
 
 export async function generateAdImage(
   base64Image: string,
@@ -21,7 +85,7 @@ export async function generateAdImage(
   model: string = "gemini-2.5-flash-image",
   quality: string = "high"
 ) {
-  const apiKey = getGeminiApiKey();
+  const apiKey = await getGeminiApiKey();
 
   if (!apiKey) {
     throw new Error(

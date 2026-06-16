@@ -1,18 +1,22 @@
-import { CheckCircle2, Sparkles } from 'lucide-react'
+import { CheckCircle2, Sparkles, Wand2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { AD_FORMATS, MARKETING_TEMPLATES } from '../ad-generator.constants'
+
+const DNA_CHIPS = [
+  'Studio fondo blanco',
+  'Fondo negro dramático',
+  'Outdoor natural',
+  'Mesa de mármol',
+  'Minimalista limpio',
+  'Dark luxury',
+  'Degradado suave',
+  'Bokeh desenfocado',
+]
 import type { AdFormat, MarketingTemplate } from '../ad-generator.types'
 
 interface StepCampaignProps {
@@ -110,25 +114,42 @@ export const StepCampaign = ({
         </div>
       )}
 
-      <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
-        {!isLandingKitMode ? (
-          <div className="space-y-2">
-            <Label>Estructura de marketing</Label>
-            <Select value={selectedTemplate} onValueChange={onTemplateChange}>
-              <SelectTrigger className="rounded-xl bg-background">
-                <SelectValue placeholder="Selecciona una estructura" />
-              </SelectTrigger>
-              <SelectContent>
-                {MARKETING_TEMPLATES.map((template) => (
-                  <SelectItem key={template.id} value={template.id}>
-                    {template.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">{selectedTemplateMeta.description}</p>
+      {!isLandingKitMode ? (
+        <div className="rounded-2xl border border-border/70 bg-muted/20 p-4 space-y-2">
+          <Label>Estructura de marketing</Label>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+            {MARKETING_TEMPLATES.map((template) => {
+              const isSelected = selectedTemplate === template.id
+              const num = template.name.split('.')[0]
+              const label = template.name.split('. ')[1]
+              return (
+                <button
+                  key={template.id}
+                  type="button"
+                  title={label}
+                  onClick={() => onTemplateChange(template.id)}
+                  className={[
+                    'flex items-center gap-2 rounded-xl border px-3 py-2 text-left transition',
+                    isSelected
+                      ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                      : 'border-border/60 bg-background hover:border-primary/40',
+                  ].join(' ')}
+                >
+                  <span className={[
+                    'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
+                    isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                  ].join(' ')}>
+                    {num}
+                  </span>
+                  <span className="truncate text-xs font-medium">{label}</span>
+                </button>
+              )
+            })}
           </div>
-        ) : (
+          <p className="text-xs text-muted-foreground pt-0.5">{selectedTemplateMeta.description}</p>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
           <Alert className="rounded-2xl border-border bg-background/80">
             <Sparkles className="h-4 w-4" />
             <AlertTitle>Modo kit landing activado</AlertTitle>
@@ -136,31 +157,50 @@ export const StepCampaign = ({
               Se generaran las 10 etapas de la landing para cada producto con una narrativa completa.
             </AlertDescription>
           </Alert>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+      <div className="rounded-2xl border border-border/70 bg-muted/20 p-4 space-y-3">
         <div className="space-y-2">
           <Label htmlFor="visual-dna">ADN visual</Label>
           <Input
             id="visual-dna"
             value={visualDNA}
             onChange={(e) => onVisualDNAChange(e.target.value)}
-            placeholder="Define fondo, ambiente, iluminacion y sensacion general de la imagen."
+            placeholder="Fondo, ambiente, iluminación y sensación general…"
             className="rounded-xl bg-background"
           />
+        </div>
+        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+          {DNA_CHIPS.map((chip) => (
+            <button
+              key={chip}
+              type="button"
+              title={chip}
+              onClick={() => onVisualDNAChange(chip)}
+              className={[
+                'flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-xs transition',
+                visualDNA === chip
+                  ? 'border-primary bg-primary/10 text-primary font-medium'
+                  : 'border-border/60 bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground',
+              ].join(' ')}
+            >
+              <Wand2 className="h-3 w-3 shrink-0" />
+              <span className="truncate">{chip}</span>
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
-        <Label htmlFor="custom-prompt">Detalles especificos del anuncio</Label>
+        <Label htmlFor="custom-prompt">Detalles específicos del anuncio</Label>
         <Textarea
           id="custom-prompt"
           value={customPrompt}
           onChange={(e) => onCustomPromptChange(e.target.value)}
-          placeholder="Describe la escena final, la intencion comercial o cualquier detalle que no deba improvisar la IA.
-          Ej: Un reloj de lujo sobre una mesa de marmol negro con iluminacion dramatica..."
-          className="mt-2 min-h-[180px] rounded-xl resize-none bg-background"
+          placeholder="Escena final, intención comercial o detalles que la IA no debe improvisar. Ej: reloj de lujo sobre mesa de mármol negro con iluminación dramática…"
+          className="mt-2 min-h-[80px] resize-none rounded-xl bg-background"
+          rows={3}
         />
       </div>
     </div>

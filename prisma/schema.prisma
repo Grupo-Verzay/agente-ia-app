@@ -673,6 +673,20 @@ model User {
   referredBy                         AffiliateReferral?           @relation("ReferredBy")
   userSubscriptions                  UserSubscription[]
   resellerPlans                      ResellerPlan[]
+  forms                              Form[]
+  visualStyles                       UserVisualStyle[]
+}
+
+model UserVisualStyle {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model UserNotificationContact {
@@ -2064,4 +2078,84 @@ model BaileysMessage {
   @@index([instanceName, remoteJid, timestamp])
   @@index([instanceName, timestamp])
   @@map("baileys_messages")
+}
+
+// ─── MÓDULO FORMULARIOS DINÁMICOS ────────────────────────────────────────────
+
+enum FormFieldType {
+  text
+  textarea
+  select
+  checkbox
+  file
+  number
+  date
+  email
+  phone
+  time
+  url
+  money
+  multiselect
+  radio
+}
+
+enum FormSubmissionSyncStatus {
+  PENDING
+  SYNCED
+  ERROR
+}
+
+model Form {
+  id                 String           @id @default(uuid())
+  userId             String
+  title              String
+  slug               String
+  description        String?
+  sheetsUrl          String?
+  isActive           Boolean          @default(true)
+  whatsappEnabled    Boolean          @default(false)
+  whatsappNumber     String?
+  whatsappMessage    String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fields             FormField[]
+  submissions        FormSubmission[]
+
+  @@unique([userId, slug])
+  @@index([userId])
+  @@map("forms")
+}
+
+model FormField {
+  id          String        @id @default(uuid())
+  formId      String
+  label       String
+  type        FormFieldType @default(text)
+  placeholder String?
+  required    Boolean       @default(false)
+  order       Int           @default(0)
+  options     Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  form        Form          @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId, order])
+  @@map("form_fields")
+}
+
+model FormSubmission {
+  id         String                   @id @default(uuid())
+  formId     String
+  data       Json
+  syncStatus FormSubmissionSyncStatus @default(PENDING)
+  syncedAt   DateTime?
+  syncError  String?
+  createdAt  DateTime                 @default(now())
+  updatedAt  DateTime                 @updatedAt
+  form       Form                     @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId, createdAt])
+  @@index([syncStatus])
+  @@map("form_submissions")
 }

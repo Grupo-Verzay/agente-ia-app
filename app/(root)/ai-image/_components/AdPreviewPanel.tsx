@@ -46,9 +46,9 @@ export const AdPreviewPanel = ({
   onDownload,
 }: AdPreviewPanelProps) => (
   <Card className="flex min-h-0 flex-col overflow-hidden rounded-[28px] border-border shadow-sm">
-    <CardHeader className="flex flex-col gap-3 border-b bg-background/95 p-4 lg:flex-row lg:items-start lg:justify-between lg:p-5">
+    <CardHeader className="flex flex-row items-center justify-between gap-3 border-b bg-background/95 px-4 py-3">
       <div className="space-y-0.5">
-      <CardTitle className="text-2xl leading-tight lg:text-3xl">Vista previa de imagenes</CardTitle>
+      <CardTitle className="text-lg font-semibold">Vista previa de imágenes</CardTitle>
         {currentVariants.length > 1 && (
           <p className="text-xs text-muted-foreground">
             Variante {activeVariant + 1} de {currentVariants.length}

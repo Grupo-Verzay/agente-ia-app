@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { generateAdImage } from '@/actions/ai-image-actions'
+import { deleteUserVisualStyle, generateAdImage, saveUserVisualStyle } from '@/actions/ai-image-actions'
 import {
   AD_FORMATS,
   DEFAULT_STYLES,
@@ -15,15 +15,19 @@ import type { AdFormat, CustomStyle, StudioStepId } from '../ad-generator.types'
 // Record<imageIndex, Record<"templateId_formatId", string[]>>
 type GeneratedImages = Record<number, Record<string, string[]>>
 
-export const useAdGenerator = () => {
+export const useAdGenerator = (initialDbStyles: { id: string; name: string; description: string }[] = []) => {
   const [activeStep, setActiveStep] = useState<StudioStepId>('images')
   const [sourceImages, setSourceImages] = useState<string[]>([])
   const [generatedImages, setGeneratedImages] = useState<GeneratedImages>({})
   const [isGenerating, setIsGenerating] = useState(false)
   const [isLandingKitMode, setIsLandingKitMode] = useState(false)
   const [includeText, setIncludeText] = useState(false)
-  const [customStyles, setCustomStyles] = useState<CustomStyle[]>(DEFAULT_STYLES)
+  const [customStyles, setCustomStyles] = useState<CustomStyle[]>([
+    ...DEFAULT_STYLES,
+    ...initialDbStyles.map((s) => ({ ...s, canDelete: true })),
+  ])
   const [selectedStyleId, setSelectedStyleId] = useState(DEFAULT_STYLES[0].id)
+  const [isSavingStyle, setIsSavingStyle] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState(MARKETING_TEMPLATES[0].id)
   const [selectedModel, setSelectedModel] = useState(GENERATION_MODELS[0].id)
   const [imageCount, setImageCount] = useState<number>(1)
@@ -132,18 +136,28 @@ export const useAdGenerator = () => {
     })
   }
 
-  const addCustomStyle = () => {
+  const addCustomStyle = async () => {
     if (!newStyleName.trim() || !newStyleDesc.trim()) return
-    const newStyle: CustomStyle = {
-      id: `custom-${Date.now()}`,
-      name: newStyleName.trim(),
-      description: newStyleDesc.trim(),
+    setIsSavingStyle(true)
+    try {
+      const result = await saveUserVisualStyle(newStyleName.trim(), newStyleDesc.trim())
+      if (result.success && result.style) {
+        const newStyle: CustomStyle = { ...result.style, canDelete: true }
+        setCustomStyles((prev) => [...prev, newStyle])
+        setSelectedStyleId(newStyle.id)
+        setNewStyleName('')
+        setNewStyleDesc('')
+        setIsAddingStyle(false)
+      }
+    } finally {
+      setIsSavingStyle(false)
     }
-    setCustomStyles((prev) => [...prev, newStyle])
-    setSelectedStyleId(newStyle.id)
-    setNewStyleName('')
-    setNewStyleDesc('')
-    setIsAddingStyle(false)
+  }
+
+  const deleteCustomStyle = async (id: string) => {
+    await deleteUserVisualStyle(id)
+    setCustomStyles((prev) => prev.filter((s) => s.id !== id))
+    if (selectedStyleId === id) setSelectedStyleId(DEFAULT_STYLES[0].id)
   }
 
   const handleGenerateAll = async () => {
@@ -194,7 +208,7 @@ export const useAdGenerator = () => {
                 const message = String((err as Error)?.message ?? '').toLowerCase()
 
                 if (message.includes('falta la api key de gemini')) {
-                  setError('Falta configurar la API key de Gemini en el servidor (.env).')
+                  setError('No tienes una API key de Google configurada. Ve a Mi Perfil para agregarla.')
                   setIsGenerating(false)
                   return
                 }
@@ -203,7 +217,7 @@ export const useAdGenerator = () => {
                   message.includes('unregistered callers') ||
                   message.includes('api key should be set')
                 ) {
-                  setError('Gemini rechazo la solicitud por autenticacion. Revisa la API key del servidor.')
+                  setError('Google rechazó la API key. Verifica que sea válida en Mi Perfil → Configurar proveedor.')
                   setIsGenerating(false)
                   return
                 }
@@ -281,6 +295,7 @@ export const useAdGenerator = () => {
     activeVariant, setActiveVariant,
     error,
     isAddingStyle, setIsAddingStyle,
+    isSavingStyle,
     newStyleName, setNewStyleName,
     newStyleDesc, setNewStyleDesc,
     fileInputRef,
@@ -305,6 +320,7 @@ export const useAdGenerator = () => {
     handleImageUpload,
     removeImage,
     addCustomStyle,
+    deleteCustomStyle,
     handleGenerateAll,
     downloadImage,
     goToPreviousStep,

@@ -9,8 +9,8 @@ interface StepNavProps {
 }
 
 export const StepNav = ({ activeStep, stepCompletion, onStepClick }: StepNavProps) => (
-  <div className="border-b px-4 py-3">
-    <div className="grid h-auto w-full grid-cols-2 gap-2 bg-transparent p-0 lg:grid-cols-4">
+  <div className="border-b px-4 py-2">
+    <div className="grid w-full grid-cols-4 gap-1.5">
       {STUDIO_STEPS.map((step, index) => {
         const StepIcon = step.icon
         const isCompleted = stepCompletion[step.id]
@@ -21,22 +21,18 @@ export const StepNav = ({ activeStep, stepCompletion, onStepClick }: StepNavProp
             key={step.id}
             type="button"
             onClick={() => onStepClick(step.id)}
-            className={`h-auto rounded-2xl border px-3 py-3 text-left transition ${
+            className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-2 transition ${
               isActive
                 ? 'border-primary bg-primary/5 text-foreground'
-                : 'border-border/70 bg-muted/20 hover:border-primary/40'
+                : 'border-border/60 bg-muted/20 text-muted-foreground hover:border-primary/40 hover:text-foreground'
             }`}
           >
-            <div className="flex w-full items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border bg-background">
-                <span className="text-xs font-semibold">{index + 1}</span>
-              </div>
-              <div className="flex gap-2 h-9 flex-1 items-center">
-                <StepIcon className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-semibold">{step.label}</span>
-                {isCompleted && <CheckCircle2 className="h-4 w-4 text-primary" />}
-              </div>
-            </div>
+            <span className={`text-[11px] font-bold ${isActive ? 'text-primary' : 'text-muted-foreground/60'}`}>
+              {index + 1}
+            </span>
+            <StepIcon className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate text-xs font-semibold">{step.label}</span>
+            {isCompleted && <CheckCircle2 className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />}
           </button>
         )
       })}

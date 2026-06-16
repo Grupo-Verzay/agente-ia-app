@@ -1,6 +1,15 @@
 import { AdGeneratorStudio } from "./AdGeneratorStudio";
 
-export function MainAiImage() {
-  return <AdGeneratorStudio />;
+interface MainAiImageProps {
+  hasGoogleKey: boolean;
+  dbStyles: { id: string; name: string; description: string }[];
+}
+
+export function MainAiImage({ hasGoogleKey, dbStyles }: MainAiImageProps) {
+  return (
+    <div className="h-full min-h-0 overflow-hidden">
+      <AdGeneratorStudio hasGoogleKey={hasGoogleKey} dbStyles={dbStyles} />
+    </div>
+  );
 }
 

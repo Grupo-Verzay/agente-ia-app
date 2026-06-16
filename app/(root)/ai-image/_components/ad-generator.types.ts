@@ -4,6 +4,7 @@ export interface CustomStyle {
   id: string
   name: string
   description: string
+  canDelete?: boolean
 }
 
 export type AdFormat = '1:1' | '9:16' | '16:9'

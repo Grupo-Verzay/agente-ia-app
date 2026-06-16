@@ -42,6 +42,7 @@ type ApiKeyConfiguratorProps = {
     userId: string;
     disabled?: boolean;
     label?: string;
+    defaultOpen?: boolean;
     /** callback opcional luego de guardar por si quieres refrescar datos del padre */
     onSaved?: () => void;
 };
@@ -72,9 +73,15 @@ export function ApiKeyConfigurator({
     userId,
     disabled,
     label = "API key (por proveedor)",
+    defaultOpen = false,
     onSaved,
 }: ApiKeyConfiguratorProps) {
     const [open, setOpen] = useState(false);
+
+    useEffect(() => {
+        if (defaultOpen) setOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const [providerOpen, setProviderOpen] = useState(false);
     const [modelOpen, setModelOpen] = useState(false);
     const [loading, setLoading] = useState(false);

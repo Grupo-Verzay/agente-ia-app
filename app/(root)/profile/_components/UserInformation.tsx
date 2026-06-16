@@ -183,7 +183,7 @@ const CardLabel = ({ icon: Icon, children }: { icon: React.ElementType; children
 );
 
 // ── Main component ────────────────────────────────────────────────────────────
-export const UserInformation = ({ userId, countries, instancesData, metaInstances }: UserInformationProps) => {
+export const UserInformation = ({ userId, countries, instancesData, metaInstances, autoOpenApiKey }: UserInformationProps) => {
     useResellerStore((state) => state.reseller);
 
     const [user, setUser] = useState<(UserWithPausar & { openMsg?: string })>();
@@ -318,7 +318,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
         }
     };
 
-    const [activeTab, setActiveTab] = useState('conexion');
+    const [activeTab, setActiveTab] = useState(autoOpenApiKey ? 'integraciones' : 'conexion');
     const [showMoreTabs, setShowMoreTabs] = useState(false);
     const [voiceEnabled, setVoiceEnabled] = useState<boolean>(false);
     const [voiceId, setVoiceId] = useState<string>('nova');
@@ -459,7 +459,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
 
             {/* ── TABBED WIZARD ─────────────────────────────────────────── */}
             <Tabs
-                defaultValue="conexion"
+                value={activeTab}
                 className="flex flex-col flex-1 min-h-0"
                 onValueChange={setActiveTab}
             >
@@ -591,7 +591,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                         </div>
                                     </CardHeader>
                                     <CardContent className="flex flex-col flex-1 gap-4">
-                                        <ApiKeyConfigurator userId={userId} onSaved={() => { }} />
+                                        <ApiKeyConfigurator userId={userId} onSaved={() => { }} defaultOpen={autoOpenApiKey} />
                                         <p className="text-sm text-muted-foreground">
                                             Obtén tu API key en el portal de tu proveedor. Para: OpenAI - Google
                                         </p>
