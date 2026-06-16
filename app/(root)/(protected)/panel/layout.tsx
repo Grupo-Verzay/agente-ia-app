@@ -36,7 +36,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
 
     const panelTabs =
         user.role === 'reseller'
-            ? [...resellerExtraTabs, { url: '/panel/mis-estadisticas', title: 'Mis Estadísticas' }]
+            ? resellerExtraTabs
             : [...allTabs, { url: '/panel/analytics', title: 'Analytics' }];
 
     return (
