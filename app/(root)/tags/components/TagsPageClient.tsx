@@ -73,21 +73,19 @@ export function TagsPageClient({
         <TooltipProvider delayDuration={120}>
             <div data-full-bleed className="flex h-full min-w-0 w-full flex-col gap-2">
                 {/* Top 4 metric cards por conteo */}
-                {view === 'kanban' && (
-                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
-                        {topMetrics.map((m) => (
-                            <div key={m.id} className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<Tag className="h-4 w-4" />}
-                                    label={m.label}
-                                    value={m.count}
-                                    helper={m.id === 'none' ? 'Contactos sin ninguna etiqueta asignada' : `Contactos con etiqueta "${m.label}"`}
-                                    color={m.color}
-                                />
-                            </div>
-                        ))}
-                    </div>
-                )}
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+                    {topMetrics.map((m) => (
+                        <div key={m.id} className="min-w-0 sm:flex-1">
+                            <MetricCard
+                                icon={<Tag className="h-4 w-4" />}
+                                label={m.label}
+                                value={m.count}
+                                helper={m.id === 'none' ? 'Contactos sin ninguna etiqueta asignada' : `Contactos con etiqueta "${m.label}"`}
+                                color={m.color}
+                            />
+                        </div>
+                    ))}
+                </div>
 
                 {/* Fila de toggle + score pills — igual que CRM */}
                 <ModuleToolbar>
@@ -182,10 +180,7 @@ export function TagsPageClient({
                         />
                     </div>
                 ) : (
-                    <div
-                        style={{ height: 'calc(100dvh - 130px)' }}
-                        className="overflow-y-auto pr-1 pb-4"
-                    >
+                    <div className="min-h-0 flex-1 overflow-y-auto pb-4 pr-1">
                         <SessionTagsManager
                             userId={userId}
                             sessionId={0}

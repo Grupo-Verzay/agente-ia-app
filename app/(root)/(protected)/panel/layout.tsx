@@ -34,10 +34,12 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         title: item.title,
     }));
 
+    const FORMULARIOS_TAB = { url: '/panel/mis-formularios', title: 'Formularios' };
+
     const panelTabs =
         user.role === 'reseller'
-            ? resellerExtraTabs
-            : [...allTabs, { url: '/panel/analytics', title: 'Analytics' }];
+            ? [...resellerExtraTabs, FORMULARIOS_TAB]
+            : [...allTabs, { url: '/panel/analytics', title: 'Analytics' }, FORMULARIOS_TAB];
 
     return (
         <div className="flex h-full min-w-0 w-full flex-col">

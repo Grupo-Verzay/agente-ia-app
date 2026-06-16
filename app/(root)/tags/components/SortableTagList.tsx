@@ -33,6 +33,8 @@ const COLOR_PRESETS = [
   '#F59E0B',
 ];
 
+const DEFAULT_COLOR = '#64748B';
+
 interface SortableTagItemProps {
   tag: SimpleTag;
   isEditing: boolean;
@@ -45,7 +47,6 @@ interface SortableTagItemProps {
   onCancelEdit: () => void;
   onStartEdit: (tag: SimpleTag) => void;
   onDelete: (tag: SimpleTag) => void;
-  renderColorDot: (color?: string | null) => React.ReactNode;
 }
 
 const SortableTagItem = ({
@@ -60,16 +61,8 @@ const SortableTagItem = ({
   onCancelEdit,
   onStartEdit,
   onDelete,
-  renderColorDot,
 }: SortableTagItemProps) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: tag.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tag.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -77,15 +70,22 @@ const SortableTagItem = ({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const color = tag.color ?? DEFAULT_COLOR;
+
   if (isEditing) {
     return (
       <div
         ref={setNodeRef}
         style={style}
-        className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2"
+        className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/40 px-4 py-3"
       >
         <div className="flex flex-1 min-w-[160px] items-center gap-2">
-          {renderColorDot(editColor)}
+          <span
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+            style={{ backgroundColor: (editColor ?? DEFAULT_COLOR) + '25' }}
+          >
+            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: editColor ?? DEFAULT_COLOR }} />
+          </span>
           <Input
             value={editName}
             onChange={(e) => onEditName(e.target.value.toUpperCase())}
@@ -93,16 +93,13 @@ const SortableTagItem = ({
           />
         </div>
         <div className="flex items-center gap-1.5">
-          {COLOR_PRESETS.map((color) => (
+          {COLOR_PRESETS.map((c) => (
             <button
-              key={color}
+              key={c}
               type="button"
-              onClick={() => onEditColor(editColor === color ? null : color)}
-              className={cn(
-                'h-5 w-5 rounded-full border border-border/60',
-                editColor === color && 'ring-2 ring-primary'
-              )}
-              style={{ backgroundColor: color }}
+              onClick={() => onEditColor(editColor === c ? null : c)}
+              className={cn('h-5 w-5 rounded-full border border-border/60', editColor === c && 'ring-2 ring-primary')}
+              style={{ backgroundColor: c }}
             />
           ))}
           <Input
@@ -113,21 +110,10 @@ const SortableTagItem = ({
           />
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 px-3"
-            onClick={onSaveEdit}
-            disabled={isPending || !editName.trim()}
-          >
+          <Button variant="outline" size="sm" className="h-8 px-3" onClick={onSaveEdit} disabled={isPending || !editName.trim()}>
             Guardar
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 px-3"
-            onClick={onCancelEdit}
-          >
+          <Button variant="ghost" size="sm" className="h-8 px-3" onClick={onCancelEdit}>
             Cancelar
           </Button>
         </div>
@@ -139,42 +125,42 @@ const SortableTagItem = ({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
+      className="flex items-center gap-3 rounded-xl border bg-card px-3 py-3 shadow-sm"
     >
       <div
-        className="cursor-grab p-1 text-muted-foreground hover:bg-slate-100 rounded"
+        className="cursor-grab p-1 text-muted-foreground hover:text-foreground"
         {...attributes}
         {...listeners}
       >
         <GripVertical className="h-4 w-4" />
       </div>
 
-      <button
-        type="button"
-        className="inline-flex min-w-[120px] flex-1 items-center gap-2 rounded-full px-2 py-1 text-left"
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+        style={{ backgroundColor: color + '25' }}
       >
-        {renderColorDot(tag.color)}
-        <span className="truncate uppercase">{tag.name}</span>
-      </button>
+        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
+      </div>
 
-      <div className="flex items-center gap-1">
+      <span className="flex-1 truncate font-semibold uppercase tracking-wide">{tag.name}</span>
+
+      <div className="flex items-center gap-1.5">
         <Button
           type="button"
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8"
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 rounded-lg px-3 text-xs"
           onClick={() => onStartEdit(tag)}
-          title="Editar etiqueta"
         >
-          <Pencil className="h-4 w-4" />
+          <Pencil className="h-3.5 w-3.5" />
+          Editar
         </Button>
         <Button
           type="button"
           size="icon"
           variant="ghost"
-          className="h-8 w-8 text-destructive hover:text-destructive"
+          className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive"
           onClick={() => onDelete(tag)}
-          title="Eliminar etiqueta"
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -196,7 +182,6 @@ interface SortableTagListProps {
   onCancelEdit: () => void;
   onStartEdit: (tag: SimpleTag) => void;
   onDelete: (tag: SimpleTag) => void;
-  renderColorDot: (color?: string | null) => React.ReactNode;
 }
 
 export const SortableTagList = ({
@@ -212,7 +197,6 @@ export const SortableTagList = ({
   onCancelEdit,
   onStartEdit,
   onDelete,
-  renderColorDot,
 }: SortableTagListProps) => {
   const router = useRouter();
   const sensors = useSensors(useSensor(PointerSensor));
@@ -237,21 +221,14 @@ export const SortableTagList = ({
       router.refresh();
     } else {
       toast.error('Error guardando el orden', { id: toastId });
-      onReorder(tags); // revertir
+      onReorder(tags);
     }
   };
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <SortableContext
-        items={tags.map((t) => t.id)}
-        strategy={verticalListSortingStrategy}
-      >
-        <div className="flex flex-col gap-1.5">
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={tags.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+        <div className="flex flex-col gap-2">
           {tags.map((tag) => (
             <SortableTagItem
               key={tag.id}
@@ -266,7 +243,6 @@ export const SortableTagList = ({
               onCancelEdit={onCancelEdit}
               onStartEdit={onStartEdit}
               onDelete={onDelete}
-              renderColorDot={renderColorDot}
             />
           ))}
         </div>
