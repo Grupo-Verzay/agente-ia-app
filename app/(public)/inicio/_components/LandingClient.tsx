@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getActiveSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
+import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
 
 /* ─── Datos estáticos ─────────────────────────────────────────────────────── */
 
@@ -337,7 +338,23 @@ type AssistanceType = "IA" | "HUMANO";
 
 /* ─── Componente principal ────────────────────────────────────────────────── */
 
-export function LandingClient() {
+interface LandingClientProps {
+  whatsappNumber?: string | null;
+  meetingUrl?: string | null;
+  primaryColor?: string | null;
+  headline?: string | null;
+  subheadline?: string | null;
+  logoUrl?: string | null;
+  instagram?: string | null;
+  facebook?: string | null;
+  videoUrl?: string | null;
+  ctaHeadline?: string | null;
+  ctaSubtitle?: string | null;
+  testimonials?: TestimonialData[] | null;
+  stats?: StatData[] | null;
+}
+
+export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats }: LandingClientProps = {}) {
   const [plans, setPlans]                   = useState<SubscriptionPlanItem[]>([]);
   const [plansLoading, setPlansLoading]     = useState(true);
   const [assistanceType, setAssistanceType] = useState<AssistanceType>("IA");
@@ -356,17 +373,34 @@ export function LandingClient() {
     .filter((p) => p.assistanceType === assistanceType)
     .sort((a, b) => PLAN_ORDER.indexOf(a.plan) - PLAN_ORDER.indexOf(b.plan));
 
+  const brand = primaryColor && /^#[0-9a-fA-F]{3,8}$/.test(primaryColor) ? primaryColor : null;
+  const heroTitle = headline ?? "Automatiza tu WhatsApp";
+  const heroSub = subheadline ?? "Transforma tus mensajes en un sistema automático de ventas y atención al cliente — desde el primer día, sin programación.";
+
   return (
     <div className="min-h-full text-white">
+      {brand && (
+        <style>{`
+          .brand-btn { background-color: ${brand} !important; }
+          .brand-btn:hover { filter: brightness(1.12); }
+          .brand-text { color: ${brand} !important; }
+        `}</style>
+      )}
 
       {/* ══ NAVBAR ══════════════════════════════════════════════════════════ */}
       <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-900/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-3 sm:px-12 lg:px-16">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-              <Bot className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-lg font-bold text-white">Agente IA</span>
+            {logoUrl ? (
+              <img src={logoUrl} alt="Agente IA" className="h-8 max-w-[120px] object-contain" />
+            ) : (
+              <>
+                <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", brand ? "brand-btn" : "bg-blue-600")}>
+                  <Bot className="h-4 w-4 text-white" />
+                </div>
+                <span className="text-lg font-bold text-white">Agente IA</span>
+              </>
+            )}
           </div>
           <nav className="hidden items-center gap-7 sm:flex">
             {[["#how","Cómo funciona"],["#features","Funciones"],["#pricing","Precios"],["#faq","FAQ"]].map(([href,label]) => (
@@ -378,7 +412,7 @@ export function LandingClient() {
               <Button variant="ghost" size="sm" className="text-slate-300 hover:bg-white/10 hover:text-white">Iniciar sesión</Button>
             </Link>
             <Link href="/completar-registro">
-              <Button size="sm" className="bg-blue-600 text-white hover:bg-blue-500">Comenzar gratis</Button>
+              <Button size="sm" className={cn("text-white", brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500")}>Comenzar gratis</Button>
             </Link>
           </div>
           <button className="p-2 text-slate-400 sm:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -417,18 +451,12 @@ export function LandingClient() {
                 <MessageCircle className="h-3 w-3" /> Agente IA para WhatsApp
               </Badge>
               <h1 className="mb-4 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl xl:text-6xl">
-                Automatiza tu WhatsApp
-                <span className="block bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                  con estructura profesional
-                </span>
+                {heroTitle}
               </h1>
-              <p className="mb-5 text-base text-slate-400 sm:text-lg xl:text-xl">
-                Transforma tus mensajes en un sistema automático de ventas y
-                atención al cliente — desde el primer día, sin programación.
-              </p>
+              <p className="mb-5 text-base text-slate-400 sm:text-lg xl:text-xl">{heroSub}</p>
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:flex-nowrap">
                 <Link href="/completar-registro">
-                  <Button size="lg" className="w-full gap-2 bg-blue-600 px-8 text-white hover:bg-blue-500 md:w-auto">
+                  <Button size="lg" className={cn("w-full gap-2 px-8 text-white md:w-auto", brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500")}>
                     Comenzar gratis <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
@@ -437,11 +465,13 @@ export function LandingClient() {
                     Ver planes
                   </Button>
                 </a>
-                <a href="https://verzay.com/agendar-una-reunion" target="_blank" rel="noopener noreferrer">
-                  <Button size="lg" variant="outline" className="w-full gap-2 border-cyan-500/40 bg-cyan-500/10 px-8 text-cyan-300 hover:bg-cyan-500/20 hover:text-cyan-200 md:w-auto">
-                    <Calendar className="h-4 w-4" /> Agendar asesoría
-                  </Button>
-                </a>
+                {(meetingUrl ?? "https://verzay.com/agendar-una-reunion") && (
+                  <a href={meetingUrl ?? "https://verzay.com/agendar-una-reunion"} target="_blank" rel="noopener noreferrer">
+                    <Button size="lg" variant="outline" className="w-full gap-2 border-cyan-500/40 bg-cyan-500/10 px-8 text-cyan-300 hover:bg-cyan-500/20 hover:text-cyan-200 md:w-auto">
+                      <Calendar className="h-4 w-4" /> Agendar asesoría
+                    </Button>
+                  </a>
+                )}
               </div>
               {/* Trust badges */}
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5">
@@ -451,18 +481,23 @@ export function LandingClient() {
                   </span>
                 ))}
               </div>
-              <div className="mt-5 grid grid-cols-3 gap-6 border-t border-white/10 pt-5">
-                {[
+              {(() => {
+                const heroStats = (stats && stats.length > 0 ? stats.slice(0, 3) : [
                   { value: "+500", label: "Negocios activos" },
                   { value: "4.9★", label: "Calificación promedio" },
                   { value: "+40%", label: "Aumento en ventas" },
-                ].map((s) => (
-                  <div key={s.label}>
-                    <div className="text-2xl font-bold text-blue-400">{s.value}</div>
-                    <div className="mt-0.5 text-xs text-slate-500">{s.label}</div>
+                ]).filter((s) => s.value);
+                return heroStats.length > 0 ? (
+                  <div className={`mt-5 grid grid-cols-${heroStats.length} gap-6 border-t border-white/10 pt-5`}>
+                    {heroStats.map((s) => (
+                      <div key={s.label}>
+                        <div className="text-2xl font-bold text-blue-400">{s.value}</div>
+                        <div className="mt-0.5 text-xs text-slate-500">{s.label}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                ) : null;
+              })()}
             </div>
 
             {/* Columna derecha: phone mockup */}
@@ -652,38 +687,42 @@ export function LandingClient() {
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Lo que dicen nuestros clientes</h2>
               <p className="mt-2 text-slate-400">Negocios reales que ya automatizaron su atención al cliente.</p>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              {TESTIMONIALS.map((t, i) => (
-                <FadeIn key={t.name} delay={i * 80}>
-                  <div className="flex h-full flex-col gap-4 rounded-xl border border-white/10 bg-white/5 p-5">
-                    <div className="flex items-start justify-between">
-                      <Quote className="h-5 w-5 text-blue-400/50" />
-                      <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400">
-                        ✓ Verificado
-                      </span>
-                    </div>
-                    <p className="flex-1 text-sm text-slate-300 leading-relaxed">"{t.quote}"</p>
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star key={i} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-                      ))}
-                      <span className="ml-1.5 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-400">
-                        {t.metric}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 border-t border-white/10 pt-3">
-                      <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white", t.color)}>
-                        {t.initials}
+            {(() => {
+              const AVATAR_COLORS = ["bg-blue-600", "bg-violet-600", "bg-cyan-600"];
+              const activeTestimonials = (testimonials && testimonials.some((t) => t.quote))
+                ? testimonials.filter((t) => t.quote).map((t, i) => ({
+                    ...t,
+                    initials: t.name ? t.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() : "?",
+                    color: AVATAR_COLORS[i % AVATAR_COLORS.length],
+                  }))
+                : TESTIMONIALS;
+              return (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  {activeTestimonials.map((t, i) => (
+                    <FadeIn key={i} delay={i * 80}>
+                      <div className="flex h-full flex-col gap-4 rounded-xl border border-white/10 bg-white/5 p-5">
+                        <div className="flex items-start justify-between">
+                          <Quote className="h-5 w-5 text-blue-400/50" />
+                          <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400">✓ Verificado</span>
+                        </div>
+                        <p className="flex-1 text-sm text-slate-300 leading-relaxed">"{t.quote}"</p>
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: 5 }).map((_, j) => (<Star key={j} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />))}
+                          {t.metric && <span className="ml-1.5 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-400">{t.metric}</span>}
+                        </div>
+                        <div className="flex items-center gap-3 border-t border-white/10 pt-3">
+                          <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white", t.color)}>{t.initials}</div>
+                          <div>
+                            <p className="text-sm font-semibold text-white">{t.name}</p>
+                            <p className="text-xs text-slate-500">{[t.business, t.city].filter(Boolean).join(" · ")}</p>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-white">{t.name}</p>
-                        <p className="text-xs text-slate-500">{t.business} · {t.city}</p>
-                      </div>
-                    </div>
-                  </div>
-                </FadeIn>
-              ))}
-            </div>
+                    </FadeIn>
+                  ))}
+                </div>
+              );
+            })()}
           </FadeIn>
         </div>
       </section>
@@ -753,6 +792,26 @@ export function LandingClient() {
         </div>
       </section>
 
+      {/* ══ VIDEO ══════════════════════════════════════════════════════════ */}
+      {videoUrl && (() => {
+        const embedUrl = videoUrl.includes("youtube.com/watch?v=")
+          ? videoUrl.replace("youtube.com/watch?v=", "youtube.com/embed/").split("&")[0]
+          : videoUrl.includes("youtu.be/")
+          ? `https://www.youtube.com/embed/${videoUrl.split("youtu.be/")[1].split("?")[0]}`
+          : videoUrl;
+        return (
+          <section className="py-6">
+            <div className="mx-auto max-w-4xl px-8 sm:px-12 lg:px-16">
+              <FadeIn>
+                <div className="overflow-hidden rounded-2xl border border-white/10" style={{ aspectRatio: "16/9" }}>
+                  <iframe src={embedUrl} className="h-full w-full" allowFullScreen title="Video de presentación" />
+                </div>
+              </FadeIn>
+            </div>
+          </section>
+        );
+      })()}
+
       {/* ══ FAQ ════════════════════════════════════════════════════════════ */}
       <section id="faq" className="py-6">
         <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
@@ -785,10 +844,8 @@ export function LandingClient() {
         <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
           <FadeIn>
             <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-600/20 via-slate-800/40 to-slate-900/60 px-10 py-8 text-center">
-              <h2 className="text-3xl font-bold text-white sm:text-4xl">¿Listo para empezar?</h2>
-              <p className="mt-4 text-lg text-slate-400">
-                Configúralo en 5 minutos. Tu agente empieza a responder desde el primer día.
-              </p>
+              <h2 className="text-3xl font-bold text-white sm:text-4xl">{ctaHeadline ?? "¿Listo para empezar?"}</h2>
+              <p className="mt-4 text-lg text-slate-400">{ctaSubtitle ?? "Configúralo en 5 minutos. Tu agente empieza a responder desde el primer día."}</p>
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Link href="/completar-registro">
                   <Button size="lg" className="gap-2 bg-blue-600 px-10 text-white hover:bg-blue-500">
@@ -817,33 +874,42 @@ export function LandingClient() {
       <footer className="border-t border-white/10 py-6">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-8 sm:flex-row sm:justify-between sm:px-12 lg:px-16">
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600">
-              <Bot className="h-3.5 w-3.5 text-white" />
-            </div>
-            <span className="font-semibold text-white">Agente IA</span>
+            {logoUrl ? (
+              <img src={logoUrl} alt="Agente IA" className="h-7 max-w-[100px] object-contain" />
+            ) : (
+              <>
+                <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg", brand ? "brand-btn" : "bg-blue-600")}>
+                  <Bot className="h-3.5 w-3.5 text-white" />
+                </div>
+                <span className="font-semibold text-white">Agente IA</span>
+              </>
+            )}
           </div>
           <p className="text-xs text-slate-500">© {new Date().getFullYear()} Agente IA. Todos los derechos reservados.</p>
-          <div className="flex gap-5 text-sm text-slate-500">
+          <div className="flex flex-wrap items-center gap-5 text-sm text-slate-500">
             <a href="#features" className="transition-colors hover:text-slate-300">Funciones</a>
             <a href="#pricing" className="transition-colors hover:text-slate-300">Precios</a>
             <a href="#faq" className="transition-colors hover:text-slate-300">FAQ</a>
+            {instagram && <a href={instagram} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-pink-400">Instagram</a>}
+            {facebook && <a href={facebook} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-blue-400">Facebook</a>}
             <Link href="/login" className="transition-colors hover:text-slate-300">Acceso</Link>
           </div>
         </div>
       </footer>
 
       {/* ══ WHATSAPP FLOTANTE ══════════════════════════════════════════════ */}
-      <WhatsAppButton />
+      <WhatsAppButton number={whatsappNumber ?? "573233612620"} />
     </div>
   );
 }
 
 /* ─── Sub-componentes ─────────────────────────────────────────────────────── */
 
-function WhatsAppButton() {
+function WhatsAppButton({ number }: { number: string }) {
+  const clean = number.replace(/\D/g, "");
   return (
     <a
-      href="https://wa.me/573233612620"
+      href={`https://wa.me/${clean}`}
       target="_blank"
       rel="noopener noreferrer"
       title="Chatea con nosotros"

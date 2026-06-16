@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { LandingClient } from "./_components/LandingClient";
+import { getSiteConfig } from "@/actions/admin/site-config-actions";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Agente IA — Automatiza tu WhatsApp con Inteligencia Artificial",
@@ -27,6 +30,23 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-export default function InicioPage() {
-  return <LandingClient />;
+export default async function InicioPage() {
+  const config = await getSiteConfig();
+  return (
+    <LandingClient
+      whatsappNumber={config.whatsappNumber}
+      meetingUrl={config.meetingUrl}
+      primaryColor={config.primaryColor}
+      headline={config.headline}
+      subheadline={config.subheadline}
+      logoUrl={config.logoUrl}
+      instagram={config.instagram}
+      facebook={config.facebook}
+      videoUrl={config.videoUrl}
+      ctaHeadline={config.ctaHeadline}
+      ctaSubtitle={config.ctaSubtitle}
+      testimonials={config.testimonials}
+      stats={config.stats}
+    />
+  );
 }

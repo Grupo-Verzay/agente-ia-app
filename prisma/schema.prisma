@@ -1239,6 +1239,18 @@ model Reseller {
   userId                         String?
   slug                           String?  @unique
   businessName                   String?
+  sheetsUrl                      String?
+  primaryColor                   String?
+  headline                       String?
+  subheadline                    String?
+  logoUrl                        String?
+  instagram                      String?
+  facebook                       String?
+  videoUrl                       String?
+  ctaHeadline                    String?
+  ctaSubtitle                    String?
+  testimonials                   Json?
+  stats                          Json?
   createdAt                      DateTime @default(now())
   updatedAt                      DateTime @updatedAt
   theme                          ThemeApp @default(Default)
@@ -1246,6 +1258,27 @@ model Reseller {
   user_reseller_userIdToUser     User?    @relation("reseller_userIdToUser", fields: [userId], references: [id])
 
   @@map("reseller")
+}
+
+model SiteConfig {
+  id             Int      @id @default(1)
+  whatsappNumber String?
+  meetingUrl     String?
+  sheetsUrl      String?
+  primaryColor   String?
+  headline       String?
+  subheadline    String?
+  logoUrl        String?
+  instagram      String?
+  facebook       String?
+  videoUrl       String?
+  ctaHeadline    String?
+  ctaSubtitle    String?
+  testimonials   Json?
+  stats          Json?
+  updatedAt      DateTime @updatedAt
+
+  @@map("site_config")
 }
 
 model ResellerPlan {

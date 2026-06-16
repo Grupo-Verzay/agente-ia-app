@@ -26,9 +26,26 @@ export type ResellerPlanItem = {
   order: number;
 };
 
+export type TestimonialData = { quote: string; name: string; city: string; business: string; metric: string };
+export type StatData = { value: string; label: string };
+
 export type ResellerProfileData = {
   slug: string | null;
   businessName: string | null;
+  meetingUrl: string | null;
+  sheetsUrl: string | null;
+  whatsappNumber: string | null;
+  primaryColor: string | null;
+  headline: string | null;
+  subheadline: string | null;
+  logoUrl: string | null;
+  instagram: string | null;
+  facebook: string | null;
+  videoUrl: string | null;
+  ctaHeadline: string | null;
+  ctaSubtitle: string | null;
+  testimonials: TestimonialData[] | null;
+  stats: StatData[] | null;
 };
 
 function mapPlan(p: {
@@ -72,15 +89,38 @@ export async function getMyResellerPlans(): Promise<{
       where: { resellerUserId: user.id },
       orderBy: [{ assistanceType: "asc" }, { order: "asc" }],
     });
-    const resellerRow = await db.reseller.findFirst({
-      where: { resellerid: user.id },
-      select: { slug: true, businessName: true },
-    });
+    const [resellerRow, resellerUser] = await Promise.all([
+      db.reseller.findFirst({
+        where: { resellerid: user.id },
+        select: { slug: true, businessName: true, sheetsUrl: true, primaryColor: true, headline: true, subheadline: true, logoUrl: true, instagram: true, facebook: true, videoUrl: true, ctaHeadline: true, ctaSubtitle: true, testimonials: true, stats: true },
+      }),
+      db.user.findUnique({
+        where: { id: user.id },
+        select: { meetingUrl: true, notificationNumber: true },
+      }),
+    ]);
     return {
       success: true,
       data: plans.map(mapPlan),
       profile: resellerRow
-        ? { slug: resellerRow.slug, businessName: resellerRow.businessName }
+        ? {
+            slug: resellerRow.slug,
+            businessName: resellerRow.businessName,
+            meetingUrl: resellerUser?.meetingUrl ?? null,
+            sheetsUrl: resellerRow.sheetsUrl ?? null,
+            whatsappNumber: resellerUser?.notificationNumber ?? null,
+            primaryColor: resellerRow.primaryColor ?? null,
+            headline: resellerRow.headline ?? null,
+            subheadline: resellerRow.subheadline ?? null,
+            logoUrl: resellerRow.logoUrl ?? null,
+            instagram: resellerRow.instagram ?? null,
+            facebook: resellerRow.facebook ?? null,
+            videoUrl: resellerRow.videoUrl ?? null,
+            ctaHeadline: resellerRow.ctaHeadline ?? null,
+            ctaSubtitle: resellerRow.ctaSubtitle ?? null,
+            testimonials: Array.isArray(resellerRow.testimonials) ? (resellerRow.testimonials as TestimonialData[]) : null,
+            stats: Array.isArray(resellerRow.stats) ? (resellerRow.stats as StatData[]) : null,
+          }
         : null,
     };
   } catch (e) {
@@ -170,6 +210,20 @@ export async function toggleResellerPlanActive(id: string, isActive: boolean) {
 export async function updateResellerProfile(data: {
   slug: string;
   businessName: string;
+  meetingUrl?: string;
+  sheetsUrl?: string;
+  whatsappNumber?: string;
+  primaryColor?: string;
+  headline?: string;
+  subheadline?: string;
+  logoUrl?: string;
+  instagram?: string;
+  facebook?: string;
+  videoUrl?: string;
+  ctaHeadline?: string;
+  ctaSubtitle?: string;
+  testimonials?: TestimonialData[];
+  stats?: StatData[];
 }) {
   try {
     const user = await currentUser();
@@ -179,22 +233,41 @@ export async function updateResellerProfile(data: {
     const slug = data.slug.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
     if (!slug) return { success: false, message: "Slug inválido" };
 
+    const resellerData = {
+      slug,
+      businessName: data.businessName,
+      sheetsUrl: data.sheetsUrl || null,
+      primaryColor: data.primaryColor || null,
+      headline: data.headline || null,
+      subheadline: data.subheadline || null,
+      logoUrl: data.logoUrl || null,
+      instagram: data.instagram || null,
+      facebook: data.facebook || null,
+      videoUrl: data.videoUrl || null,
+      ctaHeadline: data.ctaHeadline || null,
+      ctaSubtitle: data.ctaSubtitle || null,
+      testimonials: data.testimonials ?? null,
+      stats: data.stats ?? null,
+    };
+
     const existing = await db.reseller.findFirst({ where: { resellerid: user.id } });
     if (existing) {
-      await db.reseller.update({
-        where: { id: existing.id },
-        data: { slug, businessName: data.businessName },
-      });
+      await db.reseller.update({ where: { id: existing.id }, data: resellerData });
     } else {
-      await db.reseller.create({
-        data: { resellerid: user.id, slug, businessName: data.businessName },
-      });
+      await db.reseller.create({ data: { resellerid: user.id, ...resellerData } });
+    }
+    const userUpdates: Record<string, string | null> = {};
+    if (data.meetingUrl !== undefined) userUpdates.meetingUrl = data.meetingUrl || null;
+    if (data.whatsappNumber !== undefined) userUpdates.notificationNumber = data.whatsappNumber || null;
+    if (Object.keys(userUpdates).length > 0) {
+      await db.user.update({ where: { id: user.id }, data: userUpdates });
     }
     revalidatePath("/panel/mis-planes");
     return { success: true, message: "Perfil actualizado" };
   } catch (e) {
-    console.error("[updateResellerProfile]", e);
-    return { success: false, message: "Error al actualizar perfil (el slug puede estar en uso)" };
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[updateResellerProfile]", msg);
+    return { success: false, message: msg };
   }
 }
 
@@ -230,6 +303,18 @@ export async function adminUpdateResellerProfile(resellerUserId: string, data: {
   }
 }
 
+export async function getResellerPublicConfig(slug: string): Promise<{ sheetsUrl: string | null }> {
+  try {
+    const row = await db.reseller.findFirst({
+      where: { slug },
+      select: { sheetsUrl: true },
+    });
+    return { sheetsUrl: row?.sheetsUrl ?? null };
+  } catch {
+    return { sheetsUrl: null };
+  }
+}
+
 /**
  * Obtiene los planes de un reseller por su slug, combinando los planes del reseller
  * con los planes maestros como fallback.
@@ -239,28 +324,45 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
   plans: SubscriptionPlanItem[];
   businessName: string | null;
   resellerUserId: string | null;
+  whatsappNumber: string | null;
+  meetingUrl: string | null;
+  primaryColor: string | null;
+  headline: string | null;
+  subheadline: string | null;
+  logoUrl: string | null;
+  instagram: string | null;
+  facebook: string | null;
+  videoUrl: string | null;
+  ctaHeadline: string | null;
+  ctaSubtitle: string | null;
+  testimonials: TestimonialData[] | null;
+  stats: StatData[] | null;
 }> {
+  const EMPTY_EXTRA = { primaryColor: null, headline: null, subheadline: null, logoUrl: null, instagram: null, facebook: null, videoUrl: null, ctaHeadline: null, ctaSubtitle: null, testimonials: null, stats: null };
   try {
     const resellerRow = await db.reseller.findFirst({
       where: { slug },
-      select: { resellerid: true, businessName: true },
+      select: { resellerid: true, businessName: true, primaryColor: true, headline: true, subheadline: true, logoUrl: true, instagram: true, facebook: true, videoUrl: true, ctaHeadline: true, ctaSubtitle: true, testimonials: true, stats: true },
     });
     if (!resellerRow?.resellerid) {
-      return { success: false, plans: [], businessName: null, resellerUserId: null };
+      return { success: false, plans: [], businessName: null, resellerUserId: null, whatsappNumber: null, meetingUrl: null, ...EMPTY_EXTRA };
     }
 
     const resellerUserId = resellerRow.resellerid;
-    const [resellerPlans, masterPlansResult] = await Promise.all([
+    const [resellerPlans, masterPlansResult, resellerUser] = await Promise.all([
       db.resellerPlan.findMany({
         where: { resellerUserId, isActive: true },
         orderBy: [{ assistanceType: "asc" }, { order: "asc" }],
       }),
       getActiveSubscriptionPlans(),
+      db.user.findUnique({
+        where: { id: resellerUserId },
+        select: { notificationNumber: true, meetingUrl: true },
+      }),
     ]);
 
     const masterPlans = masterPlansResult.data;
 
-    // Merge: reseller plan overrides master plan for matching plan+assistanceType
     const resellerMap = new Map(
       resellerPlans.map((p) => [`${p.plan}:${p.assistanceType}`, p])
     );
@@ -291,9 +393,22 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
       plans: merged,
       businessName: resellerRow.businessName,
       resellerUserId,
+      whatsappNumber: resellerUser?.notificationNumber ?? null,
+      meetingUrl: resellerUser?.meetingUrl ?? null,
+      primaryColor: resellerRow.primaryColor ?? null,
+      headline: resellerRow.headline ?? null,
+      subheadline: resellerRow.subheadline ?? null,
+      logoUrl: resellerRow.logoUrl ?? null,
+      instagram: resellerRow.instagram ?? null,
+      facebook: resellerRow.facebook ?? null,
+      videoUrl: resellerRow.videoUrl ?? null,
+      ctaHeadline: resellerRow.ctaHeadline ?? null,
+      ctaSubtitle: resellerRow.ctaSubtitle ?? null,
+      testimonials: Array.isArray(resellerRow.testimonials) ? (resellerRow.testimonials as TestimonialData[]) : null,
+      stats: Array.isArray(resellerRow.stats) ? (resellerRow.stats as StatData[]) : null,
     };
   } catch (e) {
     console.error("[getResellerPlansBySlug]", e);
-    return { success: false, plans: [], businessName: null, resellerUserId: null };
+    return { success: false, plans: [], businessName: null, resellerUserId: null, whatsappNumber: null, meetingUrl: null, ...EMPTY_EXTRA };
   }
 }
