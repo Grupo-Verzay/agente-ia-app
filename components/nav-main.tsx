@@ -1,7 +1,8 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
 import { useChatUnreadStore } from '@/stores/useChatUnreadStore';
 
@@ -37,6 +38,9 @@ export function NavMain({ user }: { user: User }) {
     const chatUnreadCount = useChatUnreadStore((s) => s.unreadCount);
 
     const isAdvisor = !!user.ownerId;
+
+    const [openModuleId, setOpenModuleId] = useState<string | null>(null);
+    useEffect(() => { setOpenModuleId(null); }, [pathname]);
 
     /* Aplica preferencias del usuario (displayLabel, isHidden, sortOrder) */
     const navItems = modules
@@ -174,13 +178,19 @@ export function NavMain({ user }: { user: User }) {
                     );
 
                     return (
-                        <Collapsible key={id} asChild defaultOpen={isAnySubActive} className="group/collapsible">
+                        <Collapsible
+                            key={id}
+                            asChild
+                            open={openModuleId !== null ? openModuleId === id : isAnySubActive}
+                            onOpenChange={(open) => setOpenModuleId(open ? id : null)}
+                            className="group/collapsible"
+                        >
                             <SidebarMenuItem>
                                 <CollapsibleTrigger asChild>
                                     <SidebarMenuButton className={parentClasses} tooltip={displayLabel}>
                                         {Icon && <Icon className={parentIconClasses} />}
                                         <span>{displayLabel}</span>
-                                        <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                                        <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
                                         {requiresPremium && <PremiumModule />}
                                     </SidebarMenuButton>
                                 </CollapsibleTrigger>
