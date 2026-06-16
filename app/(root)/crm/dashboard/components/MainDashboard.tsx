@@ -21,7 +21,7 @@ import { ESTADOS_POR_TIPO } from "@/types/registro";
 
 export type MainDashboardProps = {
   userId: string;
-  initialView?: "registros" | "analiticas" | "kanban";
+  initialView?: "registros" | "analiticas" | "kanban" | "reportes";
 };
 export type DashboardStats = {
   totalRegistros: number;

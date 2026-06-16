@@ -2,10 +2,10 @@ import { currentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { MainDashboard } from "../dashboard/components/MainDashboard";
 
-const KanbanPage = async () => {
+const CrmRegistrosPage = async () => {
     const user = await currentUser();
     if (!user) redirect("/login");
-    return <MainDashboard userId={user.effectiveId} initialView="kanban" />;
+    return <MainDashboard userId={user.effectiveId} initialView="registros" />;
 };
 
-export default KanbanPage;
+export default CrmRegistrosPage;
