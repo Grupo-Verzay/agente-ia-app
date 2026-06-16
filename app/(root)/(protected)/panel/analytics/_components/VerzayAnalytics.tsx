@@ -107,7 +107,7 @@ export function VerzayAnalytics({ data }: { data: VerzayAnalyticsData }) {
               <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-400">
                 <Clock className="h-4 w-4 shrink-0" />
                 <span>
-                  <strong>{usersExpiringSoon.length}</strong> usuario{usersExpiringSoon.length !== 1 ? "s" : ""} próximo{usersExpiringSoon.length !== 1 ? "s" : ""} a vencer (30 días)
+                  <strong>{usersExpiringSoon.length}</strong> usuario{usersExpiringSoon.length !== 1 ? "s" : ""} próximo{usersExpiringSoon.length !== 1 ? "s" : ""} a vencer (10 días)
                 </span>
               </div>
             )}
@@ -264,7 +264,7 @@ export function VerzayAnalytics({ data }: { data: VerzayAnalyticsData }) {
             <CardHeader className="px-4 pb-2 pt-4">
               <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                 <Clock className="h-4 w-4 text-amber-500" />
-                Próximos a vencer — 30 días
+                Próximos a vencer — 10 días
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4">
