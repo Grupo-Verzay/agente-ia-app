@@ -9,6 +9,7 @@ import { useChatUnreadStore } from '@/stores/useChatUnreadStore';
 import { canAccessRoute } from '@/utils/access';
 import { PremiumModule } from './shared/PremiumModule';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 import {
     SidebarGroup,
@@ -33,7 +34,7 @@ export function NavMain({ user }: { user: User }) {
     const { modules, navPrefs, setLabelModule, labelModule, setCanvaUrl } = useModuleStore();
     const pathname = usePathname();
     const router = useRouter();
-    const { isMobile, setOpenMobile } = useSidebar();
+    const { isMobile, setOpenMobile, state: sidebarState } = useSidebar();
     const taskPendingCount = useTaskStore((s) => s.pendingCount);
     const chatUnreadCount = useChatUnreadStore((s) => s.unreadCount);
 
@@ -176,6 +177,43 @@ export function NavMain({ user }: { user: User }) {
                         'h-5',
                         isAnySubActive ? 'invert brightness-200' : ''
                     );
+
+                    // Sidebar colapsado → popover flotante con los sub-ítems
+                    if (sidebarState === 'collapsed') {
+                        return (
+                            <SidebarMenuItem key={id}>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <SidebarMenuButton className={parentClasses} tooltip={displayLabel}>
+                                            {Icon && <Icon className={parentIconClasses} />}
+                                            <span>{displayLabel}</span>
+                                        </SidebarMenuButton>
+                                    </PopoverTrigger>
+                                    <PopoverContent side="right" align="start" sideOffset={8} className="w-48 p-1">
+                                        <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{displayLabel}</p>
+                                        {moduleItems.map((subItem) => {
+                                            const dest = subItem.url?.replace('/admin/', '/panel/') ?? targetRoute;
+                                            const isSubActive = pathname === dest || pathname.startsWith(dest + '/');
+                                            return (
+                                                <button
+                                                    key={subItem.id}
+                                                    onClick={() => handleRoute(label, dest, subItem.customUrl ?? item.customUrl)}
+                                                    className={clsx(
+                                                        'flex w-full items-center rounded-md px-2 py-1.5 text-sm transition-colors',
+                                                        isSubActive
+                                                            ? 'bg-zinc-200 text-zinc-800 font-medium dark:bg-zinc-700 dark:text-zinc-100'
+                                                            : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
+                                                    )}
+                                                >
+                                                    {subItem.title}
+                                                </button>
+                                            );
+                                        })}
+                                    </PopoverContent>
+                                </Popover>
+                            </SidebarMenuItem>
+                        );
+                    }
 
                     return (
                         <Collapsible
