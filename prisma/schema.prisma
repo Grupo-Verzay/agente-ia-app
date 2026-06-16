@@ -258,7 +258,7 @@ model PromptInstance {
   content      String?
   instanceId   Int?
   userId       String
-  user         User    @relation(fields: [userId], references: [id])
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PromptTemplate {
@@ -323,7 +323,7 @@ model Service {
   order        Int           @default(0)
   createdAt    DateTime      @default(now())
   appointments Appointment[]
-  user         User          @relation(fields: [userId], references: [id])
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
