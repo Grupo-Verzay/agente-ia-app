@@ -10,8 +10,8 @@ import {
   Tooltip as ReTooltip, ResponsiveContainer, Cell,
 } from "recharts"
 import {
-  Users, UserCheck, UserX, Building2, DollarSign,
-  Trophy, AlertTriangle, Clock, Zap, Percent,
+  Users, UserCheck, Building2, DollarSign,
+  Trophy, AlertTriangle, Clock, Zap,
 } from "lucide-react"
 import type { VerzayAnalyticsData } from "@/actions/analytics-actions"
 
@@ -76,20 +76,24 @@ export function VerzayAnalytics({ data }: { data: VerzayAnalyticsData }) {
     <TooltipProvider delayDuration={120}>
       <div className="flex h-full min-w-0 w-full flex-col gap-3 overflow-auto p-1">
 
-        {/* ── 6 Metric Cards ── */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
-          <MetricCard icon={<Users className="h-4 w-4" />} label="Total Usuarios" value={totalUsers}
-            helper="Clientes registrados en la plataforma" color="#3B82F6" />
-          <MetricCard icon={<UserCheck className="h-4 w-4" />} label="Activos" value={activeUsers}
-            helper="Usuarios con servicio activo" color="#22C55E" />
-          <MetricCard icon={<Percent className="h-4 w-4" />} label="Tasa Activación" value={`${activationRate}%`}
-            helper="Porcentaje de usuarios activos sobre el total" color="#06B6D4" />
-          <MetricCard icon={<UserX className="h-4 w-4" />} label="Suspendidos" value={suspendedUsers}
-            helper="Usuarios con servicio suspendido" color="#EF4444" />
-          <MetricCard icon={<Building2 className="h-4 w-4" />} label="Resellers" value={totalResellers}
-            helper="Revendedores registrados en la plataforma" color="#8B5CF6" />
-          <MetricCard icon={<DollarSign className="h-4 w-4" />} label="Ingresos (12m)" value={formatUSD(totalRevenueUSD)}
-            helper="Ingresos de suscripciones aprobadas en los últimos 12 meses" color="#F59E0B" />
+        {/* ── 4 Metric Cards ── */}
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
+          <div className="min-w-0 sm:flex-1">
+            <MetricCard icon={<Users className="h-4 w-4" />} label="Total Usuarios" value={totalUsers}
+              helper="Clientes registrados en la plataforma" color="#3B82F6" />
+          </div>
+          <div className="min-w-0 sm:flex-1">
+            <MetricCard icon={<UserCheck className="h-4 w-4" />} label="Activos" value={activeUsers}
+              helper={`${activationRate}% de tasa de activación`} color="#22C55E" />
+          </div>
+          <div className="min-w-0 sm:flex-1">
+            <MetricCard icon={<Building2 className="h-4 w-4" />} label="Resellers" value={totalResellers}
+              helper="Revendedores registrados en la plataforma" color="#8B5CF6" />
+          </div>
+          <div className="min-w-0 sm:flex-1">
+            <MetricCard icon={<DollarSign className="h-4 w-4" />} label="Ingresos (12m)" value={formatUSD(totalRevenueUSD)}
+              helper="Ingresos de suscripciones aprobadas en los últimos 12 meses" color="#F59E0B" />
+          </div>
         </div>
 
         {/* ── Alertas ── */}

@@ -11,7 +11,7 @@ import {
 } from "recharts"
 import {
   Users, UserCheck, UserX, TrendingUp,
-  AlertTriangle, Clock, Zap, Percent,
+  AlertTriangle, Clock, Zap,
 } from "lucide-react"
 import type { ResellerAnalyticsData } from "@/actions/analytics-actions"
 
@@ -79,18 +79,24 @@ export function ResellerAnalytics({ data }: { data: ResellerAnalyticsData }) {
     <TooltipProvider delayDuration={120}>
       <div className="flex h-full min-w-0 w-full flex-col gap-3 overflow-auto p-1">
 
-        {/* ── 5 Metric Cards ── */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
-          <MetricCard icon={<Users className="h-4 w-4" />} label="Total Clientes" value={totalClients}
-            helper="Clientes asignados a tu cuenta" color="#3B82F6" />
-          <MetricCard icon={<UserCheck className="h-4 w-4" />} label="Activos" value={activeClients}
-            helper="Clientes con servicio activo" color="#22C55E" />
-          <MetricCard icon={<Percent className="h-4 w-4" />} label="Tasa Activación" value={`${activationRate}%`}
-            helper="Porcentaje de clientes activos sobre el total" color="#06B6D4" />
-          <MetricCard icon={<UserX className="h-4 w-4" />} label="Suspendidos" value={suspendedClients}
-            helper="Clientes con servicio suspendido" color="#EF4444" />
-          <MetricCard icon={<TrendingUp className="h-4 w-4" />} label="Ingresos Est./mes" value={formatCurrency(estimatedMonthlyRevenue, currencyCode)}
-            helper="Suma del precio de facturación de clientes activos" color="#8B5CF6" />
+        {/* ── 4 Metric Cards ── */}
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
+          <div className="min-w-0 sm:flex-1">
+            <MetricCard icon={<Users className="h-4 w-4" />} label="Total Clientes" value={totalClients}
+              helper="Clientes asignados a tu cuenta" color="#3B82F6" />
+          </div>
+          <div className="min-w-0 sm:flex-1">
+            <MetricCard icon={<UserCheck className="h-4 w-4" />} label="Activos" value={activeClients}
+              helper={`${activationRate}% de tasa de activación`} color="#22C55E" />
+          </div>
+          <div className="min-w-0 sm:flex-1">
+            <MetricCard icon={<UserX className="h-4 w-4" />} label="Suspendidos" value={suspendedClients}
+              helper="Clientes con servicio suspendido" color="#EF4444" />
+          </div>
+          <div className="min-w-0 sm:flex-1">
+            <MetricCard icon={<TrendingUp className="h-4 w-4" />} label="Ingresos Est./mes" value={formatCurrency(estimatedMonthlyRevenue, currencyCode)}
+              helper="Suma del precio de facturación de clientes activos" color="#8B5CF6" />
+          </div>
         </div>
 
         {/* ── Alertas ── */}
