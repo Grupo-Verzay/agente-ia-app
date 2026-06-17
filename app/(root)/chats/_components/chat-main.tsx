@@ -627,36 +627,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         searchOpen={searchOpen}
         onToggleSearch={handleToggleSearch}
         onExpandChatList={onExpandChatList}
+        chatView={chatView}
+        onChatViewChange={userIntegrations.length > 0 ? setChatView : undefined}
       />
-
-      {/* ── Pestañas de integraciones ── */}
-      {userIntegrations.length > 0 && (
-        <div className="flex border-b border-border bg-background overflow-x-auto">
-          <button
-            onClick={() => setChatView('messages')}
-            className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-              chatView === 'messages'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Mensajes
-          </button>
-          {userIntegrations.map((intg) => (
-            <button
-              key={intg.id}
-              onClick={() => setChatView(intg.id)}
-              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                chatView === intg.id
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {intg.name}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* ── Vista iframe de integración ── */}
       {chatView !== 'messages' && (() => {

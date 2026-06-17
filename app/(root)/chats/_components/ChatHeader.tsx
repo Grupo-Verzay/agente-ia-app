@@ -29,6 +29,7 @@ import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { TaskFormDialog } from './TaskFormDialog';
 import { cn } from '@/lib/utils';
+import { useModuleStore } from '@/stores/modules/useModuleStore';
 
 const PALETTE = ['bg-blue-500','bg-violet-500','bg-emerald-500','bg-amber-500','bg-rose-500','bg-cyan-500','bg-fuchsia-500'];
 function colorFor(id: string) {
@@ -66,6 +67,8 @@ interface ChatHeaderProps {
   searchOpen?: boolean;
   onToggleSearch?: () => void;
   onExpandChatList?: () => void;
+  chatView?: string;
+  onChatViewChange?: (view: string) => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -92,7 +95,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   searchOpen,
   onToggleSearch,
   onExpandChatList,
+  chatView,
+  onChatViewChange,
 }) => {
+  const { userIntegrations } = useModuleStore();
   const adSource = session?.adSource as { title?: string; body?: string; sourceUrl?: string } | null | undefined;
   const adSourceLabel = adSource?.title || (adSource?.sourceUrl ? (() => { try { return new URL(adSource.sourceUrl!).hostname.replace(/^www\./, ''); } catch { return 'Anuncio'; } })() : null);
 
@@ -424,7 +430,7 @@ const sessionStatusTone = session?.status
       </div>
 
       {/* ── Desktop ── */}
-      <div className="hidden md:grid md:grid-cols-[1fr_auto] items-center p-3 gap-3 overflow-hidden">
+      <div className="hidden md:grid md:grid-cols-[auto_1fr_auto] items-center p-3 gap-3 overflow-hidden">
         <div className="flex items-center gap-3 min-w-0">
           {onExpandChatList && (
             <Button
@@ -468,6 +474,39 @@ const sessionStatusTone = session?.status
               </span>
             )}
           </div>
+        </div>
+
+        {/* ── Tabs centro ── */}
+        <div className="flex items-center gap-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden self-stretch">
+          {onChatViewChange && (
+            <>
+              <button
+                onClick={() => onChatViewChange('messages')}
+                className={cn(
+                  'h-full px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
+                  chatView === 'messages' || !chatView
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Mensajes
+              </button>
+              {userIntegrations.map((intg) => (
+                <button
+                  key={intg.id}
+                  onClick={() => onChatViewChange(intg.id)}
+                  className={cn(
+                    'h-full px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
+                    chatView === intg.id
+                      ? 'border-primary text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {intg.name}
+                </button>
+              ))}
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
