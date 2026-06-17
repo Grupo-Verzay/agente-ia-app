@@ -2,7 +2,15 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Trash2, Plus, Pencil, Check, X, ExternalLink, Globe, InboxIcon, LayoutGrid, MessageSquare, Sidebar, Search } from 'lucide-react'
+import { Trash2, Plus, Pencil, Check, X, ExternalLink, Globe, InboxIcon, LayoutGrid, MessageSquare, Sidebar, Search, GripVertical } from 'lucide-react'
+import {
+    DndContext, closestCenter, useSensor, useSensors, PointerSensor,
+    type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+    arrayMove, SortableContext, useSortable, verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,6 +21,7 @@ import {
     createUserIntegration,
     updateUserIntegration,
     deleteUserIntegration,
+    reorderUserIntegrations,
 } from '@/actions/user-integration-actions'
 
 function IntegrationRow({
@@ -28,6 +37,9 @@ function IntegrationRow({
     const [name, setName] = useState(item.name)
     const [url, setUrl] = useState(item.url)
     const [isPending, startTransition] = useTransition()
+
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+    const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
 
     const handleSave = () => {
         if (!name.trim() || !url.trim()) return
@@ -57,7 +69,7 @@ function IntegrationRow({
 
     if (editing) {
         return (
-            <div className="flex flex-col gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/30">
+            <div ref={setNodeRef} style={style} className="flex flex-col gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/30">
                 <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                         <Label className="text-xs">Nombre</Label>
@@ -81,7 +93,15 @@ function IntegrationRow({
     }
 
     return (
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 hover:bg-accent/30 transition-colors">
+        <div ref={setNodeRef} style={style} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-3 hover:bg-accent/30 transition-colors">
+            <button
+                {...attributes}
+                {...listeners}
+                className="shrink-0 cursor-grab active:cursor-grabbing touch-none text-muted-foreground/50 hover:text-muted-foreground transition-colors p-0.5"
+                title="Arrastrar para reordenar"
+            >
+                <GripVertical className="h-4 w-4" />
+            </button>
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
                 <Globe className="h-4 w-4 text-primary" />
             </div>
@@ -122,6 +142,20 @@ export function MainIntegraciones({ initial }: { initial: UserIntegrationItem[] 
     const filteredItems = search.trim()
         ? items.filter(i => `${i.name} ${i.url}`.toLowerCase().includes(search.toLowerCase()))
         : items
+
+    const sensors = useSensors(useSensor(PointerSensor))
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event
+        if (!over || active.id === over.id) return
+        const oldIndex = items.findIndex(i => i.id === active.id)
+        const newIndex = items.findIndex(i => i.id === over.id)
+        const reordered = arrayMove(items, oldIndex, newIndex)
+        setUserIntegrations(reordered)
+        startTransition(async () => {
+            await reorderUserIntegrations(reordered.map(i => i.id))
+        })
+    }
 
     const handleCreate = () => {
         if (!newName.trim() || !newUrl.trim()) return
@@ -250,19 +284,23 @@ export function MainIntegraciones({ initial }: { initial: UserIntegrationItem[] 
                         </div>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-2">
-                        {filteredItems.map((item) => (
-                            <IntegrationRow
-                                key={item.id}
-                                item={item}
-                                onUpdated={handleUpdated}
-                                onDeleted={handleDeleted}
-                            />
-                        ))}
-                        {filteredItems.length === 0 && (
-                            <p className="py-8 text-center text-sm text-muted-foreground">Sin resultados para &quot;{search}&quot;</p>
-                        )}
-                    </div>
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                        <SortableContext items={filteredItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                            <div className="flex flex-col gap-2">
+                                {filteredItems.map((item) => (
+                                    <IntegrationRow
+                                        key={item.id}
+                                        item={item}
+                                        onUpdated={handleUpdated}
+                                        onDeleted={handleDeleted}
+                                    />
+                                ))}
+                                {filteredItems.length === 0 && (
+                                    <p className="py-8 text-center text-sm text-muted-foreground">Sin resultados para &quot;{search}&quot;</p>
+                                )}
+                            </div>
+                        </SortableContext>
+                    </DndContext>
                 )}
             </div>
         </div>

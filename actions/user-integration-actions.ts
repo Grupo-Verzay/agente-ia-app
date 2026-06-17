@@ -58,3 +58,19 @@ export async function deleteUserIntegration(id: string) {
     revalidatePath('/integraciones')
     return { success: true }
 }
+
+export async function reorderUserIntegrations(ids: string[]) {
+    const user = await currentUser()
+    if (!user) return { success: false }
+
+    await Promise.all(
+        ids.map((id, index) =>
+            db.userIntegration.update({
+                where: { id, userId: user.id },
+                data: { order: index },
+            })
+        )
+    )
+    revalidatePath('/integraciones')
+    return { success: true }
+}
