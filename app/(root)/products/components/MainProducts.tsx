@@ -2,7 +2,7 @@
 
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, Search, Package, CheckCircle2, PackageX, Boxes } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Search, Package, CheckCircle2, PackageX, Boxes, ExternalLink } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { ProductForm } from './ProductForm'
@@ -73,6 +73,15 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
                             {limitInfo.current}/{limitInfo.limit} productos
                         </span>
                     )}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => window.open(`/catalogo/${userId}`, '_blank')}
+                    >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Ver catálogo
+                    </Button>
                     <ProductForm userId={userId} disabled={limitInfo?.reached} />
                 </div>
             </ModuleToolbar>

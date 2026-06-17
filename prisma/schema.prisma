@@ -235,6 +235,7 @@ model Product {
   title           String
   description     String?
   price           Decimal          @db.Decimal(65, 2)
+  comparePrice    Decimal?         @db.Decimal(65, 2)
   sku             String?          @unique
   stock           Int              @default(0)
   isActive        Boolean          @default(true)

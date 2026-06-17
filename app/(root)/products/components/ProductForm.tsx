@@ -28,6 +28,7 @@ export const ProductForm = ({
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [uploadingImage, setUploadingImage] = useState(false);
     const [priceDisplay, setPriceDisplay] = useState('');
+    const [comparePriceDisplay, setComparePriceDisplay] = useState('');
 
     const form = useForm<ProductInput>({
         resolver: zodResolver(productSchema),
@@ -67,6 +68,7 @@ export const ProductForm = ({
             title: product?.title ?? "",
             description: product?.description ?? "",
             price: product?.price != null ? Number(product.price) : 0,
+            comparePrice: product?.comparePrice != null ? Number(product.comparePrice) : null,
             sku: product?.sku ?? "",
             stock: product?.stock ?? 0,
             isActive: product?.isActive ?? true,
@@ -78,6 +80,8 @@ export const ProductForm = ({
         setImagePreview(product?.images?.[0] ?? null);
         const initialPrice = product?.price != null ? Number(product.price) : 0;
         setPriceDisplay(initialPrice > 0 ? initialPrice.toLocaleString('es-CO') : '');
+        const initialCompare = product?.comparePrice != null ? Number(product.comparePrice) : 0;
+        setComparePriceDisplay(initialCompare > 0 ? initialCompare.toLocaleString('es-CO') : '');
     }, [open, product, userId, form]);
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -220,12 +224,14 @@ export const ProductForm = ({
                             )}
                         </div>
 
-                        {/* Nombre — Precio */}
+                        {/* Nombre */}
+                        <div className="flex flex-col gap-1.5">
+                            <Label className="text-sm font-semibold">Nombre</Label>
+                            <Input {...form.register("title")} placeholder="Ej: Zapatilla deportiva" />
+                        </div>
+
+                        {/* Precio — Precio anterior */}
                         <div className="flex gap-3">
-                            <div className="flex w-full flex-col gap-1.5">
-                                <Label className="text-sm font-semibold">Nombre</Label>
-                                <Input {...form.register("title")} placeholder="Ej: Zapatilla deportiva" />
-                            </div>
                             <div className="flex w-full flex-col gap-1.5">
                                 <Label className="text-sm font-semibold">Precio</Label>
                                 <div className="relative">
@@ -243,6 +249,28 @@ export const ProductForm = ({
                                         }}
                                     />
                                 </div>
+                            </div>
+                            <div className="flex w-full flex-col gap-1.5">
+                                <Label className="text-sm font-semibold">
+                                    Precio antes{' '}
+                                    <span className="font-normal text-muted-foreground">(opcional)</span>
+                                </Label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                                    <Input
+                                        className="pl-6"
+                                        inputMode="numeric"
+                                        value={comparePriceDisplay}
+                                        placeholder="0"
+                                        onChange={(e) => {
+                                            const raw = e.target.value.replace(/\D/g, '');
+                                            const num = raw ? parseInt(raw, 10) : 0;
+                                            setComparePriceDisplay(num > 0 ? num.toLocaleString('es-CO') : '');
+                                            form.setValue('comparePrice', num > 0 ? num : null);
+                                        }}
+                                    />
+                                </div>
+                                <p className="text-xs text-muted-foreground">Se mostrará tachado en el catálogo</p>
                             </div>
                         </div>
 

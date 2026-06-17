@@ -169,3 +169,61 @@ export async function checkIfSkuExists(sku: string, userId: string) {
     });
     return existingProduct !== null;
 }
+
+export async function getPublicCatalog(userId: string) {
+    const [user, products, config] = await Promise.all([
+        db.user.findUnique({
+            where: { id: userId },
+            select: { name: true, company: true, image: true, preferredCurrencyCode: true },
+        }),
+        db.product.findMany({
+            where: { userId, isActive: true },
+            orderBy: { title: 'asc' },
+            select: {
+                id: true,
+                title: true,
+                description: true,
+                price: true,
+                comparePrice: true,
+                sku: true,
+                stock: true,
+                category: true,
+                tags: true,
+                images: true,
+            },
+        }),
+        db.catalogConfig.findUnique({ where: { userId } }),
+    ]);
+
+    if (!user) return null;
+
+    const categories = [...new Set(products.map((p) => p.category).filter(Boolean))].sort();
+
+    return {
+        user: {
+            name: user.name,
+            company: user.company,
+            image: user.image,
+            currencyCode: user.preferredCurrencyCode,
+        },
+        config: {
+            whatsappNumber: config?.whatsappNumber ?? null,
+            bannerUrl: config?.bannerUrl ?? null,
+            primaryColor: config?.primaryColor ?? null,
+            headline: config?.headline ?? null,
+            subheadline: config?.subheadline ?? null,
+            instagram: config?.instagram ?? null,
+            facebook: config?.facebook ?? null,
+            tiktok: config?.tiktok ?? null,
+            ctaText: config?.ctaText ?? null,
+            showStock: config?.showStock ?? true,
+            showSku: config?.showSku ?? false,
+        },
+        products: products.map((p) => ({
+            ...p,
+            price: Number(p.price),
+            comparePrice: p.comparePrice != null ? Number(p.comparePrice) : null,
+        })),
+        categories,
+    };
+}
