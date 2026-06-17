@@ -12,7 +12,6 @@ import {
     updateUserIntegration,
     deleteUserIntegration,
 } from '@/actions/user-integration-actions'
-import { useRouter } from 'next/navigation'
 
 function IntegrationRow({
     item,
@@ -102,7 +101,6 @@ function IntegrationRow({
 
 export function MainIntegraciones({ initial }: { initial: UserIntegrationItem[] }) {
     const { userIntegrations, setUserIntegrations } = useModuleStore()
-    const router = useRouter()
     const [isPending, startTransition] = useTransition()
     const [newName, setNewName] = useState('')
     const [newUrl, setNewUrl] = useState('')
@@ -114,12 +112,13 @@ export function MainIntegraciones({ initial }: { initial: UserIntegrationItem[] 
         if (!newName.trim() || !newUrl.trim()) return
         startTransition(async () => {
             const res = await createUserIntegration({ name: newName.trim(), url: newUrl.trim() })
-            if (res.success) {
+            if (res.success && res.item) {
+                const updated = [...items, res.item]
+                setUserIntegrations(updated)
                 toast.success('Integración creada')
                 setNewName('')
                 setNewUrl('')
                 setShowForm(false)
-                router.refresh()
             } else {
                 toast.error('Error al crear')
             }

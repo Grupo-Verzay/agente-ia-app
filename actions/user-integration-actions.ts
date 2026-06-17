@@ -25,14 +25,15 @@ export async function getUserIntegrations(): Promise<{ success: boolean; data: U
 
 export async function createUserIntegration(data: { name: string; url: string }) {
     const user = await currentUser()
-    if (!user) return { success: false, error: 'No autenticado' }
+    if (!user) return { success: false, error: 'No autenticado', item: null }
 
     const count = await db.userIntegration.count({ where: { userId: user.id } })
-    await db.userIntegration.create({
+    const item = await db.userIntegration.create({
         data: { userId: user.id, name: data.name, url: data.url, order: count },
+        select: { id: true, name: true, url: true, order: true },
     })
     revalidatePath('/integraciones')
-    return { success: true }
+    return { success: true, item }
 }
 
 export async function updateUserIntegration(id: string, data: { name?: string; url?: string }) {
