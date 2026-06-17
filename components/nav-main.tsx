@@ -96,6 +96,9 @@ export function NavMain({ user }: { user: User }) {
         if (isMobile) setOpenMobile(false)
         router.push(targetRoute)
     }
+    const itemTextClass = isMobile ? 'text-base' : 'text-sm';
+    const itemIconClass = isMobile ? 'h-6' : 'h-5';
+
     return (
         <SidebarGroup>
             {/* <SidebarGroupLabel>Módulos</SidebarGroupLabel> */}
@@ -104,14 +107,14 @@ export function NavMain({ user }: { user: User }) {
                     const { id, route, icon, label, displayLabel, requiresPremium, isActive, moduleItems } = item;
                     const Icon = iconMap[icon as keyof typeof iconMap];
                     const linkClasses = clsx(
-                        'flex items-center py-2 rounded-md text-base md:text-sm font-medium transition',
+                        `flex items-center py-2 rounded-md ${itemTextClass} font-medium transition`,
                         isActive
                             ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white'
                             : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                     );
 
                     const iconClasses = clsx(
-                        'h-6 md:h-5',
+                        itemIconClass,
                         isActive && 'invert brightness-200'
                     );
 
@@ -169,13 +172,13 @@ export function NavMain({ user }: { user: User }) {
                         return pathname === dest || pathname.startsWith(dest + '/');
                     });
                     const parentClasses = clsx(
-                        'flex items-center py-2 rounded-md text-base md:text-sm font-medium transition',
+                        `flex items-center py-2 rounded-md ${itemTextClass} font-medium transition`,
                         isAnySubActive
                             ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white'
                             : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                     );
                     const parentIconClasses = clsx(
-                        'h-6 md:h-5',
+                        itemIconClass,
                         isAnySubActive ? 'invert brightness-200' : ''
                     );
 
@@ -197,7 +200,7 @@ export function NavMain({ user }: { user: User }) {
                                             handleRoute(label, sub.dest);
                                         }}
                                         className={clsx(
-                                            'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-base md:text-sm transition-colors',
+                                            `flex w-full items-center gap-2 rounded-md px-2 py-1.5 ${itemTextClass} transition-colors`,
                                             isSubActive
                                                 ? 'bg-zinc-200 text-zinc-800 font-medium dark:bg-zinc-700 dark:text-zinc-100'
                                                 : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
@@ -211,7 +214,7 @@ export function NavMain({ user }: { user: User }) {
                         });
 
                         const intgParentClasses = clsx(
-                            'flex items-center py-2 rounded-md text-base md:text-sm font-medium transition',
+                            `flex items-center py-2 rounded-md ${itemTextClass} font-medium transition`,
                             isAnyIntgActive
                                 ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white'
                                 : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
@@ -339,7 +342,7 @@ export function NavMain({ user }: { user: User }) {
                                                     <button
                                                         onClick={() => handleRoute(label, dest, subItem.customUrl ?? item.customUrl)}
                                                         className={clsx(
-                                                            'flex w-full items-center rounded-md px-2 py-1.5 text-base md:text-sm transition-colors',
+                                                            `flex w-full items-center rounded-md px-2 py-1.5 ${itemTextClass} transition-colors`,
                                                             isSubActive
                                                                 ? 'bg-zinc-200 text-zinc-800 font-medium dark:bg-zinc-700 dark:text-zinc-100'
                                                                 : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
