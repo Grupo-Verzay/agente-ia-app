@@ -1247,24 +1247,17 @@ export async function updateSessionServiceType(
   try {
     const session = await db.session.findUnique({
       where: { id: sessionId },
-      select: { userId: true, agentDisabled: true },
+      select: { userId: true },
     });
     if (!session?.userId) return { success: false, message: 'Sesión no encontrada.' };
 
     await assertUserCanUseApp(session.userId);
-
-    // HUMANO → deshabilitar agente IA; IA → reactivar agente si estaba deshabilitado por serviceType
-    const agentUpdate =
-      serviceType === 'HUMANO' ? { agentDisabled: true } :
-      serviceType === 'IA' && session.agentDisabled ? { agentDisabled: false } :
-      {};
 
     await db.session.update({
       where: { id: sessionId },
       data: {
         // @ts-expect-error — serviceType disponible tras reiniciar el Prisma client
         serviceType: serviceType ?? null,
-        ...agentUpdate,
       },
     });
 

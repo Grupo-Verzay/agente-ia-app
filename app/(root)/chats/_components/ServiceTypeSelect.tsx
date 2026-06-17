@@ -15,7 +15,7 @@ import type { ServiceType } from "@/types/session";
 
 const SERVICE_OPTIONS: { value: ServiceType | null; label: string; description: string }[] = [
   { value: "IA",     label: "Asistencia IA",     description: "El agente IA atiende al cliente" },
-  { value: "HUMANO", label: "Asistencia Humana",  description: "Se escala a un asesor humano" },
+  { value: "HUMANO", label: "Asistencia Humana",  description: "Se escala a un humano (S/N)" },
   { value: null,     label: "Sin asignar",        description: "Lead sin servicio definido" },
 ];
 
