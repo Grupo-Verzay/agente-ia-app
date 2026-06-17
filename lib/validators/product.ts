@@ -13,7 +13,7 @@ export const productSchema = z.object({
     price: priceField,
     comparePrice: priceField.optional().nullable(),
     sku: z.string().max(60).optional().nullable(),
-    stock: z.number().int().min(0).default(0),
+    stock: z.number().int().min(-1).default(-1),
     isActive: z.boolean().default(true),
     images: z.array(z.string().url()).max(10).default([]),
     userId: z.string(),

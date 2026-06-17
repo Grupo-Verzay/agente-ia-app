@@ -79,27 +79,31 @@ export async function createProduct(raw: unknown) {
         );
     }
 
-    // 2️⃣ Verificar si el SKU ya existe
-    const existingProduct = await db.product.findFirst({
-        where: { sku: input.sku, userId: input.userId },
-    });
-
-    if (existingProduct) {
-        throw new Error("El SKU ya está registrado");
+    // 2️⃣ Verificar si el SKU ya existe (solo si fue ingresado)
+    const normalizedSku = input.sku?.trim() || null;
+    if (normalizedSku) {
+        const existingProduct = await db.product.findFirst({
+            where: { sku: normalizedSku, userId: input.userId },
+        });
+        if (existingProduct) {
+            throw new Error("El SKU ya está registrado");
+        }
     }
 
     try {
-        // 2️⃣ Crear el producto
+        // 3️⃣ Crear el producto
         const product = await db.product.create({
             data: {
                 ...input,
-                tags: input.tags || [], // Aseguramos que `tags` sea un array vacío si no se proporciona
-                category: input.category || "", // Aseguramos que `category` esté presente
+                sku: normalizedSku,
+                tags: input.tags || [],
+                category: input.category || "",
             },
         });
 
         // 3️⃣ Realizar la revalidación de la ruta
         revalidatePath("/products");
+        revalidatePath("/catalogo", "layout");
 
         return product;
     } catch (error) {
@@ -119,8 +123,9 @@ export async function updateProduct(id: string, raw: unknown) {
     // Aseguramos que los campos tags y category estén correctamente formateados
     const updatedData = {
         ...data,
-        tags: data.tags || [], // Si no hay tags, se establece un array vacío
-        category: data.category || "", // Si no hay category, se establece como cadena vacía
+        sku: data.sku?.trim() || null,
+        tags: data.tags || [],
+        category: data.category || "",
     };
 
     // 3️⃣ Ejecutar el update limpio
@@ -130,6 +135,7 @@ export async function updateProduct(id: string, raw: unknown) {
     });
 
     revalidatePath("/products");
+    revalidatePath("/catalogo", "layout");
     return product;
 }
 

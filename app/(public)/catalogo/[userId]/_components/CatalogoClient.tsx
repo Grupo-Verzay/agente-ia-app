@@ -1,7 +1,58 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { Search, Package, Tag, AlertCircle, MessageCircle } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { Search, Package, Tag, AlertCircle, MessageCircle, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const DEMO_PRODUCTS: Product[] = [
+  {
+    id: 'demo-1',
+    title: 'Camiseta Premium',
+    description: 'Tela suave 100% algodón, disponible en múltiples colores. Ideal para uso diario o regalo.',
+    price: 49900,
+    comparePrice: 79900,
+    sku: null,
+    stock: 25,
+    category: 'Ropa',
+    tags: ['nuevo', 'destacado'],
+    images: [],
+  },
+  {
+    id: 'demo-2',
+    title: 'Mochila Urbana',
+    description: 'Mochila resistente con compartimento para laptop de 15". Perfecta para el trabajo y el viaje.',
+    price: 129000,
+    comparePrice: null,
+    sku: null,
+    stock: 12,
+    category: 'Accesorios',
+    tags: ['premium', 'viaje'],
+    images: [],
+  },
+  {
+    id: 'demo-3',
+    title: 'Audífonos Inalámbricos',
+    description: 'Sonido de alta fidelidad con cancelación de ruido. Batería de 30 horas de duración.',
+    price: 189900,
+    comparePrice: 250000,
+    sku: null,
+    stock: 5,
+    category: 'Electrónica',
+    tags: ['oferta', 'tech'],
+    images: [],
+  },
+  {
+    id: 'demo-4',
+    title: 'Zapatillas Running',
+    description: 'Suela ergonómica y plantilla de gel. Diseño ligero para máximo rendimiento en tus entrenamientos.',
+    price: 219000,
+    comparePrice: null,
+    sku: null,
+    stock: 8,
+    category: 'Calzado',
+    tags: ['deporte', 'running'],
+    images: [],
+  },
+];
 
 type Product = {
   id: string;
@@ -50,12 +101,36 @@ export function CatalogoClient({
   products, categories, currencyCode, accentColor,
   whatsappNumber, ctaText, showStock, showSku,
 }: Props) {
+  const isEmpty = products.length === 0;
+  const displayProducts = isEmpty ? DEMO_PRODUCTS : products;
+  const displayCategories = isEmpty
+    ? Array.from(new Set(DEMO_PRODUCTS.map((p) => p.category))).sort()
+    : categories;
+
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [thumb, setThumb] = useState({ left: 0, width: 100 });
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const updateThumb = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll <= 0) { setThumb({ left: 0, width: 100 }); return; }
+    const w = (el.clientWidth / el.scrollWidth) * 100;
+    const l = (el.scrollLeft / maxScroll) * (100 - w);
+    setThumb({ left: l, width: w });
+  }, []);
+
+  useEffect(() => {
+    updateThumb();
+    window.addEventListener('resize', updateThumb);
+    return () => window.removeEventListener('resize', updateThumb);
+  }, [updateThumb, displayCategories]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return products.filter((p) => {
+    return displayProducts.filter((p) => {
       const matchesQuery =
         !q ||
         p.title.toLowerCase().includes(q) ||
@@ -64,10 +139,24 @@ export function CatalogoClient({
       const matchesCategory = !activeCategory || p.category === activeCategory;
       return matchesQuery && matchesCategory;
     });
-  }, [products, query, activeCategory]);
+  }, [displayProducts, query, activeCategory]);
 
   return (
     <div className="flex flex-col gap-6">
+
+      {/* Banner modo demo */}
+      {isEmpty && (
+        <div className="flex items-start gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4">
+          <Sparkles className="h-5 w-5 shrink-0 text-indigo-500 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-indigo-800">Vista previa de tu catálogo</p>
+            <p className="text-xs text-indigo-600 mt-0.5">
+              Aún no tienes productos activos. Estos son productos de ejemplo para que veas cómo lucirá tu catálogo. Agrega tus productos desde el panel para que aparezcan aquí.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Buscador + filtros en la misma fila */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <div className="relative w-full sm:w-72 shrink-0">
@@ -81,36 +170,53 @@ export function CatalogoClient({
           />
         </div>
 
-        {categories.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setActiveCategory(null)}
-              className="rounded-xl px-4 py-2 text-sm font-semibold transition-all border"
-              style={activeCategory === null
-                ? { backgroundColor: accentColor, color: '#fff', borderColor: accentColor }
-                : { backgroundColor: '#fff', color: '#6b7280', borderColor: '#e5e7eb' }}
+        {displayCategories.length > 0 && (
+          <div className="flex-1 min-w-0">
+            <div
+              ref={scrollRef}
+              onScroll={updateThumb}
+              className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin"
             >
-              Todos
-            </button>
-            {categories.map((cat) => (
               <button
-                key={cat}
-                onClick={() => setActiveCategory(cat === activeCategory ? null : cat)}
-                className="rounded-xl px-4 py-2 text-sm font-semibold transition-all border"
-                style={activeCategory === cat
+                onClick={() => setActiveCategory(null)}
+                className="shrink-0 rounded-xl px-4 py-2 text-sm font-semibold transition-all border"
+                style={activeCategory === null
                   ? { backgroundColor: accentColor, color: '#fff', borderColor: accentColor }
                   : { backgroundColor: '#fff', color: '#6b7280', borderColor: '#e5e7eb' }}
               >
-                {cat}
+                Todos
               </button>
-            ))}
+              {displayCategories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat === activeCategory ? null : cat)}
+                  className="shrink-0 rounded-xl px-4 py-2 text-sm font-semibold transition-all border"
+                  style={activeCategory === cat
+                    ? { backgroundColor: accentColor, color: '#fff', borderColor: accentColor }
+                    : { backgroundColor: '#fff', color: '#6b7280', borderColor: '#e5e7eb' }}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+            {/* Indicador de scroll custom para mobile — iOS oculta scrollbars nativos */}
+            {thumb.width < 99 && (
+              <div className="mt-1.5 h-1 rounded-full bg-gray-200 sm:hidden">
+                <div
+                  className="h-full rounded-full bg-gray-400"
+                  style={{ marginLeft: `${thumb.left}%`, width: `${thumb.width}%`, transition: 'margin-left 0.1s, width 0.1s' }}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      <p className="text-sm text-gray-400 -mt-2">
-        {filtered.length} {filtered.length === 1 ? 'producto encontrado' : 'productos encontrados'}
-      </p>
+      {!isEmpty && (
+        <p className="text-sm text-gray-400 -mt-2">
+          {filtered.length} {filtered.length === 1 ? 'producto encontrado' : 'productos encontrados'}
+        </p>
+      )}
 
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-24 text-gray-300">
@@ -125,7 +231,7 @@ export function CatalogoClient({
               product={product}
               currencyCode={currencyCode}
               accentColor={accentColor}
-              whatsappNumber={whatsappNumber}
+              whatsappNumber={isEmpty ? null : whatsappNumber}
               ctaText={ctaText}
               showStock={showStock}
               showSku={showSku}
@@ -148,9 +254,11 @@ function ProductCard({
   showStock: boolean;
   showSku: boolean;
 }) {
-  const [imgError, setImgError] = useState(false);
-  const mainImage = !imgError && product.images.length > 0 ? product.images[0] : null;
-  const outOfStock = product.stock <= 0;
+  const [imgIdx, setImgIdx] = useState(0);
+  const validImages = product.images.filter(Boolean);
+  const hasImages = validImages.length > 0;
+  const currentImg = hasImages ? validImages[imgIdx] : null;
+  const outOfStock = product.stock === 0;
   const hasDiscount = product.comparePrice != null && product.comparePrice > product.price;
   const discountPct = hasDiscount
     ? Math.round((1 - product.price / product.comparePrice!) * 100)
@@ -158,19 +266,46 @@ function ProductCard({
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-      {/* Imagen */}
+      {/* Imagen / Carrusel */}
       <div className="relative h-52 w-full shrink-0 overflow-hidden bg-gray-100">
-        {mainImage ? (
+        {currentImg ? (
           <img
-            src={mainImage}
+            src={currentImg}
             alt={product.title}
-            onError={() => setImgError(true)}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
           <div className="flex h-full items-center justify-center">
             <Package className="h-14 w-14 text-gray-300" />
           </div>
+        )}
+
+        {/* Flechas carrusel */}
+        {validImages.length > 1 && (
+          <>
+            <button
+              onClick={() => setImgIdx((p) => (p - 1 + validImages.length) % validImages.length)}
+              className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setImgIdx((p) => (p + 1) % validImages.length)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            {/* Dots */}
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-1">
+              {validImages.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setImgIdx(i)}
+                  className={`h-1.5 rounded-full transition-all ${i === imgIdx ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`}
+                />
+              ))}
+            </div>
+          </>
         )}
 
         {/* Badge descuento */}
@@ -263,6 +398,7 @@ function ProductCard({
             )}
           </div>
         </div>
+
 
         {/* Botón WhatsApp */}
         {whatsappNumber ? (

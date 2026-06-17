@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
     ColumnDef,
     flexRender,
@@ -10,17 +10,32 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ProductForm } from "./ProductForm";
 import { deleteProduct } from "@/actions/products-actions";
-import { Trash2 } from "lucide-react";
+import { Trash2, Loader2 } from "lucide-react";
 import { ProductTableInterface, ProductType } from "@/types/products";
 import { SafeImage } from "@/components/custom/SafeImage";
+import { useRouter } from "next/navigation";
 
 
 export const ProductTable = ({
     data,
     userId,
 }: ProductTableInterface) => {
+    const router = useRouter();
+    const [deleteTarget, setDeleteTarget] = useState<ProductType | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleDelete = async () => {
+        if (!deleteTarget) return;
+        setIsDeleting(true);
+        await deleteProduct(deleteTarget.id, userId);
+        setIsDeleting(false);
+        setDeleteTarget(null);
+        router.refresh();
+    };
+
     const columns = useMemo<ColumnDef<ProductType>[]>(() => [
         { header: "Nombre", accessorKey: "title" },
         {
@@ -43,6 +58,7 @@ export const ProductTable = ({
             accessorKey: "stock",
             cell: ({ getValue }) => {
                 const v = getValue() as number;
+                if (v < 0) return <span className="text-muted-foreground text-xs">Sin límite</span>;
                 return (
                     <span className={v === 0 ? 'text-destructive font-medium' : ''}>
                         {v}
@@ -97,9 +113,7 @@ export const ProductTable = ({
                         variant="destructive"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={async () => {
-                            await deleteProduct(row.original.id, userId);
-                        }}
+                        onClick={() => setDeleteTarget(row.original)}
                     >
                         <Trash2 className="h-4 w-4" />
                     </Button>
@@ -115,6 +129,27 @@ export const ProductTable = ({
     });
 
     return (
+        <>
+        <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o && !isDeleting) setDeleteTarget(null); }}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Eliminar producto</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-muted-foreground">
+                    ¿Seguro que quieres eliminar <span className="font-semibold text-foreground">&quot;{deleteTarget?.title}&quot;</span>? Esta acción no se puede deshacer.
+                </p>
+                <div className="flex justify-between gap-2 pt-2">
+                    <Button variant="secondary" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>
+                        Cancelar
+                    </Button>
+                    <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+                        {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Eliminar
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-border">
             <CardContent className="flex min-h-0 flex-1 flex-col p-0">
                 <div className="w-full flex-1 overflow-auto">
@@ -178,5 +213,6 @@ export const ProductTable = ({
 
             </CardContent>
         </Card>
+        </>
     );
 };
