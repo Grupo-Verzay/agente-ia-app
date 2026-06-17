@@ -26,8 +26,8 @@ export const AdGeneratorStudio = ({ hasGoogleKey, dbStyles }: AdGeneratorStudioP
   const [dialogOpen, setDialogOpen] = useState(false)
 
   return (
-    <div className="h-full min-h-0 grid gap-3 p-2 sm:p-3 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-      <Card className="flex min-h-0 flex-col overflow-hidden rounded-[28px] border-border shadow-sm">
+    <div className="grid gap-3 p-2 sm:p-3 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+      <Card className="flex flex-col overflow-hidden rounded-[28px] border-border shadow-sm lg:min-h-0">
         <CardHeader className="space-y-2.5 border-b bg-gradient-to-b from-muted/40 to-background px-4 py-3">
           <CardTitle className="text-lg font-semibold">Generador de imágenes</CardTitle>
           {!keyConfigured && (
@@ -53,15 +53,15 @@ export const AdGeneratorStudio = ({ hasGoogleKey, dbStyles }: AdGeneratorStudioP
           />
         </CardHeader>
 
-        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-          <Tabs value={studio.activeStep} className="flex h-full min-h-0 flex-col">
+        <CardContent className="flex flex-1 flex-col p-0 lg:min-h-0">
+          <Tabs value={studio.activeStep} className="flex flex-col lg:h-full lg:min-h-0">
             <StepNav
               activeStep={studio.activeStep}
               stepCompletion={studio.stepCompletion}
               onStepClick={studio.setActiveStep}
             />
 
-            <div className="min-h-0 flex-1 px-4 py-2">
+            <div className="flex-1 px-4 py-2 lg:min-h-0">
               <TabsContent value="images" className="mt-0 h-full data-[state=inactive]:hidden">
                 <StepImages
                   fileInputRef={studio.fileInputRef}

@@ -21,7 +21,7 @@ export const StepNav = ({ activeStep, stepCompletion, onStepClick }: StepNavProp
             key={step.id}
             type="button"
             onClick={() => onStepClick(step.id)}
-            className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-2 transition ${
+            className={`flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 sm:justify-start sm:px-2.5 transition ${
               isActive
                 ? 'border-primary bg-primary/5 text-foreground'
                 : 'border-border/60 bg-muted/20 text-muted-foreground hover:border-primary/40 hover:text-foreground'
@@ -31,8 +31,8 @@ export const StepNav = ({ activeStep, stepCompletion, onStepClick }: StepNavProp
               {index + 1}
             </span>
             <StepIcon className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate text-xs font-semibold">{step.label}</span>
-            {isCompleted && <CheckCircle2 className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />}
+            <span className="hidden sm:block truncate text-xs font-semibold">{step.label}</span>
+            {isCompleted && <CheckCircle2 className="ml-auto hidden sm:block h-3.5 w-3.5 shrink-0 text-primary" />}
           </button>
         )
       })}

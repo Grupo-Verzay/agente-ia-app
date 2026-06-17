@@ -58,7 +58,7 @@ export const StepImages = ({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="flex min-h-0 flex-1 w-full flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-border/70 bg-muted/10 px-6 py-4 text-center transition hover:border-primary/40 hover:bg-primary/5"
+          className="flex min-h-[220px] flex-1 w-full flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-border/70 bg-muted/10 px-6 py-4 text-center transition hover:border-primary/40 hover:bg-primary/5"
         >
           <div className="flex h-12 w-12 items-center justify-center rounded-full border bg-background">
             <Upload className="h-5 w-5 text-muted-foreground" />

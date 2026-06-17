@@ -7,7 +7,7 @@ interface MainAiImageProps {
 
 export function MainAiImage({ hasGoogleKey, dbStyles }: MainAiImageProps) {
   return (
-    <div className="h-full min-h-0 overflow-hidden">
+    <div className="h-full min-h-0 overflow-y-auto lg:overflow-hidden">
       <AdGeneratorStudio hasGoogleKey={hasGoogleKey} dbStyles={dbStyles} />
     </div>
   );
