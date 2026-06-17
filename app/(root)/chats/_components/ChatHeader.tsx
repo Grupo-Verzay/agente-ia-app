@@ -430,8 +430,9 @@ const sessionStatusTone = session?.status
       </div>
 
       {/* ── Desktop ── */}
-      <div className="hidden md:grid md:grid-cols-[auto_1fr_auto] items-center p-3 gap-3 overflow-hidden">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="hidden md:flex md:flex-col overflow-hidden">
+      <div className="flex items-center px-3 py-1.5 gap-3 overflow-hidden">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           {onExpandChatList && (
             <Button
               type="button"
@@ -474,39 +475,6 @@ const sessionStatusTone = session?.status
               </span>
             )}
           </div>
-        </div>
-
-        {/* ── Tabs centro ── */}
-        <div className="flex items-center gap-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden self-stretch">
-          {onChatViewChange && (
-            <>
-              <button
-                onClick={() => onChatViewChange('messages')}
-                className={cn(
-                  'h-full px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
-                  chatView === 'messages' || !chatView
-                    ? 'border-primary text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Mensajes
-              </button>
-              {userIntegrations.map((intg) => (
-                <button
-                  key={intg.id}
-                  onClick={() => onChatViewChange(intg.id)}
-                  className={cn(
-                    'h-full px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
-                    chatView === intg.id
-                      ? 'border-primary text-foreground'
-                      : 'border-transparent text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  {intg.name}
-                </button>
-              ))}
-            </>
-          )}
         </div>
 
         <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -581,7 +549,39 @@ const sessionStatusTone = session?.status
             </Button>
           )}
         </div>
-      </div>
+      </div>{/* end fila 1 */}
+
+      {/* ── Fila 2: tabs de integraciones ── */}
+      {onChatViewChange && (
+        <div className="flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-t border-border/40">
+          <button
+            onClick={() => onChatViewChange('messages')}
+            className={cn(
+              'px-4 py-1.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors',
+              chatView === 'messages' || !chatView
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            Mensajes
+          </button>
+          {userIntegrations.map((intg) => (
+            <button
+              key={intg.id}
+              onClick={() => onChatViewChange(intg.id)}
+              className={cn(
+                'px-4 py-1.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors',
+                chatView === intg.id
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {intg.name}
+            </button>
+          ))}
+        </div>
+      )}
+      </div>{/* end desktop flex-col */}
 
       {!session && (
         <div className="md:hidden px-2 py-2 bg-amber-50/50 dark:bg-amber-950/20 border-t border-amber-200/50 dark:border-amber-800/30 text-xs text-amber-700 dark:text-amber-600">
