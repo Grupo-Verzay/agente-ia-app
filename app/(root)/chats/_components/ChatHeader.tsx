@@ -553,7 +553,7 @@ const sessionStatusTone = session?.status
 
       {/* ── Fila 2: tabs de integraciones ── */}
       {onChatViewChange && (
-        <div className="flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-t border-border/40">
+        <div className="flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             onClick={() => onChatViewChange('messages')}
             className={cn(
