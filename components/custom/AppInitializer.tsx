@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { ModuleWithItems } from '@/schema/module';
 import { ThemeApp, User } from '@prisma/client'
-import { useModuleStore } from '@/stores/modules/useModuleStore';
+import { useModuleStore, UserIntegrationItem } from '@/stores/modules/useModuleStore';
 import { ResellerInfoResponse } from '@/schema/reseller';
 import { useThemeStore } from '@/stores'
 import { useResellerStore } from '@/stores/resellers/resellerStore';
@@ -18,15 +18,16 @@ interface AppInitializerInterface {
     modules: ModuleWithItems[]
     user: User
     navPrefs: UserNavPref[]
+    userIntegrations: UserIntegrationItem[]
 };
 
-export default function AppInitializer({ onReseller, modules, user, navPrefs }: AppInitializerInterface) {
+export default function AppInitializer({ onReseller, modules, user, navPrefs, userIntegrations }: AppInitializerInterface) {
     const pathname = usePathname();
     const router = useRouter();
     const { initTheme } = useThemeStore();
     const { setReseller, clearReseller } = useResellerStore();
     const { labelModule } = useModuleStore();
-    const { setModules, setNavPrefs } = useModuleStore();
+    const { setModules, setNavPrefs, setUserIntegrations } = useModuleStore();
 
     const theme: ThemeApp = onReseller.success
         ? onReseller.data?.theme ?? 'Default'
@@ -56,6 +57,10 @@ export default function AppInitializer({ onReseller, modules, user, navPrefs }: 
     useEffect(() => {
         setNavPrefs(navPrefs)
     }, [navPrefs, setNavPrefs])
+
+    useEffect(() => {
+        setUserIntegrations(userIntegrations)
+    }, [userIntegrations, setUserIntegrations])
 
     useEffect(() => {
         initTheme(theme)

@@ -203,6 +203,32 @@ model Pausar {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model CatalogConfig {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  // Datos básicos
+  whatsappNumber String?
+  // Identidad visual
+  bannerUrl      String?
+  primaryColor   String?
+  // Textos del hero
+  headline       String?
+  subheadline    String?
+  // Redes sociales
+  instagram      String?
+  facebook       String?
+  tiktok         String?
+  // CTA / contacto
+  ctaText        String?
+  // Opciones de visualización
+  showStock      Boolean  @default(true)
+  showSku        Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("catalog_config")
+}
+
 model Product {
   id              String           @id @default(uuid())
   userId          String
@@ -626,6 +652,7 @@ model User {
   instancias                         Instancia[]
   pausar                             Pausar[]
   products                           Product[]
+  catalogConfig                      CatalogConfig?
   cotizaciones                       Cotizacion[]
   promptInstances                    PromptInstance[]
   services                           Service[]
@@ -675,6 +702,7 @@ model User {
   resellerPlans                      ResellerPlan[]
   forms                              Form[]
   visualStyles                       UserVisualStyle[]
+  userIntegrations                   UserIntegration[]
 }
 
 model UserVisualStyle {
@@ -685,6 +713,19 @@ model UserVisualStyle {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserIntegration {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  url       String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

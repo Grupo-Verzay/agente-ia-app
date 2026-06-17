@@ -23,6 +23,7 @@ import { ChatOnboardingModal } from "@/components/shared/ChatOnboardingModal";
 import { TaskNotificationProvider } from "@/components/providers/TaskNotificationProvider";
 import { ChatUnreadProvider } from "@/components/providers/ChatUnreadProvider";
 import type { UserNavPref } from "@/types/nav-preference";
+import { getUserIntegrations } from "@/actions/user-integration-actions";
 
 export default async function RootGroupLayout({
     children,
@@ -109,6 +110,9 @@ export default async function RootGroupLayout({
         // tabla aún no existe — primera vez
     }
 
+    const userIntegrationsResult = await getUserIntegrations();
+    const userIntegrations = userIntegrationsResult.data;
+
     const panelModule = await db.module.findFirst({
         where: { route: { in: ["/panel", "/admin"] } },
         include: { moduleItems: { orderBy: { createdAt: "asc" } } },
@@ -120,7 +124,7 @@ export default async function RootGroupLayout({
 
     return (
         <>
-            <AppInitializer onReseller={onReseller} modules={modules} user={user} navPrefs={navPrefs} />
+            <AppInitializer onReseller={onReseller} modules={modules} user={user} navPrefs={navPrefs} userIntegrations={userIntegrations} />
             <SidebarProvider defaultOpen={defaultOpen}>
                 <AppSidebar user={user} />
                 <SidebarInset className="h-screen h-[100dvh] flex flex-col min-w-0 overflow-x-hidden">

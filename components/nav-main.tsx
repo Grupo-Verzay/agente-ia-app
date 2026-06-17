@@ -27,11 +27,12 @@ import { User } from '@prisma/client';
 import clsx from 'clsx';
 import { iconMap } from '@/schema/module';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
+import { Settings2 } from 'lucide-react';
 
 const PANEL_ROUTES = ['/panel', '/admin'];
 
 export function NavMain({ user }: { user: User }) {
-    const { modules, navPrefs, setLabelModule, labelModule, setCanvaUrl } = useModuleStore();
+    const { modules, navPrefs, setLabelModule, labelModule, setCanvaUrl, userIntegrations } = useModuleStore();
     const pathname = usePathname();
     const router = useRouter();
     const { isMobile, openMobile, setOpenMobile, state: sidebarState } = useSidebar();
@@ -177,6 +178,102 @@ export function NavMain({ user }: { user: User }) {
                         'h-5',
                         isAnySubActive ? 'invert brightness-200' : ''
                     );
+
+                    // Módulo especial: integraciones dinámicas del usuario
+                    if (route === '#user-integrations') {
+                        const subItems = [
+                            ...userIntegrations.map(intg => ({ id: intg.id, title: intg.name, dest: '/canva', url: intg.url })),
+                            { id: '__manage__', title: 'Gestionar integraciones', dest: '/integraciones', url: null },
+                        ];
+                        const isAnyIntgActive = pathname === '/integraciones' || userIntegrations.some(() => labelModule === label && pathname === '/canva');
+
+                        const renderSubItems = () => subItems.map((sub) => {
+                            const isSubActive = pathname === sub.dest && (sub.dest !== '/canva' || (labelModule === label));
+                            return (
+                                <SidebarMenuSubItem key={sub.id}>
+                                    <button
+                                        onClick={() => {
+                                            if (sub.url) setCanvaUrl(sub.url);
+                                            handleRoute(label, sub.dest);
+                                        }}
+                                        className={clsx(
+                                            'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                                            isSubActive
+                                                ? 'bg-zinc-200 text-zinc-800 font-medium dark:bg-zinc-700 dark:text-zinc-100'
+                                                : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
+                                        )}
+                                    >
+                                        {sub.id === '__manage__' && <Settings2 className="h-3.5 w-3.5 shrink-0 opacity-60" />}
+                                        {sub.title}
+                                    </button>
+                                </SidebarMenuSubItem>
+                            );
+                        });
+
+                        const intgParentClasses = clsx(
+                            'flex items-center py-2 rounded-md text-sm font-medium transition',
+                            isAnyIntgActive
+                                ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white'
+                                : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                        );
+
+                        if (sidebarState === 'collapsed' && !isMobile && !openMobile) {
+                            return (
+                                <SidebarMenuItem key={id}>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <SidebarMenuButton className={intgParentClasses} tooltip={displayLabel}>
+                                                {Icon && <Icon className={clsx('h-5', isAnyIntgActive && 'invert brightness-200')} />}
+                                                <span>{displayLabel}</span>
+                                            </SidebarMenuButton>
+                                        </PopoverTrigger>
+                                        <PopoverContent side="right" align="start" sideOffset={8} className="w-52 p-1">
+                                            <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{displayLabel}</p>
+                                            {subItems.map((sub) => (
+                                                <button
+                                                    key={sub.id}
+                                                    onClick={() => {
+                                                        if (sub.url) setCanvaUrl(sub.url);
+                                                        handleRoute(label, sub.dest);
+                                                    }}
+                                                    className={clsx(
+                                                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                                                        'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                                                    )}
+                                                >
+                                                    {sub.id === '__manage__' && <Settings2 className="h-3.5 w-3.5 shrink-0 opacity-60" />}
+                                                    {sub.title}
+                                                </button>
+                                            ))}
+                                        </PopoverContent>
+                                    </Popover>
+                                </SidebarMenuItem>
+                            );
+                        }
+
+                        return (
+                            <Collapsible
+                                key={id}
+                                asChild
+                                open={openModuleId !== null ? openModuleId === id : isAnyIntgActive}
+                                onOpenChange={(open) => setOpenModuleId(open ? id : null)}
+                                className="group/collapsible"
+                            >
+                                <SidebarMenuItem>
+                                    <CollapsibleTrigger asChild>
+                                        <SidebarMenuButton className={intgParentClasses} tooltip={displayLabel}>
+                                            {Icon && <Icon className={clsx('h-5', isAnyIntgActive && 'invert brightness-200')} />}
+                                            <span>{displayLabel}</span>
+                                            <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
+                                        </SidebarMenuButton>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent>
+                                        <SidebarMenuSub>{renderSubItems()}</SidebarMenuSub>
+                                    </CollapsibleContent>
+                                </SidebarMenuItem>
+                            </Collapsible>
+                        );
+                    }
 
                     // Sidebar colapsado → popover flotante con los sub-ítems (nunca en móvil)
                     if (sidebarState === 'collapsed' && !isMobile && !openMobile) {
