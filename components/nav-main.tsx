@@ -103,7 +103,7 @@ export function NavMain({ user }: { user: User }) {
                     const { id, route, icon, label, displayLabel, requiresPremium, isActive, moduleItems } = item;
                     const Icon = iconMap[icon as keyof typeof iconMap];
                     const linkClasses = clsx(
-                        'flex items-center justify-between py-2 rounded-md text-sm font-medium transition',
+                        'flex items-center py-2 rounded-md text-sm font-medium transition',
                         isActive
                             ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white'
                             : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
@@ -168,7 +168,7 @@ export function NavMain({ user }: { user: User }) {
                         return pathname === dest || pathname.startsWith(dest + '/');
                     });
                     const parentClasses = clsx(
-                        'flex items-center justify-between py-2 rounded-md text-sm font-medium transition',
+                        'flex items-center py-2 rounded-md text-sm font-medium transition',
                         isAnySubActive
                             ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white'
                             : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
