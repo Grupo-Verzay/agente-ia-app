@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
 
@@ -9,6 +9,12 @@ import { ChunkRecovery } from "@/components/chunk-recovery";
 import ErrorBoundary from "@/components/error-bundary";
 
 const poppins = Poppins({ subsets: ["latin"], weight: ["400", "700"] });
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  interactiveWidget: 'resizes-content',
+};
 
 export const metadata: Metadata = {
   title: "Agente IA",
