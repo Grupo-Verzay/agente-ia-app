@@ -1240,6 +1240,44 @@ export async function updateSessionLeadStatus(
   }
 }
 
+export async function updateSessionServiceType(
+  sessionId: number,
+  serviceType: 'IA' | 'HUMANO' | null,
+): Promise<SessionsListResponse> {
+  try {
+    const session = await db.session.findUnique({
+      where: { id: sessionId },
+      select: { userId: true, agentDisabled: true },
+    });
+    if (!session?.userId) return { success: false, message: 'Sesión no encontrada.' };
+
+    await assertUserCanUseApp(session.userId);
+
+    // HUMANO → deshabilitar agente IA; IA → reactivar agente si estaba deshabilitado por serviceType
+    const agentUpdate =
+      serviceType === 'HUMANO' ? { agentDisabled: true } :
+      serviceType === 'IA' && session.agentDisabled ? { agentDisabled: false } :
+      {};
+
+    await db.session.update({
+      where: { id: sessionId },
+      data: {
+        // @ts-expect-error — serviceType disponible tras reiniciar el Prisma client
+        serviceType: serviceType ?? null,
+        ...agentUpdate,
+      },
+    });
+
+    return { success: true, message: 'Tipo de servicio actualizado correctamente' };
+  } catch (error) {
+    console.error('[updateSessionServiceType]', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'No se pudo actualizar el tipo de servicio',
+    };
+  }
+}
+
 async function triggerStageAutomations(sessionId: number, newStage: string): Promise<void> {
   const backendUrl = (process.env.BACKEND_URL ?? '').replace(/\/$/, '');
   if (!backendUrl) return;
