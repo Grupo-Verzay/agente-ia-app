@@ -28,10 +28,11 @@ const FlowListOrder = dynamic(
 import { SeguimientoBadge } from "../../sessions/_components/SeguimientoBadge";
 import { LeadStatusSelect } from "./LeadStatusSelect";
 import { ServiceTypeSelect } from "./ServiceTypeSelect";
+import { ClientStatusSelect } from "./ClientStatusSelect";
 import { cn } from "@/lib/utils";
 import { getIconForMessageType } from "./chat-sidebar.utils";
 import type { SidebarContact } from "./chat-sidebar.types";
-import type { LeadStatus, ServiceType, SimpleTag } from "@/types/session";
+import type { LeadStatus, ServiceType, ClientStatus, SimpleTag } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { AdvisorAssignBadge } from "./AdvisorAssignBadge";
 
@@ -74,6 +75,7 @@ type ChatContactItemProps = {
   onTogglePin: (id: string, isPinned: boolean) => void;
   onLeadStatusChange?: (remoteJid: string, status: LeadStatus | null) => void;
   onServiceTypeChange?: (remoteJid: string, value: ServiceType | null) => void;
+  onClientStatusChange?: (remoteJid: string, value: ClientStatus | null) => void;
   selected: boolean;
   advisors?: AdvisorInfo[];
   advisorRole?: string | null;
@@ -101,6 +103,7 @@ export function ChatContactItem({
   onTogglePin,
   onLeadStatusChange,
   onServiceTypeChange,
+  onClientStatusChange,
   selected,
   advisors,
   advisorRole,
@@ -142,6 +145,14 @@ export function ChatContactItem({
         sessionId={contact.chatSession.id}
         currentValue={(contact.chatSession as any).serviceType ?? null}
         onUpdated={(newValue) => onServiceTypeChange?.(contact.id, newValue)}
+      />
+    );
+    badgeItems.push(
+      <ClientStatusSelect
+        key="clientStatus"
+        sessionId={contact.chatSession.id}
+        currentValue={(contact.chatSession as any).clientStatus ?? null}
+        onUpdated={(newValue) => onClientStatusChange?.(contact.id, newValue)}
       />
     );
   }

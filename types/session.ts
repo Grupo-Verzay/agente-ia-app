@@ -27,6 +27,9 @@ export type LeadStatus = PrismaLeadStatus;
 // ServiceType: tipo de servicio contratado por el contacto con el negocio
 export type ServiceType = 'IA' | 'HUMANO';
 
+// ClientStatus: estado del cliente en la plataforma
+export type ClientStatus = 'ACTIVO' | 'INACTIVO';
+
 export type CrmFollowUpStatus =
   | "PENDING"
   | "PROCESSING"
@@ -90,6 +93,7 @@ export type ChatContactSessionSummary = {
   tags: SimpleTag[];
   leadStatus?: LeadStatus | null;
   serviceType?: ServiceType | null;
+  clientStatus?: ClientStatus | null;
   flujos?: string | null;
   pendingSeguimientos?: number;
   seguimientosTipos?: { tipo: string; count: number }[];
