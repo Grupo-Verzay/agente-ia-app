@@ -10,6 +10,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { updateSessionServiceType } from "@/actions/session-action";
 import type { ServiceType } from "@/types/session";
 
@@ -18,6 +24,24 @@ const SERVICE_OPTIONS: { value: ServiceType | null; label: string; description: 
   { value: "HUMANO", label: "Asistencia Humana",  description: "Se escala a un humano (S/N)" },
   { value: null,     label: "Sin asignar",        description: "Lead sin servicio definido" },
 ];
+
+function ServiceTypeIcon({ value }: { value: ServiceType | null }) {
+  if (value === "IA") {
+    return (
+      <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-100 border border-blue-200 dark:bg-blue-950 dark:border-blue-800">
+        <Bot className="h-3 w-3 text-blue-700 dark:text-blue-300" />
+      </span>
+    );
+  }
+  if (value === "HUMANO") {
+    return (
+      <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 border border-emerald-200 dark:bg-emerald-950 dark:border-emerald-800">
+        <UserRound className="h-3 w-3 text-emerald-700 dark:text-emerald-300" />
+      </span>
+    );
+  }
+  return <HelpCircle className="h-3.5 w-3.5 text-muted-foreground/50" />;
+}
 
 function ServiceTypeBadge({ value }: { value: ServiceType | null }) {
   if (value === "IA") {
@@ -52,16 +76,18 @@ interface ServiceTypeSelectProps {
 
 export function ServiceTypeSelect({ sessionId, currentValue, onUpdated }: ServiceTypeSelectProps) {
   const [isPending, setIsPending] = useState(false);
+  const value = currentValue ?? null;
+  const label = SERVICE_OPTIONS.find((o) => o.value === value)?.label ?? "Sin asignar";
 
-  const handleSelect = async (value: ServiceType | null) => {
-    if (value === currentValue) return;
+  const handleSelect = async (selected: ServiceType | null) => {
+    if (selected === value) return;
     setIsPending(true);
     try {
-      const result = await updateSessionServiceType(sessionId, value);
+      const result = await updateSessionServiceType(sessionId, selected);
       if (result.success) {
-        await onUpdated?.(value);
-        const label = SERVICE_OPTIONS.find((o) => o.value === value)?.label ?? "Sin asignar";
-        toast.success(`Servicio cambiado a: ${label}`);
+        await onUpdated?.(selected);
+        const newLabel = SERVICE_OPTIONS.find((o) => o.value === selected)?.label ?? "Sin asignar";
+        toast.success(`Servicio cambiado a: ${newLabel}`);
       } else {
         toast.error(result.message);
       }
@@ -71,31 +97,40 @@ export function ServiceTypeSelect({ sessionId, currentValue, onUpdated }: Servic
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        disabled={isPending}
-        className="inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50 focus:outline-none"
-        aria-label="Cambiar tipo de servicio"
-      >
-        <ServiceTypeBadge value={currentValue ?? null} />
-        <ChevronDown className="h-3 w-3 text-muted-foreground" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-52">
-        <DropdownMenuGroup>
-          {SERVICE_OPTIONS.map((option) => (
-            <DropdownMenuItem
-              key={option.value ?? "__none__"}
-              onSelect={() => handleSelect(option.value)}
-              className={currentValue === option.value ? "bg-muted" : ""}
+    <TooltipProvider delayDuration={300}>
+      <DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger
+              disabled={isPending}
+              className="inline-flex items-center gap-0.5 cursor-pointer hover:opacity-70 transition-opacity disabled:opacity-50 focus:outline-none"
+              aria-label="Cambiar tipo de servicio"
             >
-              <div className="flex flex-col gap-0.5">
-                <ServiceTypeBadge value={option.value} />
-                <span className="text-xs text-muted-foreground pl-0.5">{option.description}</span>
-              </div>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+              <ServiceTypeIcon value={value} />
+              <ChevronDown className="h-2.5 w-2.5 text-muted-foreground/60" />
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            {label}
+          </TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align="start" className="w-52">
+          <DropdownMenuGroup>
+            {SERVICE_OPTIONS.map((option) => (
+              <DropdownMenuItem
+                key={option.value ?? "__none__"}
+                onSelect={() => handleSelect(option.value)}
+                className={value === option.value ? "bg-muted" : ""}
+              >
+                <div className="flex flex-col gap-0.5">
+                  <ServiceTypeBadge value={option.value} />
+                  <span className="text-xs text-muted-foreground pl-0.5">{option.description}</span>
+                </div>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </TooltipProvider>
   );
 }
