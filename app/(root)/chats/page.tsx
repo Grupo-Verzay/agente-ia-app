@@ -439,7 +439,7 @@ export default async function ChatsPage({
   const advisorRole: string | null = user.advisorRole;
   const currentAdvisorId: string = user.id;
 
-  const [tagsRes, chatSessionsRes, chatPreferencesRes, advisorsRes] = await Promise.all([
+  const [tagsRes, chatSessionsRes, chatPreferencesRes, advisorsRes, clientValidationConfig] = await Promise.all([
     settle(listTagsAction(effectiveOwnerId)),
     chatsResult.success
       ? settle(
@@ -457,6 +457,10 @@ export default async function ChatsPage({
       : Promise.resolve(null),
     settle(getChatConversationPreferencesByUserId(effectiveOwnerId)),
     settle(getTeamAdvisorInfos()),
+    db.externalDataToolConfig.findFirst({
+      where: { userId: effectiveOwnerId, toolType: 'client_validation', isEnabled: true },
+      select: { id: true },
+    }).catch(() => null),
   ]);
 
   const allTags =
@@ -538,6 +542,7 @@ export default async function ChatsPage({
       takeSessionAction={takeSessionAction}
       releaseSessionAction={releaseSessionAction}
       transferSessionAction={transferSessionAction}
+      clientValidationEnabled={!!clientValidationConfig}
     />
   );
 }

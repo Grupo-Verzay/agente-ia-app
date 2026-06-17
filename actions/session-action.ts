@@ -134,6 +134,10 @@ function mapChatContactSessionSummary(
     pushName: mappedSession.pushName,
     tags: mappedSession.tags ?? [],
     leadStatus: mappedSession.leadStatus ?? null,
+    // @ts-expect-error — serviceType/clientStatus disponibles tras reiniciar el Prisma client
+    serviceType: (mappedSession as any).serviceType ?? null,
+    // @ts-expect-error — clientStatus disponible tras reiniciar el Prisma client
+    clientStatus: (mappedSession as any).clientStatus ?? null,
     flujos: mappedSession.flujos ?? null,
     pendingSeguimientos: pendingSeguimientos ?? 0,
     seguimientosTipos: seguimientosTipos ?? [],
@@ -1236,6 +1240,68 @@ export async function updateSessionLeadStatus(
     return {
       success: false,
       message: error instanceof Error ? error.message : 'No se pudo actualizar el estado del lead',
+    };
+  }
+}
+
+export async function updateSessionServiceType(
+  sessionId: number,
+  serviceType: 'IA' | 'HUMANO' | null,
+): Promise<SessionsListResponse> {
+  try {
+    const session = await db.session.findUnique({
+      where: { id: sessionId },
+      select: { userId: true },
+    });
+    if (!session?.userId) return { success: false, message: 'Sesión no encontrada.' };
+
+    await assertUserCanUseApp(session.userId);
+
+    await db.session.update({
+      where: { id: sessionId },
+      data: {
+        // @ts-expect-error — serviceType disponible tras reiniciar el Prisma client
+        serviceType: serviceType ?? null,
+      },
+    });
+
+    return { success: true, message: 'Tipo de servicio actualizado correctamente' };
+  } catch (error) {
+    console.error('[updateSessionServiceType]', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'No se pudo actualizar el tipo de servicio',
+    };
+  }
+}
+
+export async function updateSessionClientStatus(
+  sessionId: number,
+  clientStatus: 'ACTIVO' | 'INACTIVO' | null,
+): Promise<SessionsListResponse> {
+  try {
+    const session = await db.session.findUnique({
+      where: { id: sessionId },
+      select: { userId: true },
+    });
+    if (!session?.userId) return { success: false, message: 'Sesión no encontrada.' };
+
+    await assertUserCanUseApp(session.userId);
+
+    await db.session.update({
+      where: { id: sessionId },
+      data: {
+        // @ts-expect-error — clientStatus disponible tras reiniciar el Prisma client
+        clientStatus: clientStatus ?? null,
+      },
+    });
+
+    return { success: true, message: 'Estado del cliente actualizado correctamente' };
+  } catch (error) {
+    console.error('[updateSessionClientStatus]', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'No se pudo actualizar el estado del cliente',
     };
   }
 }

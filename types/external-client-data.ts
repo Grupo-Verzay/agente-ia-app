@@ -72,7 +72,8 @@ export type ExternalDataBuiltinToolType =
   | 'editar_google_sheets'
   | 'scrape_web'
   | 'consultar_inventario'
-  | 'crear_cotizacion';
+  | 'crear_cotizacion'
+  | 'client_validation';
 
 export type ExternalDataQueryToolType = 'auto_inject' | 'search_by_field';
 

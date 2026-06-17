@@ -226,6 +226,17 @@ export const BUILTIN_TOOL_CATALOG: {
     sortOrder: 17,
   },
   {
+    toolType: 'client_validation',
+    defaultKey: 'client_validation',
+    defaultDisplayName: 'Validación de cliente',
+    defaultDescription:
+      'Antes de responder, valida el estado del contacto: si es nuevo, si tiene servicio contratado (IA o Humano) y si está activo o inactivo. La IA adapta su saludo y comportamiento según esa clasificación.',
+    isCritical: false,
+    helpText:
+      'Inyecta el contexto del contacto (ServiceType y ClientStatus) en el prompt del agente antes de cada respuesta. Solo activa esta herramienta si clasificas a tus contactos por tipo de servicio o estado de cliente.',
+    sortOrder: 19,
+  },
+  {
     toolType: 'crear_cotizacion',
     defaultKey: 'crear_cotizacion',
     defaultDisplayName: 'Crear cotización',

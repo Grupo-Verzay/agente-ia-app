@@ -186,6 +186,7 @@ interface ChatsClientProps {
   takeSessionAction?: (sessionId: number) => Promise<{ success: boolean; message?: string }>;
   releaseSessionAction?: (sessionId: number) => Promise<{ success: boolean; message?: string }>;
   transferSessionAction?: (sessionId: number, targetAdvisorId: string) => Promise<{ success: boolean; message?: string }>;
+  clientValidationEnabled?: boolean;
 }
 
 export function ChatsClient({
@@ -209,6 +210,7 @@ export function ChatsClient({
   takeSessionAction,
   releaseSessionAction,
   transferSessionAction,
+  clientValidationEnabled = false,
   instanceName,
   apiKeyData,
   instanceActionSets,
@@ -552,6 +554,28 @@ export function ChatsClient({
         const current = previous[remoteJid];
         if (!current) return previous;
         return { ...previous, [remoteJid]: { ...current, leadStatus: status } };
+      });
+    },
+    [],
+  );
+
+  const handleServiceTypeChange = useCallback(
+    (remoteJid: string, value: import("@/types/session").ServiceType | null) => {
+      setChatSessions((previous) => {
+        const current = previous[remoteJid];
+        if (!current) return previous;
+        return { ...previous, [remoteJid]: { ...current, serviceType: value } };
+      });
+    },
+    [],
+  );
+
+  const handleClientStatusChange = useCallback(
+    (remoteJid: string, value: import("@/types/session").ClientStatus | null) => {
+      setChatSessions((previous) => {
+        const current = previous[remoteJid];
+        if (!current) return previous;
+        return { ...previous, [remoteJid]: { ...current, clientStatus: value } };
       });
     },
     [],
@@ -1296,6 +1320,9 @@ export function ChatsClient({
           onArchiveChat={handleArchiveChat}
           onDeleteChat={handleDeleteChat}
           onLeadStatusChange={handleLeadStatusChange}
+          onServiceTypeChange={handleServiceTypeChange}
+          onClientStatusChange={handleClientStatusChange}
+          clientValidationEnabled={clientValidationEnabled}
           onRestoreChat={handleRestoreChat}
           onSelectRemoteJid={handleSelectFromSidebar}
           onTogglePin={handleToggleChatPin}
