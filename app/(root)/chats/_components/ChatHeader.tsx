@@ -557,7 +557,7 @@ const sessionStatusTone = session?.status
           <button
             onClick={() => onChatViewChange('messages')}
             className={cn(
-              'px-4 py-2 text-[11px] font-medium whitespace-nowrap border-b-2 transition-colors',
+              'px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
               chatView === 'messages' || !chatView
                 ? 'border-primary text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -570,7 +570,7 @@ const sessionStatusTone = session?.status
               key={intg.id}
               onClick={() => onChatViewChange(intg.id)}
               className={cn(
-                'px-4 py-2 text-[11px] font-medium whitespace-nowrap border-b-2 transition-colors',
+                'px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
                 chatView === intg.id
                   ? 'border-primary text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
