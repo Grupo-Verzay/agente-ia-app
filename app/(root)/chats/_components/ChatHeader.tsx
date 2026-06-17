@@ -431,7 +431,7 @@ const sessionStatusTone = session?.status
 
       {/* ── Desktop ── */}
       <div className="hidden md:flex md:flex-col overflow-hidden">
-      <div className="flex items-center px-3 py-1.5 gap-3 overflow-hidden">
+      <div className="flex items-center px-3 py-1 gap-3 overflow-hidden">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {onExpandChatList && (
             <Button
@@ -445,7 +445,7 @@ const sessionStatusTone = session?.status
               <PanelRightOpen className="h-4 w-4" />
             </Button>
           )}
-          <Avatar className="w-14 h-14 ring-2 ring-border flex-shrink-0">
+          <Avatar className="w-9 h-9 ring-2 ring-border flex-shrink-0">
             <AvatarImage src={header.avatarSrc || '/default-avatar.png'} />
             <AvatarFallback className="text-lg font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
           </Avatar>
@@ -454,7 +454,7 @@ const sessionStatusTone = session?.status
               {header.isPinned && (
                 <Pin className="h-4 w-4 fill-current text-amber-500 flex-shrink-0" />
               )}
-              <h2 className="truncate text-lg font-bold" title={displayedContactName}>{displayedContactName}</h2>
+              <h2 className="truncate text-sm font-bold" title={displayedContactName}>{displayedContactName}</h2>
               {session && (
                 <Button
                   type="button"
