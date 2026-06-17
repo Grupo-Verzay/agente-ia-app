@@ -259,13 +259,13 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
                   {/* Primary actions */}
                   <div className="flex gap-2">
                     <Button asChild size="sm" className="flex-1">
-                      <Link href={`/panel/mis-formularios/${form.id}`}>
+                      <Link href={`/mis-formularios/${form.id}`}>
                         <Pencil className="w-3.5 h-3.5 mr-1.5" />
                         Editar
                       </Link>
                     </Button>
                     <Button asChild size="sm" variant="outline" className="flex-1">
-                      <Link href={`/panel/mis-formularios/${form.id}/registros`}>
+                      <Link href={`/mis-formularios/${form.id}/registros`}>
                         <BarChart2 className="w-3.5 h-3.5 mr-1.5" />
                         Registros
                       </Link>

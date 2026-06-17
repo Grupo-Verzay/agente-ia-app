@@ -233,7 +233,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
           <ModuleToolbar className="shrink-0">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <Button asChild variant="outline" size="sm" className="shrink-0">
-                <Link href="/panel/mis-formularios">
+                <Link href="/mis-formularios">
                   <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
                   Volver
                 </Link>
@@ -255,7 +255,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
               </div>
               <div className="h-4 w-px bg-border" />
               <Button asChild variant="outline" size="sm">
-                <Link href={`/panel/mis-formularios/${form.id}/registros`}>
+                <Link href={`/mis-formularios/${form.id}/registros`}>
                   <ClipboardList className="w-3.5 h-3.5 mr-1.5" />Registros
                 </Link>
               </Button>

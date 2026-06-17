@@ -119,7 +119,7 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
           <ModuleToolbar className="shrink-0">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <Button asChild variant="outline" size="sm" className="shrink-0">
-                <Link href={`/panel/mis-formularios/${form.id}`}>
+                <Link href={`/mis-formularios/${form.id}`}>
                   <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
                   Volver
                 </Link>

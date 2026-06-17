@@ -34,7 +34,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         title: item.title,
     }));
 
-    const FORMULARIOS_TAB = { url: '/panel/mis-formularios', title: 'Formularios' };
+    const FORMULARIOS_TAB = { url: '/mis-formularios', title: 'Formularios' };
 
     const panelTabs =
         user.role === 'reseller'

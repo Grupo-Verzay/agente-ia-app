@@ -195,7 +195,7 @@ export async function createForm(input: {
       },
     });
 
-    revalidatePath('/panel/mis-formularios');
+    revalidatePath('/mis-formularios');
     return { success: true, formId: form.id };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) };
@@ -240,8 +240,8 @@ export async function updateForm(
     }
 
     await db.form.update({ where: { id: formId }, data });
-    revalidatePath('/panel/mis-formularios');
-    revalidatePath(`/panel/mis-formularios/${formId}`);
+    revalidatePath('/mis-formularios');
+    revalidatePath(`/mis-formularios/${formId}`);
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) };
@@ -254,7 +254,7 @@ export async function deleteForm(formId: string): Promise<{ success: boolean; er
     if (!user) return { success: false, error: 'No autorizado' };
 
     await db.form.deleteMany({ where: { id: formId, userId: user.id } });
-    revalidatePath('/panel/mis-formularios');
+    revalidatePath('/mis-formularios');
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) };
@@ -290,7 +290,7 @@ export async function addFormField(
       },
     });
 
-    revalidatePath(`/panel/mis-formularios/${formId}`);
+    revalidatePath(`/mis-formularios/${formId}`);
     return {
       success: true,
       field: {
@@ -331,7 +331,7 @@ export async function updateFormField(
     if (input.options !== undefined) data.options = input.options.length ? input.options : null;
 
     await db.formField.update({ where: { id: fieldId }, data });
-    revalidatePath(`/panel/mis-formularios/${field.formId}`);
+    revalidatePath(`/mis-formularios/${field.formId}`);
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) };
@@ -350,7 +350,7 @@ export async function deleteFormField(fieldId: string): Promise<{ success: boole
     if (!field || field.form.userId !== user.id) return { success: false, error: 'Campo no encontrado' };
 
     await db.formField.delete({ where: { id: fieldId } });
-    revalidatePath(`/panel/mis-formularios/${field.formId}`);
+    revalidatePath(`/mis-formularios/${field.formId}`);
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) };
@@ -372,7 +372,7 @@ export async function reorderFormFields(
       orderedIds.map((id, index) => db.formField.update({ where: { id }, data: { order: index } })),
     );
 
-    revalidatePath(`/panel/mis-formularios/${formId}`);
+    revalidatePath(`/mis-formularios/${formId}`);
     return { success: true };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) };
