@@ -186,6 +186,7 @@ interface ChatsClientProps {
   takeSessionAction?: (sessionId: number) => Promise<{ success: boolean; message?: string }>;
   releaseSessionAction?: (sessionId: number) => Promise<{ success: boolean; message?: string }>;
   transferSessionAction?: (sessionId: number, targetAdvisorId: string) => Promise<{ success: boolean; message?: string }>;
+  clientValidationEnabled?: boolean;
 }
 
 export function ChatsClient({
@@ -209,6 +210,7 @@ export function ChatsClient({
   takeSessionAction,
   releaseSessionAction,
   transferSessionAction,
+  clientValidationEnabled = false,
   instanceName,
   apiKeyData,
   instanceActionSets,
@@ -1320,6 +1322,7 @@ export function ChatsClient({
           onLeadStatusChange={handleLeadStatusChange}
           onServiceTypeChange={handleServiceTypeChange}
           onClientStatusChange={handleClientStatusChange}
+          clientValidationEnabled={clientValidationEnabled}
           onRestoreChat={handleRestoreChat}
           onSelectRemoteJid={handleSelectFromSidebar}
           onTogglePin={handleToggleChatPin}

@@ -85,6 +85,7 @@ type ChatSidebarProps = {
   onLeadStatusChange?: (remoteJid: string, status: import("@/types/session").LeadStatus | null) => void;
   onServiceTypeChange?: (remoteJid: string, value: import("@/types/session").ServiceType | null) => void;
   onClientStatusChange?: (remoteJid: string, value: import("@/types/session").ClientStatus | null) => void;
+  clientValidationEnabled?: boolean;
   onRestoreChat?: (remoteJid: string) => void | Promise<void>;
   onSelectRemoteJid?: (remoteJid: string, instanceName?: string) => void | Promise<void>;
   onTogglePin?: (remoteJid: string, isPinned: boolean) => void | Promise<void>;
@@ -124,6 +125,7 @@ export function ChatSidebar({
   onLeadStatusChange,
   onServiceTypeChange,
   onClientStatusChange,
+  clientValidationEnabled = false,
   onRestoreChat,
   onSelectRemoteJid,
   onTogglePin,
@@ -719,6 +721,7 @@ export function ChatSidebar({
                 onLeadStatusChange={onLeadStatusChange}
                 onServiceTypeChange={onServiceTypeChange}
                 onClientStatusChange={onClientStatusChange}
+                clientValidationEnabled={clientValidationEnabled}
                 advisors={advisors}
                 advisorRole={advisorRole}
                 currentAdvisorId={currentAdvisorId}

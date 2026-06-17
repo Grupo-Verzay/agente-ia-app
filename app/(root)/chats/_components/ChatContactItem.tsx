@@ -76,6 +76,7 @@ type ChatContactItemProps = {
   onLeadStatusChange?: (remoteJid: string, status: LeadStatus | null) => void;
   onServiceTypeChange?: (remoteJid: string, value: ServiceType | null) => void;
   onClientStatusChange?: (remoteJid: string, value: ClientStatus | null) => void;
+  clientValidationEnabled?: boolean;
   selected: boolean;
   advisors?: AdvisorInfo[];
   advisorRole?: string | null;
@@ -104,6 +105,7 @@ export function ChatContactItem({
   onLeadStatusChange,
   onServiceTypeChange,
   onClientStatusChange,
+  clientValidationEnabled = false,
   selected,
   advisors,
   advisorRole,
@@ -139,22 +141,24 @@ export function ChatContactItem({
         onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus)}
       />
     );
-    badgeItems.push(
-      <ServiceTypeSelect
-        key="serviceType"
-        sessionId={contact.chatSession.id}
-        currentValue={contact.chatSession.serviceType ?? null}
-        onUpdated={(newValue) => onServiceTypeChange?.(contact.id, newValue)}
-      />
-    );
-    badgeItems.push(
-      <ClientStatusSelect
-        key="clientStatus"
-        sessionId={contact.chatSession.id}
-        currentValue={contact.chatSession.clientStatus ?? null}
-        onUpdated={(newValue) => onClientStatusChange?.(contact.id, newValue)}
-      />
-    );
+    if (clientValidationEnabled) {
+      badgeItems.push(
+        <ServiceTypeSelect
+          key="serviceType"
+          sessionId={contact.chatSession.id}
+          currentValue={contact.chatSession.serviceType ?? null}
+          onUpdated={(newValue) => onServiceTypeChange?.(contact.id, newValue)}
+        />
+      );
+      badgeItems.push(
+        <ClientStatusSelect
+          key="clientStatus"
+          sessionId={contact.chatSession.id}
+          currentValue={contact.chatSession.clientStatus ?? null}
+          onUpdated={(newValue) => onClientStatusChange?.(contact.id, newValue)}
+        />
+      );
+    }
   }
   if (advisors && advisors.length > 0 && contact.chatSession?.assignedAdvisorId) {
     badgeItems.push(
