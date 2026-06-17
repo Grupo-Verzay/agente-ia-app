@@ -16,6 +16,7 @@ export type CatalogConfigData = {
   ctaText: string | null;
   showStock: boolean;
   showSku: boolean;
+  slug: string | null;
 };
 
 const EMPTY: CatalogConfigData = {
@@ -30,6 +31,7 @@ const EMPTY: CatalogConfigData = {
   ctaText: null,
   showStock: true,
   showSku: false,
+  slug: null,
 };
 
 export async function getCatalogConfig(userId: string): Promise<CatalogConfigData> {
@@ -47,6 +49,7 @@ export async function getCatalogConfig(userId: string): Promise<CatalogConfigDat
     ctaText: config.ctaText,
     showStock: config.showStock,
     showSku: config.showSku,
+    slug: config.slug ?? null,
   };
 }
 
@@ -55,13 +58,44 @@ export async function updateCatalogConfig(data: CatalogConfigData) {
   if (!user) return { success: false, message: 'No autenticado' };
 
   const userId = user.effectiveId as string;
+  const { slug, ...rest } = data;
 
   await db.catalogConfig.upsert({
     where: { userId },
-    create: { userId, ...data },
-    update: { ...data },
+    create: { userId, ...rest },
+    update: { ...rest },
   });
 
   revalidatePath(`/catalogo/${userId}`);
   return { success: true, message: 'Configuración guardada' };
+}
+
+export async function updateCatalogSlug(slug: string) {
+  const user = await currentUser();
+  if (!user) return { success: false, message: 'No autenticado' };
+
+  const normalized = slug.toLowerCase().trim().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  if (!normalized) return { success: false, message: 'Slug inválido' };
+
+  const existing = await db.catalogConfig.findUnique({ where: { slug: normalized } });
+  if (existing && existing.userId !== user.effectiveId) {
+    return { success: false, message: 'Ese nombre ya está en uso' };
+  }
+
+  await db.catalogConfig.upsert({
+    where: { userId: user.effectiveId as string },
+    create: { userId: user.effectiveId as string, slug: normalized },
+    update: { slug: normalized },
+  });
+
+  revalidatePath(`/c/${normalized}`);
+  return { success: true, slug: normalized };
+}
+
+export async function getUserIdBySlug(slug: string): Promise<string | null> {
+  const config = await db.catalogConfig.findUnique({
+    where: { slug },
+    select: { userId: true },
+  });
+  return config?.userId ?? null;
 }

@@ -68,7 +68,7 @@ function IntegrationRow({
                         <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." className="h-8 text-sm" />
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex justify-between gap-2">
                     <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setName(item.name); setUrl(item.url) }} className="h-7 px-3 text-xs">
                         <X className="mr-1 h-3 w-3" /> Cancelar
                     </Button>
@@ -226,7 +226,7 @@ export function MainIntegraciones({ initial }: { initial: UserIntegrationItem[] 
                             />
                         </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex justify-between gap-2">
                         <Button size="sm" variant="ghost" onClick={() => { setShowForm(false); setNewName(''); setNewUrl('') }}>
                             Cancelar
                         </Button>

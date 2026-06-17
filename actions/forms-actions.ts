@@ -31,6 +31,7 @@ export type FormData = {
   id: string;
   title: string;
   slug: string;
+  publicSlug: string | null;
   description: string | null;
   sheetsUrl: string | null;
   isActive: boolean;
@@ -92,6 +93,7 @@ export async function getMyForms(): Promise<{ success: boolean; forms?: FormData
         id: f.id,
         title: f.title,
         slug: f.slug,
+        publicSlug: f.publicSlug ?? null,
         description: f.description,
         sheetsUrl: f.sheetsUrl,
         isActive: f.isActive,
@@ -139,6 +141,7 @@ export async function getFormById(formId: string): Promise<{ success: boolean; f
         id: form.id,
         title: form.title,
         slug: form.slug,
+        publicSlug: f.publicSlug ?? null,
         description: form.description,
         sheetsUrl: form.sheetsUrl,
         isActive: form.isActive,
@@ -401,6 +404,7 @@ export async function getPublicFormBySlug(
         id: form.id,
         title: form.title,
         slug: form.slug,
+        publicSlug: f.publicSlug ?? null,
         description: form.description,
         sheetsUrl: form.sheetsUrl,
         isActive: form.isActive,
@@ -421,6 +425,78 @@ export async function getPublicFormBySlug(
     };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export async function getFormByPublicSlug(
+  publicSlug: string,
+): Promise<{ success: boolean; form?: FormData; userId?: string; error?: string }> {
+  try {
+    const form = await db.form.findUnique({
+      where: { publicSlug },
+      include: { fields: { orderBy: { order: 'asc' } } },
+    });
+
+    if (!form || !form.isActive) return { success: false, error: 'Formulario no encontrado' };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const f = form as any;
+    return {
+      success: true,
+      userId: form.userId,
+      form: {
+        id: form.id,
+        title: form.title,
+        slug: form.slug,
+        publicSlug: f.publicSlug ?? null,
+        description: form.description,
+        sheetsUrl: form.sheetsUrl,
+        isActive: form.isActive,
+        whatsappEnabled: f.whatsappEnabled ?? false,
+        whatsappNumber: f.whatsappNumber ?? null,
+        whatsappMessage: f.whatsappMessage ?? null,
+        createdAt: form.createdAt,
+        fields: form.fields.map((field) => ({
+          id: field.id,
+          label: field.label,
+          type: field.type as FormFieldType,
+          placeholder: field.placeholder,
+          required: field.required,
+          order: field.order,
+          options: (field.options as FormFieldOption[] | null) ?? null,
+        })),
+      },
+    };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export async function updateFormPublicSlug(
+  formId: string,
+  slug: string,
+): Promise<{ success: boolean; slug?: string; message?: string }> {
+  try {
+    const user = await currentUser();
+    if (!user) return { success: false, message: 'No autenticado' };
+
+    const normalized = slug.toLowerCase().trim().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    if (!normalized) return { success: false, message: 'Slug inválido' };
+
+    const form = await db.form.findFirst({ where: { id: formId, userId: user.effectiveId as string } });
+    if (!form) return { success: false, message: 'Formulario no encontrado' };
+
+    const existing = await db.form.findUnique({ where: { publicSlug: normalized } });
+    if (existing && existing.id !== formId) {
+      return { success: false, message: 'Ese nombre ya está en uso' };
+    }
+
+    await db.form.update({ where: { id: formId }, data: { publicSlug: normalized } });
+
+    revalidatePath(`/f/${normalized}`);
+    return { success: true, slug: normalized };
+  } catch (e) {
+    return { success: false, message: e instanceof Error ? e.message : String(e) };
   }
 }
 

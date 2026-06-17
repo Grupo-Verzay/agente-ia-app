@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   ArrowLeft, Trash2, Save, ExternalLink,
   Settings, Pencil, GripVertical, FileText, MessageCircle,
-  ClipboardList, CheckCircle2, XCircle, Wifi, WifiOff,
+  ClipboardList, CheckCircle2, XCircle, Wifi, WifiOff, Link2, Check,
 } from 'lucide-react';
 import {
   DndContext, closestCenter, useSensor, useSensors, PointerSensor,
@@ -34,7 +34,7 @@ import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import { themeClass } from '@/types/generic';
 import {
   updateForm, addFormField, updateFormField, deleteFormField, reorderFormFields,
-  getFormById, type FormData, type FormFieldData, type FormFieldOption, type FormFieldType,
+  getFormById, updateFormPublicSlug, type FormData, type FormFieldData, type FormFieldOption, type FormFieldType,
 } from '@/actions/forms-actions';
 
 export const FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
@@ -83,6 +83,10 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
   const [wpMessage, setWpMessage] = useState(form.whatsappMessage ?? '');
   const [savingWp, setSavingWp] = useState(false);
 
+  const [publicSlug, setPublicSlug] = useState(form.publicSlug ?? '');
+  const [publicSlugInput, setPublicSlugInput] = useState(form.publicSlug ?? '');
+  const [slugSaving, setSlugSaving] = useState(false);
+
   const [newLabel, setNewLabel] = useState('');
   const [newType, setNewType] = useState<FormFieldType>('text');
   const [newPlaceholder, setNewPlaceholder] = useState('');
@@ -125,6 +129,16 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
     if (!res.success) return toast.error(res.error ?? 'Error al guardar');
     toast.success('WhatsApp guardado');
     await refresh();
+  };
+
+  const handleSavePublicSlug = async () => {
+    if (!publicSlugInput.trim()) return;
+    setSlugSaving(true);
+    const res = await updateFormPublicSlug(form.id, publicSlugInput.trim());
+    setSlugSaving(false);
+    if (!res.success) return toast.error(res.message ?? 'Error al guardar');
+    setPublicSlug(res.slug!);
+    toast.success('URL personalizada guardada');
   };
 
   const parseOptions = (raw: string): FormFieldOption[] =>
@@ -185,7 +199,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
     await reorderFormFields(form.id, newFields.map((f) => f.id));
   };
 
-  const publicUrl = `${origin}/f/${userId}/${form.slug}`;
+  const publicUrl = publicSlug ? `${origin}/f/${publicSlug}` : `${origin}/f/${userId}/${form.slug}`;
 
   const wpPreview = (() => {
     if (!wpEnabled || !wpNumber || !wpMessage) return null;
@@ -378,6 +392,47 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
                   {savingWp ? 'Guardando...' : 'Guardar WhatsApp'}
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Sección URL Pública */}
+          <Card>
+            <CardHeader className="pb-3 pt-4 px-4">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-blue-500" />
+                URL personalizada
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4 flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <div className="flex flex-1 items-center rounded-md border border-input bg-background overflow-hidden">
+                  <span className="px-3 py-2 text-sm text-muted-foreground bg-muted border-r border-input select-none shrink-0">/f/</span>
+                  <input
+                    className="flex-1 min-w-0 px-3 py-2 text-sm bg-transparent outline-none"
+                    placeholder="nombre-formulario"
+                    value={publicSlugInput}
+                    onChange={(e) => setPublicSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  />
+                </div>
+                <Button size="sm" onClick={handleSavePublicSlug} disabled={slugSaving || !publicSlugInput.trim()}>
+                  <Check className="w-3.5 h-3.5 mr-1.5" />
+                  {slugSaving ? 'Guardando...' : 'Guardar'}
+                </Button>
+              </div>
+              {publicSlug && (
+                <div className="flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 px-3 py-2">
+                  <p className="text-xs text-blue-700 dark:text-blue-400 font-mono flex-1 break-all">{origin}/f/{publicSlug}</p>
+                  <a
+                    href={`/f/${publicSlug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">Solo letras minúsculas, números y guiones. Ej: <span className="font-mono">mi-formulario</span></p>
             </CardContent>
           </Card>
 

@@ -63,6 +63,7 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/my-data" },
     { route: "/notas" },
     { route: "/mis-formularios" },
+    { route: "/mis-catalogo" },
     { route: "/integraciones" },
     { route: "#user-integrations" },
     { route: "/afiliados" },

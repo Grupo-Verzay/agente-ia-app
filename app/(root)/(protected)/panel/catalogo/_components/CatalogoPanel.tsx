@@ -12,9 +12,9 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Loader2, ShoppingBag, Save, MessageCircle, Instagram,
   Facebook, Palette, Type, Image, ChevronDown, ExternalLink,
-  Package, Hash,
+  Package, Hash, Link, Check,
 } from 'lucide-react';
-import { getCatalogConfig, updateCatalogConfig } from '@/actions/catalog-config-actions';
+import { getCatalogConfig, updateCatalogConfig, updateCatalogSlug } from '@/actions/catalog-config-actions';
 
 type Props = { userId: string };
 
@@ -30,6 +30,9 @@ export function CatalogoPanel({ userId }: Props) {
   const [ctaText, setCtaText] = useState('');
   const [showStock, setShowStock] = useState(true);
   const [showSku, setShowSku] = useState(false);
+  const [slug, setSlug] = useState('');
+  const [slugInput, setSlugInput] = useState('');
+  const [slugSaving, setSlugSaving] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -53,6 +56,8 @@ export function CatalogoPanel({ userId }: Props) {
       setCtaText(cfg.ctaText ?? '');
       setShowStock(cfg.showStock);
       setShowSku(cfg.showSku);
+      setSlug(cfg.slug ?? '');
+      setSlugInput(cfg.slug ?? '');
       setLoading(false);
     });
   }, [userId]);
@@ -71,10 +76,24 @@ export function CatalogoPanel({ userId }: Props) {
       ctaText: ctaText || null,
       showStock,
       showSku,
+      slug,
     });
     if (res.success) toast.success(res.message);
     else toast.error(res.message);
     setSaving(false);
+  };
+
+  const handleSaveSlug = async () => {
+    setSlugSaving(true);
+    const res = await updateCatalogSlug(slugInput);
+    if (res.success && res.slug) {
+      setSlug(res.slug);
+      setSlugInput(res.slug);
+      toast.success('URL personalizada guardada');
+    } else {
+      toast.error(res.message ?? 'Error al guardar');
+    }
+    setSlugSaving(false);
   };
 
   if (loading) {
@@ -85,7 +104,8 @@ export function CatalogoPanel({ userId }: Props) {
     );
   }
 
-  const publicUrl = `/catalogo/${userId}`;
+  const publicUrl = slug ? `/c/${slug}` : `/catalogo/${userId}`;
+  const friendlyUrl = slug ? `/c/${slug}` : null;
 
   return (
     <div className="flex flex-col gap-6 p-4 h-full overflow-y-auto">
@@ -106,6 +126,37 @@ export function CatalogoPanel({ userId }: Props) {
           <ExternalLink className="h-3.5 w-3.5" />
           Ver catálogo
         </Button>
+      </div>
+
+      {/* URL amigable */}
+      <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <Link className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="text-sm font-medium">URL personalizada</span>
+        </div>
+        <div className="flex gap-2">
+          <div className="flex min-w-0 flex-1 items-center rounded-md border border-border bg-background px-3 text-sm">
+            <span className="text-muted-foreground shrink-0">/c/</span>
+            <input
+              className="min-w-0 flex-1 bg-transparent py-2 outline-none"
+              placeholder="nombre-empresa"
+              value={slugInput}
+              onChange={(e) => setSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
+            />
+          </div>
+          <Button size="sm" onClick={handleSaveSlug} disabled={slugSaving || !slugInput.trim() || slugInput === slug} className="shrink-0 gap-1.5">
+            {slugSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            Guardar
+          </Button>
+        </div>
+        {friendlyUrl && (
+          <p className="text-xs text-muted-foreground">
+            URL activa:{' '}
+            <a href={friendlyUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium">
+              {typeof window !== 'undefined' ? window.location.host : 'agente.ia-app.com'}{friendlyUrl}
+            </a>
+          </p>
+        )}
       </div>
 
       <Card>
