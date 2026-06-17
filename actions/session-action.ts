@@ -134,6 +134,10 @@ function mapChatContactSessionSummary(
     pushName: mappedSession.pushName,
     tags: mappedSession.tags ?? [],
     leadStatus: mappedSession.leadStatus ?? null,
+    // @ts-expect-error — serviceType/clientStatus disponibles tras reiniciar el Prisma client
+    serviceType: (mappedSession as any).serviceType ?? null,
+    // @ts-expect-error — clientStatus disponible tras reiniciar el Prisma client
+    clientStatus: (mappedSession as any).clientStatus ?? null,
     flujos: mappedSession.flujos ?? null,
     pendingSeguimientos: pendingSeguimientos ?? 0,
     seguimientosTipos: seguimientosTipos ?? [],

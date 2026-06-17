@@ -557,6 +557,28 @@ export function ChatsClient({
     [],
   );
 
+  const handleServiceTypeChange = useCallback(
+    (remoteJid: string, value: import("@/types/session").ServiceType | null) => {
+      setChatSessions((previous) => {
+        const current = previous[remoteJid];
+        if (!current) return previous;
+        return { ...previous, [remoteJid]: { ...current, serviceType: value } };
+      });
+    },
+    [],
+  );
+
+  const handleClientStatusChange = useCallback(
+    (remoteJid: string, value: import("@/types/session").ClientStatus | null) => {
+      setChatSessions((previous) => {
+        const current = previous[remoteJid];
+        if (!current) return previous;
+        return { ...previous, [remoteJid]: { ...current, clientStatus: value } };
+      });
+    },
+    [],
+  );
+
   const handleAssignAdvisor = useCallback(
     async (remoteJid: string, advisorId: string | null) => {
       const sessionSummary = chatSessions[remoteJid];
@@ -1296,6 +1318,8 @@ export function ChatsClient({
           onArchiveChat={handleArchiveChat}
           onDeleteChat={handleDeleteChat}
           onLeadStatusChange={handleLeadStatusChange}
+          onServiceTypeChange={handleServiceTypeChange}
+          onClientStatusChange={handleClientStatusChange}
           onRestoreChat={handleRestoreChat}
           onSelectRemoteJid={handleSelectFromSidebar}
           onTogglePin={handleToggleChatPin}

@@ -143,7 +143,7 @@ export function ChatContactItem({
       <ServiceTypeSelect
         key="serviceType"
         sessionId={contact.chatSession.id}
-        currentValue={(contact.chatSession as any).serviceType ?? null}
+        currentValue={contact.chatSession.serviceType ?? null}
         onUpdated={(newValue) => onServiceTypeChange?.(contact.id, newValue)}
       />
     );
@@ -151,7 +151,7 @@ export function ChatContactItem({
       <ClientStatusSelect
         key="clientStatus"
         sessionId={contact.chatSession.id}
-        currentValue={(contact.chatSession as any).clientStatus ?? null}
+        currentValue={contact.chatSession.clientStatus ?? null}
         onUpdated={(newValue) => onClientStatusChange?.(contact.id, newValue)}
       />
     );
