@@ -252,6 +252,12 @@
 }
 
 @media (max-width: 767px) {
+  html:has([data-chat-view]),
+  body:has([data-chat-view]) {
+    overflow: hidden;
+    height: 100%;
+  }
+
   .app-module-content:has([data-chat-view]) {
     padding: 0;
     border: 0;
