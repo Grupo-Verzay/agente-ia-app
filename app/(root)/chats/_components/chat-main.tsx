@@ -119,6 +119,20 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const skipNextAutoScrollRef = useRef(false);
 
+  /* ─── Fix: evitar que Android Chrome haga scroll de la ventana al abrir teclado ─── */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const resetScroll = () => { if (window.scrollY !== 0) window.scrollTo(0, 0); };
+    vv.addEventListener('resize', resetScroll);
+    window.addEventListener('scroll', resetScroll);
+    return () => {
+      vv.removeEventListener('resize', resetScroll);
+      window.removeEventListener('scroll', resetScroll);
+    };
+  }, []);
+
   /* ─── Input & compose state ─── */
   const [input, setInput] = useState('');
   const [slashOpen, setSlashOpen] = useState(false);
