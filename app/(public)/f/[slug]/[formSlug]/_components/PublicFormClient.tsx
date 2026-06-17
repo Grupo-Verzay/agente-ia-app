@@ -39,7 +39,6 @@ export function PublicFormClient({ form }: Props) {
       if (!json.success) {
         setErrors((prev) => ({ ...prev, [fieldId]: json.error ?? 'Error al subir archivo' }));
       } else {
-        // Store as JSON string with name + url
         set(fieldId, JSON.stringify({ name: json.name, url: json.url }));
       }
     } catch {
@@ -94,7 +93,6 @@ export function PublicFormClient({ form }: Props) {
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
-    // Build payload — for file fields, store URL only
     const payload: Record<string, unknown> = {};
     for (const field of form.fields) {
       const val = values[field.id];
@@ -116,12 +114,10 @@ export function PublicFormClient({ form }: Props) {
 
     setSubmitted(true);
 
-    // Redirigir a WhatsApp después de mostrar el mensaje de éxito
     const url = buildWpUrl(payload);
     if (url) setTimeout(() => { window.location.href = url; }, 1500);
   };
 
-  // ── Pantalla de éxito ────────────────────────────────────────────────────────
   if (submitted) {
     const hasWhatsApp = form.whatsappEnabled && form.whatsappNumber && form.whatsappMessage;
     return (
@@ -143,7 +139,6 @@ export function PublicFormClient({ form }: Props) {
     );
   }
 
-  // ── Formulario ───────────────────────────────────────────────────────────────
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-6 flex flex-col gap-5">
@@ -177,8 +172,6 @@ export function PublicFormClient({ form }: Props) {
   );
 }
 
-// ─── Campo dinámico ───────────────────────────────────────────────────────────
-
 function DynamicField({
   field, value, error, uploading, onChange, onToggleMulti, onFileChange,
 }: {
@@ -204,7 +197,6 @@ function DynamicField({
   );
   const errEl = error ? <p className="text-xs text-red-400">{error}</p> : null;
 
-  // ── Checkbox ────────────────────────────────────────────────────────────────
   if (type === 'checkbox') {
     return (
       <div className="flex flex-col gap-1">
@@ -219,7 +211,6 @@ function DynamicField({
     );
   }
 
-  // ── Selección múltiple ──────────────────────────────────────────────────────
   if (type === 'multiselect') {
     const selected = (value as string[]) ?? [];
     return (
@@ -238,7 +229,6 @@ function DynamicField({
     );
   }
 
-  // ── Selección simple (radio) ─────────────────────────────────────────────────
   if (type === 'radio') {
     return (
       <div className="flex flex-col gap-2">
@@ -256,7 +246,6 @@ function DynamicField({
     );
   }
 
-  // ── Área de texto ────────────────────────────────────────────────────────────
   if (type === 'textarea') {
     return (
       <div className="flex flex-col gap-1.5">
@@ -267,7 +256,6 @@ function DynamicField({
     );
   }
 
-  // ── Desplegable ───────────────────────────────────────────────────────────────
   if (type === 'select') {
     return (
       <div className="flex flex-col gap-1.5">
@@ -283,7 +271,6 @@ function DynamicField({
     );
   }
 
-  // ── Archivo ───────────────────────────────────────────────────────────────────
   if (type === 'file') {
     let fileInfo: { name: string; url: string } | null = null;
     if (typeof value === 'string' && value.startsWith('{')) {
@@ -317,7 +304,6 @@ function DynamicField({
     );
   }
 
-  // ── Monto ──────────────────────────────────────────────────────────────────
   if (type === 'money') {
     return (
       <div className="flex flex-col gap-1.5">
@@ -331,7 +317,6 @@ function DynamicField({
     );
   }
 
-  // ── Tipos simples ──────────────────────────────────────────────────────────
   const inputType: Record<string, string> = { date: 'date', time: 'time', email: 'email', phone: 'tel', url: 'url', number: 'number' };
   const extraCls = ['date', 'time'].includes(type) ? ' [color-scheme:dark]' : '';
   const placeholder = field.placeholder ?? (type === 'email' ? 'correo@ejemplo.com' : type === 'phone' ? '573001234567' : type === 'url' ? 'https://...' : '');

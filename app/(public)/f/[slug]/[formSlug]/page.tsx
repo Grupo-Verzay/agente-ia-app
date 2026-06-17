@@ -6,9 +6,9 @@ import { Bot } from 'lucide-react';
 export default async function PublicFormPage({
   params,
 }: {
-  params: { userId: string; formSlug: string };
+  params: { slug: string; formSlug: string };
 }) {
-  const result = await getPublicFormBySlug(params.userId, params.formSlug);
+  const result = await getPublicFormBySlug(params.slug, params.formSlug);
   if (!result.success || !result.form) return notFound();
 
   return (
