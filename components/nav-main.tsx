@@ -34,7 +34,7 @@ export function NavMain({ user }: { user: User }) {
     const { modules, navPrefs, setLabelModule, labelModule, setCanvaUrl } = useModuleStore();
     const pathname = usePathname();
     const router = useRouter();
-    const { isMobile, setOpenMobile, state: sidebarState } = useSidebar();
+    const { isMobile, openMobile, setOpenMobile, state: sidebarState } = useSidebar();
     const taskPendingCount = useTaskStore((s) => s.pendingCount);
     const chatUnreadCount = useChatUnreadStore((s) => s.unreadCount);
 
@@ -178,8 +178,8 @@ export function NavMain({ user }: { user: User }) {
                         isAnySubActive ? 'invert brightness-200' : ''
                     );
 
-                    // Sidebar colapsado → popover flotante con los sub-ítems
-                    if (sidebarState === 'collapsed') {
+                    // Sidebar colapsado → popover flotante con los sub-ítems (nunca en móvil)
+                    if (sidebarState === 'collapsed' && !isMobile && !openMobile) {
                         return (
                             <SidebarMenuItem key={id}>
                                 <Popover>
