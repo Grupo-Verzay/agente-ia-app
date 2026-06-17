@@ -132,7 +132,7 @@ export function ChatAppointmentStatusButton({
           </button>
         </PopoverTrigger>
 
-        <PopoverContent className="w-64 p-3 space-y-3" align="end">
+        <PopoverContent className="w-64 p-3 space-y-3" align="center">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cita agendada</p>
 
           {loading && (

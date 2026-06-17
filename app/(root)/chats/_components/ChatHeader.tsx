@@ -381,6 +381,13 @@ const sessionStatusTone = session?.status
                 sessionSeguimientos={session.seguimientos}
               />
               <ChatReminderDialog session={session!} userId={userId} />
+              <ChatAppointmentStatusButton
+                sessionId={session.id}
+                userId={session.userId}
+                pushName={session.pushName}
+                remoteJid={session.remoteJid}
+                instanceId={session.instanceId}
+              />
               <Button
                 type="button"
                 variant="ghost"
@@ -393,22 +400,6 @@ const sessionStatusTone = session?.status
               </Button>
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               {tagsCombobox}
-
-              {onToggleSearch && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    'h-7 w-7 shrink-0 rounded-md border border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700',
-                    searchOpen && 'border-blue-300 bg-blue-50 text-blue-600 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300',
-                  )}
-                  onClick={onToggleSearch}
-                  title="Buscar en el chat"
-                >
-                  <Search className="h-3.5 w-3.5" />
-                </Button>
-              )}
 
               {/* Separador */}
               <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
@@ -424,6 +415,68 @@ const sessionStatusTone = session?.status
               >
                 <PencilLine className="h-3.5 w-3.5" />
               </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Fila 2 mobile: tabs + lupa — siempre al fondo */}
+        {(onChatViewChange || onToggleSearch) && (
+          <div className="-mx-2 -mt-1 flex items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-t border-border/20">
+            <button
+              onClick={() => onChatViewChange?.('messages')}
+              className={cn(
+                'px-3 py-1.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
+                chatView === 'messages' || !chatView
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Mensajes
+            </button>
+            {onChatViewChange && userIntegrations.map((intg) => (
+              <button
+                key={intg.id}
+                onClick={() => onChatViewChange(intg.id)}
+                className={cn(
+                  'px-3 py-1.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
+                  chatView === intg.id
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {intg.name}
+              </button>
+            ))}
+            <div className="ml-auto flex items-center gap-0.5 mr-1">
+              {onToggleSearch && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    'h-7 w-7 shrink-0 rounded-md text-muted-foreground hover:text-foreground',
+                    searchOpen && 'text-blue-500 dark:text-blue-400',
+                  )}
+                  onClick={onToggleSearch}
+                  title="Buscar en el chat"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {onToggleInfoPanel && session && (
+                <Button
+                  type="button"
+                  onClick={onToggleInfoPanel}
+                  title={infoPanelOpen ? 'Cerrar ficha del contacto' : 'Ver ficha del contacto'}
+                  className="h-7 flex items-center gap-1 px-2 rounded-lg border border-border bg-background text-foreground hover:bg-muted shrink-0 transition-colors"
+                  size="sm"
+                >
+                  <UserRound className="h-3.5 w-3.5 text-gray-600 dark:text-gray-400" />
+                  {infoPanelOpen
+                    ? <PanelRightClose className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
+                    : <PanelRightOpen className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />}
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -518,22 +571,6 @@ const sessionStatusTone = session?.status
               {tagsCombobox}
             </>
           )}
-          {lifecycleButton}
-          {onToggleSearch && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={cn(
-                'h-8 w-8 shrink-0 rounded-lg border border-border bg-background text-foreground hover:bg-muted',
-                searchOpen && 'border-blue-300 bg-blue-50 text-blue-600 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300',
-              )}
-              onClick={onToggleSearch}
-              title="Buscar en el chat"
-            >
-              <Search className="h-4 w-4" />
-            </Button>
-          )}
           {onToggleInfoPanel && session && (
             <Button
               type="button"
@@ -551,11 +588,11 @@ const sessionStatusTone = session?.status
         </div>
       </div>{/* end fila 1 */}
 
-      {/* ── Fila 2: tabs de integraciones ── */}
-      {onChatViewChange && (
-        <div className="flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* ── Fila 2: tabs de integraciones + búsqueda ── */}
+      {(onChatViewChange || onToggleSearch) && (
+        <div className="flex items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
-            onClick={() => onChatViewChange('messages')}
+            onClick={() => onChatViewChange?.('messages')}
             className={cn(
               'px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
               chatView === 'messages' || !chatView
@@ -565,7 +602,7 @@ const sessionStatusTone = session?.status
           >
             Mensajes
           </button>
-          {userIntegrations.map((intg) => (
+          {onChatViewChange && userIntegrations.map((intg) => (
             <button
               key={intg.id}
               onClick={() => onChatViewChange(intg.id)}
@@ -579,6 +616,24 @@ const sessionStatusTone = session?.status
               {intg.name}
             </button>
           ))}
+          <div className="ml-auto flex items-center gap-1 pr-2">
+            {onToggleSearch && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'h-7 w-7 shrink-0 rounded-md text-muted-foreground hover:text-foreground',
+                  searchOpen && 'text-blue-500 dark:text-blue-400',
+                )}
+                onClick={onToggleSearch}
+                title="Buscar en el chat"
+              >
+                <Search className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            {lifecycleButton}
+          </div>
         </div>
       )}
       </div>{/* end desktop flex-col */}

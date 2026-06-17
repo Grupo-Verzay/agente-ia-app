@@ -325,7 +325,7 @@ export function ContactInfoPanel({
   ];
 
   return (
-    <aside className="hidden md:flex flex-col w-80 shrink-0 border-l bg-background h-full overflow-hidden">
+    <aside className="flex flex-col w-full md:w-80 shrink-0 border-l bg-background h-full overflow-hidden absolute inset-0 z-20 md:static md:z-auto md:inset-auto">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/30 shrink-0">
         <span className="text-sm font-semibold">Contacto</span>

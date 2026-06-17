@@ -132,7 +132,7 @@ export function ChatRegistrosBadge({
           </button>
         </PopoverTrigger>
 
-        <PopoverContent align="end" className="w-52 p-3 space-y-2">
+        <PopoverContent align="center" className="w-52 p-3 space-y-2">
           <p className="text-xs font-semibold">Registros del lead</p>
 
           {allRows.length === 0 ? (
