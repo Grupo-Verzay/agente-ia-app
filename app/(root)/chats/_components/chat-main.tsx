@@ -45,6 +45,8 @@ import type {
   UIBubble,
 } from './chat-message-types';
 import { getDisplayWhatsappFromSession } from '../../crm/dashboard/helpers';
+import { useModuleStore } from '@/stores/modules/useModuleStore';
+import IframeRenderer from '@/components/custom/IframeRenderer';
 
 /* ─── Re-exports para compatibilidad con chats-client ─── */
 export type { OutgoingMessagePayload };
@@ -131,6 +133,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
+  const [chatView, setChatView] = useState<'messages' | string>('messages');
+  const { userIntegrations } = useModuleStore();
 
   useEffect(() => {
     onInfoPanelChange?.(infoPanelOpen);
@@ -625,6 +629,48 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onExpandChatList={onExpandChatList}
       />
 
+      {/* ── Pestañas de integraciones ── */}
+      {userIntegrations.length > 0 && (
+        <div className="flex border-b border-border bg-background overflow-x-auto">
+          <button
+            onClick={() => setChatView('messages')}
+            className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+              chatView === 'messages'
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Mensajes
+          </button>
+          {userIntegrations.map((intg) => (
+            <button
+              key={intg.id}
+              onClick={() => setChatView(intg.id)}
+              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                chatView === intg.id
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {intg.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Vista iframe de integración ── */}
+      {chatView !== 'messages' && (() => {
+        const intg = userIntegrations.find(i => i.id === chatView);
+        return intg ? (
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <IframeRenderer url={intg.url} />
+          </div>
+        ) : null;
+      })()}
+
+      {/* ── Vista de mensajes ── */}
+      <div className={chatView !== 'messages' ? 'hidden' : 'contents'}>
+
       {searchOpen && (
         <div className="flex items-center gap-2 border-b border-border/50 bg-background/95 px-3 py-2">
           <div className="relative min-w-0 flex-1">
@@ -764,6 +810,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onToggleNoteMode={handleToggleNoteMode}
         onSendNote={handleSendNote}
       />
+      </div>{/* end messages view */}
       </div>{/* end chat area */}
 
       {/* ── Contact info panel (desktop only) ── */}
