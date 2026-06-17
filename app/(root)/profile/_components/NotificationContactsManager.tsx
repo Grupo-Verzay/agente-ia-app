@@ -352,13 +352,13 @@ export function NotificationContactsManager({ userId, primaryNumber }: Props) {
                                     className="h-8 text-sm"
                                 />
                                 <div className="flex gap-2">
-                                    <Button size="sm" className="h-7 text-xs flex-1" onClick={handleSaveEdit} disabled={savingEdit || !editing.phone.trim()}>
-                                        {savingEdit ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Check className="w-3 h-3 mr-1" />}
-                                        Guardar
-                                    </Button>
                                     <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancelEdit} disabled={savingEdit}>
                                         <X className="w-3 h-3 mr-1" />
                                         Cancelar
+                                    </Button>
+                                    <Button size="sm" className="h-7 text-xs flex-1" onClick={handleSaveEdit} disabled={savingEdit || !editing.phone.trim()}>
+                                        {savingEdit ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Check className="w-3 h-3 mr-1" />}
+                                        Guardar
                                     </Button>
                                 </div>
                             </div>

@@ -254,15 +254,6 @@ export const SessionTagsManager = ({
                         <div className="flex items-center gap-2">
                             <Button
                                 type="button"
-                                size="sm"
-                                className="h-8 px-4"
-                                disabled={isPending || !newTagName.trim()}
-                                onClick={handleCreateTag}
-                            >
-                                Guardar
-                            </Button>
-                            <Button
-                                type="button"
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 gap-1 px-3"
@@ -270,6 +261,15 @@ export const SessionTagsManager = ({
                             >
                                 <X className="h-3.5 w-3.5" />
                                 Cancelar
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                className="h-8 px-4"
+                                disabled={isPending || !newTagName.trim()}
+                                onClick={handleCreateTag}
+                            >
+                                Guardar
                             </Button>
                         </div>
                     </div>

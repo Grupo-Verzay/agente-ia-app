@@ -110,11 +110,11 @@ const SortableTagItem = ({
           />
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 px-3" onClick={onSaveEdit} disabled={isPending || !editName.trim()}>
-            Guardar
-          </Button>
           <Button variant="ghost" size="sm" className="h-8 px-3" onClick={onCancelEdit}>
             Cancelar
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 px-3" onClick={onSaveEdit} disabled={isPending || !editName.trim()}>
+            Guardar
           </Button>
         </div>
       </div>
