@@ -110,17 +110,44 @@ export function CatalogoClient({
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [thumb, setThumb] = useState({ left: 0, width: 100 });
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const updateThumb = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     const maxScroll = el.scrollWidth - el.clientWidth;
+    setCanScrollLeft(el.scrollLeft > 1);
+    setCanScrollRight(el.scrollLeft < maxScroll - 1);
     if (maxScroll <= 0) { setThumb({ left: 0, width: 100 }); return; }
     const w = (el.clientWidth / el.scrollWidth) * 100;
     const l = (el.scrollLeft / maxScroll) * (100 - w);
     setThumb({ left: l, width: w });
   }, []);
+
+  const handleThumbMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const el = scrollRef.current;
+    if (!el) return;
+    const startX = e.clientX;
+    const startScrollLeft = el.scrollLeft;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    const thumbWidthPx = (thumb.width / 100) * el.clientWidth;
+    const scrollableTrack = el.clientWidth - thumbWidthPx;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - startX;
+      const scrollDelta = scrollableTrack > 0 ? (delta / scrollableTrack) * maxScroll : 0;
+      el.scrollLeft = Math.max(0, Math.min(maxScroll, startScrollLeft + scrollDelta));
+    };
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [thumb.width]);
 
   useEffect(() => {
     updateThumb();
@@ -172,39 +199,69 @@ export function CatalogoClient({
 
         {displayCategories.length > 0 && (
           <div className="flex-1 min-w-0">
-            <div
-              ref={scrollRef}
-              onScroll={updateThumb}
-              className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin"
-            >
-              <button
-                onClick={() => setActiveCategory(null)}
-                className="shrink-0 rounded-xl px-4 py-2 text-sm font-semibold transition-all border"
-                style={activeCategory === null
-                  ? { backgroundColor: accentColor, color: '#fff', borderColor: accentColor }
-                  : { backgroundColor: '#fff', color: '#6b7280', borderColor: '#e5e7eb' }}
-              >
-                Todos
-              </button>
-              {displayCategories.map((cat) => (
+            <div className="relative">
+              {/* Flecha izquierda */}
+              {canScrollLeft && (
                 <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat === activeCategory ? null : cat)}
+                  onClick={() => scrollRef.current?.scrollBy({ left: -160, behavior: 'smooth' })}
+                  className="absolute left-0 inset-y-0 z-10 flex items-center pl-0 pr-6 bg-gradient-to-r from-white via-white/90 to-transparent"
+                  aria-label="Ver anteriores"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow border border-gray-200">
+                    <ChevronLeft className="h-4 w-4 text-gray-500" />
+                  </span>
+                </button>
+              )}
+
+              <div
+                ref={scrollRef}
+                onScroll={updateThumb}
+                className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
+              >
+                <button
+                  onClick={() => setActiveCategory(null)}
                   className="shrink-0 rounded-xl px-4 py-2 text-sm font-semibold transition-all border"
-                  style={activeCategory === cat
+                  style={activeCategory === null
                     ? { backgroundColor: accentColor, color: '#fff', borderColor: accentColor }
                     : { backgroundColor: '#fff', color: '#6b7280', borderColor: '#e5e7eb' }}
                 >
-                  {cat}
+                  Todos
                 </button>
-              ))}
+                {displayCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat === activeCategory ? null : cat)}
+                    className="shrink-0 rounded-xl px-4 py-2 text-sm font-semibold transition-all border"
+                    style={activeCategory === cat
+                      ? { backgroundColor: accentColor, color: '#fff', borderColor: accentColor }
+                      : { backgroundColor: '#fff', color: '#6b7280', borderColor: '#e5e7eb' }}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Flecha derecha */}
+              {canScrollRight && (
+                <button
+                  onClick={() => scrollRef.current?.scrollBy({ left: 160, behavior: 'smooth' })}
+                  className="absolute right-0 inset-y-0 z-10 flex items-center pr-0 pl-6 bg-gradient-to-l from-white via-white/90 to-transparent"
+                  aria-label="Ver más categorías"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow border border-gray-200">
+                    <ChevronRight className="h-4 w-4 text-gray-500" />
+                  </span>
+                </button>
+              )}
             </div>
-            {/* Indicador de scroll custom para mobile — iOS oculta scrollbars nativos */}
+
+            {/* Scrollbar arrastrable */}
             {thumb.width < 99 && (
-              <div className="mt-1.5 h-1 rounded-full bg-gray-200 sm:hidden">
+              <div className="mt-1.5 h-1.5 rounded-full bg-gray-200 cursor-default">
                 <div
-                  className="h-full rounded-full bg-gray-400"
-                  style={{ marginLeft: `${thumb.left}%`, width: `${thumb.width}%`, transition: 'margin-left 0.1s, width 0.1s' }}
+                  onMouseDown={handleThumbMouseDown}
+                  className="h-full rounded-full bg-gray-400 hover:bg-gray-500 cursor-grab active:cursor-grabbing"
+                  style={{ marginLeft: `${thumb.left}%`, width: `${thumb.width}%`, transition: 'margin-left 0.08s, width 0.08s' }}
                 />
               </div>
             )}
