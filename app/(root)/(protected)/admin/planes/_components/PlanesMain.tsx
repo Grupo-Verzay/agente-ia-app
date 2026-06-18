@@ -275,7 +275,7 @@ export function PlanesMain() {
         <DialogContent className="flex h-[585px] max-w-md flex-col">
           <DialogHeader>
             <DialogTitle>
-              Editar Plan — {form ? `${PLAN_LABELS[form.plan]} (${form.assistanceType})` : ""}
+              {form ? `${PLAN_LABELS[form.plan]} · ${form.assistanceType} · ${form.isResellerPlan ? "Resellers" : "Clientes"}` : "Editar Plan"}
             </DialogTitle>
           </DialogHeader>
           {form && (
@@ -373,17 +373,6 @@ export function PlanesMain() {
                   Activo
                   <Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} />
                 </label>
-              </div>
-
-              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
-                <Switch
-                  checked={form.isResellerPlan}
-                  onCheckedChange={(v) => setForm({ ...form, isResellerPlan: v })}
-                />
-                <div>
-                  <p className="text-sm font-medium">Plan para resellers</p>
-                  <p className="text-xs text-muted-foreground">Aparece en la landing /resellers, no en /inicio.</p>
-                </div>
               </div>
             </div>
           )}
