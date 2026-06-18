@@ -188,14 +188,14 @@ export function PlanesMain() {
       <div className="inline-flex rounded-lg border border-border overflow-hidden self-start">
         <button
           type="button"
-          onClick={() => setAudience("client")}
+          onClick={() => { setAudience("client"); setPeriod("monthly"); }}
           className={`px-4 py-1.5 text-sm font-medium transition-colors ${audience === "client" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
         >
           Clientes directos
         </button>
         <button
           type="button"
-          onClick={() => setAudience("reseller")}
+          onClick={() => { setAudience("reseller"); setPeriod("monthly"); }}
           className={`px-4 py-1.5 text-sm font-medium transition-colors ${audience === "reseller" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
         >
           Resellers
@@ -205,6 +205,14 @@ export function PlanesMain() {
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
+        </div>
+      ) : isReseller && plans.filter((p) => p.isResellerPlan).length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-10 text-center text-muted-foreground">
+          <p className="text-sm font-medium">No hay planes de Reseller configurados</p>
+          <p className="text-xs max-w-xs">Haz clic en el ícono de editar en cualquier plan para configurar precios, créditos y links de pago para resellers.</p>
+          <Button size="sm" variant="outline" onClick={() => openEdit(PLANS[0], "IA")}>
+            Configurar primer plan Reseller
+          </Button>
         </div>
       ) : (
         <div className="space-y-6">
@@ -334,7 +342,11 @@ export function PlanesMain() {
               </div>
 
               <div className="space-y-1">
-                <Label>{form.isResellerPlan ? "Link de pago del pack" : "Link de pago"}</Label>
+                <Label>
+                  {form.isResellerPlan
+                    ? `Link de pago · ${period === "monthly" ? "Pack 5" : period === "quarterly" ? "Pack 10" : "Pack 25"}`
+                    : `Link de pago · ${period === "monthly" ? "Mensual" : period === "quarterly" ? "Trimestral" : "Anual"}`}
+                </Label>
                 {period === "monthly" && (
                   <Input value={form.checkoutUrlMonthly}
                     onChange={(e) => setForm({ ...form, checkoutUrlMonthly: e.target.value })}
@@ -350,7 +362,7 @@ export function PlanesMain() {
                     onChange={(e) => setForm({ ...form, checkoutUrlYearly: e.target.value })}
                     placeholder="https://checkout.stripe.com/..." />
                 )}
-                <p className="text-[11px] text-muted-foreground">El botón "Comenzar ahora" usará este link si está configurado.</p>
+                <p className="text-[11px] text-muted-foreground">Cada periodo tiene su propio link. Sin link configurado, el botón lleva al registro interno.</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

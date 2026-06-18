@@ -972,8 +972,8 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber }: {
   const checkoutUrl = billingPeriod === "monthly"
     ? plan.checkoutUrlMonthly
     : billingPeriod === "quarterly"
-    ? (plan.checkoutUrlQuarterly ?? plan.checkoutUrlMonthly)
-    : (plan.checkoutUrlYearly ?? plan.checkoutUrlMonthly);
+    ? plan.checkoutUrlQuarterly
+    : plan.checkoutUrlYearly;
   const billedNote = billingPeriod === "monthly"
     ? "Facturado mensualmente"
     : billingPeriod === "quarterly"

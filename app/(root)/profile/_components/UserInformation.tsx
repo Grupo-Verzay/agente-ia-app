@@ -1065,40 +1065,38 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                 </div>
                                             </div>
                                         </CardHeader>
-                                        <CardContent className="flex flex-col flex-1 gap-4">
-                                            <div className="flex items-center gap-5">
-                                                <div className="relative shrink-0">
-                                                    {user?.image ? (
-                                                        <SafeImage
-                                                            src={user.image as string}
-                                                            alt="Logo"
-                                                            width={72}
-                                                            height={72}
-                                                            className="h-18 w-18 rounded-xl object-cover border border-border"
-                                                        />
-                                                    ) : (
-                                                        <div className="h-[72px] w-[72px] rounded-xl border border-dashed border-border bg-muted flex items-center justify-center">
-                                                            <Camera className="h-6 w-6 text-muted-foreground" />
-                                                        </div>
-                                                    )}
-                                                    {loadingField === 'image' && (
-                                                        <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/60">
-                                                            <Loader2 className="h-5 w-5 animate-spin" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="flex flex-col gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => fileRef.current?.click()}
-                                                        disabled={loadingField === 'image'}
-                                                    >
-                                                        <Camera className="h-3.5 w-3.5 mr-1.5" />
-                                                        {user?.image ? 'Cambiar logo' : 'Subir logo'}
-                                                    </Button>
-                                                    <p className="text-xs text-muted-foreground">PNG, JPG o WEBP · Recomendado 256×256 px</p>
-                                                </div>
+                                        <CardContent className="flex flex-col flex-1 justify-between gap-4">
+                                            <div className="relative self-start">
+                                                {user?.image ? (
+                                                    <SafeImage
+                                                        src={user.image as string}
+                                                        alt="Logo"
+                                                        width={72}
+                                                        height={72}
+                                                        className="h-[72px] w-[72px] rounded-xl object-cover border border-border"
+                                                    />
+                                                ) : (
+                                                    <div className="h-[72px] w-[72px] rounded-xl border border-dashed border-border bg-muted flex items-center justify-center">
+                                                        <Camera className="h-6 w-6 text-muted-foreground" />
+                                                    </div>
+                                                )}
+                                                {loadingField === 'image' && (
+                                                    <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/60">
+                                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col gap-1.5">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => fileRef.current?.click()}
+                                                    disabled={loadingField === 'image'}
+                                                >
+                                                    <Camera className="h-3.5 w-3.5 mr-1.5" />
+                                                    {user?.image ? 'Cambiar logo' : 'Subir logo'}
+                                                </Button>
+                                                <p className="text-xs text-muted-foreground">PNG, JPG o WEBP · Recomendado 256×256 px</p>
                                             </div>
                                         </CardContent>
                                     </Card>
