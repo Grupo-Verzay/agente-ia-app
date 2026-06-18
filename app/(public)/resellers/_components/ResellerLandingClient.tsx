@@ -396,6 +396,7 @@ function StepCard({ step, accent, icon, title, description, items }: {
 interface ResellerLandingClientProps {
   whatsappNumber?: string | null;
   logoUrl?: string | null;
+  meetingUrl?: string | null;
   instagram?: string | null;
   facebook?: string | null;
   ctaHeadline?: string | null;
@@ -409,6 +410,7 @@ interface ResellerLandingClientProps {
 export function ResellerLandingClient({
   whatsappNumber,
   logoUrl,
+  meetingUrl,
   instagram,
   facebook,
   ctaHeadline,
@@ -513,11 +515,19 @@ export function ResellerLandingClient({
                   Registrarme como reseller <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <a href="#how">
-                <Button size="lg" variant="outline" className="border-white/20 bg-transparent px-10 text-white hover:bg-white/10">
-                  Cómo funciona
-                </Button>
-              </a>
+              {meetingUrl ? (
+                <a href={meetingUrl} target="_blank" rel="noopener noreferrer">
+                  <Button size="lg" variant="outline" className="gap-2 border-white/20 bg-transparent px-10 text-white hover:bg-white/10">
+                    <Zap className="h-4 w-4" /> Agendar reunión
+                  </Button>
+                </a>
+              ) : (
+                <a href="#how">
+                  <Button size="lg" variant="outline" className="border-white/20 bg-transparent px-10 text-white hover:bg-white/10">
+                    Cómo funciona
+                  </Button>
+                </a>
+              )}
             </div>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5">
               {["Sin costos ocultos", "Panel de reseller incluido", "Soporte dedicado"].map((t) => (
@@ -827,6 +837,13 @@ export function ResellerLandingClient({
                     Registrarme como reseller <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
+                {meetingUrl && (
+                  <a href={meetingUrl} target="_blank" rel="noopener noreferrer">
+                    <Button size="lg" variant="outline" className="gap-2 border-white/20 bg-transparent px-10 text-white hover:bg-white/10">
+                      <Zap className="h-4 w-4" /> Agendar reunión
+                    </Button>
+                  </a>
+                )}
                 <a href={`https://wa.me/${(whatsappNumber ?? "573233612620").replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
                   <Button size="lg" variant="outline" className="gap-2 border-green-500/30 bg-green-500/5 px-10 text-green-300 hover:bg-green-500/10 hover:text-green-200">
                     <MessageCircle className="h-4 w-4" /> Hablar con un asesor

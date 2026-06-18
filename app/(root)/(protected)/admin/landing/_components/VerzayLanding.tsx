@@ -40,6 +40,8 @@ export function VerzayLanding() {
   const [savingConfig, setSavingConfig] = useState(false);
   const [loading, setLoading] = useState(true);
   const [resellerWhatsappInput, setResellerWhatsappInput] = useState("");
+  const [resellerLogoUrlInput, setResellerLogoUrlInput] = useState("");
+  const [resellerMeetingUrlInput, setResellerMeetingUrlInput] = useState("");
   const [savingReseller, setSavingReseller] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basicos: true, identidad: false, hero: false, redes: false,
@@ -78,6 +80,8 @@ export function VerzayLanding() {
         ]);
       }
       setResellerWhatsappInput(cfg.resellerWhatsappNumber ?? "");
+      setResellerLogoUrlInput(cfg.resellerLogoUrl ?? "");
+      setResellerMeetingUrlInput(cfg.resellerMeetingUrl ?? "");
       setLoading(false);
     });
   }, []);
@@ -101,6 +105,8 @@ export function VerzayLanding() {
       testimonials: testimonialInputs.some((t) => t.quote) ? testimonialInputs : null,
       stats: statInputs.some((s) => s.value) ? statInputs : null,
       resellerWhatsappNumber: resellerWhatsappInput || null,
+      resellerLogoUrl: resellerLogoUrlInput || null,
+      resellerMeetingUrl: resellerMeetingUrlInput || null,
     });
     if (res.success) toast.success(res.message);
     else toast.error(res.message);
@@ -346,18 +352,38 @@ export function VerzayLanding() {
             </a>. Los campos no configurados aquí usarán los valores de la landing principal.
           </p>
 
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5 text-sm">
+                <Image className="h-3.5 w-3.5 text-violet-500" /> Logo (URL)
+              </Label>
+              <Input
+                placeholder="https://... (vacío = usa el logo principal)"
+                value={resellerLogoUrlInput}
+                onChange={(e) => setResellerLogoUrlInput(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5 text-sm">
+                <Calendar className="h-3.5 w-3.5 text-blue-500" /> Link de reunión / agenda
+              </Label>
+              <Input
+                placeholder="https://... (vacío = usa el link principal)"
+                value={resellerMeetingUrlInput}
+                onChange={(e) => setResellerMeetingUrlInput(e.target.value)}
+              />
+            </div>
+          </div>
+
           <div className="space-y-1.5">
             <Label className="flex items-center gap-1.5 text-sm">
               <MessageCircle className="h-3.5 w-3.5 text-green-500" /> WhatsApp exclusivo para resellers
             </Label>
             <Input
-              placeholder="ej. 573001234567 (deja vacío para usar el número principal)"
+              placeholder="ej. 573001234567 (vacío = usa el número principal)"
               value={resellerWhatsappInput}
               onChange={(e) => setResellerWhatsappInput(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
-              Número al que llegan los prospectos de reseller. Si no se configura, usa el número de WhatsApp principal.
-            </p>
           </div>
 
           <div className="flex items-center justify-between gap-4 pt-1 border-t border-border">
@@ -389,6 +415,8 @@ export function VerzayLanding() {
                   testimonials: testimonialInputs.some((t) => t.quote) ? testimonialInputs : null,
                   stats: statInputs.some((s) => s.value) ? statInputs : null,
                   resellerWhatsappNumber: resellerWhatsappInput || null,
+                  resellerLogoUrl: resellerLogoUrlInput || null,
+                  resellerMeetingUrl: resellerMeetingUrlInput || null,
                 });
                 if (res.success) toast.success(res.message);
                 else toast.error(res.message);

@@ -35,7 +35,8 @@ export default async function ResellersPage() {
   return (
     <ResellerLandingClient
       whatsappNumber={config.resellerWhatsappNumber ?? config.whatsappNumber}
-      logoUrl={config.logoUrl}
+      logoUrl={config.resellerLogoUrl ?? config.logoUrl}
+      meetingUrl={config.resellerMeetingUrl ?? config.meetingUrl}
       instagram={config.instagram}
       facebook={config.facebook}
       ctaHeadline={config.ctaHeadline}

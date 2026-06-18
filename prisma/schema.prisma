@@ -1342,6 +1342,8 @@ model SiteConfig {
   testimonials           Json?
   stats                  Json?
   resellerWhatsappNumber String?
+  resellerLogoUrl        String?
+  resellerMeetingUrl     String?
   updatedAt              DateTime @updatedAt
 
   @@map("site_config")

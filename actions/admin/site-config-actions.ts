@@ -24,6 +24,8 @@ export type SiteConfigData = {
   testimonials: TestimonialData[] | null;
   stats: StatData[] | null;
   resellerWhatsappNumber: string | null;
+  resellerLogoUrl: string | null;
+  resellerMeetingUrl: string | null;
 };
 
 const EMPTY: SiteConfigData = {
@@ -33,6 +35,8 @@ const EMPTY: SiteConfigData = {
   videoUrl: null, ctaHeadline: null, ctaSubtitle: null,
   testimonials: null, stats: null,
   resellerWhatsappNumber: null,
+  resellerLogoUrl: null,
+  resellerMeetingUrl: null,
 };
 
 export async function getSiteConfig(): Promise<SiteConfigData> {
@@ -56,6 +60,8 @@ export async function getSiteConfig(): Promise<SiteConfigData> {
       testimonials: Array.isArray(c.testimonials) ? (c.testimonials as TestimonialData[]) : null,
       stats: Array.isArray(c.stats) ? (c.stats as StatData[]) : null,
       resellerWhatsappNumber: c.resellerWhatsappNumber ?? null,
+      resellerLogoUrl: c.resellerLogoUrl ?? null,
+      resellerMeetingUrl: c.resellerMeetingUrl ?? null,
     };
   } catch {
     return EMPTY;
@@ -85,6 +91,8 @@ export async function updateSiteConfig(data: SiteConfigData): Promise<{ success:
       testimonials: data.testimonials ?? null,
       stats: data.stats ?? null,
       resellerWhatsappNumber: data.resellerWhatsappNumber || null,
+      resellerLogoUrl: data.resellerLogoUrl || null,
+      resellerMeetingUrl: data.resellerMeetingUrl || null,
     };
     await db.siteConfig.upsert({
       where: { id: 1 },
