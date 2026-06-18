@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Plan } from "@prisma/client";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -24,10 +25,6 @@ const PlanDetailTab = dynamic(() => import("./PlanDetailTab").then(m => m.PlanDe
 
 const ASSISTANCE_TYPES = ["IA", "HUMANO"] as const;
 type BillingPeriod = "monthly" | "quarterly" | "yearly";
-
-// Persiste entre remounts del componente (mismo tab del navegador)
-let _audience: "client" | "reseller" = "client";
-let _period: BillingPeriod = "monthly";
 
 const defaultPrices: Record<Plan, Record<string, number>> = {
   lite:          { IA: 19, HUMANO: 29 },
@@ -67,16 +64,31 @@ type EditForm = {
 };
 
 export function PlanesMain() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const audience = (searchParams.get("audience") ?? "client") as "client" | "reseller";
+  const period = (searchParams.get("period") ?? "monthly") as BillingPeriod;
+
+  const setAudience = useCallback((v: "client" | "reseller") => {
+    const p = new URLSearchParams(searchParams.toString());
+    p.set("audience", v);
+    p.set("period", "monthly");
+    router.replace(`${pathname}?${p.toString()}`);
+  }, [router, pathname, searchParams]);
+
+  const setPeriod = useCallback((v: BillingPeriod) => {
+    const p = new URLSearchParams(searchParams.toString());
+    p.set("period", v);
+    router.replace(`${pathname}?${p.toString()}`);
+  }, [router, pathname, searchParams]);
+
   const [plans, setPlans] = useState<SubscriptionPlanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<EditForm | null>(null);
-  const [period, _setPeriod] = useState<BillingPeriod>(() => _period);
-  const [audience, _setAudience] = useState<"client" | "reseller">(() => _audience);
-
-  const setPeriod = useCallback((v: BillingPeriod) => { _period = v; _setPeriod(v); }, []);
-  const setAudience = useCallback((v: "client" | "reseller") => { _audience = v; _setAudience(v); }, []);
   const [dialogTab, setDialogTab] = useState<"config" | "detail">("config");
   const [dialogPlanId, setDialogPlanId] = useState<string | null>(null);
 
