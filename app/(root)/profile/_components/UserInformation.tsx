@@ -503,7 +503,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                     {/* ── Tab: Conexión ─────────────────────────── */}
                     <TabsContent value="conexion" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
-                            <SectionTitle>Canal de comunicación</SectionTitle>
+                            <SectionTitle>WhatsApp</SectionTitle>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                                 <ConnectionMain
                                     user={user}
@@ -525,6 +525,10 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                         />
                                     ))}
                                 <MetaInstanceCreator userId={userId} company={user?.company as string} />
+                            </div>
+
+                            <SectionTitle>Redes Sociales</SectionTitle>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                                 {user?.onFacebook ? (
                                     <>
                                         {metaInstances
