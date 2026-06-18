@@ -8,11 +8,12 @@ import { getCountryCodes } from '@/actions/get-country-action';
 export const metadata = { title: 'Activa tu cuenta gratis | Agente IA' };
 
 interface Props {
-  searchParams: { r?: string };
+  searchParams: { r?: string; tipo?: string };
 }
 
 export default async function CompletarRegistroPage({ searchParams }: Props) {
   const resellerSlug = searchParams.r;
+  const isReseller = searchParams.tipo === 'reseller';
   const [resellerSheetsUrl, countries] = await Promise.all([
     resellerSlug
       ? getResellerPublicConfig(resellerSlug).then(r => r.sheetsUrl)
@@ -32,17 +33,19 @@ export default async function CompletarRegistroPage({ searchParams }: Props) {
         </Link>
         <div className="mt-2">
           <h1 className="text-2xl font-bold text-white sm:text-3xl">
-            🚀 Activa tu cuenta gratis
+            {isReseller ? '🤝 Únete al programa de resellers' : '🚀 Activa tu cuenta gratis'}
           </h1>
           <p className="mt-2 max-w-md text-sm text-slate-400">
-            Cuéntanos sobre tu negocio para que tu agente esté listo desde el primer día.
+            {isReseller
+              ? 'Cuéntanos sobre tu agencia o negocio para configurar tu cuenta de reseller.'
+              : 'Cuéntanos sobre tu negocio para que tu agente esté listo desde el primer día.'}
           </p>
         </div>
       </div>
 
       {/* Card */}
       <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-white/[0.04] p-6 sm:p-8">
-        <RegistroReunionForm resellerSlug={resellerSlug} resellerSheetsUrl={resellerSheetsUrl} countries={countries} />
+        <RegistroReunionForm resellerSlug={resellerSlug} resellerSheetsUrl={resellerSheetsUrl} countries={countries} isReseller={isReseller} />
       </div>
 
       <p className="mt-6 text-xs text-slate-600">
