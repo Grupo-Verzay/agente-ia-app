@@ -282,11 +282,14 @@ export function PlanesMain() {
             <div className="flex-1 space-y-4 overflow-y-auto py-2 pr-1">
 
               <div className="flex rounded-lg border border-border overflow-hidden">
-                {([ ["monthly", "Mensual"], ["quarterly", "Trimestral"], ["yearly", "Anual"] ] as [BillingPeriod, string][]).map(([p, label]) => (
+                {(form.isResellerPlan
+                  ? [["monthly", "Pack 5"], ["quarterly", "Pack 10"], ["yearly", "Pack 25"]]
+                  : [["monthly", "Mensual"], ["quarterly", "Trimestral"], ["yearly", "Anual"]]
+                ).map(([p, label]) => (
                   <button
                     key={p}
                     type="button"
-                    onClick={() => setPeriod(p)}
+                    onClick={() => setPeriod(p as BillingPeriod)}
                     className={`flex-1 py-1.5 text-xs font-medium transition-colors ${period === p ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
                   >
                     {label}
@@ -296,7 +299,7 @@ export function PlanesMain() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>Precio (USD/mes)</Label>
+                  <Label>{form.isResellerPlan ? "Precio (USD/pack)" : "Precio (USD/mes)"}</Label>
                   {period === "monthly" && (
                     <Input type="number" min={0} step={0.01} value={form.priceUSD}
                       onChange={(e) => setForm({ ...form, priceUSD: parseFloat(e.target.value) || 0 })} />
@@ -331,7 +334,7 @@ export function PlanesMain() {
               </div>
 
               <div className="space-y-1">
-                <Label>Link de pago</Label>
+                <Label>{form.isResellerPlan ? "Link de pago del pack" : "Link de pago"}</Label>
                 {period === "monthly" && (
                   <Input value={form.checkoutUrlMonthly}
                     onChange={(e) => setForm({ ...form, checkoutUrlMonthly: e.target.value })}

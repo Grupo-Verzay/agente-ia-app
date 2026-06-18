@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
-  Check, Zap, Users, Star, MessageCircle, Bot, ArrowRight,
+  Check, Zap, Star, MessageCircle, Bot, ArrowRight,
   Menu, X, ShieldCheck, TrendingUp, DollarSign, Globe,
   Headphones, BarChart3, Layers, ChevronDown, ChevronUp,
   Quote, BadgeCheck, Rocket, HandCoins, Loader2,
@@ -206,8 +206,13 @@ const PLAN_LABELS: Record<string, string> = {
   avanzado: "Avanzado", enterprise: "Enterprise", personalizado: "Agencias",
 };
 const PLAN_ORDER = ["lite", "basico", "intermedio", "avanzado", "enterprise", "personalizado"];
-type BillingPeriod = "monthly" | "quarterly" | "yearly";
-type AssistanceType = "IA" | "HUMANO";
+type PackSize = "pack5" | "pack10" | "pack25";
+
+const PACK_OPTIONS: { value: PackSize; label: string; qty: number }[] = [
+  { value: "pack5",  label: "Pack 5 licencias",  qty: 5  },
+  { value: "pack10", label: "Pack 10 licencias", qty: 10 },
+  { value: "pack25", label: "Pack 25 licencias", qty: 25 },
+];
 
 /* ─── Helpers ──────────────────────────────────────────────────────────────── */
 
@@ -271,25 +276,22 @@ function AnimatedCounter({ to, suffix = "", prefix = "", decimals = 0 }: { to: n
   return <span ref={ref}>{prefix}{decimals > 0 ? val.toFixed(decimals) : Math.round(val)}{suffix}</span>;
 }
 
-function ResellerPlanCard({ plan, assistanceType, billingPeriod }: {
-  plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod;
+function ResellerPlanCard({ plan, packSize }: {
+  plan: SubscriptionPlanItem; packSize: PackSize;
 }) {
   const isCustom = plan.plan === "personalizado";
-  const price = billingPeriod === "monthly"
+  const pack = PACK_OPTIONS.find((p) => p.value === packSize)!;
+  const price = packSize === "pack5"
     ? plan.priceUSD
-    : billingPeriod === "quarterly"
+    : packSize === "pack10"
     ? (plan.priceQuarterly ?? plan.priceUSD)
     : (plan.priceYearly ?? plan.priceUSD);
-  const checkoutUrl = billingPeriod === "monthly"
+  const checkoutUrl = packSize === "pack5"
     ? plan.checkoutUrlMonthly
-    : billingPeriod === "quarterly"
+    : packSize === "pack10"
     ? (plan.checkoutUrlQuarterly ?? plan.checkoutUrlMonthly)
     : (plan.checkoutUrlYearly ?? plan.checkoutUrlMonthly);
-  const billedNote = billingPeriod === "monthly"
-    ? "Facturado mensualmente"
-    : billingPeriod === "quarterly"
-    ? `Facturado $${(price * 3).toFixed(0)} cada 3 meses`
-    : `Facturado $${(price * 12).toFixed(0)} al año`;
+  const pricePerLicense = price > 0 ? (price / pack.qty).toFixed(2) : null;
 
   return (
     <div className={cn("relative flex flex-col rounded-xl border p-5 transition-all hover:bg-white/[0.07]",
@@ -300,29 +302,26 @@ function ResellerPlanCard({ plan, assistanceType, billingPeriod }: {
         </div>
       )}
       <div className="mb-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-bold text-white">{PLAN_LABELS[plan.plan] ?? plan.plan}</h3>
-          <Badge variant="outline" className="border-white/20 text-[10px] text-slate-400">
-            {assistanceType === "IA"
-              ? <span className="flex items-center gap-1"><Zap className="h-2.5 w-2.5" />IA</span>
-              : <span className="flex items-center gap-1"><Users className="h-2.5 w-2.5" />Humano</span>}
-          </Badge>
-        </div>
+        <h3 className="font-bold text-white">{PLAN_LABELS[plan.plan] ?? plan.plan}</h3>
         {plan.description && <p className="mt-1 text-xs text-slate-500">{plan.description}</p>}
       </div>
       <div className="mb-4">
         {isCustom ? (
           <div className="text-2xl font-bold text-slate-400">A consultar</div>
-        ) : (
+        ) : price > 0 ? (
           <>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold text-white">${price}</span>
-              <span className="text-sm text-slate-400">USD/mes</span>
+              <span className="text-sm text-slate-400">USD / {pack.label}</span>
             </div>
-            <p className="mt-0.5 text-xs text-slate-500">{billedNote}</p>
+            {pricePerLicense && (
+              <p className="mt-0.5 text-xs text-slate-500">${pricePerLicense} USD por licencia</p>
+            )}
           </>
+        ) : (
+          <div className="text-2xl font-bold text-slate-400">Sin precio</div>
         )}
-        <p className="mt-0.5 text-xs text-slate-500">{plan.credits.toLocaleString()} créditos incluidos</p>
+        <p className="mt-0.5 text-xs text-slate-500">{plan.credits.toLocaleString()} créditos por licencia</p>
       </div>
       {plan.features.length > 0 && (
         <ul className="mb-5 flex-1 space-y-1.5">
@@ -421,8 +420,7 @@ export function ResellerLandingClient({
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlanItem[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("yearly");
-  const [assistanceType, setAssistanceType] = useState<AssistanceType>("IA");
+  const [packSize, setPackSize] = useState<PackSize>("pack5");
 
   useEffect(() => {
     getActiveResellerAccessPlans().then((res) => {
@@ -432,7 +430,7 @@ export function ResellerLandingClient({
   }, []);
 
   const visiblePlans = plans
-    .filter((p) => p.assistanceType === assistanceType)
+    .filter((p) => p.assistanceType === "IA")
     .sort((a, b) => PLAN_ORDER.indexOf(a.plan) - PLAN_ORDER.indexOf(b.plan));
 
   return (
@@ -743,42 +741,20 @@ export function ResellerLandingClient({
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Planes y Precios</h2>
               <p className="mt-2 text-slate-400">Conoce el costo de la plataforma para que puedas definir tu margen de reventa.</p>
 
-              {/* Billing period toggle */}
+              {/* Pack toggle */}
               <div className="mt-4 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
-                {([
-                  { value: "monthly",   label: "Mensual",    badge: null      },
-                  { value: "quarterly", label: "Trimestral", badge: "−14.5%"  },
-                  { value: "yearly",    label: "Anual",      badge: "−22.5%"  },
-                ] as { value: BillingPeriod; label: string; badge: string | null }[]).map((opt) => (
+                {PACK_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
-                    onClick={() => setBillingPeriod(opt.value)}
+                    onClick={() => setPackSize(opt.value)}
                     className={cn(
-                      "flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-all",
-                      billingPeriod === opt.value ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
+                      "rounded-full px-4 py-1.5 text-sm font-medium transition-all",
+                      packSize === opt.value ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
                     )}
                   >
                     {opt.label}
-                    {opt.badge && (
-                      <span className={cn(
-                        "rounded-full px-1.5 py-px text-[9px] font-bold transition-all",
-                        billingPeriod === opt.value ? "bg-green-400/20 text-green-300" : "bg-green-500/15 text-green-500"
-                      )}>
-                        {opt.badge}
-                      </span>
-                    )}
                   </button>
                 ))}
-              </div>
-
-              {/* Assistance toggle */}
-              <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
-                <button onClick={() => setAssistanceType("IA")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", assistanceType === "IA" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
-                  <Zap className="h-3.5 w-3.5" /> Asistencia IA
-                </button>
-                <button onClick={() => setAssistanceType("HUMANO")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", assistanceType === "HUMANO" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
-                  <Users className="h-3.5 w-3.5" /> Asistencia Humana
-                </button>
               </div>
 
               <p className="mt-5 text-xs text-slate-500">Precios en USD · Tú defines cuánto cobrar a tus clientes</p>
@@ -790,7 +766,7 @@ export function ResellerLandingClient({
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {visiblePlans.map((plan) => (
-                  <ResellerPlanCard key={plan.id} plan={plan} assistanceType={assistanceType} billingPeriod={billingPeriod} />
+                  <ResellerPlanCard key={plan.id} plan={plan} packSize={packSize} />
                 ))}
               </div>
             )}

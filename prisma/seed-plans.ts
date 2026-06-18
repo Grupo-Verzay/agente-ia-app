@@ -283,7 +283,7 @@ async function main() {
 
   for (const p of PLANS) {
     const result = await prisma.subscriptionPlan.upsert({
-      where:  { plan_assistanceType: { plan: p.plan, assistanceType: p.assistanceType } },
+      where:  { plan_assistanceType_isResellerPlan: { plan: p.plan, assistanceType: p.assistanceType, isResellerPlan: false } },
       update: {
         priceUSD:       p.priceUSD,
         priceQuarterly: p.priceQuarterly,
