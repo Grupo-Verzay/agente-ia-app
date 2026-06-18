@@ -203,7 +203,7 @@ const FAQS = [
 
 const PLAN_LABELS: Record<string, string> = {
   lite: "Lite", basico: "Básico", intermedio: "Intermedio",
-  avanzado: "Avanzado", enterprise: "Enterprise", personalizado: "Agencias",
+  avanzado: "Avanzado", enterprise: "Enterprise", personalizado: "Integraciones",
 };
 const PLAN_ORDER = ["lite", "basico", "intermedio", "avanzado", "enterprise", "personalizado"];
 type PackSize = "pack5" | "pack10" | "pack25";
