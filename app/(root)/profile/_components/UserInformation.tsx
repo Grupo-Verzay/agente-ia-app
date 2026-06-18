@@ -36,6 +36,9 @@ import {
 } from "lucide-react";
 import { UserWithPausar } from "@/lib/types";
 import { BrandSelector } from "../../../../components/custom";
+import { AccountSwitcher } from "@/components/AccountSwitcher";
+import { updatePlatformLogoUrl } from "@/actions/admin/site-config-actions";
+import type { User } from "@prisma/client";
 import { useResellerStore } from "@/stores/resellers/resellerStore";
 import { Role } from "@prisma/client";
 import { ApiKeyConfigurator, ChangePasswordCard, ChangeEmailCard } from "./";
@@ -184,7 +187,7 @@ const CardLabel = ({ icon: Icon, children }: { icon: React.ElementType; children
 
 // ── Main component ────────────────────────────────────────────────────────────
 export const UserInformation = ({ userId, countries, instancesData, metaInstances, autoOpenApiKey, autoSetup }: UserInformationProps) => {
-    useResellerStore((state) => state.reseller);
+    const reseller = useResellerStore((state) => state.reseller);
 
     const [user, setUser] = useState<(UserWithPausar & { openMsg?: string })>();
     const [originalUser, setOriginalUser] = useState<(UserWithPausar & { openMsg?: string })>();
@@ -297,7 +300,11 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
             const result = await updateClientDataByField(userId, 'image', url);
             if (!result.success) throw new Error(result.message);
             setUser(prev => prev ? { ...prev, image: url } : prev);
-            toast.success('Avatar actualizado', { id: toastId });
+            const isAdminRole = user?.role === Role.admin || user?.role === Role.super_admin;
+            if (isAdminRole && activeTab === 'apariencia') {
+                await updatePlatformLogoUrl(url);
+            }
+            toast.success('Logo actualizado', { id: toastId });
         } catch (error) {
             toast.error(error?.message || 'Error al subir el avatar', { id: toastId });
         } finally {
@@ -411,42 +418,10 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
             <Card className="border-border rounded-xl shrink-0 mb-4">
                 <CardContent className="p-3 sm:p-4">
                     <div className="flex items-center gap-3 sm:gap-4">
-
-                        {/* Avatar */}
-                        <button
-                            type="button"
-                            onClick={() => fileRef.current?.click()}
-                            className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden border-2 border-border shrink-0 group cursor-pointer hover:ring-2 hover:ring-primary transition-all"
-                        >
-                            <SafeImage
-                                src={(user.image as string) ?? defaultImgUrl}
-                                alt="avatar"
-                                fill
-                                sizes="56px"
-                                className="object-cover"
-                            />
-                            <div className="absolute inset-0 bg-black/45 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                {loadingField === 'image'
-                                    ? <Loader2 className="w-4 h-4 text-white animate-spin" />
-                                    : <Camera className="w-4 h-4 text-white" />}
-                            </div>
-                        </button>
-
                         <Input id="avatar" type="file" accept="image/*" ref={fileRef} onChange={handleImageUpload} className="hidden" />
-
-                        {/* Name + meta */}
                         <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-semibold text-sm sm:text-base truncate">
-                                    {user.name ?? 'Sin nombre'}
-                                </span>
-                                <Badge variant="secondary" className="text-xs shrink-0">
-                                    {ROLE_LABELS[user.role] ?? user.role}
-                                </Badge>
-                            </div>
-                            <p className="text-xs sm:text-sm text-muted-foreground truncate">{user.email}</p>
+                            <AccountSwitcher user={user as User} resellerImage={reseller?.image ?? undefined} variant="card" />
                         </div>
-
                         {/* Status pill */}
                         <div className="shrink-0 hidden xs:flex items-center gap-1.5 text-xs text-muted-foreground">
                             {isMuted
@@ -1138,7 +1113,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                             </div>
                                         </CardHeader>
                                         <CardContent className="flex flex-col flex-1">
-                                            <BrandSelector />
+                                            <BrandSelector fallbackUserId={userId} />
                                         </CardContent>
                                     </Card>
                                 </div>

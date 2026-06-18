@@ -17,13 +17,14 @@ import {
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 
-export function BrandSelector() {
+export function BrandSelector({ fallbackUserId }: { fallbackUserId?: string }) {
     const { current, setTheme } = useThemeStore()
     const reseller = useResellerStore((s) => s.reseller)
     const [loading, setLoading] = useState(false)
 
     const handleThemeChange = async (newTheme: ThemeApp) => {
-        if (!reseller) return toast.error('Reseller no disponible')
+        const targetId = reseller?.id ?? fallbackUserId
+        if (!targetId) return toast.error('Usuario no disponible')
         if (newTheme === current) return // Evitar cambios innecesarios
 
         setLoading(true)
@@ -34,7 +35,7 @@ export function BrandSelector() {
             setTheme(newTheme)
 
             // Guarda en base de datos
-            const result = await updateClientDataByField(reseller.id, 'theme', newTheme)
+            const result = await updateClientDataByField(targetId, 'theme', newTheme)
             if (!result.success) throw new Error(result.message)
 
             toast.success('Tema actualizado correctamente', { id: 'theme-update' })

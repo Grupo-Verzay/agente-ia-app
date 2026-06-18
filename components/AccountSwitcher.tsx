@@ -101,9 +101,10 @@ function AccountListAvatar({
 interface AccountSwitcherProps {
   user: User;
   resellerImage?: string | null;
+  variant?: "sidebar" | "card";
 }
 
-export function AccountSwitcher({ user, resellerImage }: AccountSwitcherProps) {
+export function AccountSwitcher({ user, resellerImage, variant = "sidebar" }: AccountSwitcherProps) {
   const { isMobile, setOpenMobile } = useSidebar();
   const [payload, setPayload] = useState<LinkedAccountsPayload | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -187,177 +188,174 @@ export function AccountSwitcher({ user, resellerImage }: AccountSwitcherProps) {
       ? displayName({ name: currentAccount.name ?? null, email: currentAccount.email, company: currentAccount.company })
       : displayName({ name: user.name ?? null, email: user.email, company: user.company });
 
+  const triggerContent = (
+    <>
+      <UserLogoAvatar
+        logoUrl={resellerImage ?? undefined}
+        plan={activePlan}
+        alt={activeName}
+        className="h-8 w-8 rounded-lg"
+      />
+      <div className="grid flex-1 text-left text-sm leading-tight">
+        <span className="flex min-w-0 items-center gap-1 truncate font-semibold">
+          <ShieldCheck className={cn("h-3 w-3 shrink-0", variant === "card" ? "text-muted-foreground/60" : "text-sidebar-foreground/55")} />
+          <span className="truncate">{getCompactRoleLabel(effectiveRoleLabel)}</span>
+        </span>
+        <span className={cn("mt-0.5 flex min-w-0 items-center gap-1 truncate text-xs", variant === "card" ? "text-muted-foreground" : "text-sidebar-foreground/70")}>
+          <Users className="h-3 w-3 shrink-0" />
+          <span className="truncate">{getAccountCountLabel(accessibleCount)} asociadas</span>
+        </span>
+      </div>
+      {isPending
+        ? <Loader2 className="ml-auto h-4 w-4 animate-spin shrink-0 opacity-50" />
+        : <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />}
+    </>
+  );
+
+  const dropdownSide = variant === "card" ? "bottom" : isMobile ? "bottom" : "right";
+
+  const dropdownContent = (
+    <DropdownMenuContent
+      className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg p-1"
+      side={dropdownSide}
+      align={variant === "card" ? "start" : "end"}
+      sideOffset={4}
+    >
+      <DropdownMenuLabel className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Cambiar de cuenta
+      </DropdownMenuLabel>
+
+      {currentAccount && (
+        <DropdownMenuItem
+          onSelect={() => handleSwitch(currentAccount.id)}
+          className="flex items-center gap-2 px-2 py-1.5 cursor-pointer"
+        >
+          <AccountListAvatar image={currentAccount.image} id={currentAccount.id} name={currentAccount.name} email={currentAccount.email} company={currentAccount.company} />
+          <div className="flex flex-1 flex-col min-w-0">
+            <span className="truncate text-sm font-medium">{displayName(currentAccount)}</span>
+            <span className="truncate text-[10px] text-muted-foreground">
+              {currentAccount?.id === payload?.realUserId ? "Mi cuenta" : getAdvisorRoleLabel(currentRole)}
+            </span>
+          </div>
+          {activeId === currentAccount.id && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+        </DropdownMenuItem>
+      )}
+
+      {linked.length > 0 && <DropdownMenuSeparator />}
+
+      {linked.map((a) => (
+        <div key={a.accountUserId} className="flex items-center gap-1">
+          <DropdownMenuItem
+            onSelect={() => handleSwitch(a.accountUserId)}
+            className="flex flex-1 items-center gap-2 px-2 py-1.5 cursor-pointer"
+          >
+            <AccountListAvatar image={a.image} id={a.accountUserId} name={a.name} email={a.email} company={a.company} />
+            <div className="flex flex-1 flex-col min-w-0">
+              <span className="truncate text-sm font-medium">{displayName(a)}</span>
+              <span className="truncate text-[10px] text-muted-foreground">
+                {a.label ?? (a.role === "administrador" ? "Administrador" : "Agente")}
+              </span>
+            </div>
+            {activeId === a.accountUserId && <Check className="h-3.5 w-3.5 text-primary" />}
+          </DropdownMenuItem>
+          {canManageAccounts && a.accountUserId !== activeId && (
+            <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleUnlink(a.accountUserId); }}
+              title="Desvincular cuenta"
+            >
+              <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+            </Button>
+          )}
+        </div>
+      ))}
+
+      {canManageAccounts && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={(e) => { e.preventDefault(); setAddDialogOpen(true); }}
+            className="flex items-center gap-2 px-2 py-1.5 cursor-pointer text-muted-foreground"
+          >
+            <Plus className="h-3.5 w-3.5 shrink-0" />
+            <span className="text-sm">Agregar cuenta</span>
+          </DropdownMenuItem>
+        </>
+      )}
+    </DropdownMenuContent>
+  );
+
+  const dialog = (
+    <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Vincular cuenta
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Ingresa el email de la cuenta que quieres vincular. Ambas cuentas deben existir en el sistema.
+        </p>
+        <div className="space-y-2">
+          <span className="text-xs font-medium text-muted-foreground">Rol en esta cuenta</span>
+          <Select value={roleInput} onValueChange={(value) => setRoleInput(value as "agente" | "administrador")}>
+            <SelectTrigger><SelectValue placeholder="Selecciona un rol" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="agente">Agente</SelectItem>
+              <SelectItem value="administrador">Administrador</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Input
+          placeholder="email@ejemplo.com"
+          value={emailInput}
+          onChange={(e) => setEmailInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+          disabled={isPending}
+          autoFocus
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setAddDialogOpen(false)} disabled={isPending}>Cancelar</Button>
+          <Button onClick={handleAdd} disabled={isPending || !emailInput.trim()}>
+            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Vincular
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (variant === "card") {
+    return (
+      <>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex w-full items-center gap-2.5 rounded-lg border border-border bg-background px-3 py-2.5 text-left transition-colors hover:bg-muted">
+              {triggerContent}
+            </button>
+          </DropdownMenuTrigger>
+          {dropdownContent}
+        </DropdownMenu>
+        {dialog}
+      </>
+    );
+  }
+
   return (
     <>
       <SidebarMenu>
         <SidebarMenuItem>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <SidebarMenuButton
-                size="lg"
-                className="gap-2.5 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-              >
-                <UserLogoAvatar
-                  logoUrl={resellerImage ?? undefined}
-                  plan={activePlan}
-                  alt={activeName}
-                  className="h-8 w-8 rounded-lg"
-                />
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="flex min-w-0 items-center gap-1 truncate font-semibold">
-                    <ShieldCheck className="h-3 w-3 shrink-0 text-sidebar-foreground/55" />
-                    <span className="truncate">{getCompactRoleLabel(effectiveRoleLabel)}</span>
-                  </span>
-                  <span className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-xs text-sidebar-foreground/70">
-                    <Users className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{getAccountCountLabel(accessibleCount)} asociadas</span>
-                  </span>
-                </div>
-                {isPending ? (
-                  <Loader2 className="ml-auto h-4 w-4 animate-spin shrink-0 opacity-50" />
-                ) : (
-                  <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
-                )}
+              <SidebarMenuButton size="lg" className="gap-2.5 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
+                {triggerContent}
               </SidebarMenuButton>
             </DropdownMenuTrigger>
-
-            <DropdownMenuContent
-              className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg p-1"
-              side={isMobile ? "bottom" : "right"}
-              align="end"
-              sideOffset={4}
-            >
-              <DropdownMenuLabel className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Cambiar de cuenta
-              </DropdownMenuLabel>
-
-              {currentAccount && (
-                <DropdownMenuItem
-                  onSelect={() => handleSwitch(currentAccount.id)}
-                  className="flex items-center gap-2 px-2 py-1.5 cursor-pointer"
-                >
-                  <AccountListAvatar
-                    image={currentAccount.image}
-                    id={currentAccount.id}
-                    name={currentAccount.name}
-                    email={currentAccount.email}
-                    company={currentAccount.company}
-                  />
-                  <div className="flex flex-1 flex-col min-w-0">
-                    <span className="truncate text-sm font-medium">{displayName(currentAccount)}</span>
-                    <span className="truncate text-[10px] text-muted-foreground">
-                      {currentAccount?.id === payload?.realUserId
-                        ? "Mi cuenta"
-                        : getAdvisorRoleLabel(currentRole)}
-                    </span>
-                  </div>
-                  {activeId === currentAccount.id && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
-                </DropdownMenuItem>
-              )}
-
-              {linked.length > 0 && <DropdownMenuSeparator />}
-
-              {/* Cuentas accesibles */}
-              {linked.map((a) => (
-                <div key={a.accountUserId} className="flex items-center gap-1">
-                  <DropdownMenuItem
-                    onSelect={() => handleSwitch(a.accountUserId)}
-                    className="flex flex-1 items-center gap-2 px-2 py-1.5 cursor-pointer"
-                  >
-                    <AccountListAvatar
-                      image={a.image}
-                      id={a.accountUserId}
-                      name={a.name}
-                      email={a.email}
-                      company={a.company}
-                    />
-                    <div className="flex flex-1 flex-col min-w-0">
-                      <span className="truncate text-sm font-medium">{displayName(a)}</span>
-                      <span className="truncate text-[10px] text-muted-foreground">
-                        {a.label ?? (a.role === "administrador" ? "Administrador" : "Agente")}
-                      </span>
-                    </div>
-                    {activeId === a.accountUserId && <Check className="h-3.5 w-3.5 text-primary" />}
-                  </DropdownMenuItem>
-                  {canManageAccounts && a.accountUserId !== activeId && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 shrink-0"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleUnlink(a.accountUserId);
-                      }}
-                      title="Desvincular cuenta"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-
-              {canManageAccounts && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onSelect={(e) => { e.preventDefault(); setAddDialogOpen(true); }}
-                    className="flex items-center gap-2 px-2 py-1.5 cursor-pointer text-muted-foreground"
-                  >
-                    <Plus className="h-3.5 w-3.5 shrink-0" />
-                    <span className="text-sm">Agregar cuenta</span>
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
+            {dropdownContent}
           </DropdownMenu>
         </SidebarMenuItem>
       </SidebarMenu>
-
-      {/* Dialog para agregar cuenta */}
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Vincular cuenta
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Ingresa el email de la cuenta que quieres vincular. Ambas cuentas deben existir en el sistema.
-          </p>
-          <div className="space-y-2">
-            <span className="text-xs font-medium text-muted-foreground">Rol en esta cuenta</span>
-            <Select value={roleInput} onValueChange={(value) => setRoleInput(value as "agente" | "administrador")}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona un rol" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="agente">Agente</SelectItem>
-                <SelectItem value="administrador">Administrador</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Input
-            placeholder="email@ejemplo.com"
-            value={emailInput}
-            onChange={(e) => setEmailInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
-            disabled={isPending}
-            autoFocus
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddDialogOpen(false)} disabled={isPending}>
-              Cancelar
-            </Button>
-            <Button onClick={handleAdd} disabled={isPending || !emailInput.trim()}>
-              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Vincular
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {dialog}
     </>
   );
 }

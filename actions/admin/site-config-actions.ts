@@ -68,6 +68,21 @@ export async function getSiteConfig(): Promise<SiteConfigData> {
   }
 }
 
+export async function updatePlatformLogoUrl(logoUrl: string): Promise<{ success: boolean; message: string }> {
+  try {
+    await db.siteConfig.upsert({
+      where: { id: 1 },
+      update: { logoUrl },
+      create: { id: 1, logoUrl },
+    });
+    revalidatePath("/inicio");
+    revalidatePath("/resellers");
+    return { success: true, message: "Logo actualizado" };
+  } catch {
+    return { success: false, message: "Error al actualizar logo" };
+  }
+}
+
 export async function updateSiteConfig(data: SiteConfigData): Promise<{ success: boolean; message: string }> {
   try {
     const user = await currentUser();
