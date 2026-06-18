@@ -198,7 +198,7 @@ export function AccountSwitcher({ user, resellerImage }: AccountSwitcherProps) {
                 className="gap-2.5 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
                 <UserLogoAvatar
-                  logoUrl={resellerImage ?? currentAccount?.image ?? user.image}
+                  logoUrl={resellerImage ?? undefined}
                   plan={activePlan}
                   alt={activeName}
                   className="h-8 w-8 rounded-lg"
