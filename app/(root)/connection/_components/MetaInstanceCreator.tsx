@@ -68,7 +68,7 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
           </div>
         </CardContent>
         <CardFooter className="mt-auto px-6 pb-4 pt-0">
-          <Button onClick={() => setOpen(true)} className="w-full">
+          <Button onClick={() => setOpen(true)} className="w-full bg-[#1877F2] hover:bg-[#166FE5] text-white">
             Crear instancia Meta API
           </Button>
         </CardFooter>
@@ -128,7 +128,7 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Cancelar</Button>
-            <Button onClick={handleCreate} disabled={saving}>
+            <Button onClick={handleCreate} disabled={saving} className="bg-[#1877F2] hover:bg-[#166FE5] text-white">
               {saving && <Loader2 className="animate-spin w-4 h-4 mr-1" />}
               Crear instancia
             </Button>

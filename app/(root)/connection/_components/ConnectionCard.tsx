@@ -61,7 +61,7 @@ const SocialIconSelector = ({ instanceType }: SocialIconSelectorProps) => {
     if (t === 'facebook') {
         return (
             <>
-                <FaFacebook className="text-blue-500 rounded-sm w-6 h-6" />
+                <FaFacebook className="text-[#1877F2] rounded-sm w-6 h-6" />
                 <span className="text-xl font-bold">Facebook</span>
             </>
         )

@@ -28,6 +28,7 @@ export interface UserInformationProps {
   instancesData: InstancesData;
   metaInstances: Instancia[];
   autoOpenApiKey?: boolean;
+  autoSetup?: boolean;
 }
 
 // Adapta las funciones de tipo para manejar arrays
@@ -57,7 +58,7 @@ const normalizeType = (t?: string | null): InstanceKind => {
   return "Desconocido";
 };
 
-const ProfilePage = async ({ searchParams }: { searchParams?: { openApiKey?: string } }) => {
+const ProfilePage = async ({ searchParams }: { searchParams?: { openApiKey?: string; autoSetup?: string } }) => {
   const user = await currentUser();
 
   if (!user) {
@@ -127,7 +128,7 @@ const ProfilePage = async ({ searchParams }: { searchParams?: { openApiKey?: str
 
   return (
     <>
-      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} metaInstances={metaInstances} autoOpenApiKey={searchParams?.openApiKey === 'true'} />
+      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} metaInstances={metaInstances} autoOpenApiKey={searchParams?.openApiKey === 'true'} autoSetup={searchParams?.autoSetup === '1'} />
     </>
   );
 }

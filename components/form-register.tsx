@@ -28,6 +28,13 @@ import { Label } from "@/components/ui/label";
 import { CountryCodeSelect, type Country } from "@/components/custom/CountryCodeSelect";
 import { normalizeToE164 } from "@/app/schedule/helpers/normalizeToE164";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Building2,
   CheckCircle2,
   ChevronRight,
@@ -39,17 +46,26 @@ import {
   Phone,
   User,
   Lock,
+  Briefcase,
+  Target,
+  ShoppingBag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* ─────────────────────────────────────────
    Types
 ───────────────────────────────────────── */
-type FormValues = z.infer<typeof fullRegisterSchema>;
+const paidRegisterSchema = fullRegisterSchema.extend({
+  businessSector: z.string().min(2, "El rubro es requerido.").max(100),
+  mainProduct: z.string().min(10, "Describe tu negocio y productos (mínimo 10 caracteres).").max(500),
+});
+
+type FormValues = z.infer<typeof paidRegisterSchema>;
 
 const STEPS = [
   { id: 1, label: "Tus datos" },
   { id: 2, label: "Tu empresa" },
+  { id: 3, label: "Tu agente" },
 ] as const;
 
 const STEP_MESSAGES: Record<RegisterCompletedStep, string> = {
@@ -59,6 +75,15 @@ const STEP_MESSAGES: Record<RegisterCompletedStep, string> = {
   tags: "Etiquetas por defecto creadas",
   instance: "Instancia de WhatsApp lista",
 };
+
+const SALES_OBJECTIVES = [
+  { value: "venta-directa", label: "⚡ Venta directa" },
+  { value: "venta-consultiva", label: "🎯 Venta consultiva" },
+  { value: "agendamiento-citas", label: "📅 Agendar citas" },
+  { value: "calificacion-leads", label: "🧲 Calificar leads" },
+  { value: "atencion-cliente", label: "🎧 Atención al cliente" },
+  { value: "pedidos-delivery", label: "🛵 Pedidos / Delivery" },
+] as const;
 
 /* ─────────────────────────────────────────
    Sub-components
@@ -126,7 +151,7 @@ function PasswordField({
   const [show, setShow] = useState(false);
   return (
     <FormItem>
-      <FormLabel>{label}</FormLabel>
+      <FormLabel className="font-semibold">{label}</FormLabel>
       <FormControl>
         <div className="relative">
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -160,7 +185,7 @@ function Step1Fields({ form }: { form: ReturnType<typeof useForm<FormValues>> })
         name="name"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Nombre completo</FormLabel>
+            <FormLabel className="font-semibold">Nombre completo</FormLabel>
             <FormControl>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -183,7 +208,7 @@ function Step1Fields({ form }: { form: ReturnType<typeof useForm<FormValues>> })
         name="email"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Correo electrónico</FormLabel>
+            <FormLabel className="font-semibold">Correo electrónico</FormLabel>
             <FormControl>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -231,7 +256,7 @@ function Step2Fields({
         name="company"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Nombre de tu empresa o negocio</FormLabel>
+            <FormLabel className="font-semibold">Nombre de tu empresa o negocio</FormLabel>
             <FormControl>
               <div className="relative">
                 <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -262,7 +287,7 @@ function Step2Fields({
         name="notificationNumber"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Número de WhatsApp</FormLabel>
+            <FormLabel className="font-semibold">Número de WhatsApp</FormLabel>
             <FormControl>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -286,6 +311,81 @@ function Step2Fields({
   );
 }
 
+/* Step 3: Business context for AI agent */
+function Step3Fields({ form }: { form: ReturnType<typeof useForm<FormValues>> }) {
+  return (
+    <div className="space-y-5">
+      <FormField
+        control={form.control}
+        name="businessSector"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel className="font-semibold">Rubro del negocio</FormLabel>
+            <FormControl>
+              <div className="relative">
+                <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  {...field}
+                  placeholder="Ej: Moda, Salud, Tecnología, Restaurante..."
+                  className="pl-9"
+                  autoFocus
+                />
+              </div>
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="salesObjective"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel className="font-semibold">Objetivo de ventas</FormLabel>
+            <Select onValueChange={field.onChange} value={field.value}>
+              <FormControl>
+                <SelectTrigger className="w-full">
+                  <Target className="w-4 h-4 text-muted-foreground mr-2" />
+                  <SelectValue placeholder="Selecciona un objetivo..." />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {SALES_OBJECTIVES.map((obj) => (
+                  <SelectItem key={obj.value} value={obj.value}>
+                    {obj.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="mainProduct"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel className="font-semibold">Información de tu negocio, productos/servicios y demás</FormLabel>
+            <FormControl>
+              <textarea
+                {...field}
+                rows={4}
+                placeholder="Cuéntanos sobre tu negocio: qué vendes, precios, cómo funciona tu proceso de venta, qué te diferencia de la competencia, etc. Mientras más detalle, mejor configurado quedará tu agente."
+                className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────
    Main Component
 ───────────────────────────────────────── */
@@ -294,12 +394,13 @@ const PLAN_DISPLAY: Record<string, string> = {
   avanzado: "Avanzado", enterprise: "Enterprise",
 };
 
-const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, resellerSlug }: {
+const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, resellerSlug, defaultSalesObjective }: {
   countries: Country[];
   apiKeyRef?: string;
   affiliateCode?: string;
   defaultPlan?: string;
   resellerSlug?: string;
+  defaultSalesObjective?: string;
 }) => {
   const [step, setStep] = useState(1);
   const [areaCode, setAreaCode] = useState("");
@@ -307,7 +408,7 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, resell
   const router = useRouter();
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(fullRegisterSchema),
+    resolver: zodResolver(paidRegisterSchema),
     defaultValues: {
       name: "",
       email: "",
@@ -315,14 +416,24 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, resell
       company: "",
       notificationNumber: "",
       timezone: "",
+      businessSector: "",
+      salesObjective: defaultSalesObjective ?? "",
+      mainProduct: "",
+      clienteIdeal: "",
+      tono: "",
     },
     mode: "onTouched",
   });
 
   /* ── Step 1 → Step 2 validation ── */
   const handleNextStep = async () => {
-    const valid = await form.trigger(["name", "email", "password"]);
-    if (valid) setStep(2);
+    if (step === 1) {
+      const valid = await form.trigger(["name", "email", "password"]);
+      if (valid) setStep(2);
+    } else if (step === 2) {
+      const valid = await form.trigger(["company", "notificationNumber"]);
+      if (valid) setStep(3);
+    }
   };
 
   /* ── Final submit ── */
@@ -338,27 +449,22 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, resell
     startTransition(async () => {
       const toastId = toast.loading("Iniciando configuración de tu cuenta...");
 
-      const result = await fullRegisterAction({ ...values, notificationNumber: e164, timezone }, apiKeyRef, affiliateCode, resellerSlug);
+      const result = await fullRegisterAction({ ...values, notificationNumber: e164, timezone }, apiKeyRef, affiliateCode, resellerSlug, true);
 
       if (!result.success) {
         toast.error(result.error, { id: toastId });
         return;
       }
 
-      // Dismiss loading toast
       toast.dismiss(toastId);
 
-      // Show each completed step as a success toast with a small delay
       const stepLabels = result.completedSteps.map((s) => STEP_MESSAGES[s]);
       stepLabels.forEach((label, i) => {
         setTimeout(() => {
-          toast.success(label, {
-            duration: 3000,
-          });
+          toast.success(label, { duration: 3000 });
         }, i * 400);
       });
 
-      // Welcome toast after all steps
       const welcomeDelay = stepLabels.length * 400 + 200;
       setTimeout(() => {
         toast.success(
@@ -367,10 +473,19 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, resell
             duration: 8000,
             description: defaultPlan
               ? "Completa tu compra eligiendo el método de pago."
-              : "Ve a tu perfil para escanear el QR y comenzar a usar la app.",
+              : result.whatsappUrl
+                ? "Te llevamos al chat para ver tu agente en acción."
+                : "Ve a tu perfil para escanear el QR y comenzar a usar la app.",
           }
         );
-        router.push(defaultPlan ? `/planes?plan=${defaultPlan}` : "/profile");
+
+        if (defaultPlan) {
+          router.push(`/planes?plan=${defaultPlan}`);
+        } else if (result.whatsappUrl) {
+          window.location.href = result.whatsappUrl;
+        } else {
+          router.push("/profile");
+        }
       }, welcomeDelay);
     });
   };
@@ -379,9 +494,9 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, resell
     <div className="w-full max-w-md mx-auto">
       {/* Header */}
       <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">Crea tu cuenta gratis</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Activa tu cuenta</h1>
         <p className="text-muted-foreground mt-2 text-sm">
-          3 días de prueba · Sin tarjeta de crédito
+          30 días de acceso · Configuración incluida
         </p>
         {defaultPlan && PLAN_DISPLAY[defaultPlan] && (
           <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm text-primary">
@@ -409,15 +524,18 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, resell
               setAreaCode={setAreaCode}
             />
           </div>
+          <div className={cn(step === 3 ? "block" : "hidden")}>
+            <Step3Fields form={form} />
+          </div>
 
           {/* Navigation */}
           <div className="flex items-center gap-3 pt-2">
-            {step === 2 && (
+            {step > 1 && (
               <Button
                 type="button"
                 variant="outline"
                 className="flex-1"
-                onClick={() => setStep(1)}
+                onClick={() => setStep((s) => s - 1)}
                 disabled={isPending}
               >
                 <ChevronLeft className="w-4 h-4 mr-1" />
@@ -425,10 +543,10 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, resell
               </Button>
             )}
 
-            {step === 1 ? (
+            {step < 3 ? (
               <Button
                 type="button"
-                className="w-full"
+                className={cn(step === 1 ? "w-full" : "flex-1")}
                 onClick={handleNextStep}
               >
                 Continuar

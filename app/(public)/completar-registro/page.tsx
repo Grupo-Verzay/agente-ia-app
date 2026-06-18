@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { RegistroReunionForm } from './_components/RegistroReunionForm';
 import { getResellerPublicConfig } from '@/actions/reseller-plan-actions';
 import { getSiteConfig } from '@/actions/admin/site-config-actions';
+import { getCountryCodes } from '@/actions/get-country-action';
 
 export const metadata = { title: 'Activa tu cuenta gratis | Agente IA' };
 
@@ -12,9 +13,12 @@ interface Props {
 
 export default async function CompletarRegistroPage({ searchParams }: Props) {
   const resellerSlug = searchParams.r;
-  const resellerSheetsUrl = resellerSlug
-    ? (await getResellerPublicConfig(resellerSlug)).sheetsUrl
-    : (await getSiteConfig()).sheetsUrl;
+  const [resellerSheetsUrl, countries] = await Promise.all([
+    resellerSlug
+      ? getResellerPublicConfig(resellerSlug).then(r => r.sheetsUrl)
+      : getSiteConfig().then(c => c.sheetsUrl),
+    getCountryCodes(),
+  ]);
 
   return (
     <div className="flex min-h-full flex-col items-center px-4 py-12">
@@ -38,7 +42,7 @@ export default async function CompletarRegistroPage({ searchParams }: Props) {
 
       {/* Card */}
       <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-white/[0.04] p-6 sm:p-8">
-        <RegistroReunionForm resellerSlug={resellerSlug} resellerSheetsUrl={resellerSheetsUrl} />
+        <RegistroReunionForm resellerSlug={resellerSlug} resellerSheetsUrl={resellerSheetsUrl} countries={countries} />
       </div>
 
       <p className="mt-6 text-xs text-slate-600">

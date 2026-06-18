@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { createInstance } from '@/actions/api-action';
 import { toast } from 'sonner';
 import { ClientInstanceCard, ConnectionCard } from './';
@@ -14,7 +14,8 @@ export const ConnectionMain = ({
   instanceInfo,
   instanceType,
   prompts,
-}: ConnectionMainInterface) => {
+  autoCreate,
+}: ConnectionMainInterface & { autoCreate?: boolean }) => {
   const [loading, setLoading] = useState<boolean>(false);
   const instanceName = !instance ? '' : instance.instanceName;
   const currentInstanceInfo = instanceInfo?.find((i) => i.name === instanceName);
@@ -66,6 +67,29 @@ export const ConnectionMain = ({
     (name: string) => checkInstanceNameExists(name),
     []
   )
+
+  useEffect(() => {
+    if (!autoCreate || instance || loading) return;
+
+    (async () => {
+      setLoading(true);
+      try {
+        if (instanceType === 'baileys') {
+          await createBaileysInstance(derivedInstanceName, user.id);
+        } else {
+          const formData = new FormData();
+          formData.append('instanceName', derivedInstanceName);
+          formData.append('instanceType', instanceType);
+          formData.append('userId', user.id);
+          await createInstance(formData);
+        }
+      } catch {
+        // autoCreate failures are silent — user can click the button manually
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [autoCreate]);
 
   return instance ? (
     <ClientInstanceCard

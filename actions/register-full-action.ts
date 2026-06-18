@@ -11,6 +11,8 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { sanitizeInstanceName } from "@/schema/connection";
 import { decodeApiKeyRef } from "@/lib/register-link";
+import { AGENT_TEMPLATES } from "@/app/(root)/ai/_components/helpers/agentTemplates";
+import { AGENT_PROMPT_IDS } from "@/lib/agent-prompt-ids";
 
 /* ─────────────────────────────────────────
    Constants
@@ -21,7 +23,8 @@ const DEFAULT_API_URL = process.env.SECRET_API_KEY;
 const DEFAULT_DEL_SEGUIMIENTO = "Estamos para servirle.";
 const DEFAULT_REGISTER_PLAN = "avanzado" as const;
 const FALLBACK_IA_CREDITS = 8000;
-const TRIAL_DAYS = 3;
+const FREE_TRIAL_DAYS = 7;
+const PAID_TRIAL_DAYS = 30;
 
 const DEFAULT_TAGS = [
   { name: "Nuevo cliente", color: "#22c55e" },
@@ -46,6 +49,7 @@ export type FullRegisterResult =
     trialEndsAt: string;
     trialEndsLabel: string;
     completedSteps: RegisterCompletedStep[];
+    whatsappUrl?: string;
   }
   | { success: false; error: string };
 
@@ -69,6 +73,125 @@ function formatTrialDate(date: Date): string {
     year: "numeric",
     timeZone: "America/Bogota",
   });
+}
+
+/* ─────────────────────────────────────────
+   Helpers para AgentPrompt
+─────────────────────────────────────────── */
+const TONO_INSTRUCCIONES: Record<string, string> = {
+  formal: "Usa un tono formal y respetuoso. Trata al cliente de 'usted', evita coloquialismos y mantén un lenguaje serio y profesional.",
+  amigable: "Usa un tono amigable y cercano. Puedes tutear, usar emojis con moderación 😊 y mostrar entusiasmo genuino.",
+  casual: "Usa un tono casual y desenfadado. Habla de forma natural y directa, como si fuera una conversación entre amigos.",
+  profesional: "Usa un tono profesional y directo. Ve al grano, sé conciso y resuelve las dudas con eficiencia.",
+};
+
+function buildRegistrationPromptText(
+  company: string,
+  businessSector: string,
+  mainProduct: string,
+  salesObjective: string,
+  clienteIdeal: string,
+  tono: string,
+): string {
+  const template = AGENT_TEMPLATES.find((t) => t.id === salesObjective);
+  const objectiveLabel = template?.name ?? salesObjective;
+  const tonoInstruccion = TONO_INSTRUCCIONES[tono] ?? TONO_INSTRUCCIONES["amigable"];
+
+  const lines: string[] = [
+    `# ${company} — Agente de ${objectiveLabel}`,
+    ``,
+    `**Rubro:** ${businessSector || "No especificado"}`,
+    `**Tono:** ${tono || "amigable"}`,
+    ``,
+    `Eres el asistente de inteligencia artificial de ${company}. Tu objetivo principal es: ${objectiveLabel}.`,
+    ``,
+    `## PERSONALIDAD Y TONO`,
+    ``,
+    tonoInstruccion,
+    ``,
+  ];
+
+  if (mainProduct) {
+    lines.push(`## PRODUCTOS Y SERVICIOS`, ``, mainProduct, ``);
+  }
+
+  if (clienteIdeal) {
+    lines.push(`## PERFIL DEL CLIENTE IDEAL`, ``, clienteIdeal, ``);
+  }
+
+  lines.push(`---`, ``, `## FLUJO DE CONVERSACIÓN`);
+
+  if (template?.sections.training) {
+    for (const step of template.sections.training) {
+      lines.push(``, `### ${step.title}`, ``, step.mainMessage);
+    }
+  }
+
+  if (template?.sections.management) {
+    lines.push(``, `---`, ``, `## GESTIÓN`);
+    for (const step of template.sections.management) {
+      lines.push(``, `### ${step.title}`, ``, step.mainMessage);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function buildRegistrationSections(
+  company: string,
+  businessSector: string,
+  mainProduct: string,
+  salesObjective: string,
+  clienteIdeal: string,
+  tono: string,
+) {
+  const template = AGENT_TEMPLATES.find((t) => t.id === salesObjective);
+
+  const trainingSteps = (template?.sections.training ?? []).map((step) => ({
+    id: randomUUID(),
+    title: step.title,
+    mainMessage: step.mainMessage,
+    variableQueRecoge: "",
+    condicionParaAvanzar: "",
+    elements: [],
+  }));
+
+  const managementSteps = (template?.sections.management ?? []).map((step) => ({
+    id: randomUUID(),
+    title: step.title,
+    mainMessage: step.mainMessage,
+    elements: [],
+  }));
+
+  return {
+    business: {
+      nombre: company,
+      sector: businessSector,
+      ubicacion: "",
+      horarios: "",
+      maps: "",
+      telefono: "",
+      email: "",
+      sitio: "",
+      facebook: "",
+      instagram: "",
+      tiktok: "",
+      youtube: "",
+      notas: [
+        clienteIdeal ? `Cliente ideal: ${clienteIdeal}` : null,
+        tono ? `Tono del agente: ${tono}` : null,
+      ].filter(Boolean).join(" | ") || "",
+    },
+    training: { steps: trainingSteps },
+    faq: { steps: [] },
+    products: {
+      items: mainProduct
+        ? [{ id: randomUUID(), name: mainProduct, description: "", price: "", image: "" }]
+        : [],
+    },
+    extras: { firmaEnabled: false, firmaText: "", firmaName: "", items: [] },
+    management: { steps: managementSteps },
+  };
 }
 
 /* ─────────────────────────────────────────
@@ -98,38 +221,39 @@ async function createInstanceForUser(
 
   const { key: apiKey, url: serverUrl } = user.apiKey;
 
-  const response = await fetch(`https://${serverUrl}/instance/create`, {
-    method: "POST",
-    headers: { apikey: apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      instanceName,
-      qrcode: true,
-      integration: "WHATSAPP-BAILEYS",
-    }),
-  });
+  try {
+    const response = await fetch(`https://${serverUrl}/instance/create`, {
+      method: "POST",
+      headers: { apikey: apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        instanceName,
+        qrcode: true,
+        integration: "WHATSAPP-BAILEYS",
+      }),
+    });
 
-  const apiResult = await response.json().catch(() => ({}));
+    const apiResult = await response.json().catch(() => ({}));
 
-  if (!response.ok) {
-    return {
-      success: false,
-      message: apiResult?.message ?? `HTTP ${response.status}`,
-    };
+    if (!response.ok) {
+      return {
+        success: false,
+        message: apiResult?.message ?? `HTTP ${response.status}`,
+      };
+    }
+
+    const instanceId: string | undefined = apiResult?.hash;
+    if (!instanceId) {
+      return { success: false, message: "No se recibió instanceId de la API." };
+    }
+
+    await db.instancia.create({
+      data: { instanceName, instanceType: "Whatsapp", userId, instanceId },
+    });
+
+    return { success: true, message: "Instancia creada exitosamente." };
+  } catch {
+    return { success: false, message: "Error de conexión con la API de WhatsApp." };
   }
-
-  const instanceId: string | undefined = apiResult?.hash;
-  if (!instanceId) {
-    return {
-      success: false,
-      message: "No se recibió instanceId de la API.",
-    };
-  }
-
-  await db.instancia.create({
-    data: { instanceName, instanceType: "Whatsapp", userId, instanceId },
-  });
-
-  return { success: true, message: "Instancia creada exitosamente." };
 }
 
 /* ─────────────────────────────────────────
@@ -139,7 +263,8 @@ export async function fullRegisterAction(
   values: z.infer<typeof fullRegisterSchema>,
   apiKeyRef?: string,
   affiliateCode?: string,
-  resellerSlug?: string
+  resellerSlug?: string,
+  isPaid?: boolean
 ): Promise<FullRegisterResult> {
   const parsed = fullRegisterSchema.safeParse(values);
   if (!parsed.success) {
@@ -147,7 +272,7 @@ export async function fullRegisterAction(
     return { success: false, error: firstError };
   }
 
-  const { name, email, password, company, notificationNumber, timezone } =
+  const { name, email, password, company, notificationNumber, timezone, businessSector, salesObjective, mainProduct, clienteIdeal, tono } =
     parsed.data;
 
   /* ── 0. Check email uniqueness ── */
@@ -167,9 +292,10 @@ export async function fullRegisterAction(
   }
 
   /* ── Prepare dates ── */
+  const trialDays = isPaid ? PAID_TRIAL_DAYS : FREE_TRIAL_DAYS;
   const now = new Date();
   const trialEndsAt = new Date(now);
-  trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DAYS);
+  trialEndsAt.setDate(trialEndsAt.getDate() + trialDays);
 
   const resolvedTimezone =
     timezone ?? "America/Bogota";
@@ -248,7 +374,7 @@ export async function fullRegisterAction(
           serviceStartAt: now,
           serviceEndsAt: trialEndsAt,
           graceDays: 0,
-          licenseDays: TRIAL_DAYS,
+          licenseDays: trialDays,
         },
       });
 
@@ -337,16 +463,11 @@ export async function fullRegisterAction(
     const instanceName = sanitizeInstanceName(company);
     const instanceResult = await createInstanceForUser(userId, instanceName);
 
-    if (!instanceResult.success) {
-      // Hard rollback — cascade removes billing, credits, pausar, tags
-      await db.user.delete({ where: { id: userId } });
-      return {
-        success: false,
-        error: `Error al crear la instancia de WhatsApp: ${instanceResult.message}`,
-      };
+    if (instanceResult.success) {
+      completedSteps.push("instance");
+    } else {
+      console.warn("[FULL_REGISTER] WhatsApp instance creation failed (non-fatal):", instanceResult.message);
     }
-
-    completedSteps.push("instance");
 
     /* ── STEP 7: Affiliate referral ── */
     if (affiliateCode) {
@@ -361,7 +482,8 @@ export async function fullRegisterAction(
       }
     }
 
-    /* ── STEP 7b: Reseller association ── */
+    /* ── STEP 7b: Reseller association + WhatsApp URL ── */
+    let whatsappUrl: string | undefined;
     if (resellerSlug) {
       const resellerRow = await db.reseller.findFirst({
         where: { slug: resellerSlug },
@@ -371,8 +493,63 @@ export async function fullRegisterAction(
         await db.reseller.create({
           data: { resellerid: resellerRow.resellerid, userId },
         }).catch(() => null);
+
+        const resellerUser = await db.user.findUnique({
+          where: { id: resellerRow.resellerid },
+          select: { notificationNumber: true },
+        }).catch(() => null);
+
+        if (resellerUser?.notificationNumber) {
+          const phone = resellerUser.notificationNumber.replace(/\D/g, "");
+          const objectiveLabel = AGENT_TEMPLATES.find((t) => t.id === salesObjective)?.name ?? salesObjective;
+          const parts = [
+            `\u{1F680} \u{00A1}Hola! Acabo de crear mi cuenta en Agente IA.`,
+            ``,
+            `\u{1F464} Nombre: ${name}`,
+            `\u{1F3E2} Empresa: ${company}`,
+            businessSector ? `\u{1F3F7} Rubro: ${businessSector}` : null,
+            `\u{1F3AF} Objetivo: ${objectiveLabel}`,
+            mainProduct ? `\u{1F4E6} Productos/servicios: ${mainProduct}` : null,
+            clienteIdeal ? `\u{1F465} Cliente ideal: ${clienteIdeal}` : null,
+            ``,
+            `Requiero ayuda para seguir con el proceso de configuraci\u{00F3}n.`,
+          ].filter(Boolean).join("\n");
+          whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(parts)}`;
+        }
+      }
+    } else if (!isPaid) {
+      const verzayPhone = process.env.VERZAY_WHATSAPP_NUMBER?.replace(/\D/g, "");
+      if (verzayPhone) {
+        const objectiveLabel = AGENT_TEMPLATES.find((t) => t.id === salesObjective)?.name ?? salesObjective;
+        const parts = [
+          `\u{1F680} \u{00A1}Hola! Acabo de crear mi cuenta en Agente IA.`,
+          ``,
+          `\u{1F464} Nombre: ${name}`,
+          `\u{1F3E2} Empresa: ${company}`,
+          businessSector ? `\u{1F3F7} Rubro: ${businessSector}` : null,
+          `\u{1F3AF} Objetivo: ${objectiveLabel}`,
+          mainProduct ? `\u{1F4E6} Productos/servicios: ${mainProduct}` : null,
+          clienteIdeal ? `\u{1F465} Cliente ideal: ${clienteIdeal}` : null,
+          ``,
+          `Requiero ayuda para seguir con el proceso de configuraci\u{00F3}n.`,
+        ].filter(Boolean).join("\n");
+        whatsappUrl = `https://wa.me/${verzayPhone}?text=${encodeURIComponent(parts)}`;
       }
     }
+
+    /* ── STEP 7c: AgentPrompt con plantilla según objetivo de ventas ── */
+    await db.agentPrompt.create({
+      data: {
+        userId,
+        agentId: AGENT_PROMPT_IDS.systemPromptAI,
+        status: "published",
+        version: 1,
+        businessName: company,
+        businessSector,
+        sections: buildRegistrationSections(company, businessSector, mainProduct, salesObjective, clienteIdeal ?? "", tono ?? "") as Prisma.InputJsonValue,
+        promptText: buildRegistrationPromptText(company, businessSector, mainProduct, salesObjective, clienteIdeal ?? "", tono ?? ""),
+      },
+    }).catch(() => null);
 
     /* ── STEP 8: Auto sign-in ── */
     await signIn("credentials", {
@@ -386,6 +563,7 @@ export async function fullRegisterAction(
       trialEndsAt: trialEndsAt.toISOString(),
       trialEndsLabel: formatTrialDate(trialEndsAt),
       completedSteps,
+      whatsappUrl,
     };
   } catch (error: unknown) {
     // If user was created but something after the transaction failed, clean up
@@ -408,7 +586,13 @@ export async function fullRegisterAction(
       return { success: false, error: "Ocurrió un problema con la base de datos. Por favor intenta de nuevo más tarde." };
     }
 
-    console.error("[FULL_REGISTER_ERROR]", error);
-    return { success: false, error: "Ocurrió un error inesperado. Por favor intenta de nuevo." };
+    if (error instanceof Prisma.PrismaClientValidationError) {
+      console.error("[FULL_REGISTER_ERROR] Prisma validation:", error.message);
+      return { success: false, error: `Error de validación: ${error.message.slice(0, 200)}` };
+    }
+
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[FULL_REGISTER_ERROR]", msg);
+    return { success: false, error: `Error: ${msg.slice(0, 300)}` };
   }
 }

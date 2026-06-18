@@ -183,7 +183,7 @@ const CardLabel = ({ icon: Icon, children }: { icon: React.ElementType; children
 );
 
 // ── Main component ────────────────────────────────────────────────────────────
-export const UserInformation = ({ userId, countries, instancesData, metaInstances, autoOpenApiKey }: UserInformationProps) => {
+export const UserInformation = ({ userId, countries, instancesData, metaInstances, autoOpenApiKey, autoSetup }: UserInformationProps) => {
     useResellerStore((state) => state.reseller);
 
     const [user, setUser] = useState<(UserWithPausar & { openMsg?: string })>();
@@ -511,6 +511,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     instanceInfo={instancesData["Whatsapp"].info}
                                     instanceType={"Whatsapp"}
                                     prompts={instancesData["Whatsapp"].prompts}
+                                    autoCreate={autoSetup && !instancesData["Whatsapp"].instance}
                                 />
                                 {metaInstances
                                     .filter((inst) => ((inst as any).metaChannel ?? 'whatsapp') === 'whatsapp')

@@ -36,11 +36,29 @@ export const fullRegisterSchema = object({
   company: string({ required_error: "El nombre de tu empresa es requerido" })
     .min(2, "El nombre de la empresa debe tener al menos 2 caracteres.")
     .max(80, "El nombre de la empresa no puede superar 80 caracteres."),
-  notificationNumber: string({ required_error: "El número de WhatsApp es requerido" })
-    .min(7, "Ingresa un número válido.")
+  notificationNumber: string()
     .max(20, "El número no puede superar 20 caracteres.")
-    .regex(/^[0-9+\-\s()]+$/, "Solo se permiten números y caracteres +, -, (, )."),
+    .optional()
+    .default(""),
   timezone: string().optional(),
+  businessSector: string()
+    .max(100, "El rubro no puede superar 100 caracteres.")
+    .optional()
+    .default(""),
+  salesObjective: string({ required_error: "Selecciona un objetivo de ventas" })
+    .min(1, "Selecciona un objetivo de ventas."),
+  mainProduct: string()
+    .max(500, "El producto no puede superar 500 caracteres.")
+    .optional()
+    .default(""),
+  clienteIdeal: string()
+    .max(200, "El campo no puede superar 200 caracteres.")
+    .optional()
+    .default(""),
+  tono: string()
+    .max(50)
+    .optional()
+    .default(""),
 });
 
 export const workflowShema = object({

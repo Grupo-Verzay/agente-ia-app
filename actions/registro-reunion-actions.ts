@@ -27,7 +27,7 @@ export type RegistroReunionPayload = {
   asesores: string;
   procesoVentas: string;
   urgencia: string;
-  tareasObjetivos: string;
+  salesObjective: string;
   resellerSlug?: string;
   resellerSheetsUrl?: string | null;
 };
@@ -55,7 +55,7 @@ export async function submitRegistroReunion(
       data.asesores,
       data.procesoVentas,
       data.urgencia,
-      data.tareasObjetivos,
+      data.salesObjective,
       data.resellerSlug ?? '',
     ];
 
