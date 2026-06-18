@@ -1,6 +1,6 @@
 'use client'
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { ClientInterface } from '@/lib/types'
 
@@ -26,7 +26,7 @@ export const DeleteDialog = ({
         </DialogHeader>
         <div className="space-y-4">
           <p>¿Estás seguro de eliminar a <strong>{user?.name || ''}</strong>?</p>
-          <div className="flex justify-end gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setOpenDeleteDialog(false)}>
               Cancelar
             </Button>
@@ -39,7 +39,7 @@ export const DeleteDialog = ({
             >
               Eliminar
             </Button>
-          </div>
+          </DialogFooter>
         </div>
       </DialogContent>
     </Dialog>
