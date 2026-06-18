@@ -165,11 +165,14 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-const STEP1_FIELDS: (keyof FormValues)[] = [
-  'nombre', 'pais', 'contacto', 'nombreNegocio', 'mensajesAlDia',
+const STEP_LABELS = ['Tus datos', 'Tu negocio', 'Tu agente IA'];
+
+const STEP1_FIELDS: (keyof FormValues)[] = ['nombre', 'email', 'password'];
+const STEP2_FIELDS: (keyof FormValues)[] = [
+  'pais', 'contacto', 'nombreNegocio', 'mensajesAlDia',
   'asesores', 'procesoVentas', 'urgencia', 'salesObjective',
-  'tono', 'mainProduct', 'clienteIdeal',
 ];
+const STEP3_FIELDS: (keyof FormValues)[] = ['mainProduct', 'clienteIdeal'];
 
 /* ─── Shared field components ─── */
 function SelectField({ label, name, options, register, error }: {
@@ -221,7 +224,7 @@ interface Props {
 }
 
 export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, countries = [] }: Props) {
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successData, setSuccessData] = useState<{ email: string; whatsappUrl?: string } | null>(null);
@@ -256,8 +259,9 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, countries
   };
 
   const handleNext = async () => {
-    const valid = await trigger(STEP1_FIELDS);
-    if (valid) setStep(2);
+    const fields = step === 1 ? STEP1_FIELDS : STEP2_FIELDS;
+    const valid = await trigger(fields);
+    if (valid) setStep((s) => (s + 1) as 1 | 2 | 3);
   };
 
   const onSubmit = async (values: FormValues) => {
@@ -351,7 +355,7 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, countries
 
       {/* Step indicator */}
       <div className="flex items-center justify-center gap-3 mb-2">
-        {[1, 2].map((s, idx) => (
+        {[1, 2, 3].map((s, idx) => (
           <div key={s} className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <div className={cn(
@@ -366,17 +370,17 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, countries
                 'text-xs font-medium',
                 step === s ? 'text-white' : 'text-slate-500',
               )}>
-                {s === 1 ? 'Tu negocio' : 'Tu cuenta'}
+                {STEP_LABELS[s - 1]}
               </span>
             </div>
-            {idx === 0 && (
-              <div className={cn('h-px w-10 transition-colors', step > 1 ? 'bg-blue-500' : 'bg-white/10')} />
+            {idx < 2 && (
+              <div className={cn('h-px w-10 transition-colors', step > s ? 'bg-blue-500' : 'bg-white/10')} />
             )}
           </div>
         ))}
       </div>
 
-      {/* ── PASO 1: Datos del negocio ── */}
+      {/* ── PASO 1: Tus datos personales ── */}
       {step === 1 && (
         <>
           <div className="flex flex-col gap-1.5">
@@ -396,127 +400,6 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, countries
             {errors.nombre && <p className="text-xs text-red-400">{errors.nombre.message}</p>}
           </div>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            {/* País con indicativo */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-slate-200">
-                País <span className="text-red-400">*</span>
-              </label>
-              <CountryCodeSelect
-                countries={countries}
-                value={dialCode}
-                onChange={handleCountryChange}
-                placeholder="Selecciona un país"
-              />
-              <p className="text-xs text-slate-500">Selecciona el indicativo de tu país. Ej.: Rep. Dominicana: +1809, +1829, +1849.</p>
-              <input type="hidden" {...register('pais')} />
-              {errors.pais && <p className="text-xs text-red-400">{errors.pais.message}</p>}
-            </div>
-
-            {/* Número de contacto */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-slate-200">
-                Número de contacto <span className="text-red-400">*</span>
-              </label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  value={localNumber}
-                  onChange={handleLocalNumberChange}
-                  type="tel"
-                  inputMode="numeric"
-                  placeholder="Número de contacto"
-                  className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-              <input type="hidden" {...register('contacto')} />
-              <p className="text-xs text-slate-500">Este número recibirá las notificaciones de tu cuenta de los eventos importantes.</p>
-              {errors.contacto && <p className="text-xs text-red-400">{errors.contacto.message}</p>}
-            </div>
-          </div>
-
-          <TextField label="Nombre del negocio" name="nombreNegocio" placeholder="ej. Clínica Dental Sonrisa" register={register} error={errors.nombreNegocio?.message} />
-
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:items-end">
-            <SelectField label="¿Cuántos mensajes recibes al día aprox.?" name="mensajesAlDia" options={MENSAJES} register={register} error={errors.mensajesAlDia?.message} />
-            <SelectField label="¿Cuántos asesores de ventas tienes?" name="asesores" options={ASESORES} register={register} error={errors.asesores?.message} />
-            <SelectField label="¿Ya cuentas con un proceso de ventas?" name="procesoVentas" options={PROCESO} register={register} error={errors.procesoVentas?.message} />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-slate-200">
-              ¿Cuáles son las problemáticas actuales que quieres resolver? <span className="text-red-400">*</span>
-            </label>
-            <textarea
-              {...register('urgencia')}
-              rows={3}
-              placeholder="Describe brevemente qué problema quieres resolver..."
-              className="w-full resize-none rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            />
-            {errors.urgencia && <p className="text-xs text-red-400">{errors.urgencia.message}</p>}
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-slate-200">
-              ¿Cuál es tu objetivo principal de ventas? <span className="text-red-400">*</span>
-            </label>
-            <select
-              {...register('salesObjective')}
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [&>option]:bg-slate-800 [&>option]:text-white"
-            >
-              <option value="">Seleccionar...</option>
-              {OBJETIVOS_VENTAS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-            {errors.salesObjective && <p className="text-xs text-red-400">{errors.salesObjective.message}</p>}
-          </div>
-
-          {/* ── Configuración del agente ── */}
-          <div className="border-t border-white/10 pt-5 flex flex-col gap-5">
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Configura tu agente IA</p>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-slate-200">
-                Información de tu negocio, productos/servicios y demás <span className="text-red-400">*</span>
-              </label>
-              <textarea
-                {...register('mainProduct')}
-                rows={4}
-                placeholder="Cuéntanos sobre tu negocio: qué vendes, precios, cómo funciona tu proceso de venta, qué te diferencia de la competencia, etc."
-                className="w-full resize-none rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
-              {errors.mainProduct && <p className="text-xs text-red-400">{errors.mainProduct.message}</p>}
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-slate-200">
-                ¿A quién le vendes? Cliente ideal <span className="text-red-400">*</span>
-              </label>
-              <input
-                {...register('clienteIdeal')}
-                type="text"
-                placeholder="Ej: Dueños de restaurante, mamás con hijos pequeños, empresas medianas..."
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
-              {errors.clienteIdeal && <p className="text-xs text-red-400">{errors.clienteIdeal.message}</p>}
-            </div>
-          </div>
-
-          <Button
-            type="button"
-            onClick={handleNext}
-            size="lg"
-            className="mt-1 gap-2 bg-blue-600 text-white hover:bg-blue-500"
-          >
-            Continuar <ArrowRight className="h-4 w-4" />
-          </Button>
-        </>
-      )}
-
-      {/* ── PASO 2: Datos de la cuenta ── */}
-      {step === 2 && (
-        <>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-slate-200">
               Correo electrónico <span className="text-red-400">*</span>
@@ -527,7 +410,6 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, countries
                 {...register('email')}
                 type="email"
                 placeholder="tu@empresa.com"
-                autoFocus
                 className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
             </div>
@@ -558,22 +440,135 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, countries
             {errors.password && <p className="text-xs text-red-400">{errors.password.message}</p>}
           </div>
 
-          <div className="flex gap-3 mt-1">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setStep(1)}
-              disabled={isSubmitting}
-              className="gap-1 text-slate-400 hover:text-white"
+          <Button type="button" onClick={handleNext} size="lg" className="mt-1 gap-2 bg-blue-600 text-white hover:bg-blue-500">
+            Continuar <ArrowRight className="h-4 w-4" />
+          </Button>
+        </>
+      )}
+
+      {/* ── PASO 2: Tu negocio ── */}
+      {step === 2 && (
+        <>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-slate-200">
+                País <span className="text-red-400">*</span>
+              </label>
+              <CountryCodeSelect
+                countries={countries}
+                value={dialCode}
+                onChange={handleCountryChange}
+                placeholder="Selecciona un país"
+              />
+              <p className="text-xs text-slate-500">Ej.: Rep. Dominicana: +1809, +1829, +1849.</p>
+              <input type="hidden" {...register('pais')} />
+              {errors.pais && <p className="text-xs text-red-400">{errors.pais.message}</p>}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-slate-200">
+                Número de contacto <span className="text-red-400">*</span>
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  value={localNumber}
+                  onChange={handleLocalNumberChange}
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="Número local"
+                  className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <input type="hidden" {...register('contacto')} />
+              <p className="text-xs text-slate-500">Recibirá notificaciones de tu cuenta.</p>
+              {errors.contacto && <p className="text-xs text-red-400">{errors.contacto.message}</p>}
+            </div>
+          </div>
+
+          <TextField label="Nombre del negocio" name="nombreNegocio" placeholder="ej. Clínica Dental Sonrisa" register={register} error={errors.nombreNegocio?.message} />
+
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:items-end">
+            <SelectField label="¿Cuántos mensajes al día?" name="mensajesAlDia" options={MENSAJES} register={register} error={errors.mensajesAlDia?.message} />
+            <SelectField label="¿Cuántos asesores de ventas?" name="asesores" options={ASESORES} register={register} error={errors.asesores?.message} />
+            <SelectField label="¿Ya tienes proceso de ventas?" name="procesoVentas" options={PROCESO} register={register} error={errors.procesoVentas?.message} />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-slate-200">
+              ¿Qué problema quieres resolver? <span className="text-red-400">*</span>
+            </label>
+            <textarea
+              {...register('urgencia')}
+              rows={3}
+              placeholder="Describe brevemente qué problema quieres resolver..."
+              className="w-full resize-none rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+            {errors.urgencia && <p className="text-xs text-red-400">{errors.urgencia.message}</p>}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-slate-200">
+              Objetivo principal de ventas <span className="text-red-400">*</span>
+            </label>
+            <select
+              {...register('salesObjective')}
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [&>option]:bg-slate-800 [&>option]:text-white"
             >
+              <option value="">Seleccionar...</option>
+              {OBJETIVOS_VENTAS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            {errors.salesObjective && <p className="text-xs text-red-400">{errors.salesObjective.message}</p>}
+          </div>
+
+          <div className="flex gap-3 mt-1">
+            <Button type="button" variant="ghost" onClick={() => setStep(1)} className="gap-1 text-slate-400 hover:text-white">
               <ChevronLeft className="h-4 w-4" /> Atrás
             </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              size="lg"
-              className="flex-1 gap-2 bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-60"
-            >
+            <Button type="button" onClick={handleNext} size="lg" className="flex-1 gap-2 bg-blue-600 text-white hover:bg-blue-500">
+              Continuar <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* ── PASO 3: Configura tu agente IA ── */}
+      {step === 3 && (
+        <>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-slate-200">
+              Información de tu negocio, productos/servicios <span className="text-red-400">*</span>
+            </label>
+            <textarea
+              {...register('mainProduct')}
+              rows={5}
+              autoFocus
+              placeholder="Cuéntanos sobre tu negocio: qué vendes, precios, cómo funciona tu proceso de venta, qué te diferencia de la competencia, etc."
+              className="w-full resize-none rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+            {errors.mainProduct && <p className="text-xs text-red-400">{errors.mainProduct.message}</p>}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-slate-200">
+              ¿A quién le vendes? Cliente ideal <span className="text-red-400">*</span>
+            </label>
+            <input
+              {...register('clienteIdeal')}
+              type="text"
+              placeholder="Ej: Dueños de restaurante, mamás con hijos pequeños, empresas medianas..."
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+            {errors.clienteIdeal && <p className="text-xs text-red-400">{errors.clienteIdeal.message}</p>}
+          </div>
+
+          <div className="flex gap-3 mt-1">
+            <Button type="button" variant="ghost" onClick={() => setStep(2)} disabled={isSubmitting} className="gap-1 text-slate-400 hover:text-white">
+              <ChevronLeft className="h-4 w-4" /> Atrás
+            </Button>
+            <Button type="submit" disabled={isSubmitting} size="lg" className="flex-1 gap-2 bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-60">
               {isSubmitting ? (
                 <><Loader2 className="h-4 w-4 animate-spin" /> Creando cuenta...</>
               ) : (
