@@ -100,9 +100,10 @@ function AccountListAvatar({
 
 interface AccountSwitcherProps {
   user: User;
+  resellerImage?: string | null;
 }
 
-export function AccountSwitcher({ user }: AccountSwitcherProps) {
+export function AccountSwitcher({ user, resellerImage }: AccountSwitcherProps) {
   const { isMobile, setOpenMobile } = useSidebar();
   const [payload, setPayload] = useState<LinkedAccountsPayload | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -197,7 +198,7 @@ export function AccountSwitcher({ user }: AccountSwitcherProps) {
                 className="gap-2.5 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
                 <UserLogoAvatar
-                  logoUrl={currentAccount?.image ?? user.image}
+                  logoUrl={resellerImage ?? currentAccount?.image ?? user.image}
                   plan={activePlan}
                   alt={activeName}
                   className="h-8 w-8 rounded-lg"

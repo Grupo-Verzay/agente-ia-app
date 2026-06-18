@@ -24,6 +24,7 @@ import { usePathname } from "next/navigation"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
     user: User;
+    resellerImage?: string | null;
 }
 
 function SidebarFooterContent({ user }: { user: User }) {
@@ -48,7 +49,7 @@ function SidebarFooterContent({ user }: { user: User }) {
     );
 }
 
-export function AppSidebar({ user, ...props }: AppSidebarProps) {
+export function AppSidebar({ user, resellerImage, ...props }: AppSidebarProps) {
     const { isMobile, openMobile, setOpenMobile } = useSidebar();
     const pathname = usePathname();
     const previousPathname = useRef(pathname);
@@ -65,7 +66,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     return (
         <Sidebar collapsible="icon" {...props} className="bg-white dark:bg-gray-900 text-gray-800 dark:text-zinc-100 border-r border-zinc-200 dark:border-gray-800">
             <SidebarHeader>
-                <AccountSwitcher user={user} />
+                <AccountSwitcher user={user} resellerImage={resellerImage} />
             </SidebarHeader>
 
             <SidebarContent>

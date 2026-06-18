@@ -126,7 +126,7 @@ export default async function RootGroupLayout({
         <>
             <AppInitializer onReseller={onReseller} modules={modules} user={user} navPrefs={navPrefs} userIntegrations={userIntegrations} />
             <SidebarProvider defaultOpen={defaultOpen}>
-                <AppSidebar user={user} />
+                <AppSidebar user={user} resellerImage={onReseller?.data?.image} />
                 <SidebarInset className="h-screen h-[100dvh] flex flex-col min-w-0 overflow-x-hidden">
                     <Breadcrumbs />
                     <main className={`flex-1 flex flex-col overflow-hidden overflow-x-hidden ${themeClass}`}>
