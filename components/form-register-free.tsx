@@ -29,6 +29,8 @@ import {
 import {
   Building2,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Eye,
   EyeOff,
   Loader2,
@@ -37,6 +39,7 @@ import {
   Target,
   User,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const freeRegisterSchema = object({
   name: string({ required_error: "El nombre es requerido" })
@@ -57,6 +60,11 @@ const freeRegisterSchema = object({
 
 type FreeFormValues = z.infer<typeof freeRegisterSchema>;
 
+const STEPS = [
+  { id: 1, label: "Tus datos" },
+  { id: 2, label: "Tu negocio" },
+] as const;
+
 const SALES_OBJECTIVES = [
   { value: "venta-directa", label: "⚡ Venta directa" },
   { value: "venta-consultiva", label: "🎯 Venta consultiva" },
@@ -73,13 +81,195 @@ interface Props {
   affiliateCode?: string;
 }
 
+/* ── Step indicator ── */
+function StepIndicator({ current }: { current: number }) {
+  return (
+    <div className="flex items-center justify-center gap-3 mb-8">
+      {STEPS.map((step, idx) => {
+        const isCompleted = step.id < current;
+        const isActive = step.id === current;
+        return (
+          <div key={step.id} className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div
+                className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300",
+                  isCompleted && "bg-primary text-primary-foreground",
+                  isActive && "bg-primary text-primary-foreground ring-4 ring-primary/20",
+                  !isCompleted && !isActive && "bg-muted text-muted-foreground"
+                )}
+              >
+                {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : step.id}
+              </div>
+              <span
+                className={cn(
+                  "text-sm font-medium transition-colors",
+                  isActive ? "text-foreground" : "text-muted-foreground"
+                )}
+              >
+                {step.label}
+              </span>
+            </div>
+            {idx < STEPS.length - 1 && (
+              <div
+                className={cn(
+                  "h-px w-12 transition-colors duration-300",
+                  isCompleted ? "bg-primary" : "bg-border"
+                )}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Password field ── */
+function PasswordField({ field }: { field: React.ComponentProps<typeof Input> }) {
+  const [show, setShow] = useState(false);
+  return (
+    <FormItem>
+      <FormLabel className="font-semibold">Contraseña</FormLabel>
+      <FormControl>
+        <div className="relative">
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            {...field}
+            type={show ? "text" : "password"}
+            placeholder="Mínimo 6 caracteres"
+            className="pl-9 pr-10"
+          />
+          <button
+            type="button"
+            onClick={() => setShow((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            tabIndex={-1}
+          >
+            {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+      </FormControl>
+      <FormMessage />
+    </FormItem>
+  );
+}
+
+/* ── Step 1: datos personales ── */
+function Step1Fields({ form }: { form: ReturnType<typeof useForm<FreeFormValues>> }) {
+  return (
+    <div className="space-y-5">
+      <FormField
+        control={form.control}
+        name="name"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel className="font-semibold">Nombre completo</FormLabel>
+            <FormControl>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input {...field} placeholder="Juan Pérez" className="pl-9" autoFocus autoComplete="name" />
+              </div>
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="email"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel className="font-semibold">Correo electrónico</FormLabel>
+            <FormControl>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input {...field} type="email" placeholder="tu@empresa.com" className="pl-9" autoComplete="email" />
+              </div>
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="password"
+        render={({ field }) => (
+          <PasswordField field={field as React.ComponentProps<typeof Input>} />
+        )}
+      />
+    </div>
+  );
+}
+
+/* ── Step 2: datos del negocio ── */
+function Step2Fields({
+  form,
+  defaultSalesObjective,
+}: {
+  form: ReturnType<typeof useForm<FreeFormValues>>;
+  defaultSalesObjective?: string;
+}) {
+  return (
+    <div className="space-y-5">
+      <FormField
+        control={form.control}
+        name="company"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel className="font-semibold">Nombre de tu empresa o negocio</FormLabel>
+            <FormControl>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input {...field} placeholder="Mi Empresa S.A.S" className="pl-9" autoFocus />
+              </div>
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name="salesObjective"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel className="font-semibold">Objetivo principal de ventas</FormLabel>
+            <Select onValueChange={field.onChange} value={field.value}>
+              <FormControl>
+                <SelectTrigger className="w-full">
+                  <Target className="w-4 h-4 text-muted-foreground mr-2" />
+                  <SelectValue placeholder="Selecciona un objetivo..." />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                {SALES_OBJECTIVES.map((obj) => (
+                  <SelectItem key={obj.value} value={obj.value}>
+                    {obj.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
+   Main Component
+───────────────────────────────────────── */
 export default function FormRegisterFree({
   resellerSlug,
   defaultSalesObjective,
   apiKeyRef,
   affiliateCode,
 }: Props) {
-  const [showPassword, setShowPassword] = useState(false);
+  const [step, setStep] = useState(1);
   const [isPending, startTransition] = useTransition();
   const [successData, setSuccessData] = useState<{ email: string; whatsappUrl?: string } | null>(null);
 
@@ -94,6 +284,11 @@ export default function FormRegisterFree({
     },
     mode: "onTouched",
   });
+
+  const handleNext = async () => {
+    const valid = await form.trigger(["name", "email", "password"]);
+    if (valid) setStep(2);
+  };
 
   const onSubmit = (values: FreeFormValues) => {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -156,7 +351,6 @@ export default function FormRegisterFree({
             </a>
           )}
         </div>
-
       </div>
     );
   }
@@ -170,125 +364,49 @@ export default function FormRegisterFree({
         </p>
       </div>
 
+      <StepIndicator current={step} />
+
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="font-semibold">Nombre completo</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input {...field} placeholder="Juan Pérez" className="pl-9" autoFocus autoComplete="name" />
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <div className={cn(step === 1 ? "block" : "hidden")}>
+            <Step1Fields form={form} />
+          </div>
+          <div className={cn(step === 2 ? "block" : "hidden")}>
+            <Step2Fields form={form} defaultSalesObjective={defaultSalesObjective} />
+          </div>
 
-          <FormField
-            control={form.control}
-            name="company"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="font-semibold">Nombre de tu empresa o negocio</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input {...field} placeholder="Mi Empresa S.A.S" className="pl-9" />
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+          <div className="flex items-center gap-3 pt-2">
+            {step > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => setStep(1)}
+                disabled={isPending}
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Atrás
+              </Button>
             )}
-          />
 
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="font-semibold">Correo electrónico</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input {...field} type="email" placeholder="tu@empresa.com" className="pl-9" autoComplete="email" />
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="font-semibold">Contraseña</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      {...field}
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Mínimo 6 caracteres"
-                      className="pl-9 pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      tabIndex={-1}
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="salesObjective"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="font-semibold">Objetivo principal de ventas</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <Target className="w-4 h-4 text-muted-foreground mr-2" />
-                      <SelectValue placeholder="Selecciona un objetivo..." />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {SALES_OBJECTIVES.map((obj) => (
-                      <SelectItem key={obj.value} value={obj.value}>
-                        {obj.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <Button type="submit" className="w-full mt-2" disabled={isPending}>
-            {isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Creando cuenta...
-              </>
+            {step === 1 ? (
+              <Button type="button" className="w-full" onClick={handleNext}>
+                Continuar
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
             ) : (
-              "Crear cuenta gratis"
+              <Button type="submit" className="flex-1" disabled={isPending}>
+                {isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creando cuenta...
+                  </>
+                ) : (
+                  "Crear cuenta gratis"
+                )}
+              </Button>
             )}
-          </Button>
+          </div>
         </form>
       </Form>
 
