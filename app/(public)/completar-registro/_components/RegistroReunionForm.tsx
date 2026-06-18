@@ -525,21 +525,21 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, countries
 
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:items-end">
                 <SelectField
-                  label="¿Cuántos clientes planeas incorporar en 3 meses?"
+                  label="Meta de clientes (3 meses)"
                   name="mensajesAlDia"
                   options={CLIENTES_META}
                   register={register}
                   error={errors.mensajesAlDia?.message}
                 />
                 <SelectField
-                  label="¿Cuál es tu perfil?"
+                  label="Tu perfil profesional"
                   name="asesores"
                   options={PERFILES_RESELLER}
                   register={register}
                   error={errors.asesores?.message}
                 />
                 <SelectField
-                  label="¿Ya tienes clientes a quienes ofrecer el servicio?"
+                  label="¿Ya tienes clientes activos?"
                   name="procesoVentas"
                   options={YA_TIENE_CLIENTES}
                   register={register}
