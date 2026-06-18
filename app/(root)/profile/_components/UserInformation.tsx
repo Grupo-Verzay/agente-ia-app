@@ -1120,6 +1120,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                             </div>
                                         </CardHeader>
                                         <CardContent className="flex flex-col gap-2 pt-2">
+                                            <p className="text-xs text-muted-foreground">PNG, JPG o WEBP · Recomendado 256×256 px</p>
                                             <Button
                                                 variant="outline"
                                                 size="sm"
@@ -1132,7 +1133,6 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                 }
                                                 {user?.image ? 'Cambiar logo' : 'Subir logo'}
                                             </Button>
-                                            <p className="text-xs text-muted-foreground">PNG, JPG o WEBP · Recomendado 256×256 px</p>
                                         </CardContent>
                                     </Card>
 
