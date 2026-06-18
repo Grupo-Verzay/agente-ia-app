@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { getActiveSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
+import { getActiveResellerAccessPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
 
 /* ─── Datos ────────────────────────────────────────────────────────────────── */
@@ -425,7 +425,7 @@ export function ResellerLandingClient({
   const [assistanceType, setAssistanceType] = useState<AssistanceType>("IA");
 
   useEffect(() => {
-    getActiveSubscriptionPlans().then((res) => {
+    getActiveResellerAccessPlans().then((res) => {
       if (res.success) setPlans(res.data);
       setPlansLoading(false);
     });

@@ -8,6 +8,7 @@ export type SubscriptionPlanItem = {
   id: string;
   plan: Plan;
   assistanceType: string;
+  isResellerPlan: boolean;
   priceUSD: number;
   priceQuarterly: number | null;
   priceYearly: number | null;
@@ -46,7 +47,27 @@ export async function getAllSubscriptionPlans() {
 export async function getActiveSubscriptionPlans() {
   try {
     const plans = await db.subscriptionPlan.findMany({
-      where: { isActive: true },
+      where: { isActive: true, isResellerPlan: false },
+      orderBy: [{ assistanceType: "asc" }, { order: "asc" }],
+    });
+    return {
+      success: true,
+      data: plans.map((p) => ({
+        ...p,
+        priceUSD: Number(p.priceUSD),
+        priceQuarterly: p.priceQuarterly != null ? Number(p.priceQuarterly) : null,
+        priceYearly: p.priceYearly != null ? Number(p.priceYearly) : null,
+      })) as SubscriptionPlanItem[],
+    };
+  } catch {
+    return { success: false, data: [] as SubscriptionPlanItem[] };
+  }
+}
+
+export async function getActiveResellerAccessPlans() {
+  try {
+    const plans = await db.subscriptionPlan.findMany({
+      where: { isActive: true, isResellerPlan: true },
       orderBy: [{ assistanceType: "asc" }, { order: "asc" }],
     });
     return {
@@ -66,6 +87,7 @@ export async function getActiveSubscriptionPlans() {
 export async function upsertSubscriptionPlan(data: {
   plan: Plan;
   assistanceType: string;
+  isResellerPlan?: boolean;
   priceUSD: number;
   priceQuarterly?: number | null;
   priceYearly?: number | null;
@@ -81,6 +103,7 @@ export async function upsertSubscriptionPlan(data: {
   checkoutUrlYearly?: string;
 }) {
   try {
+    const isResellerPlan = data.isResellerPlan ?? false;
     const payload = {
       priceUSD: data.priceUSD,
       priceQuarterly: data.priceQuarterly ?? null,
@@ -97,13 +120,13 @@ export async function upsertSubscriptionPlan(data: {
       checkoutUrlYearly: data.checkoutUrlYearly ?? null,
     };
     const existing = await db.subscriptionPlan.findFirst({
-      where: { plan: data.plan, assistanceType: data.assistanceType },
+      where: { plan: data.plan, assistanceType: data.assistanceType, isResellerPlan },
     });
     if (existing) {
       await db.subscriptionPlan.update({ where: { id: existing.id }, data: payload });
     } else {
       await db.subscriptionPlan.create({
-        data: { plan: data.plan, assistanceType: data.assistanceType, ...payload },
+        data: { plan: data.plan, assistanceType: data.assistanceType, isResellerPlan, ...payload },
       });
     }
     revalidatePath("/planes");

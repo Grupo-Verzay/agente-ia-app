@@ -1159,6 +1159,7 @@ model SubscriptionPlan {
   id             String   @id @default(uuid())
   plan           Plan
   assistanceType String   @default("IA") // "IA" | "HUMANO"
+  isResellerPlan Boolean  @default(false) // true = plan para resellers en /resellers
   priceUSD       Decimal  @default(0) @db.Decimal(10, 2)
   credits        Int      @default(0)
   features       String[]
@@ -1177,7 +1178,7 @@ model SubscriptionPlan {
 
   subscriptions  UserSubscription[]
 
-  @@unique([plan, assistanceType])
+  @@unique([plan, assistanceType, isResellerPlan])
   @@map("subscription_plans")
 }
 
@@ -1324,23 +1325,24 @@ model Reseller {
 }
 
 model SiteConfig {
-  id             Int      @id @default(1)
-  whatsappNumber String?
-  meetingUrl     String?
-  sheetsUrl      String?
-  primaryColor   String?
-  bgColor        String?
-  headline       String?
-  subheadline    String?
-  logoUrl        String?
-  instagram      String?
-  facebook       String?
-  videoUrl       String?
-  ctaHeadline    String?
-  ctaSubtitle    String?
-  testimonials   Json?
-  stats          Json?
-  updatedAt      DateTime @updatedAt
+  id                     Int      @id @default(1)
+  whatsappNumber         String?
+  meetingUrl             String?
+  sheetsUrl              String?
+  primaryColor           String?
+  bgColor                String?
+  headline               String?
+  subheadline            String?
+  logoUrl                String?
+  instagram              String?
+  facebook               String?
+  videoUrl               String?
+  ctaHeadline            String?
+  ctaSubtitle            String?
+  testimonials           Json?
+  stats                  Json?
+  resellerWhatsappNumber String?
+  updatedAt              DateTime @updatedAt
 
   @@map("site_config")
 }

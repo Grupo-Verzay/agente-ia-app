@@ -34,7 +34,7 @@ export default async function ResellersPage() {
   const config = await getSiteConfig();
   return (
     <ResellerLandingClient
-      whatsappNumber={config.whatsappNumber}
+      whatsappNumber={config.resellerWhatsappNumber ?? config.whatsappNumber}
       logoUrl={config.logoUrl}
       instagram={config.instagram}
       facebook={config.facebook}

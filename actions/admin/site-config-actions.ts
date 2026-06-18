@@ -23,6 +23,7 @@ export type SiteConfigData = {
   ctaSubtitle: string | null;
   testimonials: TestimonialData[] | null;
   stats: StatData[] | null;
+  resellerWhatsappNumber: string | null;
 };
 
 const EMPTY: SiteConfigData = {
@@ -31,6 +32,7 @@ const EMPTY: SiteConfigData = {
   logoUrl: null, instagram: null, facebook: null,
   videoUrl: null, ctaHeadline: null, ctaSubtitle: null,
   testimonials: null, stats: null,
+  resellerWhatsappNumber: null,
 };
 
 export async function getSiteConfig(): Promise<SiteConfigData> {
@@ -53,6 +55,7 @@ export async function getSiteConfig(): Promise<SiteConfigData> {
       ctaSubtitle: c.ctaSubtitle ?? null,
       testimonials: Array.isArray(c.testimonials) ? (c.testimonials as TestimonialData[]) : null,
       stats: Array.isArray(c.stats) ? (c.stats as StatData[]) : null,
+      resellerWhatsappNumber: c.resellerWhatsappNumber ?? null,
     };
   } catch {
     return EMPTY;
@@ -81,6 +84,7 @@ export async function updateSiteConfig(data: SiteConfigData): Promise<{ success:
       ctaSubtitle: data.ctaSubtitle || null,
       testimonials: data.testimonials ?? null,
       stats: data.stats ?? null,
+      resellerWhatsappNumber: data.resellerWhatsappNumber || null,
     };
     await db.siteConfig.upsert({
       where: { id: 1 },
@@ -88,6 +92,7 @@ export async function updateSiteConfig(data: SiteConfigData): Promise<{ success:
       create: { id: 1, ...payload },
     });
     revalidatePath("/inicio");
+    revalidatePath("/resellers");
     return { success: true, message: "Configuración guardada" };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

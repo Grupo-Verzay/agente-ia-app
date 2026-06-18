@@ -45,6 +45,7 @@ type BillingPeriod = "monthly" | "quarterly" | "yearly";
 type EditForm = {
   plan: Plan;
   assistanceType: string;
+  isResellerPlan: boolean;
   priceUSD: number;
   priceQuarterly: number;
   priceYearly: number;
@@ -67,6 +68,7 @@ export function PlanesMain() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<EditForm | null>(null);
   const [period, setPeriod] = useState<BillingPeriod>("monthly");
+  const [audience, setAudience] = useState<"client" | "reseller">("client");
 
   const fetchPlans = useCallback(async () => {
     setLoading(true);
@@ -82,14 +84,17 @@ export function PlanesMain() {
 
   useEffect(() => { void fetchPlans(); }, [fetchPlans]);
 
+  const isReseller = audience === "reseller";
+
   const getPlan = (plan: Plan, type: string) =>
-    plans.find((p) => p.plan === plan && p.assistanceType === type);
+    plans.find((p) => p.plan === plan && p.assistanceType === type && p.isResellerPlan === isReseller);
 
   const openEdit = (plan: Plan, type: string) => {
     const existing = getPlan(plan, type);
     setForm({
       plan,
       assistanceType: type,
+      isResellerPlan: isReseller,
       priceUSD: existing?.priceUSD ?? defaultPrices[plan][type],
       priceQuarterly: existing?.priceQuarterly ?? 0,
       priceYearly: existing?.priceYearly ?? 0,
@@ -172,11 +177,29 @@ export function PlanesMain() {
             Configura los precios, créditos y características de los planes maestros.
           </p>
         </div>
-        {plans.length === 0 && !loading && (
+        {plans.filter((p) => !p.isResellerPlan).length === 0 && !loading && (
           <Button size="sm" onClick={handleSeedAll} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Inicializar planes"}
           </Button>
         )}
+      </div>
+
+      {/* Audience toggle */}
+      <div className="inline-flex rounded-lg border border-border overflow-hidden self-start">
+        <button
+          type="button"
+          onClick={() => setAudience("client")}
+          className={`px-4 py-1.5 text-sm font-medium transition-colors ${audience === "client" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+        >
+          Clientes directos
+        </button>
+        <button
+          type="button"
+          onClick={() => setAudience("reseller")}
+          className={`px-4 py-1.5 text-sm font-medium transition-colors ${audience === "reseller" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+        >
+          Resellers
+        </button>
       </div>
 
       {loading ? (
@@ -350,6 +373,17 @@ export function PlanesMain() {
                   Activo
                   <Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} />
                 </label>
+              </div>
+
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+                <Switch
+                  checked={form.isResellerPlan}
+                  onCheckedChange={(v) => setForm({ ...form, isResellerPlan: v })}
+                />
+                <div>
+                  <p className="text-sm font-medium">Plan para resellers</p>
+                  <p className="text-xs text-muted-foreground">Aparece en la landing /resellers, no en /inicio.</p>
+                </div>
               </div>
             </div>
           )}

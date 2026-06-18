@@ -39,6 +39,8 @@ export function VerzayLanding() {
   ]);
   const [savingConfig, setSavingConfig] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [resellerWhatsappInput, setResellerWhatsappInput] = useState("");
+  const [savingReseller, setSavingReseller] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basicos: true, identidad: false, hero: false, redes: false,
     video: false, cta: false, stats: false, testimonios: false,
@@ -75,6 +77,7 @@ export function VerzayLanding() {
           cfg.stats[3] ?? { value: "", label: "" },
         ]);
       }
+      setResellerWhatsappInput(cfg.resellerWhatsappNumber ?? "");
       setLoading(false);
     });
   }, []);
@@ -97,6 +100,7 @@ export function VerzayLanding() {
       ctaSubtitle: ctaSubtitleInput || null,
       testimonials: testimonialInputs.some((t) => t.quote) ? testimonialInputs : null,
       stats: statInputs.some((s) => s.value) ? statInputs : null,
+      resellerWhatsappNumber: resellerWhatsappInput || null,
     });
     if (res.success) toast.success(res.message);
     else toast.error(res.message);
@@ -321,6 +325,79 @@ export function VerzayLanding() {
               className="shrink-0 gap-1.5 bg-green-600 hover:bg-green-700 text-white"
             >
               {savingConfig ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Guardar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Landing Resellers ── */}
+      <Card>
+        <CardHeader className="pb-2 pt-4">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <MessageCircle className="h-4 w-4 text-green-500" /> Landing Resellers
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pb-4 space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Configuración específica para la página{" "}
+            <a href="https://agente.ia-app.com/resellers" target="_blank" rel="noopener noreferrer" className="font-medium text-blue-500 hover:underline">
+              /resellers
+            </a>. Los campos no configurados aquí usarán los valores de la landing principal.
+          </p>
+
+          <div className="space-y-1.5">
+            <Label className="flex items-center gap-1.5 text-sm">
+              <MessageCircle className="h-3.5 w-3.5 text-green-500" /> WhatsApp exclusivo para resellers
+            </Label>
+            <Input
+              placeholder="ej. 573001234567 (deja vacío para usar el número principal)"
+              value={resellerWhatsappInput}
+              onChange={(e) => setResellerWhatsappInput(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Número al que llegan los prospectos de reseller. Si no se configura, usa el número de WhatsApp principal.
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between gap-4 pt-1 border-t border-border">
+            <p className="text-sm text-muted-foreground">
+              Los precios de esta landing se gestionan en{" "}
+              <a href="/admin/planes" className="font-medium text-blue-500 hover:underline">
+                Admin → Planes
+              </a>{" "}
+              marcando el toggle <span className="font-medium">"Plan reseller"</span>.
+            </p>
+            <Button
+              size="sm"
+              onClick={async () => {
+                setSavingReseller(true);
+                const res = await updateSiteConfig({
+                  whatsappNumber: whatsappInput || null,
+                  meetingUrl: meetingInput || null,
+                  sheetsUrl: sheetsInput || null,
+                  primaryColor: primaryColorInput || null,
+                  bgColor: bgColorInput || null,
+                  headline: headlineInput || null,
+                  subheadline: subheadlineInput || null,
+                  logoUrl: logoUrlInput || null,
+                  instagram: instagramInput || null,
+                  facebook: facebookInput || null,
+                  videoUrl: videoUrlInput || null,
+                  ctaHeadline: ctaHeadlineInput || null,
+                  ctaSubtitle: ctaSubtitleInput || null,
+                  testimonials: testimonialInputs.some((t) => t.quote) ? testimonialInputs : null,
+                  stats: statInputs.some((s) => s.value) ? statInputs : null,
+                  resellerWhatsappNumber: resellerWhatsappInput || null,
+                });
+                if (res.success) toast.success(res.message);
+                else toast.error(res.message);
+                setSavingReseller(false);
+              }}
+              disabled={savingReseller}
+              className="shrink-0 gap-1.5 bg-green-600 hover:bg-green-700 text-white"
+            >
+              {savingReseller ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
               Guardar
             </Button>
           </div>
