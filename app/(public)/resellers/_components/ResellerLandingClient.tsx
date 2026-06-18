@@ -203,7 +203,7 @@ const FAQS = [
 
 const PLAN_LABELS: Record<string, string> = {
   lite: "Lite", basico: "Básico", intermedio: "Intermedio",
-  avanzado: "Avanzado", enterprise: "Enterprise", personalizado: "Integraciones",
+  avanzado: "Avanzado", enterprise: "Enterprise", personalizado: "Planes mixtos",
 };
 const PLAN_ORDER = ["lite", "basico", "intermedio", "avanzado", "enterprise", "personalizado"];
 type PackSize = "pack5" | "pack10" | "pack25";
@@ -645,11 +645,11 @@ export function ResellerLandingClient({
                 <p className="mt-4 text-xs text-slate-500">
                   * Los precios de la plataforma se comparten con el reseller al registrarse. Los márgenes dependen del precio que tú decidas cobrar.
                 </p>
-                <Link href="/completar-registro?tipo=reseller" className="mt-5 block">
+                <a href="#pricing" className="mt-5 block">
                   <Button className="w-full gap-2 bg-blue-600 text-white hover:bg-blue-500">
                     Ver precios reales <ArrowRight className="h-4 w-4" />
                   </Button>
-                </Link>
+                </a>
               </div>
             </div>
           </FadeIn>
