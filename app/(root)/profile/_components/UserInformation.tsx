@@ -348,6 +348,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
 
     const isMuted = user.muteAgentResponses ?? false;
     const isReseller = user.role === Role.reseller;
+    const canSeeApariencia = isReseller || user.role === Role.admin || user.role === Role.super_admin;
 
     const handleVoiceSave = async (
         enabled: boolean,
@@ -398,7 +399,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
         { value: 'cuenta', label: 'Cuenta', icon: CreditCard },
         { value: 'seguridad', label: 'Seguridad', icon: ShieldCheck },
         { value: 'respaldo', label: 'Respaldo', icon: HardDrive },
-        ...(isReseller ? [{ value: 'apariencia', label: 'Apariencia', icon: Palette }] : []),
+        ...(canSeeApariencia ? [{ value: 'apariencia', label: 'Apariencia', icon: Palette }] : []),
     ];
 
     const tabs = [...primaryTabs, ...secondaryTabs];
@@ -1069,8 +1070,8 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                         </TabPanel>
                     </TabsContent>
 
-                    {/* ── Tab: Apariencia (reseller only) ─────── */}
-                    {isReseller && (
+                    {/* ── Tab: Apariencia ─────── */}
+                    {canSeeApariencia && (
                         <TabsContent value="apariencia" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                             <TabPanel>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
