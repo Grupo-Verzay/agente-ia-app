@@ -19,9 +19,15 @@ import {
   type SubscriptionPlanItem,
 } from "@/actions/subscription-plan-actions";
 import { PLAN_LABELS, PLANS } from "@/types/plans";
-import { PlanDetailTab } from "./PlanDetailTab";
+import dynamic from "next/dynamic";
+const PlanDetailTab = dynamic(() => import("./PlanDetailTab").then(m => m.PlanDetailTab), { ssr: false });
 
 const ASSISTANCE_TYPES = ["IA", "HUMANO"] as const;
+type BillingPeriod = "monthly" | "quarterly" | "yearly";
+
+// Persiste entre remounts del componente (mismo tab del navegador)
+let _audience: "client" | "reseller" = "client";
+let _period: BillingPeriod = "monthly";
 
 const defaultPrices: Record<Plan, Record<string, number>> = {
   lite:          { IA: 19, HUMANO: 29 },
@@ -40,8 +46,6 @@ const defaultCredits: Record<Plan, Record<string, number>> = {
   enterprise:    { IA: 10000, HUMANO: 30000 },
   personalizado: { IA: 0,     HUMANO: 0 },
 };
-
-type BillingPeriod = "monthly" | "quarterly" | "yearly";
 
 type EditForm = {
   plan: Plan;
@@ -68,8 +72,11 @@ export function PlanesMain() {
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<EditForm | null>(null);
-  const [period, setPeriod] = useState<BillingPeriod>("monthly");
-  const [audience, setAudience] = useState<"client" | "reseller">("client");
+  const [period, _setPeriod] = useState<BillingPeriod>(() => _period);
+  const [audience, _setAudience] = useState<"client" | "reseller">(() => _audience);
+
+  const setPeriod = useCallback((v: BillingPeriod) => { _period = v; _setPeriod(v); }, []);
+  const setAudience = useCallback((v: "client" | "reseller") => { _audience = v; _setAudience(v); }, []);
   const [dialogTab, setDialogTab] = useState<"config" | "detail">("config");
   const [dialogPlanId, setDialogPlanId] = useState<string | null>(null);
 
