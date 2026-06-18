@@ -160,7 +160,7 @@ export function NotesEditor({
     setWordCount(countWords(note.content as object))
   }, [note.content])
 
-  const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value), [])
+  const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value.toUpperCase()), [])
   const handleTitleBlur = useCallback(() => onSave(note.content as object, title), [title, note.content, onSave])
   const handleTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') (e.target as HTMLInputElement).blur()

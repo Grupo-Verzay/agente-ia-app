@@ -131,7 +131,7 @@ export async function createNote(userId: string, folderId?: string | null, templ
       data: {
         userId,
         folderId: folderId ?? null,
-        title: templateTitle ?? 'Sin título',
+        title: (templateTitle ?? 'Sin título').toUpperCase(),
         content: templateContent ?? {},
       },
       select: { id: true, title: true, emoji: true, color: true, isPinned: true, isArchived: true, folderId: true, contactJid: true, contactName: true, updatedAt: true, createdAt: true },
