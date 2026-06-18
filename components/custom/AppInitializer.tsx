@@ -29,9 +29,9 @@ export default function AppInitializer({ onReseller, modules, user, navPrefs, us
     const { labelModule } = useModuleStore();
     const { setModules, setNavPrefs, setUserIntegrations } = useModuleStore();
 
-    const theme: ThemeApp = onReseller.success
-        ? onReseller.data?.theme ?? 'Default'
-        : 'Default';
+    const theme: ThemeApp = (onReseller.success && onReseller.data?.theme)
+        ? onReseller.data.theme
+        : (user.theme ?? 'Default');
 
     useEffect(() => {
         if (!user) return;

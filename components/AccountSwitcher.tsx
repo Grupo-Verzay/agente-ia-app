@@ -191,7 +191,7 @@ export function AccountSwitcher({ user, resellerImage, variant = "sidebar" }: Ac
   const triggerContent = (
     <>
       <UserLogoAvatar
-        logoUrl={resellerImage ?? undefined}
+        logoUrl={resellerImage ?? user.image ?? undefined}
         plan={activePlan}
         alt={activeName}
         className="h-8 w-8 rounded-lg"
