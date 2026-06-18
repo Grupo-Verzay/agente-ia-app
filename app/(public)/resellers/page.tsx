@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ResellerLandingClient } from "./_components/ResellerLandingClient";
+import { getSiteConfig } from "@/actions/admin/site-config-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,18 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-export default function ResellersPage() {
-  return <ResellerLandingClient />;
+export default async function ResellersPage() {
+  const config = await getSiteConfig();
+  return (
+    <ResellerLandingClient
+      whatsappNumber={config.whatsappNumber}
+      logoUrl={config.logoUrl}
+      instagram={config.instagram}
+      facebook={config.facebook}
+      ctaHeadline={config.ctaHeadline}
+      ctaSubtitle={config.ctaSubtitle}
+      testimonials={config.testimonials}
+      stats={config.stats}
+    />
+  );
 }

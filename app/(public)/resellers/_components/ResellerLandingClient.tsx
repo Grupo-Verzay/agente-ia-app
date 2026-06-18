@@ -6,11 +6,13 @@ import {
   Check, Zap, Users, Star, MessageCircle, Bot, ArrowRight,
   Menu, X, ShieldCheck, TrendingUp, DollarSign, Globe,
   Headphones, BarChart3, Layers, ChevronDown, ChevronUp,
-  Quote, BadgeCheck, Rocket, HandCoins,
+  Quote, BadgeCheck, Rocket, HandCoins, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getActiveSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
+import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
 
 /* ─── Datos ────────────────────────────────────────────────────────────────── */
 
@@ -197,6 +199,16 @@ const FAQS = [
   },
 ];
 
+/* ─── Plan constants ───────────────────────────────────────────────────────── */
+
+const PLAN_LABELS: Record<string, string> = {
+  lite: "Lite", basico: "Básico", intermedio: "Intermedio",
+  avanzado: "Avanzado", enterprise: "Enterprise", personalizado: "Agencias",
+};
+const PLAN_ORDER = ["lite", "basico", "intermedio", "avanzado", "enterprise", "personalizado"];
+type BillingPeriod = "monthly" | "quarterly" | "yearly";
+type AssistanceType = "IA" | "HUMANO";
+
 /* ─── Helpers ──────────────────────────────────────────────────────────────── */
 
 function useInView(threshold = 0.15) {
@@ -259,6 +271,97 @@ function AnimatedCounter({ to, suffix = "", prefix = "", decimals = 0 }: { to: n
   return <span ref={ref}>{prefix}{decimals > 0 ? val.toFixed(decimals) : Math.round(val)}{suffix}</span>;
 }
 
+function ResellerPlanCard({ plan, assistanceType, billingPeriod }: {
+  plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod;
+}) {
+  const isCustom = plan.plan === "personalizado";
+  const price = billingPeriod === "monthly"
+    ? plan.priceUSD
+    : billingPeriod === "quarterly"
+    ? (plan.priceQuarterly ?? plan.priceUSD)
+    : (plan.priceYearly ?? plan.priceUSD);
+  const checkoutUrl = billingPeriod === "monthly"
+    ? plan.checkoutUrlMonthly
+    : billingPeriod === "quarterly"
+    ? (plan.checkoutUrlQuarterly ?? plan.checkoutUrlMonthly)
+    : (plan.checkoutUrlYearly ?? plan.checkoutUrlMonthly);
+  const billedNote = billingPeriod === "monthly"
+    ? "Facturado mensualmente"
+    : billingPeriod === "quarterly"
+    ? `Facturado $${(price * 3).toFixed(0)} cada 3 meses`
+    : `Facturado $${(price * 12).toFixed(0)} al año`;
+
+  return (
+    <div className={cn("relative flex flex-col rounded-xl border p-5 transition-all hover:bg-white/[0.07]",
+      plan.isPopular ? "border-blue-500/50 bg-white/[0.07] shadow-lg shadow-blue-500/10" : "border-white/10 bg-white/5")}>
+      {plan.isPopular && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+          <Badge className="flex items-center gap-1 bg-blue-600 px-3 text-xs text-white"><Star className="h-3 w-3" /> Popular</Badge>
+        </div>
+      )}
+      <div className="mb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-bold text-white">{PLAN_LABELS[plan.plan] ?? plan.plan}</h3>
+          <Badge variant="outline" className="border-white/20 text-[10px] text-slate-400">
+            {assistanceType === "IA"
+              ? <span className="flex items-center gap-1"><Zap className="h-2.5 w-2.5" />IA</span>
+              : <span className="flex items-center gap-1"><Users className="h-2.5 w-2.5" />Humano</span>}
+          </Badge>
+        </div>
+        {plan.description && <p className="mt-1 text-xs text-slate-500">{plan.description}</p>}
+      </div>
+      <div className="mb-4">
+        {isCustom ? (
+          <div className="text-2xl font-bold text-slate-400">A consultar</div>
+        ) : (
+          <>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-white">${price}</span>
+              <span className="text-sm text-slate-400">USD/mes</span>
+            </div>
+            <p className="mt-0.5 text-xs text-slate-500">{billedNote}</p>
+          </>
+        )}
+        <p className="mt-0.5 text-xs text-slate-500">{plan.credits.toLocaleString()} créditos incluidos</p>
+      </div>
+      {plan.features.length > 0 && (
+        <ul className="mb-5 flex-1 space-y-1.5">
+          {plan.features.map((f, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
+              <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" />{f}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-auto">
+        {isCustom ? (
+          <a href="https://wa.me/573233612620" target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" className="w-full gap-2 border-white/20 bg-transparent text-white hover:bg-white/10">
+              <MessageCircle className="h-4 w-4" /> Contactar
+            </Button>
+          </a>
+        ) : checkoutUrl ? (
+          <a href={checkoutUrl} target="_blank" rel="noopener noreferrer">
+            <Button className={cn("w-full", plan.isPopular
+              ? "bg-blue-600 text-white hover:bg-blue-500"
+              : "border border-white/10 bg-white/10 text-white hover:bg-white/20")}>
+              Comenzar ahora
+            </Button>
+          </a>
+        ) : (
+          <Link href={`/completar-registro?tipo=reseller&plan=${plan.plan}`}>
+            <Button className={cn("w-full", plan.isPopular
+              ? "bg-blue-600 text-white hover:bg-blue-500"
+              : "border border-white/10 bg-white/10 text-white hover:bg-white/20")}>
+              Comenzar ahora
+            </Button>
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function StepCard({ step, accent, icon, title, description, items }: {
   step: string; accent: "blue" | "cyan" | "violet";
   icon: React.ReactNode; title: string; description: string; items: string[];
@@ -289,11 +392,48 @@ function StepCard({ step, accent, icon, title, description, items }: {
   );
 }
 
+/* ─── Props ────────────────────────────────────────────────────────────────── */
+
+interface ResellerLandingClientProps {
+  whatsappNumber?: string | null;
+  logoUrl?: string | null;
+  instagram?: string | null;
+  facebook?: string | null;
+  ctaHeadline?: string | null;
+  ctaSubtitle?: string | null;
+  testimonials?: TestimonialData[] | null;
+  stats?: StatData[] | null;
+}
+
 /* ─── Componente principal ─────────────────────────────────────────────────── */
 
-export function ResellerLandingClient() {
+export function ResellerLandingClient({
+  whatsappNumber,
+  logoUrl,
+  instagram,
+  facebook,
+  ctaHeadline,
+  ctaSubtitle,
+  testimonials,
+  stats,
+}: ResellerLandingClientProps = {}) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [plans, setPlans] = useState<SubscriptionPlanItem[]>([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("yearly");
+  const [assistanceType, setAssistanceType] = useState<AssistanceType>("IA");
+
+  useEffect(() => {
+    getActiveSubscriptionPlans().then((res) => {
+      if (res.success) setPlans(res.data);
+      setPlansLoading(false);
+    });
+  }, []);
+
+  const visiblePlans = plans
+    .filter((p) => p.assistanceType === assistanceType)
+    .sort((a, b) => PLAN_ORDER.indexOf(a.plan) - PLAN_ORDER.indexOf(b.plan));
 
   return (
     <div className="min-h-full text-white">
@@ -302,14 +442,20 @@ export function ResellerLandingClient() {
       <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-900/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-3 sm:px-12 lg:px-16">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-              <Bot className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-lg font-bold text-white">Agente IA</span>
+            {logoUrl ? (
+              <img src={logoUrl} alt="Agente IA" className="h-8 max-w-[120px] object-contain" />
+            ) : (
+              <>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
+                  <Bot className="h-4 w-4 text-white" />
+                </div>
+                <span className="text-lg font-bold text-white">Agente IA</span>
+              </>
+            )}
             <Badge className="ml-1 border-blue-500/30 bg-blue-500/10 text-[10px] text-blue-400">Resellers</Badge>
           </div>
           <nav className="hidden items-center gap-7 sm:flex">
-            {[["#benefits","Beneficios"],["#how","Cómo funciona"],["#included","Qué incluye"],["#faq","FAQ"]].map(([href, label]) => (
+            {[["#benefits","Beneficios"],["#how","Cómo funciona"],["#pricing","Precios"],["#included","Qué incluye"],["#faq","FAQ"]].map(([href, label]) => (
               <a key={href} href={href} className="text-sm text-slate-400 transition-colors hover:text-white">{label}</a>
             ))}
           </nav>
@@ -329,7 +475,7 @@ export function ResellerLandingClient() {
         </div>
         {mobileMenuOpen && (
           <div className="space-y-3 border-t border-white/10 px-4 py-3 sm:hidden">
-            {[["#benefits","Beneficios"],["#how","Cómo funciona"],["#included","Qué incluye"],["#faq","FAQ"]].map(([href, label]) => (
+            {[["#benefits","Beneficios"],["#how","Cómo funciona"],["#pricing","Precios"],["#included","Qué incluye"],["#faq","FAQ"]].map(([href, label]) => (
               <a key={href} href={href} className="block text-sm text-slate-300" onClick={() => setMobileMenuOpen(false)}>{label}</a>
             ))}
             <div className="flex gap-2 pt-1">
@@ -545,34 +691,109 @@ export function ResellerLandingClient() {
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Lo que dicen nuestros resellers</h2>
               <p className="mt-2 text-slate-400">Personas reales que ya están generando ingresos con el programa.</p>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              {TESTIMONIALS.map((t, i) => (
-                <FadeIn key={i} delay={i * 80}>
-                  <div className="flex h-full flex-col gap-4 rounded-xl border border-white/10 bg-white/5 p-5">
-                    <div className="flex items-start justify-between">
-                      <Quote className="h-5 w-5 text-blue-400/50" />
-                      <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400">✓ Reseller activo</span>
-                    </div>
-                    <p className="flex-1 text-sm leading-relaxed text-slate-300">"{t.quote}"</p>
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: 5 }).map((_, j) => (
-                        <Star key={j} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-                      ))}
-                      <span className="ml-1.5 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-400">{t.metric}</span>
-                    </div>
-                    <div className="flex items-center gap-3 border-t border-white/10 pt-3">
-                      <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white", t.color)}>
-                        {t.initials}
+            {(() => {
+              const AVATAR_COLORS = ["bg-blue-600", "bg-violet-600", "bg-emerald-600"];
+              const activeTestimonials = (testimonials && testimonials.some((t) => t.quote))
+                ? testimonials.filter((t) => t.quote).map((t, i) => ({
+                    ...t,
+                    initials: t.name ? t.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase() : "?",
+                    color: AVATAR_COLORS[i % AVATAR_COLORS.length],
+                  }))
+                : TESTIMONIALS;
+              return (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  {activeTestimonials.map((t, i) => (
+                    <FadeIn key={i} delay={i * 80}>
+                      <div className="flex h-full flex-col gap-4 rounded-xl border border-white/10 bg-white/5 p-5">
+                        <div className="flex items-start justify-between">
+                          <Quote className="h-5 w-5 text-blue-400/50" />
+                          <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400">✓ Reseller activo</span>
+                        </div>
+                        <p className="flex-1 text-sm leading-relaxed text-slate-300">"{t.quote}"</p>
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: 5 }).map((_, j) => (
+                            <Star key={j} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                          ))}
+                          {t.metric && <span className="ml-1.5 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-400">{t.metric}</span>}
+                        </div>
+                        <div className="flex items-center gap-3 border-t border-white/10 pt-3">
+                          <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white", t.color)}>
+                            {t.initials}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-white">{t.name}</p>
+                            <p className="text-xs text-slate-500">{[t.business, t.city].filter(Boolean).join(" · ")}</p>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-white">{t.name}</p>
-                        <p className="text-xs text-slate-500">{[t.business, t.city].filter(Boolean).join(" · ")}</p>
-                      </div>
-                    </div>
-                  </div>
-                </FadeIn>
-              ))}
+                    </FadeIn>
+                  ))}
+                </div>
+              );
+            })()}
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* ══ PRECIOS ════════════════════════════════════════════════════════ */}
+      <section id="pricing" className="py-8">
+        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+          <FadeIn>
+            <div className="mb-6 text-center">
+              <h2 className="text-2xl font-bold text-white sm:text-3xl">Planes y Precios</h2>
+              <p className="mt-2 text-slate-400">Conoce el costo de la plataforma para que puedas definir tu margen de reventa.</p>
+
+              {/* Billing period toggle */}
+              <div className="mt-4 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
+                {([
+                  { value: "monthly",   label: "Mensual",    badge: null      },
+                  { value: "quarterly", label: "Trimestral", badge: "−14.5%"  },
+                  { value: "yearly",    label: "Anual",      badge: "−22.5%"  },
+                ] as { value: BillingPeriod; label: string; badge: string | null }[]).map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setBillingPeriod(opt.value)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-all",
+                      billingPeriod === opt.value ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
+                    )}
+                  >
+                    {opt.label}
+                    {opt.badge && (
+                      <span className={cn(
+                        "rounded-full px-1.5 py-px text-[9px] font-bold transition-all",
+                        billingPeriod === opt.value ? "bg-green-400/20 text-green-300" : "bg-green-500/15 text-green-500"
+                      )}>
+                        {opt.badge}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Assistance toggle */}
+              <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
+                <button onClick={() => setAssistanceType("IA")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", assistanceType === "IA" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
+                  <Zap className="h-3.5 w-3.5" /> Asistencia IA
+                </button>
+                <button onClick={() => setAssistanceType("HUMANO")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", assistanceType === "HUMANO" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
+                  <Users className="h-3.5 w-3.5" /> Asistencia Humana
+                </button>
+              </div>
+
+              <p className="mt-5 text-xs text-slate-500">Precios en USD · Tú defines cuánto cobrar a tus clientes</p>
             </div>
+            {plansLoading ? (
+              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-blue-400" /></div>
+            ) : visiblePlans.length === 0 ? (
+              <p className="text-center text-slate-500">Planes próximamente disponibles.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {visiblePlans.map((plan) => (
+                  <ResellerPlanCard key={plan.id} plan={plan} assistanceType={assistanceType} billingPeriod={billingPeriod} />
+                ))}
+              </div>
+            )}
           </FadeIn>
         </div>
       </section>
@@ -618,9 +839,11 @@ export function ResellerLandingClient() {
               <Badge className="mb-4 inline-flex items-center gap-1.5 border-blue-500/30 bg-blue-500/10 text-blue-400">
                 <Zap className="h-3 w-3" /> Plazas disponibles
               </Badge>
-              <h2 className="text-3xl font-bold text-white sm:text-4xl">¿Listo para empezar tu negocio?</h2>
+              <h2 className="text-3xl font-bold text-white sm:text-4xl">
+                {ctaHeadline ?? "¿Listo para empezar tu negocio?"}
+              </h2>
               <p className="mt-4 max-w-xl mx-auto text-lg text-slate-400">
-                Regístrate hoy como reseller, personaliza tu plataforma y empieza a vender. Sin inversión en desarrollo, sin infraestructura propia.
+                {ctaSubtitle ?? "Regístrate hoy como reseller, personaliza tu plataforma y empieza a vender. Sin inversión en desarrollo, sin infraestructura propia."}
               </p>
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Link href="/completar-registro?tipo=reseller">
@@ -628,7 +851,7 @@ export function ResellerLandingClient() {
                     Registrarme como reseller <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
-                <a href="https://wa.me/573233612620" target="_blank" rel="noopener noreferrer">
+                <a href={`https://wa.me/${(whatsappNumber ?? "573233612620").replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
                   <Button size="lg" variant="outline" className="gap-2 border-green-500/30 bg-green-500/5 px-10 text-green-300 hover:bg-green-500/10 hover:text-green-200">
                     <MessageCircle className="h-4 w-4" /> Hablar con un asesor
                   </Button>
@@ -650,25 +873,33 @@ export function ResellerLandingClient() {
       <footer className="border-t border-white/10 py-6">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-8 sm:flex-row sm:justify-between sm:px-12 lg:px-16">
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600">
-              <Bot className="h-3.5 w-3.5 text-white" />
-            </div>
-            <span className="font-semibold text-white">Agente IA</span>
+            {logoUrl ? (
+              <img src={logoUrl} alt="Agente IA" className="h-7 max-w-[100px] object-contain" />
+            ) : (
+              <>
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600">
+                  <Bot className="h-3.5 w-3.5 text-white" />
+                </div>
+                <span className="font-semibold text-white">Agente IA</span>
+              </>
+            )}
           </div>
           <p className="text-xs text-slate-500">© {new Date().getFullYear()} Agente IA. Todos los derechos reservados.</p>
           <div className="flex flex-wrap items-center gap-5 text-sm text-slate-500">
             <a href="#benefits" className="transition-colors hover:text-slate-300">Beneficios</a>
-            <a href="#how" className="transition-colors hover:text-slate-300">Cómo funciona</a>
+            <a href="#pricing" className="transition-colors hover:text-slate-300">Precios</a>
             <a href="#faq" className="transition-colors hover:text-slate-300">FAQ</a>
             <Link href="/inicio" className="transition-colors hover:text-slate-300">Ver producto</Link>
             <Link href="/login" className="transition-colors hover:text-slate-300">Acceso</Link>
+            {instagram && <a href={instagram} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-pink-400">Instagram</a>}
+            {facebook && <a href={facebook} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-blue-400">Facebook</a>}
           </div>
         </div>
       </footer>
 
       {/* ══ WHATSAPP FLOTANTE ══════════════════════════════════════════════ */}
       <a
-        href="https://wa.me/573233612620"
+        href={`https://wa.me/${(whatsappNumber ?? "573233612620").replace(/\D/g, "")}`}
         target="_blank"
         rel="noopener noreferrer"
         title="Habla con nosotros"

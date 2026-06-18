@@ -182,13 +182,13 @@ const STEP_LABELS = ['Tus datos', 'Tu negocio', 'Tu agente IA'];
 
 const STEP1_FIELDS: (keyof FormValues)[] = ['nombre', 'email', 'password'];
 const STEP2_RESELLER_FIELDS: (keyof FormValues)[] = [
-  'pais', 'contacto', 'nombreNegocio', 'mensajesAlDia', 'asesores', 'procesoVentas', 'urgencia', 'salesObjective',
+  'pais', 'contacto', 'nombreNegocio', 'mensajesAlDia', 'asesores', 'procesoVentas', 'urgencia',
 ];
 const STEP2_CLIENT_FIELDS: (keyof FormValues)[] = [
   'pais', 'contacto', 'nombreNegocio', 'mensajesAlDia', 'asesores', 'procesoVentas', 'urgencia',
 ];
 const STEP3_CLIENT_FIELDS: (keyof FormValues)[] = ['salesObjective', 'mainProduct', 'clienteIdeal'];
-const STEP3_RESELLER_FIELDS: (keyof FormValues)[] = ['mainProduct', 'clienteIdeal'];
+const STEP3_RESELLER_FIELDS: (keyof FormValues)[] = ['salesObjective', 'mainProduct', 'clienteIdeal'];
 
 /* ─── Shared field components ─── */
 function SelectField({ label, name, options, register, error }: {
@@ -559,22 +559,6 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, countries
                 />
                 {errors.urgencia && <p className="text-xs text-red-400">{errors.urgencia.message}</p>}
               </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-semibold text-slate-200">
-                  ¿Cuál es tu objetivo principal como reseller? <span className="text-red-400">*</span>
-                </label>
-                <select
-                  {...register('salesObjective')}
-                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [&>option]:bg-slate-800 [&>option]:text-white"
-                >
-                  <option value="">Seleccionar...</option>
-                  {OBJETIVOS_RESELLER.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-                {errors.salesObjective && <p className="text-xs text-red-400">{errors.salesObjective.message}</p>}
-              </div>
             </>
           ) : (
             /* ── Preguntas para cliente final ── */
@@ -624,6 +608,22 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, countries
                 <p className="text-xs text-blue-300">
                   🤝 Último paso — cuéntanos sobre tu agencia para pre-configurar tu cuenta de reseller.
                 </p>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-slate-200">
+                  ¿Cuál es tu objetivo principal como reseller? <span className="text-red-400">*</span>
+                </label>
+                <select
+                  {...register('salesObjective')}
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [&>option]:bg-slate-800 [&>option]:text-white"
+                >
+                  <option value="">Seleccionar...</option>
+                  {OBJETIVOS_RESELLER.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                {errors.salesObjective && <p className="text-xs text-red-400">{errors.salesObjective.message}</p>}
               </div>
 
               <div className="flex flex-col gap-1.5">
