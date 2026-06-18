@@ -160,11 +160,14 @@ export function ChatContactItem({
       );
     }
   }
-  if (advisors && advisors.length > 0 && contact.chatSession?.assignedAdvisorId) {
+  if (
+    advisors && advisors.length > 0 && contact.chatSession &&
+    (contact.chatSession.assignedAdvisorId || advisorRole === 'agente')
+  ) {
     badgeItems.push(
       <AdvisorAssignBadge
         key="advisor"
-        assignedAdvisorId={contact.chatSession.assignedAdvisorId}
+        assignedAdvisorId={contact.chatSession.assignedAdvisorId ?? null}
         advisors={advisors}
         advisorRole={advisorRole}
         currentAdvisorId={currentAdvisorId}
@@ -443,8 +446,8 @@ export function ChatContactItem({
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              {/* 3. Asignar agente */}
-              {onAssignAdvisor && advisors && advisors.length > 0 && (
+              {/* 3. Asignar agente — solo para dueño/admin; agentes usan el AdvisorAssignBadge */}
+              {onAssignAdvisor && advisors && advisors.length > 0 && advisorRole !== 'agente' && (
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <UserCheck className="h-4 w-4" />
