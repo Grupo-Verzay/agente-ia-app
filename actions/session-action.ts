@@ -134,10 +134,8 @@ function mapChatContactSessionSummary(
     pushName: mappedSession.pushName,
     tags: mappedSession.tags ?? [],
     leadStatus: mappedSession.leadStatus ?? null,
-    // @ts-expect-error — serviceType/clientStatus disponibles tras reiniciar el Prisma client
-    serviceType: (mappedSession as any).serviceType ?? null,
-    // @ts-expect-error — clientStatus disponible tras reiniciar el Prisma client
-    clientStatus: (mappedSession as any).clientStatus ?? null,
+    serviceType: mappedSession.serviceType ?? null,
+    clientStatus: mappedSession.clientStatus ?? null,
     flujos: mappedSession.flujos ?? null,
     pendingSeguimientos: pendingSeguimientos ?? 0,
     seguimientosTipos: seguimientosTipos ?? [],
@@ -1110,7 +1108,7 @@ export async function toggleAgentDisabled(userId: string, sessionId: number, age
     return { success: true, message: 'Estado actualizado correctamente' };
   } catch (error) {
     console.error("[toggleAgentDisabled]", error);
-    return { success: false, message: error?.message || 'Error al actualizar' };
+    return { success: false, message: (error instanceof Error ? error.message : null) || 'Error al actualizar' };
   }
 }
 
@@ -1260,7 +1258,6 @@ export async function updateSessionServiceType(
     await db.session.update({
       where: { id: sessionId },
       data: {
-        // @ts-expect-error — serviceType disponible tras reiniciar el Prisma client
         serviceType: serviceType ?? null,
       },
     });
@@ -1291,7 +1288,6 @@ export async function updateSessionClientStatus(
     await db.session.update({
       where: { id: sessionId },
       data: {
-        // @ts-expect-error — clientStatus disponible tras reiniciar el Prisma client
         clientStatus: clientStatus ?? null,
       },
     });
