@@ -90,7 +90,27 @@ export const getResellerProfileForUser = async (
                 message: "Usuario no encontrado.",
             }
         }
-        // 1. Si es reseller, retorna sus propios datos
+        // 1. Si es admin o super_admin, retorna sus propios datos frescos de DB
+        if (user.role === Role.admin || user.role === Role.super_admin) {
+            return {
+                success: true,
+                message: "Usuario administrador.",
+                data: {
+                    id: user.id,
+                    name: user.name,
+                    email: user.email,
+                    image: user.image,
+                    theme: user.theme ?? 'Default',
+                    company: user.company,
+                    notificationNumber: user.notificationNumber,
+                    mapsUrl: user.mapsUrl,
+                    lat: user.lat,
+                    lng: user.lng,
+                },
+            }
+        }
+
+        // 2. Si es reseller, retorna sus propios datos
         if (user.role === Role.reseller) {
             return {
                 success: true,

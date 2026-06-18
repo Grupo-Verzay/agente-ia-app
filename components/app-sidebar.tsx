@@ -25,9 +25,10 @@ import { usePathname } from "next/navigation"
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
     user: User;
     resellerImage?: string | null;
+    resellerCompany?: string | null;
 }
 
-function SidebarFooterContent({ user }: { user: User }) {
+function SidebarFooterContent({ user, resellerImage, resellerCompany }: { user: User; resellerImage?: string | null; resellerCompany?: string | null }) {
     const { state } = useSidebar();
     const collapsed = state === "collapsed";
 
@@ -37,7 +38,7 @@ function SidebarFooterContent({ user }: { user: User }) {
                 <SidebarTrigger />
             </div>
             <div className="flex flex-row w-full justify-center items-center">
-                <LogoutButton user={user} />
+                <LogoutButton user={user} resellerImage={resellerImage} resellerCompany={resellerCompany} />
                 {!collapsed && <NavCustomizer userId={user.id} />}
                 {!collapsed && (
                     <div>
@@ -49,7 +50,7 @@ function SidebarFooterContent({ user }: { user: User }) {
     );
 }
 
-export function AppSidebar({ user, resellerImage, ...props }: AppSidebarProps) {
+export function AppSidebar({ user, resellerImage, resellerCompany, ...props }: AppSidebarProps) {
     const { isMobile, openMobile, setOpenMobile } = useSidebar();
     const pathname = usePathname();
     const previousPathname = useRef(pathname);
@@ -72,7 +73,7 @@ export function AppSidebar({ user, resellerImage, ...props }: AppSidebarProps) {
             <SidebarContent>
                 <NavMain user={user} />
             </SidebarContent>
-            <SidebarFooterContent user={user} />
+            <SidebarFooterContent user={user} resellerImage={resellerImage} resellerCompany={resellerCompany} />
             <SidebarRail />
         </Sidebar>
     )

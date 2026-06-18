@@ -10,16 +10,19 @@ import {
 import { ChevronsUpDown, LogOut } from 'lucide-react'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from './ui/sidebar'
 import { handleLogout } from '@/lib/handleLogout'
-import { getPlanLabel, PlanBadgeDisplay } from '@/components/shared/PlanBadgeDisplay'
+import { getPlanLabel } from '@/components/shared/PlanBadgeDisplay'
 import { UserLogoAvatar } from '@/components/shared/UserLogoAvatar'
 
 type LogoutButtonProps = {
   user: User | null
+  resellerImage?: string | null;
+  resellerCompany?: string | null;
   collapsed?: boolean
 };
 
-const LogoutButton = ({ user }: LogoutButtonProps) => {
+const LogoutButton = ({ user, resellerImage, resellerCompany }: LogoutButtonProps) => {
   const planLabel = getPlanLabel(user?.plan)
+  const displayName = resellerCompany ?? user?.company ?? user?.name
 
   return (
     <SidebarMenu>
@@ -30,9 +33,9 @@ const LogoutButton = ({ user }: LogoutButtonProps) => {
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <PlanBadgeDisplay plan={user?.plan} />
+              <UserLogoAvatar logoUrl={resellerImage ?? undefined} plan={user?.plan} alt={displayName ?? 'Logo'} className="h-8 w-8 rounded-lg" />
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{user?.name}</span>
+                <span className="truncate font-semibold">{displayName}</span>
                 <span className="mt-0.5 truncate text-xs text-sidebar-foreground/70">
                   Plan {planLabel}
                 </span>
