@@ -19,6 +19,7 @@ import {
   type SubscriptionPlanItem,
 } from "@/actions/subscription-plan-actions";
 import { PLAN_LABELS, PLANS } from "@/types/plans";
+import { PlanDetailTab } from "./PlanDetailTab";
 
 const ASSISTANCE_TYPES = ["IA", "HUMANO"] as const;
 
@@ -69,6 +70,8 @@ export function PlanesMain() {
   const [form, setForm] = useState<EditForm | null>(null);
   const [period, setPeriod] = useState<BillingPeriod>("monthly");
   const [audience, setAudience] = useState<"client" | "reseller">("client");
+  const [dialogTab, setDialogTab] = useState<"config" | "detail">("config");
+  const [dialogPlanId, setDialogPlanId] = useState<string | null>(null);
 
   const fetchPlans = useCallback(async () => {
     setLoading(true);
@@ -109,6 +112,8 @@ export function PlanesMain() {
       checkoutUrlQuarterly: existing?.checkoutUrlQuarterly ?? "",
       checkoutUrlYearly: existing?.checkoutUrlYearly ?? "",
     });
+    setDialogPlanId(existing?.id ?? null);
+    setDialogTab("config");
     setEditOpen(true);
   };
 
@@ -280,13 +285,34 @@ export function PlanesMain() {
       )}
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="flex h-[585px] max-w-md flex-col">
+        <DialogContent className="flex h-[585px] max-w-lg flex-col">
           <DialogHeader>
             <DialogTitle>
               {form ? `${PLAN_LABELS[form.plan]} · ${form.assistanceType} · ${form.isResellerPlan ? "Resellers" : "Clientes"}` : "Editar Plan"}
             </DialogTitle>
           </DialogHeader>
-          {form && (
+
+          {/* Tabs */}
+          <div className="flex shrink-0 rounded-lg border border-border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setDialogTab("config")}
+              className={`flex-1 py-1.5 text-xs font-medium transition-colors ${dialogTab === "config" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+            >
+              Configuración
+            </button>
+            <button
+              type="button"
+              onClick={() => setDialogTab("detail")}
+              disabled={!dialogPlanId}
+              className={`flex-1 py-1.5 text-xs font-medium transition-colors disabled:opacity-40 ${dialogTab === "detail" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+              title={!dialogPlanId ? "Guarda primero el plan para editar el detalle" : undefined}
+            >
+              Página de detalle
+            </button>
+          </div>
+
+          {form && dialogTab === "config" && (
             <div className="flex-1 space-y-4 overflow-y-auto py-2 pr-1">
 
               <div className="flex rounded-lg border border-border overflow-hidden">
@@ -391,13 +417,22 @@ export function PlanesMain() {
               </div>
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-              Guardar
-            </Button>
-          </DialogFooter>
+
+          {dialogTab === "detail" && dialogPlanId && (
+            <div className="flex-1 overflow-y-auto py-2 pr-1">
+              <PlanDetailTab subscriptionPlanId={dialogPlanId} />
+            </div>
+          )}
+
+          {dialogTab === "config" && (
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                Guardar
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>

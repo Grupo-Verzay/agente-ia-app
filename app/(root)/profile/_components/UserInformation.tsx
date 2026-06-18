@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { getClientDataByUserId, updateClientDataByField, updateAbrirPhrase, updateUserVoiceSettings, getElevenLabsVoices } from "@/actions/userClientDataActions";
+import { getOwnBillingAction } from "@/actions/billing/billing-actions";
+import { getOwnIaCredits } from "@/actions/actions-ia-credits";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -36,9 +38,7 @@ import {
 } from "lucide-react";
 import { UserWithPausar } from "@/lib/types";
 import { BrandSelector } from "../../../../components/custom";
-import { AccountSwitcher } from "@/components/AccountSwitcher";
 import { updatePlatformLogoUrl } from "@/actions/admin/site-config-actions";
-import type { User } from "@prisma/client";
 import { useResellerStore } from "@/stores/resellers/resellerStore";
 import { Role } from "@prisma/client";
 import { ApiKeyConfigurator, ChangePasswordCard, ChangeEmailCard } from "./";
@@ -194,6 +194,8 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
     const [loadingField, setLoadingField] = useState<string | null>(null);
     const [timezone, setTimezone] = useState<string>("");
     const fileRef = useRef<HTMLInputElement | null>(null);
+    const [headerDaysRemaining, setHeaderDaysRemaining] = useState<number | null>(null);
+    const [headerCredits, setHeaderCredits] = useState<number | null>(null);
 
     const fetchClientData = useCallback(async () => {
         if (!userId) return toast.error("El usuario no existe.");
@@ -213,6 +215,21 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
     }, [userId]);
 
     useEffect(() => { void fetchClientData(); }, [fetchClientData]);
+
+    useEffect(() => {
+        getOwnBillingAction().then(r => {
+            if (r.success && r.data) {
+                const due = (r.data as any).dueDate;
+                if (due) {
+                    const days = Math.ceil((new Date(due).getTime() - Date.now()) / 86400000);
+                    setHeaderDaysRemaining(days);
+                }
+            }
+        });
+        getOwnIaCredits().then(r => {
+            if (r.success && r.data) setHeaderCredits(r.data.available);
+        });
+    }, []);
 
     const handleBlur = async (field: keyof (UserWithPausar & { openMsg?: string }), valueFied?: string) => {
         if (!user || !originalUser) return;
@@ -416,16 +433,53 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
             {/* ── PROFILE STRIP ─────────────────────────────────────────── */}
             <Card className="border-border rounded-xl shrink-0 mb-4">
                 <CardContent className="p-3 sm:p-4">
-                    <div className="flex items-center gap-3 sm:gap-4">
-                        <Input id="avatar" type="file" accept="image/*" ref={fileRef} onChange={handleImageUpload} className="hidden" />
-                        <div className="flex-1 min-w-0">
-                            <AccountSwitcher user={user as User} resellerImage={reseller?.image ?? undefined} variant="card" />
+                    <Input id="avatar" type="file" accept="image/*" ref={fileRef} onChange={handleImageUpload} className="hidden" />
+                    <div className="flex items-center gap-3">
+                        {/* Avatar */}
+                        <div className="shrink-0 h-9 w-9 rounded-full overflow-hidden bg-muted border border-border">
+                            {user.image ? (
+                                <SafeImage src={user.image as string} alt={user.name ?? ''} width={36} height={36} className="h-full w-full object-cover" />
+                            ) : (
+                                <div className="h-full w-full flex items-center justify-center text-xs font-bold uppercase text-muted-foreground">
+                                    {(user.name ?? user.email ?? '?')[0]}
+                                </div>
+                            )}
                         </div>
-                        {/* Status pill */}
-                        <div className="shrink-0 hidden xs:flex items-center gap-1.5 text-xs text-muted-foreground">
+                        {/* Name + role */}
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate">{user.name}</p>
+                            <p className="text-xs text-muted-foreground">{ROLE_LABELS[user.role as string] ?? user.role}</p>
+                        </div>
+                        {/* Quick stats */}
+                        <div className="flex items-center gap-3 sm:gap-5 shrink-0">
+                            {headerDaysRemaining !== null && (
+                                <div className="text-center hidden xs:block">
+                                    <p className={`text-sm font-bold leading-none ${headerDaysRemaining <= 7 ? 'text-destructive' : headerDaysRemaining <= 30 ? 'text-amber-500' : 'text-foreground'}`}>
+                                        {headerDaysRemaining}d
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">licencia</p>
+                                </div>
+                            )}
+                            {headerCredits !== null && (
+                                <div className="text-center hidden xs:block">
+                                    <p className={`text-sm font-bold leading-none ${headerCredits === 0 ? 'text-destructive' : 'text-foreground'}`}>
+                                        {headerCredits >= 1000 ? `${Math.round(headerCredits / 1000)}k` : headerCredits}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">créditos</p>
+                                </div>
+                            )}
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs px-2 shrink-0"
+                                onClick={() => setActiveTab('cuenta')}
+                            >
+                                <CreditCard className="w-3 h-3 mr-1" />
+                                <span className="hidden sm:inline">Cuenta</span>
+                            </Button>
                             {isMuted
-                                ? <><BotOff className="w-3.5 h-3.5 text-destructive" /><span className="hidden sm:inline text-destructive">Silenciado</span></>
-                                : <><Bot className="w-3.5 h-3.5 text-green-500" /><span className="hidden sm:inline text-green-600 dark:text-green-400">Activo</span></>
+                                ? <BotOff className="w-4 h-4 text-destructive shrink-0" />
+                                : <Bot className="w-4 h-4 text-green-500 shrink-0" />
                             }
                         </div>
                     </div>
@@ -1065,39 +1119,20 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                 </div>
                                             </div>
                                         </CardHeader>
-                                        <CardContent className="flex flex-col flex-1 justify-between gap-4">
-                                            <div className="relative self-start">
-                                                {user?.image ? (
-                                                    <SafeImage
-                                                        src={user.image as string}
-                                                        alt="Logo"
-                                                        width={72}
-                                                        height={72}
-                                                        className="h-[72px] w-[72px] rounded-xl object-cover border border-border"
-                                                    />
-                                                ) : (
-                                                    <div className="h-[72px] w-[72px] rounded-xl border border-dashed border-border bg-muted flex items-center justify-center">
-                                                        <Camera className="h-6 w-6 text-muted-foreground" />
-                                                    </div>
-                                                )}
-                                                {loadingField === 'image' && (
-                                                    <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/60">
-                                                        <Loader2 className="h-5 w-5 animate-spin" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex flex-col gap-1.5">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => fileRef.current?.click()}
-                                                    disabled={loadingField === 'image'}
-                                                >
-                                                    <Camera className="h-3.5 w-3.5 mr-1.5" />
-                                                    {user?.image ? 'Cambiar logo' : 'Subir logo'}
-                                                </Button>
-                                                <p className="text-xs text-muted-foreground">PNG, JPG o WEBP · Recomendado 256×256 px</p>
-                                            </div>
+                                        <CardContent className="flex flex-col gap-2 pt-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => fileRef.current?.click()}
+                                                disabled={loadingField === 'image'}
+                                            >
+                                                {loadingField === 'image'
+                                                    ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                                    : <Camera className="h-3.5 w-3.5 mr-1.5" />
+                                                }
+                                                {user?.image ? 'Cambiar logo' : 'Subir logo'}
+                                            </Button>
+                                            <p className="text-xs text-muted-foreground">PNG, JPG o WEBP · Recomendado 256×256 px</p>
                                         </CardContent>
                                     </Card>
 

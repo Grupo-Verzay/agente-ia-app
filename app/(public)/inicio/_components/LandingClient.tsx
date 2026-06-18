@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getActiveSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
+import { PlanDetailModal } from "./PlanDetailModal";
 
 /* ─── Datos estáticos ─────────────────────────────────────────────────────── */
 
@@ -362,6 +363,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
   const [billingPeriod, setBillingPeriod]   = useState<BillingPeriod>("yearly");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openFaq, setOpenFaq]               = useState<number | null>(null);
+  const [modalPlan, setModalPlan]           = useState<{ plan: SubscriptionPlanItem; checkoutUrl: string | null } | null>(null);
 
   useEffect(() => {
     getActiveSubscriptionPlans().then((res) => {
@@ -809,7 +811,14 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {visiblePlans.map((plan) => (
-                  <PlanCard key={plan.id} plan={plan} assistanceType={assistanceType} billingPeriod={billingPeriod} whatsappNumber={whatsappNumber} />
+                  <PlanCard
+                    key={plan.id}
+                    plan={plan}
+                    assistanceType={assistanceType}
+                    billingPeriod={billingPeriod}
+                    whatsappNumber={whatsappNumber}
+                    onOpenDetail={(checkoutUrl) => setModalPlan({ plan, checkoutUrl })}
+                  />
                 ))}
               </div>
             )}
@@ -909,6 +918,15 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
 
       {/* ══ WHATSAPP FLOTANTE ══════════════════════════════════════════════ */}
       <WhatsAppButton number={whatsappNumber ?? "573233612620"} />
+
+      {/* ══ MODAL DETALLE DE PLAN ══════════════════════════════════════════ */}
+      {modalPlan && (
+        <PlanDetailModal
+          plan={modalPlan.plan}
+          checkoutUrl={modalPlan.checkoutUrl}
+          onClose={() => setModalPlan(null)}
+        />
+      )}
     </div>
   );
 }
@@ -960,8 +978,9 @@ function StepCard({ step, accent, icon, title, description, items, checkColor }:
   );
 }
 
-function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber }: {
-  plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod; whatsappNumber?: string | null;
+function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, onOpenDetail }: {
+  plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod;
+  whatsappNumber?: string | null; onOpenDetail: (checkoutUrl: string | null) => void;
 }) {
   const isCustom = plan.plan === "personalizado";
   const price = billingPeriod === "monthly"
@@ -1022,7 +1041,7 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber }: {
           ))}
         </ul>
       )}
-      <div className="mt-auto">
+      <div className="mt-auto space-y-2">
         {isCustom ? (
           <a href={checkoutUrl ?? (whatsappNumber ? `https://wa.me/${whatsappNumber.replace(/\D/g, "")}` : "#")} target="_blank" rel="noopener noreferrer">
             <Button variant="outline" className="w-full gap-2 border-white/20 bg-transparent text-white hover:bg-white/10">
@@ -1046,6 +1065,12 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber }: {
             </Button>
           </Link>
         )}
+        <button
+          onClick={() => onOpenDetail(checkoutUrl ?? null)}
+          className="w-full text-center text-xs text-slate-500 hover:text-slate-300 transition-colors py-1"
+        >
+          Ver todo lo que incluye →
+        </button>
       </div>
     </div>
   );

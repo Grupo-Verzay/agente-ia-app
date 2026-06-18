@@ -1177,6 +1177,7 @@ model SubscriptionPlan {
   updatedAt      DateTime @updatedAt
 
   subscriptions  UserSubscription[]
+  planDetail     PlanDetail?
 
   @@unique([plan, assistanceType, isResellerPlan])
   @@map("subscription_plans")
@@ -1373,6 +1374,50 @@ model ResellerPlan {
 
   @@unique([resellerUserId, plan, assistanceType])
   @@map("reseller_plans")
+}
+
+model PlanDetail {
+  id                   String   @id @default(uuid())
+  subscriptionPlanId   String   @unique
+  // Hero
+  heroTitle            String?
+  heroSubtitle         String?
+  heroImageUrl         String?
+  heroBadge            String?
+  // Video
+  videoUrl             String?
+  videoTitle           String?
+  videoThumbnailUrl    String?
+  // Secciones de funciones: [{title, description, imageUrl, imageAlt, layout, badge}]
+  featureSections      Json     @default("[]")
+  // Galería: [{url, caption, alt}]
+  galleryImages        Json     @default("[]")
+  // FAQ: [{question, answer}]
+  faqs                 Json     @default("[]")
+  // Stats: [{value, label}]
+  stats                Json     @default("[]")
+  // Testimonios: [{name, role, company, text, avatarUrl, rating}]
+  testimonials         Json     @default("[]")
+  // Links de acción
+  meetingUrl           String?
+  demoUrl              String?
+  whatsappMessage      String?
+  // CTA final
+  ctaTitle             String?
+  ctaSubtitle          String?
+  ctaButtonText        String?
+  ctaButtonUrl         String?
+  ctaSecondaryText     String?
+  ctaSecondaryUrl      String?
+  // SEO
+  metaTitle            String?
+  metaDescription      String?
+  ogImageUrl           String?
+  updatedAt            DateTime @updatedAt
+
+  subscriptionPlan     SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id], onDelete: Cascade)
+
+  @@map("plan_details")
 }
 
 model QuickReply {
