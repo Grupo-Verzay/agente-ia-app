@@ -809,7 +809,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {visiblePlans.map((plan) => (
-                  <PlanCard key={plan.id} plan={plan} assistanceType={assistanceType} billingPeriod={billingPeriod} />
+                  <PlanCard key={plan.id} plan={plan} assistanceType={assistanceType} billingPeriod={billingPeriod} whatsappNumber={whatsappNumber} />
                 ))}
               </div>
             )}
@@ -960,8 +960,8 @@ function StepCard({ step, accent, icon, title, description, items, checkColor }:
   );
 }
 
-function PlanCard({ plan, assistanceType, billingPeriod }: {
-  plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod;
+function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber }: {
+  plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod; whatsappNumber?: string | null;
 }) {
   const isCustom = plan.plan === "personalizado";
   const price = billingPeriod === "monthly"
@@ -1024,7 +1024,7 @@ function PlanCard({ plan, assistanceType, billingPeriod }: {
       )}
       <div className="mt-auto">
         {isCustom ? (
-          <a href="https://wa.me/573233612620" target="_blank" rel="noopener noreferrer">
+          <a href={checkoutUrl ?? (whatsappNumber ? `https://wa.me/${whatsappNumber.replace(/\D/g, "")}` : "#")} target="_blank" rel="noopener noreferrer">
             <Button variant="outline" className="w-full gap-2 border-white/20 bg-transparent text-white hover:bg-white/10">
               <MessageCircle className="h-4 w-4" /> Contactar
             </Button>
