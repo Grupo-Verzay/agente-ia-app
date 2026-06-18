@@ -1072,6 +1072,49 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                     {isReseller && (
                         <TabsContent value="apariencia" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                             <TabPanel>
+                                <SectionTitle>Logo de tu empresa</SectionTitle>
+                                <Card className="border-border">
+                                    <CardContent className="pt-4">
+                                        <p className="text-xs text-muted-foreground mb-4">
+                                            Este logo aparece en la barra lateral de todos tus clientes.
+                                        </p>
+                                        <div className="flex items-center gap-5">
+                                            <div className="relative shrink-0">
+                                                {user?.image ? (
+                                                    <SafeImage
+                                                        src={user.image as string}
+                                                        alt="Logo"
+                                                        width={72}
+                                                        height={72}
+                                                        className="h-18 w-18 rounded-xl object-cover border border-border"
+                                                    />
+                                                ) : (
+                                                    <div className="h-[72px] w-[72px] rounded-xl border border-dashed border-border bg-muted flex items-center justify-center">
+                                                        <Camera className="h-6 w-6 text-muted-foreground" />
+                                                    </div>
+                                                )}
+                                                {loadingField === 'image' && (
+                                                    <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/60">
+                                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => fileRef.current?.click()}
+                                                    disabled={loadingField === 'image'}
+                                                >
+                                                    <Camera className="h-3.5 w-3.5 mr-1.5" />
+                                                    {user?.image ? 'Cambiar logo' : 'Subir logo'}
+                                                </Button>
+                                                <p className="text-xs text-muted-foreground">PNG, JPG o WEBP · Recomendado 256×256 px</p>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
                                 <SectionTitle>Tema del panel</SectionTitle>
                                 <Card className="border-border">
                                     <CardContent className="pt-4">
