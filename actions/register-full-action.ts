@@ -169,7 +169,6 @@ function buildRegistrationSections(
       sector: businessSector,
       ubicacion: "",
       horarios: "",
-      maps: "",
       telefono: "",
       email: "",
       sitio: "",
@@ -177,6 +176,9 @@ function buildRegistrationSections(
       instagram: "",
       tiktok: "",
       youtube: "",
+      linkedin: "",
+      twitter: "",
+      telegram: "",
       notas: [
         clienteIdeal ? `Cliente ideal: ${clienteIdeal}` : null,
         tono ? `Tono del agente: ${tono}` : null,

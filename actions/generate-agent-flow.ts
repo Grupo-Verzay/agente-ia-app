@@ -28,8 +28,9 @@ ESQUEMA DE SALIDA OBLIGATORIO
 {
   "business": {
     "nombre": "", "sector": "", "ubicacion": "", "horarios": "",
-    "maps": "", "telefono": "", "email": "", "sitio": "",
-    "facebook": "", "instagram": "", "tiktok": "", "youtube": "", "notas": ""
+    "telefono": "", "email": "", "sitio": "",
+    "facebook": "", "instagram": "", "tiktok": "", "youtube": "",
+    "linkedin": "", "twitter": "", "telegram": "", "notas": ""
   },
   "training":   { "steps": [] },
   "faq":        { "steps": [] },

@@ -15,7 +15,6 @@ export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name:
     add(lines, "* **Sector/Rubro:**", v.sector);
     add(lines, "* **Ubicación/Dirección:**", v.ubicacion);
     add(lines, "* **Horarios de atención:**", v.horarios);
-    add(lines, "* **Google Maps:**", v.maps);
     add(lines, "* **Número de contacto:**", v.telefono);
     add(lines, "* **Correo electrónico:**", v.email);
     add(lines, "* **Sitio web:**", v.sitio);
@@ -23,6 +22,9 @@ export const buildPrompt = (v: BusinessValues, firma?: { enabled: boolean; name:
     add(lines, "* **Instagram:**", v.instagram);
     add(lines, "* **TikTok:**", v.tiktok);
     add(lines, "* **YouTube:**", v.youtube);
+    add(lines, "* **LinkedIn:**", v.linkedin);
+    add(lines, "* **Twitter/X:**", v.twitter);
+    add(lines, "* **Telegram:**", v.telegram);
     if (firma?.enabled && firma.name.trim()) {
         lines.push("\n---\n\n" + buildFirmaBlock(firma.name));
     }

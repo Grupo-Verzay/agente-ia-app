@@ -46,6 +46,9 @@ const optionalFields = [
     { value: "instagram", label: "Instagram" },
     { value: "tiktok", label: "TikTok" },
     { value: "youtube", label: "YouTube" },
+    { value: "linkedin", label: "LinkedIn" },
+    { value: "twitter", label: "Twitter / X" },
+    { value: "telegram", label: "Telegram" },
     { value: "notas", label: "Notas" },
 ];
 
@@ -331,6 +334,60 @@ export const BusinessPromptBuilder = ({
                                                         <Input type="url" placeholder="https://youtube.com/@tu_negocio" {...field}
                                                             onChange={field.onChange}
                                                             onBlur={(e) => { field.onBlur(); handleChange?.("youtube")(e); }} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            </CardContent>
+                                        </Card>
+                                    )} />
+                                )}
+
+                                {shouldShow("linkedin") && (
+                                    <FormField control={form.control} name="linkedin" render={({ field }) => (
+                                        <Card className="bg-muted/20 border-muted/60">
+                                            <CardContent className="py-3 px-4 space-y-2">
+                                                <FormItem>
+                                                    <FormLabel className="text-sm font-semibold">LinkedIn</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="url" placeholder="https://linkedin.com/company/tu-negocio" {...field}
+                                                            onChange={field.onChange}
+                                                            onBlur={(e) => { field.onBlur(); handleChange?.("linkedin")(e); }} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            </CardContent>
+                                        </Card>
+                                    )} />
+                                )}
+
+                                {shouldShow("twitter") && (
+                                    <FormField control={form.control} name="twitter" render={({ field }) => (
+                                        <Card className="bg-muted/20 border-muted/60">
+                                            <CardContent className="py-3 px-4 space-y-2">
+                                                <FormItem>
+                                                    <FormLabel className="text-sm font-semibold">Twitter / X</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="url" placeholder="https://x.com/tu_negocio" {...field}
+                                                            onChange={field.onChange}
+                                                            onBlur={(e) => { field.onBlur(); handleChange?.("twitter")(e); }} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            </CardContent>
+                                        </Card>
+                                    )} />
+                                )}
+
+                                {shouldShow("telegram") && (
+                                    <FormField control={form.control} name="telegram" render={({ field }) => (
+                                        <Card className="bg-muted/20 border-muted/60">
+                                            <CardContent className="py-3 px-4 space-y-2">
+                                                <FormItem>
+                                                    <FormLabel className="text-sm font-semibold">Telegram</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="@tu_negocio o https://t.me/tu_negocio" {...field}
+                                                            onChange={field.onChange}
+                                                            onBlur={(e) => { field.onBlur(); handleChange?.("telegram")(e); }} />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>

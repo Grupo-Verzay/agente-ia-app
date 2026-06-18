@@ -68,7 +68,6 @@ export function useBusinessAutosave(opts: {
                     sector: data.sector ?? "",
                     ubicacion: data.ubicacion ?? "",
                     horarios: data.horarios ?? "",
-                    maps: data.maps ?? "",
                     telefono: data.telefono ?? "",
                     email: data.email ?? "",
                     sitio: data.sitio ?? "",
@@ -76,6 +75,9 @@ export function useBusinessAutosave(opts: {
                     instagram: data.instagram ?? "",
                     tiktok: data.tiktok ?? "",
                     youtube: data.youtube ?? "",
+                    linkedin: data.linkedin ?? "",
+                    twitter: data.twitter ?? "",
+                    telegram: data.telegram ?? "",
                     notas: data.notas ?? "",
                 };
 

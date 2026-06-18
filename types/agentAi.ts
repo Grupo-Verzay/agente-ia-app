@@ -26,7 +26,6 @@ export const BusinessDraftSchema = z.object({
     sector: z.string().optional().default(""),
     ubicacion: z.string().optional().default(""),
     horarios: z.string().optional().default(""),
-    maps: z.string().optional().default(""),
     telefono: z.string().optional().default(""),
     email: z.string().optional().default(""),
     sitio: z.string().optional().default(""),
@@ -34,6 +33,9 @@ export const BusinessDraftSchema = z.object({
     instagram: z.string().optional().default(""),
     tiktok: z.string().optional().default(""),
     youtube: z.string().optional().default(""),
+    linkedin: z.string().optional().default(""),
+    twitter: z.string().optional().default(""),
+    telegram: z.string().optional().default(""),
     notas: z.string().optional().default(""),
 });
 
@@ -293,7 +295,6 @@ export const BusinessStrictSchema = z.object({
     sector: z.string().optional(),
     ubicacion: z.string().optional(),
     horarios: z.string().optional(),
-    maps: z.string().optional(),
     telefono: z.string().optional(),
     email: z.string().optional(),
     sitio: z.string().optional(),
@@ -301,6 +302,9 @@ export const BusinessStrictSchema = z.object({
     instagram: z.string().optional(),
     tiktok: z.string().optional(),
     youtube: z.string().optional(),
+    linkedin: z.string().optional(),
+    twitter: z.string().optional(),
+    telegram: z.string().optional(),
     notas: z.string().optional(),
 });
 
@@ -355,7 +359,6 @@ export const promptSchema = z.object({
     sector: z.string().optional().default(""),
     ubicacion: z.string().optional().default(""),
     horarios: z.string().optional().default(""),
-    maps: z.string().url("URL inválida").or(z.string().length(0)).optional(),
     telefono: z.string().optional().default(""),
     email: z.string().email("Email inválido").or(z.string().length(0)).optional(),
     sitio: z.string().url("URL inválida").or(z.string().length(0)).optional(),
@@ -363,6 +366,9 @@ export const promptSchema = z.object({
     instagram: z.string().url("URL inválida").or(z.string().length(0)).optional(),
     tiktok: z.string().url("URL inválida").or(z.string().length(0)).optional(),
     youtube: z.string().url("URL inválida").or(z.string().length(0)).optional(),
+    linkedin: z.string().url("URL inválida").or(z.string().length(0)).optional(),
+    twitter: z.string().url("URL inválida").or(z.string().length(0)).optional(),
+    telegram: z.string().optional().default(""),
     notas: z.string().optional().default(""),
 });
 
@@ -372,9 +378,9 @@ export type FormValues = z.infer<typeof promptSchema>;
 export type SectionsPromptSystem = {
     business: {
         nombre: string; sector?: string; ubicacion?: string; horarios?: string;
-        maps?: string; telefono?: string; email?: string; sitio?: string;
+        telefono?: string; email?: string; sitio?: string;
         facebook?: string; instagram?: string; tiktok?: string; youtube?: string;
-        notas?: string;
+        linkedin?: string; twitter?: string; telegram?: string; notas?: string;
     };
     training: {
         steps: Array<{
@@ -467,7 +473,6 @@ export interface BusinessValues {
     sector: string;
     ubicacion: string;
     horarios: string;
-    maps: string;
     telefono: string;
     email: string;
     sitio: string;
@@ -475,6 +480,9 @@ export interface BusinessValues {
     instagram: string;
     tiktok: string;
     youtube: string;
+    linkedin: string;
+    twitter: string;
+    telegram: string;
     notas: string;
     training?: string;
     faq?: string;
@@ -488,7 +496,6 @@ export const initialValues: BusinessValues = {
     sector: "",
     ubicacion: "",
     horarios: "",
-    maps: "",
     telefono: "",
     email: "",
     sitio: "",
@@ -496,6 +503,9 @@ export const initialValues: BusinessValues = {
     instagram: "",
     tiktok: "",
     youtube: "",
+    linkedin: "",
+    twitter: "",
+    telegram: "",
     notas: "",
     training: "",
     faq: "",

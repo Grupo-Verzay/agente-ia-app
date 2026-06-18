@@ -9,7 +9,6 @@ export function buildBusinessHeader(business: z.infer<typeof BusinessDraftSchema
     if (nonEmpty(business.sector)) lines.push(`* **Sector/Rubro:** ${business.sector}`);
     if (nonEmpty(business.ubicacion)) lines.push(`* **Ubicación/Dirección:** ${business.ubicacion}`);
     if (nonEmpty(business.horarios)) lines.push(`* **Horarios de atención:** ${business.horarios}`);
-    if (nonEmpty(business.maps)) lines.push(`* **Google Maps:** ${business.maps}`);
     if (nonEmpty(business.telefono)) lines.push(`* **Número de contacto:** ${business.telefono}`);
     if (nonEmpty(business.email)) lines.push(`* **Correo electrónico:** ${business.email}`);
     if (nonEmpty(business.sitio)) lines.push(`* **Sitio web:** ${business.sitio}`);
@@ -17,5 +16,8 @@ export function buildBusinessHeader(business: z.infer<typeof BusinessDraftSchema
     if (nonEmpty(business.instagram)) lines.push(`* **Instagram:** ${business.instagram}`);
     if (nonEmpty(business.tiktok)) lines.push(`* **TikTok:** ${business.tiktok}`);
     if (nonEmpty(business.youtube)) lines.push(`* **YouTube:** ${business.youtube}`);
+    if (nonEmpty(business.linkedin)) lines.push(`* **LinkedIn:** ${business.linkedin}`);
+    if (nonEmpty(business.twitter)) lines.push(`* **Twitter/X:** ${business.twitter}`);
+    if (nonEmpty(business.telegram)) lines.push(`* **Telegram:** ${business.telegram}`);
     return lines.join('\n');
 }
