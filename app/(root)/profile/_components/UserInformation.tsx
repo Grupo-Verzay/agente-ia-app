@@ -300,8 +300,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
             const result = await updateClientDataByField(userId, 'image', url);
             if (!result.success) throw new Error(result.message);
             setUser(prev => prev ? { ...prev, image: url } : prev);
-            const isAdminRole = user?.role === Role.admin || user?.role === Role.super_admin;
-            if (isAdminRole && activeTab === 'apariencia') {
+            if (user?.role === Role.super_admin && activeTab === 'apariencia') {
                 await updatePlatformLogoUrl(url);
             }
             toast.success('Logo actualizado', { id: toastId });
@@ -355,7 +354,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
 
     const isMuted = user.muteAgentResponses ?? false;
     const isReseller = user.role === Role.reseller;
-    const canSeeApariencia = isReseller || user.role === Role.admin || user.role === Role.super_admin;
+    const canSeeApariencia = true; // todos los usuarios pueden personalizar su logo y tema
 
     const handleVoiceSave = async (
         enabled: boolean,
@@ -1057,8 +1056,12 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                     <Camera className="w-4 h-4 text-primary" />
                                                 </div>
                                                 <div>
-                                                    <CardTitle className="text-sm font-semibold">Logo de tu empresa</CardTitle>
-                                                    <CardDescription className="text-xs">Aparece en la barra lateral de todos tus clientes</CardDescription>
+                                                    <CardTitle className="text-sm font-semibold">Tu logo</CardTitle>
+                                                    <CardDescription className="text-xs">
+                                                        {user.role === Role.super_admin || isReseller
+                                                            ? 'Aparece en la barra lateral de todos tus clientes'
+                                                            : 'Aparece en la parte superior de tu barra lateral'}
+                                                    </CardDescription>
                                                 </div>
                                             </div>
                                         </CardHeader>

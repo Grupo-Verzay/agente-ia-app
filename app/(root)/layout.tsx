@@ -3,10 +3,12 @@ import { cookies } from "next/headers";
 import { requireAuth } from "@/lib/require-auth";
 import { currentUser } from "@/lib/auth";
 import { getResellerProfileForUser } from "@/actions/reseller-action";
+import { getSiteConfig } from "@/actions/admin/site-config-actions";
 import { getAllModules } from "@/actions/module-actions";
 import { isAdmin, isAdminOrReseller } from "@/lib/rbac";
 import { db } from "@/lib/db";
 import { buildBillingServiceAccessState } from "@/actions/billing/helpers/service-access";
+import type { ThemeApp } from "@prisma/client";
 
 import AppInitializer from "@/components/custom/AppInitializer";
 import AppSkeleton from "@/components/custom/AppSkeleton";
@@ -69,7 +71,24 @@ export default async function RootGroupLayout({
 
     if (!user) return <AppSkeleton />;
 
-    const onReseller = await getResellerProfileForUser(user.id);
+    const [onReseller, siteConfig] = await Promise.all([
+        getResellerProfileForUser(user.id),
+        getSiteConfig(),
+    ]);
+
+    // Logo abajo: del reseller asignado, o del platform (SiteConfig)
+    const resellerImage = onReseller?.data?.image ?? siteConfig.logoUrl ?? null;
+    const resellerCompany = onReseller?.data?.company ?? null;
+
+    // Tema fresco de DB: del reseller/super_admin, o del propio user
+    let initialTheme: ThemeApp = 'Default';
+    if (onReseller?.data?.theme) {
+        initialTheme = onReseller.data.theme as ThemeApp;
+    } else {
+        const freshUser = await db.user.findUnique({ where: { id: user.id }, select: { theme: true } });
+        initialTheme = (freshUser?.theme as ThemeApp) ?? 'Default';
+    }
+
     const allModules = (await getAllModules()).data ?? [];
 
     if (allModules.length === 0) return <AppSkeleton />;
@@ -124,9 +143,9 @@ export default async function RootGroupLayout({
 
     return (
         <>
-            <AppInitializer onReseller={onReseller} modules={modules} user={user} navPrefs={navPrefs} userIntegrations={userIntegrations} />
+            <AppInitializer onReseller={onReseller} modules={modules} user={user} navPrefs={navPrefs} userIntegrations={userIntegrations} initialTheme={initialTheme} />
             <SidebarProvider defaultOpen={defaultOpen}>
-                <AppSidebar user={user} resellerImage={onReseller?.data?.image} resellerCompany={onReseller?.data?.company} />
+                <AppSidebar user={user} resellerImage={resellerImage} resellerCompany={resellerCompany} />
                 <SidebarInset className="h-screen h-[100dvh] flex flex-col min-w-0 overflow-x-hidden">
                     <Breadcrumbs />
                     <main className={`flex-1 flex flex-col overflow-hidden overflow-x-hidden ${themeClass}`}>

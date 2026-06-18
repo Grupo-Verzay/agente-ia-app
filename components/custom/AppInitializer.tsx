@@ -19,19 +19,16 @@ interface AppInitializerInterface {
     user: User
     navPrefs: UserNavPref[]
     userIntegrations: UserIntegrationItem[]
+    initialTheme: ThemeApp
 };
 
-export default function AppInitializer({ onReseller, modules, user, navPrefs, userIntegrations }: AppInitializerInterface) {
+export default function AppInitializer({ onReseller, modules, user, navPrefs, userIntegrations, initialTheme }: AppInitializerInterface) {
     const pathname = usePathname();
     const router = useRouter();
     const { initTheme } = useThemeStore();
     const { setReseller, clearReseller } = useResellerStore();
     const { labelModule } = useModuleStore();
     const { setModules, setNavPrefs, setUserIntegrations } = useModuleStore();
-
-    const theme: ThemeApp = (onReseller.success && onReseller.data?.theme)
-        ? onReseller.data.theme
-        : (user.theme ?? 'Default');
 
     useEffect(() => {
         if (!user) return;
@@ -63,8 +60,8 @@ export default function AppInitializer({ onReseller, modules, user, navPrefs, us
     }, [userIntegrations, setUserIntegrations])
 
     useEffect(() => {
-        initTheme(theme)
-    }, [theme, initTheme])
+        initTheme(initialTheme)
+    }, [initialTheme, initTheme])
 
     useEffect(() => {
         if (onReseller.success && onReseller.data) {

@@ -90,11 +90,11 @@ export const getResellerProfileForUser = async (
                 message: "Usuario no encontrado.",
             }
         }
-        // 1. Si es admin o super_admin, retorna sus propios datos frescos de DB
-        if (user.role === Role.admin || user.role === Role.super_admin) {
+        // 1. Si es super_admin, retorna sus propios datos frescos de DB (tema + logo global)
+        if (user.role === Role.super_admin) {
             return {
                 success: true,
-                message: "Usuario administrador.",
+                message: "Usuario super administrador.",
                 data: {
                     id: user.id,
                     name: user.name,
