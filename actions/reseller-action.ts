@@ -142,11 +142,12 @@ export const getResellerProfileForUser = async (
             }
         }
 
-        // 3. Buscar al usuario reseller asignado
+        // 3. Buscar al usuario reseller asignado — debe tener rol reseller
         const resellerUser = await db.user.findUnique({
             where: { id: assignment.resellerid },
             select: {
                 id: true,
+                role: true,
                 name: true,
                 email: true,
                 image: true,
@@ -159,10 +160,10 @@ export const getResellerProfileForUser = async (
             },
         })
 
-        if (!resellerUser) {
+        if (!resellerUser || resellerUser.role !== Role.reseller) {
             return {
                 success: false,
-                message: "No se encontró el usuario revendedor asignado.",
+                message: "El usuario asignado no es un revendedor válido.",
             }
         }
         return {

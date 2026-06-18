@@ -70,6 +70,10 @@ export async function getSiteConfig(): Promise<SiteConfigData> {
 
 export async function updatePlatformLogoUrl(logoUrl: string): Promise<{ success: boolean; message: string }> {
   try {
+    const user = await currentUser();
+    if (!user || user.role !== "super_admin") {
+      return { success: false, message: "Solo el Super Admin puede actualizar el logo de plataforma" };
+    }
     await db.siteConfig.upsert({
       where: { id: 1 },
       update: { logoUrl },
