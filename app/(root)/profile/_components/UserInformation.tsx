@@ -1073,58 +1073,74 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                     {isReseller && (
                         <TabsContent value="apariencia" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                             <TabPanel>
-                                <SectionTitle>Logo de tu empresa</SectionTitle>
-                                <Card className="border-border">
-                                    <CardContent className="pt-4">
-                                        <p className="text-xs text-muted-foreground mb-4">
-                                            Este logo aparece en la barra lateral de todos tus clientes.
-                                        </p>
-                                        <div className="flex items-center gap-5">
-                                            <div className="relative shrink-0">
-                                                {user?.image ? (
-                                                    <SafeImage
-                                                        src={user.image as string}
-                                                        alt="Logo"
-                                                        width={72}
-                                                        height={72}
-                                                        className="h-18 w-18 rounded-xl object-cover border border-border"
-                                                    />
-                                                ) : (
-                                                    <div className="h-[72px] w-[72px] rounded-xl border border-dashed border-border bg-muted flex items-center justify-center">
-                                                        <Camera className="h-6 w-6 text-muted-foreground" />
-                                                    </div>
-                                                )}
-                                                {loadingField === 'image' && (
-                                                    <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/60">
-                                                        <Loader2 className="h-5 w-5 animate-spin" />
-                                                    </div>
-                                                )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <Card className="border-border flex flex-col">
+                                        <CardHeader className="pb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                    <Camera className="w-4 h-4 text-primary" />
+                                                </div>
+                                                <div>
+                                                    <CardTitle className="text-sm font-semibold">Logo de tu empresa</CardTitle>
+                                                    <CardDescription className="text-xs">Aparece en la barra lateral de todos tus clientes</CardDescription>
+                                                </div>
                                             </div>
-                                            <div className="flex flex-col gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => fileRef.current?.click()}
-                                                    disabled={loadingField === 'image'}
-                                                >
-                                                    <Camera className="h-3.5 w-3.5 mr-1.5" />
-                                                    {user?.image ? 'Cambiar logo' : 'Subir logo'}
-                                                </Button>
-                                                <p className="text-xs text-muted-foreground">PNG, JPG o WEBP · Recomendado 256×256 px</p>
+                                        </CardHeader>
+                                        <CardContent className="flex flex-col flex-1 gap-4">
+                                            <div className="flex items-center gap-5">
+                                                <div className="relative shrink-0">
+                                                    {user?.image ? (
+                                                        <SafeImage
+                                                            src={user.image as string}
+                                                            alt="Logo"
+                                                            width={72}
+                                                            height={72}
+                                                            className="h-18 w-18 rounded-xl object-cover border border-border"
+                                                        />
+                                                    ) : (
+                                                        <div className="h-[72px] w-[72px] rounded-xl border border-dashed border-border bg-muted flex items-center justify-center">
+                                                            <Camera className="h-6 w-6 text-muted-foreground" />
+                                                        </div>
+                                                    )}
+                                                    {loadingField === 'image' && (
+                                                        <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/60">
+                                                            <Loader2 className="h-5 w-5 animate-spin" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => fileRef.current?.click()}
+                                                        disabled={loadingField === 'image'}
+                                                    >
+                                                        <Camera className="h-3.5 w-3.5 mr-1.5" />
+                                                        {user?.image ? 'Cambiar logo' : 'Subir logo'}
+                                                    </Button>
+                                                    <p className="text-xs text-muted-foreground">PNG, JPG o WEBP · Recomendado 256×256 px</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                                        </CardContent>
+                                    </Card>
 
-                                <SectionTitle>Tema del panel</SectionTitle>
-                                <Card className="border-border">
-                                    <CardContent className="pt-4">
-                                        <p className="text-xs text-muted-foreground mb-3">
-                                            Personaliza los colores del panel para tus clientes.
-                                        </p>
-                                        <BrandSelector />
-                                    </CardContent>
-                                </Card>
+                                    <Card className="border-border flex flex-col">
+                                        <CardHeader className="pb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                    <Palette className="w-4 h-4 text-primary" />
+                                                </div>
+                                                <div>
+                                                    <CardTitle className="text-sm font-semibold">Tema del panel</CardTitle>
+                                                    <CardDescription className="text-xs">Personaliza los colores para tus clientes</CardDescription>
+                                                </div>
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent className="flex flex-col flex-1">
+                                            <BrandSelector />
+                                        </CardContent>
+                                    </Card>
+                                </div>
                             </TabPanel>
                         </TabsContent>
                     )}
