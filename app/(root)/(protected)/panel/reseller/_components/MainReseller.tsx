@@ -180,7 +180,7 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
 
         {/* Izquierda: Selecciona un revendedor */}
         <div className="flex flex-col gap-2">
-          <Label className="text-sm font-semibold">Selecciona un revendedor</Label>
+          <Label className="text-base font-semibold">Selecciona un revendedor</Label>
           <Select
             value={selectedReseller}
             onValueChange={(v) => { setSelectedReseller(v); getClients(v) }}
@@ -198,7 +198,7 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
 
         {/* Derecha: Licencias asignadas */}
         <div className="flex flex-col gap-2">
-          <Label className="text-sm font-semibold">Licencias asignadas</Label>
+          <Label className="text-base font-semibold">Licencias asignadas</Label>
 
           {loadingLicenses ? (
             <div className="flex justify-center py-6">
@@ -227,7 +227,7 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
                 return (
                   <div
                     key={pool.id}
-                    className={`rounded-lg border p-3 space-y-2 ${isFull ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/30"}`}
+                    className={`app-typography-compact rounded-lg border p-3 space-y-2 ${isFull ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/30"}`}
                   >
                     <div className="flex items-start justify-between gap-1">
                       <div>
@@ -291,7 +291,7 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <Label className="text-sm font-semibold">Clientes asignados</Label>
+            <Label className="text-base font-semibold">Clientes asignados</Label>
             <span className="text-xs text-muted-foreground">{assignedClients.length}</span>
           </div>
           <Input placeholder="Buscar cliente..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
@@ -310,7 +310,7 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
 
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <Label className="text-sm font-semibold">Clientes sin asignar</Label>
+            <Label className="text-base font-semibold">Clientes sin asignar</Label>
             <span className="text-xs text-muted-foreground">{unassignedClients.length}</span>
           </div>
           <Input placeholder="Buscar cliente..." value={searchUnassigned} onChange={e => setSearchUnassigned(e.target.value)} />
