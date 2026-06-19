@@ -48,6 +48,10 @@ interface DataTableProps<TData, TValue> {
 
 const VISIBILITY_STORAGE_KEY = 'admin-clientes-column-visibility'
 
+// Columnas que existen en la tabla pero no aparecen en el toggle de visibilidad
+const COLUMNS_HIDDEN_FROM_TOGGLE = ['role', 'email', 'reseller']
+const DEFAULT_HIDDEN: VisibilityState = { role: false, email: false, reseller: false }
+
 export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCreateDialogUser, setStatusFilter, initialSearch }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -56,9 +60,11 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
   useEffect(() => {
     try {
       const saved = localStorage.getItem(VISIBILITY_STORAGE_KEY)
-      if (saved) setColumnVisibility(JSON.parse(saved))
+      const parsed = saved ? JSON.parse(saved) : {}
+      // Las columnas ocultas del toggle siempre se fuerzan a hidden
+      setColumnVisibility({ ...parsed, ...DEFAULT_HIDDEN })
     } catch {
-      // ignore
+      setColumnVisibility(DEFAULT_HIDDEN)
     }
   }, [])
   const [rowSelection, setRowSelection] = useState({})
@@ -132,7 +138,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
                 <DropdownMenuContent align="end">
                   {table
                     .getAllColumns()
-                    .filter((column) => column.getCanHide())
+                    .filter((column) => column.getCanHide() && !COLUMNS_HIDDEN_FROM_TOGGLE.includes(column.id))
                     .map((column) => (
                       <DropdownMenuCheckboxItem
                         key={column.id}
