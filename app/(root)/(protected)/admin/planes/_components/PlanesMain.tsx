@@ -62,41 +62,9 @@ type EditForm = {
   checkoutUrlYearly: string;
 };
 
-const LS_AUDIENCE = "planes_audience";
-const LS_PERIOD   = "planes_period";
-
-// Module-level cache: survives ANY remount within the same JS session.
-// Updated immediately when the user clicks a toggle button.
-let _mAudience: "client" | "reseller" = "client";
-let _mPeriod: BillingPeriod = "monthly";
-let _mReady = false;
-
-function ensureReady() {
-  if (_mReady) return;
-  _mReady = true;
-  const a = localStorage.getItem(LS_AUDIENCE);
-  const p = localStorage.getItem(LS_PERIOD);
-  if (a === "client" || a === "reseller") _mAudience = a;
-  if (p === "monthly" || p === "quarterly" || p === "yearly") _mPeriod = p as BillingPeriod;
-}
-
 export function PlanesMain() {
-  ensureReady();
-
-  const [audience, _setAudience] = useState<"client" | "reseller">(() => _mAudience);
-  const [period, _setPeriod] = useState<BillingPeriod>(() => _mPeriod);
-
-  const setAudience = useCallback((v: "client" | "reseller") => {
-    _mAudience = v;
-    localStorage.setItem(LS_AUDIENCE, v);
-    _setAudience(v);
-  }, []);
-
-  const setPeriod = useCallback((v: BillingPeriod) => {
-    _mPeriod = v;
-    localStorage.setItem(LS_PERIOD, v);
-    _setPeriod(v);
-  }, []);
+  const [audience, setAudience] = useState<"client" | "reseller">("client");
+  const [period, setPeriod] = useState<BillingPeriod>("monthly");
 
   const [plans, setPlans] = useState<SubscriptionPlanItem[]>([]);
   const [loading, setLoading] = useState(true);
