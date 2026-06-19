@@ -175,121 +175,97 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
         />
       </div>
 
-      {/* Fila principal: Revendedor (izq) + Licencias (der) */}
-      <div className="shrink-0 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* Revendedor selector */}
+      <div className="shrink-0 flex flex-col gap-2">
+        <Label className="text-base font-semibold">Selecciona un revendedor</Label>
+        <Select
+          value={selectedReseller}
+          onValueChange={(v) => { setSelectedReseller(v); getClients(v) }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Selecciona..." />
+          </SelectTrigger>
+          <SelectContent>
+            {resellers.map(r => (
+              <SelectItem key={r.id} value={r.id}>{r.name ?? r.email}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-        {/* Izquierda: Selecciona un revendedor */}
-        <div className="flex flex-col gap-2">
-          <Label className="text-base font-semibold">Selecciona un revendedor</Label>
-          <Select
-            value={selectedReseller}
-            onValueChange={(v) => { setSelectedReseller(v); getClients(v) }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecciona..." />
-            </SelectTrigger>
-            <SelectContent>
-              {resellers.map(r => (
-                <SelectItem key={r.id} value={r.id}>{r.name ?? r.email}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      {/* Clientes + Licencias */}
+      <div className="flex flex-1 min-h-0 flex-col lg:flex-row gap-4">
 
-        {/* Derecha: Licencias asignadas */}
-        <div className="flex flex-col gap-2">
-          <Label className="text-base font-semibold">Licencias asignadas</Label>
+        {/* Columna izquierda: Licencias + Clientes asignados */}
+        <div className="flex flex-1 min-h-0 flex-col gap-2">
 
-          {loadingLicenses ? (
-            <div className="flex justify-center py-6">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            </div>
-          ) : selectedResellerPools.length === 0 ? (
+          {/* Licencias (shrink-0, compacto) */}
+          <div className="shrink-0 rounded-lg border border-border bg-muted/20 p-3 flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground italic">Sin licencias asignadas.</p>
+              <Label className="text-sm font-semibold">Licencias asignadas</Label>
               {selectedResellerData && (
                 <Button
                   size="sm"
-                  className="h-9 text-xs gap-1"
+                  className="h-7 text-xs gap-1"
                   onClick={() => openLicenseDialog(selectedResellerData)}
                   disabled={loadingLicenses}
                 >
                   <Plus className="h-3 w-3" />
-                  Asignar licencias
+                  Asignar
                 </Button>
               )}
             </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {selectedResellerPools.map((pool) => {
-                const pct = pool.totalLicenses > 0 ? (pool.usedLicenses / pool.totalLicenses) * 100 : 0
-                const isFull = pool.availableLicenses <= 0
-                return (
-                  <div
-                    key={pool.id}
-                    className={`app-typography-compact rounded-lg border p-3 space-y-2 ${isFull ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/30"}`}
-                  >
-                    <div className="flex items-start justify-between gap-1">
-                      <div>
-                        <p className="text-xs font-semibold leading-tight">{PLAN_LABELS[pool.plan]}</p>
-                        <p className="text-[10px] text-muted-foreground">{pool.assistanceType}</p>
+
+            {loadingLicenses ? (
+              <div className="flex justify-center py-2">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : selectedResellerPools.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic">Sin licencias asignadas.</p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {selectedResellerPools.map((pool) => {
+                  const pct = pool.totalLicenses > 0 ? (pool.usedLicenses / pool.totalLicenses) * 100 : 0
+                  const isFull = pool.availableLicenses <= 0
+                  return (
+                    <div
+                      key={pool.id}
+                      className={`flex items-center gap-3 rounded-md border px-3 py-2 ${isFull ? "border-destructive/30 bg-destructive/5" : "border-border bg-background"}`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-medium truncate">{PLAN_LABELS[pool.plan]} · {pool.assistanceType}</span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">{pool.usedLicenses}/{pool.totalLicenses}</span>
+                        </div>
+                        <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${isFull ? "bg-destructive" : pct > 75 ? "bg-orange-400" : "bg-primary"}`}
+                            style={{ width: `${Math.min(100, pct)}%` }}
+                          />
+                        </div>
                       </div>
+                      <Badge
+                        variant="outline"
+                        className={`shrink-0 text-[10px] px-1.5 py-0 h-4 font-medium ${isFull ? "border-destructive/40 text-destructive" : "border-emerald-500/40 text-emerald-600"}`}
+                      >
+                        {isFull ? "Sin cupo" : `${pool.availableLicenses} disp.`}
+                      </Badge>
                       <button
                         type="button"
                         onClick={() => handleDeletePool(pool.id)}
-                        className="text-muted-foreground/50 hover:text-destructive transition-colors mt-0.5"
+                        className="shrink-0 text-muted-foreground/50 hover:text-destructive transition-colors"
                         title="Eliminar pool"
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                        <span>{pool.usedLicenses} usadas</span>
-                        <span>{pool.totalLicenses} total</span>
-                      </div>
-                      <div className="h-1 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${isFull ? "bg-destructive" : pct > 75 ? "bg-orange-400" : "bg-primary"}`}
-                          style={{ width: `${Math.min(100, pct)}%` }}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] px-1.5 py-0 h-4 font-medium ${isFull ? "border-destructive/40 text-destructive" : "border-emerald-500/40 text-emerald-600"}`}
-                      >
-                        {isFull ? "Sin cupo" : `${pool.availableLicenses} disp.`}
-                      </Badge>
-                      {pool.priceWholesale != null && (
-                        <span className="text-[10px] text-muted-foreground">${pool.priceWholesale}/mes</span>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          {selectedResellerData && selectedResellerPools.length > 0 && (
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                className="h-7 text-xs gap-1"
-                onClick={() => openLicenseDialog(selectedResellerData)}
-                disabled={loadingLicenses}
-              >
-                <Plus className="h-3 w-3" />
-                Asignar licencias
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
 
-      {/* Clientes asignados / sin asignar */}
-      <div className="flex flex-1 min-h-0 flex-col lg:flex-row gap-4">
-        <div className="flex flex-1 min-h-0 flex-col gap-2">
+          {/* Clientes asignados */}
           <div className="flex items-center justify-between">
             <Label className="text-base font-semibold">Clientes asignados</Label>
             <span className="text-xs text-muted-foreground">{assignedClients.length}</span>
@@ -308,6 +284,7 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
           </ScrollArea>
         </div>
 
+        {/* Columna derecha: Clientes sin asignar */}
         <div className="flex flex-1 min-h-0 flex-col gap-2">
           <div className="flex items-center justify-between">
             <Label className="text-base font-semibold">Clientes sin asignar</Label>
