@@ -513,33 +513,49 @@ export function ResellerLandingClient({
               <p className="mb-8 text-base text-slate-400 sm:text-lg">
                 Conviértete en reseller y ofrece la plataforma de automatización de WhatsApp más completa del mercado — con tu nombre, tu logo y tus precios. Sin construir nada desde cero.
               </p>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                 <Link href="/completar-registro?tipo=reseller">
                   <Button size="lg" className="gap-2 bg-blue-600 px-10 text-white hover:bg-blue-500">
                     Registrarme como reseller <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
-                {meetingUrl ? (
+                <a href="#pricing">
+                  <Button size="lg" variant="outline" className="border-white/20 bg-transparent px-8 text-white hover:bg-white/10">
+                    Ver planes
+                  </Button>
+                </a>
+                {meetingUrl && (
                   <a href={meetingUrl} target="_blank" rel="noopener noreferrer">
-                    <Button size="lg" variant="outline" className="gap-2 border-white/20 bg-transparent px-10 text-white hover:bg-white/10">
+                    <Button size="lg" variant="outline" className="gap-2 border-white/20 bg-transparent px-8 text-white hover:bg-white/10">
                       <Zap className="h-4 w-4" /> Agendar reunión
-                    </Button>
-                  </a>
-                ) : (
-                  <a href="#how">
-                    <Button size="lg" variant="outline" className="border-white/20 bg-transparent px-10 text-white hover:bg-white/10">
-                      Cómo funciona
                     </Button>
                   </a>
                 )}
               </div>
-              <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-1.5">
+              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5">
                 {["Sin costos ocultos", "Panel de reseller incluido", "Soporte dedicado"].map((t) => (
                   <span key={t} className="flex items-center gap-1 text-xs text-slate-500">
                     <Check className="h-3 w-3 text-green-500" /> {t}
                   </span>
                 ))}
               </div>
+              {(() => {
+                const heroStats = (stats && stats.length > 0 ? stats.slice(0, 3) : [
+                  { value: "40+",  label: "Resellers activos" },
+                  { value: "4x",   label: "Margen promedio" },
+                  { value: "95%",  label: "Tasa de retención" },
+                ]).filter((s) => s.value);
+                return heroStats.length > 0 ? (
+                  <div className={`mt-5 grid grid-cols-${heroStats.length} gap-6 border-t border-white/10 pt-5`}>
+                    {heroStats.map((s) => (
+                      <div key={s.label}>
+                        <div className="text-2xl font-bold text-blue-400">{s.value}</div>
+                        <div className="mt-0.5 text-xs text-slate-500">{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
             </div>
 
             {/* Columna derecha: phone mockup */}
