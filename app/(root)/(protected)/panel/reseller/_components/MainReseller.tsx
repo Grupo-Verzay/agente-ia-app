@@ -198,27 +198,27 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
 
         {/* Derecha: Licencias asignadas */}
         <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-semibold">Licencias asignadas</Label>
-            {selectedResellerData && (
-              <Button
-                size="sm"
-                className="h-7 text-xs gap-1"
-                onClick={() => openLicenseDialog(selectedResellerData)}
-                disabled={loadingLicenses}
-              >
-                <Plus className="h-3 w-3" />
-                Asignar licencias
-              </Button>
-            )}
-          </div>
+          <Label className="text-sm font-semibold">Licencias asignadas</Label>
 
           {loadingLicenses ? (
             <div className="flex justify-center py-6">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             </div>
           ) : selectedResellerPools.length === 0 ? (
-            <p className="text-xs text-muted-foreground italic pt-1">Sin licencias asignadas.</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground italic">Sin licencias asignadas.</p>
+              {selectedResellerData && (
+                <Button
+                  size="sm"
+                  className="h-9 text-xs gap-1"
+                  onClick={() => openLicenseDialog(selectedResellerData)}
+                  disabled={loadingLicenses}
+                >
+                  <Plus className="h-3 w-3" />
+                  Asignar licencias
+                </Button>
+              )}
+            </div>
           ) : (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {selectedResellerPools.map((pool) => {
@@ -269,6 +269,19 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
                   </div>
                 )
               })}
+            </div>
+          )}
+          {selectedResellerData && selectedResellerPools.length > 0 && (
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => openLicenseDialog(selectedResellerData)}
+                disabled={loadingLicenses}
+              >
+                <Plus className="h-3 w-3" />
+                Asignar licencias
+              </Button>
             </div>
           )}
         </div>
