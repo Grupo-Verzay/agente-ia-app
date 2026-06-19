@@ -6,10 +6,18 @@ import { obtenerApiKeys } from "@/actions/api-action";
 import { getCountryCodes } from "@/actions/get-country-action";
 import { isAdminOrReseller } from "@/lib/rbac";
 import { db } from "@/lib/db";
+import { PLAN_LABELS } from "@/types/plans";
 import type { ClientInterface } from "@/lib/types";
-import type { ApiKey } from "@prisma/client";
+import type { ApiKey, Plan } from "@prisma/client";
 import type { Country } from "@/components/custom/CountryCodeSelect";
 import type { ModuleWithItems } from "@/schema/module";
+
+export type ResellerPoolOption = {
+    subscriptionPlanId: string;
+    plan: Plan;
+    planLabel: string;
+    availableLicenses: number;
+};
 
 type ClientsPageData = {
     users: ClientInterface[];
@@ -18,6 +26,7 @@ type ClientsPageData = {
     currentUserRol: string;
     countries: Country[];
     allModules: ModuleWithItems[];
+    resellerPools: ResellerPoolOption[];
 };
 
 export async function getClientsPageData(): Promise<
@@ -47,8 +56,15 @@ export async function getClientsPageData(): Promise<
             usersPromise = getEnrichedClients();
         }
 
+        const poolsPromise = user.role === 'reseller'
+            ? db.resellerLicensePool.findMany({
+                where: { resellerUserId: user.id },
+                include: { subscriptionPlan: true },
+              })
+            : Promise.resolve([] as { subscriptionPlanId: string; totalLicenses: number; usedLicenses: number; subscriptionPlan: { plan: Plan } }[]);
+
         //  Paralelo (evita “tildado” por awaits en cascada)
-        const [resUsers, resApikeys, countries, allModules] = await Promise.all([
+        const [resUsers, resApikeys, countries, allModules, pools] = await Promise.all([
             usersPromise,
             obtenerApiKeys(),
             getCountryCodes(),
@@ -57,6 +73,7 @@ export async function getClientsPageData(): Promise<
                 include: { moduleItems: { orderBy: { createdAt: 'asc' } } },
                 orderBy: { order: 'asc' },
             }),
+            poolsPromise,
         ]);
 
         const users = resUsers?.data ?? [];
@@ -70,6 +87,13 @@ export async function getClientsPageData(): Promise<
 
         const availableApikeys = apikeys.filter((k) => (usage[k.id] || 0) < 100);
 
+        const resellerPools: ResellerPoolOption[] = pools.map(p => ({
+            subscriptionPlanId: p.subscriptionPlanId,
+            plan: p.subscriptionPlan.plan,
+            planLabel: PLAN_LABELS[p.subscriptionPlan.plan],
+            availableLicenses: p.totalLicenses - p.usedLicenses,
+        }));
+
         return {
             success: true,
             data: {
@@ -79,6 +103,7 @@ export async function getClientsPageData(): Promise<
                 currentUserRol: user.role,
                 countries,
                 allModules: allModules as ModuleWithItems[],
+                resellerPools,
             },
         };
     } catch (e) {

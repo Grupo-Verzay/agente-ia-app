@@ -27,6 +27,16 @@ import { ApiKey, Role } from "@prisma/client";
 import { userSchema, UserFormValues } from "@/schema/user";
 import { Country } from "@/components/custom/CountryCodeSelect";
 import { toast } from "sonner";
+import type { ResellerPoolOption } from "../helpers/getClientsPageData";
+
+const PLAN_SUPPORTS_CRM: Record<string, boolean> = {
+  lite: false,
+  basico: false,
+  intermedio: true,
+  avanzado: true,
+  enterprise: true,
+  personalizado: true,
+};
 
 const ROLES = Object.values(Role);
 const ROLE_LABELS: Record<Role, string> = {
@@ -44,6 +54,7 @@ interface Props {
   apikeys: ApiKey[];
   countries: Country[];
   currentUserRol?: string;
+  resellerPools?: ResellerPoolOption[];
 }
 
 export const CreateDialog = ({
@@ -52,31 +63,22 @@ export const CreateDialog = ({
   handleCreate,
   apikeys,
   currentUserRol,
+  resellerPools = [],
 }: Props) => {
   const isReseller = currentUserRol === 'reseller';
-
-  // Planes que incluyen Sintetizador, Clasificación y Follow ups
-  const PLAN_SUPPORTS_CRM: Record<string, boolean> = {
-    lite: false,
-    basico: false,
-    intermedio: true,
-    avanzado: true,
-    enterprise: true,
-    personalizado: true,
-  };
 
   const [status, setStatus] = useState(true);
   const [enabledSynthesizer, setEnabledSynthesizer] = useState(false);
   const [enabledLeadStatusClassifier, setEnabledLeadStatusClassifier] = useState(false);
   const [enabledCrmFollowUps, setEnabledCrmFollowUps] = useState(false);
   const [tz, setTz] = useState("");
+  const [selectedPoolId, setSelectedPoolId] = useState<string>("");
 
   const {
     register,
     handleSubmit,
     setValue,
     reset,
-    watch,
     formState: { errors },
   } = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
@@ -96,8 +98,10 @@ export const CreateDialog = ({
     },
   });
 
-  const selectedPlan = watch('plan');
-  const crmDisabled = isReseller && !PLAN_SUPPORTS_CRM[selectedPlan];
+  const selectedPool = resellerPools.find(p => p.subscriptionPlanId === selectedPoolId);
+  const crmDisabled = isReseller
+    ? !PLAN_SUPPORTS_CRM[selectedPool?.plan ?? '']
+    : false;
 
   const handleClose = (open: boolean) => {
     setOpenCreateDialog(open);
@@ -108,6 +112,7 @@ export const CreateDialog = ({
       setEnabledLeadStatusClassifier(false);
       setEnabledCrmFollowUps(false);
       setTz("");
+      setSelectedPoolId("");
     }
   };
 
@@ -181,9 +186,41 @@ export const CreateDialog = ({
                 </div>
               </div>
 
-              {/* Rol / Plan */}
-              <div className="grid grid-cols-2 gap-2">
-                {!isReseller && (
+              {/* Rol / Plan — reseller: solo sus pools con licencias disponibles */}
+              {isReseller ? (
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs font-semibold text-foreground">Plan (licencias disponibles)</Label>
+                  <Select
+                    value={selectedPoolId}
+                    onValueChange={(v) => {
+                      setSelectedPoolId(v);
+                      const pool = resellerPools.find(p => p.subscriptionPlanId === v);
+                      if (pool) setValue("plan", pool.plan as UserFormValues["plan"]);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona un plan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {resellerPools.length === 0 && (
+                          <SelectItem value="__none__" disabled>Sin licencias asignadas</SelectItem>
+                        )}
+                        {resellerPools.map((pool) => (
+                          <SelectItem
+                            key={pool.subscriptionPlanId}
+                            value={pool.subscriptionPlanId}
+                            disabled={pool.availableLicenses <= 0}
+                          >
+                            {pool.planLabel} — {pool.availableLicenses} disponible{pool.availableLicenses !== 1 ? 's' : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col gap-1">
                     <Label className="text-xs font-semibold text-foreground">Rol</Label>
                     <Select onValueChange={(v) => setValue("role", v as Role)} defaultValue="user">
@@ -200,24 +237,24 @@ export const CreateDialog = ({
                     </Select>
                     {errors.role && <p className="text-xs text-destructive">{errors.role.message}</p>}
                   </div>
-                )}
-                <div className={`flex flex-col gap-1 ${isReseller ? 'col-span-2' : ''}`}>
-                  <Label className="text-xs font-semibold text-foreground">Plan</Label>
-                  <Select onValueChange={(v) => setValue("plan", v as UserFormValues["plan"])} defaultValue="basico">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona un plan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {PLANS.map((plan) => (
-                          <SelectItem key={plan} value={plan}>{PLAN_LABELS[plan]}</SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  {errors.plan && <p className="text-xs text-destructive">{errors.plan.message}</p>}
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs font-semibold text-foreground">Plan</Label>
+                    <Select onValueChange={(v) => setValue("plan", v as UserFormValues["plan"])} defaultValue="basico">
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un plan" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {PLANS.map((plan) => (
+                            <SelectItem key={plan} value={plan}>{PLAN_LABELS[plan]}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    {errors.plan && <p className="text-xs text-destructive">{errors.plan.message}</p>}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Teléfono */}
               <div className="flex flex-col gap-1">
