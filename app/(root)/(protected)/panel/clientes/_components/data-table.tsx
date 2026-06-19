@@ -107,7 +107,7 @@ export function DataTable<TData, TValue>({ columns, data, currentUserRol, openCr
               <ColumnFilterInput table={table} initialValue={initialSearch} initialColumn={initialSearch ? "email" : undefined} />
 
               {/* button-create-client */}
-              {(currentUserRol === 'admin' || currentUserRol === 'super_admin') &&
+              {(currentUserRol === 'admin' || currentUserRol === 'super_admin' || currentUserRol === 'reseller') &&
 
                 <Button onClick={openCreateDialogUser} className="bg-blue-600 hover:bg-blue-700 text-white">
                   + Nuevo

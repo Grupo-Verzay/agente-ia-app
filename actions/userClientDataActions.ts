@@ -456,9 +456,14 @@ export const createUserWithPausar = async (
   }
 ): Promise<ClientResponse<UserWithPausar>> => {
   try {
-    await ensureAdminOrResellerUser();
+    const me = await ensureAdminOrResellerUser();
 
     const { openingPhrase, ...userFields } = userData;
+
+    // Si el creador es reseller, vincular el cliente a su pool
+    if (me.role === 'reseller' && !userFields.demoResellerId) {
+      userFields.demoResellerId = me.id;
+    }
 
     // 1. Crear el usuario
     const user = await db.user.create({
