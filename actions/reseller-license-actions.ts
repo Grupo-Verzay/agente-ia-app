@@ -107,6 +107,23 @@ export async function assignLicenses(
   }
 }
 
+// ── Admin: eliminar pool de licencias de un reseller ──────────────────────
+
+export async function deleteLicensePool(poolId: string) {
+  try {
+    const user = await currentUser();
+    if (!user || !isAdminLike(user.role)) return { success: false, message: "Sin permisos" };
+
+    await db.resellerLicensePool.delete({ where: { id: poolId } });
+
+    revalidatePath("/admin/reseller");
+    return { success: true, message: "Pool eliminado" };
+  } catch (e) {
+    console.error("[deleteLicensePool]", e);
+    return { success: false, message: "Error al eliminar el pool" };
+  }
+}
+
 // ── Admin: cambiar demo limit de un reseller ───────────────────────────────
 
 export async function updateDemoLimit(resellerUserId: string, demoLimit: number) {

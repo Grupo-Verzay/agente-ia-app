@@ -312,6 +312,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     setOpenCreateDialog={setOpenCreateDialog}
                     openCreateDialog={openCreateDialog}
                     apikeys={availableApikeys}
+                    currentUserRol={currentUserRol}
                 />
             )}
             {/* Dialog editar */}

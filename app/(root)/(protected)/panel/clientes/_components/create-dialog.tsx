@@ -43,6 +43,7 @@ interface Props {
   handleCreate: (formData: UserFormValues) => void;
   apikeys: ApiKey[];
   countries: Country[];
+  currentUserRol?: string;
 }
 
 export const CreateDialog = ({
@@ -50,7 +51,9 @@ export const CreateDialog = ({
   setOpenCreateDialog,
   handleCreate,
   apikeys,
+  currentUserRol,
 }: Props) => {
+  const isReseller = currentUserRol === 'reseller';
   const [status, setStatus] = useState(true);
   const [enabledSynthesizer, setEnabledSynthesizer] = useState(false);
   const [enabledLeadStatusClassifier, setEnabledLeadStatusClassifier] = useState(false);
@@ -103,9 +106,11 @@ export const CreateDialog = ({
 
   const switches = [
     { id: "status", label: "Estado", checked: status, onChange: setStatus },
-    { id: "enabledSynthesizer", label: "Sintetizador", checked: enabledSynthesizer, onChange: setEnabledSynthesizer },
-    { id: "enabledLeadStatusClassifier", label: "Clasificacion", checked: enabledLeadStatusClassifier, onChange: setEnabledLeadStatusClassifier },
-    { id: "enabledCrmFollowUps", label: "Follow ups", checked: enabledCrmFollowUps, onChange: setEnabledCrmFollowUps },
+    ...(!isReseller ? [
+      { id: "enabledSynthesizer", label: "Sintetizador", checked: enabledSynthesizer, onChange: setEnabledSynthesizer },
+      { id: "enabledLeadStatusClassifier", label: "Clasificacion", checked: enabledLeadStatusClassifier, onChange: setEnabledLeadStatusClassifier },
+      { id: "enabledCrmFollowUps", label: "Follow ups", checked: enabledCrmFollowUps, onChange: setEnabledCrmFollowUps },
+    ] : []),
   ];
 
   return (
@@ -157,41 +162,43 @@ export const CreateDialog = ({
                 </div>
               </div>
 
-              {/* Rol / Plan */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex flex-col gap-1">
-                  <Label className="text-xs font-semibold text-foreground">Rol</Label>
-                  <Select onValueChange={(v) => setValue("role", v as Role)} defaultValue="user">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona un rol" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {ROLES.map((role) => (
-                          <SelectItem key={role} value={role}>{ROLE_LABELS[role]}</SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  {errors.role && <p className="text-xs text-destructive">{errors.role.message}</p>}
+              {/* Rol / Plan — solo admins */}
+              {!isReseller && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs font-semibold text-foreground">Rol</Label>
+                    <Select onValueChange={(v) => setValue("role", v as Role)} defaultValue="user">
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un rol" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {ROLES.map((role) => (
+                            <SelectItem key={role} value={role}>{ROLE_LABELS[role]}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    {errors.role && <p className="text-xs text-destructive">{errors.role.message}</p>}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs font-semibold text-foreground">Plan</Label>
+                    <Select onValueChange={(v) => setValue("plan", v as UserFormValues["plan"])} defaultValue="basico">
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un plan" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {PLANS.map((plan) => (
+                            <SelectItem key={plan} value={plan}>{PLAN_LABELS[plan]}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    {errors.plan && <p className="text-xs text-destructive">{errors.plan.message}</p>}
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1">
-                  <Label className="text-xs font-semibold text-foreground">Plan</Label>
-                  <Select onValueChange={(v) => setValue("plan", v as UserFormValues["plan"])} defaultValue="basico">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona un plan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {PLANS.map((plan) => (
-                          <SelectItem key={plan} value={plan}>{PLAN_LABELS[plan]}</SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  {errors.plan && <p className="text-xs text-destructive">{errors.plan.message}</p>}
-                </div>
-              </div>
+              )}
 
               {/* Teléfono */}
               <div className="flex flex-col gap-1">
@@ -207,37 +214,39 @@ export const CreateDialog = ({
                 {errors.delSeguimiento && <p className="text-xs text-destructive">{errors.delSeguimiento.message}</p>}
               </div>
 
-              {/* Webhook */}
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="webhookUrl" className="text-xs font-semibold text-foreground">Webhook</Label>
-                <Input id="webhookUrl" {...register("webhookUrl")} placeholder="http://tu-ip:puerto/webhook" />
-                {errors.webhookUrl && <p className="text-xs text-destructive">{errors.webhookUrl.message}</p>}
-              </div>
+              {/* Webhook / Evo Api / Api Key IA — solo admins */}
+              {!isReseller && (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="webhookUrl" className="text-xs font-semibold text-foreground">Webhook</Label>
+                    <Input id="webhookUrl" {...register("webhookUrl")} placeholder="http://tu-ip:puerto/webhook" />
+                    {errors.webhookUrl && <p className="text-xs text-destructive">{errors.webhookUrl.message}</p>}
+                  </div>
 
-              {/* Evo Api */}
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs font-semibold text-foreground">Evo Api</Label>
-                <Select onValueChange={(v) => setValue("apiKeyId", v)} defaultValue="">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona una API Key" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {apikeys.map(({ id, url }) => (
-                        <SelectItem key={id} value={id}>{url}</SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                {errors.apiKeyId && <p className="text-xs text-destructive">{errors.apiKeyId.message}</p>}
-              </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs font-semibold text-foreground">Evo Api</Label>
+                    <Select onValueChange={(v) => setValue("apiKeyId", v)} defaultValue="">
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona una API Key" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {apikeys.map(({ id, url }) => (
+                            <SelectItem key={id} value={id}>{url}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    {errors.apiKeyId && <p className="text-xs text-destructive">{errors.apiKeyId.message}</p>}
+                  </div>
 
-              {/* Api Key IA */}
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="apiUrl" className="text-xs font-semibold text-foreground">Api Key IA</Label>
-                <Input id="apiUrl" {...register("apiUrl")} placeholder="https://api.openai.com/v1" />
-                {errors.apiUrl && <p className="text-xs text-destructive">{errors.apiUrl.message}</p>}
-              </div>
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="apiUrl" className="text-xs font-semibold text-foreground">Api Key IA</Label>
+                    <Input id="apiUrl" {...register("apiUrl")} placeholder="https://api.openai.com/v1" />
+                    {errors.apiUrl && <p className="text-xs text-destructive">{errors.apiUrl.message}</p>}
+                  </div>
+                </>
+              )}
 
               {/* Zona horaria */}
               <div className="flex flex-col gap-1">

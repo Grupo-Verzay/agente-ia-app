@@ -12,12 +12,13 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { User } from "@prisma/client"
-import { Loader2, Package, Users, Plus } from "lucide-react"
+import { Loader2, Package, Users, Plus, Trash2 } from "lucide-react"
 import { getClientsByReseller, assignClientToReseller, removeClientFromReseller } from "@/actions/reseller-action"
 import {
   getResellersWithPools,
   assignLicenses,
   updateDemoLimit,
+  deleteLicensePool,
   type ResellerWithPools,
 } from "@/actions/reseller-license-actions"
 import { getAllSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions"
@@ -152,6 +153,17 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
     if (res.success) {
       toast.success(res.message)
       setDemoLimitDialog(false)
+      void fetchLicenses()
+    } else {
+      toast.error(res.message)
+    }
+  }
+
+  const handleDeletePool = async (poolId: string) => {
+    if (!confirm("¿Eliminar este pool de licencias?")) return
+    const res = await deleteLicensePool(poolId)
+    if (res.success) {
+      toast.success(res.message)
       void fetchLicenses()
     } else {
       toast.error(res.message)
@@ -294,9 +306,19 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
                               <Badge variant={pool.availableLicenses > 0 ? "outline" : "secondary"} className="text-[10px]">
                                 {pool.availableLicenses > 0 ? `${pool.availableLicenses} disp.` : "Sin cupo"}
                               </Badge>
-                              {pool.priceWholesale != null && (
-                                <span className="text-[10px] text-muted-foreground">${pool.priceWholesale}/mes c/u</span>
-                              )}
+                              <div className="flex items-center gap-1">
+                                {pool.priceWholesale != null && (
+                                  <span className="text-[10px] text-muted-foreground">${pool.priceWholesale}/mes c/u</span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePool(pool.id)}
+                                  className="ml-1 text-destructive/60 hover:text-destructive transition-colors"
+                                  title="Eliminar pool"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ))}
