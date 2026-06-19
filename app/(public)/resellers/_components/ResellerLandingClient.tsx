@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
-  Check, Zap, Star, MessageCircle, Bot, ArrowRight,
+  Check, Zap, Star, MessageCircle, Bot, ArrowRight, Calendar,
   Menu, X, ShieldCheck, TrendingUp, DollarSign, Globe,
   Headphones, BarChart3, Layers, ChevronDown, ChevronUp,
   Quote, BadgeCheck, Rocket, HandCoins, Loader2,
@@ -13,8 +13,24 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getActiveResellerAccessPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
+import { AnimatedChat } from "@/components/custom/AnimatedChat";
 
 /* ─── Datos ────────────────────────────────────────────────────────────────── */
+
+const INTEGRATIONS = [
+  { name: "WhatsApp Business",   color: "text-green-400 border-green-500/20 bg-green-500/5",       emoji: "💬" },
+  { name: "OpenAI GPT-4",        color: "text-slate-300 border-white/10 bg-white/5",               emoji: "🤖" },
+  { name: "Google Sheets",       color: "text-emerald-400 border-emerald-500/20 bg-emerald-500/5",  emoji: "📊" },
+  { name: "Google Calendar",     color: "text-blue-400 border-blue-500/20 bg-blue-500/5",           emoji: "📅" },
+  { name: "Instagram",           color: "text-pink-400 border-pink-500/20 bg-pink-500/5",           emoji: "📸" },
+  { name: "Excel",               color: "text-green-300 border-green-400/20 bg-green-400/5",        emoji: "📋" },
+  { name: "Reservas Online",     color: "text-cyan-400 border-cyan-500/20 bg-cyan-500/5",           emoji: "🗓️" },
+  { name: "CRM con Pipeline",    color: "text-violet-400 border-violet-500/20 bg-violet-500/5",     emoji: "📈" },
+  { name: "Pagos y Cobros",      color: "text-yellow-400 border-yellow-500/20 bg-yellow-500/5",     emoji: "💳" },
+  { name: "Respuestas 24/7",     color: "text-blue-300 border-blue-400/20 bg-blue-400/5",           emoji: "⚡" },
+  { name: "Catálogos Digitales", color: "text-orange-400 border-orange-500/20 bg-orange-500/5",     emoji: "🛍️" },
+  { name: "Seguimientos Auto",   color: "text-teal-400 border-teal-500/20 bg-teal-500/5",           emoji: "🔔" },
+];
 
 const BENEFITS = [
   {
@@ -498,43 +514,72 @@ export function ResellerLandingClient({
           <div className="absolute bottom-0 left-1/2 h-60 w-96 -translate-x-1/2 rounded-full bg-emerald-500/5 blur-3xl" />
         </div>
         <div className="relative mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
-          <div className="flex flex-col items-center text-center">
-            <Badge className="mb-5 inline-flex items-center gap-1.5 border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-sm text-blue-400">
-              <BadgeCheck className="h-4 w-4" /> Programa White Label
-            </Badge>
-            <h1 className="mb-5 max-w-4xl text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl xl:text-6xl">
-              Vende el Agente IA<br />
-              <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">con tu propia marca</span>
-            </h1>
-            <p className="mb-8 max-w-2xl text-base text-slate-400 sm:text-lg xl:text-xl">
-              Conviértete en reseller y ofrece la plataforma de automatización de WhatsApp más completa del mercado — con tu nombre, tu logo y tus precios. Sin construir nada desde cero.
-            </p>
-            <div className="flex flex-col items-center gap-3 sm:flex-row">
-              <Link href="/completar-registro?tipo=reseller">
-                <Button size="lg" className="gap-2 bg-blue-600 px-10 text-white hover:bg-blue-500">
-                  Registrarme como reseller <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-              {meetingUrl ? (
-                <a href={meetingUrl} target="_blank" rel="noopener noreferrer">
-                  <Button size="lg" variant="outline" className="gap-2 border-white/20 bg-transparent px-10 text-white hover:bg-white/10">
-                    <Zap className="h-4 w-4" /> Agendar reunión
+          <div className="grid min-h-[75vh] grid-cols-1 items-center gap-8 lg:grid-cols-2">
+
+            {/* Columna izquierda: texto */}
+            <div className="flex flex-col justify-center">
+              <Badge className="mb-5 inline-flex w-fit items-center gap-1.5 border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-sm text-blue-400">
+                <BadgeCheck className="h-4 w-4" /> Programa White Label
+              </Badge>
+              <h1 className="mb-5 text-3xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
+                <span className="block">Vende el Agente IA</span>
+                <span className="block bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">con tu propia marca</span>
+              </h1>
+              <p className="mb-8 text-base text-slate-400 sm:text-lg">
+                Conviértete en reseller y ofrece la plataforma de automatización de WhatsApp más completa del mercado — con tu nombre, tu logo y tus precios. Sin construir nada desde cero.
+              </p>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:flex-nowrap">
+                <Link href="/completar-registro?tipo=reseller">
+                  <Button size="lg" className="w-full gap-2 bg-blue-600 px-6 text-white hover:bg-blue-500 md:w-auto">
+                    Registrarme como reseller <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+                <a href="#pricing">
+                  <Button size="lg" variant="outline" className="w-full border-white/20 bg-transparent px-6 text-white hover:bg-white/10 md:w-auto">
+                    Ver planes
                   </Button>
                 </a>
-              ) : (
-                <a href="#how">
-                  <Button size="lg" variant="outline" className="border-white/20 bg-transparent px-10 text-white hover:bg-white/10">
-                    Cómo funciona
-                  </Button>
-                </a>
-              )}
+                {meetingUrl && (
+                  <a href={meetingUrl} target="_blank" rel="noopener noreferrer">
+                    <Button size="lg" variant="outline" className="w-full gap-2 border-cyan-500/40 bg-cyan-500/10 px-6 text-cyan-300 hover:bg-cyan-500/20 hover:text-cyan-200 md:w-auto">
+                      <Calendar className="h-4 w-4" /> Agendar reunión
+                    </Button>
+                  </a>
+                )}
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                {["Sin costos ocultos", "Panel de reseller incluido", "Soporte dedicado"].map((t) => (
+                  <span key={t} className="flex items-center gap-1 text-xs text-slate-500">
+                    <Check className="h-3 w-3 text-green-500" /> {t}
+                  </span>
+                ))}
+              </div>
+              {(() => {
+                const heroStats = (stats && stats.length > 0 ? stats.slice(0, 3) : [
+                  { value: "40+",  label: "Resellers activos" },
+                  { value: "4x",   label: "Margen promedio" },
+                  { value: "95%",  label: "Tasa de retención" },
+                ]).filter((s) => s.value);
+                return heroStats.length > 0 ? (
+                  <div className={`mt-5 grid grid-cols-${heroStats.length} gap-6 border-t border-white/10 pt-5`}>
+                    {heroStats.map((s) => (
+                      <div key={s.label}>
+                        <div className="text-2xl font-bold text-blue-400">{s.value}</div>
+                        <div className="mt-0.5 text-xs text-slate-500">{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
             </div>
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5">
-              {["Sin costos ocultos", "Panel de reseller incluido", "Soporte dedicado"].map((t) => (
-                <span key={t} className="flex items-center gap-1 text-xs text-slate-500">
-                  <Check className="h-3 w-3 text-green-500" /> {t}
-                </span>
-              ))}
+
+            {/* Columna derecha: phone mockup */}
+            <div className="flex items-center justify-center lg:justify-end">
+              <div className="relative">
+                <AnimatedChat />
+                <div className="absolute -inset-8 -z-10 rounded-full bg-blue-600/15 blur-3xl" />
+                <div className="absolute -inset-4 -z-10 rounded-full bg-green-500/5 blur-2xl" />
+              </div>
             </div>
           </div>
 
@@ -561,6 +606,26 @@ export function ResellerLandingClient({
         </div>
       </section>
 
+      {/* ══ MARQUEE INTEGRACIONES ══════════════════════════════════════════ */}
+      <section className="py-6">
+        <p className="mb-4 text-center text-xs font-medium uppercase tracking-widest text-slate-500">Compatible e integrado con</p>
+        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+          <div className="relative overflow-hidden rounded-xl"
+            style={{
+              maskImage: "linear-gradient(to right, transparent 0%, white 10%, white 90%, transparent 100%)",
+              WebkitMaskImage: "linear-gradient(to right, transparent 0%, white 10%, white 90%, transparent 100%)",
+            }}>
+            <div className="flex w-max gap-3 py-1" style={{ animation: "marquee 28s linear infinite" }}>
+              {[...INTEGRATIONS, ...INTEGRATIONS].map((int, i) => (
+                <span key={i} className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium", int.color)}>
+                  <span>{int.emoji}</span>{int.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ══ BENEFICIOS ═════════════════════════════════════════════════════ */}
       <section id="benefits" className="py-8 bg-white/[0.02]">
         <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
@@ -571,8 +636,8 @@ export function ResellerLandingClient({
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {BENEFITS.map((b, i) => (
-                <FadeIn key={b.title} delay={i * 60}>
-                  <div className={cn("flex flex-col gap-3 rounded-xl border p-5 transition-colors hover:bg-white/[0.07]", b.border, "bg-white/5")}>
+                <FadeIn key={b.title} delay={i * 60} className="h-full">
+                  <div className={cn("flex h-full flex-col gap-3 rounded-xl border p-5 transition-colors hover:bg-white/[0.07]", b.border, "bg-white/5")}>
                     <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", b.bg)}>
                       <b.icon className={cn("h-5 w-5", b.color)} />
                     </div>
@@ -676,8 +741,8 @@ export function ResellerLandingClient({
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {IDEAL_FOR.map((item, i) => (
-                <FadeIn key={item.title} delay={i * 60}>
-                  <div className="flex gap-4 rounded-xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07]">
+                <FadeIn key={item.title} delay={i * 60} className="h-full">
+                  <div className="flex h-full gap-4 rounded-xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07]">
                     <span className="text-2xl">{item.emoji}</span>
                     <div>
                       <h3 className="font-semibold text-white">{item.title}</h3>

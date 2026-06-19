@@ -20,6 +20,7 @@ interface ClientResponse<T = undefined> {
 }
 type FilterOptions = {
   resellerId?: string;
+  userIds?: string[];
 };
 const RESTRICTED_FIELDS = new Set<string>(['openMsg']);
 const BOOLEAN_FIELDS = [
@@ -74,7 +75,10 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
 
     let userIds: string[] | undefined;
 
-    if (filter?.resellerId) {
+    if (filter?.userIds) {
+      userIds = filter.userIds;
+      if (!userIds.length) return { success: true, message: "Sin clientes.", data: [] };
+    } else if (filter?.resellerId) {
       const assignments = await db.reseller.findMany({
         where: { resellerid: filter.resellerId },
         select: { userId: true },
@@ -452,9 +456,14 @@ export const createUserWithPausar = async (
   }
 ): Promise<ClientResponse<UserWithPausar>> => {
   try {
-    await ensureAdminOrResellerUser();
+    const me = await ensureAdminOrResellerUser();
 
     const { openingPhrase, ...userFields } = userData;
+
+    // Si el creador es reseller, vincular el cliente a su pool
+    if (me.role === 'reseller' && !userFields.demoResellerId) {
+      userFields.demoResellerId = me.id;
+    }
 
     // 1. Crear el usuario
     const user = await db.user.create({

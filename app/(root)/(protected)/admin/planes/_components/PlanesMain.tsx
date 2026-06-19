@@ -48,6 +48,7 @@ type EditForm = {
   assistanceType: string;
   isResellerPlan: boolean;
   priceUSD: number;
+  priceWholesale: number;
   priceQuarterly: number;
   priceYearly: number;
   credits: number;
@@ -100,6 +101,7 @@ export function PlanesMain() {
       assistanceType: type,
       isResellerPlan: isReseller,
       priceUSD: existing?.priceUSD ?? defaultPrices[plan][type],
+      priceWholesale: existing?.priceWholesale ?? 0,
       priceQuarterly: existing?.priceQuarterly ?? 0,
       priceYearly: existing?.priceYearly ?? 0,
       credits: existing?.credits ?? defaultCredits[plan][type],
@@ -126,6 +128,7 @@ export function PlanesMain() {
       features: form.features.split("\n").map((f) => f.trim()).filter(Boolean),
       description: form.description || undefined,
       color: form.color || undefined,
+      priceWholesale: form.priceWholesale || null,
       priceQuarterly: form.priceQuarterly || null,
       priceYearly: form.priceYearly || null,
       checkoutUrlMonthly: form.checkoutUrlMonthly || undefined,
@@ -453,7 +456,7 @@ export function PlanesMain() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>{form.isResellerPlan ? "Precio (USD/pack)" : "Precio (USD/mes)"}</Label>
+                  <Label>{form.isResellerPlan ? "Precio público (USD/pack)" : "Precio público (USD/mes)"}</Label>
                   {period === "monthly" && (
                     <Input type="number" min={0} step={0.01} value={form.priceUSD}
                       onChange={(e) => setForm({ ...form, priceUSD: parseFloat(e.target.value) || 0 })} />
@@ -473,6 +476,16 @@ export function PlanesMain() {
                     onChange={(e) => setForm({ ...form, credits: parseInt(e.target.value) || 0 })} />
                 </div>
               </div>
+
+              {!form.isResellerPlan && form.assistanceType === "IA" && (
+                <div className="space-y-1">
+                  <Label>Precio mayorista reseller (USD/mes)</Label>
+                  <Input type="number" min={0} step={0.01} value={form.priceWholesale}
+                    onChange={(e) => setForm({ ...form, priceWholesale: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00" />
+                  <p className="text-[11px] text-muted-foreground">Precio que cobras al reseller por cada licencia activa de este plan.</p>
+                </div>
+              )}
 
               <div className="space-y-1">
                 <Label>Descripción breve</Label>

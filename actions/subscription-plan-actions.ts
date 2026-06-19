@@ -10,6 +10,7 @@ export type SubscriptionPlanItem = {
   assistanceType: string;
   isResellerPlan: boolean;
   priceUSD: number;
+  priceWholesale: number | null;
   priceQuarterly: number | null;
   priceYearly: number | null;
   credits: number;
@@ -34,6 +35,7 @@ export async function getAllSubscriptionPlans() {
       data: plans.map((p) => ({
         ...p,
         priceUSD: Number(p.priceUSD),
+        priceWholesale: p.priceWholesale != null ? Number(p.priceWholesale) : null,
         priceQuarterly: p.priceQuarterly != null ? Number(p.priceQuarterly) : null,
         priceYearly: p.priceYearly != null ? Number(p.priceYearly) : null,
       })) as SubscriptionPlanItem[],
@@ -55,6 +57,7 @@ export async function getActiveSubscriptionPlans() {
       data: plans.map((p) => ({
         ...p,
         priceUSD: Number(p.priceUSD),
+        priceWholesale: p.priceWholesale != null ? Number(p.priceWholesale) : null,
         priceQuarterly: p.priceQuarterly != null ? Number(p.priceQuarterly) : null,
         priceYearly: p.priceYearly != null ? Number(p.priceYearly) : null,
       })) as SubscriptionPlanItem[],
@@ -75,6 +78,7 @@ export async function getActiveResellerAccessPlans() {
       data: plans.map((p) => ({
         ...p,
         priceUSD: Number(p.priceUSD),
+        priceWholesale: p.priceWholesale != null ? Number(p.priceWholesale) : null,
         priceQuarterly: p.priceQuarterly != null ? Number(p.priceQuarterly) : null,
         priceYearly: p.priceYearly != null ? Number(p.priceYearly) : null,
       })) as SubscriptionPlanItem[],
@@ -89,6 +93,7 @@ export async function upsertSubscriptionPlan(data: {
   assistanceType: string;
   isResellerPlan?: boolean;
   priceUSD: number;
+  priceWholesale?: number | null;
   priceQuarterly?: number | null;
   priceYearly?: number | null;
   credits: number;
@@ -106,6 +111,7 @@ export async function upsertSubscriptionPlan(data: {
     const isResellerPlan = data.isResellerPlan ?? false;
     const payload = {
       priceUSD: data.priceUSD,
+      priceWholesale: data.priceWholesale ?? null,
       priceQuarterly: data.priceQuarterly ?? null,
       priceYearly: data.priceYearly ?? null,
       credits: data.credits,

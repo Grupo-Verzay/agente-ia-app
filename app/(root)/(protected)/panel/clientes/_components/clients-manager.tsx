@@ -27,6 +27,7 @@ import { Users, Wifi, WifiOff, Zap } from 'lucide-react';
 import { ModuleWithItems } from '@/schema/module';
 import { setUserModules } from '@/actions/user-module-actions';
 import { ModulesDialog } from '@/components/shared/ModulesDialog';
+import type { ResellerPoolOption } from '../helpers/getClientsPageData';
 
 
 export type DialogType = 'editar' | 'tools' | 'evo' | 'delete' | 'backup' | 'modules'
@@ -38,10 +39,11 @@ interface Props {
     currentUserRol: string,
     countries: Country[],
     allModules: ModuleWithItems[],
+    resellerPools: ResellerPoolOption[],
     initialSearch?: string,
 };
 
-export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRol, countries, allModules, initialSearch }: Props) => {
+export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRol, countries, allModules, resellerPools, initialSearch }: Props) => {
     const router = useRouter();
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
     const [openCreateDialog, setOpenCreateDialog] = useState(false);
@@ -312,6 +314,8 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
                     setOpenCreateDialog={setOpenCreateDialog}
                     openCreateDialog={openCreateDialog}
                     apikeys={availableApikeys}
+                    currentUserRol={currentUserRol}
+                    resellerPools={resellerPools}
                 />
             )}
             {/* Dialog editar */}
