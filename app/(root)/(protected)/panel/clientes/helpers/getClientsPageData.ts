@@ -29,10 +29,23 @@ export async function getClientsPageData(): Promise<
         if (!user) return { success: false, message: "No autorizado." };
         if (!isAdminOrReseller(user.role)) return { success: false, message: "No autorizado." };
 
-        const usersPromise =
-            user.role === "reseller"
-                ? getEnrichedClients({ resellerId: user.id })
-                : getEnrichedClients();
+        let usersPromise;
+        if (user.role === "reseller") {
+            // Combinar sistema viejo (reseller table) y nuevo (demoResellerId)
+            const [oldAssignments, newClients] = await Promise.all([
+                db.reseller.findMany({ where: { resellerid: user.id }, select: { userId: true } }),
+                db.user.findMany({ where: { demoResellerId: user.id, isDemo: false }, select: { id: true } }),
+            ]);
+            const allIds = [...new Set([
+                ...oldAssignments.map(r => r.userId).filter(Boolean) as string[],
+                ...newClients.map(c => c.id),
+            ])];
+            usersPromise = allIds.length > 0
+                ? getEnrichedClients({ userIds: allIds })
+                : Promise.resolve({ success: true, data: [] as ClientInterface[] });
+        } else {
+            usersPromise = getEnrichedClients();
+        }
 
         //  Paralelo (evita “tildado” por awaits en cascada)
         const [resUsers, resApikeys, countries, allModules] = await Promise.all([
