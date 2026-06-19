@@ -1,22 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useTransition, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Plan } from "@prisma/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Loader2, Users, FlaskConical, Plus, Clock, Package, MoreHorizontal } from "lucide-react";
-import { StatusCell } from "@/components/StatusCell";
-import { impersonateUser } from "@/actions/auth-action";
+import { Loader2, Users, FlaskConical, Plus, Clock, Package } from "lucide-react";
 import {
   getMyResellerDashboard,
   getMyResellerClients,
@@ -25,7 +19,6 @@ import {
   createClientAccount,
 } from "@/actions/reseller-license-actions";
 import { PLAN_LABELS } from "@/types/plans";
-import type { ClientInterface } from "@/lib/types";
 
 type TabType = "clientes" | "demos";
 
@@ -38,6 +31,17 @@ type DemoItem = {
   demoCredits: number;
   createdAt: Date;
   iaCredits: { total: number; used: number } | null;
+};
+
+type ClientItem = {
+  id: string;
+  name: string | null;
+  email: string;
+  company: string;
+  plan: Plan;
+  status: boolean;
+  createdAt: Date;
+  billing: { billingStatus: string; dueDate: Date | null } | null;
 };
 
 type Pool = {
@@ -59,14 +63,13 @@ type Dashboard = {
 };
 
 export function MisClientesMain() {
-  const router = useRouter();
   const [tab, setTab] = useState<TabType>("clientes");
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
-  const [clients, setClients] = useState<ClientInterface[]>([]);
+  const [clients, setClients] = useState<ClientItem[]>([]);
   const [demos, setDemos] = useState<DemoItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isPending, startTransition] = useTransition();
 
+  // dialogs
   const [demoDialog, setDemoDialog] = useState(false);
   const [clientDialog, setClientDialog] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -83,7 +86,7 @@ export function MisClientesMain() {
         getMyResellerDemos(),
       ]);
       if (dashRes.success && dashRes.data) setDashboard(dashRes.data);
-      if (clientsRes.success) setClients(clientsRes.data);
+      if (clientsRes.success) setClients(clientsRes.data as ClientItem[]);
       if (demosRes.success) setDemos(demosRes.data as DemoItem[]);
     } finally {
       setLoading(false);
@@ -91,23 +94,6 @@ export function MisClientesMain() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
-
-  const handleIngresar = (client: ClientInterface) => {
-    if (!client.email || !client.password) {
-      toast.error("El cliente no tiene credenciales válidas");
-      return;
-    }
-    startTransition(async () => {
-      const res = await impersonateUser(client.id);
-      if (res.success) {
-        toast.success(`Entraste como ${client.email}`);
-        router.refresh();
-        router.push("/");
-      } else {
-        toast.error(res.message);
-      }
-    });
-  };
 
   const handleCreateDemo = async () => {
     if (!demoForm.name || !demoForm.email || !demoForm.password) {
@@ -154,7 +140,8 @@ export function MisClientesMain() {
 
   const daysLeft = (expires: Date | null) => {
     if (!expires) return null;
-    return Math.ceil((new Date(expires).getTime() - Date.now()) / 86400000);
+    const diff = Math.ceil((new Date(expires).getTime() - Date.now()) / 86400000);
+    return diff;
   };
 
   return (
@@ -194,7 +181,7 @@ export function MisClientesMain() {
         </Button>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -203,7 +190,7 @@ export function MisClientesMain() {
           <>
             {/* Stats de licencias */}
             {dashboard && dashboard.pools.length > 0 && (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 p-4 pb-0">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {dashboard.pools.map(pool => (
                   <div key={pool.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
                     <div className="flex items-center justify-between">
@@ -227,132 +214,78 @@ export function MisClientesMain() {
             )}
 
             {dashboard && dashboard.pools.length === 0 && tab === "clientes" && (
-              <div className="rounded-lg border border-dashed border-border m-4 p-8 text-center text-muted-foreground">
+              <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
                 <Package className="h-8 w-8 mx-auto mb-3 opacity-40" />
                 <p className="text-sm font-medium">Sin licencias asignadas</p>
-                <p className="text-xs mt-1">Contacta al administrador para que te asigne licencias.</p>
+                <p className="text-xs mt-1">Contacta al administrador para que te asigne licencias y puedas crear cuentas de clientes.</p>
               </div>
             )}
 
-            {/* ── TABLA CLIENTES ── */}
+            {/* ── CLIENTES ── */}
             {tab === "clientes" && (
-              clients.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border m-4 p-8 text-center text-muted-foreground">
-                  <Users className="h-8 w-8 mx-auto mb-3 opacity-40" />
-                  <p className="text-sm font-medium">Sin clientes activos</p>
-                  <p className="text-xs mt-1">Crea la primera cuenta para un cliente.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
-                        <th className="px-4 py-2 text-left font-medium">Estado</th>
-                        <th className="px-4 py-2 text-left font-medium">Empresa</th>
-                        <th className="px-4 py-2 text-left font-medium hidden md:table-cell">Email</th>
-                        <th className="px-4 py-2 text-center font-medium">QR</th>
-                        <th className="px-4 py-2 text-center font-medium">Agente</th>
-                        <th className="px-4 py-2 text-left font-medium hidden sm:table-cell">Plan</th>
-                        <th className="px-4 py-2 text-right font-medium">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {clients.map(c => (
-                        <tr key={c.id} className="border-b border-border/60 hover:bg-muted/30 transition-colors">
-                          <td className="px-4 py-2.5">
-                            <StatusCell userStatus={c.status} />
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <p className="font-medium truncate max-w-[160px]">{c.company || c.name || c.email}</p>
-                            <p className="text-xs text-muted-foreground truncate max-w-[160px]">{c.name}</p>
-                          </td>
-                          <td className="px-4 py-2.5 hidden md:table-cell text-xs text-muted-foreground">{c.email}</td>
-                          <td className="px-4 py-2.5 text-center">
-                            <div className="flex justify-center">
-                              <StatusCell qrStatus={c.qrStatus} />
-                            </div>
-                          </td>
-                          <td className="px-4 py-2.5 text-center">
-                            <div className="flex justify-center">
-                              <StatusCell isEvoEnabled={c.isEvoEnabled} />
-                            </div>
-                          </td>
-                          <td className="px-4 py-2.5 hidden sm:table-cell">
-                            <Badge variant="outline" className="text-[10px]">{PLAN_LABELS[c.plan]}</Badge>
-                          </td>
-                          <td className="px-4 py-2.5 text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={isPending}>
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => handleIngresar(c)}>
-                                  Ingresar
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )
+              <div className="space-y-2">
+                {clients.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
+                    <Users className="h-8 w-8 mx-auto mb-3 opacity-40" />
+                    <p className="text-sm font-medium">Sin clientes activos</p>
+                    <p className="text-xs mt-1">Crea la primera cuenta para un cliente.</p>
+                  </div>
+                ) : (
+                  clients.map(c => (
+                    <div key={c.id} className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{c.name ?? c.email}</p>
+                        <p className="text-xs text-muted-foreground truncate">{c.email} · {c.company}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="outline" className="text-[10px]">{PLAN_LABELS[c.plan]}</Badge>
+                        <Badge variant={c.status ? "default" : "secondary"} className="text-[10px]">
+                          {c.status ? "Activo" : "Inactivo"}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             )}
 
             {/* ── DEMOS ── */}
             {tab === "demos" && (
-              demos.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border m-4 p-8 text-center text-muted-foreground">
-                  <FlaskConical className="h-8 w-8 mx-auto mb-3 opacity-40" />
-                  <p className="text-sm font-medium">Sin demos creadas</p>
-                  <p className="text-xs mt-1">Puedes crear hasta {dashboard?.demoLimit ?? 3} demos de 7 días cada una.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
-                        <th className="px-4 py-2 text-left font-medium">Empresa</th>
-                        <th className="px-4 py-2 text-left font-medium hidden md:table-cell">Email</th>
-                        <th className="px-4 py-2 text-left font-medium">Créditos</th>
-                        <th className="px-4 py-2 text-left font-medium">Vence</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {demos.map(d => {
-                        const days = daysLeft(d.demoExpiresAt);
-                        const expired = days !== null && days <= 0;
-                        const creditsLeft = d.iaCredits ? d.iaCredits.total - d.iaCredits.used : d.demoCredits;
-                        return (
-                          <tr key={d.id} className="border-b border-border/60 hover:bg-muted/30 transition-colors">
-                            <td className="px-4 py-2.5">
-                              <p className="font-medium truncate max-w-[160px]">{d.company || d.name || d.email}</p>
-                              <p className="text-xs text-muted-foreground">{d.name}</p>
-                            </td>
-                            <td className="px-4 py-2.5 hidden md:table-cell text-xs text-muted-foreground">{d.email}</td>
-                            <td className="px-4 py-2.5 text-xs">{creditsLeft.toLocaleString()}</td>
-                            <td className="px-4 py-2.5">
-                              {days !== null && (
-                                <Badge
-                                  variant={expired ? "secondary" : days <= 2 ? "destructive" : "outline"}
-                                  className="text-[10px] gap-1"
-                                >
-                                  <Clock className="h-2.5 w-2.5" />
-                                  {expired ? "Vencida" : `${days}d`}
-                                </Badge>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )
+              <div className="space-y-2">
+                {demos.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
+                    <FlaskConical className="h-8 w-8 mx-auto mb-3 opacity-40" />
+                    <p className="text-sm font-medium">Sin demos creadas</p>
+                    <p className="text-xs mt-1">Puedes crear hasta {dashboard?.demoLimit ?? 3} demos de 7 días cada una.</p>
+                  </div>
+                ) : (
+                  demos.map(d => {
+                    const days = daysLeft(d.demoExpiresAt);
+                    const expired = days !== null && days <= 0;
+                    const creditsLeft = d.iaCredits ? d.iaCredits.total - d.iaCredits.used : d.demoCredits;
+                    return (
+                      <div key={d.id} className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3 gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{d.name ?? d.email}</p>
+                          <p className="text-xs text-muted-foreground truncate">{d.email} · {d.company}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs text-muted-foreground">{creditsLeft.toLocaleString()} créd.</span>
+                          {days !== null && (
+                            <Badge
+                              variant={expired ? "secondary" : days <= 2 ? "destructive" : "outline"}
+                              className="text-[10px] gap-1"
+                            >
+                              <Clock className="h-2.5 w-2.5" />
+                              {expired ? "Vencida" : `${days}d`}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             )}
           </>
         )}
