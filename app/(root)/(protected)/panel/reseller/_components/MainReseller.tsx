@@ -141,7 +141,7 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
 
   return (
     <TooltipProvider delayDuration={120}>
-    <div className="flex flex-col h-full min-h-0 overflow-y-auto gap-4">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden gap-4">
 
       {/* MetricCards */}
       <div className="shrink-0 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -176,7 +176,7 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
       </div>
 
       {/* Fila principal: Revendedor (izq) + Licencias (der) */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="shrink-0 grid grid-cols-1 gap-4 lg:grid-cols-2">
 
         {/* Izquierda: Selecciona un revendedor */}
         <div className="flex flex-col gap-2">
@@ -288,14 +288,14 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
       </div>
 
       {/* Clientes asignados / sin asignar */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="flex flex-col gap-2">
+      <div className="flex flex-1 min-h-0 flex-col lg:flex-row gap-4">
+        <div className="flex flex-1 min-h-0 flex-col gap-2">
           <div className="flex items-center justify-between">
             <Label className="text-base font-semibold">Clientes asignados</Label>
             <span className="text-xs text-muted-foreground">{assignedClients.length}</span>
           </div>
           <Input placeholder="Buscar cliente..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-          <ScrollArea className="h-60 border border-border rounded-lg p-2">
+          <ScrollArea className="flex-1 min-h-0 border border-border rounded-lg p-2">
             {filteredAssigned.map(client => (
               <div key={client.id} className="flex justify-between items-center p-2 hover:bg-muted rounded">
                 <span className="text-sm">{client.name ?? client.email}</span>
@@ -308,13 +308,13 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
           </ScrollArea>
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-1 min-h-0 flex-col gap-2">
           <div className="flex items-center justify-between">
             <Label className="text-base font-semibold">Clientes sin asignar</Label>
             <span className="text-xs text-muted-foreground">{unassignedClients.length}</span>
           </div>
           <Input placeholder="Buscar cliente..." value={searchUnassigned} onChange={e => setSearchUnassigned(e.target.value)} />
-          <ScrollArea className="h-60 border border-border rounded-lg p-2">
+          <ScrollArea className="flex-1 min-h-0 border border-border rounded-lg p-2">
             {filteredUnassigned.map(client => (
               <div key={client.id} className="flex justify-between items-center p-2 hover:bg-muted rounded">
                 <span className="text-sm">{client.name ?? client.email}</span>

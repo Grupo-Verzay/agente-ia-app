@@ -456,8 +456,13 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
               <Badge className={cn("mb-4 inline-flex w-fit items-center gap-1.5 border px-3 py-1", brand ? "brand-text brand-bg-soft brand-border" : "border-blue-500/20 bg-blue-500/10 text-blue-400")}>
                 <MessageCircle className="h-3 w-3" /> Agente IA para WhatsApp
               </Badge>
-              <h1 className="mb-4 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl xl:text-6xl">
-                {heroTitle}
+              <h1 className="mb-4 text-3xl font-bold leading-tight tracking-tight text-white sm:text-5xl xl:text-6xl">
+                {headline ? heroTitle : (
+                  <>
+                    Automatiza tu<br />
+                    WhatsApp con IA
+                  </>
+                )}
               </h1>
               <p className="mb-5 text-base text-slate-400 sm:text-lg xl:text-xl">{heroSub}</p>
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:flex-nowrap">

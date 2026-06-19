@@ -502,7 +502,7 @@ export function ResellerLandingClient({
             <Badge className="mb-5 inline-flex items-center gap-1.5 border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-sm text-blue-400">
               <BadgeCheck className="h-4 w-4" /> Programa White Label
             </Badge>
-            <h1 className="mb-5 max-w-4xl text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl xl:text-6xl">
+            <h1 className="mb-5 max-w-4xl text-3xl font-bold leading-tight tracking-tight text-white sm:text-5xl xl:text-6xl">
               Vende el Agente IA<br />
               <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">con tu propia marca</span>
             </h1>
