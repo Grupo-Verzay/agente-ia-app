@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
-  Check, Zap, Star, MessageCircle, Bot, ArrowRight,
+  Check, Zap, Star, MessageCircle, Bot, ArrowRight, Calendar,
   Menu, X, ShieldCheck, TrendingUp, DollarSign, Globe,
   Headphones, BarChart3, Layers, ChevronDown, ChevronUp,
   Quote, BadgeCheck, Rocket, HandCoins, Loader2,
@@ -526,8 +526,8 @@ export function ResellerLandingClient({
                 </a>
                 {meetingUrl && (
                   <a href={meetingUrl} target="_blank" rel="noopener noreferrer">
-                    <Button size="lg" variant="outline" className="w-full gap-2 border-white/20 bg-transparent px-6 text-white hover:bg-white/10 md:w-auto">
-                      <Zap className="h-4 w-4" /> Agendar reunión
+                    <Button size="lg" variant="outline" className="w-full gap-2 border-cyan-500/40 bg-cyan-500/10 px-6 text-cyan-300 hover:bg-cyan-500/20 hover:text-cyan-200 md:w-auto">
+                      <Calendar className="h-4 w-4" /> Agendar reunión
                     </Button>
                   </a>
                 )}
