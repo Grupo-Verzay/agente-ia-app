@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { Plan } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { currentUser } from "@/lib/auth";
-import { isAdmin } from "@/lib/rbac";
+import { isAdminLike } from "@/lib/rbac";
 
 export type LicensePoolItem = {
   id: string;
@@ -89,7 +89,7 @@ export async function assignLicenses(
 ) {
   try {
     const user = await currentUser();
-    if (!user || !isAdmin(user.role)) return { success: false, message: "Sin permisos" };
+    if (!user || !isAdminLike(user.role)) return { success: false, message: "Sin permisos" };
 
     await db.resellerLicensePool.upsert({
       where: { resellerUserId_subscriptionPlanId: { resellerUserId, subscriptionPlanId } },
@@ -110,7 +110,7 @@ export async function assignLicenses(
 export async function updateDemoLimit(resellerUserId: string, demoLimit: number) {
   try {
     const user = await currentUser();
-    if (!user || !isAdmin(user.role)) return { success: false, message: "Sin permisos" };
+    if (!user || !isAdminLike(user.role)) return { success: false, message: "Sin permisos" };
 
     await db.reseller.updateMany({
       where: { userId: resellerUserId },
