@@ -1,13 +1,9 @@
 "use server";
 
-import { currentUser } from "@/lib/auth";
-import AccessDenied from "@/app/AccessDenied";
-import { MisClientesMain } from "./_components/MisClientesMain";
+import { redirect } from "next/navigation";
 
 const MisClientesPage = async () => {
-  const user = await currentUser();
-  if (!user || user.role !== "reseller") return <AccessDenied />;
-  return <MisClientesMain />;
+  redirect("/panel/clientes");
 };
 
 export default MisClientesPage;
