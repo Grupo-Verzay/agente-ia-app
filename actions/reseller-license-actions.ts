@@ -5,6 +5,8 @@ import { Plan } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { currentUser } from "@/lib/auth";
 import { isAdminLike } from "@/lib/rbac";
+import { getEnrichedClients } from "@/actions/userClientDataActions";
+import type { ClientInterface } from "@/lib/types";
 
 export type LicensePoolItem = {
   id: string;
@@ -172,41 +174,30 @@ export async function getMyResellerDashboard() {
 
 // ── Reseller: lista sus clientes ──────────────────────────────────────────
 
-export async function getMyResellerClients() {
+export async function getMyResellerClients(): Promise<{ success: boolean; data: ClientInterface[] }> {
   try {
     const user = await currentUser();
     if (!user || user.role !== "reseller") return { success: false, data: [] };
 
-    // Sistema viejo: clientes asignados via tabla reseller (resellerid → userId)
+    // Sistema viejo: asignados via tabla reseller
     const oldAssignments = await db.reseller.findMany({
       where: { resellerid: user.id },
       select: { userId: true },
     });
-    const oldClientIds = oldAssignments.map(r => r.userId).filter(Boolean) as string[];
+    const oldIds = oldAssignments.map(r => r.userId).filter(Boolean) as string[];
 
-    // Sistema nuevo: clientes creados directamente por este reseller (demoResellerId)
+    // Sistema nuevo: creados con demoResellerId
     const newClients = await db.user.findMany({
       where: { demoResellerId: user.id, isDemo: false },
       select: { id: true },
     });
-    const newClientIds = newClients.map(c => c.id);
+    const newIds = newClients.map(c => c.id);
 
-    // Unión sin duplicados
-    const allIds = [...new Set([...oldClientIds, ...newClientIds])];
-
+    const allIds = [...new Set([...oldIds, ...newIds])];
     if (allIds.length === 0) return { success: true, data: [] };
 
-    const clients = await db.user.findMany({
-      where: { id: { in: allIds } },
-      select: {
-        id: true, name: true, email: true, company: true, plan: true,
-        status: true, createdAt: true,
-        billing: { select: { billingStatus: true, dueDate: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return { success: true, data: clients };
+    const result = await getEnrichedClients({ userIds: allIds });
+    return { success: result.success, data: result.data ?? [] };
   } catch (e) {
     console.error("[getMyResellerClients]", e);
     return { success: false, data: [] };
