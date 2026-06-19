@@ -177,8 +177,27 @@ export async function getMyResellerClients() {
     const user = await currentUser();
     if (!user || user.role !== "reseller") return { success: false, data: [] };
 
-    const clients = await db.user.findMany({
+    // Sistema viejo: clientes asignados via tabla reseller (resellerid → userId)
+    const oldAssignments = await db.reseller.findMany({
+      where: { resellerid: user.id },
+      select: { userId: true },
+    });
+    const oldClientIds = oldAssignments.map(r => r.userId).filter(Boolean) as string[];
+
+    // Sistema nuevo: clientes creados directamente por este reseller (demoResellerId)
+    const newClients = await db.user.findMany({
       where: { demoResellerId: user.id, isDemo: false },
+      select: { id: true },
+    });
+    const newClientIds = newClients.map(c => c.id);
+
+    // Unión sin duplicados
+    const allIds = [...new Set([...oldClientIds, ...newClientIds])];
+
+    if (allIds.length === 0) return { success: true, data: [] };
+
+    const clients = await db.user.findMany({
+      where: { id: { in: allIds } },
       select: {
         id: true, name: true, email: true, company: true, plan: true,
         status: true, createdAt: true,
