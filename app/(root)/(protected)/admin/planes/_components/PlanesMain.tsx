@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Pencil, Loader2, Star } from "lucide-react";
+import { Pencil, Loader2, Star, ArrowLeft, Users, Store } from "lucide-react";
 import {
   getAllSubscriptionPlans,
   upsertSubscriptionPlan,
@@ -63,7 +63,7 @@ type EditForm = {
 };
 
 export function PlanesMain() {
-  const [audience, setAudience] = useState<"client" | "reseller">("client");
+  const [audience, setAudience] = useState<"client" | "reseller" | null>(null);
   const [period, setPeriod] = useState<BillingPeriod>("monthly");
 
   const [plans, setPlans] = useState<SubscriptionPlanItem[]>([]);
@@ -173,117 +173,217 @@ export function PlanesMain() {
   };
 
   return (
-    <div className="flex flex-col gap-4 p-4 h-full overflow-y-auto">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Planes</h2>
-          <p className="text-sm text-muted-foreground">
-            Configura los precios, créditos y características de los planes maestros.
-          </p>
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 bg-muted/60 border-b border-border/40 px-4 pt-4 pb-3 shrink-0 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          {audience !== null && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setAudience(null)}
+              className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+              title="Volver"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
+          <div>
+            <h2 className="text-lg font-semibold">Planes</h2>
+            {audience === null && (
+              <p className="text-sm text-muted-foreground">
+                Configura los precios, créditos y características de los planes maestros.
+              </p>
+            )}
+          </div>
         </div>
-        {plans.filter((p) => !p.isResellerPlan).length === 0 && !loading && (
-          <Button size="sm" onClick={handleSeedAll} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Inicializar planes"}
+
+        <div className="flex items-center gap-2 shrink-0">
+          {audience === "client" && plans.filter((p) => !p.isResellerPlan).length === 0 && !loading && (
+            <Button size="sm" onClick={handleSeedAll} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Inicializar planes"}
+            </Button>
+          )}
+          <Button
+            variant={audience === "client" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setAudience("client")}
+            className="gap-2 text-xs h-8"
+          >
+            <Users className="h-3.5 w-3.5" />
+            Clientes directos
           </Button>
+          <Button
+            variant={audience === "reseller" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setAudience("reseller")}
+            className="gap-2 text-xs h-8"
+          >
+            <Store className="h-3.5 w-3.5" />
+            Resellers
+          </Button>
+        </div>
+      </div>
+
+      {/* Contenido */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {audience === null ? (
+          <div className="flex flex-col justify-center min-h-[60vh]">
+            <div className="w-full space-y-5 p-6">
+              <div className="text-center space-y-1 mb-2">
+                <h3 className="text-lg font-semibold">¿Qué planes deseas configurar?</h3>
+                <p className="text-sm text-muted-foreground">Elige el tipo de planes a gestionar</p>
+              </div>
+
+              {loading ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-5 max-w-3xl mx-auto">
+                  <Card
+                    className="cursor-pointer group hover:border-primary/50 hover:shadow-lg transition-all duration-200 border-l-4 border-l-primary/40"
+                    onClick={() => setAudience("client")}
+                  >
+                    <CardContent className="p-8 flex flex-col gap-5 h-full">
+                      <div className="flex items-center gap-4">
+                        <div className="h-14 w-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+                          <Users className="h-7 w-7 text-primary" />
+                        </div>
+                        <h4 className="font-semibold text-lg leading-snug">Clientes directos</h4>
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          Planes para usuarios finales que contratan el servicio directamente.
+                        </p>
+                        <p className="text-sm font-semibold text-primary pt-2">
+                          {plans.filter((p) => !p.isResellerPlan && p.isActive).length} planes activos
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between gap-4 pt-6 border-t border-border/50">
+                        <p className="text-xs text-muted-foreground truncate">Precios mensuales, trimestrales y anuales</p>
+                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-primary shrink-0 group-hover:gap-3 transition-all whitespace-nowrap">
+                          <ArrowLeft className="h-4 w-4 rotate-180" />
+                          Ver planes
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card
+                    className="cursor-pointer group hover:border-violet-500/50 hover:shadow-lg transition-all duration-200 border-l-4 border-l-violet-500/40"
+                    onClick={() => setAudience("reseller")}
+                  >
+                    <CardContent className="p-8 flex flex-col gap-5 h-full">
+                      <div className="flex items-center gap-4">
+                        <div className="h-14 w-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0 group-hover:bg-violet-500/20 transition-colors">
+                          <Store className="h-7 w-7 text-violet-600 dark:text-violet-400" />
+                        </div>
+                        <h4 className="font-semibold text-lg leading-snug">Resellers</h4>
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          Packs para revendedores que distribuyen el servicio a sus propios clientes.
+                        </p>
+                        <p className="text-sm font-semibold text-violet-600 dark:text-violet-400 pt-2">
+                          {plans.filter((p) => p.isResellerPlan && p.isActive).length} planes activos
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between gap-4 pt-6 border-t border-border/50">
+                        <p className="text-xs text-muted-foreground truncate">Packs 5, 10 y 25 usuarios</p>
+                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-violet-600 dark:text-violet-400 shrink-0 group-hover:gap-3 transition-all whitespace-nowrap">
+                          <ArrowLeft className="h-4 w-4 rotate-180" />
+                          Ver planes
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 space-y-6">
+            {loading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
+              </div>
+            ) : isReseller && plans.filter((p) => p.isResellerPlan).length === 0 ? (
+              <div className="flex flex-col items-center gap-3 py-10 text-center text-muted-foreground">
+                <p className="text-sm font-medium">No hay planes de Reseller configurados</p>
+                <p className="text-xs max-w-xs">Haz clic en el ícono de editar en cualquier plan para configurar precios, créditos y links de pago para resellers.</p>
+                <Button size="sm" variant="outline" onClick={() => openEdit(PLANS[0], "IA")}>
+                  Configurar primer plan Reseller
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {ASSISTANCE_TYPES.map((type) => (
+                  <div key={type}>
+                    <h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                      Asistencia {type}
+                    </h3>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {PLANS.map((plan) => {
+                        const p = getPlan(plan, type);
+                        return (
+                          <Card key={plan} className="relative border-border">
+                            {p?.isPopular && (
+                              <span className="absolute -top-2 left-3 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                                <Star className="h-2.5 w-2.5" /> Popular
+                              </span>
+                            )}
+                            <CardHeader className="pb-2 pt-4">
+                              <div className="flex items-center justify-between">
+                                <CardTitle className="text-sm">{PLAN_LABELS[plan]}</CardTitle>
+                                <div className="flex items-center gap-2">
+                                  {p && (
+                                    <Switch
+                                      checked={p.isActive}
+                                      onCheckedChange={() => void handleToggle(p.id, p.isActive)}
+                                    />
+                                  )}
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7"
+                                    onClick={() => openEdit(plan, type)}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </CardHeader>
+                            <CardContent className="pt-0 pb-3">
+                              {p ? (
+                                <div className="space-y-1">
+                                  <div className="flex items-baseline gap-1">
+                                    <span className="text-xl font-bold">${p.priceUSD}</span>
+                                    <span className="text-xs text-muted-foreground">USD/mes</span>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {p.credits.toLocaleString()} créditos
+                                  </div>
+                                  {!p.isActive && (
+                                    <Badge variant="secondary" className="text-[10px]">Inactivo</Badge>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-muted-foreground italic">Sin configurar</p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
-
-      {/* Audience toggle */}
-      <div className="inline-flex rounded-lg border border-border overflow-hidden self-start">
-        <button
-          type="button"
-          onClick={() => { setAudience("client"); setPeriod("monthly"); }}
-          className={`px-4 py-1.5 text-sm font-medium transition-colors ${audience === "client" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
-        >
-          Clientes directos
-        </button>
-        <button
-          type="button"
-          onClick={() => { setAudience("reseller"); setPeriod("monthly"); }}
-          className={`px-4 py-1.5 text-sm font-medium transition-colors ${audience === "reseller" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
-        >
-          Resellers
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
-        </div>
-      ) : isReseller && plans.filter((p) => p.isResellerPlan).length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-10 text-center text-muted-foreground">
-          <p className="text-sm font-medium">No hay planes de Reseller configurados</p>
-          <p className="text-xs max-w-xs">Haz clic en el ícono de editar en cualquier plan para configurar precios, créditos y links de pago para resellers.</p>
-          <Button size="sm" variant="outline" onClick={() => openEdit(PLANS[0], "IA")}>
-            Configurar primer plan Reseller
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {ASSISTANCE_TYPES.map((type) => (
-            <div key={type}>
-              <h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Asistencia {type}
-              </h3>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {PLANS.map((plan) => {
-                  const p = getPlan(plan, type);
-                  return (
-                    <Card key={plan} className="relative border-border">
-                      {p?.isPopular && (
-                        <span className="absolute -top-2 left-3 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
-                          <Star className="h-2.5 w-2.5" /> Popular
-                        </span>
-                      )}
-                      <CardHeader className="pb-2 pt-4">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm">{PLAN_LABELS[plan]}</CardTitle>
-                          <div className="flex items-center gap-2">
-                            {p && (
-                              <Switch
-                                checked={p.isActive}
-                                onCheckedChange={() => void handleToggle(p.id, p.isActive)}
-                              />
-                            )}
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => openEdit(plan, type)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pt-0 pb-3">
-                        {p ? (
-                          <div className="space-y-1">
-                            <div className="flex items-baseline gap-1">
-                              <span className="text-xl font-bold">${p.priceUSD}</span>
-                              <span className="text-xs text-muted-foreground">USD/mes</span>
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {p.credits.toLocaleString()} créditos
-                            </div>
-                            {!p.isActive && (
-                              <Badge variant="secondary" className="text-[10px]">Inactivo</Badge>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground italic">Sin configurar</p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="flex h-[585px] max-w-lg flex-col">
