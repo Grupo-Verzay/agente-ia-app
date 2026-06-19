@@ -304,7 +304,7 @@ export function VerzayLanding() {
 
         ) : section === "client" ? (
           /* ── Landing Clientes directos ── */
-          <div className="p-4">
+          <div>
             <Card>
               <CardHeader className="pb-2 pt-4">
                 <CardTitle className="flex items-center gap-2 text-base">
@@ -495,7 +495,7 @@ export function VerzayLanding() {
 
         ) : (
           /* ── Landing Resellers ── */
-          <div className="p-4">
+          <div>
             <Card>
               <CardHeader className="pb-2 pt-4">
                 <CardTitle className="flex items-center gap-2 text-base">

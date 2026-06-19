@@ -323,7 +323,7 @@ export function PlanesMain() {
             </div>
           </div>
         ) : (
-          <div className="p-4 space-y-6">
+          <div className="space-y-6">
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
