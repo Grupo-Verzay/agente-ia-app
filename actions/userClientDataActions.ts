@@ -461,20 +461,6 @@ export const createUserWithPausar = async (
       data: userFields,
     });
 
-    // 1b. Si es reseller, asignar módulos estándar del reseller
-    if (userFields.role === 'reseller') {
-      const resellerModules = await db.module.findMany({
-        where: { route: { in: ['/panel/mis-clientes', '/chats', '/ia', '/profile'] } },
-        select: { id: true },
-      });
-      if (resellerModules.length > 0) {
-        await db.userModule.createMany({
-          data: resellerModules.map(m => ({ A: m.id, B: user.id })),
-          skipDuplicates: true,
-        });
-      }
-    }
-
     let pausarRecord: Pausar | null = null;
 
     // 2. Crear registro Pausar si existe openingPhrase

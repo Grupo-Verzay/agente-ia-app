@@ -52,8 +52,8 @@ export function NavMain({ user }: { user: User }) {
             if (link.route === '/equipo' && isAdvisor) return false;
             // /panel/mis-planes solo para resellers
             if (link.route === '/panel/mis-planes' && user.role !== 'reseller') return false;
-            // El módulo Admin (/panel) nunca aparece en el sidebar para resellers
-            if (PANEL_ROUTES.includes(link.route) && user.role === 'reseller') return false;
+            // /panel y sub-rutas nunca aparecen en sidebar para resellers (van en tabs superiores)
+            if ((PANEL_ROUTES.includes(link.route) || link.route.startsWith('/panel/')) && user.role === 'reseller') return false;
             // El módulo /reseller-panel solo se muestra en sidebar para resellers (no admins)
             if (link.route === '/reseller-panel' && user.role !== 'reseller') return false;
             const access = canAccessRoute({

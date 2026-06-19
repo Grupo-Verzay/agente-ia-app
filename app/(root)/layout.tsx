@@ -95,26 +95,35 @@ export default async function RootGroupLayout({
 
     let modules = allModules;
     if (!isAdmin(user?.role)) {
-        const userModuleRecords = await db.userModule.findMany({
-            where: { B: user.id },
-            select: { A: true },
-        });
-        if (userModuleRecords.length > 0) {
-            const allowedIds = new Set(userModuleRecords.map(r => r.A));
-            modules = allModules.filter(m => allowedIds.has(m.id));
-        }
-        // Para usuarios regulares (no admin/reseller), filtrar por adminOnly y plan
-        if (!isAdminOrReseller(user?.role)) {
-            const isAdvisor = !!user.ownerId;
-            const userPlan = user!.plan;
-            modules = modules.filter(m => {
+        if (user.role === 'reseller') {
+            // Resellers: filtrado por plan (igual que usuarios regulares) sin restricción adminOnly
+            const userPlan = user.plan;
+            modules = allModules.filter(m => {
                 if (m.adminOnly) return false;
-                // Asesores no se filtran por plan — el dueño controla su acceso desde Equipo
-                if (!isAdvisor && m.allowedPlans?.length && !m.allowedPlans.includes(userPlan)) return false;
+                if (m.allowedPlans?.length && !m.allowedPlans.includes(userPlan)) return false;
                 return true;
             });
+        } else {
+            const userModuleRecords = await db.userModule.findMany({
+                where: { B: user.id },
+                select: { A: true },
+            });
+            if (userModuleRecords.length > 0) {
+                const allowedIds = new Set(userModuleRecords.map(r => r.A));
+                modules = allModules.filter(m => allowedIds.has(m.id));
+            }
+            // Para usuarios regulares (no reseller), filtrar por adminOnly y plan
+            if (!isAdminOrReseller(user?.role)) {
+                const isAdvisor = !!user.ownerId;
+                const userPlan = user!.plan;
+                modules = modules.filter(m => {
+                    if (m.adminOnly) return false;
+                    // Asesores no se filtran por plan — el dueño controla su acceso desde Equipo
+                    if (!isAdvisor && m.allowedPlans?.length && !m.allowedPlans.includes(userPlan)) return false;
+                    return true;
+                });
+            }
         }
-
     }
 
     let navPrefs: UserNavPref[] = [];
