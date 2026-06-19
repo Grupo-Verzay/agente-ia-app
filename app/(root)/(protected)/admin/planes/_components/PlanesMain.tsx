@@ -230,7 +230,7 @@ export function PlanesMain() {
       <div className="flex-1 min-h-0 overflow-y-auto">
         {audience === null ? (
           <div className="flex flex-col justify-center min-h-[60vh]">
-            <div className="w-full space-y-5 p-6">
+            <div className="w-full space-y-5 py-6">
               <div className="text-center space-y-1 mb-2">
                 <h3 className="text-lg font-semibold">¿Qué planes deseas configurar?</h3>
                 <p className="text-sm text-muted-foreground">Elige el tipo de planes a gestionar</p>
