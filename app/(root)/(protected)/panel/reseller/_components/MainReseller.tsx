@@ -11,20 +11,19 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { User } from "@prisma/client"
 import { Loader2, Package, Users, Plus, Trash2, Search, LayoutGrid, Ticket, UserCheck, UserMinus, UsersRound } from "lucide-react"
-import { MetricCard } from "@/components/custom/MetricCard"
-import { TooltipProvider } from "@/components/ui/tooltip"
 import { getClientsByReseller, assignClientToReseller, removeClientFromReseller } from "@/actions/reseller-action"
 import {
   getResellersWithPools,
   assignLicenses,
-  updateDemoLimit,
   deleteLicensePool,
   type ResellerWithPools,
 } from "@/actions/reseller-license-actions"
 import { getAllSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions"
 import { PLAN_LABELS } from "@/types/plans"
+import { MetricCard } from "@/components/custom/MetricCard"
 
 interface Props {
   searchParams: { [key: string]: string | undefined }
@@ -66,7 +65,7 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
   const [searchUnassigned, setSearchUnassigned] = useState("")
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-  // ── Tab licencias ──
+  // ── Licencias ──
   const [resellersData, setResellersData] = useState<ResellerWithPools[]>([])
   const [plans, setPlans] = useState<SubscriptionPlanItem[]>([])
   const [loadingLicenses, setLoadingLicenses] = useState(false)
@@ -74,8 +73,6 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
   const [licenseDialog, setLicenseDialog] = useState(false)
   const [selectedResellerForLicense, setSelectedResellerForLicense] = useState<ResellerWithPools | null>(null)
   const [licenseForm, setLicenseForm] = useState({ subscriptionPlanId: "", totalLicenses: 0 })
-  const [demoLimitDialog, setDemoLimitDialog] = useState(false)
-  const [demoLimitForm, setDemoLimitForm] = useState({ resellerUserId: "", demoLimit: 3 })
   const [saving, setSaving] = useState(false)
 
   // ── Cargar clientes ──
@@ -89,7 +86,7 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
     setUnassignedClients(data.unassignedClients.filter((c): c is User => c !== null))
   }
 
-  // ── Cargar licencias ──
+  // ── Cargar licencias (siempre al montar) ──
   const fetchLicenses = useCallback(async () => {
     setLoadingLicenses(true)
     try {
@@ -105,8 +102,8 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
   }, [])
 
   useEffect(() => {
-    if (tab === "licencias") void fetchLicenses()
-  }, [tab, fetchLicenses])
+    void fetchLicenses()
+  }, [fetchLicenses])
 
   // ── Clientes handlers ──
   const assignClient = async (client: Client) => {
@@ -162,24 +159,6 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
     }
   }
 
-  const openDemoLimitDialog = (r: ResellerWithPools) => {
-    setDemoLimitForm({ resellerUserId: r.id, demoLimit: r.demoLimit })
-    setDemoLimitDialog(true)
-  }
-
-  const handleUpdateDemoLimit = async () => {
-    setSaving(true)
-    const res = await updateDemoLimit(demoLimitForm.resellerUserId, demoLimitForm.demoLimit)
-    setSaving(false)
-    if (res.success) {
-      toast.success(res.message)
-      setDemoLimitDialog(false)
-      void fetchLicenses()
-    } else {
-      toast.error(res.message)
-    }
-  }
-
   const handleDeletePool = async (poolId: string) => {
     if (!confirm("¿Eliminar este pool de licencias?")) return
     const res = await deleteLicensePool(poolId)
@@ -191,11 +170,14 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
     }
   }
 
-  // ── Stats de licencias ──
+  // ── Datos del reseller seleccionado ──
+  const selectedResellerData = resellersData.find(r => r.id === selectedReseller)
+  const selectedResellerPools = selectedResellerData?.pools ?? []
+
+  // ── Stats globales ──
   const totalResellers = resellersData.length
   const totalUsed = resellersData.reduce((a, r) => a + r.pools.reduce((b, p) => b + p.usedLicenses, 0), 0)
   const totalAvailable = resellersData.reduce((a, r) => a + r.pools.reduce((b, p) => b + p.availableLicenses, 0), 0)
-
   const filteredResellers = resellersData.filter(r =>
     (r.name ?? "").toLowerCase().includes(searchLicenses.toLowerCase()) ||
     r.email.toLowerCase().includes(searchLicenses.toLowerCase()) ||
@@ -203,9 +185,43 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
   )
 
   return (
-    <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      {/* Tabs */}
-      <div className="sticky top-0 z-10 bg-muted/60 border-b border-border/40 px-4 pt-4 pb-3 shrink-0">
+    <TooltipProvider delayDuration={120}>
+    <div className="flex flex-col h-full min-h-0 overflow-hidden gap-3">
+
+      {/* ── MetricCards — siempre visibles, encima de los tabs ── */}
+      <div className="shrink-0 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <MetricCard
+          icon={<UsersRound className="h-3.5 w-3.5" />}
+          label="Total afiliados"
+          value={resellers.length}
+          helper="Total de resellers registrados en la plataforma"
+          color="#3B82F6"
+        />
+        <MetricCard
+          icon={<UserCheck className="h-3.5 w-3.5" />}
+          label="Clientes asignados"
+          value={assignedClients.length}
+          helper="Clientes asignados al reseller seleccionado"
+          color="#22C55E"
+        />
+        <MetricCard
+          icon={<UserMinus className="h-3.5 w-3.5" />}
+          label="Sin asignar"
+          value={unassignedClients.length}
+          helper="Clientes sin reseller asignado"
+          color="#F59E0B"
+        />
+        <MetricCard
+          icon={<Users className="h-3.5 w-3.5" />}
+          label="Total clientes"
+          value={user.length}
+          helper="Total de clientes en la plataforma"
+          color="#8B5CF6"
+        />
+      </div>
+
+      {/* ── Tabs ── */}
+      <div className="shrink-0 border-b border-border/40">
         <div className="flex gap-1 rounded-lg border border-border overflow-hidden w-fit">
           <button
             type="button"
@@ -221,7 +237,7 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
             className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium transition-colors ${tab === "licencias" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
           >
             <Package className="h-3.5 w-3.5" />
-            Licencias y demos
+            Licencias
           </button>
         </div>
       </div>
@@ -230,103 +246,148 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
 
         {/* ── TAB CLIENTES ── */}
         {tab === "clientes" && (
-          <TooltipProvider delayDuration={120}>
           <div className="space-y-4">
-          {/* Metric cards */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <MetricCard
-              icon={<UsersRound className="h-3.5 w-3.5" />}
-              label="Total afiliados"
-              value={resellers.length}
-              helper="Total de resellers registrados en la plataforma"
-              color="#3B82F6"
-            />
-            <MetricCard
-              icon={<UserCheck className="h-3.5 w-3.5" />}
-              label="Clientes asignados"
-              value={assignedClients.length}
-              helper="Clientes asignados al reseller seleccionado"
-              color="#22C55E"
-            />
-            <MetricCard
-              icon={<UserMinus className="h-3.5 w-3.5" />}
-              label="Sin asignar"
-              value={unassignedClients.length}
-              helper="Clientes sin reseller asignado"
-              color="#F59E0B"
-            />
-            <MetricCard
-              icon={<Users className="h-3.5 w-3.5" />}
-              label="Total clientes"
-              value={user.length}
-              helper="Total de clientes en la plataforma"
-              color="#8B5CF6"
-            />
-          </div>
 
-          <Card className="border-border">
-            <CardHeader>
-              <CardTitle>Gestión de clientes por revendedor</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-6">
-              <div className="grid gap-2">
-                <Label>Selecciona un revendedor</Label>
-                <Select onValueChange={(v) => { setSelectedReseller(v); getClients(v) }} defaultValue={selectedReseller}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {resellers.map(r => (
-                      <SelectItem key={r.id} value={r.id}>{r.name ?? r.email}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* Selector de revendedor */}
+            <div className="grid gap-2">
+              <Label>Selecciona un revendedor</Label>
+              <Select onValueChange={(v) => { setSelectedReseller(v); getClients(v) }} defaultValue={selectedReseller}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {resellers.map(r => (
+                    <SelectItem key={r.id} value={r.id}>{r.name ?? r.email}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* ── Licencias del reseller seleccionado ── */}
+            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Licencias asignadas</p>
+                {selectedResellerData && (
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => openLicenseDialog(selectedResellerData)}
+                    disabled={loadingLicenses}
+                  >
+                    <Plus className="h-3 w-3" />
+                    Asignar licencias
+                  </Button>
+                )}
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                <div className="flex flex-col flex-1 gap-2">
+              {loadingLicenses ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : selectedResellerPools.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">Sin licencias asignadas.</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {selectedResellerPools.map((pool) => {
+                    const pct = pool.totalLicenses > 0 ? (pool.usedLicenses / pool.totalLicenses) * 100 : 0
+                    const isFull = pool.availableLicenses <= 0
+                    return (
+                      <div
+                        key={pool.id}
+                        className={`rounded-lg border p-3 space-y-2 ${isFull ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/30"}`}
+                      >
+                        <div className="flex items-start justify-between gap-1">
+                          <div>
+                            <p className="text-xs font-semibold leading-tight">{PLAN_LABELS[pool.plan]}</p>
+                            <p className="text-[10px] text-muted-foreground">{pool.assistanceType}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePool(pool.id)}
+                            className="text-muted-foreground/50 hover:text-destructive transition-colors mt-0.5"
+                            title="Eliminar pool"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                            <span>{pool.usedLicenses} usadas</span>
+                            <span>{pool.totalLicenses} total</span>
+                          </div>
+                          <div className="h-1 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${isFull ? "bg-destructive" : pct > 75 ? "bg-orange-400" : "bg-primary"}`}
+                              style={{ width: `${Math.min(100, pct)}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1.5 py-0 h-4 font-medium ${isFull ? "border-destructive/40 text-destructive" : "border-emerald-500/40 text-emerald-600"}`}
+                          >
+                            {isFull ? "Sin cupo" : `${pool.availableLicenses} disp.`}
+                          </Badge>
+                          {pool.priceWholesale != null && (
+                            <span className="text-[10px] text-muted-foreground">${pool.priceWholesale}/mes</span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ── Clientes asignados / sin asignar ── */}
+            <div className="flex flex-wrap gap-2">
+              <div className="flex flex-col flex-1 gap-2">
+                <div className="flex items-center justify-between">
                   <Label className="text-base font-semibold">Clientes asignados</Label>
-                  <Input placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-                  <ScrollArea className="h-60 border-border rounded-lg p-2">
-                    {filteredAssignedClients.map(client => (
-                      <div key={client.id} className="flex justify-between items-center p-2 hover:bg-muted rounded">
-                        <span className="text-sm">{client.name ?? client.email}</span>
-                        <Button size="sm" variant="destructive" onClick={() => removeClient(client)}>Quitar</Button>
-                      </div>
-                    ))}
-                    {filteredAssignedClients.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center mt-4">Sin clientes asignados</p>
-                    )}
-                  </ScrollArea>
+                  <span className="text-xs text-muted-foreground">{assignedClients.length}</span>
                 </div>
-
-                <div className="flex flex-col flex-1 gap-2">
-                  <Label className="text-base font-semibold">Clientes sin asignar</Label>
-                  <Input placeholder="Buscar..." value={searchUnassigned} onChange={e => setSearchUnassigned(e.target.value)} />
-                  <ScrollArea className="h-60 border-border rounded-lg p-2">
-                    {filteredUnassignedClients.map(client => (
-                      <div key={client.id} className="flex justify-between items-center p-2 hover:bg-muted rounded">
-                        <span className="text-sm">{client.name ?? client.email}</span>
-                        <Button size="sm" onClick={() => assignClient(client)}>Asignar</Button>
-                      </div>
-                    ))}
-                    {filteredUnassignedClients.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center mt-4">Sin clientes pendientes</p>
-                    )}
-                  </ScrollArea>
-                </div>
+                <Input placeholder="Buscar cliente..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                <ScrollArea className="h-60 border border-border rounded-lg p-2">
+                  {filteredAssignedClients.map(client => (
+                    <div key={client.id} className="flex justify-between items-center p-2 hover:bg-muted rounded">
+                      <span className="text-sm">{client.name ?? client.email}</span>
+                      <Button size="sm" variant="destructive" onClick={() => removeClient(client)}>Quitar</Button>
+                    </div>
+                  ))}
+                  {filteredAssignedClients.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center mt-4">Sin clientes asignados</p>
+                  )}
+                </ScrollArea>
               </div>
-            </CardContent>
-          </Card>
+
+              <div className="flex flex-col flex-1 gap-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-semibold">Clientes sin asignar</Label>
+                  <span className="text-xs text-muted-foreground">{unassignedClients.length}</span>
+                </div>
+                <Input placeholder="Buscar cliente..." value={searchUnassigned} onChange={e => setSearchUnassigned(e.target.value)} />
+                <ScrollArea className="h-60 border border-border rounded-lg p-2">
+                  {filteredUnassignedClients.map(client => (
+                    <div key={client.id} className="flex justify-between items-center p-2 hover:bg-muted rounded">
+                      <span className="text-sm">{client.name ?? client.email}</span>
+                      <Button size="sm" onClick={() => assignClient(client)}>Asignar</Button>
+                    </div>
+                  ))}
+                  {filteredUnassignedClients.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center mt-4">Sin clientes pendientes</p>
+                  )}
+                </ScrollArea>
+              </div>
+            </div>
           </div>
-          </TooltipProvider>
         )}
 
-        {/* ── TAB LICENCIAS ── */}
+        {/* ── TAB LICENCIAS (vista global por reseller) ── */}
         {tab === "licencias" && (
-          <div className="space-y-4 p-1">
+          <div className="space-y-4">
 
-            {/* Stats resumen */}
+            {/* Stats globales */}
             {!loadingLicenses && resellersData.length > 0 && (
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-xl border border-border bg-card p-3 flex items-center gap-3">
@@ -384,14 +445,11 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
               filteredResellers.map((r) => {
                 const initials = getInitials(r.name, r.email)
                 const avatarColor = getAvatarColor(r.email)
-                const demoFull = r.demosUsed >= r.demoLimit
-                const demoNearFull = r.demosUsed >= r.demoLimit - 1
                 const totalPoolLicenses = r.pools.reduce((a, p) => a + p.totalLicenses, 0)
                 const usedPoolLicenses = r.pools.reduce((a, p) => a + p.usedLicenses, 0)
 
                 return (
                   <div key={r.id} className="rounded-xl border border-border bg-card overflow-hidden">
-                    {/* Header */}
                     <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border/60">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`shrink-0 h-9 w-9 rounded-full ${avatarColor} flex items-center justify-center text-white text-xs font-bold`}>
@@ -402,30 +460,17 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
                           <p className="text-[11px] text-muted-foreground truncate">{r.company} · {r.email}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => openDemoLimitDialog(r)}
-                          className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted
-                            ${demoFull ? "border-destructive/40 text-destructive" : demoNearFull ? "border-orange-400/40 text-orange-500" : "border-border text-muted-foreground"}`}
-                        >
-                          <span className={`h-1.5 w-1.5 rounded-full ${demoFull ? "bg-destructive" : demoNearFull ? "bg-orange-400" : "bg-emerald-400"}`} />
-                          Demos {r.demosUsed}/{r.demoLimit}
-                        </button>
-                        <Button size="sm" className="h-7 text-xs gap-1" onClick={() => openLicenseDialog(r)}>
-                          <Plus className="h-3 w-3" />
-                          Asignar licencias
-                        </Button>
-                      </div>
+                      <Button size="sm" className="h-7 text-xs gap-1 shrink-0" onClick={() => openLicenseDialog(r)}>
+                        <Plus className="h-3 w-3" />
+                        Asignar licencias
+                      </Button>
                     </div>
 
-                    {/* Body */}
                     <div className="px-4 py-3">
                       {r.pools.length === 0 ? (
                         <p className="text-xs text-muted-foreground italic py-1">Sin licencias asignadas.</p>
                       ) : (
                         <>
-                          {/* Mini resumen de licencias */}
                           <div className="flex items-center gap-3 mb-3">
                             <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                               <div
@@ -434,11 +479,9 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
                               />
                             </div>
                             <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-                              {usedPoolLicenses}/{totalPoolLicenses} licencias usadas
+                              {usedPoolLicenses}/{totalPoolLicenses} usadas
                             </span>
                           </div>
-
-                          {/* Pool cards */}
                           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                             {r.pools.map((pool) => {
                               const pct = pool.totalLicenses > 0 ? (pool.usedLicenses / pool.totalLicenses) * 100 : 0
@@ -462,7 +505,6 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
                                       <Trash2 className="h-3 w-3" />
                                     </button>
                                   </div>
-
                                   <div className="space-y-1">
                                     <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                                       <span>{pool.usedLicenses} usadas</span>
@@ -475,7 +517,6 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
                                       />
                                     </div>
                                   </div>
-
                                   <div className="flex items-center justify-between">
                                     <Badge
                                       variant="outline"
@@ -561,33 +602,7 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
         </DialogContent>
       </Dialog>
 
-      {/* Dialog: demo limit */}
-      <Dialog open={demoLimitDialog} onOpenChange={setDemoLimitDialog}>
-        <DialogContent className="flex h-[585px] max-w-sm flex-col">
-          <DialogHeader>
-            <DialogTitle>Límite de demos</DialogTitle>
-            <p className="text-xs text-muted-foreground">Cantidad máxima de demos que puede crear este reseller.</p>
-          </DialogHeader>
-          <div className="flex-1 space-y-4 overflow-y-auto py-2">
-            <div className="space-y-1">
-              <Label>Demos máximas permitidas</Label>
-              <Input
-                type="number" min={0} value={demoLimitForm.demoLimit}
-                onChange={e => setDemoLimitForm({ ...demoLimitForm, demoLimit: parseInt(e.target.value) || 0 })}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Por defecto son 3. Cada demo dura 7 días y tiene 1,000 créditos.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDemoLimitDialog(false)}>Cancelar</Button>
-            <Button onClick={handleUpdateDemoLimit} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
+    </TooltipProvider>
   )
 }
