@@ -230,59 +230,59 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
       {/* Clientes asignados / sin asignar */}
       <div className="flex flex-1 min-h-0 flex-col lg:flex-row gap-4">
 
-        {/* Columna izquierda: pools detalle (si existen) + clientes asignados */}
+        {/* Columna izquierda: clientes asignados (pools dentro del scroll) */}
         <div className="flex flex-1 min-h-0 flex-col gap-2">
-
-          {/* Pools detallados — solo si hay licencias */}
-          {selectedResellerPools.length > 0 && (
-            <div className="shrink-0 flex flex-col gap-1.5">
-              {selectedResellerPools.map((pool) => {
-                const pct = pool.totalLicenses > 0 ? (pool.usedLicenses / pool.totalLicenses) * 100 : 0
-                const isFull = pool.availableLicenses <= 0
-                return (
-                  <div
-                    key={pool.id}
-                    className={`flex items-center gap-3 rounded-md border px-3 py-2 ${isFull ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/20"}`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-medium truncate">{PLAN_LABELS[pool.plan]} · {pool.assistanceType}</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">{pool.usedLicenses}/{pool.totalLicenses}</span>
-                      </div>
-                      <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${isFull ? "bg-destructive" : pct > 75 ? "bg-orange-400" : "bg-primary"}`}
-                          style={{ width: `${Math.min(100, pct)}%` }}
-                        />
-                      </div>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={`shrink-0 text-[10px] px-1.5 py-0 h-4 font-medium ${isFull ? "border-destructive/40 text-destructive" : "border-emerald-500/40 text-emerald-600"}`}
-                    >
-                      {isFull ? "Sin cupo" : `${pool.availableLicenses} disp.`}
-                    </Badge>
-                    <button
-                      type="button"
-                      onClick={() => handleDeletePool(pool.id)}
-                      className="shrink-0 text-muted-foreground/50 hover:text-destructive transition-colors"
-                      title="Eliminar pool"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Clientes asignados */}
           <div className="flex items-center justify-between">
             <Label className="text-base font-semibold">Clientes asignados</Label>
             <span className="text-xs text-muted-foreground">{assignedClients.length}</span>
           </div>
           <Input placeholder="Buscar cliente..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           <ScrollArea className="flex-1 min-h-0 border border-border rounded-lg p-2">
+
+            {/* Pools detallados al inicio del scroll */}
+            {selectedResellerPools.length > 0 && (
+              <div className="mb-2 flex flex-col gap-1.5">
+                {selectedResellerPools.map((pool) => {
+                  const pct = pool.totalLicenses > 0 ? (pool.usedLicenses / pool.totalLicenses) * 100 : 0
+                  const isFull = pool.availableLicenses <= 0
+                  return (
+                    <div
+                      key={pool.id}
+                      className={`flex items-center gap-3 rounded-md border px-3 py-2 ${isFull ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/20"}`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-medium truncate">{PLAN_LABELS[pool.plan]} · {pool.assistanceType}</span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">{pool.usedLicenses}/{pool.totalLicenses}</span>
+                        </div>
+                        <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${isFull ? "bg-destructive" : pct > 75 ? "bg-orange-400" : "bg-primary"}`}
+                            style={{ width: `${Math.min(100, pct)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={`shrink-0 text-[10px] px-1.5 py-0 h-4 font-medium ${isFull ? "border-destructive/40 text-destructive" : "border-emerald-500/40 text-emerald-600"}`}
+                      >
+                        {isFull ? "Sin cupo" : `${pool.availableLicenses} disp.`}
+                      </Badge>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePool(pool.id)}
+                        className="shrink-0 text-muted-foreground/50 hover:text-destructive transition-colors"
+                        title="Eliminar pool"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )
+                })}
+                <div className="my-1 border-t border-border" />
+              </div>
+            )}
+
             {filteredAssigned.map(client => (
               <div key={client.id} className="flex justify-between items-center p-2 hover:bg-muted rounded">
                 <span className="text-sm">{client.name ?? client.email}</span>
