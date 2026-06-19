@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Plan } from "@prisma/client";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -63,26 +62,29 @@ type EditForm = {
   checkoutUrlYearly: string;
 };
 
-export function PlanesMain() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+const LS_AUDIENCE = "planes_audience";
+const LS_PERIOD   = "planes_period";
 
-  const audience = (searchParams.get("audience") ?? "client") as "client" | "reseller";
-  const period = (searchParams.get("period") ?? "monthly") as BillingPeriod;
+export function PlanesMain() {
+  const [audience, _setAudience] = useState<"client" | "reseller">("client");
+  const [period, _setPeriod]     = useState<BillingPeriod>("monthly");
+
+  useEffect(() => {
+    const a = localStorage.getItem(LS_AUDIENCE) as "client" | "reseller" | null;
+    const p = localStorage.getItem(LS_PERIOD)   as BillingPeriod | null;
+    if (a) _setAudience(a);
+    if (p) _setPeriod(p);
+  }, []);
 
   const setAudience = useCallback((v: "client" | "reseller") => {
-    const p = new URLSearchParams(searchParams.toString());
-    p.set("audience", v);
-    p.set("period", "monthly");
-    router.replace(`${pathname}?${p.toString()}`);
-  }, [router, pathname, searchParams]);
+    localStorage.setItem(LS_AUDIENCE, v);
+    _setAudience(v);
+  }, []);
 
   const setPeriod = useCallback((v: BillingPeriod) => {
-    const p = new URLSearchParams(searchParams.toString());
-    p.set("period", v);
-    router.replace(`${pathname}?${p.toString()}`);
-  }, [router, pathname, searchParams]);
+    localStorage.setItem(LS_PERIOD, v);
+    _setPeriod(v);
+  }, []);
 
   const [plans, setPlans] = useState<SubscriptionPlanItem[]>([]);
   const [loading, setLoading] = useState(true);
