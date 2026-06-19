@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getActiveResellerAccessPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
+import { AnimatedChat } from "@/app/(public)/_components/AnimatedChat";
 
 /* ─── Datos ────────────────────────────────────────────────────────────────── */
 
@@ -498,43 +499,56 @@ export function ResellerLandingClient({
           <div className="absolute bottom-0 left-1/2 h-60 w-96 -translate-x-1/2 rounded-full bg-emerald-500/5 blur-3xl" />
         </div>
         <div className="relative mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
-          <div className="flex flex-col items-center text-center">
-            <Badge className="mb-5 inline-flex items-center gap-1.5 border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-sm text-blue-400">
-              <BadgeCheck className="h-4 w-4" /> Programa White Label
-            </Badge>
-            <h1 className="mb-5 max-w-4xl text-3xl font-bold leading-tight tracking-tight text-white sm:text-5xl xl:text-6xl">
-              Vende el Agente IA<br />
-              <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">con tu propia marca</span>
-            </h1>
-            <p className="mb-8 max-w-2xl text-base text-slate-400 sm:text-lg xl:text-xl">
-              Conviértete en reseller y ofrece la plataforma de automatización de WhatsApp más completa del mercado — con tu nombre, tu logo y tus precios. Sin construir nada desde cero.
-            </p>
-            <div className="flex flex-col items-center gap-3 sm:flex-row">
-              <Link href="/completar-registro?tipo=reseller">
-                <Button size="lg" className="gap-2 bg-blue-600 px-10 text-white hover:bg-blue-500">
-                  Registrarme como reseller <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-              {meetingUrl ? (
-                <a href={meetingUrl} target="_blank" rel="noopener noreferrer">
-                  <Button size="lg" variant="outline" className="gap-2 border-white/20 bg-transparent px-10 text-white hover:bg-white/10">
-                    <Zap className="h-4 w-4" /> Agendar reunión
+          <div className="grid min-h-[75vh] grid-cols-1 items-center gap-8 lg:grid-cols-2">
+
+            {/* Columna izquierda: texto */}
+            <div className="flex flex-col justify-center">
+              <Badge className="mb-5 inline-flex w-fit items-center gap-1.5 border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-sm text-blue-400">
+                <BadgeCheck className="h-4 w-4" /> Programa White Label
+              </Badge>
+              <h1 className="mb-5 text-3xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
+                <span className="block">Vende el Agente IA</span>
+                <span className="block bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">con tu propia marca</span>
+              </h1>
+              <p className="mb-8 text-base text-slate-400 sm:text-lg">
+                Conviértete en reseller y ofrece la plataforma de automatización de WhatsApp más completa del mercado — con tu nombre, tu logo y tus precios. Sin construir nada desde cero.
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Link href="/completar-registro?tipo=reseller">
+                  <Button size="lg" className="gap-2 bg-blue-600 px-10 text-white hover:bg-blue-500">
+                    Registrarme como reseller <ArrowRight className="h-4 w-4" />
                   </Button>
-                </a>
-              ) : (
-                <a href="#how">
-                  <Button size="lg" variant="outline" className="border-white/20 bg-transparent px-10 text-white hover:bg-white/10">
-                    Cómo funciona
-                  </Button>
-                </a>
-              )}
+                </Link>
+                {meetingUrl ? (
+                  <a href={meetingUrl} target="_blank" rel="noopener noreferrer">
+                    <Button size="lg" variant="outline" className="gap-2 border-white/20 bg-transparent px-10 text-white hover:bg-white/10">
+                      <Zap className="h-4 w-4" /> Agendar reunión
+                    </Button>
+                  </a>
+                ) : (
+                  <a href="#how">
+                    <Button size="lg" variant="outline" className="border-white/20 bg-transparent px-10 text-white hover:bg-white/10">
+                      Cómo funciona
+                    </Button>
+                  </a>
+                )}
+              </div>
+              <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                {["Sin costos ocultos", "Panel de reseller incluido", "Soporte dedicado"].map((t) => (
+                  <span key={t} className="flex items-center gap-1 text-xs text-slate-500">
+                    <Check className="h-3 w-3 text-green-500" /> {t}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5">
-              {["Sin costos ocultos", "Panel de reseller incluido", "Soporte dedicado"].map((t) => (
-                <span key={t} className="flex items-center gap-1 text-xs text-slate-500">
-                  <Check className="h-3 w-3 text-green-500" /> {t}
-                </span>
-              ))}
+
+            {/* Columna derecha: phone mockup */}
+            <div className="flex items-center justify-center lg:justify-end">
+              <div className="relative">
+                <AnimatedChat />
+                <div className="absolute -inset-8 -z-10 rounded-full bg-blue-600/15 blur-3xl" />
+                <div className="absolute -inset-4 -z-10 rounded-full bg-green-500/5 blur-2xl" />
+              </div>
             </div>
           </div>
 
