@@ -54,6 +54,17 @@ export const CreateDialog = ({
   currentUserRol,
 }: Props) => {
   const isReseller = currentUserRol === 'reseller';
+
+  // Planes que incluyen Sintetizador, Clasificación y Follow ups
+  const PLAN_SUPPORTS_CRM: Record<string, boolean> = {
+    lite: false,
+    basico: false,
+    intermedio: true,
+    avanzado: true,
+    enterprise: true,
+    personalizado: true,
+  };
+
   const [status, setStatus] = useState(true);
   const [enabledSynthesizer, setEnabledSynthesizer] = useState(false);
   const [enabledLeadStatusClassifier, setEnabledLeadStatusClassifier] = useState(false);
@@ -65,6 +76,7 @@ export const CreateDialog = ({
     handleSubmit,
     setValue,
     reset,
+    watch,
     formState: { errors },
   } = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
@@ -84,6 +96,9 @@ export const CreateDialog = ({
     },
   });
 
+  const selectedPlan = watch('plan');
+  const crmDisabled = isReseller && !PLAN_SUPPORTS_CRM[selectedPlan];
+
   const handleClose = (open: boolean) => {
     setOpenCreateDialog(open);
     if (!open) {
@@ -101,16 +116,20 @@ export const CreateDialog = ({
   };
 
   const onSubmit = (data: UserFormValues) => {
-    handleCreate({ ...data, status, enabledSynthesizer, enabledLeadStatusClassifier, enabledCrmFollowUps });
+    handleCreate({
+      ...data,
+      status,
+      enabledSynthesizer: crmDisabled ? false : enabledSynthesizer,
+      enabledLeadStatusClassifier: crmDisabled ? false : enabledLeadStatusClassifier,
+      enabledCrmFollowUps: crmDisabled ? false : enabledCrmFollowUps,
+    });
   };
 
   const switches = [
-    { id: "status", label: "Estado", checked: status, onChange: setStatus },
-    ...(!isReseller ? [
-      { id: "enabledSynthesizer", label: "Sintetizador", checked: enabledSynthesizer, onChange: setEnabledSynthesizer },
-      { id: "enabledLeadStatusClassifier", label: "Clasificacion", checked: enabledLeadStatusClassifier, onChange: setEnabledLeadStatusClassifier },
-      { id: "enabledCrmFollowUps", label: "Follow ups", checked: enabledCrmFollowUps, onChange: setEnabledCrmFollowUps },
-    ] : []),
+    { id: "status", label: "Estado", checked: status, onChange: setStatus, disabled: false },
+    { id: "enabledSynthesizer", label: "Sintetizador", checked: crmDisabled ? false : enabledSynthesizer, onChange: setEnabledSynthesizer, disabled: crmDisabled },
+    { id: "enabledLeadStatusClassifier", label: "Clasificacion", checked: crmDisabled ? false : enabledLeadStatusClassifier, onChange: setEnabledLeadStatusClassifier, disabled: crmDisabled },
+    { id: "enabledCrmFollowUps", label: "Follow ups", checked: crmDisabled ? false : enabledCrmFollowUps, onChange: setEnabledCrmFollowUps, disabled: crmDisabled },
   ];
 
   return (
@@ -126,10 +145,10 @@ export const CreateDialog = ({
 
               {/* Switches */}
               <div className="grid grid-cols-2 gap-2">
-                {switches.map(({ id, label, checked, onChange }) => (
+                {switches.map(({ id, label, checked, onChange, disabled }) => (
                   <div key={id} className="flex items-center justify-between gap-2 pr-4">
-                    <Label htmlFor={id} className="text-xs font-semibold text-foreground">{label}</Label>
-                    <Switch id={id} checked={checked} onCheckedChange={onChange} />
+                    <Label htmlFor={id} className={`text-xs font-semibold ${disabled ? 'text-muted-foreground' : 'text-foreground'}`}>{label}</Label>
+                    <Switch id={id} checked={checked} onCheckedChange={disabled ? undefined : onChange} disabled={disabled} />
                   </div>
                 ))}
               </div>
@@ -162,9 +181,9 @@ export const CreateDialog = ({
                 </div>
               </div>
 
-              {/* Rol / Plan — solo admins */}
-              {!isReseller && (
-                <div className="grid grid-cols-2 gap-2">
+              {/* Rol / Plan */}
+              <div className="grid grid-cols-2 gap-2">
+                {!isReseller && (
                   <div className="flex flex-col gap-1">
                     <Label className="text-xs font-semibold text-foreground">Rol</Label>
                     <Select onValueChange={(v) => setValue("role", v as Role)} defaultValue="user">
@@ -181,24 +200,24 @@ export const CreateDialog = ({
                     </Select>
                     {errors.role && <p className="text-xs text-destructive">{errors.role.message}</p>}
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <Label className="text-xs font-semibold text-foreground">Plan</Label>
-                    <Select onValueChange={(v) => setValue("plan", v as UserFormValues["plan"])} defaultValue="basico">
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un plan" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {PLANS.map((plan) => (
-                            <SelectItem key={plan} value={plan}>{PLAN_LABELS[plan]}</SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                    {errors.plan && <p className="text-xs text-destructive">{errors.plan.message}</p>}
-                  </div>
+                )}
+                <div className={`flex flex-col gap-1 ${isReseller ? 'col-span-2' : ''}`}>
+                  <Label className="text-xs font-semibold text-foreground">Plan</Label>
+                  <Select onValueChange={(v) => setValue("plan", v as UserFormValues["plan"])} defaultValue="basico">
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona un plan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {PLANS.map((plan) => (
+                          <SelectItem key={plan} value={plan}>{PLAN_LABELS[plan]}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {errors.plan && <p className="text-xs text-destructive">{errors.plan.message}</p>}
                 </div>
-              )}
+              </div>
 
               {/* Teléfono */}
               <div className="flex flex-col gap-1">
