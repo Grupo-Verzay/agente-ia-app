@@ -1,7 +1,12 @@
+import dynamic from "next/dynamic";
 import { currentUser } from "@/lib/auth";
 import { isAdminLike } from "@/lib/rbac";
 import AccessDenied from "@/app/AccessDenied";
-import { PlanesMain } from "../../admin/planes/_components/PlanesMain";
+
+const PlanesMain = dynamic(
+  () => import("../../admin/planes/_components/PlanesMain").then((m) => m.PlanesMain),
+  { ssr: false }
+);
 
 const PlanesPage = async () => {
   const user = await currentUser();

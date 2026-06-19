@@ -66,15 +66,12 @@ const LS_AUDIENCE = "planes_audience";
 const LS_PERIOD   = "planes_period";
 
 export function PlanesMain() {
-  const [audience, _setAudience] = useState<"client" | "reseller">("client");
-  const [period, _setPeriod]     = useState<BillingPeriod>("monthly");
-
-  useEffect(() => {
-    const a = localStorage.getItem(LS_AUDIENCE) as "client" | "reseller" | null;
-    const p = localStorage.getItem(LS_PERIOD)   as BillingPeriod | null;
-    if (a) _setAudience(a);
-    if (p) _setPeriod(p);
-  }, []);
+  const [audience, _setAudience] = useState<"client" | "reseller">(
+    () => (localStorage.getItem(LS_AUDIENCE) as "client" | "reseller") ?? "client"
+  );
+  const [period, _setPeriod] = useState<BillingPeriod>(
+    () => (localStorage.getItem(LS_PERIOD) as BillingPeriod) ?? "monthly"
+  );
 
   const setAudience = useCallback((v: "client" | "reseller") => {
     localStorage.setItem(LS_AUDIENCE, v);
