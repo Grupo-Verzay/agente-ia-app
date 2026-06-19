@@ -189,14 +189,7 @@ export function PlanesMain() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           )}
-          <div>
-            <h2 className="text-lg font-semibold">Planes</h2>
-            {audience === null && (
-              <p className="text-sm text-muted-foreground">
-                Configura los precios, créditos y características de los planes maestros.
-              </p>
-            )}
-          </div>
+          <h2 className="text-lg font-semibold">Planes</h2>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
