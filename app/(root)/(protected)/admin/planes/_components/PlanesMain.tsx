@@ -241,7 +241,7 @@ export function PlanesMain() {
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-5 max-w-3xl mx-auto">
+                <div className="grid grid-cols-2 gap-5">
                   <Card
                     className="cursor-pointer group hover:border-primary/50 hover:shadow-lg transition-all duration-200 border-l-4 border-l-primary/40"
                     onClick={() => setAudience("client")}
@@ -257,12 +257,25 @@ export function PlanesMain() {
                         <p className="text-sm text-muted-foreground">
                           Planes para usuarios finales que contratan el servicio directamente.
                         </p>
-                        <p className="text-sm font-semibold text-primary pt-2">
-                          {plans.filter((p) => !p.isResellerPlan && p.isActive).length} planes activos
-                        </p>
+                        <ul className="space-y-2 pt-2">
+                          <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <span className="text-primary font-bold mt-0.5 shrink-0">✓</span>
+                            Asistencia IA y Humano en distintos rangos de precio
+                          </li>
+                          <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <span className="text-primary font-bold mt-0.5 shrink-0">✓</span>
+                            Precios mensuales, trimestrales y anuales por plan
+                          </li>
+                          <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <span className="text-primary font-bold mt-0.5 shrink-0">✓</span>
+                            Links de pago configurables por periodo
+                          </li>
+                        </ul>
                       </div>
                       <div className="flex items-center justify-between gap-4 pt-6 border-t border-border/50">
-                        <p className="text-xs text-muted-foreground truncate">Precios mensuales, trimestrales y anuales</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {plans.filter((p) => !p.isResellerPlan && p.isActive).length} planes activos configurados
+                        </p>
                         <span className="inline-flex items-center gap-1.5 text-sm font-medium text-primary shrink-0 group-hover:gap-3 transition-all whitespace-nowrap">
                           <ArrowLeft className="h-4 w-4 rotate-180" />
                           Ver planes
@@ -286,12 +299,25 @@ export function PlanesMain() {
                         <p className="text-sm text-muted-foreground">
                           Packs para revendedores que distribuyen el servicio a sus propios clientes.
                         </p>
-                        <p className="text-sm font-semibold text-violet-600 dark:text-violet-400 pt-2">
-                          {plans.filter((p) => p.isResellerPlan && p.isActive).length} planes activos
-                        </p>
+                        <ul className="space-y-2 pt-2">
+                          <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <span className="text-violet-500 font-bold mt-0.5 shrink-0">✓</span>
+                            Packs de 5, 10 y 25 usuarios por volumen
+                          </li>
+                          <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <span className="text-violet-500 font-bold mt-0.5 shrink-0">✓</span>
+                            Precios especiales para distribuidores
+                          </li>
+                          <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                            <span className="text-violet-500 font-bold mt-0.5 shrink-0">✓</span>
+                            Links de pago por pack configurables
+                          </li>
+                        </ul>
                       </div>
                       <div className="flex items-center justify-between gap-4 pt-6 border-t border-border/50">
-                        <p className="text-xs text-muted-foreground truncate">Packs 5, 10 y 25 usuarios</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {plans.filter((p) => p.isResellerPlan && p.isActive).length} planes activos configurados
+                        </p>
                         <span className="inline-flex items-center gap-1.5 text-sm font-medium text-violet-600 dark:text-violet-400 shrink-0 group-hover:gap-3 transition-all whitespace-nowrap">
                           <ArrowLeft className="h-4 w-4 rotate-180" />
                           Ver planes
