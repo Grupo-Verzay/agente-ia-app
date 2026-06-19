@@ -636,8 +636,8 @@ export function ResellerLandingClient({
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {BENEFITS.map((b, i) => (
-                <FadeIn key={b.title} delay={i * 60}>
-                  <div className={cn("flex flex-col gap-3 rounded-xl border p-5 transition-colors hover:bg-white/[0.07]", b.border, "bg-white/5")}>
+                <FadeIn key={b.title} delay={i * 60} className="h-full">
+                  <div className={cn("flex h-full flex-col gap-3 rounded-xl border p-5 transition-colors hover:bg-white/[0.07]", b.border, "bg-white/5")}>
                     <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", b.bg)}>
                       <b.icon className={cn("h-5 w-5", b.color)} />
                     </div>
@@ -741,8 +741,8 @@ export function ResellerLandingClient({
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {IDEAL_FOR.map((item, i) => (
-                <FadeIn key={item.title} delay={i * 60}>
-                  <div className="flex gap-4 rounded-xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07]">
+                <FadeIn key={item.title} delay={i * 60} className="h-full">
+                  <div className="flex h-full gap-4 rounded-xl border border-white/10 bg-white/5 p-5 transition-colors hover:border-blue-500/30 hover:bg-white/[0.07]">
                     <span className="text-2xl">{item.emoji}</span>
                     <div>
                       <h3 className="font-semibold text-white">{item.title}</h3>
