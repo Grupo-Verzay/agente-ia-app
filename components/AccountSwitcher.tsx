@@ -128,7 +128,7 @@ export function AccountSwitcher({ user, resellerImage, variant = "sidebar" }: Ac
           toast.error(res.message ?? "Error al cambiar de cuenta.");
           return;
         }
-        window.location.reload();
+        window.location.href = window.location.href;
       } catch {
         toast.error("Error al cambiar de cuenta. Intenta nuevamente.");
       }
@@ -244,29 +244,30 @@ export function AccountSwitcher({ user, resellerImage, variant = "sidebar" }: Ac
       {linked.length > 0 && <DropdownMenuSeparator />}
 
       {linked.map((a) => (
-        <div key={a.accountUserId} className="flex items-center gap-1">
-          <DropdownMenuItem
-            onSelect={() => handleSwitch(a.accountUserId)}
-            className="flex flex-1 items-center gap-2 px-2 py-1.5 cursor-pointer"
-          >
-            <AccountListAvatar image={a.image} id={a.accountUserId} name={a.name} email={a.email} company={a.company} />
-            <div className="flex flex-1 flex-col min-w-0">
-              <span className="truncate text-sm font-medium">{displayName(a)}</span>
-              <span className="truncate text-[10px] text-muted-foreground">
-                {a.label ?? (a.role === "administrador" ? "Administrador" : "Agente")}
-              </span>
-            </div>
-            {activeId === a.accountUserId && <Check className="h-3.5 w-3.5 text-primary" />}
-          </DropdownMenuItem>
+        <DropdownMenuItem
+          key={a.accountUserId}
+          onSelect={() => handleSwitch(a.accountUserId)}
+          className="flex items-center gap-2 px-2 py-1.5 cursor-pointer"
+        >
+          <AccountListAvatar image={a.image} id={a.accountUserId} name={a.name} email={a.email} company={a.company} />
+          <div className="flex flex-1 flex-col min-w-0">
+            <span className="truncate text-sm font-medium">{displayName(a)}</span>
+            <span className="truncate text-[10px] text-muted-foreground">
+              {a.label ?? (a.role === "administrador" ? "Administrador" : "Agente")}
+            </span>
+          </div>
+          {activeId === a.accountUserId && <Check className="h-3.5 w-3.5 text-primary" />}
           {canManageAccounts && a.accountUserId !== activeId && (
-            <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0"
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleUnlink(a.accountUserId); }}
+            <span
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded hover:bg-accent"
+              onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+              onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleUnlink(a.accountUserId); }}
               title="Desvincular cuenta"
             >
-              <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-            </Button>
+              <Trash2 className="h-3 w-3 text-muted-foreground" />
+            </span>
           )}
-        </div>
+        </DropdownMenuItem>
       ))}
 
       {canManageAccounts && (
