@@ -131,61 +131,59 @@ export function PlanDetailPage({ plan, detail, planLabel }: {
         </div>
       </div>
 
-      {/* ── HERO ── */}
-      <section className="relative overflow-hidden py-16 md:py-24">
-        <div className={cn("absolute inset-0 opacity-10 bg-gradient-to-br", gradient)} />
-        <div className="relative mx-auto max-w-5xl px-4 text-center">
-          {(detail?.heroBadge ?? plan.isPopular) && (
-            <Badge className={cn("mb-4 bg-gradient-to-r text-white border-0", gradient)}>
-              {detail?.heroBadge ?? "Más popular"}
-            </Badge>
-          )}
-          <h1 className="text-4xl font-bold md:text-5xl">
-            {detail?.heroTitle ?? `Todo lo que incluye el plan ${planLabel}`}
-          </h1>
-          {(detail?.heroSubtitle ?? plan.description) && (
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-400">
-              {detail?.heroSubtitle ?? plan.description}
-            </p>
-          )}
+      {/* ── CONTENIDO PRINCIPAL (todo dentro del ancho predeterminado) ── */}
+      <div className="mx-auto max-w-5xl px-4">
 
-          {/* Precio */}
-          <div className="mt-6 flex items-center justify-center gap-3">
-            <span className="text-5xl font-bold">${plan.priceUSD}</span>
-            <div className="text-left">
-              <div className="text-sm text-slate-400">USD / mes</div>
-              <div className="text-xs text-slate-500">{plan.credits.toLocaleString()} créditos</div>
+        {/* ── HERO ── */}
+        <section className="relative overflow-hidden py-16 md:py-24">
+          <div className={cn("absolute inset-0 opacity-10 bg-gradient-to-br rounded-2xl", gradient)} />
+          <div className="relative text-center">
+            {(detail?.heroBadge ?? plan.isPopular) && (
+              <Badge className={cn("mb-4 bg-gradient-to-r text-white border-0", gradient)}>
+                {detail?.heroBadge ?? "Más popular"}
+              </Badge>
+            )}
+            <h1 className="text-4xl font-bold md:text-5xl">
+              {detail?.heroTitle ?? `Todo lo que incluye el plan ${planLabel}`}
+            </h1>
+            {(detail?.heroSubtitle ?? plan.description) && (
+              <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-400">
+                {detail?.heroSubtitle ?? plan.description}
+              </p>
+            )}
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <span className="text-5xl font-bold">${plan.priceUSD}</span>
+              <div className="text-left">
+                <div className="text-sm text-slate-400">USD / mes</div>
+                <div className="text-xs text-slate-500">{plan.credits.toLocaleString()} créditos</div>
+              </div>
             </div>
-          </div>
-
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <a href={ctaUrl} target="_blank" rel="noopener noreferrer">
-              <Button size="lg" className={cn("bg-gradient-to-r border-0 text-white hover:opacity-90 px-8", gradient)}>
-                {ctaText}
-              </Button>
-            </a>
-            {secondaryUrl && secondaryText && (
-              <a href={secondaryUrl} target="_blank" rel="noopener noreferrer">
-                <Button size="lg" variant="outline" className="border-white/20 bg-transparent text-white hover:bg-white/10 gap-2">
-                  <Calendar className="h-4 w-4" /> {secondaryText}
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              <a href={ctaUrl} target="_blank" rel="noopener noreferrer">
+                <Button size="lg" className={cn("bg-gradient-to-r border-0 text-white hover:opacity-90 px-8", gradient)}>
+                  {ctaText}
                 </Button>
               </a>
+              {secondaryUrl && secondaryText && (
+                <a href={secondaryUrl} target="_blank" rel="noopener noreferrer">
+                  <Button size="lg" variant="outline" className="border-white/20 bg-transparent text-white hover:bg-white/10 gap-2">
+                    <Calendar className="h-4 w-4" /> {secondaryText}
+                  </Button>
+                </a>
+              )}
+            </div>
+            {detail?.heroImageUrl && (
+              <div className="mt-10 overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-black/60">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={detail.heroImageUrl} alt={`Plan ${planLabel}`} className="w-full object-cover" />
+              </div>
             )}
           </div>
+        </section>
 
-          {detail?.heroImageUrl && (
-            <div className="mt-10 overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-black/60">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={detail.heroImageUrl} alt={`Plan ${planLabel}`} className="w-full object-cover" />
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ── STATS ── */}
-      {stats.length > 0 && (
-        <section className="border-y border-white/10 bg-white/[0.02] py-10">
-          <div className="mx-auto max-w-5xl px-4">
+        {/* ── STATS ── */}
+        {stats.length > 0 && (
+          <div className="border-y border-white/10 py-10">
             <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
               {stats.map((stat, i) => (
                 <div key={i} className="text-center">
@@ -195,13 +193,11 @@ export function PlanDetailPage({ plan, detail, planLabel }: {
               ))}
             </div>
           </div>
-        </section>
-      )}
+        )}
 
-      {/* ── FEATURES INCLUIDAS (del plan base) ── */}
-      {plan.features.length > 0 && (
-        <section className="py-14">
-          <div className="mx-auto max-w-5xl px-4">
+        {/* ── FEATURES INCLUIDAS ── */}
+        {plan.features.length > 0 && (
+          <section className="py-14">
             <h2 className="mb-8 text-center text-2xl font-bold">Qué incluye este plan</h2>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {plan.features.map((f, i) => (
@@ -211,14 +207,12 @@ export function PlanDetailPage({ plan, detail, planLabel }: {
                 </div>
               ))}
             </div>
-          </div>
-        </section>
-      )}
+          </section>
+        )}
 
-      {/* ── SECCIONES DE FUNCIONES ── */}
-      {featureSections.map((sec, i) => (
-        <section key={i} className={cn("py-14", i % 2 === 0 ? "bg-white/[0.02]" : "")}>
-          <div className="mx-auto max-w-5xl px-4">
+        {/* ── SECCIONES DE FUNCIONES ── */}
+        {featureSections.map((sec, i) => (
+          <section key={i} className={cn("py-14", i % 2 === 0 ? "rounded-xl bg-white/[0.02] px-6" : "")}>
             <div className={cn("flex flex-col items-center gap-10 md:flex-row", sec.layout === "left" && "md:flex-row-reverse")}>
               <div className="flex-1 space-y-4">
                 {sec.badge && (
@@ -234,26 +228,24 @@ export function PlanDetailPage({ plan, detail, planLabel }: {
                 </div>
               )}
             </div>
-          </div>
-        </section>
-      ))}
+          </section>
+        ))}
 
-      {/* ── VIDEO ── */}
-      {detail?.videoUrl && (
-        <section className="py-14">
-          <div className="mx-auto max-w-3xl px-4">
+        {/* ── VIDEO ── */}
+        {detail?.videoUrl && (
+          <section className="py-14">
             {detail.videoTitle && (
               <h2 className="mb-6 text-center text-2xl font-bold">{detail.videoTitle}</h2>
             )}
-            <VideoEmbed url={detail.videoUrl} title={detail.videoTitle} thumbnailUrl={detail.videoThumbnailUrl} />
-          </div>
-        </section>
-      )}
+            <div className="mx-auto max-w-3xl">
+              <VideoEmbed url={detail.videoUrl} title={detail.videoTitle} thumbnailUrl={detail.videoThumbnailUrl} />
+            </div>
+          </section>
+        )}
 
-      {/* ── GALERÍA ── */}
-      {galleryImages.length > 0 && (
-        <section className="bg-white/[0.02] py-14">
-          <div className="mx-auto max-w-5xl px-4">
+        {/* ── GALERÍA ── */}
+        {galleryImages.length > 0 && (
+          <section className="rounded-xl bg-white/[0.02] px-6 py-14">
             <h2 className="mb-8 text-center text-2xl font-bold">Capturas del panel</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {galleryImages.map((img, i) => (
@@ -266,14 +258,12 @@ export function PlanDetailPage({ plan, detail, planLabel }: {
                 </div>
               ))}
             </div>
-          </div>
-        </section>
-      )}
+          </section>
+        )}
 
-      {/* ── TESTIMONIOS ── */}
-      {testimonials.length > 0 && (
-        <section className="py-14">
-          <div className="mx-auto max-w-5xl px-4">
+        {/* ── TESTIMONIOS ── */}
+        {testimonials.length > 0 && (
+          <section className="py-14">
             <h2 className="mb-8 text-center text-2xl font-bold">Lo que dicen nuestros clientes</h2>
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
               {testimonials.map((t, i) => (
@@ -301,23 +291,21 @@ export function PlanDetailPage({ plan, detail, planLabel }: {
                 </div>
               ))}
             </div>
-          </div>
-        </section>
-      )}
+          </section>
+        )}
 
-      {/* ── FAQs ── */}
-      {faqs.length > 0 && (
-        <section className="bg-white/[0.02] py-14">
-          <div className="mx-auto max-w-3xl px-4">
+        {/* ── FAQs ── */}
+        {faqs.length > 0 && (
+          <section className="rounded-xl bg-white/[0.02] px-6 py-14">
             <h2 className="mb-8 text-center text-2xl font-bold">Preguntas frecuentes</h2>
-            <FaqAccordion faqs={faqs} />
-          </div>
-        </section>
-      )}
+            <div className="mx-auto max-w-3xl">
+              <FaqAccordion faqs={faqs} />
+            </div>
+          </section>
+        )}
 
-      {/* ── CTA FINAL ── */}
-      <section className="py-16">
-        <div className="mx-auto max-w-2xl px-4 text-center">
+        {/* ── CTA FINAL ── */}
+        <section className="py-16 text-center">
           <div className={cn("inline-block rounded-full px-4 py-1.5 text-xs font-semibold mb-4 bg-gradient-to-r text-white", gradient)}>
             {planLabel}
           </div>
@@ -344,8 +332,9 @@ export function PlanDetailPage({ plan, detail, planLabel }: {
               </a>
             )}
           </div>
-        </div>
-      </section>
+        </section>
+
+      </div>{/* fin max-w-5xl */}
 
       {/* Footer mini */}
       <div className="border-t border-white/10 py-6 text-center text-xs text-slate-600">
