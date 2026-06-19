@@ -12,7 +12,9 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { User } from "@prisma/client"
-import { Loader2, Package, Users, Plus, Trash2, Search, LayoutGrid, Ticket } from "lucide-react"
+import { Loader2, Package, Users, Plus, Trash2, Search, LayoutGrid, Ticket, UserCheck, UserMinus, UsersRound } from "lucide-react"
+import { MetricCard } from "@/components/custom/MetricCard"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { getClientsByReseller, assignClientToReseller, removeClientFromReseller } from "@/actions/reseller-action"
 import {
   getResellersWithPools,
@@ -228,6 +230,40 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
 
         {/* ── TAB CLIENTES ── */}
         {tab === "clientes" && (
+          <TooltipProvider delayDuration={120}>
+          <div className="space-y-4">
+          {/* Metric cards */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <MetricCard
+              icon={<UsersRound className="h-3.5 w-3.5" />}
+              label="Total afiliados"
+              value={resellers.length}
+              helper="Total de resellers registrados en la plataforma"
+              color="#3B82F6"
+            />
+            <MetricCard
+              icon={<UserCheck className="h-3.5 w-3.5" />}
+              label="Clientes asignados"
+              value={assignedClients.length}
+              helper="Clientes asignados al reseller seleccionado"
+              color="#22C55E"
+            />
+            <MetricCard
+              icon={<UserMinus className="h-3.5 w-3.5" />}
+              label="Sin asignar"
+              value={unassignedClients.length}
+              helper="Clientes sin reseller asignado"
+              color="#F59E0B"
+            />
+            <MetricCard
+              icon={<Users className="h-3.5 w-3.5" />}
+              label="Total clientes"
+              value={user.length}
+              helper="Total de clientes en la plataforma"
+              color="#8B5CF6"
+            />
+          </div>
+
           <Card className="border-border">
             <CardHeader>
               <CardTitle>Gestión de clientes por revendedor</CardTitle>
@@ -282,6 +318,8 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
               </div>
             </CardContent>
           </Card>
+          </div>
+          </TooltipProvider>
         )}
 
         {/* ── TAB LICENCIAS ── */}
