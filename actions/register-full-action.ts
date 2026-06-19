@@ -328,6 +328,25 @@ export async function fullRegisterAction(
     .catch(() => null);
   const initialCredits = planCreditsConfig?.credits ?? FALLBACK_IA_CREDITS;
 
+  /* ── Pre-lookup reseller for demo account creation ── */
+  let resellerUserId: string | null = null;
+  if (resellerSlug) {
+    const resellerRow = await db.reseller.findFirst({
+      where: { slug: resellerSlug },
+      select: { resellerid: true, demoLimit: true },
+    }).catch(() => null);
+    if (resellerRow?.resellerid) {
+      resellerUserId = resellerRow.resellerid;
+      const demoLimit = resellerRow.demoLimit ?? 3;
+      const demosUsed = await db.user.count({
+        where: { demoResellerId: resellerUserId, isDemo: true },
+      });
+      if (demosUsed >= demoLimit) {
+        return { success: false, error: "Prueba no disponible en este momento. Contacta al reseller para más información." };
+      }
+    }
+  }
+
   const completedSteps: RegisterCompletedStep[] = [];
   let userId: string | null = null;
 
@@ -356,7 +375,13 @@ export async function fullRegisterAction(
           enabledCrmFollowUps: true,
           autoReactivate: "30",
           delayTimeGpt: "10",
-          image: "https://medias3.verzay.co/verzay-media/VERZAY-ROBOT-PROFILE.png"
+          image: "https://medias3.verzay.co/verzay-media/VERZAY-ROBOT-PROFILE.png",
+          ...(resellerUserId && {
+            isDemo: true,
+            demoResellerId: resellerUserId,
+            demoCredits: 1000,
+            demoExpiresAt: trialEndsAt,
+          }),
         },
       });
 
@@ -484,40 +509,30 @@ export async function fullRegisterAction(
       }
     }
 
-    /* ── STEP 7b: Reseller association + WhatsApp URL ── */
+    /* ── STEP 7b: Reseller WhatsApp URL ── */
     let whatsappUrl: string | undefined;
-    if (resellerSlug) {
-      const resellerRow = await db.reseller.findFirst({
-        where: { slug: resellerSlug },
-        select: { resellerid: true },
+    if (resellerUserId) {
+      const resellerUser = await db.user.findUnique({
+        where: { id: resellerUserId },
+        select: { notificationNumber: true },
       }).catch(() => null);
-      if (resellerRow?.resellerid) {
-        await db.reseller.create({
-          data: { resellerid: resellerRow.resellerid, userId },
-        }).catch(() => null);
 
-        const resellerUser = await db.user.findUnique({
-          where: { id: resellerRow.resellerid },
-          select: { notificationNumber: true },
-        }).catch(() => null);
-
-        if (resellerUser?.notificationNumber) {
-          const phone = resellerUser.notificationNumber.replace(/\D/g, "");
-          const objectiveLabel = AGENT_TEMPLATES.find((t) => t.id === salesObjective)?.name ?? salesObjective;
-          const parts = [
-            `\u{1F680} \u{00A1}Hola! Acabo de crear mi cuenta en Agente IA.`,
-            ``,
-            `\u{1F464} Nombre: ${name}`,
-            `\u{1F3E2} Empresa: ${company}`,
-            businessSector ? `\u{1F3F7} Rubro: ${businessSector}` : null,
-            `\u{1F3AF} Objetivo: ${objectiveLabel}`,
-            mainProduct ? `\u{1F4E6} Productos/servicios: ${mainProduct}` : null,
-            clienteIdeal ? `\u{1F465} Cliente ideal: ${clienteIdeal}` : null,
-            ``,
-            `Requiero ayuda para seguir con el proceso de configuraci\u{00F3}n.`,
-          ].filter(Boolean).join("\n");
-          whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(parts)}`;
-        }
+      if (resellerUser?.notificationNumber) {
+        const phone = resellerUser.notificationNumber.replace(/\D/g, "");
+        const objectiveLabel = AGENT_TEMPLATES.find((t) => t.id === salesObjective)?.name ?? salesObjective;
+        const parts = [
+          `\u{1F680} \u{00A1}Hola! Acabo de crear mi cuenta en Agente IA.`,
+          ``,
+          `\u{1F464} Nombre: ${name}`,
+          `\u{1F3E2} Empresa: ${company}`,
+          businessSector ? `\u{1F3F7} Rubro: ${businessSector}` : null,
+          `\u{1F3AF} Objetivo: ${objectiveLabel}`,
+          mainProduct ? `\u{1F4E6} Productos/servicios: ${mainProduct}` : null,
+          clienteIdeal ? `\u{1F465} Cliente ideal: ${clienteIdeal}` : null,
+          ``,
+          `Requiero ayuda para seguir con el proceso de configuraci\u{00F3}n.`,
+        ].filter(Boolean).join("\n");
+        whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(parts)}`;
       }
     } else if (!isPaid) {
       const verzayPhone = process.env.VERZAY_WHATSAPP_NUMBER?.replace(/\D/g, "");
