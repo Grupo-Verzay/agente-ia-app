@@ -513,20 +513,20 @@ export function ResellerLandingClient({
               <p className="mb-8 text-base text-slate-400 sm:text-lg">
                 Conviértete en reseller y ofrece la plataforma de automatización de WhatsApp más completa del mercado — con tu nombre, tu logo y tus precios. Sin construir nada desde cero.
               </p>
-              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:flex-nowrap">
                 <Link href="/completar-registro?tipo=reseller">
-                  <Button size="lg" className="gap-2 bg-blue-600 px-10 text-white hover:bg-blue-500">
+                  <Button size="lg" className="w-full gap-2 bg-blue-600 px-6 text-white hover:bg-blue-500 md:w-auto">
                     Registrarme como reseller <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
                 <a href="#pricing">
-                  <Button size="lg" variant="outline" className="border-white/20 bg-transparent px-8 text-white hover:bg-white/10">
+                  <Button size="lg" variant="outline" className="w-full border-white/20 bg-transparent px-6 text-white hover:bg-white/10 md:w-auto">
                     Ver planes
                   </Button>
                 </a>
                 {meetingUrl && (
                   <a href={meetingUrl} target="_blank" rel="noopener noreferrer">
-                    <Button size="lg" variant="outline" className="gap-2 border-white/20 bg-transparent px-8 text-white hover:bg-white/10">
+                    <Button size="lg" variant="outline" className="w-full gap-2 border-white/20 bg-transparent px-6 text-white hover:bg-white/10 md:w-auto">
                       <Zap className="h-4 w-4" /> Agendar reunión
                     </Button>
                   </a>
