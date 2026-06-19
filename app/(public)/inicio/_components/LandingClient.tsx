@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { getActiveSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
 import { PlanDetailModal } from "./PlanDetailModal";
-import { AnimatedChat } from "@/app/(public)/_components/AnimatedChat";
+import { AnimatedChat } from "@/components/custom/AnimatedChat";
 
 /* ─── Datos estáticos ─────────────────────────────────────────────────────── */
 

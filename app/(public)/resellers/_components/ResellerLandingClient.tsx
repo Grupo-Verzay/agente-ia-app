@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getActiveResellerAccessPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
-import { AnimatedChat } from "@/app/(public)/_components/AnimatedChat";
+import { AnimatedChat } from "@/components/custom/AnimatedChat";
 
 /* ─── Datos ────────────────────────────────────────────────────────────────── */
 
