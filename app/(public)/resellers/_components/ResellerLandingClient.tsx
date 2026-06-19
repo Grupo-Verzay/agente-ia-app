@@ -17,6 +17,21 @@ import { AnimatedChat } from "@/components/custom/AnimatedChat";
 
 /* ─── Datos ────────────────────────────────────────────────────────────────── */
 
+const INTEGRATIONS = [
+  { name: "WhatsApp Business",   color: "text-green-400 border-green-500/20 bg-green-500/5",       emoji: "💬" },
+  { name: "OpenAI GPT-4",        color: "text-slate-300 border-white/10 bg-white/5",               emoji: "🤖" },
+  { name: "Google Sheets",       color: "text-emerald-400 border-emerald-500/20 bg-emerald-500/5",  emoji: "📊" },
+  { name: "Google Calendar",     color: "text-blue-400 border-blue-500/20 bg-blue-500/5",           emoji: "📅" },
+  { name: "Instagram",           color: "text-pink-400 border-pink-500/20 bg-pink-500/5",           emoji: "📸" },
+  { name: "Excel",               color: "text-green-300 border-green-400/20 bg-green-400/5",        emoji: "📋" },
+  { name: "Reservas Online",     color: "text-cyan-400 border-cyan-500/20 bg-cyan-500/5",           emoji: "🗓️" },
+  { name: "CRM con Pipeline",    color: "text-violet-400 border-violet-500/20 bg-violet-500/5",     emoji: "📈" },
+  { name: "Pagos y Cobros",      color: "text-yellow-400 border-yellow-500/20 bg-yellow-500/5",     emoji: "💳" },
+  { name: "Respuestas 24/7",     color: "text-blue-300 border-blue-400/20 bg-blue-400/5",           emoji: "⚡" },
+  { name: "Catálogos Digitales", color: "text-orange-400 border-orange-500/20 bg-orange-500/5",     emoji: "🛍️" },
+  { name: "Seguimientos Auto",   color: "text-teal-400 border-teal-500/20 bg-teal-500/5",           emoji: "🔔" },
+];
+
 const BENEFITS = [
   {
     icon: Globe,
@@ -587,6 +602,26 @@ export function ResellerLandingClient({
                 ))}
               </div>
             </FadeIn>
+          </div>
+        </div>
+      </section>
+
+      {/* ══ MARQUEE INTEGRACIONES ══════════════════════════════════════════ */}
+      <section className="py-6">
+        <p className="mb-4 text-center text-xs font-medium uppercase tracking-widest text-slate-500">Compatible e integrado con</p>
+        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+          <div className="relative overflow-hidden rounded-xl"
+            style={{
+              maskImage: "linear-gradient(to right, transparent 0%, white 10%, white 90%, transparent 100%)",
+              WebkitMaskImage: "linear-gradient(to right, transparent 0%, white 10%, white 90%, transparent 100%)",
+            }}>
+            <div className="flex w-max gap-3 py-1" style={{ animation: "marquee 28s linear infinite" }}>
+              {[...INTEGRATIONS, ...INTEGRATIONS].map((int, i) => (
+                <span key={i} className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium", int.color)}>
+                  <span>{int.emoji}</span>{int.name}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </section>
