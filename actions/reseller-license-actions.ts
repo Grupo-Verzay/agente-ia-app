@@ -36,7 +36,7 @@ export async function getResellersWithPools() {
       where: { role: "reseller" },
       select: {
         id: true, name: true, email: true, company: true,
-        reseller_reseller_userIdToUser: {
+        reseller_reseller_reselleridToUser: {
           select: { demoLimit: true },
         },
         resellerLicensePools: {
@@ -57,7 +57,7 @@ export async function getResellersWithPools() {
         name: r.name,
         email: r.email,
         company: r.company,
-        demoLimit: r.reseller_reseller_userIdToUser[0]?.demoLimit ?? 3,
+        demoLimit: r.reseller_reseller_reselleridToUser[0]?.demoLimit ?? 3,
         demosUsed: r.demoAccounts.length,
         pools: r.resellerLicensePools.map((pool) => ({
           id: pool.id,
@@ -113,7 +113,7 @@ export async function updateDemoLimit(resellerUserId: string, demoLimit: number)
     if (!user || !isAdminLike(user.role)) return { success: false, message: "Sin permisos" };
 
     await db.reseller.updateMany({
-      where: { userId: resellerUserId },
+      where: { resellerid: resellerUserId },
       data: { demoLimit },
     });
 
@@ -138,7 +138,7 @@ export async function getMyResellerDashboard() {
     });
 
     const resellerProfile = await db.reseller.findFirst({
-      where: { userId: user.id },
+      where: { resellerid: user.id },
       select: { demoLimit: true },
     });
 
@@ -231,7 +231,7 @@ export async function createDemoAccount(data: {
     if (!user || user.role !== "reseller") return { success: false, message: "Sin permisos" };
 
     const resellerProfile = await db.reseller.findFirst({
-      where: { userId: user.id },
+      where: { resellerid: user.id },
       select: { demoLimit: true },
     });
     const demoLimit = resellerProfile?.demoLimit ?? 3;

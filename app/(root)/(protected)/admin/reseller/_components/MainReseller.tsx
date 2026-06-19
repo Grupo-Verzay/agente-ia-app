@@ -187,7 +187,7 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-4">
+      <div className="flex-1 min-h-0 overflow-y-auto">
 
         {/* ── TAB CLIENTES ── */}
         {tab === "clientes" && (
