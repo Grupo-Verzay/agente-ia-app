@@ -45,10 +45,10 @@ export async function getClientsPageData(): Promise<
                 db.reseller.findMany({ where: { resellerid: user.id }, select: { userId: true } }),
                 db.user.findMany({ where: { demoResellerId: user.id, isDemo: false }, select: { id: true } }),
             ]);
-            const allIds = [...new Set([
+            const allIds = Array.from(new Set([
                 ...oldAssignments.map(r => r.userId).filter(Boolean) as string[],
                 ...newClients.map(c => c.id),
-            ])];
+            ]));
             usersPromise = allIds.length > 0
                 ? getEnrichedClients({ userIds: allIds })
                 : Promise.resolve({ success: true, data: [] as ClientInterface[] });

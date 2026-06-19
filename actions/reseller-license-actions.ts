@@ -210,7 +210,7 @@ export async function getMyResellerClients(): Promise<{ success: boolean; data: 
     });
     const newIds = newClients.map(c => c.id);
 
-    const allIds = [...new Set([...oldIds, ...newIds])];
+    const allIds = Array.from(new Set([...oldIds, ...newIds]));
     if (allIds.length === 0) return { success: true, data: [] };
 
     const result = await getEnrichedClients({ userIds: allIds });

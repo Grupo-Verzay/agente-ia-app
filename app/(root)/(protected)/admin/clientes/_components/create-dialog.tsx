@@ -161,7 +161,7 @@ export const CreateDialog = ({
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col gap-1">
                   <Label className="text-xs font-semibold text-foreground">Rol</Label>
-                  <Select onValueChange={(v) => setValue("role", v as Role)} defaultValue="user">
+                  <Select onValueChange={(v) => setValue("role", v as "user" | "reseller" | "admin" | "super_admin")} defaultValue="user">
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona un rol" />
                     </SelectTrigger>
