@@ -168,7 +168,7 @@ export function ChatSidebar({
   const [deleteTarget, setDeleteTarget] = useState<SidebarContact | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
   const [advisorFilter, setAdvisorFilter] = useState<string | null>(null); // null=todos, 'unassigned'=sin asignar, id=asesor específico
-  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [unreadOnly, setUnreadOnly] = useState(true);
   const [selectedJids, setSelectedJids] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [forcedUnreadJids, setForcedUnreadJids] = useState<Set<string>>(new Set());
