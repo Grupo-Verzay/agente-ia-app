@@ -156,7 +156,7 @@ export function ChatSidebar({
   onSessionRename,
 }: ChatSidebarProps) {
   const [q, setQ] = useState("");
-  const [internalTab, setInternalTab] = useState<TabKey>(currentAdvisorId ? "mine" : "all");
+  const [internalTab, setInternalTab] = useState<TabKey>("all");
   const tab = tabProp ?? internalTab;
   const applyTab = useCallback(
     (newTab: TabKey) => {
