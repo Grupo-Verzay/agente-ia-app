@@ -176,6 +176,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
           )}
           {onSetClientStatus && (
             <>
+              <div className="my-1 border-t border-border/50" />
               <DropdownMenuItem
                 onSelect={() => onSetClientStatus('ACTIVO')}
                 className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
@@ -206,6 +207,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
           )}
           {onSetServiceType && (
             <>
+              <div className="my-1 border-t border-border/50" />
               <DropdownMenuItem
                 onSelect={() => onSetServiceType('IA')}
                 className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
