@@ -133,6 +133,7 @@ export function ChatContactItem({
   const badgeItems: React.ReactNode[] = [];
 
   if (contact.chatSession) {
+    // 1. Clasificación del lead (Frio, Sin clasificar, etc.)
     badgeItems.push(
       <LeadStatusSelect
         key="status"
@@ -141,15 +142,23 @@ export function ChatContactItem({
         onUpdated={(newStatus) => onLeadStatusChange?.(contact.id, newStatus)}
       />
     );
-    if (clientValidationEnabled) {
+    // 2. Asesor asignado (Sin asignar / iniciales)
+    if (advisors && advisors.length > 0 && (contact.chatSession.assignedAdvisorId || advisorRole === 'agente')) {
       badgeItems.push(
-        <ServiceTypeSelect
-          key="serviceType"
+        <AdvisorAssignBadge
+          key="advisor"
+          assignedAdvisorId={contact.chatSession.assignedAdvisorId ?? null}
+          advisors={advisors}
+          advisorRole={advisorRole}
+          currentAdvisorId={currentAdvisorId}
           sessionId={contact.chatSession.id}
-          currentValue={contact.chatSession.serviceType ?? null}
-          onUpdated={(newValue) => onServiceTypeChange?.(contact.id, newValue)}
+          onAssign={onAssignAdvisor ? (id) => onAssignAdvisor(contact.id, id) : undefined}
+          size="sm"
         />
       );
+    }
+    if (clientValidationEnabled) {
+      // 3. Estado del cliente (Activo / Inactivo)
       badgeItems.push(
         <ClientStatusSelect
           key="clientStatus"
@@ -158,24 +167,16 @@ export function ChatContactItem({
           onUpdated={(newValue) => onClientStatusChange?.(contact.id, newValue)}
         />
       );
+      // 4. Tipo de asistencia (IA / Humana)
+      badgeItems.push(
+        <ServiceTypeSelect
+          key="serviceType"
+          sessionId={contact.chatSession.id}
+          currentValue={contact.chatSession.serviceType ?? null}
+          onUpdated={(newValue) => onServiceTypeChange?.(contact.id, newValue)}
+        />
+      );
     }
-  }
-  if (
-    advisors && advisors.length > 0 && contact.chatSession &&
-    (contact.chatSession.assignedAdvisorId || advisorRole === 'agente')
-  ) {
-    badgeItems.push(
-      <AdvisorAssignBadge
-        key="advisor"
-        assignedAdvisorId={contact.chatSession.assignedAdvisorId ?? null}
-        advisors={advisors}
-        advisorRole={advisorRole}
-        currentAdvisorId={currentAdvisorId}
-        sessionId={contact.chatSession.id}
-        onAssign={onAssignAdvisor ? (id) => onAssignAdvisor(contact.id, id) : undefined}
-        size="sm"
-      />
-    );
   }
   if (contact.chatSession?.flujos) {
     badgeItems.push(<FlowListOrder key="flow" raw={contact.chatSession.flujos} />);
