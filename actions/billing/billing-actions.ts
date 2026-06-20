@@ -573,3 +573,26 @@ export async function toggleUserStatus(
     }
 }
 
+export async function bulkSyncActiveClientSessions(): Promise<ResponseFormat<{ updated: number }>> {
+    try {
+        const me = await currentUser();
+        if (!me) return { success: false, message: "No autorizado." };
+
+        const activeUsers = await db.userBilling.findMany({
+            where: { accessStatus: "ACTIVE" },
+            select: { userId: true },
+        });
+        const userIds = activeUsers.map((b) => b.userId).filter(Boolean) as string[];
+
+        const result = await db.session.updateMany({
+            where: { userId: { in: userIds } },
+            data: { clientStatus: "ACTIVO", serviceType: "HUMANO" },
+        });
+
+        return { success: true, data: { updated: result.count } };
+    } catch (error) {
+        console.error("[bulkSyncActiveClientSessions]", error);
+        return { success: false, message: "Error al sincronizar chats." };
+    }
+}
+

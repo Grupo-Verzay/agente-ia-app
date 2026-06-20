@@ -59,6 +59,7 @@ import { deleteUser } from "@/actions/userClientDataActions";
 
 import {
     activateUserService,
+    bulkSyncActiveClientSessions,
     getUserBillingByUserId,
     markUserAsPaid,
     markUserAsUnpaid,
@@ -115,6 +116,7 @@ export function BillingCrmClient({
         pageSize: 20,
     });
     const [hasLoadedPersistedFilters, setHasLoadedPersistedFilters] = useState(false);
+    const [syncing, setSyncing] = useState(false);
     const billingLifecyclePreview = useBillingLifecyclePreview(
         dialog.form.dueDate,
         dialog.form.graceDays
@@ -781,6 +783,22 @@ export function BillingCrmClient({
 
                                         <DropdownMenuItem onClick={() => exportExcelAllFiltered(table)}>
                                             Exportar Excel
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            disabled={syncing}
+                                            onClick={async () => {
+                                                setSyncing(true);
+                                                const res = await bulkSyncActiveClientSessions();
+                                                setSyncing(false);
+                                                if (res.success) {
+                                                    toast.success(`${res.data?.updated ?? 0} chats sincronizados como activos / asistencia humana`);
+                                                } else {
+                                                    toast.error(res.message ?? "Error al sincronizar");
+                                                }
+                                            }}
+                                        >
+                                            {syncing ? "Sincronizando..." : "Sincronizar chats activos"}
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
