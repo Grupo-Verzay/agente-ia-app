@@ -36,10 +36,10 @@ const MAIN_TABS: { key: TabKey; label: string; Icon: ComponentType<{ className?:
 
 export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, unreadCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount }: ChatTabBarProps) {
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
-  const isOverflowActive = tab === "archived" || tab === "deleted" || unreadOnly || starredOnly || notesOnly;
+  const isOverflowActive = tab === "archived" || tab === "deleted" || starredOnly || notesOnly;
 
   return (
-    <div className="flex flex-row items-center gap-1.5">
+    <div className="flex w-full items-center gap-1">
       {visibleTabs.map(({ key, label, Icon, color }) => {
         const count = tabCounts[key];
         const isActive = tab === key;
@@ -48,14 +48,13 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
             key={key}
             type="button"
             onClick={() => onTabChange(key)}
-            className="inline-flex h-6 flex-1 items-center justify-center gap-1 rounded-full border px-2 text-[11px] font-medium whitespace-nowrap transition-all"
+            className="inline-flex h-6 flex-1 items-center justify-center gap-1 rounded-full border px-1.5 text-[11px] font-medium whitespace-nowrap transition-all"
             style={
               isActive
                 ? { background: color, borderColor: color, color: "#fff" }
                 : { borderColor: `${color}50`, color, background: `${color}10` }
             }
           >
-            <Icon className="h-3 w-3 shrink-0" />
             <span>{label}</span>
             {count > 0 && (
               <span
@@ -69,6 +68,30 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
         );
       })}
 
+      {/* Botón No leídos — antes del icono de etiquetas */}
+      {onToggleUnread && (
+        <button
+          type="button"
+          onClick={onToggleUnread}
+          className={cn(
+            "inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-1.5 text-[11px] font-medium whitespace-nowrap transition-all",
+            unreadOnly
+              ? "border-orange-500 bg-orange-500 text-white"
+              : "border-orange-300 bg-orange-50 text-orange-500 hover:bg-orange-100 dark:border-orange-500/40 dark:bg-orange-500/10 dark:text-orange-400 dark:hover:bg-orange-500/20"
+          )}
+        >
+          <span>No leídos</span>
+          {(unreadCount ?? 0) > 0 && (
+            <span
+              className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none text-white"
+              style={{ background: unreadOnly ? "rgba(255,255,255,0.3)" : "#f97316" }}
+            >
+              {(unreadCount ?? 0) > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
+
       {rightSlot}
 
       <DropdownMenu>
@@ -76,7 +99,7 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
           <button
             type="button"
             className={cn(
-              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-medium transition-all",
+              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-medium transition-all shrink-0",
               isOverflowActive
                 ? "border-slate-500 bg-slate-500 text-white"
                 : "border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700",
@@ -86,21 +109,6 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-44 p-1">
-          {onToggleUnread && (
-            <DropdownMenuItem
-              onSelect={onToggleUnread}
-              className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
-            >
-              <span className="flex items-center gap-1.5 text-xs">
-                <MessageCircle className="h-3 w-3 text-muted-foreground shrink-0" />
-                No leídos
-              </span>
-              <span className="flex items-center gap-1">
-                {(unreadCount ?? 0) > 0 && <span className="text-[10px] text-muted-foreground">{unreadCount}</span>}
-                {unreadOnly && <Check className="h-3 w-3 text-primary" />}
-              </span>
-            </DropdownMenuItem>
-          )}
           {onToggleStarred && (
             <DropdownMenuItem
               onSelect={onToggleStarred}
