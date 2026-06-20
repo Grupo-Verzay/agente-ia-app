@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import type { ComponentType } from "react";
-import { Inbox, Users, UserCheck, Archive, Trash2, ChevronDown, Lock, MessageCircle, Check, Star } from "lucide-react";
+import { Inbox, Users, UserCheck, UserX, Bot, Headphones, Archive, Trash2, ChevronDown, Lock, MessageCircle, Check, Star } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { TabCounts, TabKey } from "./chat-sidebar.types";
+import type { ClientStatus, ServiceType } from "@/types/session";
 
 type ChatTabBarProps = {
   onTabChange: (tab: TabKey) => void;
@@ -26,6 +27,14 @@ type ChatTabBarProps = {
   notesOnly?: boolean;
   onToggleNotes?: () => void;
   notesCount?: number;
+  clientStatusFilter?: ClientStatus | null;
+  onSetClientStatus?: (v: ClientStatus) => void;
+  clientActiveCount?: number;
+  clientInactiveCount?: number;
+  serviceTypeFilter?: ServiceType | null;
+  onSetServiceType?: (v: ServiceType) => void;
+  iaCount?: number;
+  humanCount?: number;
 };
 
 const MAIN_TABS: { key: TabKey; label: string; Icon: ComponentType<{ className?: string }>; color: string }[] = [
@@ -35,9 +44,9 @@ const MAIN_TABS: { key: TabKey; label: string; Icon: ComponentType<{ className?:
 
 const GROUPS_COLOR = "#28A745";
 
-export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, unreadCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount }: ChatTabBarProps) {
+export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, unreadCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount }: ChatTabBarProps) {
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
-  const isOverflowActive = tab === "archived" || tab === "deleted" || starredOnly || notesOnly;
+  const isOverflowActive = tab === "archived" || tab === "deleted" || starredOnly || notesOnly || !!clientStatusFilter || !!serviceTypeFilter;
 
   return (
     <div className="flex w-full items-center gap-1">
@@ -165,7 +174,67 @@ export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, righ
               </span>
             </DropdownMenuItem>
           )}
-          {(onToggleStarred || onToggleUnread || onToggleNotes) && (
+          {onSetClientStatus && (
+            <>
+              <DropdownMenuItem
+                onSelect={() => onSetClientStatus('ACTIVO')}
+                className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
+              >
+                <span className="flex items-center gap-1.5 text-xs">
+                  <UserCheck className={cn("h-3 w-3 shrink-0", clientStatusFilter === 'ACTIVO' ? "text-emerald-500" : "text-muted-foreground")} />
+                  Cliente activo
+                </span>
+                <span className="flex items-center gap-1">
+                  {(clientActiveCount ?? 0) > 0 && <span className="text-[10px] text-muted-foreground">{clientActiveCount}</span>}
+                  {clientStatusFilter === 'ACTIVO' && <Check className="h-3 w-3 text-primary" />}
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => onSetClientStatus('INACTIVO')}
+                className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
+              >
+                <span className="flex items-center gap-1.5 text-xs">
+                  <UserX className={cn("h-3 w-3 shrink-0", clientStatusFilter === 'INACTIVO' ? "text-rose-500" : "text-muted-foreground")} />
+                  Cliente inactivo
+                </span>
+                <span className="flex items-center gap-1">
+                  {(clientInactiveCount ?? 0) > 0 && <span className="text-[10px] text-muted-foreground">{clientInactiveCount}</span>}
+                  {clientStatusFilter === 'INACTIVO' && <Check className="h-3 w-3 text-primary" />}
+                </span>
+              </DropdownMenuItem>
+            </>
+          )}
+          {onSetServiceType && (
+            <>
+              <DropdownMenuItem
+                onSelect={() => onSetServiceType('IA')}
+                className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
+              >
+                <span className="flex items-center gap-1.5 text-xs">
+                  <Bot className={cn("h-3 w-3 shrink-0", serviceTypeFilter === 'IA' ? "text-violet-500" : "text-muted-foreground")} />
+                  Asistencia IA
+                </span>
+                <span className="flex items-center gap-1">
+                  {(iaCount ?? 0) > 0 && <span className="text-[10px] text-muted-foreground">{iaCount}</span>}
+                  {serviceTypeFilter === 'IA' && <Check className="h-3 w-3 text-primary" />}
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => onSetServiceType('HUMANO')}
+                className="flex items-center justify-between gap-2 cursor-pointer py-1 text-xs"
+              >
+                <span className="flex items-center gap-1.5 text-xs">
+                  <Headphones className={cn("h-3 w-3 shrink-0", serviceTypeFilter === 'HUMANO' ? "text-blue-500" : "text-muted-foreground")} />
+                  Asistencia humana
+                </span>
+                <span className="flex items-center gap-1">
+                  {(humanCount ?? 0) > 0 && <span className="text-[10px] text-muted-foreground">{humanCount}</span>}
+                  {serviceTypeFilter === 'HUMANO' && <Check className="h-3 w-3 text-primary" />}
+                </span>
+              </DropdownMenuItem>
+            </>
+          )}
+          {(onToggleStarred || onToggleUnread || onToggleNotes || onSetClientStatus || onSetServiceType) && (
             <div className="my-1 border-t border-border/50" />
           )}
           <DropdownMenuItem

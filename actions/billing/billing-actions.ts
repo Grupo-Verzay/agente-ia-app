@@ -49,6 +49,15 @@ async function createInstanceOnReactivation(userId: string, instanceName: string
     return createResult;
 }
 
+async function syncSessionClientStatus(userId: string, isActive: boolean): Promise<void> {
+    await db.session.updateMany({
+        where: { userId },
+        data: isActive
+            ? { clientStatus: "ACTIVO" }
+            : { clientStatus: "INACTIVO", serviceType: null },
+    });
+}
+
 async function runManualStatusSideEffects(args: {
     userId: string;
     previousBillingStatus?: string | null;
@@ -368,6 +377,7 @@ export async function markUserAsPaid(
             },
         });
 
+        await syncSessionClientStatus(scopedUserId, true);
         const sideEffects = await runManualStatusSideEffects({
             userId: scopedUserId,
             previousBillingStatus: existing?.billingStatus ?? null,
@@ -464,6 +474,7 @@ export async function suspendUserService(
             },
         });
 
+        await syncSessionClientStatus(scopedUserId, false);
         const sideEffects = await runManualStatusSideEffects({
             userId: scopedUserId,
             previousBillingStatus: existing?.billingStatus ?? null,
@@ -515,6 +526,7 @@ export async function activateUserService(
             },
         });
 
+        await syncSessionClientStatus(scopedUserId, true);
         const sideEffects = await runManualStatusSideEffects({
             userId: scopedUserId,
             previousBillingStatus: existing?.billingStatus ?? null,

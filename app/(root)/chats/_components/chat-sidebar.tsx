@@ -30,7 +30,7 @@ import type { FetchChatsResult } from "@/actions/chat-actions";
 import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
 import { useLocalStorageObjectArray, MessageRecord } from "@/hooks/chats/useSeenMessages";
 import type { ChatConversationPreferenceMap } from "@/types/chat";
-import type { ChatContactSessionMap, SimpleTag } from "@/types/session";
+import type { ChatContactSessionMap, SimpleTag, ClientStatus, ServiceType } from "@/types/session";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import {
   DropdownMenu,
@@ -179,6 +179,8 @@ export function ChatSidebar({
   const [renameLoading, setRenameLoading] = useState(false);
   const [notedSessionIds, setNotedSessionIds] = useState<Set<number>>(new Set());
   const [notesOnly, setNotesOnly] = useState(false);
+  const [clientStatusFilter, setClientStatusFilter] = useState<ClientStatus | null>(null);
+  const [serviceTypeFilter, setServiceTypeFilter] = useState<ServiceType | null>(null);
 
   const isOwnerOrAdmin = advisorRole !== "agente";
   const showAdvisorFilter = isOwnerOrAdmin && (advisors?.length ?? 0) > 0;
@@ -339,6 +341,10 @@ export function ChatSidebar({
       unread: active.filter((c) => c.isUnreadLocal).length,
       starred: active.filter((c) => starredJids.has(c.id)).length,
       notes: active.filter((c) => c.hasNotes).length,
+      clientActive: active.filter((c) => c.chatSession?.clientStatus === 'ACTIVO').length,
+      clientInactive: active.filter((c) => c.chatSession?.clientStatus === 'INACTIVO').length,
+      ia: active.filter((c) => c.chatSession?.serviceType === 'IA').length,
+      human: active.filter((c) => c.chatSession?.serviceType === 'HUMANO').length,
     };
   }, [contacts, starredJids]);
 
@@ -396,12 +402,20 @@ export function ChatSidebar({
       list = list.filter((c) => c.hasNotes);
     }
 
+    if (clientStatusFilter) {
+      list = list.filter((c) => c.chatSession?.clientStatus === clientStatusFilter);
+    }
+
+    if (serviceTypeFilter) {
+      list = list.filter((c) => c.chatSession?.serviceType === serviceTypeFilter);
+    }
+
     return list.slice().sort((a, b) => {
       if (a.isPinned !== b.isPinned) return Number(b.isPinned) - Number(a.isPinned);
       if (a.pinnedAtMs !== b.pinnedAtMs) return b.pinnedAtMs - a.pinnedAtMs;
       return b.ts - a.ts;
     });
-  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, starredOnly, notesOnly, starredJids, currentAdvisorId]);
+  }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, starredOnly, notesOnly, clientStatusFilter, serviceTypeFilter, starredJids, currentAdvisorId]);
 
   React.useEffect(() => {
     if (selectedJid) {
@@ -437,6 +451,8 @@ export function ChatSidebar({
     setUnreadOnly(false);
     setStarredOnly(false);
     setNotesOnly(false);
+    setClientStatusFilter(null);
+    setServiceTypeFilter(null);
     setSelectedTagIds(new Set());
     void onSelectRemoteJid?.("");
   }, [applyTab, onSelectRemoteJid]);
@@ -681,6 +697,14 @@ export function ChatSidebar({
             notesOnly={notesOnly}
             onToggleNotes={() => setNotesOnly((v) => !v)}
             notesCount={filterCounts.notes}
+            clientStatusFilter={clientValidationEnabled ? clientStatusFilter : undefined}
+            onSetClientStatus={clientValidationEnabled ? (v) => setClientStatusFilter((prev) => prev === v ? null : v) : undefined}
+            clientActiveCount={filterCounts.clientActive}
+            clientInactiveCount={filterCounts.clientInactive}
+            serviceTypeFilter={clientValidationEnabled ? serviceTypeFilter : undefined}
+            onSetServiceType={clientValidationEnabled ? (v) => setServiceTypeFilter((prev) => prev === v ? null : v) : undefined}
+            iaCount={filterCounts.ia}
+            humanCount={filterCounts.human}
           />
 
           {selectedJids.size > 0 && (
