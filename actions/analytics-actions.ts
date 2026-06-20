@@ -356,7 +356,6 @@ export async function getVerzayPlatformAnalytics(): Promise<{
     },
   })
   const lowCreditUsers: LowCreditUserItem[] = allIaCredits
-    .filter((r) => r.user.role === "user")
     .map((r) => {
       const usedRaw = Math.floor(r.used / 3085)
       const available = Math.max(0, r.total - usedRaw)
