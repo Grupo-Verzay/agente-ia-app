@@ -286,7 +286,7 @@ export function ChatsClient({
   const [isSidebarVisible, setIsSidebarVisible] = useState(!initialSelectedJid);
   const [isContactPanelOpen, setIsContactPanelOpen] = useState(false);
   const [isChatListCollapsed, setIsChatListCollapsed] = useState(false);
-  const [chatListTab, setChatListTab] = useState<TabKey>(currentAdvisorId ? "mine" : "all");
+  const [chatListTab, setChatListTab] = useState<TabKey>("all");
   const [closeInfoPanelSignal, setCloseInfoPanelSignal] = useState(0);
   const [sessionRefreshSignal, setSessionRefreshSignal] = useState(0);
 
