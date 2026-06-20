@@ -69,19 +69,29 @@ export const EditDialog = ({
   const [creditUsed, setCreditUsed] = useState(0);
   const [creditHasRecord, setCreditHasRecord] = useState(false);
   const [creditLoading, setCreditLoading] = useState(false);
+  const [isUnlimited, setIsUnlimited] = useState(false);
 
   useEffect(() => {
     if (!openEditDialog || currentUserRol === 'reseller') return;
     setCreditLoading(true);
     getIaCreditByUser(user.id).then(res => {
       if (res.success && res.data?.length) {
-        setCreditTotal(res.data[0].total);
-        setCreditUsed(onTokensToCredits(res.data[0].used));
+        const total = res.data[0].total;
         setCreditHasRecord(true);
+        if (total < 0) {
+          setIsUnlimited(true);
+          setCreditTotal(0);
+          setCreditUsed(0);
+        } else {
+          setIsUnlimited(false);
+          setCreditTotal(total);
+          setCreditUsed(onTokensToCredits(res.data[0].used));
+        }
       } else {
         setCreditTotal(0);
         setCreditUsed(0);
         setCreditHasRecord(false);
+        setIsUnlimited(false);
       }
       setCreditLoading(false);
     });
@@ -134,7 +144,7 @@ export const EditDialog = ({
 
   /* Ocultar/mostrar fields para reseller */
   if (currentUserRol === 'reseller') {
-    const idsToRemove = ["apiKeyId", "webhookUrl", "creditTotal", "creditUsed", "apiKeyIa"]
+    const idsToRemove = ["apiKeyId", "webhookUrl", "creditTotal", "creditUsed", "apiKeyIa", "isUnlimited"]
     fields = fields.filter(field => !idsToRemove.includes(field.id))
 
     const idsReadOnly = ["name", "email", "role", "plan"]
@@ -304,6 +314,12 @@ export const EditDialog = ({
 
       case 'creditTotal':
         if (creditLoading) return <span className="text-sm text-muted-foreground">Cargando...</span>;
+        if (isUnlimited) return (
+          <div className="flex h-9 items-center rounded-md border border-input bg-background px-3">
+            <input type="hidden" name="creditTotal" value="-1" />
+            <span className="text-sm font-semibold text-emerald-600">Ilimitado</span>
+          </div>
+        );
         return (
           <Input id="creditTotal" name="creditTotal" type="number" value={creditTotal}
             onChange={(e) => setCreditTotal(parseInt(e.target.value) || 0)} placeholder={label} />
@@ -311,8 +327,25 @@ export const EditDialog = ({
       case 'creditUsed':
         if (creditLoading) return <span className="text-sm text-muted-foreground">Cargando...</span>;
         return (
-          <Input id="creditUsed" name="creditUsed" type="number" value={creditUsed}
-            onChange={(e) => setCreditUsed(parseInt(e.target.value) || 0)} placeholder={label} />
+          <div className="flex h-9 items-center rounded-md border border-input bg-background px-3 focus-within:ring-1 focus-within:ring-ring">
+            <input type="hidden" name="isUnlimited" value={isUnlimited ? "true" : "false"} />
+            {isUnlimited ? (
+              <>
+                <input type="hidden" name="creditUsed" value="0" />
+                <span className="flex-1 text-sm text-muted-foreground">—</span>
+              </>
+            ) : (
+              <input
+                id="creditUsed"
+                name="creditUsed"
+                type="number"
+                value={creditUsed}
+                onChange={(e) => setCreditUsed(parseInt(e.target.value) || 0)}
+                className="flex-1 min-w-0 bg-transparent text-sm outline-none"
+              />
+            )}
+            <Switch checked={isUnlimited} onCheckedChange={setIsUnlimited} className="shrink-0" />
+          </div>
         );
       case 'apiKeyIa':
         return (

@@ -25,6 +25,19 @@ export interface PlatformCreditsData {
   totalUsed: number
 }
 
+export interface LowCreditUserItem {
+  id: string
+  name: string | null
+  company: string | null
+  email: string
+  total: number
+  used: number
+  available: number
+  percentage: number
+  hasOwnApiKey: boolean
+  level: "empty" | "critical" | "low"
+}
+
 export interface ResellerAnalyticsData {
   totalClients: number
   activeClients: number
@@ -38,6 +51,7 @@ export interface ResellerAnalyticsData {
   currencyCode: string
   newClientsByMonth: MonthlyCountItem[]
   clientsExpiringSoon: ExpiringSoonItem[]
+  lowCreditUsers: LowCreditUserItem[]
 }
 
 export type ResellerPerformanceItem = {
@@ -64,6 +78,7 @@ export interface VerzayAnalyticsData {
   totalRevenueUSD: number
   platformCredits: PlatformCreditsData
   usersExpiringSoon: ExpiringSoonItem[]
+  lowCreditUsers: LowCreditUserItem[]
 }
 
 // ─── Helper: fill every month in the last N months with 0 if missing ────────
@@ -99,7 +114,10 @@ export async function getResellerAnalytics(): Promise<{
     where: { resellerid: user.id },
     include: {
       user_reseller_userIdToUser: {
-        include: { billing: true, iaCredits: true },
+        include: {
+          billing: true,
+          iaCredits: true,
+        },
       },
     },
   })
@@ -180,6 +198,31 @@ export async function getResellerAnalytics(): Promise<{
     .sort((a, b) => a.daysLeft - b.daysLeft)
     .slice(0, 10)
 
+  const lowCreditUsers: LowCreditUserItem[] = clients
+    .filter((c): c is NonNullable<typeof c> => c != null)
+    .map((c) => {
+      const total = c.iaCredits?.total ?? 0
+      const usedRaw = Math.floor((c.iaCredits?.used ?? 0) / 3085)
+      const available = Math.max(0, total - usedRaw)
+      const pct = total > 0 ? (available / total) * 100 : 0
+      const hasOwnApiKey = total < 0
+      const level: LowCreditUserItem["level"] = available === 0 ? "empty" : pct < 5 ? "critical" : "low"
+      return {
+        id: c.id,
+        name: c.name,
+        company: c.company,
+        email: c.email,
+        total,
+        used: usedRaw,
+        available,
+        percentage: Math.round(pct),
+        hasOwnApiKey,
+        level,
+      }
+    })
+    .filter((r) => !r.hasOwnApiKey && r.percentage < 25)
+    .sort((a, b) => a.percentage - b.percentage)
+
   return {
     success: true,
     data: {
@@ -195,6 +238,7 @@ export async function getResellerAnalytics(): Promise<{
       currencyCode,
       newClientsByMonth,
       clientsExpiringSoon,
+      lowCreditUsers,
     },
   }
 }
@@ -301,6 +345,40 @@ export async function getVerzayPlatformAnalytics(): Promise<{
     }
   })
 
+  // Low credit users (< 25% available, excluding users marked as unlimited)
+  const allIaCredits = await db.iaCredit.findMany({
+    include: {
+      user: {
+        select: {
+          id: true, name: true, company: true, email: true, role: true,
+        },
+      },
+    },
+  })
+  const lowCreditUsers: LowCreditUserItem[] = allIaCredits
+    .filter((r) => r.user.role === "user")
+    .map((r) => {
+      const usedRaw = Math.floor(r.used / 3085)
+      const available = Math.max(0, r.total - usedRaw)
+      const pct = r.total > 0 ? (available / r.total) * 100 : 0
+      const hasOwnApiKey = r.total < 0
+      const level: LowCreditUserItem["level"] = available === 0 ? "empty" : pct < 5 ? "critical" : "low"
+      return {
+        id: r.userId,
+        name: r.user.name,
+        company: r.user.company,
+        email: r.user.email,
+        total: r.total,
+        used: usedRaw,
+        available,
+        percentage: Math.round(pct),
+        hasOwnApiKey,
+        level,
+      }
+    })
+    .filter((r) => !r.hasOwnApiKey && r.percentage < 25)
+    .sort((a, b) => a.percentage - b.percentage)
+
   // Reseller performance
   const [resellers, allAssignments] = await Promise.all([
     db.user.findMany({
@@ -363,6 +441,7 @@ export async function getVerzayPlatformAnalytics(): Promise<{
       totalRevenueUSD,
       platformCredits,
       usersExpiringSoon,
+      lowCreditUsers,
     },
   }
 }

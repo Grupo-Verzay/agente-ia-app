@@ -166,6 +166,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         formData.delete('creditTotal');
         formData.delete('creditUsed');
         formData.delete('creditHasRecord');
+        formData.delete('isUnlimited');
 
         if (creditTotalRaw !== null) {
             const total = parseInt(creditTotalRaw as string) || 0;

@@ -468,6 +468,21 @@ export function ChatsClient({
     }
   }, [navOpen]);
 
+  const prevNavOpenForChatRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (selectedJid) {
+      if (prevNavOpenForChatRef.current === null) {
+        prevNavOpenForChatRef.current = navOpen;
+        if (navOpen) setNavOpen(false);
+      }
+    } else {
+      if (prevNavOpenForChatRef.current !== null) {
+        setNavOpen(prevNavOpenForChatRef.current);
+        prevNavOpenForChatRef.current = null;
+      }
+    }
+  }, [selectedJid]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const refreshChatSessions = useCallback(
     async (chats: ChatData[]) => {
       const descriptors = buildChatContactDescriptors(chats);

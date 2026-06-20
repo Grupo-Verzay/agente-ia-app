@@ -14,6 +14,7 @@ import {
   Trophy, AlertTriangle, Clock, Zap,
 } from "lucide-react"
 import type { VerzayAnalyticsData } from "@/actions/analytics-actions"
+import { CreditAlertsWidget } from "@/components/custom/CreditAlertsWidget"
 
 const PLAN_LABELS: Record<string, string> = {
   lite: "Lite",
@@ -53,7 +54,7 @@ export function VerzayAnalytics({ data }: { data: VerzayAnalyticsData }) {
     totalUsers, activeUsers, suspendedUsers, unpaidUsers, activationRate,
     totalResellers, planDistribution, mostSoldPlan,
     monthlyRevenue, newUsersByMonth, resellerPerformance,
-    totalRevenueUSD, platformCredits, usersExpiringSoon,
+    totalRevenueUSD, platformCredits, usersExpiringSoon, lowCreditUsers,
   } = data
 
   const revenueChartData = monthlyRevenue.map((m) => ({ mes: fmtMonth(m.month), ingresos: m.revenue }))
@@ -301,6 +302,9 @@ export function VerzayAnalytics({ data }: { data: VerzayAnalyticsData }) {
             </CardContent>
           </Card>
         </div>
+
+        {/* ── Fila 4: Alertas de créditos ── */}
+        <CreditAlertsWidget users={lowCreditUsers} canRecharge />
 
       </div>
     </TooltipProvider>

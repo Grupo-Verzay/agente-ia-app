@@ -134,29 +134,35 @@ export default function ErrorScreen({
                                 </p>
                             </div>
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                            {onRetry && (
-                                <Button size="sm" onClick={onRetry}>
-                                    <RefreshCcw className="mr-2 h-4 w-4" />
-                                    Reintentar
+                        <div className="mt-3 grid w-full grid-cols-3 items-center">
+                            <div className="justify-self-start">
+                                {onRetry && (
+                                    <Button size="sm" onClick={onRetry}>
+                                        <RefreshCcw className="mr-2 h-4 w-4" />
+                                        Reintentar
+                                    </Button>
+                                )}
+                            </div>
+                            <div className="justify-self-center">
+                                {onHome && (
+                                    <Button size="sm" variant="secondary" onClick={onHome}>
+                                        <Home className="mr-2 h-4 w-4" />
+                                        Ir al inicio
+                                    </Button>
+                                )}
+                            </div>
+                            <div className="justify-self-end">
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setOpen((v) => !v)}
+                                    aria-expanded={open}
+                                    aria-controls="error-details"
+                                >
+                                    Más detalles
+                                    <ChevronDown className={`ml-1 h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
                                 </Button>
-                            )}
-                            {onHome && (
-                                <Button size="sm" variant="secondary" onClick={onHome}>
-                                    <Home className="mr-2 h-4 w-4" />
-                                    Ir al inicio
-                                </Button>
-                            )}
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setOpen((v) => !v)}
-                                aria-expanded={open}
-                                aria-controls="error-details"
-                            >
-                                Más detalles
-                                <ChevronDown className={`ml-1 h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
-                            </Button>
+                            </div>
                         </div>
                     </div>
 

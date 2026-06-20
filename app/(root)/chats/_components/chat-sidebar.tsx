@@ -497,6 +497,18 @@ export function ChatSidebar({
     clearSelection();
   }, [onBulkPin, selectedJidsArray, clearSelection]);
 
+  const handleBulkMarkRead = useCallback((read: boolean) => {
+    for (const jid of selectedJidsArray) {
+      if (read) {
+        const contact = contacts.find((c) => c.id === jid);
+        markMessageAsSeen(jid, contact?.lastMessageId ?? "");
+      } else {
+        markMessageAsUnseen(jid);
+      }
+    }
+    clearSelection();
+  }, [selectedJidsArray, contacts, markMessageAsSeen, markMessageAsUnseen, clearSelection]);
+
   const handleBulkAssignAdvisor = useCallback(async (advisorId: string | null) => {
     if (!onBulkAssignAdvisor || selectedJidsArray.length === 0) return;
     await onBulkAssignAdvisor(selectedJidsArray, advisorId);
@@ -679,6 +691,7 @@ export function ChatSidebar({
               onSelectAll={selectAll}
               onArchive={handleBulkArchive}
               onDelete={() => setBulkDeleteOpen(true)}
+              onMarkRead={handleBulkMarkRead}
               onPin={onBulkPin ? handleBulkPin : undefined}
               onAssignAdvisor={onBulkAssignAdvisor ? handleBulkAssignAdvisor : undefined}
               onAddTag={onBulkAddTag && allTags.length > 0 ? handleBulkAddTag : undefined}

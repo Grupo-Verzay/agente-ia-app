@@ -14,6 +14,7 @@ import {
   AlertTriangle, Clock, Zap,
 } from "lucide-react"
 import type { ResellerAnalyticsData } from "@/actions/analytics-actions"
+import { CreditAlertsWidget } from "@/components/custom/CreditAlertsWidget"
 
 const PLAN_LABELS: Record<string, string> = {
   lite: "Lite",
@@ -53,7 +54,7 @@ export function ResellerAnalytics({ data }: { data: ResellerAnalyticsData }) {
     totalClients, activeClients, suspendedClients, unpaidClients, activationRate,
     planDistribution, totalCreditsAssigned, totalCreditsUsed,
     estimatedMonthlyRevenue, currencyCode,
-    newClientsByMonth, clientsExpiringSoon,
+    newClientsByMonth, clientsExpiringSoon, lowCreditUsers,
   } = data
 
   const planChartData = planDistribution.map((p) => ({
@@ -249,6 +250,9 @@ export function ResellerAnalytics({ data }: { data: ResellerAnalyticsData }) {
             </CardContent>
           </Card>
         </div>
+
+        {/* ── Alertas de créditos ── */}
+        <CreditAlertsWidget users={lowCreditUsers} canRecharge={false} />
 
       </div>
     </TooltipProvider>

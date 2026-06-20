@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Archive, Trash2, Users, Tag, Pin, CheckSquare } from "lucide-react";
+import { X, Archive, Trash2, Users, Tag, Pin, CheckSquare, MailOpen, MailX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,6 +21,7 @@ type BulkActionBarProps = {
   onArchive: (archived: boolean) => void;
   onDelete: () => void;
   onPin?: (pin: boolean) => void;
+  onMarkRead?: (read: boolean) => void;
   onAssignAdvisor?: (advisorId: string | null) => void;
   onAddTag?: (tagId: number) => void;
   advisors?: AdvisorInfo[];
@@ -46,6 +47,7 @@ export function BulkActionBar({
   onArchive,
   onDelete,
   onPin,
+  onMarkRead,
   onAssignAdvisor,
   onAddTag,
   advisors,
@@ -56,7 +58,7 @@ export function BulkActionBar({
   const allSelected = count === totalCount && totalCount > 0;
 
   return (
-    <div className="flex items-center gap-1 px-2 py-1.5 bg-primary/5 border border-primary/20 rounded-lg">
+    <div className="flex min-w-0 items-center gap-1 px-2 py-1.5 bg-primary/5 border border-primary/20 rounded-lg">
       <button
         type="button"
         onClick={onClear}
@@ -66,7 +68,7 @@ export function BulkActionBar({
         <X className="h-3.5 w-3.5" />
       </button>
 
-      <span className="text-sm font-medium text-foreground whitespace-nowrap">
+      <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
         {count} seleccionado{count !== 1 ? "s" : ""}
       </span>
 
@@ -75,7 +77,7 @@ export function BulkActionBar({
         onClick={onSelectAll}
         title={allSelected ? "Deseleccionar todos" : "Seleccionar todos"}
         className={cn(
-          "ml-0.5 shrink-0 inline-flex items-center justify-center h-5 w-5 rounded transition-colors",
+          "shrink-0 inline-flex items-center justify-center h-5 w-5 rounded transition-colors",
           allSelected
             ? "text-primary hover:text-primary/70"
             : "text-muted-foreground hover:text-foreground",
@@ -84,14 +86,42 @@ export function BulkActionBar({
         <CheckSquare className="h-3.5 w-3.5" />
       </button>
 
-      <div className="flex items-center gap-0.5 ml-auto">
+      <div className="flex shrink-0 items-center gap-0.5">
+        {onMarkRead && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                title="Marcar como leído / no leído"
+              >
+                <MailOpen className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                MARCAR CHATS
+              </p>
+              <DropdownMenuItem onSelect={() => onMarkRead(true)}>
+                <MailOpen className="h-3.5 w-3.5" />
+                Marcar como leído
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onMarkRead(false)}>
+                <MailX className="h-3.5 w-3.5" />
+                Marcar como no leído
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
         {onPin && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-6 w-6"
                 title="Anclar / Desanclar"
               >
                 <Pin className="h-3.5 w-3.5" />
@@ -118,7 +148,7 @@ export function BulkActionBar({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-6 w-6"
               title="Archivar / Desarchivar"
             >
               <Archive className="h-3.5 w-3.5" />
@@ -145,7 +175,7 @@ export function BulkActionBar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-6 w-6"
                 title="Asignar asesor"
               >
                 <Users className="h-3.5 w-3.5" />
@@ -183,7 +213,7 @@ export function BulkActionBar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-6 w-6"
                 title="Agregar etiqueta"
               >
                 <Tag className="h-3.5 w-3.5" />
@@ -208,7 +238,7 @@ export function BulkActionBar({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+          className="h-6 w-6 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
           title="Eliminar chats"
           onClick={onDelete}
         >
