@@ -6,40 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { db } from '@/lib/db';
-
-async function saveSheetsUrl(userId: string, url: string) {
-  const res = await fetch('/api/user/sheets-url', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, url }),
-  });
-  return res.ok;
-}
 
 interface Props {
   userId: string;
   initialSheetsUrl: string | null;
 }
 
-function getEmbedUrl(url: string): string | null {
-  if (!url) return null;
-  // Extraer spreadsheet ID y construir URL de embed
-  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-  if (!match) return null;
-  const id = match[1];
-  // Extraer gid si existe
-  const gidMatch = url.match(/[#&]gid=(\d+)/);
-  const gid = gidMatch ? gidMatch[1] : '0';
-  return `https://docs.google.com/spreadsheets/d/${id}/edit?rm=minimal#gid=${gid}`;
-}
-
 export function GoogleSheetsClient({ userId, initialSheetsUrl }: Props) {
   const [url, setUrl] = useState(initialSheetsUrl ?? '');
   const [saved, setSaved] = useState(!!initialSheetsUrl);
   const [saving, setSaving] = useState(false);
-
-  const embedUrl = getEmbedUrl(saved ? url : '');
 
   async function handleSave() {
     if (!url.trim()) {
@@ -61,7 +37,7 @@ export function GoogleSheetsClient({ userId, initialSheetsUrl }: Props) {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex flex-col gap-4 max-w-2xl">
       {/* Header + config */}
       <div className="flex shrink-0 flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm">
         <div className="flex items-center gap-2">
@@ -115,18 +91,9 @@ export function GoogleSheetsClient({ userId, initialSheetsUrl }: Props) {
         )}
       </div>
 
-      {/* Embed */}
-      {embedUrl ? (
-        <div className="flex-1 min-h-0 overflow-hidden rounded-xl border shadow-sm">
-          <iframe
-            src={embedUrl}
-            className="h-full w-full"
-            title="Google Sheets"
-            allowFullScreen
-          />
-        </div>
-      ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed text-muted-foreground">
+      {/* Estado de conexión */}
+      {!saved && (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed py-12 text-muted-foreground">
           <TableIcon className="h-10 w-10 opacity-20" />
           <div className="text-center">
             <p className="text-sm font-medium">Sin hoja vinculada</p>
