@@ -66,6 +66,7 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/mis-catalogo" },
     { route: "/integraciones" },
     { route: "#user-integrations" },
+    { route: "/google-sheets" },
     { route: "/afiliados" },
     { route: "/clientes" },
     { route: "/cotizaciones" },
