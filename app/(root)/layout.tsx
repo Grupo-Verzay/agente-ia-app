@@ -39,6 +39,7 @@ export default async function RootGroupLayout({
     const cookieStore = await cookies();
     const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
     const privilegedUser = isAdminOrReseller(user?.role);
+    const isActiveTrial = !!user?.trialEndsAt && user.trialEndsAt > new Date();
 
     if (user && !isAdmin(user?.role)) {
         const billing = await db.userBilling.findUnique({
@@ -119,8 +120,8 @@ export default async function RootGroupLayout({
                 const userPlan = user!.plan;
                 modules = modules.filter(m => {
                     if (m.adminOnly) return false;
-                    // Asesores no se filtran por plan — el dueño controla su acceso desde Equipo
-                    if (!isAdvisor && m.allowedPlans?.length && !m.allowedPlans.includes(userPlan)) return false;
+                    // Asesores y usuarios en prueba activa no se filtran por plan
+                    if (!isAdvisor && !isActiveTrial && m.allowedPlans?.length && !m.allowedPlans.includes(userPlan)) return false;
                     return true;
                 });
             }
@@ -129,7 +130,7 @@ export default async function RootGroupLayout({
 
     // Rutas bloqueadas para el plan actual (visibles en sidebar pero sin acceso)
     const isAdvisor = !!user.ownerId;
-    const lockedRoutes: string[] = (!isAdmin(user?.role) && !isAdvisor)
+    const lockedRoutes: string[] = (!isAdmin(user?.role) && !isAdvisor && !isActiveTrial)
         ? [
             ...modules
                 .filter(m => (m as any).lockedPlans?.includes(user.plan))

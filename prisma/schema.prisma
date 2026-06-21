@@ -660,6 +660,7 @@ model User {
   demoExpiresAt                      DateTime?                    @map("demo_expires_at")
   demoResellerId                     String?                      @map("demo_reseller_id")
   demoCredits                        Int                          @default(0) @map("demo_credits")
+  trialEndsAt                        DateTime?                    @map("trial_ends_at")
   accounts                           Account[]
   agentPrompts                       AgentPrompt[]
   publishedAgentPromptRevisions      AgentPromptRevision[]

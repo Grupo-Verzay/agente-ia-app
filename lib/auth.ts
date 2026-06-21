@@ -34,6 +34,7 @@ const USER_SELECT = {
     ownerId: true,
     advisorRole: true,
     preferredCurrencyCode: true,
+    trialEndsAt: true,
 } satisfies Prisma.UserSelect;
 
 type DbUser = Prisma.UserGetPayload<{ select: typeof USER_SELECT }>;

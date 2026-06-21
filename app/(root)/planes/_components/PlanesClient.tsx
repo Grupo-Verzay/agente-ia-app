@@ -35,10 +35,11 @@ interface Props {
   plans: SubscriptionPlanItem[];
   paymentMethods: PaymentMethodConfigItem[];
   defaultPlan?: string;
+  defaultAssistanceType?: AssistanceType;
 }
 
-export function PlanesClient({ plans, paymentMethods, defaultPlan }: Props) {
-  const [assistanceType, setAssistanceType] = useState<AssistanceType>("IA");
+export function PlanesClient({ plans, paymentMethods, defaultPlan, defaultAssistanceType = "IA" }: Props) {
+  const [assistanceType, setAssistanceType] = useState<AssistanceType>(defaultAssistanceType);
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("yearly");
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlanItem | null>(null);
   const [selectedPrice, setSelectedPrice] = useState<number>(0);

@@ -376,6 +376,7 @@ export async function fullRegisterAction(
           autoReactivate: "30",
           delayTimeGpt: "10",
           image: "https://medias3.verzay.co/verzay-media/VERZAY-ROBOT-PROFILE.png",
+          trialEndsAt,
           ...(resellerUserId && {
             isDemo: true,
             demoResellerId: resellerUserId,
