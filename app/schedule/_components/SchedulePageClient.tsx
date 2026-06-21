@@ -385,46 +385,51 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
 
     return (
         <>
-            <div className="w-full px-3 py-4 sm:px-4 sm:py-6">
-                <div className="mx-auto w-full max-w-lg space-y-3">
-                    <Card className="border-muted/50">
-                        <CardContent className="p-3 space-y-2">
-                            <div className="flex items-center gap-2">
-                                <Image
-                                    src={user.image ?? "/assets/image/logo_app.png"}
-                                    alt="IA Agent Logo"
-                                    width={28}
-                                    height={28}
-                                    className="rounded-full border border-border object-cover shrink-0"
-                                />
-                                <span className="text-xs text-muted-foreground leading-none">
-                                    Agendar con <span className="font-semibold text-foreground">{user.company || "nuestro asesor"}</span>
-                                    <span className="ml-1">· {slotDuration} min</span>
-                                </span>
-                            </div>
-                            <div className="h-px bg-border" />
-                            <div className="flex items-center gap-1">
-                                {stepLabel.map((s, i) => (
-                                    <div key={i} className="contents">
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                            <div
-                                                className={`h-7 w-7 shrink-0 rounded-full grid place-items-center shadow ${i <= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-                                            >
-                                                {s.icon}
+            <div className="flex h-screen flex-col">
+                <div className="shrink-0 px-3 sm:px-10 pt-3 sm:pt-6 pb-2">
+                    <div className="mx-auto w-full max-w-lg">
+                        <Card className="border-muted/50">
+                            <CardContent className="p-3 space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <Image
+                                        src={user.image ?? "/assets/image/logo_app.png"}
+                                        alt="IA Agent Logo"
+                                        width={28}
+                                        height={28}
+                                        className="rounded-full border border-border object-cover shrink-0"
+                                    />
+                                    <span className="text-xs text-muted-foreground leading-none">
+                                        Agendar con <span className="font-semibold text-foreground">{user.company || "nuestro asesor"}</span>
+                                        <span className="ml-1">· {slotDuration} min</span>
+                                    </span>
+                                </div>
+                                <div className="h-px bg-border" />
+                                <div className="flex items-center gap-1">
+                                    {stepLabel.map((s, i) => (
+                                        <div key={i} className="contents">
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                <div
+                                                    className={`h-7 w-7 shrink-0 rounded-full grid place-items-center shadow ${i <= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+                                                >
+                                                    {s.icon}
+                                                </div>
+                                                <span className={`hidden sm:block text-xs whitespace-nowrap ${i === step ? "font-semibold" : "text-muted-foreground"}`}>
+                                                    {s.label}
+                                                </span>
                                             </div>
-                                            <span className={`hidden sm:block text-xs whitespace-nowrap ${i === step ? "font-semibold" : "text-muted-foreground"}`}>
-                                                {s.label}
-                                            </span>
+                                            {i < stepLabel.length - 1 && (
+                                                <div className="flex-1 h-px bg-border mx-1 min-w-[6px]" />
+                                            )}
                                         </div>
-                                        {i < stepLabel.length - 1 && (
-                                            <div className="flex-1 h-px bg-border mx-1 min-w-[6px]" />
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
 
+                <div className="flex-1 overflow-y-auto px-3 sm:px-10 pb-4">
+                <div className="mx-auto w-full max-w-lg space-y-3 pt-2">
                     {step === 0 && (
                         <ServiceComponent
                             selectedService={selectedService}
@@ -487,6 +492,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                             onPhoneBlur={handlePhoneBlur}
                         />
                     )}
+                </div>
                 </div>
             </div>
 

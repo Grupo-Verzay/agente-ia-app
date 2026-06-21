@@ -247,45 +247,50 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
         : null;
 
     return (
-        <div className="w-full px-3 py-4 sm:px-4 sm:py-6">
-            <div className="mx-auto w-full max-w-lg space-y-3">
-                {/* Encabezado */}
-                <Card className="border-muted/50">
-                    <CardContent className="p-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                            <div className="h-7 w-7 rounded-full bg-primary/10 border border-border flex items-center justify-center text-xs font-bold text-primary shrink-0">
-                                {team.name.charAt(0)}
-                            </div>
-                            <span className="text-xs text-muted-foreground leading-none">
-                                Reservar con <span className="font-semibold text-foreground">{team.name}</span>
-                                {currentService && <span className="ml-1">· {currentService.duration} min</span>}
-                            </span>
-                        </div>
-                        <div className="h-px bg-border" />
-                        {/* Step indicators */}
-                        <div className="flex items-center gap-1">
-                            {stepLabels.map((s, i) => (
-                                <div key={i} className="contents">
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                        <div className={[
-                                            'h-7 w-7 shrink-0 rounded-full grid place-items-center shadow',
-                                            i <= step ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-                                        ].join(' ')}>
-                                            {s.icon}
-                                        </div>
-                                        <span className={`hidden sm:block text-xs whitespace-nowrap ${i === step ? 'font-semibold' : 'text-muted-foreground'}`}>
-                                            {s.label}
-                                        </span>
-                                    </div>
-                                    {i < stepLabels.length - 1 && (
-                                        <div className="flex-1 h-px bg-border mx-1 min-w-[4px]" />
-                                    )}
+        <div className="flex h-screen flex-col">
+            <div className="shrink-0 px-3 sm:px-10 pt-3 sm:pt-6 pb-2">
+                <div className="mx-auto w-full max-w-lg">
+                    {/* Encabezado */}
+                    <Card className="border-muted/50">
+                        <CardContent className="p-3 space-y-2">
+                            <div className="flex items-center gap-2">
+                                <div className="h-7 w-7 rounded-full bg-primary/10 border border-border flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                                    {team.name.charAt(0)}
                                 </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
+                                <span className="text-xs text-muted-foreground leading-none">
+                                    Reservar con <span className="font-semibold text-foreground">{team.name}</span>
+                                    {currentService && <span className="ml-1">· {currentService.duration} min</span>}
+                                </span>
+                            </div>
+                            <div className="h-px bg-border" />
+                            {/* Step indicators */}
+                            <div className="flex items-center gap-1">
+                                {stepLabels.map((s, i) => (
+                                    <div key={i} className="contents">
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <div className={[
+                                                'h-7 w-7 shrink-0 rounded-full grid place-items-center shadow',
+                                                i <= step ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                                            ].join(' ')}>
+                                                {s.icon}
+                                            </div>
+                                            <span className={`hidden sm:block text-xs whitespace-nowrap ${i === step ? 'font-semibold' : 'text-muted-foreground'}`}>
+                                                {s.label}
+                                            </span>
+                                        </div>
+                                        {i < stepLabels.length - 1 && (
+                                            <div className="flex-1 h-px bg-border mx-1 min-w-[4px]" />
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
 
+            <div className="flex-1 overflow-y-auto px-3 sm:px-10 pb-4">
+            <div className="mx-auto w-full max-w-lg space-y-3 pt-2">
                 {/* Steps */}
                 {step === 0 && (
                     <ServiceStep
@@ -377,6 +382,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
                         </CardContent>
                     </Card>
                 )}
+            </div>
             </div>
         </div>
     );

@@ -186,11 +186,11 @@ export const MainSchedule = ({
                 {/* Formulario */}
                 {tab === 'form' && (
                     <div className="h-full overflow-y-auto pb-4">
-                        <div className="flex justify-center py-4 px-4">
-                            <div className="w-full max-w-lg rounded-xl border bg-card shadow-sm p-6">
+                        <Card className="border-none bg-transparent">
+                            <CardContent className="flex flex-col gap-2 p-0">
                                 <BookingFormBuilder userId={userId} />
-                            </div>
-                        </div>
+                            </CardContent>
+                        </Card>
                     </div>
                 )}
 
