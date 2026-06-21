@@ -697,11 +697,11 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                 <div>
                   <h3 className="text-lg font-bold text-white">¿Tienes un equipo o eres una agencia?</h3>
                   <p className="mt-1 text-sm text-slate-400">
-                    Tenemos planes para múltiples cuentas y agencias que gestionan varios negocios.<br className="hidden sm:block" />
-                    Escríbenos y te armamos un plan a la medida.
+                    Tenemos planes para múltiples usuarios/cuentas y agencias que gestionan varios negocios.<br className="hidden sm:block" />
+                    Escríbenos y te armamos un plan a la medida para tu empresa o agencia.
                   </p>
                   <div className="mt-3 flex flex-wrap gap-3">
-                    {["Múltiples cuentas WhatsApp", "Gestión centralizada", "Precios mayoristas"].map((f) => (
+                    {["Múltiples usuarios/cuentas WhatsApp", "Gestión centralizada CRM / IA", "Precios para mayoristas/resellers"].map((f) => (
                       <span key={f} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
                         <Check className="h-3 w-3 text-blue-400 shrink-0" /> {f}
                       </span>
