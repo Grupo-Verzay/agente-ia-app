@@ -13,7 +13,7 @@ export default function PublicScheduleLayout({
     children: ReactNode;
 }) {
     return (
-        <main className={`min-h-screen w-full flex flex-col items-center ${themeClass} p-6`}>
+        <main className={`min-h-screen w-full flex flex-col items-center ${themeClass} px-0 py-0 sm:px-6 sm:py-6`}>
             {children}
         </main>
     );

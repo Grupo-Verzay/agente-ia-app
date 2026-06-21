@@ -247,7 +247,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
         : null;
 
     return (
-        <div className="w-full px-4 py-6 overflow-y-auto">
+        <div className="w-full px-3 py-4 sm:px-4 sm:py-6">
             <div className="mx-auto w-full max-w-lg space-y-3">
                 {/* Encabezado */}
                 <Card className="border-muted/50">

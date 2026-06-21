@@ -385,7 +385,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
 
     return (
         <>
-            <div className="w-full px-4 py-6 overflow-y-auto">
+            <div className="w-full px-3 py-4 sm:px-4 sm:py-6">
                 <div className="mx-auto w-full max-w-lg space-y-3">
                     <Card className="border-muted/50">
                         <CardContent className="p-3 space-y-2">
