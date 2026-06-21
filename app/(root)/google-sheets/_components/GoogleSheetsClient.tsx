@@ -12,10 +12,20 @@ interface Props {
   initialSheetsUrl: string | null;
 }
 
+function getEmbedUrl(url: string): string | null {
+  if (!url) return null;
+  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (!match) return null;
+  const id = match[1];
+  // Apuntar siempre al tab "Registro reunión" — rm=minimal oculta toolbar y menús
+  return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:html&sheet=Registro%20reuni%C3%B3n`;
+}
+
 export function GoogleSheetsClient({ userId, initialSheetsUrl }: Props) {
   const [url, setUrl] = useState(initialSheetsUrl ?? '');
   const [saved, setSaved] = useState(!!initialSheetsUrl);
   const [saving, setSaving] = useState(false);
+  const embedUrl = saved ? getEmbedUrl(url) : null;
 
   async function handleSave() {
     if (!url.trim()) {
@@ -37,7 +47,7 @@ export function GoogleSheetsClient({ userId, initialSheetsUrl }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-4 max-w-2xl">
+    <div className="flex h-full flex-col gap-4">
       {/* Header + config */}
       <div className="flex shrink-0 flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm">
         <div className="flex items-center gap-2">
@@ -91,8 +101,16 @@ export function GoogleSheetsClient({ userId, initialSheetsUrl }: Props) {
         )}
       </div>
 
-      {/* Estado de conexión */}
-      {!saved && (
+      {/* Embed — muestra solo el tab "Registro reunión" */}
+      {embedUrl ? (
+        <div className="flex-1 min-h-0 overflow-hidden rounded-xl border shadow-sm" style={{ height: '520px' }}>
+          <iframe
+            src={embedUrl}
+            className="h-full w-full"
+            title="Registro reunión"
+          />
+        </div>
+      ) : (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed py-12 text-muted-foreground">
           <TableIcon className="h-10 w-10 opacity-20" />
           <div className="text-center">
