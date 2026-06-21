@@ -661,6 +661,8 @@ model User {
   demoResellerId                     String?                      @map("demo_reseller_id")
   demoCredits                        Int                          @default(0) @map("demo_credits")
   trialEndsAt                        DateTime?                    @map("trial_ends_at")
+  trialFollowUpConfig                TrialFollowUpConfig?
+  trialFollowUpLogs                  TrialFollowUpLog[]
   accounts                           Account[]
   agentPrompts                       AgentPrompt[]
   publishedAgentPromptRevisions      AgentPromptRevision[]
@@ -1963,6 +1965,34 @@ model AffiliateCommission {
   notes        String?
   createdAt    DateTime          @default(now())
   paidAt       DateTime?
+}
+
+model TrialFollowUpConfig {
+  id           String   @id @default(uuid())
+  resellerId   String   @unique
+  enabled      Boolean  @default(true)
+  instanceName String?
+  message1     String?
+  message3     String?
+  message6     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  reseller     User     @relation(fields: [resellerId], references: [id], onDelete: Cascade)
+
+  @@map("trial_follow_up_configs")
+}
+
+model TrialFollowUpLog {
+  id      String   @id @default(cuid())
+  userId  String
+  day     Int
+  status  String
+  error   String?
+  sentAt  DateTime @default(now())
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day])
+  @@map("trial_follow_up_logs")
 }
 
 enum CommissionStatus {
