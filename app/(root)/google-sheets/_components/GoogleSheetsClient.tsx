@@ -17,8 +17,7 @@ function getEmbedUrl(url: string): string | null {
   const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
   if (!match) return null;
   const id = match[1];
-  // Apuntar siempre al tab "Registro reunión" — rm=minimal oculta toolbar y menús
-  return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:html&sheet=Registro%20reuni%C3%B3n`;
+  return `https://docs.google.com/spreadsheets/d/${id}/edit?rm=minimal`;
 }
 
 export function GoogleSheetsClient({ userId, initialSheetsUrl }: Props) {
