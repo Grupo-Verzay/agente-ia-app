@@ -117,7 +117,7 @@ function SortableSubmodule({
                     <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
                         <Lock className="h-3 w-3" /> Bloqueado para
                     </Label>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="grid grid-cols-3 gap-1">
                         {PLANS.map(plan => {
                             const isLocked = lockedPlans.includes(plan)
                             return (
@@ -127,7 +127,7 @@ function SortableSubmodule({
                                     onClick={() => onLockedPlansChange(
                                         isLocked ? lockedPlans.filter(p => p !== plan) : [...lockedPlans, plan]
                                     )}
-                                    className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${isLocked
+                                    className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors text-center ${isLocked
                                         ? 'bg-orange-100 border-orange-400 text-orange-700 dark:bg-orange-900/30 dark:border-orange-500 dark:text-orange-400'
                                         : 'border-muted-foreground/20 text-muted-foreground/40 hover:border-muted-foreground/50 hover:text-muted-foreground'
                                         }`}
