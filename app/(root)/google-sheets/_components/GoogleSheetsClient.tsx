@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { TableIcon, ExternalLink, Save, Loader2, CheckCircle2, Sheet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
 interface Props {
@@ -59,16 +58,13 @@ export function GoogleSheetsClient({ userId, initialSheetsUrl }: Props) {
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-end sm:gap-2">
-          <div className="flex-1 space-y-1">
-            <Label className="text-xs text-muted-foreground">URL de Google Sheets</Label>
-            <Input
-              value={url}
-              onChange={(e) => { setUrl(e.target.value); setSaved(false); }}
-              placeholder="https://docs.google.com/spreadsheets/d/..."
-              className="h-9 text-sm font-mono"
-            />
-          </div>
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+          <Input
+            value={url}
+            onChange={(e) => { setUrl(e.target.value); setSaved(false); }}
+            placeholder="Vincula tu hoja de cálculo para sincronizar datos automáticamente"
+            className="h-9 flex-1 text-sm font-mono"
+          />
           <div className="flex gap-2">
             {saved && (
               <a
@@ -92,12 +88,6 @@ export function GoogleSheetsClient({ userId, initialSheetsUrl }: Props) {
             </Button>
           </div>
         </div>
-
-        {saved && (
-          <p className="text-xs text-emerald-600 dark:text-emerald-400">
-            ✓ Las respuestas del formulario de precalificación se sincronizarán automáticamente en la hoja "Registro reunión".
-          </p>
-        )}
       </div>
 
       {/* Embed — muestra solo el tab "Registro reunión" */}
