@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Check, Zap, Users, Star, MessageCircle } from "lucide-react";
+import { Check, Star, MessageCircle, Zap, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { type SubscriptionPlanItem } from "@/actions/subscription-plan-actions";
@@ -36,9 +36,10 @@ interface Props {
   paymentMethods: PaymentMethodConfigItem[];
   defaultPlan?: string;
   defaultAssistanceType?: AssistanceType;
+  showToggle?: boolean;
 }
 
-export function PlanesClient({ plans, paymentMethods, defaultPlan, defaultAssistanceType = "IA" }: Props) {
+export function PlanesClient({ plans, paymentMethods, defaultPlan, defaultAssistanceType = "IA", showToggle = true }: Props) {
   const [assistanceType, setAssistanceType] = useState<AssistanceType>(defaultAssistanceType);
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("yearly");
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlanItem | null>(null);
@@ -63,48 +64,32 @@ export function PlanesClient({ plans, paymentMethods, defaultPlan, defaultAssist
   return (
     <div className="flex min-h-full flex-col">
       {/* Header */}
-      <div className="border-b px-4 py-6 text-center">
-        <h1 className="text-2xl font-bold">Planes y Precios</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Elige el plan que mejor se adapte a tu negocio
-        </p>
-
-        {/* Toggle IA / Humano */}
-        <div className="mt-5 inline-flex items-center rounded-full border p-1 bg-muted gap-1">
-          <button
-            onClick={() => setAssistanceType("IA")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all",
-              assistanceType === "IA"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Zap className="h-3.5 w-3.5" />
-            Asistencia IA
-          </button>
-          <button
-            onClick={() => setAssistanceType("HUMANO")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all",
-              assistanceType === "HUMANO"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Users className="h-3.5 w-3.5" />
-            Asistencia Humana
-          </button>
-        </div>
-
-        {assistanceType === "HUMANO" && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            Incluye configuración personalizada y acompañamiento de nuestro equipo
-          </p>
+      <div className="border-b px-4 pt-1 pb-2 text-center">
+        {/* Toggle IA / Humano — solo visible cuando no hay suscripción activa */}
+        {showToggle && (
+          <div className="mt-1 inline-flex items-center rounded-full border p-1 bg-muted gap-1">
+            <button
+              onClick={() => setAssistanceType("IA")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all",
+                assistanceType === "IA" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Zap className="h-3.5 w-3.5" /> Asistencia IA
+            </button>
+            <button
+              onClick={() => setAssistanceType("HUMANO")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all",
+                assistanceType === "HUMANO" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Users className="h-3.5 w-3.5" /> Asistencia Humana
+            </button>
+          </div>
         )}
-
         {/* Toggle período de facturación */}
-        <div className="mt-4 inline-flex items-center rounded-full border p-1 bg-muted gap-1">
+        <div className="inline-flex items-center rounded-full border p-1 bg-muted gap-1">
           {([
             { value: "monthly",   label: "Mensual",    badge: null      },
             { value: "quarterly", label: "Trimestral", badge: "−14.5%"  },
@@ -145,7 +130,6 @@ export function PlanesClient({ plans, paymentMethods, defaultPlan, defaultAssist
                 <PlanCard
                   key={plan.id}
                   plan={plan}
-                  assistanceType={assistanceType}
                   price={price}
                   billingPeriod={billingPeriod}
                   onSelect={() => { setSelectedPlan(plan); setSelectedPrice(price); }}
@@ -154,6 +138,18 @@ export function PlanesClient({ plans, paymentMethods, defaultPlan, defaultAssist
             })}
           </div>
         )}
+      </div>
+
+      {/* CTA soporte — sticky al fondo */}
+      <div className="sticky bottom-0 border-t bg-background/95 backdrop-blur-sm px-4 py-3 flex items-center justify-center gap-4">
+        <p className="text-sm text-muted-foreground">¿Tienes dudas sobre qué plan elegir?</p>
+        <button
+          onClick={() => window.open("https://wa.me/573115616975", "_blank")}
+          className="inline-flex items-center gap-2 rounded-full bg-green-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-green-600 transition-colors shrink-0"
+        >
+          <MessageCircle className="h-4 w-4" />
+          Escríbenos por WhatsApp
+        </button>
       </div>
 
       {/* Modal de pago */}
@@ -173,13 +169,11 @@ export function PlanesClient({ plans, paymentMethods, defaultPlan, defaultAssist
 
 function PlanCard({
   plan,
-  assistanceType,
   price,
   billingPeriod,
   onSelect,
 }: {
   plan: SubscriptionPlanItem;
-  assistanceType: AssistanceType;
   price: number;
   billingPeriod: BillingPeriod;
   onSelect: () => void;
@@ -207,18 +201,9 @@ function PlanCard({
         </div>
       )}
 
-      {/* Plan name + type */}
+      {/* Plan name */}
       <div className="mb-4">
-        <div className="flex items-center gap-2">
-          <h3 className="text-base font-bold">{PLAN_LABELS[plan.plan as Plan]}</h3>
-          <Badge variant="secondary" className="text-[10px] font-normal">
-            {assistanceType === "IA" ? (
-              <span className="flex items-center gap-1"><Zap className="h-2.5 w-2.5" /> IA</span>
-            ) : (
-              <span className="flex items-center gap-1"><Users className="h-2.5 w-2.5" /> Humano</span>
-            )}
-          </Badge>
-        </div>
+        <h3 className="text-base font-bold">{PLAN_LABELS[plan.plan as Plan]}</h3>
         {plan.description && (
           <p className="mt-1 text-xs text-muted-foreground">{plan.description}</p>
         )}
@@ -244,7 +229,7 @@ function PlanCard({
 
       {/* Features */}
       {plan.features.length > 0 && (
-        <ul className="mb-5 flex-1 space-y-1.5">
+        <ul className="mb-2 flex-1 space-y-1.5">
           {plan.features.map((f, i) => (
             <li key={i} className="flex items-start gap-2 text-xs">
               <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
@@ -255,13 +240,13 @@ function PlanCard({
       )}
 
       {/* CTA */}
-      <div className="mt-auto pt-4">
+      <div className="mt-auto pt-2">
         {isCustom ? (
           <Button
             variant="outline"
             className="w-full gap-2"
             onClick={() => {
-              window.open("https://wa.me/573233612620", "_blank");
+              window.open("https://wa.me/573115616975", "_blank");
             }}
           >
             <MessageCircle className="h-4 w-4" />

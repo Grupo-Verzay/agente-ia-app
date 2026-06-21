@@ -203,7 +203,8 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
               <>
                 <Button
                   size="sm"
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  className="flex-1 text-white"
+                  style={{ backgroundColor: '#16a34a' }}
                   onClick={openQrDialog}
                 >
                   <QrCode className="w-4 h-4 mr-1" />
@@ -211,7 +212,7 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
                 </Button>
                 <Button
                   size="sm"
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  className="flex-1 text-white" style={{ backgroundColor: '#dc2626' }}
                   onClick={handleStop}
                   disabled={stopping}
                 >

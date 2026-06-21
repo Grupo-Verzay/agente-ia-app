@@ -18,14 +18,17 @@ export default async function PlanesPage({ searchParams }: Props) {
 
   // Detectar tipo de asistencia del usuario según su suscripción activa
   let defaultAssistanceType: "IA" | "HUMANO" = "IA";
+  let showToggle = true;
+
   if (user) {
     const activeSub = await db.userSubscription.findFirst({
       where: { userId: user.id, status: "ACTIVE" },
       include: { subscriptionPlan: { select: { assistanceType: true } } },
       orderBy: { createdAt: "desc" },
     });
-    if (activeSub?.subscriptionPlan?.assistanceType === "HUMANO") {
-      defaultAssistanceType = "HUMANO";
+    if (activeSub?.subscriptionPlan?.assistanceType) {
+      defaultAssistanceType = activeSub.subscriptionPlan.assistanceType as "IA" | "HUMANO";
+      showToggle = false; // tiene suscripción activa — se oculta el toggle
     }
   }
 
@@ -35,6 +38,7 @@ export default async function PlanesPage({ searchParams }: Props) {
       paymentMethods={paymentRes.data}
       defaultPlan={searchParams.plan}
       defaultAssistanceType={defaultAssistanceType}
+      showToggle={showToggle}
     />
   );
 }

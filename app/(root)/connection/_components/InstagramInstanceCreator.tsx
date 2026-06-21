@@ -69,7 +69,7 @@ export const InstagramInstanceCreator = ({ userId, company }: InstagramInstanceC
         <CardFooter className="mt-auto px-6 pb-4 pt-0">
           <Button
             onClick={() => setOpen(true)}
-            className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white border-0"
+            className="w-full text-white border-0" style={{ background: 'linear-gradient(to right, #E1306C, #833AB4)' }}
           >
             <Plus className="w-4 h-4 mr-1" />
             Conectar Instagram DMs

@@ -200,8 +200,7 @@ const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
         <Button
           onClick={toggleEnable}
           disabled={loading || !instanceData || serviceLocked}
-          className="w-full"
-          variant="default"
+          className="w-full text-white" style={{ backgroundColor: '#2563EB' }}
         >
           {loading ? (
             <>
