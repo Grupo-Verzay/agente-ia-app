@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getPublicTeamData } from "@/actions/bookings-actions";
 import { getCountryCodes } from "@/actions/get-country-action";
+import { getActiveBookingQuestions } from "@/actions/booking-questions-actions";
 import { BookingPageClient } from "./_components/BookingPageClient";
 
 const BookingPublicPage = async ({
@@ -10,9 +11,10 @@ const BookingPublicPage = async ({
     params: { userId: string };
     searchParams: { name?: string; phone?: string };
 }) => {
-    const [teamRes, countries] = await Promise.all([
+    const [teamRes, countries, questions] = await Promise.all([
         getPublicTeamData(params.userId),
         getCountryCodes(),
+        getActiveBookingQuestions(params.userId),
     ]);
 
     if (!teamRes.success || !teamRes.data) return notFound();
@@ -24,6 +26,7 @@ const BookingPublicPage = async ({
             countries={countries}
             prefillName={searchParams.name}
             prefillPhone={searchParams.phone}
+            questions={questions}
         />
     );
 };

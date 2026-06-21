@@ -34,10 +34,13 @@ import {
     normalizeToE164,
     toRemoteJid,
 } from "../helpers";
-import { CalendarIcon, Clock, List, ScrollText } from "lucide-react";
+import { CalendarIcon, ClipboardList, Clock, List, ScrollText } from "lucide-react";
 import { es } from "date-fns/locale";
 import { DateComponent, HourComponent, ScheduleForm, ServiceComponent } from "./steps";
+import { QualificationStep } from "./steps/QualificationStep";
 import { SummaryItem } from "./";
+import type { BookingQuestionItem } from "@/actions/booking-questions-actions";
+import { saveBookingFormResponse, type FormAnswer } from "@/actions/booking-form-actions";
 
 function splitPhonePrefix(fullPhone: string, countries?: ScheduleInterface['countries']) {
     if (!fullPhone || !countries?.length) return { areaCode: '', localPhone: fullPhone };
@@ -54,12 +57,21 @@ function splitPhonePrefix(fullPhone: string, countries?: ScheduleInterface['coun
     return { areaCode: '', localPhone: digits };
 }
 
-export const SchedulePageClient = ({ user, reminders, countries, prefillName = '', prefillPhone = '' }: ScheduleInterface) => {
+interface SchedulePageClientProps extends ScheduleInterface {
+    questions?: BookingQuestionItem[];
+}
+
+export const SchedulePageClient = ({ user, reminders, countries, prefillName = '', prefillPhone = '', questions = [] }: SchedulePageClientProps) => {
     const [step, setStep] = useState(0);
+    const hasForm = questions.length > 0;
+    const FORM_STEP = hasForm ? 3 : -1;
+    const DATA_STEP = hasForm ? 4 : 3;
+
     const stepLabel = [
         { label: "Servicio", icon: <List className="h-4 w-4" /> },
         { label: "Fecha", icon: <CalendarIcon className="h-4 w-4" /> },
         { label: "Hora", icon: <Clock className="h-4 w-4" /> },
+        ...(hasForm ? [{ label: "Formulario", icon: <ClipboardList className="h-4 w-4" /> }] : []),
         { label: "Tus datos", icon: <ScrollText className="h-4 w-4" /> },
     ];
 
@@ -75,6 +87,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
     const [slots, setSlots] = useState<{ startTime: string; endTime: string }[]>([]);
     const [loadingSlots, setLoadingSlots] = useState(false);
     const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+    const [formAnswers, setFormAnswers] = useState<FormAnswer[]>([]);
 
     const initialSplit = splitPhonePrefix(prefillPhone, countries);
     const [nameClient, setNameClient] = useState(prefillName);
@@ -170,6 +183,20 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
             if (!res.success) {
                 toast.error(res.message);
                 return false;
+            }
+
+            // Guardar respuestas del formulario de precalificación (si existen)
+            const apptId = res.data && !Array.isArray(res.data) ? res.data.id : undefined;
+            if (hasForm && formAnswers.length > 0 && apptId) {
+                saveBookingFormResponse({
+                    userId: user.id,
+                    answers: formAnswers,
+                    appointmentId: apptId,
+                    clientName: normalizedClientName,
+                    clientPhone: e164,
+                    startTime,
+                    timezone: ownerTimezone,
+                }).catch(() => {});
             }
 
             // Timezone del cliente derivado del indicativo seleccionado en el formulario
@@ -348,6 +375,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
         setSelectedDateYmd("");
         setSlots([]);
         setSelectedSlot(null);
+        setFormAnswers([]);
         setNameClient("");
         setAreaCode("");
         setPhone("");
@@ -429,7 +457,21 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                         />
                     )}
 
-                    {step === 3 && (
+                    {hasForm && step === FORM_STEP && (
+                        <Card className="border-muted/50">
+                            <CardContent className="p-4">
+                                <QualificationStep
+                                    questions={questions}
+                                    answers={formAnswers}
+                                    onAnswersChange={setFormAnswers}
+                                    onBack={() => setStep(2)}
+                                    onNext={() => setStep(DATA_STEP)}
+                                />
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {step === DATA_STEP && (
                         <ScheduleForm
                             nameClient={nameClient}
                             countries={countries}

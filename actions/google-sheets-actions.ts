@@ -48,6 +48,27 @@ export async function saveGoogleSheetId(userId: string, sheetInput: string): Pro
 export const saveGoogleSheetsWebhookUrl = saveGoogleSheetId;
 export const getGoogleSheetsWebhookUrl = getGoogleSheetsConfig;
 
+export async function saveUserSheetsUrl(userId: string, url: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    await db.user.update({
+      where: { id: userId },
+      data: { sheetsUrl: url.trim() || null } as any,
+    });
+    return { success: true };
+  } catch {
+    return { success: false, error: 'No se pudo guardar la URL' };
+  }
+}
+
+export async function getUserSheetsUrl(userId: string): Promise<string | null> {
+  try {
+    const user = await db.user.findUnique({ where: { id: userId }, select: { sheetsUrl: true } as any });
+    return (user as any)?.sheetsUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /* ── Sync ──────────────────────────────────────────────────── */
 const HEADERS = [
   'Teléfono', 'Nombre', 'Empresa', 'Cargo', 'Documento',

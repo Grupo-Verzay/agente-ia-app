@@ -10,6 +10,7 @@ import {
     Settings2,
     Clock,
     Calendar,
+    ClipboardList,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { MetricCard } from '@/components/custom/MetricCard';
@@ -20,10 +21,11 @@ import { CustomCalendar } from './dashboard';
 import { AgendaKanban } from './dashboard/AgendaKanban';
 import { ShareScheduleLinkButton, UserAvailabilityForm } from './availability';
 import { UpdateMeetingDuration } from './settings';
+import { BookingFormBuilder } from './form/BookingFormBuilder';
 import { getAppointmentStatusCounts } from '@/actions/appointments-actions';
 import { AppointmentStatus } from '@prisma/client';
 
-type TabValue = 'dashboard' | 'availability' | 'kanban' | 'services' | 'reminders' | 'settings';
+type TabValue = 'dashboard' | 'availability' | 'kanban' | 'services' | 'reminders' | 'form' | 'settings';
 
 const TABS: { value: TabValue; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
     { value: 'dashboard',    label: 'Dashboard',      Icon: LayoutDashboard },
@@ -31,6 +33,7 @@ const TABS: { value: TabValue; label: string; Icon: React.ComponentType<{ classN
     { value: 'kanban',       label: 'Kanban',         Icon: Kanban },
     { value: 'services',     label: 'Servicios',      Icon: Wrench },
     { value: 'reminders',    label: 'Recordatorios',  Icon: Bell },
+    { value: 'form',         label: 'Formulario',     Icon: ClipboardList },
     { value: 'settings',     label: 'Ajustes',        Icon: Settings2 },
 ];
 
@@ -177,6 +180,17 @@ export const MainSchedule = ({
                                 />
                             </CardContent>
                         </Card>
+                    </div>
+                )}
+
+                {/* Formulario */}
+                {tab === 'form' && (
+                    <div className="h-full overflow-y-auto pb-4">
+                        <div className="flex justify-center py-4 px-4">
+                            <div className="w-full max-w-lg rounded-xl border bg-card shadow-sm p-6">
+                                <BookingFormBuilder userId={userId} />
+                            </div>
+                        </div>
                     </div>
                 )}
 

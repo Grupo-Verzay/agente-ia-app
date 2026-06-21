@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
 import { toast } from 'sonner';
-import { CalendarIcon, Clock, List, ScrollText, User } from 'lucide-react';
+import { CalendarIcon, ClipboardList, Clock, List, ScrollText, User } from 'lucide-react';
 
 import { Card, CardContent } from '@/components/ui/card';
 import type { Country } from '@/components/custom/CountryCodeSelect';
@@ -15,12 +15,15 @@ import {
     getAvailableBookingSlots,
     sendBookingNotifications,
 } from '@/actions/bookings-actions';
+import type { BookingQuestionItem } from '@/actions/booking-questions-actions';
+import { saveBookingFormResponse, type FormAnswer } from '@/actions/booking-form-actions';
 
 import { ServiceStep } from './steps/ServiceStep';
 import { MemberStep } from './steps/MemberStep';
 import { DateStep } from './steps/DateStep';
 import { SlotStep } from './steps/SlotStep';
 import { ClientDataStep } from './steps/ClientDataStep';
+import { QualificationStep } from '../../_components/steps/QualificationStep';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,6 +63,7 @@ interface Props {
     countries: Country[];
     prefillName?: string;
     prefillPhone?: string;
+    questions?: BookingQuestionItem[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -85,15 +89,19 @@ function normalizeToE164(areaCode: string, phone: string): string | null {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function BookingPageClient({ userId, team, countries, prefillName = '', prefillPhone = '' }: Props) {
+export function BookingPageClient({ userId, team, countries, prefillName = '', prefillPhone = '', questions = [] }: Props) {
     const [step, setStep] = useState(0);
+    const hasForm = questions.length > 0;
+    const FORM_STEP = hasForm ? 4 : -1;
+    const DATA_STEP = hasForm ? 5 : 4;
 
     const stepLabels = [
-        { label: 'Servicio',    icon: <List className="h-4 w-4" /> },
+        { label: 'Servicio',     icon: <List className="h-4 w-4" /> },
         { label: 'Especialista', icon: <User className="h-4 w-4" /> },
-        { label: 'Fecha',       icon: <CalendarIcon className="h-4 w-4" /> },
-        { label: 'Hora',        icon: <Clock className="h-4 w-4" /> },
-        { label: 'Tus datos',   icon: <ScrollText className="h-4 w-4" /> },
+        { label: 'Fecha',        icon: <CalendarIcon className="h-4 w-4" /> },
+        { label: 'Hora',         icon: <Clock className="h-4 w-4" /> },
+        ...(hasForm ? [{ label: 'Formulario', icon: <ClipboardList className="h-4 w-4" /> }] : []),
+        { label: 'Tus datos',    icon: <ScrollText className="h-4 w-4" /> },
     ];
 
     // ── Selecciones ──
@@ -107,10 +115,11 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
 
     // ── Datos del cliente ──
     const initial = splitPhonePrefix(prefillPhone, countries);
-    const [nameClient, setNameClient] = useState(prefillName);
-    const [areaCode,   setAreaCode]   = useState(initial.areaCode);
-    const [phone,      setPhone]      = useState(initial.localPhone);
-    const [loading,    setLoading]    = useState(false);
+    const [nameClient,   setNameClient]   = useState(prefillName);
+    const [areaCode,     setAreaCode]     = useState(initial.areaCode);
+    const [phone,        setPhone]        = useState(initial.localPhone);
+    const [loading,      setLoading]      = useState(false);
+    const [formAnswers,  setFormAnswers]  = useState<FormAnswer[]>([]);
 
     // ── Derivados ──
     const currentService = team.services.find((s) => s.id === selectedService);
@@ -155,6 +164,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
         setSelectedDateYmd('');
         setSlots([]);
         setSelectedSlot(null);
+        setFormAnswers([]);
         setNameClient('');
         setAreaCode('');
         setPhone('');
@@ -188,6 +198,19 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
             if (!res.success) {
                 toast.error(res.message ?? 'No se pudo agendar la cita.');
                 return;
+            }
+
+            // Guardar respuestas del formulario de precalificación (si existen)
+            if (hasForm && formAnswers.length > 0 && res.data?.id) {
+                saveBookingFormResponse({
+                    userId,
+                    answers: formAnswers,
+                    bookingAppointmentId: res.data.id,
+                    clientName: nameClient.trim(),
+                    clientPhone: e164,
+                    startTime,
+                    timezone,
+                }).catch(() => {});
             }
 
             // Notificación WhatsApp (fire-and-forget — no bloqueamos la UI)
@@ -308,7 +331,21 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
                     />
                 )}
 
-                {step === 4 && (
+                {hasForm && step === FORM_STEP && (
+                    <Card className="border-muted/50">
+                        <CardContent className="p-4">
+                            <QualificationStep
+                                questions={questions}
+                                answers={formAnswers}
+                                onAnswersChange={setFormAnswers}
+                                onBack={() => setStep(3)}
+                                onNext={() => setStep(DATA_STEP)}
+                            />
+                        </CardContent>
+                    </Card>
+                )}
+
+                {step === DATA_STEP && (
                     <ClientDataStep
                         nameClient={nameClient}
                         areaCode={areaCode}

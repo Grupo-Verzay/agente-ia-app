@@ -4,6 +4,7 @@ import { Reminders } from "@prisma/client";
 import { getRemindersByUserId } from "@/actions/reminders-actions";
 import { getCountryCodes } from "@/actions/get-country-action";
 import { fetchInstanceAction } from "@/actions/fetch-intance-action";
+import { getActiveBookingQuestions } from "@/actions/booking-questions-actions";
 import { SchedulePageClient } from "../_components/SchedulePageClient";
 
 function hasReminder(result: { data?: Reminders[] }): result is { data: Reminders[] } {
@@ -34,7 +35,10 @@ const SchedulePage = async ({ params, searchParams }: { params: { userId: string
         ? (resReminder.data as Reminders[]).filter((r) => r.isSchedule === true)
         : [];
 
-    const countries = await getCountryCodes();
+    const [countries, questions] = await Promise.all([
+        getCountryCodes(),
+        getActiveBookingQuestions(user.id),
+    ]);
 
     let instancePhone: string | null = null;
     const primaryInstance = user.instancias?.[0];
@@ -55,6 +59,7 @@ const SchedulePage = async ({ params, searchParams }: { params: { userId: string
         instancePhone={instancePhone}
         prefillName={searchParams.name}
         prefillPhone={searchParams.phone}
+        questions={questions}
     />
 
 };
