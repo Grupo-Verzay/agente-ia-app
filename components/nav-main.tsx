@@ -357,8 +357,8 @@ export function NavMain({ user }: { user: User }) {
                                                                 : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
                                                         )}
                                                     >
-                                                        <span className="flex-1">{subItem.title}</span>
-                                                        {isSubLocked && <Lock className="h-3 w-3 text-orange-400 shrink-0" />}
+                                                        {subItem.title}
+                                                        {isSubLocked && <Lock className="ml-auto h-3 w-3 text-orange-400 shrink-0" />}
                                                     </button>
                                                 </SidebarMenuSubItem>
                                             );
