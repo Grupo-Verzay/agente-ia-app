@@ -6,7 +6,7 @@ import {
   Check, Zap, Users, Star, MessageCircle, Bot, Calendar,
   ArrowRight, Menu, X, XCircle, Bell, FileSpreadsheet, Mic,
   LayoutTemplate, GitBranch, BrainCircuit, ChevronDown, ChevronUp,
-  Quote, ImageIcon, Loader2, ShieldCheck,
+  Quote, ImageIcon, Loader2, ShieldCheck, Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -681,6 +681,56 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                 ))}
               </div>
             )}
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* ══ ENTERPRISE / AGENCIAS ══════════════════════════════════════════ */}
+      <section className="py-4">
+        <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
+          <FadeIn>
+            <div className="flex flex-col items-center gap-6 rounded-2xl border border-white/10 bg-white/5 px-8 py-8 sm:flex-row sm:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 border border-blue-500/20">
+                  <Building2 className="h-6 w-6 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">¿Tienes un equipo o eres una agencia?</h3>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Tenemos planes para múltiples cuentas y agencias que gestionan varios negocios.<br className="hidden sm:block" />
+                    Escríbenos y te armamos un plan a la medida.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    {["Múltiples cuentas WhatsApp", "Gestión centralizada", "Precios mayoristas"].map((f) => (
+                      <span key={f} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
+                        <Check className="h-3 w-3 text-blue-400 shrink-0" /> {f}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="shrink-0">
+                {whatsappNumber ? (
+                  <a
+                    href={`https://wa.me/${whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Hola, me interesa un plan para empresa/agencia con múltiples cuentas.")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-blue-500"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Hablar con un asesor
+                  </a>
+                ) : (
+                  <Link
+                    href="#"
+                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-blue-500"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Hablar con un asesor
+                  </Link>
+                )}
+              </div>
+            </div>
           </FadeIn>
         </div>
       </section>
