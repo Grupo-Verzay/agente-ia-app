@@ -61,6 +61,7 @@ type EditForm = {
   checkoutUrlMonthly: string;
   checkoutUrlQuarterly: string;
   checkoutUrlYearly: string;
+  name: string;
 };
 
 export function PlanesMain() {
@@ -114,6 +115,7 @@ export function PlanesMain() {
       checkoutUrlMonthly: existing?.checkoutUrlMonthly ?? "",
       checkoutUrlQuarterly: existing?.checkoutUrlQuarterly ?? "",
       checkoutUrlYearly: existing?.checkoutUrlYearly ?? "",
+      name: existing?.name ?? "",
     });
     setDialogPlanId(existing?.id ?? null);
     setDialogTab("config");
@@ -134,6 +136,7 @@ export function PlanesMain() {
       checkoutUrlMonthly: form.checkoutUrlMonthly || undefined,
       checkoutUrlQuarterly: form.checkoutUrlQuarterly || undefined,
       checkoutUrlYearly: form.checkoutUrlYearly || undefined,
+      name: form.name || null,
     });
     if (res.success) {
       toast.success(res.message);
@@ -486,6 +489,14 @@ export function PlanesMain() {
                   <p className="text-[11px] text-muted-foreground">Precio que cobras al reseller por cada licencia activa de este plan.</p>
                 </div>
               )}
+
+              <div className="space-y-1">
+                <Label>Nombre del plan (visible en la landing)</Label>
+                <Input value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder={PLAN_LABELS[form.plan] ?? form.plan} />
+                <p className="text-[11px] text-muted-foreground">Si se deja vacío se usa el nombre predeterminado: {PLAN_LABELS[form.plan] ?? form.plan}</p>
+              </div>
 
               <div className="space-y-1">
                 <Label>Descripción breve</Label>

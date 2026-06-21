@@ -194,12 +194,14 @@ interface LandingClientProps {
   ctaSubtitle?: string | null;
   testimonials?: TestimonialData[] | null;
   stats?: StatData[] | null;
+  showAssistanceIA?: boolean;
+  showAssistanceHUMANO?: boolean;
 }
 
-export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats }: LandingClientProps = {}) {
+export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats, showAssistanceIA = true, showAssistanceHUMANO = true }: LandingClientProps = {}) {
   const [plans, setPlans]                   = useState<SubscriptionPlanItem[]>([]);
   const [plansLoading, setPlansLoading]     = useState(true);
-  const [assistanceType, setAssistanceType] = useState<AssistanceType>("IA");
+  const [assistanceType, setAssistanceType] = useState<AssistanceType>(showAssistanceIA ? "IA" : "HUMANO");
   const [billingPeriod, setBillingPeriod]   = useState<BillingPeriod>("yearly");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openFaq, setOpenFaq]               = useState<number | null>(null);
@@ -637,15 +639,17 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                 ))}
               </div>
 
-              {/* Assistance toggle */}
-              <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
-                <button onClick={() => setAssistanceType("IA")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", assistanceType === "IA" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
-                  <Zap className="h-3.5 w-3.5" /> Asistencia IA
-                </button>
-                <button onClick={() => setAssistanceType("HUMANO")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", assistanceType === "HUMANO" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
-                  <Users className="h-3.5 w-3.5" /> Asistencia Humana
-                </button>
-              </div>
+              {/* Assistance toggle — solo visible si hay más de un tipo activo */}
+              {showAssistanceIA && showAssistanceHUMANO && (
+                <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
+                  <button onClick={() => setAssistanceType("IA")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", assistanceType === "IA" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
+                    <Zap className="h-3.5 w-3.5" /> Asistencia IA
+                  </button>
+                  <button onClick={() => setAssistanceType("HUMANO")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", assistanceType === "HUMANO" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
+                    <Users className="h-3.5 w-3.5" /> Asistencia Humana
+                  </button>
+                </div>
+              )}
 
               <p className="mt-5 text-xs text-slate-500">Precios en USD · Sin tarjeta de crédito requerida</p>
             </div>
@@ -854,7 +858,7 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, onOpenD
       )}
       <div className="mb-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-bold text-white">{PLAN_LABELS[plan.plan] ?? plan.plan}</h3>
+          <h3 className="font-bold text-white">{plan.name || PLAN_LABELS[plan.plan] || plan.plan}</h3>
           <Badge variant="outline" className="border-white/20 text-[10px] text-slate-400">
             {assistanceType === "IA"
               ? <span className="flex items-center gap-1"><Zap className="h-2.5 w-2.5" />IA</span>

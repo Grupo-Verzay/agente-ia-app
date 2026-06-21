@@ -23,6 +23,7 @@ export type SubscriptionPlanItem = {
   checkoutUrlMonthly: string | null;
   checkoutUrlQuarterly: string | null;
   checkoutUrlYearly: string | null;
+  name: string | null;
 };
 
 export async function getAllSubscriptionPlans() {
@@ -106,6 +107,7 @@ export async function upsertSubscriptionPlan(data: {
   checkoutUrlMonthly?: string;
   checkoutUrlQuarterly?: string;
   checkoutUrlYearly?: string;
+  name?: string | null;
 }) {
   try {
     const isResellerPlan = data.isResellerPlan ?? false;
@@ -124,6 +126,7 @@ export async function upsertSubscriptionPlan(data: {
       checkoutUrlMonthly: data.checkoutUrlMonthly ?? null,
       checkoutUrlQuarterly: data.checkoutUrlQuarterly ?? null,
       checkoutUrlYearly: data.checkoutUrlYearly ?? null,
+      name: data.name ?? null,
     };
     const existing = await db.subscriptionPlan.findFirst({
       where: { plan: data.plan, assistanceType: data.assistanceType, isResellerPlan },

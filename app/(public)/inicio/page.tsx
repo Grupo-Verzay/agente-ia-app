@@ -48,6 +48,8 @@ export default async function InicioPage() {
       ctaSubtitle={config.ctaSubtitle}
       testimonials={config.testimonials}
       stats={config.stats}
+      showAssistanceIA={config.showAssistanceIA}
+      showAssistanceHUMANO={config.showAssistanceHUMANO}
     />
   );
 }

@@ -26,6 +26,8 @@ export type SiteConfigData = {
   resellerWhatsappNumber: string | null;
   resellerLogoUrl: string | null;
   resellerMeetingUrl: string | null;
+  showAssistanceIA: boolean;
+  showAssistanceHUMANO: boolean;
 };
 
 const EMPTY: SiteConfigData = {
@@ -37,6 +39,8 @@ const EMPTY: SiteConfigData = {
   resellerWhatsappNumber: null,
   resellerLogoUrl: null,
   resellerMeetingUrl: null,
+  showAssistanceIA: true,
+  showAssistanceHUMANO: true,
 };
 
 export async function getSiteConfig(): Promise<SiteConfigData> {
@@ -62,6 +66,8 @@ export async function getSiteConfig(): Promise<SiteConfigData> {
       resellerWhatsappNumber: c.resellerWhatsappNumber ?? null,
       resellerLogoUrl: c.resellerLogoUrl ?? null,
       resellerMeetingUrl: c.resellerMeetingUrl ?? null,
+      showAssistanceIA: c.showAssistanceIA ?? true,
+      showAssistanceHUMANO: c.showAssistanceHUMANO ?? true,
     };
   } catch {
     return EMPTY;
@@ -112,6 +118,8 @@ export async function updateSiteConfig(data: SiteConfigData): Promise<{ success:
       resellerWhatsappNumber: data.resellerWhatsappNumber || null,
       resellerLogoUrl: data.resellerLogoUrl || null,
       resellerMeetingUrl: data.resellerMeetingUrl || null,
+      showAssistanceIA: data.showAssistanceIA ?? true,
+      showAssistanceHUMANO: data.showAssistanceHUMANO ?? true,
     };
     await db.siteConfig.upsert({
       where: { id: 1 },

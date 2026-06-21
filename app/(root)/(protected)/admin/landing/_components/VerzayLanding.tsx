@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Loader2, Globe, Save, Calendar, FileSpreadsheet, MessageCircle,
   Instagram, Facebook, Palette, Type, Image, ChevronDown, ArrowLeft, Store,
@@ -45,9 +46,11 @@ export function VerzayLanding() {
   const [resellerLogoUrlInput, setResellerLogoUrlInput] = useState("");
   const [resellerMeetingUrlInput, setResellerMeetingUrlInput] = useState("");
   const [savingReseller, setSavingReseller] = useState(false);
+  const [showAssistanceIA, setShowAssistanceIA] = useState(true);
+  const [showAssistanceHUMANO, setShowAssistanceHUMANO] = useState(true);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basicos: true, identidad: false, hero: false, redes: false,
-    video: false, cta: false, stats: false, testimonios: false,
+    video: false, cta: false, stats: false, testimonios: false, planes: false,
   });
   const toggle = (k: string) => setOpenSections(p => ({ ...p, [k]: !p[k] }));
 
@@ -84,6 +87,8 @@ export function VerzayLanding() {
       setResellerWhatsappInput(cfg.resellerWhatsappNumber ?? "");
       setResellerLogoUrlInput(cfg.resellerLogoUrl ?? "");
       setResellerMeetingUrlInput(cfg.resellerMeetingUrl ?? "");
+      setShowAssistanceIA(cfg.showAssistanceIA ?? true);
+      setShowAssistanceHUMANO(cfg.showAssistanceHUMANO ?? true);
       setLoading(false);
     });
   }, []);
@@ -109,6 +114,8 @@ export function VerzayLanding() {
       resellerWhatsappNumber: resellerWhatsappInput || null,
       resellerLogoUrl: resellerLogoUrlInput || null,
       resellerMeetingUrl: resellerMeetingUrlInput || null,
+      showAssistanceIA,
+      showAssistanceHUMANO,
     });
     if (res.success) toast.success(res.message);
     else toast.error(res.message);
@@ -136,6 +143,8 @@ export function VerzayLanding() {
       resellerWhatsappNumber: resellerWhatsappInput || null,
       resellerLogoUrl: resellerLogoUrlInput || null,
       resellerMeetingUrl: resellerMeetingUrlInput || null,
+      showAssistanceIA,
+      showAssistanceHUMANO,
     });
     if (res.success) toast.success(res.message);
     else toast.error(res.message);
@@ -474,6 +483,24 @@ export function VerzayLanding() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                <div>
+                  <button type="button" className="flex w-full items-center justify-between py-3" onClick={() => toggle('planes')}>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sección de planes</p>
+                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", openSections.planes && "-rotate-180")} />
+                  </button>
+                  <div className={cn(openSections.planes ? "pb-3 space-y-3" : "hidden")}>
+                    <p className="text-xs text-muted-foreground">Controla qué tipos de asistencia aparecen en la sección de precios de la landing.</p>
+                    <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                      <Label className="text-sm">Mostrar Asistencia IA</Label>
+                      <Switch checked={showAssistanceIA} onCheckedChange={setShowAssistanceIA} />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                      <Label className="text-sm">Mostrar Asistencia Humana</Label>
+                      <Switch checked={showAssistanceHUMANO} onCheckedChange={setShowAssistanceHUMANO} />
+                    </div>
                   </div>
                 </div>
 
