@@ -710,25 +710,15 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                 </div>
               </div>
               <div className="shrink-0">
-                {whatsappNumber ? (
-                  <a
-                    href={`https://wa.me/${whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Hola, me interesa un plan para empresa/agencia con múltiples cuentas.")}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-blue-500"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    Hablar con un asesor
-                  </a>
-                ) : (
-                  <Link
-                    href="#"
-                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-blue-500"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    Hablar con un asesor
-                  </Link>
-                )}
+                <a
+                  href={`https://wa.me/${(whatsappNumber ?? "").replace(/\D/g, "")}?text=${encodeURIComponent("Hola, me interesa hablar con un asesor para un plan empresarial/agencia")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-blue-500"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Hablar con un asesor
+                </a>
               </div>
             </div>
           </FadeIn>
