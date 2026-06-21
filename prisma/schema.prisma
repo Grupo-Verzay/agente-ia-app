@@ -182,14 +182,15 @@ model Module {
 }
 
 model ModuleItem {
-  id        String   @id @default(uuid())
-  title     String
-  url       String
-  moduleId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  customUrl String?
-  module    Module   @relation(fields: [moduleId], references: [id])
+  id          String   @id @default(uuid())
+  title       String
+  url         String
+  moduleId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  customUrl   String?
+  lockedPlans Plan[]
+  module      Module   @relation(fields: [moduleId], references: [id])
 }
 
 model Pausar {

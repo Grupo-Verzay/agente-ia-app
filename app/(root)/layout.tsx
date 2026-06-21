@@ -130,9 +130,16 @@ export default async function RootGroupLayout({
     // Rutas bloqueadas para el plan actual (visibles en sidebar pero sin acceso)
     const isAdvisor = !!user.ownerId;
     const lockedRoutes: string[] = (!isAdmin(user?.role) && !isAdvisor)
-        ? modules
-            .filter(m => (m as any).lockedPlans?.includes(user.plan))
-            .map(m => m.route)
+        ? [
+            ...modules
+                .filter(m => (m as any).lockedPlans?.includes(user.plan))
+                .map(m => m.route),
+            ...modules.flatMap(m =>
+                (m.moduleItems ?? [])
+                    .filter(item => (item as any).lockedPlans?.includes(user.plan))
+                    .map(item => item.url.replace('/admin/', '/panel/'))
+            ),
+        ]
         : [];
 
     let navPrefs: UserNavPref[] = [];

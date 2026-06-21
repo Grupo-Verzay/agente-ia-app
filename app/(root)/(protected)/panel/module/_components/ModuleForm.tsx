@@ -35,26 +35,32 @@ const labelMap: Record<string, string> = {
     requiresPremium: 'Requiere Premium',
 }
 
+import { Plan } from "@prisma/client"
+
 function SortableSubmodule({
     id,
     index,
     url,
     titleValue,
     customUrlValue,
+    lockedPlans,
     onRemove,
     onUrlChange,
     onTitleChange,
     onCustomUrlChange,
+    onLockedPlansChange,
 }: {
     id: string
     index: number
     url: string
     titleValue: string
     customUrlValue: string
+    lockedPlans: Plan[]
     onRemove: () => void
     onUrlChange: (value: string) => void
     onTitleChange: (value: string) => void
     onCustomUrlChange: (value: string) => void
+    onLockedPlansChange: (plans: Plan[]) => void
 }) {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id })
     const style = { transform: CSS.Transform.toString(transform), transition }
@@ -107,6 +113,31 @@ function SortableSubmodule({
                     onChange={(e) => onTitleChange(e.target.value)}
                     className="w-full"
                 />
+                <div className="flex flex-col gap-1">
+                    <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                        <Lock className="h-3 w-3" /> Bloqueado para
+                    </Label>
+                    <div className="flex flex-wrap gap-1">
+                        {PLANS.map(plan => {
+                            const isLocked = lockedPlans.includes(plan)
+                            return (
+                                <button
+                                    key={plan}
+                                    type="button"
+                                    onClick={() => onLockedPlansChange(
+                                        isLocked ? lockedPlans.filter(p => p !== plan) : [...lockedPlans, plan]
+                                    )}
+                                    className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${isLocked
+                                        ? 'bg-orange-100 border-orange-400 text-orange-700 dark:bg-orange-900/30 dark:border-orange-500 dark:text-orange-400'
+                                        : 'border-muted-foreground/20 text-muted-foreground/40 hover:border-muted-foreground/50 hover:text-muted-foreground'
+                                        }`}
+                                >
+                                    {PLAN_LABELS[plan]}
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
             </div>
         </div>
     )
@@ -332,16 +363,18 @@ export const ModuleForm = ({
                                         url={watchedItems?.[index]?.url ?? ""}
                                         titleValue={watchedItems?.[index]?.title ?? ""}
                                         customUrlValue={watchedItems?.[index]?.customUrl ?? ""}
+                                        lockedPlans={(watchedItems?.[index]?.lockedPlans ?? []) as Plan[]}
                                         onRemove={() => remove(index)}
                                         onUrlChange={(value) => form.setValue(`items.${index}.url`, value)}
                                         onTitleChange={(value) => form.setValue(`items.${index}.title`, value)}
                                         onCustomUrlChange={(value) => form.setValue(`items.${index}.customUrl`, value)}
+                                        onLockedPlansChange={(plans) => form.setValue(`items.${index}.lockedPlans`, plans)}
                                     />
                                 ))}
                             </div>
                         </SortableContext>
                     </DndContext>
-                    <Button type="button" variant="outline" onClick={() => append({ url: "", title: "" })}>
+                    <Button type="button" variant="outline" onClick={() => append({ url: "", title: "", lockedPlans: [] })}>
                         Agregar submódulo
                     </Button>
                 </div>

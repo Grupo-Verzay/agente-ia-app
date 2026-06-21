@@ -59,6 +59,7 @@ export async function createModule(formData: FormModuleValues): Promise<ModuleRe
                         title: item.title,
                         url: item.url,
                         customUrl: item.customUrl,
+                        lockedPlans: item.lockedPlans ?? [],
                     })),
                 } : undefined,
             },
@@ -113,6 +114,7 @@ export async function updateModule(moduleId: string, formData: FormModuleValues)
                             title: item.title,
                             url: item.url,
                             customUrl: item.customUrl,
+                            lockedPlans: item.lockedPlans ?? [],
                         })),
                     }
                     : undefined,

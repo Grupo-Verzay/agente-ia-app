@@ -300,10 +300,11 @@ export function NavMain({ user }: { user: User }) {
                                         {moduleItems.map((subItem) => {
                                             const dest = subItem.url?.replace('/admin/', '/panel/') ?? targetRoute;
                                             const isSubActive = pathname === dest || pathname.startsWith(dest + '/');
+                                            const isSubLocked = !isAdvisor && (subItem as any).lockedPlans?.includes(user.plan);
                                             return (
                                                 <button
                                                     key={subItem.id}
-                                                    onClick={() => handleRoute(label, dest, subItem.customUrl ?? item.customUrl)}
+                                                    onClick={() => handleRoute(label, dest, subItem.customUrl ?? item.customUrl, isSubLocked)}
                                                     className={clsx(
                                                         'flex w-full items-center rounded-md px-2 py-1.5 text-sm transition-colors',
                                                         isSubActive
@@ -311,7 +312,8 @@ export function NavMain({ user }: { user: User }) {
                                                             : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
                                                     )}
                                                 >
-                                                    {subItem.title}
+                                                    <span className="flex-1">{subItem.title}</span>
+                                                    {isSubLocked && <Lock className="h-3 w-3 text-orange-400 shrink-0" />}
                                                 </button>
                                             );
                                         })}
@@ -343,10 +345,11 @@ export function NavMain({ user }: { user: User }) {
                                         {moduleItems.map((subItem) => {
                                             const dest = subItem.url?.replace('/admin/', '/panel/') ?? targetRoute;
                                             const isSubActive = pathname === dest || pathname.startsWith(dest + '/');
+                                            const isSubLocked = !isAdvisor && (subItem as any).lockedPlans?.includes(user.plan);
                                             return (
                                                 <SidebarMenuSubItem key={subItem.id}>
                                                     <button
-                                                        onClick={() => handleRoute(label, dest, subItem.customUrl ?? item.customUrl)}
+                                                        onClick={() => handleRoute(label, dest, subItem.customUrl ?? item.customUrl, isSubLocked)}
                                                         className={clsx(
                                                             `flex w-full items-center rounded-md px-2 py-1.5 ${itemTextClass} transition-colors`,
                                                             isSubActive
@@ -354,7 +357,8 @@ export function NavMain({ user }: { user: User }) {
                                                                 : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
                                                         )}
                                                     >
-                                                        {subItem.title}
+                                                        <span className="flex-1">{subItem.title}</span>
+                                                        {isSubLocked && <Lock className="h-3 w-3 text-orange-400 shrink-0" />}
                                                     </button>
                                                 </SidebarMenuSubItem>
                                             );

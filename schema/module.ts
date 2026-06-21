@@ -74,6 +74,7 @@ export const ItemModuleSchema = z.object({
     url: z.string().min(1),
     title: z.string().min(1),
     customUrl: z.string().optional(),
+    lockedPlans: z.array(z.enum(PLAN_VALUES)).default([]),
 })
 
 export const FormModuleSchema = z.object({
