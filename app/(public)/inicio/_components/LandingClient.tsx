@@ -214,6 +214,16 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
     });
   }, []);
 
+  const hasIAPlans     = plans.some((p) => p.assistanceType === "IA");
+  const hasHUMANOPlans = plans.some((p) => p.assistanceType === "HUMANO");
+  const showIA         = showAssistanceIA && hasIAPlans;
+  const showHUMANO     = showAssistanceHUMANO && hasHUMANOPlans;
+
+  useEffect(() => {
+    if (assistanceType === "IA" && !showIA && showHUMANO) setAssistanceType("HUMANO");
+    if (assistanceType === "HUMANO" && !showHUMANO && showIA) setAssistanceType("IA");
+  }, [showIA, showHUMANO, assistanceType]);
+
   const visiblePlans = plans
     .filter((p) => p.assistanceType === assistanceType)
     .sort((a, b) => PLAN_ORDER.indexOf(a.plan) - PLAN_ORDER.indexOf(b.plan));
@@ -639,8 +649,8 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                 ))}
               </div>
 
-              {/* Assistance toggle — solo visible si hay más de un tipo activo */}
-              {showAssistanceIA && showAssistanceHUMANO && (
+              {/* Assistance toggle — solo visible si ambos tipos tienen planes activos */}
+              {showIA && showHUMANO && (
                 <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
                   <button onClick={() => setAssistanceType("IA")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", assistanceType === "IA" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
                     <Zap className="h-3.5 w-3.5" /> Asistencia IA
