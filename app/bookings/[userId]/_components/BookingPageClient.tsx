@@ -23,7 +23,7 @@ import { MemberStep } from './steps/MemberStep';
 import { DateStep } from './steps/DateStep';
 import { SlotStep } from './steps/SlotStep';
 import { ClientDataStep } from './steps/ClientDataStep';
-import { QualificationStep } from '../../_components/steps/QualificationStep';
+import { QualificationStep } from '../../../schedule/_components/steps/QualificationStep';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
