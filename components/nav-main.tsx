@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Lock } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
 import { useChatUnreadStore } from '@/stores/useChatUnreadStore';
 
@@ -85,12 +85,14 @@ export function NavMain({ user }: { user: User }) {
                 isActive = pathname === link.route || pathname.startsWith(link.route + '/');
             }
 
-            return { ...link, isActive, isHidden, displayLabel, sortOrder };
+            const isLocked = !isAdvisor && (link as any).lockedPlans?.includes(user.plan);
+            return { ...link, isActive, isHidden, displayLabel, sortOrder, isLocked };
         })
         .filter(link => !link.isHidden)
         .sort((a, b) => a.sortOrder - b.sortOrder);
 
-    const handleRoute = (label: string, targetRoute: string, customUrl?: string | null) => {
+    const handleRoute = (label: string, targetRoute: string, customUrl?: string | null, isLocked?: boolean) => {
+        if (isLocked) { router.push('/planes'); if (isMobile) setOpenMobile(false); return; }
         setLabelModule(label)
         if (targetRoute === '/canva' && customUrl) setCanvaUrl(customUrl)
         if (isMobile) setOpenMobile(false)
@@ -104,7 +106,7 @@ export function NavMain({ user }: { user: User }) {
             {/* <SidebarGroupLabel>Módulos</SidebarGroupLabel> */}
             <SidebarMenu>
                 {navItems.map((item) => {
-                    const { id, route, icon, label, displayLabel, requiresPremium, isActive, moduleItems } = item;
+                    const { id, route, icon, label, displayLabel, requiresPremium, isActive, moduleItems, isLocked } = item as typeof item & { isLocked?: boolean };
                     const Icon = iconMap[icon as keyof typeof iconMap];
                     const linkClasses = clsx(
                         `flex items-center py-2 rounded-md ${itemTextClass} font-medium transition`,
@@ -125,12 +127,14 @@ export function NavMain({ user }: { user: User }) {
                     if (!moduleItems || moduleItems.length === 0) {
                         return (
                             <SidebarMenuItem key={id}>
-                                <SidebarMenuButton className={linkClasses} tooltip={displayLabel} onClick={() => handleRoute(label, targetRoute, item.customUrl)}>
+                                <SidebarMenuButton className={linkClasses} tooltip={displayLabel} onClick={() => handleRoute(label, targetRoute, item.customUrl, isLocked)}>
                                     {Icon && <Icon className={iconClasses} />}
                                     <span>{displayLabel}</span>
                                     <ChevronRight className="invisible ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                                     {route === '/profile' && <ChevronRight />}
-                                    {requiresPremium && <PremiumModule />}
+                                    {isLocked
+                                        ? <Lock className="ml-auto h-3.5 w-3.5 text-orange-400" />
+                                        : requiresPremium && <PremiumModule />}
                                 </SidebarMenuButton>
                                 {route === '/tareas' && taskPendingCount > 0 && (
                                     <SidebarMenuBadge className="right-2 top-1/2 z-20 flex h-4 min-w-4 -translate-y-1/2 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white shadow-sm group-data-[collapsible=icon]:right-0.5">
@@ -156,11 +160,13 @@ export function NavMain({ user }: { user: User }) {
                             : firstSubItem?.url?.replace('/admin/', '/panel/') ?? targetRoute;
                         return (
                             <SidebarMenuItem key={id}>
-                                <SidebarMenuButton className={linkClasses} tooltip={displayLabel} onClick={() => handleRoute(label, firstDest, firstSubItem?.customUrl ?? item.customUrl)}>
+                                <SidebarMenuButton className={linkClasses} tooltip={displayLabel} onClick={() => handleRoute(label, firstDest, firstSubItem?.customUrl ?? item.customUrl, isLocked)}>
                                     {Icon && <Icon className={iconClasses} />}
                                     <span>{displayLabel}</span>
                                     <ChevronRight className="invisible ml-auto" />
-                                    {requiresPremium && <PremiumModule />}
+                                    {isLocked
+                                        ? <Lock className="ml-auto h-3.5 w-3.5 text-orange-400" />
+                                        : requiresPremium && <PremiumModule />}
                                 </SidebarMenuButton>
                             </SidebarMenuItem>
                         );

@@ -308,15 +308,26 @@ export async function adminUpdateResellerProfile(resellerUserId: string, data: {
   }
 }
 
-export async function getResellerPublicConfig(slug: string): Promise<{ sheetsUrl: string | null }> {
+export async function getResellerPublicConfig(slug: string): Promise<{
+  sheetsUrl: string | null;
+  sheetsRegistroName: string | null;
+}> {
   try {
     const row = await db.reseller.findFirst({
       where: { slug },
-      select: { sheetsUrl: true },
+      select: {
+        sheetsUrl: true,
+        user_reseller_reselleridToUser: {
+          select: { sheetsRegistroName: true },
+        },
+      },
     });
-    return { sheetsUrl: row?.sheetsUrl ?? null };
+    return {
+      sheetsUrl: row?.sheetsUrl ?? null,
+      sheetsRegistroName: (row?.user_reseller_reselleridToUser as any)?.sheetsRegistroName ?? null,
+    };
   } catch {
-    return { sheetsUrl: null };
+    return { sheetsUrl: null, sheetsRegistroName: null };
   }
 }
 

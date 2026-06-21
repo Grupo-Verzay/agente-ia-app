@@ -9,13 +9,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import type { CheckedState } from "@radix-ui/react-checkbox"
 import { FormModuleSchema, FormModuleValues, iconMap } from "@/schema/module"
-import { ChevronsUpDown, GripVertical, Trash2 } from "lucide-react"
+import { GripVertical, Trash2, Lock } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { navigationRoutes } from "@/lib/navigation-routes"
 import { PLAN_LABELS, PLANS } from "@/types/plans"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
-import { useState } from "react"
 import { Label } from "@/components/ui/label"
 import {
     DndContext,
@@ -136,8 +133,6 @@ export const ModuleForm = ({
         control: form.control,
         name: "items",
     });
-
-    const [openPlans, setOpenPlans] = useState(false);
 
     const selectedRoute = form.watch("route");
     const watchedItems = form.watch("items");
@@ -269,63 +264,60 @@ export const ModuleForm = ({
                     />
                 ))}
 
-                <FormField
-                    control={form.control}
-                    name="allowedPlans"
-                    render={({ field }) => {
-                        const selected = field.value || [];
-
-                        return (
-                            <FormItem className="flex flex-col gap-2">
-                                <FormLabel className="text-xs font-semibold text-foreground">Planes permitidos</FormLabel>
-                                <Popover open={openPlans} onOpenChange={setOpenPlans}>
-                                    <PopoverTrigger asChild>
-                                        <FormControl>
-                                            <Button
-                                                variant="outline"
-                                                role="combobox"
-                                                className="w-full justify-between"
+                <div className="flex flex-col gap-2">
+                    <FormLabel className="text-xs font-semibold text-foreground">Planes permitidos</FormLabel>
+                    <div className="rounded-md border divide-y">
+                        <div className="flex items-center justify-between px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                            <span>Plan</span>
+                            <div className="flex items-center">
+                                <span className="w-16 text-center">Acceso</span>
+                                <span className="w-20 flex items-center justify-center gap-1"><Lock className="h-3 w-3" /> Bloqueado</span>
+                            </div>
+                        </div>
+                        {PLANS.map((plan) => {
+                            const allowed = form.watch('allowedPlans') || [];
+                            const locked = form.watch('lockedPlans') || [];
+                            const isAllowed = allowed.includes(plan);
+                            const isLocked = locked.includes(plan);
+                            return (
+                                <div key={plan} className="flex items-center justify-between px-3 py-2">
+                                    <span className="text-sm capitalize">{PLAN_LABELS[plan]}</span>
+                                    <div className="flex items-center">
+                                        <div className="w-16 flex justify-center">
+                                            <Checkbox
+                                                checked={isAllowed}
+                                                onCheckedChange={(checked) => {
+                                                    const updated = checked
+                                                        ? [...allowed, plan]
+                                                        : allowed.filter((p) => p !== plan);
+                                                    form.setValue('allowedPlans', updated);
+                                                    if (!checked) {
+                                                        form.setValue('lockedPlans', locked.filter((p) => p !== plan));
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="w-20 flex justify-center">
+                                            <button
+                                                type="button"
+                                                disabled={!isAllowed}
+                                                onClick={() => {
+                                                    const updated = isLocked
+                                                        ? locked.filter((p) => p !== plan)
+                                                        : [...locked, plan];
+                                                    form.setValue('lockedPlans', updated);
+                                                }}
+                                                className={`transition-colors ${isAllowed ? (isLocked ? 'text-orange-500' : 'text-muted-foreground/30 hover:text-muted-foreground') : 'text-muted-foreground/10 cursor-not-allowed'}`}
                                             >
-                                                {selected.length > 0
-                                                    ? `${selected.length} seleccionado(s)`
-                                                    : 'Selecciona uno o más planes'}
-                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                            </Button>
-                                        </FormControl>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-full p-0">
-                                        <Command>
-                                            <CommandInput placeholder="Buscar plan..." />
-                                            <CommandGroup>
-                                                {PLANS.map((plan) => (
-                                                    <CommandItem
-                                                        key={plan}
-                                                        onSelect={() => {
-                                                            const updated = selected.includes(plan)
-                                                                ? selected.filter((p) => p !== plan)
-                                                                : [...selected, plan];
-                                                            field.onChange(updated);
-                                                        }}
-                                                    >
-                                                        <div className="flex items-center gap-2">
-                                                            <Checkbox
-                                                                checked={selected.includes(plan)}
-                                                                onCheckedChange={() => { }}
-                                                            />
-                                                            <span className="capitalize">
-                                                                {PLAN_LABELS[plan]}
-                                                            </span>
-                                                        </div>
-                                                    </CommandItem>
-                                                ))}
-                                            </CommandGroup>
-                                        </Command>
-                                    </PopoverContent>
-                                </Popover>
-                            </FormItem>
-                        );
-                    }}
-                />
+                                                <Lock className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
 
                 <div className="flex flex-col flex-1 gap-3">
                     <FormLabel className="text-xs font-semibold text-foreground">Submódulos</FormLabel>

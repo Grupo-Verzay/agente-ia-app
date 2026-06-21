@@ -89,6 +89,7 @@ export const FormModuleSchema = z.object({
     showInSidebar: z.boolean().optional().default(true),
 
     allowedPlans: z.array(z.enum(PLAN_VALUES)),
+    lockedPlans: z.array(z.enum(PLAN_VALUES)).default([]),
     items: z.array(ItemModuleSchema).optional(),
 })
 

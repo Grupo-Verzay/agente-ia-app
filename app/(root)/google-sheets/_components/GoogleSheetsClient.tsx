@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 interface Props {
   userId: string;
   initialSheetsUrl: string | null;
+  initialFormName?: string | null;
+  initialRegistroName?: string | null;
 }
 
 function getEmbedUrl(url: string): string | null {
@@ -43,6 +45,7 @@ export function GoogleSheetsClient({ userId, initialSheetsUrl }: Props) {
       setSaving(false);
     }
   }
+
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -103,6 +106,7 @@ export function GoogleSheetsClient({ userId, initialSheetsUrl }: Props) {
           </div>
         </div>
       )}
+
     </div>
   );
 }

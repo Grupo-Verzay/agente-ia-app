@@ -15,7 +15,8 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from '../ui/sidebar';
 import { useEffect, useMemo, useState } from 'react';
 import { getGuidesForPath } from '@/actions/guide-actions';
-import { getWorkflowNameById } from '@/actions/workflow-actions'; // 👈 agrega esto
+import { getWorkflowNameById } from '@/actions/workflow-actions';
+import { getFormNameById } from '@/actions/form-name-actions';
 import { Bot, MessageCircle, Play } from 'lucide-react';
 import {
   Dialog,
@@ -52,7 +53,8 @@ export const breadcrumbLabels: Record<string, string> = {
   module: 'módulos',
   templates: 'plantillas',
   schedule: 'agendamiento',
-  'client-billing': 'finanzas'
+  'client-billing': 'finanzas',
+  'mis-formularios': 'mis formularios'
 };
 
 export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
@@ -66,6 +68,7 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
 
   const [guides, setGuides] = useState<GuideUrl[]>([]);
   const [workflowName, setWorkflowName] = useState<string | null>(null);
+  const [formName, setFormName] = useState<string | null>(null);
   const supportChatOpen = useChatStore((state) => state.isOpen);
   const setSupportChatOpen = useChatStore((state) => state.setOpen);
 
@@ -77,6 +80,12 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
     if (moduleIndex === -1) return null;
     return segments[moduleIndex + 1] ?? null;
   }, [segments, moduleIndex]);
+
+  const formModuleIndex = useMemo(() => segments.findIndex((s) => s === 'mis-formularios'), [segments]);
+  const formId = useMemo(() => {
+    if (formModuleIndex === -1) return null;
+    return segments[formModuleIndex + 1] ?? null;
+  }, [segments, formModuleIndex]);
 
   useEffect(() => {
     const fetchGuides = async () => {
@@ -99,6 +108,11 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
     fetchWorkflowName();
   }, [workflowId]);
 
+  useEffect(() => {
+    if (!formId) { setFormName(null); return; }
+    getFormNameById(formId).then(setFormName);
+  }, [formId]);
+
   // Generamos el array de breadcrumbs
   const breadcrumbs = segments.map((segment, index) => {
     const href = '/' + segments.slice(0, index + 1).join('/');
@@ -106,8 +120,10 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
     const labelFromDict = breadcrumbLabels[segment];
 
     const isWorkflowIdSegment = workflowId && index === moduleIndex + 1;
+    const isFormIdSegment = formId && index === formModuleIndex + 1;
     const label =
       (isWorkflowIdSegment && (workflowName ?? 'flujo')) ||
+      (isFormIdSegment && (formName ?? '...')) ||
       labelFromDict ||
       decodeURIComponent(segment.replace(/-/g, ' '));
 

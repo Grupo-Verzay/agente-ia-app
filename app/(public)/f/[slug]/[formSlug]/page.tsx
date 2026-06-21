@@ -21,7 +21,7 @@ export default async function PublicFormPage({
         <span className="text-lg font-semibold text-white">Agente IA</span>
       </div>
 
-      <div className="w-full max-w-xl">
+      <div className="w-full max-w-lg">
         {/* Título */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white">{result.form.title}</h1>

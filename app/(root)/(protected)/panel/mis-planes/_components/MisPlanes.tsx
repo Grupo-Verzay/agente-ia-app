@@ -217,7 +217,7 @@ export function MisPlanes() {
 
       {/* Dialog edición */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="flex h-[585px] max-w-md flex-col">
+        <DialogContent className="flex max-h-[585px] max-w-md flex-col">
           <DialogHeader>
             <DialogTitle>
               Editar Plan — {form ? `${PLAN_LABELS[form.plan]} (${form.assistanceType})` : ""}

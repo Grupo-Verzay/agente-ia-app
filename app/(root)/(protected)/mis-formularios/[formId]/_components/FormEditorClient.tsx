@@ -56,6 +56,16 @@ export const FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
 
 const TYPES_WITH_OPTIONS: FormFieldType[] = ['select', 'radio', 'multiselect'];
 
+const DEFAULT_PLACEHOLDERS: Partial<Record<FormFieldType, string>> = {
+  text:     'ej. Juan Pérez',
+  textarea: 'Escribe tu respuesta aquí...',
+  number:   'ej. 42',
+  money:    'ej. 100.000',
+  email:    'ej. nombre@correo.com',
+  phone:    'ej. +57 300 123 4567',
+  url:      'ej. https://mipagina.com',
+};
+
 interface Props {
   form: FormData;
   userId: string;
@@ -302,7 +312,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
             </CardHeader>
             <CardContent className="px-4 pb-4">
               {form.fields.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+                <div className="flex flex-col items-center justify-center py-4 gap-3 text-center">
                   <div className="p-3 rounded-full bg-muted">
                     <FileText className="w-6 h-6 text-muted-foreground" />
                   </div>
@@ -343,9 +353,9 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4 flex flex-col gap-4">
-              <div className="flex items-center gap-3">
-                <Switch id="wp-enabled" checked={wpEnabled} onCheckedChange={setWpEnabled} />
+              <div className="flex items-center justify-between">
                 <Label htmlFor="wp-enabled" className="text-sm">Habilitar redirección automática después del envío</Label>
+                <Switch id="wp-enabled" checked={wpEnabled} onCheckedChange={setWpEnabled} />
               </div>
 
               {wpEnabled && (
@@ -377,21 +387,24 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
                       </div>
                     )}
                   </div>
+
+                  {wpPreview && (
+                    <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                      <p className="text-xs font-medium text-amber-700 dark:text-amber-400 mb-1">Vista previa del enlace:</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-500 break-all font-mono">{wpPreview}</p>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <Button size="sm" variant="ghost" onClick={() => { setWpEnabled(form.whatsappEnabled); setWpNumber(form.whatsappNumber ?? ''); setWpMessage(form.whatsappMessage ?? ''); }}>
+                      Cancelar
+                    </Button>
+                    <Button size="sm" onClick={handleSaveWhatsapp} disabled={savingWp}>
+                      <Save className="w-3.5 h-3.5 mr-1.5" />
+                      {savingWp ? 'Guardando...' : 'Guardar WhatsApp'}
+                    </Button>
+                  </div>
                 </>
               )}
-
-              <div className="flex items-center gap-3">
-                {wpPreview && (
-                  <div className="flex-1 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-                    <p className="text-xs font-medium text-amber-700 dark:text-amber-400 mb-1">Vista previa del enlace:</p>
-                    <p className="text-xs text-amber-600 dark:text-amber-500 break-all font-mono">{wpPreview}</p>
-                  </div>
-                )}
-                <Button size="sm" onClick={handleSaveWhatsapp} disabled={savingWp} className="shrink-0">
-                  <Save className="w-3.5 h-3.5 mr-1.5" />
-                  {savingWp ? 'Guardando...' : 'Guardar WhatsApp'}
-                </Button>
-              </div>
             </CardContent>
           </Card>
 
@@ -476,11 +489,14 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
 
       {/* Dialog: Agregar / Editar campo — mejora 4: h-[585px] estándar */}
       <Dialog open={addFieldOpen || !!editingField} onOpenChange={(o) => { if (!o) { setAddFieldOpen(false); setEditingField(null); } }}>
-        <DialogContent className="flex h-[585px] flex-col sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>{editingField ? 'Editar campo' : 'Agregar campo'}</DialogTitle>
+        <DialogContent className="flex max-h-[585px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[500px]">
+          <DialogHeader className="flex flex-row items-center justify-between border-b bg-muted/30 px-5 py-4 space-y-0">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-primary" />
+              <DialogTitle className="text-base">{editingField ? 'Editar campo' : 'Nuevo campo'}</DialogTitle>
+            </div>
           </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+          <div className="flex-1 min-h-0 overflow-y-auto p-5">
             <FieldForm
               label={newLabel} setLabel={setNewLabel}
               type={newType} setType={setNewType}
@@ -489,8 +505,8 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
               optionsRaw={newOptionsRaw} setOptionsRaw={setNewOptionsRaw}
             />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setAddFieldOpen(false); setEditingField(null); }}>Cancelar</Button>
+          <DialogFooter className="flex-row items-center justify-between border-t bg-muted/20 px-5 py-3">
+            <Button variant="ghost" onClick={() => { setAddFieldOpen(false); setEditingField(null); }}>Cancelar</Button>
             <Button onClick={editingField ? handleUpdateField : handleAddField} disabled={savingField}>
               {savingField ? 'Guardando...' : editingField ? 'Actualizar' : 'Agregar'}
             </Button>
@@ -561,39 +577,54 @@ function FieldForm({
   const showPlaceholder = !['checkbox', 'file', 'date', 'time', 'multiselect', 'radio'].includes(type);
   const showOptions = TYPES_WITH_OPTIONS.includes(type);
 
+  function handleTypeChange(v: FormFieldType) {
+    setType(v);
+    const isDefaultPlaceholder = Object.values(DEFAULT_PLACEHOLDERS).includes(placeholder);
+    if (!placeholder || isDefaultPlaceholder) {
+      setPlaceholder(DEFAULT_PLACEHOLDERS[v] ?? '');
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-4 py-2">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <Label>Label / Pregunta *</Label>
+        <Label className="font-semibold text-foreground">Pregunta</Label>
         <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="ej. ¿Cuál es tu nombre?" />
       </div>
-      <div className="flex flex-col gap-1.5">
-        <Label>Tipo de campo</Label>
-        <Select value={type} onValueChange={(v) => setType(v as FormFieldType)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {(Object.entries(FIELD_TYPE_LABELS) as [FormFieldType, string][]).map(([val, lbl]) => (
-              <SelectItem key={val} value={val}>{lbl}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label className="font-semibold text-foreground">Tipo de campo</Label>
+          <Select value={type} onValueChange={(v) => handleTypeChange(v as FormFieldType)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(Object.entries(FIELD_TYPE_LABELS) as [FormFieldType, string][]).map(([val, lbl]) => (
+                <SelectItem key={val} value={val}>{lbl}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col justify-end items-end gap-1.5">
+          <Label className="font-semibold text-foreground">Obligatorio</Label>
+          <div className="flex items-center gap-2 h-10">
+            <span className="text-sm text-muted-foreground">{required ? 'Sí, es obligatorio' : 'Opcional'}</span>
+            <Switch id="field-required" checked={required} onCheckedChange={setRequired} />
+          </div>
+        </div>
       </div>
+
       {showPlaceholder && (
         <div className="flex flex-col gap-1.5">
-          <Label>Placeholder</Label>
+          <Label className="font-semibold text-foreground">Placeholder</Label>
           <Input value={placeholder} onChange={(e) => setPlaceholder(e.target.value)} placeholder="Texto de ayuda dentro del campo..." />
         </div>
       )}
       {showOptions && (
         <div className="flex flex-col gap-1.5">
-          <Label>Opciones (una por línea)</Label>
+          <Label className="font-semibold text-foreground">Opciones <span className="font-normal text-muted-foreground">(una por línea)</span></Label>
           <Textarea value={optionsRaw} onChange={(e) => setOptionsRaw(e.target.value)} placeholder={'Opción 1\nOpción 2\nOpción 3'} rows={4} />
         </div>
       )}
-      <div className="flex items-center gap-3">
-        <Switch id="field-required" checked={required} onCheckedChange={setRequired} />
-        <Label htmlFor="field-required">Campo requerido</Label>
-      </div>
     </div>
   );
 }

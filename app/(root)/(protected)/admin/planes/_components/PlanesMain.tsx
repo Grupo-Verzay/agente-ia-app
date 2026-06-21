@@ -411,7 +411,7 @@ export function PlanesMain() {
       </div>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="flex h-[585px] max-w-lg flex-col">
+        <DialogContent className="flex max-h-[585px] max-w-lg flex-col">
           <DialogHeader>
             <DialogTitle>
               {form ? `${PLAN_LABELS[form.plan]} · ${form.assistanceType} · ${form.isResellerPlan ? "Resellers" : "Clientes"}` : "Editar Plan"}

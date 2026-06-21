@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { Trash2, Loader2, ChevronDown, ChevronUp, Pencil, Search, HelpCircle } from 'lucide-react';
+import { Trash2, Loader2, Pencil, Search, HelpCircle, GripVertical, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +17,21 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   getBookingQuestions,
   createBookingQuestion,
@@ -46,6 +61,95 @@ interface QuestionForm {
 
 const EMPTY_FORM: QuestionForm = { label: '', type: 'TEXT', options: '', required: false };
 
+// ─── Sortable Item ────────────────────────────────────────────────────────────
+
+interface SortableItemProps {
+  question: BookingQuestionItem;
+  editingId: string | null;
+  isFirst: boolean;
+  isLast: boolean;
+  onEdit: (q: BookingQuestionItem) => void;
+  onDelete: (id: string) => void;
+  onToggle: (q: BookingQuestionItem) => void;
+}
+
+function SortableQuestionItem({ question: q, editingId, isFirst, isLast, onEdit, onDelete, onToggle }: SortableItemProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: q.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
+
+  return (
+    <Card
+      ref={setNodeRef}
+      style={style}
+      className={[
+        'rounded-xl',
+        !q.active ? 'opacity-50' : '',
+        editingId === q.id ? 'ring-1 ring-inset ring-primary/30' : '',
+      ].join(' ')}
+    >
+      <CardContent className="flex items-center gap-3 px-4 py-3">
+        {/* Drag handle */}
+        <div
+          className="cursor-grab text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing shrink-0 touch-none"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
+
+        {/* Icono */}
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+          <HelpCircle className="h-4 w-4 text-primary" />
+        </div>
+
+        {/* Contenido */}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-snug truncate">{q.label}</p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+            <Badge className="h-5 border-0 bg-blue-100 px-1.5 py-0 text-[10px] text-blue-700">
+              {TYPE_LABELS[q.type]}
+            </Badge>
+            {q.required && (
+              <Badge className="h-5 border-0 bg-amber-100 px-1.5 py-0 text-[10px] text-amber-700">
+                Obligatorio
+              </Badge>
+            )}
+            {q.type === 'SELECT' && q.options.length > 0 && (
+              <span className="truncate max-w-[200px] text-[10px] text-muted-foreground">
+                {q.options.join(' · ')}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Acciones */}
+        <div className="flex shrink-0 items-center gap-2">
+          <Switch
+            checked={q.active}
+            onCheckedChange={() => onToggle(q)}
+            className="scale-75 origin-center"
+          />
+
+          <div className="h-5 w-0.5 shrink-0 rounded-full bg-border" />
+
+          <div className="flex items-center gap-0.5">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500 hover:bg-amber-50 hover:text-amber-600"
+              onClick={() => onEdit(q)}>
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-50 hover:text-red-600"
+              onClick={() => onDelete(q.id)}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export function BookingFormBuilder({ userId }: Props) {
   const [questions, setQuestions] = useState<BookingQuestionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +159,8 @@ export function BookingFormBuilder({ userId }: Props) {
   const [form, setForm] = useState<QuestionForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [, startTransition] = useTransition();
+
+  const sensors = useSensors(useSensor(PointerSensor));
 
   async function load() {
     setLoading(true);
@@ -124,12 +230,12 @@ export function BookingFormBuilder({ userId }: Props) {
     if (res.success) { setQuestions((prev) => prev.filter((q) => q.id !== id)); toast.success('Pregunta eliminada'); }
   }
 
-  async function handleMove(index: number, dir: -1 | 1) {
-    const newList = [...questions];
-    const target = index + dir;
-    if (target < 0 || target >= newList.length) return;
-    [newList[index], newList[target]] = [newList[target], newList[index]];
-    const reordered = newList.map((q, i) => ({ ...q, order: i }));
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = questions.findIndex((q) => q.id === active.id);
+    const newIndex = questions.findIndex((q) => q.id === over.id);
+    const reordered = arrayMove(questions, oldIndex, newIndex).map((q, i) => ({ ...q, order: i }));
     setQuestions(reordered);
     startTransition(async () => {
       await reorderBookingQuestions(reordered.map((q) => ({ id: q.id, order: q.order })));
@@ -167,152 +273,133 @@ export function BookingFormBuilder({ userId }: Props) {
 
       {/* Formulario crear / editar */}
       {showForm && (
-        <div className="rounded-xl border bg-muted/30 p-4 flex flex-col gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {isEditing ? 'Editar pregunta' : 'Nueva pregunta'}
-          </p>
-
-          <div className="space-y-1">
-            <Label className="text-xs">Pregunta</Label>
-            <Input
-              value={form.label}
-              onChange={(e) => setForm({ ...form, label: e.target.value })}
-              placeholder="Ej: ¿Cuántos mensajes recibes al día?"
-              className="h-8 text-sm"
-            />
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b bg-muted/30">
+            <div className="flex items-center gap-2">
+              <HelpCircle className="h-4 w-4 text-primary" />
+              <p className="font-semibold">
+                {isEditing ? 'Editar pregunta' : 'Nueva pregunta'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={closeForm}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Tipo</Label>
-              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as BookingQuestionType })}>
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(TYPE_LABELS).map(([key, label]) => (
-                    <SelectItem key={key} value={key}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end pb-0.5">
-              <div className="flex items-center gap-1.5">
-                <Switch
-                  id="req"
-                  checked={form.required}
-                  onCheckedChange={(v) => setForm({ ...form, required: v })}
-                />
-                <Label htmlFor="req" className="text-xs cursor-pointer">Obligatorio</Label>
-              </div>
-            </div>
-          </div>
-
-          {form.type === 'SELECT' && (
-            <div className="space-y-1">
-              <Label className="text-xs">Opciones <span className="text-muted-foreground">(separadas por coma)</span></Label>
+          {/* Body */}
+          <div className="flex flex-col gap-4 p-5">
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-foreground">Pregunta</Label>
               <Input
-                value={form.options}
-                onChange={(e) => setForm({ ...form, options: e.target.value })}
-                placeholder="Ej: 1-10, 10-50, 50-100, +100"
-                className="h-8 text-sm"
+                value={form.label}
+                onChange={(e) => setForm({ ...form, label: e.target.value })}
+                placeholder="Ej: ¿Cuántos mensajes recibes al día?"
               />
             </div>
-          )}
 
-          <div className="flex gap-2">
-            <Button size="sm" onClick={isEditing ? handleUpdate : handleCreate} disabled={saving}>
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isEditing ? 'Actualizar' : 'Guardar'}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="font-semibold text-foreground">Tipo de respuesta</Label>
+                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as BookingQuestionType })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(TYPE_LABELS).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col justify-end items-end gap-1.5">
+                <Label className="font-semibold text-foreground">Obligatorio</Label>
+                <div className="flex items-center gap-2 h-10">
+                  <span className="text-muted-foreground">
+                    {form.required ? 'Sí, es obligatorio' : 'Opcional'}
+                  </span>
+                  <Switch
+                    id="req"
+                    checked={form.required}
+                    onCheckedChange={(v) => setForm({ ...form, required: v })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {form.type === 'SELECT' && (
+              <div className="space-y-1.5">
+                <Label className="font-semibold text-foreground">
+                  Opciones{' '}
+                  <span className="font-normal text-muted-foreground">(separadas por coma)</span>
+                </Label>
+                <Input
+                  value={form.options}
+                  onChange={(e) => setForm({ ...form, options: e.target.value })}
+                  placeholder="Ej: 1-10, 10-50, 50-100, +100"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between px-5 py-3 border-t bg-muted/20">
+            <Button variant="ghost" onClick={closeForm}>Cancelar</Button>
+            <Button onClick={isEditing ? handleUpdate : handleCreate} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : isEditing ? 'Actualizar' : 'Guardar'}
             </Button>
-            <Button size="sm" variant="ghost" onClick={closeForm}>Cancelar</Button>
           </div>
         </div>
       )}
 
-      {/* Lista */}
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-10 text-muted-foreground">
-          <p className="text-sm">{search ? 'Sin resultados' : 'Sin preguntas configuradas'}</p>
-          {!search && <p className="text-xs">Haz clic en "+ Crear" para agregar la primera</p>}
-        </div>
-      ) : (
-        <div className="flex flex-col">
-          {filtered.map((q, i) => (
-            <Card
-              key={q.id}
-              className={[
-                'rounded-none border-x-0 border-b-0',
-                'first:rounded-t-xl first:border-t',
-                'last:rounded-b-xl last:border-b',
-                !q.active ? 'opacity-50' : '',
-                editingId === q.id ? 'ring-1 ring-inset ring-primary/30' : '',
-              ].join(' ')}
-            >
-              <CardContent className="flex items-center gap-3 px-4 py-3">
-                {/* Icono */}
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                  <HelpCircle className="h-4 w-4 text-primary" />
+      {/* Lista — oculta mientras el formulario esté abierto */}
+      {!showForm && (
+        filtered.length === 0 ? (
+          <div className="flex flex-col items-center gap-4 pt-8 pb-4 text-muted-foreground">
+            {search ? (
+              <>
+                <Search className="h-8 w-8 opacity-20" />
+                <p className="text-sm">Sin resultados para &quot;{search}&quot;</p>
+              </>
+            ) : (
+              <>
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+                  <HelpCircle className="h-10 w-10 text-primary/60" />
                 </div>
-
-                {/* Contenido */}
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium leading-snug truncate">{q.label}</p>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                    <Badge className="h-5 border-0 bg-blue-100 px-1.5 py-0 text-[10px] text-blue-700">
-                      {TYPE_LABELS[q.type]}
-                    </Badge>
-                    {q.required && (
-                      <Badge className="h-5 border-0 bg-amber-100 px-1.5 py-0 text-[10px] text-amber-700">
-                        Obligatorio
-                      </Badge>
-                    )}
-                    {q.type === 'SELECT' && q.options.length > 0 && (
-                      <span className="truncate max-w-[200px] text-[10px] text-muted-foreground">
-                        {q.options.join(' · ')}
-                      </span>
-                    )}
-                  </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-foreground">Sin preguntas configuradas</p>
+                  <p className="mt-1">Crea preguntas para precalificar a tus clientes antes de agendar.</p>
                 </div>
-
-                {/* Acciones */}
-                <div className="flex shrink-0 items-center gap-2">
-                  {/* Reordenar */}
-                  <div className="flex flex-col">
-                    <button type="button" onClick={() => handleMove(i, -1)} disabled={i === 0}
-                      className="text-muted-foreground hover:text-foreground disabled:opacity-20">
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button type="button" onClick={() => handleMove(i, 1)} disabled={i === questions.length - 1}
-                      className="text-muted-foreground hover:text-foreground disabled:opacity-20">
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-
-                  <div className="h-5 w-0.5 shrink-0 rounded-full bg-border" />
-
-                  <Switch
-                    checked={q.active}
-                    onCheckedChange={() => handleToggleActive(q)}
-                    className="scale-75 origin-center"
+                <Button onClick={openAdd} className="mt-1 bg-blue-600 hover:bg-blue-700 text-white">
+                  + Crear primera pregunta
+                </Button>
+              </>
+            )}
+          </div>
+        ) : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={filtered.map((q) => q.id)} strategy={verticalListSortingStrategy}>
+              <div className="flex flex-col gap-2">
+                {filtered.map((q, i) => (
+                  <SortableQuestionItem
+                    key={q.id}
+                    question={q}
+                    editingId={editingId}
+                    isFirst={i === 0}
+                    isLast={i === filtered.length - 1}
+                    onEdit={openEdit}
+                    onDelete={handleDelete}
+                    onToggle={handleToggleActive}
                   />
-
-                  <div className="h-5 w-0.5 shrink-0 rounded-full bg-border" />
-
-                  <div className="flex items-center gap-0.5">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500 hover:bg-amber-50 hover:text-amber-600"
-                      onClick={() => openEdit(q)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-50 hover:text-red-600"
-                      onClick={() => handleDelete(q.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        )
       )}
     </div>
   );

@@ -76,7 +76,7 @@ async function syncResponseToSheets(
 
     const auth = getAuth();
     const sheets = google.sheets({ version: 'v4', auth });
-    const SHEET_NAME = 'Registro reunión';
+    const SHEET_NAME = 'Registro cita';
 
     // Obtener o crear la hoja "Registro reunión"
     const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
@@ -116,7 +116,7 @@ async function syncResponseToSheets(
     }
 
     const row = [
-      'Registro reunión',
+      SHEET_NAME,
       fechaLabel || new Date().toLocaleString('es-CO'),
       data.clientPhone ?? '',
       data.clientName ?? '',

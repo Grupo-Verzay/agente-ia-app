@@ -317,7 +317,7 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
 
       {/* Dialog: asignar licencias */}
       <Dialog open={licenseDialog} onOpenChange={setLicenseDialog}>
-        <DialogContent className="flex h-[585px] max-w-sm flex-col">
+        <DialogContent className="flex max-h-[585px] max-w-sm flex-col">
           <DialogHeader>
             <DialogTitle>Asignar licencias</DialogTitle>
             <p className="text-xs text-muted-foreground">
@@ -376,7 +376,7 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
 
       {/* Dialog: demo limit */}
       <Dialog open={demoLimitDialog} onOpenChange={setDemoLimitDialog}>
-        <DialogContent className="flex h-[585px] max-w-sm flex-col">
+        <DialogContent className="flex max-h-[585px] max-w-sm flex-col">
           <DialogHeader>
             <DialogTitle>Límite de demos</DialogTitle>
             <p className="text-xs text-muted-foreground">Cantidad máxima de demos que puede crear este reseller.</p>

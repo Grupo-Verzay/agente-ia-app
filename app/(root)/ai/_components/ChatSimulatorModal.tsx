@@ -70,7 +70,7 @@ export function ChatSimulatorModal({ open, onOpenChange, promptId, businessName 
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg h-[585px] flex flex-col overflow-hidden p-0 gap-0">
+            <DialogContent className="sm:max-w-lg max-h-[585px] flex flex-col overflow-hidden p-0 gap-0">
 
                 {/* Header estilo WhatsApp */}
                 <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">

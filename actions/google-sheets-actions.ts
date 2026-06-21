@@ -60,6 +60,45 @@ export async function saveUserSheetsUrl(userId: string, url: string): Promise<{ 
   }
 }
 
+export async function getBookingFormName(userId: string): Promise<string | null> {
+  try {
+    const user = await db.user.findUnique({ where: { id: userId }, select: { sheetsFormName: true } as any });
+    return (user as any)?.sheetsFormName ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveBookingFormName(userId: string, name: string): Promise<{ success: boolean }> {
+  try {
+    await db.user.update({
+      where: { id: userId },
+      data: { sheetsFormName: name.trim() || null } as any,
+    });
+    return { success: true };
+  } catch {
+    return { success: false };
+  }
+}
+
+export async function saveUserSheetsFormNames(
+  userId: string,
+  names: { sheetsFormName: string | null; sheetsRegistroName: string | null }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await db.user.update({
+      where: { id: userId },
+      data: {
+        sheetsFormName: names.sheetsFormName?.trim() || null,
+        sheetsRegistroName: names.sheetsRegistroName?.trim() || null,
+      } as any,
+    });
+    return { success: true };
+  } catch {
+    return { success: false, error: 'No se pudo guardar' };
+  }
+}
+
 export async function getUserSheetsUrl(userId: string): Promise<string | null> {
   try {
     const user = await db.user.findUnique({ where: { id: userId }, select: { sheetsUrl: true } as any });

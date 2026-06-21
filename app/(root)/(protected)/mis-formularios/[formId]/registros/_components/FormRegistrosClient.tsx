@@ -216,7 +216,7 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
 
       {/* Dialog: Ver registro */}
       <Dialog open={!!viewSub} onOpenChange={(o) => !o && setViewSub(null)}>
-        <DialogContent className="flex h-[585px] flex-col sm:max-w-[560px]">
+        <DialogContent className="flex max-h-[585px] flex-col sm:max-w-[560px]">
           <DialogHeader>
             <DialogTitle>Detalle del registro</DialogTitle>
           </DialogHeader>

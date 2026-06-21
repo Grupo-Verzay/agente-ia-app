@@ -236,11 +236,12 @@ function TextField({ label, name, placeholder, register, error }: {
 interface Props {
   resellerSlug?: string;
   resellerSheetsUrl?: string | null;
+  resellerFormName?: string | null;
   countries?: any[];
   isReseller?: boolean;
 }
 
-export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, countries = [], isReseller = false }: Props) {
+export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerFormName, countries = [], isReseller = false }: Props) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -298,6 +299,7 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, countries
       salesObjective: values.salesObjective,
       resellerSlug,
       resellerSheetsUrl,
+      resellerFormName,
     } as RegistroReunionPayload).catch(() => null);
 
     // 2. Crear cuenta

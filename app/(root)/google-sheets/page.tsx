@@ -10,8 +10,15 @@ export default async function GoogleSheetsPage() {
 
   const dbUser = await db.user.findUnique({
     where: { id: userId },
-    select: { sheetsUrl: true },
+    select: { sheetsUrl: true, sheetsFormName: true, sheetsRegistroName: true } as any,
   });
 
-  return <GoogleSheetsClient userId={userId} initialSheetsUrl={dbUser?.sheetsUrl ?? null} />;
+  return (
+    <GoogleSheetsClient
+      userId={userId}
+      initialSheetsUrl={(dbUser as any)?.sheetsUrl ?? null}
+      initialFormName={(dbUser as any)?.sheetsFormName ?? null}
+      initialRegistroName={(dbUser as any)?.sheetsRegistroName ?? null}
+    />
+  );
 }

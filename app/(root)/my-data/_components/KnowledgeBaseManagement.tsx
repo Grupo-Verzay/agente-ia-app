@@ -271,7 +271,7 @@ export function KnowledgeBaseManagement({ userId, refreshKey, onDataChanged }: P
 
       {/* Dialog editar / crear */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg h-[585px] flex flex-col">
+        <DialogContent className="max-w-lg max-h-[585px] flex flex-col">
           <DialogHeader className="shrink-0">
             <DialogTitle>{editBlock ? 'Editar bloque' : 'Nuevo bloque'}</DialogTitle>
             <DialogDescription>

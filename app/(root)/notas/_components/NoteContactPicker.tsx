@@ -36,7 +36,7 @@ export function NoteContactPicker({ open, onClose, onSelect, userId }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={o => !o && onClose()}>
-      <DialogContent className="sm:max-w-sm h-[585px] flex flex-col">
+      <DialogContent className="sm:max-w-sm max-h-[585px] flex flex-col">
         <DialogHeader>
           <DialogTitle>Vincular contacto</DialogTitle>
         </DialogHeader>

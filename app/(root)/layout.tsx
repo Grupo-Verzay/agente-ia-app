@@ -15,6 +15,7 @@ import AppSkeleton from "@/components/custom/AppSkeleton";
 import { Breadcrumbs } from "@/components/custom";
 import { PanelAwareTabNav } from "@/components/custom/PanelAwareTabNav";
 import BillingLockScreen from "@/components/shared/BillingLockScreen";
+import { LockedRouteGuard } from "@/components/shared/LockedRouteGuard";
 
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -126,6 +127,14 @@ export default async function RootGroupLayout({
         }
     }
 
+    // Rutas bloqueadas para el plan actual (visibles en sidebar pero sin acceso)
+    const isAdvisor = !!user.ownerId;
+    const lockedRoutes: string[] = (!isAdmin(user?.role) && !isAdvisor)
+        ? modules
+            .filter(m => (m as any).lockedPlans?.includes(user.plan))
+            .map(m => m.route)
+        : [];
+
     let navPrefs: UserNavPref[] = [];
     try {
         navPrefs = await db.$queryRaw<UserNavPref[]>`
@@ -161,7 +170,9 @@ export default async function RootGroupLayout({
                         <PanelAwareTabNav tabs={panelTabs} excludePanelRoutes />
                         <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-0 sm:p-1">
                             <div className="app-module-content flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden rounded-none border-0 sm:rounded-md sm:border sm:border-border/70">
-                                {children}
+                                <LockedRouteGuard lockedRoutes={lockedRoutes}>
+                                    {children}
+                                </LockedRouteGuard>
                             </div>
                         </div>
                     </main>

@@ -293,7 +293,7 @@ export function MisClientesMain() {
 
       {/* Dialog: nueva demo */}
       <Dialog open={demoDialog} onOpenChange={setDemoDialog}>
-        <DialogContent className="flex h-[585px] max-w-sm flex-col">
+        <DialogContent className="flex max-h-[585px] max-w-sm flex-col">
           <DialogHeader>
             <DialogTitle>Nueva cuenta demo</DialogTitle>
             <p className="text-xs text-muted-foreground">7 días · 1,000 créditos · Plan Lite</p>
@@ -328,7 +328,7 @@ export function MisClientesMain() {
 
       {/* Dialog: nuevo cliente */}
       <Dialog open={clientDialog} onOpenChange={setClientDialog}>
-        <DialogContent className="flex h-[585px] max-w-sm flex-col">
+        <DialogContent className="flex max-h-[585px] max-w-sm flex-col">
           <DialogHeader>
             <DialogTitle>Nuevo cliente</DialogTitle>
             <p className="text-xs text-muted-foreground">Consume una licencia de tu pool disponible.</p>

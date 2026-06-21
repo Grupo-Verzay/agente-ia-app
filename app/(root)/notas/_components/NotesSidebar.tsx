@@ -217,7 +217,7 @@ export function NotesSidebar({
 
       {/* Folder dialog */}
       <Dialog open={folderDialog.open} onOpenChange={o => setFolderDialog(p => ({ ...p, open: o }))}>
-        <DialogContent className="sm:max-w-sm h-[585px]">
+        <DialogContent className="sm:max-w-sm max-h-[585px]">
           <DialogHeader>
             <DialogTitle>{folderDialog.editId ? 'Editar carpeta' : 'Nueva carpeta'}</DialogTitle>
           </DialogHeader>

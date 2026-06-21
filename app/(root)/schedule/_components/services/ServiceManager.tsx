@@ -177,7 +177,7 @@ function ServiceFormDialog({
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>{trigger ?? <Button size="sm">+ Nuevo</Button>}</DialogTrigger>
-            <DialogContent className="sm:max-w-lg h-[585px] flex flex-col overflow-hidden">
+            <DialogContent className="sm:max-w-lg max-h-[585px] flex flex-col overflow-hidden">
                 <DialogHeader className="shrink-0">
                     <DialogTitle>{title}</DialogTitle>
                     <DialogDescription>{description}</DialogDescription>

@@ -169,6 +169,7 @@ model Module {
   adminOnly              Boolean      @default(false)
   requiresPremium        Boolean      @default(false)
   allowedPlans           Plan[]
+  lockedPlans            Plan[]
   order                  Int          @default(0)
   createdAt              DateTime     @default(now())
   updatedAt              DateTime     @updatedAt
@@ -646,6 +647,8 @@ model User {
   elevenLabsVoiceId                  String?
   googleSheetsWebhookUrl             String?                      @map("google_sheets_webhook_url")
   sheetsUrl                          String?                      @map("sheets_url")
+  sheetsFormName                     String?                      @map("sheets_form_name")
+  sheetsRegistroName                 String?                      @map("sheets_registro_name")
   ownerId                            String?                      @map("owner_id")
   advisorRole                        String?                      @map("advisor_role")
   advisorAvailable                   Boolean                      @default(true) @map("advisor_available")
@@ -1319,6 +1322,7 @@ model Reseller {
   slug                           String?  @unique
   businessName                   String?
   sheetsUrl                      String?
+  sheetsFormName                 String?
   primaryColor                   String?
   bgColor                        String?
   headline                       String?

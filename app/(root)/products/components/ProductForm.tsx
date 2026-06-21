@@ -183,7 +183,7 @@ export const ProductForm = ({
             }
         }}>
             <DialogTrigger asChild>{Trigger}</DialogTrigger>
-            <DialogContent className="sm:max-w-lg h-[585px] flex flex-col overflow-hidden">
+            <DialogContent className="sm:max-w-lg max-h-[585px] flex flex-col overflow-hidden">
                 <DialogHeader>
                     <div className="flex items-center justify-between pr-6">
                         <DialogTitle>{product?.id ? "Editar producto" : "Nuevo producto"}</DialogTitle>
@@ -443,3 +443,4 @@ export const ProductForm = ({
         </Dialog>
     );
 };
+

@@ -3,7 +3,7 @@
 import { google } from 'googleapis';
 
 const MASTER_SPREADSHEET_ID = '11s450vRmAayrxqodQXpwIDwEI7r7jWlaeairvQ6qFUg';
-const SHEET_NAME = 'Registro reunión';
+const SHEET_NAME = 'Registro web';
 
 function getAuth() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -30,6 +30,7 @@ export type RegistroReunionPayload = {
   salesObjective: string;
   resellerSlug?: string;
   resellerSheetsUrl?: string | null;
+  resellerFormName?: string | null;
 };
 
 export async function submitRegistroReunion(
@@ -72,14 +73,18 @@ export async function submitRegistroReunion(
       ...appendParams,
     });
 
-    // Si el reseller tiene su propia hoja, escribir también ahí
+    // Si el reseller tiene su propia hoja, escribir también ahí con su nombre personalizado
     if (data.resellerSheetsUrl) {
       const resellerSheetId = extractSpreadsheetId(data.resellerSheetsUrl);
       if (resellerSheetId && resellerSheetId !== MASTER_SPREADSHEET_ID) {
+        const resellerSheetName = data.resellerFormName?.trim() || SHEET_NAME;
+        const resellerParams = resellerSheetName === SHEET_NAME
+          ? appendParams
+          : { ...appendParams, range: `'${resellerSheetName}'!A:M` };
         await sheets.spreadsheets.values.append({
           spreadsheetId: resellerSheetId,
-          ...appendParams,
-        }).catch(() => null); // No bloquear el flujo si falla la hoja del reseller
+          ...resellerParams,
+        }).catch(() => null);
       }
     }
 

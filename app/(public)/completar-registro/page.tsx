@@ -14,12 +14,14 @@ interface Props {
 export default async function CompletarRegistroPage({ searchParams }: Props) {
   const resellerSlug = searchParams.r;
   const isReseller = searchParams.tipo === 'reseller';
-  const [resellerSheetsUrl, countries] = await Promise.all([
+  const [resellerConfig, countries] = await Promise.all([
     resellerSlug
-      ? getResellerPublicConfig(resellerSlug).then(r => r.sheetsUrl)
-      : getSiteConfig().then(c => c.sheetsUrl),
+      ? getResellerPublicConfig(resellerSlug)
+      : getSiteConfig().then(c => ({ sheetsUrl: c.sheetsUrl, sheetsRegistroName: null })),
     getCountryCodes(),
   ]);
+  const resellerSheetsUrl = resellerConfig.sheetsUrl;
+  const resellerFormName = resellerConfig.sheetsRegistroName;
 
   return (
     <div className="flex min-h-full flex-col items-center px-4 py-12">
@@ -44,8 +46,8 @@ export default async function CompletarRegistroPage({ searchParams }: Props) {
       </div>
 
       {/* Card */}
-      <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-white/[0.04] p-6 sm:p-8">
-        <RegistroReunionForm resellerSlug={resellerSlug} resellerSheetsUrl={resellerSheetsUrl} countries={countries} isReseller={isReseller} />
+      <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-white/[0.04] p-6 sm:p-8">
+        <RegistroReunionForm resellerSlug={resellerSlug} resellerSheetsUrl={resellerSheetsUrl} resellerFormName={resellerFormName} countries={countries} isReseller={isReseller} />
       </div>
 
       <p className="mt-6 text-xs text-slate-600">
