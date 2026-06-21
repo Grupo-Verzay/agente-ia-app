@@ -711,7 +711,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
               </div>
               <div className="shrink-0">
                 <a
-                  href={`https://wa.me/${(whatsappNumber ?? "").replace(/\D/g, "")}?text=${encodeURIComponent("Hola, me interesa hablar con un asesor para un plan empresarial/agencia")}`}
+                  href={`https://wa.me/${(whatsappNumber ?? "").replace(/\D/g, "")}?text=${encodeURIComponent("Hola, me interesa *hablar con un asesor* para un plan empresarial/agencia")}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-blue-500"
