@@ -740,15 +740,30 @@ export function AgentPromptChatDialog({
                         {genError}
                       </div>
                     ) : null}
-                    <Button
-                      size="sm"
-                      className="w-full gap-2 shrink-0"
-                      disabled={!genDescription.trim() || !promptId}
-                      onClick={() => void handleGenerate()}
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Generar
-                    </Button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {dictation.supported && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant={dictation.listening ? "default" : "outline"}
+                          className={cn("h-9 w-9 shrink-0", dictation.listening && "animate-pulse bg-red-500 text-white hover:bg-red-600")}
+                          onClick={() => dictation.toggle(genDescription, setGenDescription)}
+                          aria-label={dictation.listening ? "Detener dictado" : "Dictar por voz"}
+                          title={dictation.listening ? "Detener dictado" : "Dictar por voz"}
+                        >
+                          <Mic className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        className="flex-1 gap-2"
+                        disabled={!genDescription.trim() || !promptId}
+                        onClick={() => void handleGenerate()}
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Generar
+                      </Button>
+                    </div>
                   </div>
                 ) : genStage === "running" || genStage === "done" ? (
                   <div className="flex flex-1 flex-col gap-6 px-4 pt-4 min-h-0">
