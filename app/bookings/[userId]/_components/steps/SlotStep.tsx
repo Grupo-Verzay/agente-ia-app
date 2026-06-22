@@ -19,10 +19,11 @@ interface Props {
     selectedSlot: string | null;
     setSelectedSlot: (slot: string | null) => void;
     setStep: (step: number) => void;
+    nextStep?: number;
     timezone: string;
 }
 
-export function SlotStep({ slots, loadingSlots, selectedDate, selectedSlot, setSelectedSlot, setStep, timezone }: Props) {
+export function SlotStep({ slots, loadingSlots, selectedDate, selectedSlot, setSelectedSlot, setStep, nextStep = 4, timezone }: Props) {
     const grouped = useMemo(() => {
         const toMin = (iso: string) => {
             const d = toZonedTime(new Date(iso), timezone);
@@ -91,7 +92,7 @@ export function SlotStep({ slots, loadingSlots, selectedDate, selectedSlot, setS
                 </div>
                 <div className="flex justify-between gap-2">
                     <Button variant="outline" onClick={() => setStep(2)}>← Atrás</Button>
-                    <Button disabled={!selectedSlot} onClick={() => setStep(4)}>Continuar</Button>
+                    <Button disabled={!selectedSlot} onClick={() => setStep(nextStep)}>Continuar</Button>
                 </div>
             </CardContent>
         </Card>

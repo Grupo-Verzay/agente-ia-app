@@ -2185,6 +2185,7 @@ model TeamService {
   team         Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
   members      TeamMemberService[]
   appointments BookingAppointment[]
+  bookingQuestions BookingQuestion[]
 
   @@index([teamId])
   @@map("team_services")
@@ -2354,6 +2355,7 @@ enum BookingQuestionType {
 model BookingQuestion {
   id        String              @id @default(uuid())
   userId    String
+  teamServiceId String?
   label     String
   type      BookingQuestionType @default(TEXT)
   options   String[]            @default([])
@@ -2363,8 +2365,10 @@ model BookingQuestion {
   createdAt DateTime            @default(now())
   updatedAt DateTime            @updatedAt
   user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamService TeamService?      @relation(fields: [teamServiceId], references: [id], onDelete: Cascade)
 
   @@index([userId, order])
+  @@index([teamServiceId, order])
   @@map("booking_questions")
 }
 

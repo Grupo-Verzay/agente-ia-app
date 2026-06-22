@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-    LayoutDashboard, Kanban, Users, Wrench, Bell, Settings2, Calendar,
+    LayoutDashboard, Kanban, Users, Wrench, Bell, Settings2, Calendar, ClipboardList,
 } from 'lucide-react';
 import { AppointmentStatus } from '@prisma/client';
 import { MetricCard } from '@/components/custom/MetricCard';
@@ -13,8 +13,9 @@ import { BookingServicesManager } from './services/BookingServicesManager';
 import { BookingsRemindersManager } from './reminders/BookingsRemindersManager';
 import { BookingTeamSettings } from './settings/BookingTeamSettings';
 import { getBookingStatusCounts } from '@/actions/bookings-actions';
+import { BookingsServiceFormBuilder } from './form/BookingsServiceFormBuilder';
 
-type TabValue = 'dashboard' | 'kanban' | 'members' | 'services' | 'reminders' | 'settings';
+type TabValue = 'dashboard' | 'kanban' | 'members' | 'services' | 'reminders' | 'form' | 'settings';
 
 const TABS: { value: TabValue; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
     { value: 'dashboard', label: 'Dashboard',     Icon: LayoutDashboard },
@@ -22,6 +23,7 @@ const TABS: { value: TabValue; label: string; Icon: React.ComponentType<{ classN
     { value: 'members',   label: 'Especialistas', Icon: Users },
     { value: 'services',  label: 'Servicios',     Icon: Wrench },
     { value: 'reminders', label: 'Recordatorios', Icon: Bell },
+    { value: 'form',      label: 'Formulario',    Icon: ClipboardList },
     { value: 'settings',  label: 'Ajustes',       Icon: Settings2 },
 ];
 
@@ -62,7 +64,7 @@ export const MainBookings = ({ user, team }: Props) => {
     }));
 
     return (
-        <div className="flex h-full w-full flex-col gap-3">
+        <div className="flex h-full w-full flex-col gap-3" data-schedule-view>
             {/* Metric cards */}
             <div className="grid grid-cols-2 gap-2 shrink-0 sm:flex sm:flex-wrap sm:gap-3">
                 {topMetrics.map((m) => (
@@ -129,6 +131,12 @@ export const MainBookings = ({ user, team }: Props) => {
                 {tab === 'reminders' && (
                     <div className="absolute inset-0 overflow-y-auto pb-4">
                         <BookingsRemindersManager teamId={team.id} userId={userId} />
+                    </div>
+                )}
+
+                {tab === 'form' && (
+                    <div className="absolute inset-0 overflow-y-auto pb-4">
+                        <BookingsServiceFormBuilder teamId={team.id} userId={userId} />
                     </div>
                 )}
 

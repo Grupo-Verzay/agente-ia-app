@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getPublicTeamData } from "@/actions/bookings-actions";
 import { getCountryCodes } from "@/actions/get-country-action";
-import { getActiveBookingQuestions } from "@/actions/booking-questions-actions";
+import { getActiveServiceBookingQuestions } from "@/actions/booking-questions-actions";
 import { BookingPageClient } from "./_components/BookingPageClient";
 
 const BookingPublicPage = async ({
@@ -14,7 +14,7 @@ const BookingPublicPage = async ({
     const [teamRes, countries, questions] = await Promise.all([
         getPublicTeamData(params.userId),
         getCountryCodes(),
-        getActiveBookingQuestions(params.userId),
+        getActiveServiceBookingQuestions(params.userId),
     ]);
 
     if (!teamRes.success || !teamRes.data) return notFound();

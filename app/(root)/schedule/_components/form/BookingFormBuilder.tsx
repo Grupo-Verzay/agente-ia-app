@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
 import { Trash2, Loader2, Pencil, Search, HelpCircle, GripVertical, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,6 +50,7 @@ const TYPE_LABELS: Record<BookingQuestionType, string> = {
 
 interface Props {
   userId: string;
+  teamServiceId?: string | null;
 }
 
 interface QuestionForm {
@@ -150,7 +151,7 @@ function SortableQuestionItem({ question: q, editingId, isFirst, isLast, onEdit,
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function BookingFormBuilder({ userId }: Props) {
+export function BookingFormBuilder({ userId, teamServiceId = null }: Props) {
   const [questions, setQuestions] = useState<BookingQuestionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -162,14 +163,14 @@ export function BookingFormBuilder({ userId }: Props) {
 
   const sensors = useSensors(useSensor(PointerSensor));
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
-    const data = await getBookingQuestions(userId);
+    const data = await getBookingQuestions(userId, teamServiceId);
     setQuestions(data);
     setLoading(false);
-  }
+  }, [userId, teamServiceId]);
 
-  useEffect(() => { load(); }, [userId]);
+  useEffect(() => { load(); }, [load]);
 
   const filtered = search.trim()
     ? questions.filter((q) => q.label.toLowerCase().includes(search.toLowerCase()))
@@ -200,7 +201,7 @@ export function BookingFormBuilder({ userId }: Props) {
     const options = form.type === 'SELECT'
       ? form.options.split(',').map((o) => o.trim()).filter(Boolean)
       : [];
-    const res = await createBookingQuestion({ label: form.label.trim(), type: form.type, options, required: form.required });
+    const res = await createBookingQuestion({ label: form.label.trim(), type: form.type, options, required: form.required, teamServiceId });
     setSaving(false);
     if (res.success) { toast.success('Pregunta agregada'); closeForm(); load(); }
     else toast.error(res.message ?? 'Error');

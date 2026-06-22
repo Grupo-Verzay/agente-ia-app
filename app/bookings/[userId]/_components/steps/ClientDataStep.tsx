@@ -16,13 +16,14 @@ interface Props {
     setAreaCode: (v: string) => void;
     setPhone: (v: string) => void;
     setStep: (step: number) => void;
+    backStep?: number;
     onContinue: () => void;
     onPhoneBlur?: () => void;
 }
 
 export function ClientDataStep({
     nameClient, areaCode, phone, countries, canContinue, loading = false,
-    setNameClient, setAreaCode, setPhone, setStep, onContinue, onPhoneBlur,
+    setNameClient, setAreaCode, setPhone, setStep, backStep = 3, onContinue, onPhoneBlur,
 }: Props) {
     return (
         <Card className="border-muted/50">
@@ -64,7 +65,7 @@ export function ClientDataStep({
                     </div>
                 </div>
                 <div className="flex justify-between gap-2 pt-2">
-                    <Button variant="outline" onClick={() => setStep(3)}>← Atrás</Button>
+                    <Button variant="outline" onClick={() => setStep(backStep)}>← Atrás</Button>
                     <Button
                         disabled={!canContinue || loading}
                         onClick={onContinue}

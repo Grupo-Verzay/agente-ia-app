@@ -91,7 +91,9 @@ function normalizeToE164(areaCode: string, phone: string): string | null {
 
 export function BookingPageClient({ userId, team, countries, prefillName = '', prefillPhone = '', questions = [] }: Props) {
     const [step, setStep] = useState(0);
-    const hasForm = questions.length > 0;
+    const [selectedService, setSelectedService] = useState('');
+    const serviceQuestions = questions.filter((q) => q.teamServiceId === selectedService);
+    const hasForm = serviceQuestions.length > 0;
     const FORM_STEP = hasForm ? 4 : -1;
     const DATA_STEP = hasForm ? 5 : 4;
 
@@ -105,7 +107,6 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
     ];
 
     // ── Selecciones ──
-    const [selectedService, setSelectedService] = useState('');
     const [selectedMember,  setSelectedMember]  = useState('');
     const [selectedDate,    setSelectedDate]    = useState<Date | undefined>();
     const [selectedDateYmd, setSelectedDateYmd] = useState('');
@@ -147,7 +148,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
             else toast.error(res.message ?? 'Error al cargar horarios');
             setLoadingSlots(false);
         })();
-    }, [selectedMember, selectedDateYmd, duration, timezone]);
+    }, [selectedMember, selectedDateYmd, duration, timezone, effectiveNotice]);
 
     const handlePhoneBlur = () => {
         if (!areaCode || !phone) return;
@@ -298,6 +299,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
                         selectedService={selectedService}
                         setSelectedService={(id) => {
                             setSelectedService(id);
+                            setFormAnswers([]);
                             setSelectedMember('');
                         }}
                         setStep={setStep}
@@ -332,6 +334,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
                         selectedSlot={selectedSlot}
                         setSelectedSlot={setSelectedSlot}
                         setStep={setStep}
+                        nextStep={hasForm ? FORM_STEP : DATA_STEP}
                         timezone={timezone}
                     />
                 )}
@@ -340,7 +343,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
                     <Card className="border-muted/50">
                         <CardContent className="p-4">
                             <QualificationStep
-                                questions={questions}
+                                questions={serviceQuestions}
                                 answers={formAnswers}
                                 onAnswersChange={setFormAnswers}
                                 onBack={() => setStep(3)}
@@ -362,6 +365,7 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
                         setAreaCode={setAreaCode}
                         setPhone={setPhone}
                         setStep={setStep}
+                        backStep={hasForm ? FORM_STEP : 3}
                         onContinue={handleConfirm}
                         onPhoneBlur={handlePhoneBlur}
                     />

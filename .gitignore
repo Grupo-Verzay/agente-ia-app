@@ -38,8 +38,7 @@ dev-server.err.log
 *.tsbuildinfo
 next-env.d.ts
 
-#prisma/migrations
-prisma/migrations/*
+# prisma migrations should be versioned with schema changes
 
 # Claude Code local config
 .claude/

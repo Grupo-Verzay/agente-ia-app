@@ -181,7 +181,10 @@ export function BookingsDashboardCalendar({ teamId, timezone }: { teamId: string
     return (
         <>
             {/* FullCalendar — toolbar siempre visible, cuerpo oculto en modo agenda */}
-            <div ref={calendarWrapRef}>
+            <div
+                ref={calendarWrapRef}
+                className={agendaMode ? '[&_.fc-view-harness]:hidden' : undefined}
+            >
                 <FullCalendar
                     ref={calendarRef}
                     plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
