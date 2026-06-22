@@ -260,7 +260,7 @@ export function GlobalSearch() {
           <DialogTitle>Busqueda global</DialogTitle>
         </DialogHeader>
         <div className="border-b p-3">
-          <div className="relative mr-7">
+          <div className="relative mr-10">
             <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               value={query}
