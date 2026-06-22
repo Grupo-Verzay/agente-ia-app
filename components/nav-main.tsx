@@ -246,7 +246,7 @@ export function NavMain({ user }: { user: User }) {
                                                         handleRoute(label, sub.dest);
                                                     }}
                                                     className={clsx(
-                                                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                                                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left transition-colors',
                                                         'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                                                     )}
                                                 >
@@ -306,7 +306,7 @@ export function NavMain({ user }: { user: User }) {
                                                     key={subItem.id}
                                                     onClick={() => handleRoute(label, dest, subItem.customUrl ?? item.customUrl, isSubLocked)}
                                                     className={clsx(
-                                                        'flex w-full items-center rounded-md px-2 py-1.5 text-sm transition-colors',
+                                                        'flex w-full items-center rounded-md px-2 py-1.5 text-sm text-left transition-colors',
                                                         isSubActive
                                                             ? 'bg-zinc-200 text-zinc-800 font-medium dark:bg-zinc-700 dark:text-zinc-100'
                                                             : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
