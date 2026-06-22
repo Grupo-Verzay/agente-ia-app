@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle, ArrowLeft, Bot, CheckCircle2, ClipboardList,
   Copy, GitBranch, Layers, Lightbulb, Loader2, MessageSquare, PenLine, PlusCircle, RefreshCw,
-  RotateCcw, ScanSearch, SendHorizontal, ShieldAlert, Sparkles, Trash2, Wand2, Zap,
+  RotateCcw, ScanSearch, SendHorizontal, ShieldAlert, Sparkles, Trash2, Wand2, Zap, Mic,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -24,6 +24,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useSpeechDictation } from "@/hooks/useSpeechDictation";
 import { TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
 
 type GenStage = "idle" | "running" | "done" | "error";
@@ -259,6 +260,7 @@ export function AgentPromptChatDialog({
   // ── Assistant chat state
   const [text, setText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const dictation = useSpeechDictation();
   const formRef = useRef<HTMLFormElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -602,19 +604,35 @@ export function AgentPromptChatDialog({
                             {injectError}
                           </div>
                         ) : null}
-                        <Button
-                          size="sm"
-                          className="w-full gap-2 shrink-0"
-                          disabled={!injectText.trim() || injectAnalyzing}
-                          onClick={() => void handleAnalyze()}
-                        >
-                          {injectAnalyzing ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Sparkles className="h-3.5 w-3.5" />
+                        <div className="flex items-center gap-2 shrink-0">
+                          {dictation.supported && (
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant={dictation.listening ? "default" : "outline"}
+                              className={cn("h-9 w-9 shrink-0", dictation.listening && "animate-pulse bg-red-500 text-white hover:bg-red-600")}
+                              disabled={injectAnalyzing}
+                              onClick={() => !injectAnalyzing && dictation.toggle(injectText, setInjectText)}
+                              aria-label={dictation.listening ? "Detener dictado" : "Dictar por voz"}
+                              title={dictation.listening ? "Detener dictado" : "Dictar por voz"}
+                            >
+                              <Mic className="h-4 w-4" />
+                            </Button>
                           )}
-                          {injectAnalyzing ? "Analizando..." : "Analizar con IA"}
-                        </Button>
+                          <Button
+                            size="sm"
+                            className="flex-1 gap-2"
+                            disabled={!injectText.trim() || injectAnalyzing}
+                            onClick={() => void handleAnalyze()}
+                          >
+                            {injectAnalyzing ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Sparkles className="h-3.5 w-3.5" />
+                            )}
+                            {injectAnalyzing ? "Analizando..." : "Analizar con IA"}
+                          </Button>
+                        </div>
                       </div>
                     ) : (
                       /* ── Con preview: preview arriba, textarea compacto abajo ── */
@@ -896,6 +914,24 @@ export function AgentPromptChatDialog({
                         }
                       }}
                     />
+                    {dictation.supported && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant={dictation.listening ? "default" : "outline"}
+                        className={cn("h-9 w-9 shrink-0 rounded-md", dictation.listening && "animate-pulse bg-red-500 text-white hover:bg-red-600")}
+                        disabled={simulatorMode ? (simIsLoading || !promptId) : isSending}
+                        onClick={() =>
+                          simulatorMode
+                            ? dictation.toggle(simInput, setSimInput)
+                            : dictation.toggle(text, setText)
+                        }
+                        aria-label={dictation.listening ? "Detener dictado" : "Dictar por voz"}
+                        title={dictation.listening ? "Detener dictado" : "Dictar por voz"}
+                      >
+                        <Mic className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       type="submit"
                       size="icon"

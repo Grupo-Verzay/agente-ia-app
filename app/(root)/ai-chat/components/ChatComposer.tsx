@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { useChatContext } from "../hooks/useChatContext";
 import { mergeBufferedUserMessages } from "../helpers/mergeBufferedUserMessages";
 import { useChatStore } from "@/stores/ai-chat/useChatStore";
 import { sendChatAction } from "@/actions/ai-chat-actions";
+import { useSpeechDictation } from "@/hooks/useSpeechDictation";
 
 const WAIT_MS = 1500;
 const AI_DELAY_MS = 700;
@@ -33,11 +34,7 @@ async function withClientTimeout<T>(promise: Promise<T>, ms = CLIENT_TIMEOUT_MS)
 export function ChatComposer() {
     const [text, setText] = useState("");
 
-    // Dictado por voz (Web Speech API del navegador)
-    const [speechSupported, setSpeechSupported] = useState(false);
-    const [listening, setListening] = useState(false);
-    const recognitionRef = useRef<any>(null);
-    const baseTextRef = useRef("");
+    const dictation = useSpeechDictation();
 
     const ctx = useChatContext();
 
@@ -121,75 +118,12 @@ export function ChatComposer() {
         setFlushTimer(t);
     };
 
-    // Detecta soporte de dictado y limpia el reconocimiento al desmontar.
-    useEffect(() => {
-        const SR =
-            typeof window !== "undefined" &&
-            ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
-        setSpeechSupported(!!SR);
-        return () => {
-            try {
-                recognitionRef.current?.stop();
-            } catch {
-                /* noop */
-            }
-        };
-    }, []);
-
-    const toggleDictation = () => {
-        if (isTyping) return;
-
-        if (listening) {
-            recognitionRef.current?.stop();
-            return;
-        }
-
-        const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (!SR) {
-            toast.error("Tu navegador no soporta dictado por voz");
-            return;
-        }
-
-        const recognition = new SR();
-        recognition.lang = "es-ES";
-        recognition.continuous = true;
-        recognition.interimResults = true;
-
-        // Conserva lo ya escrito y le va sumando lo dictado.
-        baseTextRef.current = text.trim() ? `${text.trim()} ` : "";
-
-        recognition.onresult = (event: any) => {
-            let transcript = "";
-            for (let i = 0; i < event.results.length; i++) {
-                transcript += event.results[i][0].transcript;
-            }
-            setText((baseTextRef.current + transcript).trimStart());
-        };
-        recognition.onerror = (event: any) => {
-            setListening(false);
-            if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-                toast.error("Permiso de micrófono denegado");
-            } else if (event.error === "no-speech") {
-                toast.message("No se detectó voz");
-            }
-        };
-        recognition.onend = () => setListening(false);
-
-        recognitionRef.current = recognition;
-        try {
-            recognition.start();
-            setListening(true);
-        } catch {
-            setListening(false);
-        }
-    };
-
     const sendLocal = () => {
         const value = text.trim();
         if (!value || isTyping) return;
 
-        if (listening) {
-            recognitionRef.current?.stop();
+        if (dictation.listening) {
+            dictation.stop();
         }
 
         const userMsg = {
@@ -221,16 +155,16 @@ export function ChatComposer() {
                 }}
                 disabled={isTyping}
             />
-            {speechSupported && (
+            {dictation.supported && (
                 <Button
                     type="button"
-                    onClick={toggleDictation}
+                    onClick={() => !isTyping && dictation.toggle(text, setText)}
                     size="icon"
-                    variant={listening ? "default" : "outline"}
-                    className={`h-11 w-11 shrink-0 rounded-md ${listening ? "animate-pulse bg-red-500 text-white hover:bg-red-600" : ""}`}
+                    variant={dictation.listening ? "default" : "outline"}
+                    className={`h-11 w-11 shrink-0 rounded-md ${dictation.listening ? "animate-pulse bg-red-500 text-white hover:bg-red-600" : ""}`}
                     disabled={isTyping}
-                    aria-label={listening ? "Detener dictado" : "Dictar por voz"}
-                    title={listening ? "Detener dictado" : "Dictar por voz"}
+                    aria-label={dictation.listening ? "Detener dictado" : "Dictar por voz"}
+                    title={dictation.listening ? "Detener dictado" : "Dictar por voz"}
                 >
                     <Mic className="h-4 w-4" />
                 </Button>
