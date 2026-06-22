@@ -14,7 +14,7 @@ export default function IframeRenderer({ url }: Props) {
         <iframe
             src={url}
             title="Tool 2"
-            className="w-full h-full border-0"
+            className="block w-full h-full border-0"
             allow="microphone; screen-wake-lock; autoplay; clipboard-read; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
             allowFullScreen
         />

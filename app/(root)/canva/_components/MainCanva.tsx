@@ -7,5 +7,9 @@ export const MainCanva = () => {
     const { canvaUrl } = useModuleStore();
     if (!canvaUrl) return 'Cargando...'
 
-    return <IframeRenderer url={canvaUrl} />;
+    return (
+        <div data-full-bleed className="h-full w-full">
+            <IframeRenderer url={canvaUrl} />
+        </div>
+    );
 }
