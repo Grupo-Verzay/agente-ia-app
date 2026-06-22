@@ -12,12 +12,13 @@ import { toast } from 'sonner';
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
-import type { Session, SimpleTag } from '@/types/session';
+import type { LeadStatus, Session, SimpleTag } from '@/types/session';
 import type { AdvisorInfo } from '@/actions/team-actions';
 
 import { reactToMessageAction, deleteMessageAction } from '@/actions/chat-manual-actions';
 import { generateSuggestedReplyAction } from '@/actions/ai-suggested-reply-action';
 import { getAiMessageContentsAction } from '@/actions/ai-message-contents-action';
+import { updateSessionLeadStatus } from '@/actions/session-action';
 import {
   createInternalNoteAction,
   deleteInternalNoteAction,
@@ -32,6 +33,7 @@ import { Input } from '@/components/ui/input';
 import { SuggestedReplyBar } from './SuggestedReplyBar';
 import { ContactEditDialog } from './ContactEditDialog';
 import { ContactInfoPanel } from './ContactInfoPanel';
+import { TaskFormDialog } from './TaskFormDialog';
 import { useChatSession } from './hooks/useChatSession';
 import { useAudioRecording } from './hooks/useAudioRecording';
 import { useMediaCache } from './hooks/useMediaCache';
@@ -149,6 +151,12 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [chatView, setChatView] = useState<'messages' | string>('messages');
+  const [copilotTaskDialogOpen, setCopilotTaskDialogOpen] = useState(false);
+  const [copilotTaskDraft, setCopilotTaskDraft] = useState<{
+    title?: string;
+    type?: string;
+    dueDate?: string;
+  }>({});
   const { userIntegrations } = useModuleStore();
 
   useEffect(() => {
@@ -281,6 +289,37 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     return combined;
   }, [uiMessages, noteBubbles]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!info?.remoteJid) return;
+
+    const recentMessages = allMessages
+      .filter((message) => !message.isNote && message.content?.trim())
+      .slice(-8)
+      .map((message) => ({
+        sender: message.sender,
+        content: message.content.slice(0, 600),
+        ts: message.ts,
+      }));
+
+    window.localStorage.setItem('verzay_active_chat_context_v1', JSON.stringify({
+      contactName: displayedContactName || info.contactName || null,
+      whatsapp: displayedWhatsapp || null,
+      remoteJid: info.remoteJid,
+      assignedAdvisorName,
+      leadStatus: session?.leadStatus ?? null,
+      recentMessages,
+    }));
+  }, [
+    allMessages,
+    assignedAdvisorName,
+    displayedContactName,
+    displayedWhatsapp,
+    info?.contactName,
+    info?.remoteJid,
+    session?.leadStatus,
+  ]);
+
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const searchMatches = useMemo(() => {
     if (!normalizedSearchQuery) return [];
@@ -383,8 +422,94 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     }
   }, [userId, messages, header.name]);
 
+  const buildCopilotTaskDraft = useCallback(() => {
+    const lastClientMessage = [...allMessages]
+      .reverse()
+      .find((message) => message.sender === 'other' && message.content?.trim());
+    const due = new Date();
+    due.setDate(due.getDate() + 1);
+    due.setHours(9, 0, 0, 0);
+
+    const contactName = displayedContactName || session?.pushName || 'cliente';
+    const messageDetail = lastClientMessage?.content
+      ? `: ${lastClientMessage.content.trim().slice(0, 90)}`
+      : '';
+
+    return {
+      title: `Seguimiento a ${contactName}${messageDetail}`,
+      type: 'Seguimiento',
+      dueDate: due.toISOString().slice(0, 16),
+    };
+  }, [allMessages, displayedContactName, session?.pushName]);
+
 
   /* ─── Note handlers ─── */
+  useEffect(() => {
+    const handleCopilotChatAction = (event: Event) => {
+      const detail = (event as CustomEvent<{ action?: string; text?: string; leadStatus?: LeadStatus | null }>).detail;
+      if (!detail?.action) return;
+
+      if (detail.action === 'suggest_reply') {
+        void generateSuggestion();
+        return;
+      }
+
+      if (detail.action === 'create_task') {
+        const draft = buildCopilotTaskDraft();
+        setCopilotTaskDraft({
+          ...draft,
+          title: detail.text?.trim() || draft.title,
+        });
+        setCopilotTaskDialogOpen(true);
+        return;
+      }
+
+      if (detail.action === 'insert_text' && detail.text) {
+        setInput(detail.text);
+        textareaRef.current?.focus();
+        return;
+      }
+
+      if (detail.action === 'create_note') {
+        if (!session?.id) {
+          toast.error('Abre un chat con sesion activa para crear la nota.');
+          return;
+        }
+
+        const content = detail.text?.trim() || buildCopilotTaskDraft().title;
+        void createInternalNoteAction({ sessionId: session.id, content }).then((res) => {
+          if (res.success && res.data) {
+            setNotes((prev) => [...prev, res.data!]);
+            toast.success('Nota interna creada.');
+          } else {
+            toast.error(res.message || 'No se pudo crear la nota.');
+          }
+        });
+        return;
+      }
+
+      if (detail.action === 'update_lead_status') {
+        if (!session?.id) {
+          toast.error('Abre un chat con sesion activa para cambiar el estado.');
+          return;
+        }
+
+        void updateSessionLeadStatus(session.id, detail.leadStatus ?? null).then((res) => {
+          if (res.success) {
+            toast.success('Estado del lead actualizado.');
+            mutateSessionStatus();
+            void onRefresh?.();
+          } else {
+            toast.error(res.message || 'No se pudo actualizar el estado.');
+          }
+        });
+      }
+    };
+
+    window.addEventListener('verzay:copilot-chat-action', handleCopilotChatAction);
+    return () => window.removeEventListener('verzay:copilot-chat-action', handleCopilotChatAction);
+  }, [buildCopilotTaskDraft, generateSuggestion, mutateSessionStatus, onRefresh, session?.id]);
+
   const handleToggleNoteMode = useCallback(() => setNoteMode((v) => !v), []);
 
   const handleSendNote = useCallback(
@@ -577,7 +702,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       setIsSending(false);
       setTempMessage(null);
     }
-  }, [replyTo, recordedAudio, composeMediaList, input, onSend, clearRecordedAudio, mutateSessionStatus]);
+  }, [replyTo, recordedAudio, composeMediaList, input, onSend, clearRecordedAudio, mutateSessionStatus, info?.remoteJid]);
 
   const handleKeyPress = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -728,6 +853,20 @@ export const ChatMain: React.FC<ChatMainProps> = ({
           }
         }}
         isPending={isContactUpdatePending}
+      />
+
+      <TaskFormDialog
+        open={copilotTaskDialogOpen}
+        onOpenChange={setCopilotTaskDialogOpen}
+        session={session}
+        currentUserId={userId}
+        initialTitle={copilotTaskDraft.title}
+        initialType={copilotTaskDraft.type}
+        initialDueDate={copilotTaskDraft.dueDate}
+        onCreated={() => {
+          mutateSessionStatus();
+          void onRefresh?.();
+        }}
       />
 
       <ChatMessageList

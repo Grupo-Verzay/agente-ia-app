@@ -164,12 +164,12 @@ export function NotificationCenter() {
         <Button
           variant="ghost"
           size="icon"
-          className="relative h-9 w-9 rounded-full border border-border bg-background shadow-sm transition-all hover:border-amber-200 hover:bg-amber-50"
+          className="relative h-9 w-9 shrink-0 overflow-visible rounded-full border border-border bg-background shadow-sm transition-all hover:border-amber-200 hover:bg-amber-50"
           aria-label="Centro de notificaciones"
         >
           <Bell className="h-4 w-4 text-amber-500" />
           {badgeTotal > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-background">
+            <span className="absolute right-0 top-0 flex h-4 min-w-4 translate-x-1/4 -translate-y-1/4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-background">
               {badgeTotal > 99 ? "99+" : badgeTotal}
             </span>
           )}

@@ -1,7 +1,25 @@
+import type { CopilotMode } from "@/app/(root)/ai-chat/copilot";
+
 export type AppContextSnapshot = {
     pathname: string;
     params: Record<string, string>;
     search: Record<string, string>;
+    routeSegment?: string;
+    moduleLabel?: string;
+    copilotMode?: CopilotMode;
+    resolvedCopilotMode?: Exclude<CopilotMode, "auto">;
+    chatContext?: {
+        contactName?: string | null;
+        whatsapp?: string | null;
+        remoteJid?: string | null;
+        assignedAdvisorName?: string | null;
+        leadStatus?: string | null;
+        recentMessages?: Array<{
+            sender: "user" | "other";
+            content: string;
+            ts?: number;
+        }>;
+    } | null;
 };
 
 export type ChatRequest = {

@@ -39,7 +39,17 @@ type Props = {
   currentUserId: string;
   currentUserName?: string | null;
   onCreated?: (task: TaskData) => void;
+  initialTitle?: string;
+  initialType?: string;
+  initialDueDate?: string;
 };
+
+function getDefaultDueDate() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(9, 0, 0, 0);
+  return d.toISOString().slice(0, 16);
+}
 
 export function TaskFormDialog({
   open,
@@ -48,6 +58,9 @@ export function TaskFormDialog({
   currentUserId,
   currentUserName,
   onCreated,
+  initialTitle,
+  initialType,
+  initialDueDate,
 }: Props) {
   const [advisors, setAdvisors] = useState<{ id: string; name: string | null; email: string }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -60,12 +73,7 @@ export function TaskFormDialog({
   const [newTypeName, setNewTypeName] = useState("");
   const newTypeRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
-  const [dueDate, setDueDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    d.setHours(9, 0, 0, 0);
-    return d.toISOString().slice(0, 16);
-  });
+  const [dueDate, setDueDate] = useState(getDefaultDueDate);
   const [assignedToId, setAssignedToId] = useState(currentUserId);
 
   useEffect(() => {
@@ -84,6 +92,13 @@ export function TaskFormDialog({
   useEffect(() => {
     if (open) setAssignedToId(currentUserId);
   }, [open, currentUserId]);
+
+  useEffect(() => {
+    if (!open) return;
+    setTitle(initialTitle ?? "");
+    setType(initialType ?? "Seguimiento");
+    setDueDate(initialDueDate ?? getDefaultDueDate());
+  }, [initialDueDate, initialTitle, initialType, open]);
 
   const handleAddType = async () => {
     const name = newTypeName.trim();
@@ -134,6 +149,7 @@ export function TaskFormDialog({
       onOpenChange(false);
       setTitle("");
       setType("Seguimiento");
+      setDueDate(getDefaultDueDate());
     } else {
       toast.error(res.message);
     }

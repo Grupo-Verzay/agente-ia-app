@@ -13,8 +13,22 @@ import { sendChatAction } from "@/actions/ai-chat-actions";
 
 const WAIT_MS = 1500;
 const AI_DELAY_MS = 700;
+const CLIENT_TIMEOUT_MS = 26000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function withClientTimeout<T>(promise: Promise<T>, ms = CLIENT_TIMEOUT_MS): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("client_timeout")), ms);
+    });
+
+    try {
+        return await Promise.race([promise, timeout]);
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+}
 
 export function ChatComposer() {
     const [text, setText] = useState("");
@@ -27,21 +41,15 @@ export function ChatComposer() {
     const flushTimer = useChatStore((s) => s.flushTimer);
     const setFlushTimer = useChatStore((s) => s.setFlushTimer);
     const setTyping = useChatStore((s) => s.setTyping);
+    const isTyping = useChatStore((s) => s.isTyping);
 
     const flush = async () => {
         const buffer = useChatStore.getState().buffer;
         if (!buffer.length) return;
 
-        // Construye el “mensaje consolidado”
         const mergedText = mergeBufferedUserMessages(buffer);
-
-        // Inserta un solo mensaje “user consolidado” EN EL REQUEST (no necesariamente en UI)
-        // En UI ya mostramos cada mensaje individual, eso se queda así.
-        // Para la IA, enviamos uno solo:
         const messagesForAi = [...useChatStore.getState().messages];
 
-        // reemplazamos el último tramo de mensajes user por uno consolidado (solo para el request)
-        // estrategia simple: añadimos un mensaje extra que diga “Mensajes concatenados:”
         messagesForAi.push({
             id: crypto.randomUUID(),
             role: "user",
@@ -55,17 +63,19 @@ export function ChatComposer() {
         try {
             await sleep(AI_DELAY_MS);
 
-            const res = await sendChatAction({
-                messages: messagesForAi,
-                context: ctx,
-            });
+            const res = await withClientTimeout(
+                sendChatAction({
+                    messages: messagesForAi,
+                    context: ctx,
+                }),
+            );
 
             if (!res.success) {
                 toast.error(res.message || "No se pudo procesar tu solicitud");
                 addMessage({
                     id: crypto.randomUUID(),
                     role: "assistant",
-                    content: "⚠️ No pude responder en este momento. Intenta nuevamente.",
+                    content: res.message || "No pude responder en este momento. Intenta nuevamente.",
                     createdAt: Date.now(),
                 });
                 return;
@@ -73,17 +83,20 @@ export function ChatComposer() {
 
             const reply = res.data?.message;
             if (!reply?.content) {
-                toast.error("Respuesta vacía del asistente");
+                toast.error("Respuesta vacia del copiloto");
                 return;
             }
 
             addMessage(reply);
-        } catch {
-            toast.error("Error consultando el asistente");
+        } catch (error) {
+            const timeout = error instanceof Error && error.message === "client_timeout";
+            toast.error(timeout ? "El copiloto tardo demasiado en responder" : "Error consultando el copiloto");
             addMessage({
                 id: crypto.randomUUID(),
                 role: "assistant",
-                content: "⚠️ Ocurrió un error consultando el asistente. Intenta de nuevo.",
+                content: timeout
+                    ? "La consulta quedo sin respuesta por tiempo de espera. Intenta de nuevo o revisa la API key del proveedor IA."
+                    : "Ocurrio un error consultando el copiloto. Intenta de nuevo.",
                 createdAt: Date.now(),
             });
         } finally {
@@ -104,7 +117,7 @@ export function ChatComposer() {
 
     const sendLocal = () => {
         const value = text.trim();
-        if (!value) return;
+        if (!value || isTyping) return;
 
         const userMsg = {
             id: crypto.randomUUID(),
@@ -113,10 +126,7 @@ export function ChatComposer() {
             createdAt: Date.now(),
         };
 
-        // UI: mostramos el mensaje inmediato
         addMessage(userMsg);
-
-        // Buffer: lo guardamos para concatenación
         enqueueUserMessage(userMsg);
 
         setText("");
@@ -136,14 +146,14 @@ export function ChatComposer() {
                         sendLocal();
                     }
                 }}
-                disabled={useChatStore((s) => s.isTyping)}
+                disabled={isTyping}
             />
             <Button
                 type="button"
                 onClick={sendLocal}
                 size="icon"
                 className="h-11 w-11 shrink-0 rounded-md"
-                disabled={useChatStore((s) => s.isTyping)}
+                disabled={isTyping}
                 aria-label="Enviar mensaje"
             >
                 <SendHorizontal className="h-4 w-4" />

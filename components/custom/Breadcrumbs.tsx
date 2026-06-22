@@ -17,7 +17,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getGuidesForPath } from '@/actions/guide-actions';
 import { getWorkflowNameById } from '@/actions/workflow-actions';
 import { getFormNameById } from '@/actions/form-name-actions';
-import { Bot, MessageCircle, Play } from 'lucide-react';
+import { Play } from 'lucide-react';
 import {
   Dialog,
   DialogTrigger,
@@ -33,7 +33,6 @@ import { Button } from '../ui/button';
 import ThemeSwitcher from './ThemeSwitcher';
 import { NotificationCenter } from '@/components/shared/NotificationCenter';
 import { GlobalSearch } from '@/components/shared/GlobalSearch';
-import { useChatStore } from '@/stores/ai-chat/useChatStore';
 
 export const breadcrumbLabels: Record<string, string> = {
   flow: 'flujo',
@@ -69,9 +68,6 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
   const [guides, setGuides] = useState<GuideUrl[]>([]);
   const [workflowName, setWorkflowName] = useState<string | null>(null);
   const [formName, setFormName] = useState<string | null>(null);
-  const supportChatOpen = useChatStore((state) => state.isOpen);
-  const setSupportChatOpen = useChatStore((state) => state.setOpen);
-
   const moduleIndex = useMemo(() => {
     return segments.findIndex((s) => s === 'flow' || s === 'workflow' || s === 'workflows');
   }, [segments]);
@@ -247,25 +243,9 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
                   </Dialog>
                 </div>
               )}
-              <div className="ml-auto flex items-center justify-end gap-1.5">
+              <div className="ml-auto flex min-w-0 items-center justify-end gap-2 pr-1">
                 <GlobalSearch />
                 <NotificationCenter />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className={`h-9 gap-1.5 rounded-full border px-3 text-sm font-medium shadow-sm transition-all ${supportChatOpen ? 'border-primary/30 bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary' : 'border-primary/20 bg-primary/10 text-primary hover:border-primary/30 hover:bg-primary/15 hover:text-primary'}`}
-                  aria-label={supportChatOpen ? 'Cerrar chat con IA' : 'Abrir chat con IA'}
-                  aria-controls="ai-chat-sheet-desktop"
-                  aria-expanded={supportChatOpen}
-                  onClick={() => setSupportChatOpen(!supportChatOpen)}
-                >
-                  <span className="relative flex h-5 w-5 items-center justify-center">
-                    <MessageCircle className="h-4 w-4" />
-                    <Bot className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-background text-primary" />
-                  </span>
-                  <span className="hidden sm:inline">Chat IA</span>
-                  <span className="text-[10px] font-bold leading-none sm:hidden">IA</span>
-                </Button>
               </div>
               {isFlow &&
                 <div className="flex flex-1 justify-end">
