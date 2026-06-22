@@ -1436,10 +1436,10 @@ export function ChatsClient({
                 onClick={() => goToChatTab("mine")}
                 className="flex w-full items-center gap-3 rounded-xl border border-violet-200 bg-violet-50 dark:border-violet-800/50 dark:bg-violet-950/30 px-4 py-3 text-left transition-colors hover:bg-violet-100 dark:hover:bg-violet-900/40"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-500 text-[10px] font-bold text-white">M</span>
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">M</span>
                 <div>
-                  <p className="text-xs font-semibold text-violet-700 dark:text-violet-400">Pestaña Mías</p>
-                  <p className="text-[11px] text-muted-foreground">Conversaciones asignadas a ti</p>
+                  <p className="text-sm font-semibold text-violet-700 dark:text-violet-400">Pestaña Mías</p>
+                  <p className="text-xs text-muted-foreground">Conversaciones asignadas a ti</p>
                 </div>
               </button>
               <button
@@ -1447,10 +1447,10 @@ export function ChatsClient({
                 onClick={() => goToChatTab("all")}
                 className="flex w-full items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-800/50 dark:bg-blue-950/30 px-4 py-3 text-left transition-colors hover:bg-blue-100 dark:hover:bg-blue-900/40"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">T</span>
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500 text-xs font-bold text-white">T</span>
                 <div>
-                  <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">Pestaña Todos</p>
-                  <p className="text-[11px] text-muted-foreground">Todas las conversaciones activas</p>
+                  <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">Pestaña Todos</p>
+                  <p className="text-xs text-muted-foreground">Todas las conversaciones activas</p>
                 </div>
               </button>
               <button
@@ -1460,8 +1460,8 @@ export function ChatsClient({
               >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-400 text-xs font-bold text-white">▼</span>
                 <div>
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Más opciones</p>
-                  <p className="text-[11px] text-muted-foreground">Chats archivados y eliminados</p>
+                  <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Más opciones</p>
+                  <p className="text-xs text-muted-foreground">Chats archivados y eliminados</p>
                 </div>
               </button>
             </div>
