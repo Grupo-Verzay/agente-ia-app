@@ -16,9 +16,10 @@ import {
   Settings2,
   Search,
   Mic,
+  X,
   UserRound,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -255,12 +256,18 @@ export function GlobalSearch() {
           </kbd>
         </Button>
       </DialogTrigger>
-      <DialogContent className="top-[12%] max-w-lg translate-y-0 p-0">
+      <DialogContent hideCloseButton className="top-[12%] max-w-lg translate-y-0 p-0">
         <DialogHeader className="sr-only">
           <DialogTitle>Busqueda global</DialogTitle>
         </DialogHeader>
-        <div className="border-b p-3">
-          <div className="relative mr-10">
+        <div className="relative border-b p-3">
+          <DialogClose
+            aria-label="Cerrar"
+            className="absolute right-3 top-[30px] flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 dark:hover:bg-red-950/40"
+          >
+            <X className="h-5 w-5" />
+          </DialogClose>
+          <div className="relative mr-9">
             <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               value={query}
