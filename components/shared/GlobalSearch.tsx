@@ -15,6 +15,7 @@ import {
   Plus,
   Settings2,
   Search,
+  Mic,
   UserRound,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -27,6 +28,7 @@ import {
   type GlobalSearchResult,
 } from "@/actions/global-search-actions";
 import { cn } from "@/lib/utils";
+import { useSpeechDictation } from "@/hooks/useSpeechDictation";
 
 const KIND_META: Record<GlobalSearchKind, { label: string; Icon: typeof Search; color: string }> = {
   client: { label: "Clientes", Icon: UserRound, color: "text-blue-600" },
@@ -140,6 +142,7 @@ export function GlobalSearch() {
   const pathname = usePathname() ?? "/";
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const dictation = useSpeechDictation();
   const [results, setResults] = useState<GlobalSearchResult[]>([]);
   const [activeKind, setActiveKind] = useState<SearchFilter>("all");
   const [isPending, startTransition] = useTransition();
@@ -263,9 +266,25 @@ export function GlobalSearch() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Buscar clientes, notas, tareas, productos, chats o flujos..."
-              className="h-9 border-0 bg-muted/50 pl-8 shadow-none focus-visible:ring-0"
+              className={cn("h-9 border-0 bg-muted/50 pl-8 shadow-none focus-visible:ring-0", dictation.supported && "pr-9")}
               autoFocus
             />
+            {dictation.supported && (
+              <button
+                type="button"
+                onClick={() => dictation.toggle(query, setQuery)}
+                aria-label={dictation.listening ? "Detener dictado" : "Dictar por voz"}
+                title={dictation.listening ? "Detener dictado" : "Dictar por voz"}
+                className={cn(
+                  "absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md transition-colors",
+                  dictation.listening
+                    ? "animate-pulse bg-red-500 text-white"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                <Mic className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
             {FILTERS.map((filter) => {
