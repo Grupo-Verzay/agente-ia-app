@@ -1971,6 +1971,9 @@ model TrialFollowUpConfig {
   id           String   @id @default(uuid())
   resellerId   String   @unique
   enabled      Boolean  @default(true)
+  enabled1     Boolean  @default(true)
+  enabled3     Boolean  @default(true)
+  enabled6     Boolean  @default(true)
   instanceName String?
   message1     String?
   message3     String?
@@ -1983,13 +1986,14 @@ model TrialFollowUpConfig {
 }
 
 model TrialFollowUpLog {
-  id      String   @id @default(cuid())
-  userId  String
-  day     Int
-  status  String
-  error   String?
-  sentAt  DateTime @default(now())
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id       String   @id @default(cuid())
+  userId   String
+  day      Int
+  status   String
+  error    String?
+  attempts Int      @default(0)
+  sentAt   DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, day])
   @@map("trial_follow_up_logs")
