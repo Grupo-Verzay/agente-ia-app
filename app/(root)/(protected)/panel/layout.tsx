@@ -39,14 +39,10 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         ? [{ url: "/panel/landing", title: "Apariencia" }]
         : [];
 
-    const seguimientosTab = isAdminOrReseller(user.role)
-        ? [{ url: "/panel/seguimientos-prueba", title: "Seguimientos" }]
-        : [];
-
     const panelTabs =
         user.role === 'reseller'
-            ? [...resellerExtraTabs, ...seguimientosTab]
-            : [...allTabs, ...aparienciaTab, ...seguimientosTab];
+            ? [...resellerExtraTabs]
+            : [...allTabs, ...aparienciaTab];
 
     return (
         <div className="flex h-full min-w-0 w-full flex-col">
