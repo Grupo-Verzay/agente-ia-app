@@ -31,6 +31,14 @@ function daysSince(date: Date): number {
   return Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24))
 }
 
+// La URL de Evolution puede estar guardada sin protocolo (ej. "evoapi.ia-app.com").
+// fetch() exige URL absoluta, así que anteponemos https:// si falta.
+function normalizeBaseUrl(url: string | null | undefined): string {
+  const trimmed = (url ?? '').trim().replace(/\/+$/, '')
+  if (!trimmed) return ''
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+}
+
 // Hora local (0-23) del usuario según su zona horaria.
 function localHour(now: Date, timezone: string | null | undefined): number {
   try {
@@ -176,7 +184,7 @@ async function runTrialFollowUps() {
 
     const messageKey = `message${targetDay}` as 'message1' | 'message3' | 'message6'
     const text = resolveMessage(config?.[messageKey], DEFAULT_MESSAGES[targetDay], user.name ?? '')
-    const sendUrl = `${apiUrl}/message/sendText/${instanceName}`
+    const sendUrl = `${normalizeBaseUrl(apiUrl)}/message/sendText/${instanceName}`
 
     try {
       await sendWhatsApp(sendUrl, apiKey, user.notificationNumber, text)

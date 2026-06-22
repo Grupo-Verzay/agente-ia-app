@@ -15,6 +15,14 @@ export interface TrialFollowUpConfigData {
   message6: string
 }
 
+// La URL de Evolution puede estar guardada sin protocolo (ej. "evoapi.ia-app.com").
+// fetch() exige URL absoluta, así que anteponemos https:// si falta.
+function normalizeBaseUrl(url: string | null | undefined): string {
+  const trimmed = (url ?? '').trim().replace(/\/+$/, '')
+  if (!trimmed) return ''
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+}
+
 const DEFAULT_MESSAGES = {
   message1: '¡Hola {nombre}! 👋 Ya tienes acceso a tu prueba gratis. ¿Tienes alguna pregunta para empezar?',
   message3: '¡Hola {nombre}! ¿Cómo va tu experiencia? Si necesitas ayuda para configurar algo, estamos aquí. 🚀',
@@ -98,8 +106,10 @@ export async function getAvailableInstances(): Promise<{
     return { success: false, message: 'No tienes credenciales Evolution configuradas.', data: [] }
   }
 
+  const baseUrl = normalizeBaseUrl(dbUser.apiKey.url)
+
   try {
-    const res = await fetch(`${dbUser.apiKey.url}/instance/fetchInstances`, {
+    const res = await fetch(`${baseUrl}/instance/fetchInstances`, {
       method: 'GET',
       headers: { apikey: dbUser.apiKey.key, Accept: 'application/json' },
       cache: 'no-store',
@@ -165,7 +175,7 @@ export async function sendTrialTestMessage(
   const remoteJid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`
 
   try {
-    const res = await fetch(`${apiUrl}/message/sendText/${instance}`, {
+    const res = await fetch(`${normalizeBaseUrl(apiUrl)}/message/sendText/${instance}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: apiKey },
       body: JSON.stringify({ number: remoteJid, delay: 1200, text: preview }),
