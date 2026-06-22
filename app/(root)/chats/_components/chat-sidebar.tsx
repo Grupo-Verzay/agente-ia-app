@@ -353,6 +353,14 @@ export function ChatSidebar({
     setUnreadCount(filterCounts.unread);
   }, [filterCounts.unread, setUnreadCount]);
 
+  // Si el filtro "No leídos" está activo pero ya no hay chats sin leer
+  // (al entrar sin pendientes o tras leer todos), vuelve a "Todos".
+  useEffect(() => {
+    if (unreadOnly && filterCounts.unread === 0) {
+      setUnreadOnly(false);
+    }
+  }, [unreadOnly, filterCounts.unread]);
+
   const filtered = useMemo(() => {
     if (tab === "deleted") return [];
 
