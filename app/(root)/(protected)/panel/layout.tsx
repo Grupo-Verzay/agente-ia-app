@@ -1,5 +1,5 @@
 import { currentUser } from "@/lib/auth";
-import { isAdminLike, isAdminOrReseller } from "@/lib/rbac";
+import { isAdminOrReseller } from "@/lib/rbac";
 import AccessDenied from "@/app/AccessDenied";
 import { db } from "@/lib/db";
 import { PanelAwareTabNav } from "@/components/custom/PanelAwareTabNav";
@@ -34,15 +34,10 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         title: item.title,
     }));
 
-    const hasAparienciaTab = allTabs.some((t) => t.url === "/panel/landing");
-    const aparienciaTab = isAdminLike(user.role) && !hasAparienciaTab
-        ? [{ url: "/panel/landing", title: "Apariencia" }]
-        : [];
-
     const panelTabs =
         user.role === 'reseller'
             ? [...resellerExtraTabs]
-            : [...allTabs, ...aparienciaTab];
+            : [...allTabs];
 
     return (
         <div className="flex h-full min-w-0 w-full flex-col">
