@@ -373,13 +373,13 @@ export async function updateUserMeetingDuration(
       };
     }
 
-    // 3) Buscar recordatorio con field === "minutes-5"
-    const reminderMinutes5 = remindersRes.data.find((r) => r.time === "minutes-5");
+    // 3) Buscar recordatorio con field === "minutes-1" (el que entrega los detalles de ingreso)
+    const reminderMinutes1 = remindersRes.data.find((r) => r.time === "minutes-1");
 
-    if (!reminderMinutes5) {
+    if (!reminderMinutes1) {
       return {
         success: false,
-        message: 'No se encontró el recordatorio con field "minutes-5".',
+        message: 'No se encontró el recordatorio con field "minutes-1".',
       };
     }
 
@@ -393,12 +393,12 @@ export async function updateUserMeetingDuration(
       },
     });
 
-    // 5) Si hay URL, concatenarla al final del description del recordatorio minutes-5
+    // 5) Si hay URL, concatenarla al final del description del recordatorio minutes-1
     if (url) {
-      const newDesc = `${DEFAULT_REMINDERS_TEMPLATES[3].description} Este es el link de acceso.\n\n👉${url}`;
+      const newDesc = `${DEFAULT_REMINDERS_TEMPLATES[4].description} Este es el link de acceso.\n\n👉${url}`;
 
       await db.reminders.update({
-        where: { id: reminderMinutes5.id },
+        where: { id: reminderMinutes1.id },
         data: { description: newDesc },
       });
     }
