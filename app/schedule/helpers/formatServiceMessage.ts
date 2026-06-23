@@ -18,12 +18,14 @@ export function formatServiceMessage(
         selectedSlot,
         timezone,
         slotDuration,
+        serviceName = '',
     }: {
         nameClient: string;
         selectedDate?: Date;
         selectedSlot?: string | null;
         timezone: string;
         slotDuration: number;
+        serviceName?: string;
     }
 ): string {
     if (!messageText) return "Gracias por agendar con nosotros.";
@@ -33,6 +35,9 @@ export function formatServiceMessage(
     try {
         // Nombre del cliente
         formatted = formatted.replace(/@client_name\b/gi, `${nameClient}`);
+
+        // Nombre del servicio
+        formatted = formatted.replace(/@service_name\b/gi, serviceName);
 
         // Fecha y hora local formateada como "17/10/2025 3:00 PM."
         if (selectedDate && selectedSlot) {

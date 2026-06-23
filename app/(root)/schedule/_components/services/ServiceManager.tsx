@@ -215,6 +215,7 @@ function ServiceFormDialog({
                                     </FormControl>
                                     <FormDescription>
                                         Este mensaje se enviará automáticamente al confirmar la cita.
+                                        <br />Variables: @client_name, @service_name, @appointment_datetime, @appointment_duration
                                     </FormDescription>
                                     <FormMessage />
                                 </FormItem>

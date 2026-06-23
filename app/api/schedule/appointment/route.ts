@@ -92,10 +92,12 @@ function formatReminderMessage(
   advisorTimezone: string,
   durationMin: number,
   clientTimezone?: string,
+  serviceName: string = '',
 ): string {
   const displayTz = clientTimezone ?? advisorTimezone;
   let msg = template;
   msg = msg.replace(/@client_name\b/gi, pushName);
+  msg = msg.replace(/@service_name\b/gi, serviceName);
   const startLocal = toZonedTime(new Date(startTime), displayTz);
   const dateLabel = format(startLocal, 'dd/MM/yyyy', { locale: es });
   const hourLabel = format(startLocal, 'h:mm a', { locale: es });
@@ -160,7 +162,7 @@ async function runPostAppointmentTasks({
   // Usa el mensaje del servicio si está configurado; de lo contrario, envía un mensaje genérico.
   const confirmRawText = service?.messageText?.trim()
     || `📝 ¡Tu cita ha sido registrada! Un asesor se pondrá en contacto contigo a la brevedad.`;
-  const confirmMessage = formatReminderMessage(confirmRawText, pushName, startTime, timezone, slotDuration, clientTimezone);
+  const confirmMessage = formatReminderMessage(confirmRawText, pushName, startTime, timezone, slotDuration, clientTimezone, service?.name ?? '');
   db.seguimiento.create({
     data: {
       idNodo: `appt-confirm-${serviceId}`,

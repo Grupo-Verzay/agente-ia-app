@@ -62,13 +62,14 @@ const serviceSchema = z.object({
 });
 type ServiceFormValues = z.infer<typeof serviceSchema>;
 
-const DEFAULT_MSG = `¡Hola @client_name! 👋
+const DEFAULT_MSG = `👋 Hola @client_name, tu *RESERVA* de *@service_name* fue agendada con éxito.
 
-Tu cita ha sido confirmada:
-📅 @appointment_datetime
-⏱ Duración: @appointment_duration
+📝 Detalles de la Reserva:
 
-Te esperamos puntualmente. ¡Gracias!`;
+⏳ *Inicia*: 👇
+@appointment_datetime
+
+⌛ *Duración*: @appointment_duration`;
 
 // ─── Specialist assignment ─────────────────────────────────────────────────────
 
@@ -241,7 +242,7 @@ function ServiceFormDialog({
                                         <Textarea className="min-h-[120px] text-xs" {...field} />
                                     </FormControl>
                                     <FormDescription className="text-xs">
-                                        Variables: @client_name, @appointment_datetime, @appointment_duration
+                                        Variables: @client_name, @service_name, @appointment_datetime, @appointment_duration
                                     </FormDescription>
                                 </FormItem>
                             )} />

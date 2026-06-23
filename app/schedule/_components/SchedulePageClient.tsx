@@ -225,6 +225,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                         selectedSlot,
                         timezone: clientTimezone,
                         slotDuration,
+                        serviceName: user.services.find((s) => s.id === selectedService)?.name ?? '',
                     }),
                     tipo: "text",
                     time: reminderTime,
@@ -333,7 +334,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
         const confirmText = confirmUrl
             ? formatServiceMessage(
                 user.services.find((s) => s.id === selectedService)?.messageText,
-                { nameClient: normalizedClientName, selectedDate, selectedSlot, timezone: clientTimezoneForMsg, slotDuration },
+                { nameClient: normalizedClientName, selectedDate, selectedSlot, timezone: clientTimezoneForMsg, slotDuration, serviceName: user.services.find((s) => s.id === selectedService)?.name ?? '' },
               )
             : null;
 
