@@ -179,9 +179,20 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [aiContents, setAiContents] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!info?.instanceName || !info?.remoteJid) return;
-    getAiMessageContentsAction(info.instanceName, info.remoteJid).then(setAiContents);
-  }, [info?.instanceName, info?.remoteJid, messages.length]);
+    if (!info?.instanceName || !info?.remoteJid) {
+      setAiContents(new Set());
+      return;
+    }
+
+    let cancelled = false;
+    getAiMessageContentsAction(info.instanceName, info.remoteJid).then((contents) => {
+      if (!cancelled) setAiContents(contents);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [info?.instanceName, info?.remoteJid]);
 
   /* ─── AI suggested reply state ─── */
   const [suggestion, setSuggestion] = useState('');
@@ -244,11 +255,12 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     const all = toUIMessages(reversed, header.avatarSrc, mediaCacheRef.current);
     const filtered = deletedIds.size > 0 ? all.filter((m) => !deletedIds.has(m.id)) : all;
     if (aiContents.size === 0) return filtered;
+    const aiList = Array.from(aiContents).filter((ai) => ai.length > 10).slice(-80);
     const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
     const isAiMessage = (content: string) => {
       const norm = normalize(content);
       if (aiContents.has(norm)) return true;
-      return [...aiContents].some((ai) => ai.length > 10 && (norm.includes(ai) || ai.includes(norm)));
+      return aiList.some((ai) => norm.includes(ai) || ai.includes(norm));
     };
     return filtered.map((m) =>
       m.sender === 'user' && m.content && isAiMessage(m.content)

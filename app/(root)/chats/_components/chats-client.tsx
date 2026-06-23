@@ -65,7 +65,6 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
 type ApiKeyData = { url: string; key: string };
 const INITIAL_MESSAGE_PAGE_SIZE = 5;
 const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
-const MESSAGE_PREWARM_LIMIT = 5;
 
 type ChatMessageInfo = {
   total?: number;
@@ -328,7 +327,6 @@ export function ChatsClient({
   const selectionRequestRef = useRef(0);
   const bootstrapRequestedRef = useRef(false);
   const messageCacheRef = useRef<Map<string, ChatMessageCacheEntry>>(new Map());
-  const prewarmedMessageKeysRef = useRef<Set<string>>(new Set());
   const BASE_INTERVAL = 3000;
   const MAX_BACKOFF = 30000;
 
@@ -942,61 +940,6 @@ export function ChatsClient({
     },
     [apiKeyData, contacts, instanceActionSets, instanceName, isSidebarVisible, mergeMessages, selectedJid, warmMessagesAction],
   );
-
-  useEffect(() => {
-    if (!visibleContacts.length) return;
-
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        for (const contact of visibleContacts.slice(0, MESSAGE_PREWARM_LIMIT)) {
-          if (cancelled) return;
-
-          const actionSet =
-            instanceActionSets?.find((s) => s.instanceName === contact.instanceName) ?? null;
-          if (actionSet?.instanceType === "baileys") continue;
-
-          const remoteJid = contact.remoteJid;
-          const effectiveInstanceName = contact.instanceName ?? instanceName;
-          const cacheKey = getMessageCacheKey(effectiveInstanceName, remoteJid);
-          if (prewarmedMessageKeysRef.current.has(cacheKey)) continue;
-
-          prewarmedMessageKeysRef.current.add(cacheKey);
-          const warmMessages = actionSet?.warmMessages ?? warmMessagesAction;
-          const result = await warmMessages(remoteJid, {
-            page: 1,
-            pageSize: INITIAL_MESSAGE_PAGE_SIZE,
-            remoteJidAliases: contact.aliases,
-            localOnly: true,
-          });
-
-          if (cancelled || !result?.success) continue;
-
-          messageCacheRef.current.set(cacheKey, {
-            messages: result.data || [],
-            info: {
-              total: result.total,
-              pages: result.pages,
-              currentPage: result.currentPage,
-              nextPage: result.nextPage,
-              instanceName: effectiveInstanceName,
-              remoteJid,
-              remoteJidAliases: contact.aliases,
-              apiKeyData,
-              contactName: contact.pushName && !isBadContactName(contact.pushName)
-                ? contact.pushName
-                : undefined,
-            },
-          });
-        }
-      })();
-    }, 700);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [apiKeyData, instanceActionSets, instanceName, visibleContacts, warmMessagesAction]);
 
   const handleSendAny = useCallback(
     async (payload: OutgoingMessagePayload) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Clock } from 'lucide-react';
@@ -10,6 +10,29 @@ import { InternalNoteBubble } from './InternalNoteBubble';
 import { ConversationDateBadge } from './ConversationDateBadge';
 import { getCalendarDayKey, formatConversationDateLabel } from './chat-message-utils';
 import type { UIBubble } from './chat-message-types';
+
+const VIRTUALIZE_AFTER_ITEMS = 80;
+const VIRTUAL_OVERSCAN_ITEMS = 12;
+const ESTIMATED_DATE_HEIGHT = 44;
+const ESTIMATED_TEXT_HEIGHT = 82;
+const ESTIMATED_MEDIA_HEIGHT = 220;
+const ESTIMATED_NOTE_HEIGHT = 96;
+
+type RenderedListItem =
+  | { type: 'date'; id: string; label: string }
+  | { type: 'message'; id: string; message: UIBubble };
+
+function estimateItemHeight(item: RenderedListItem) {
+  if (item.type === 'date') return ESTIMATED_DATE_HEIGHT;
+
+  if (item.message.isNote) return ESTIMATED_NOTE_HEIGHT;
+  if (item.message.media || item.message.adPreview || item.message.kind === 'sticker') {
+    return ESTIMATED_MEDIA_HEIGHT;
+  }
+
+  const textLength = item.message.content?.length ?? 0;
+  return ESTIMATED_TEXT_HEIGHT + Math.min(180, Math.floor(textLength / 55) * 22);
+}
 
 /* Chat background — official WhatsApp pattern */
 const WA_PATTERN_URL = `url("/patterns/whatsapp-chat-pattern-light.svg")`;
@@ -116,6 +139,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   const bgStyle = isDark ? WA_STYLE_DARK : WA_STYLE_LIGHT;
   const autoLoadLockRef = useRef(false);
+  const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 });
 
   const fullList = useMemo(() => {
     const list = [...uiMessages];
@@ -124,10 +148,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
   }, [uiMessages, tempMessage]);
 
   const renderedList = useMemo(() => {
-    const items: Array<
-      | { type: 'date'; id: string; label: string }
-      | { type: 'message'; id: string; message: UIBubble }
-    > = [];
+    const items: RenderedListItem[] = [];
     let previousDayKey = '';
 
     for (const msg of fullList) {
@@ -146,8 +167,53 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     return items;
   }, [fullList]);
 
+  const virtualMetrics = useMemo(() => {
+    if (renderedList.length <= VIRTUALIZE_AFTER_ITEMS || activeSearchMessageId) {
+      return {
+        beforeHeight: 0,
+        afterHeight: 0,
+        items: renderedList,
+      };
+    }
+
+    const heights = renderedList.map(estimateItemHeight);
+    const offsets: number[] = [];
+    let totalHeight = 0;
+    for (const height of heights) {
+      offsets.push(totalHeight);
+      totalHeight += height;
+    }
+
+    const viewportHeight = viewport.height || 640;
+    const from = Math.max(0, viewport.scrollTop - viewportHeight);
+    const to = viewport.scrollTop + viewportHeight * 2;
+
+    let startIndex = offsets.findIndex((offset, index) => offset + heights[index] >= from);
+    if (startIndex === -1) startIndex = 0;
+    let endIndex = offsets.findIndex((offset) => offset > to);
+    if (endIndex === -1) endIndex = renderedList.length;
+
+    startIndex = Math.max(0, startIndex - VIRTUAL_OVERSCAN_ITEMS);
+    endIndex = Math.min(renderedList.length, endIndex + VIRTUAL_OVERSCAN_ITEMS);
+
+    return {
+      beforeHeight: offsets[startIndex] ?? 0,
+      afterHeight: Math.max(0, totalHeight - (offsets[endIndex] ?? totalHeight)),
+      items: renderedList.slice(startIndex, endIndex),
+    };
+  }, [activeSearchMessageId, renderedList, viewport.height, viewport.scrollTop]);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    setViewport({ scrollTop: el.scrollTop, height: el.clientHeight });
+  }, [listRef, renderedList.length]);
+
   const handleScroll = useCallback(() => {
     const el = listRef.current;
+    if (el) {
+      setViewport({ scrollTop: el.scrollTop, height: el.clientHeight });
+    }
     if (!el || !onLoadOlderMessages || !canLoadOlderMessages || loading || loadingOlderMessages || autoLoadLockRef.current) {
       return;
     }
@@ -199,7 +265,10 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
           </div>
         )}
         {loading && <div className="text-center text-gray-500 py-4">Cargando mensajes…</div>}
-        {renderedList.map((item) => {
+        {virtualMetrics.beforeHeight > 0 && (
+          <div aria-hidden="true" style={{ height: virtualMetrics.beforeHeight }} />
+        )}
+        {virtualMetrics.items.map((item) => {
           if (item.type === 'date') {
             return <ConversationDateBadge key={item.id} label={item.label} />;
           }
@@ -256,6 +325,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
             </div>
           );
         })}
+        {virtualMetrics.afterHeight > 0 && (
+          <div aria-hidden="true" style={{ height: virtualMetrics.afterHeight }} />
+        )}
       </div>
     </div>
   );

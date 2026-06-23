@@ -222,51 +222,88 @@ function buildMessageContent(row: Pick<PersistedChatMessageRow | InboxRow, 'mess
   };
 }
 
+function getRawEvolutionSnapshot(raw: Prisma.JsonValue | null): Partial<EvolutionMessage> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+
+  const candidate = raw as Record<string, unknown>;
+  if (
+    'key' in candidate ||
+    'status' in candidate ||
+    'MessageUpdate' in candidate ||
+    'messageTimestamp' in candidate
+  ) {
+    return candidate as Partial<EvolutionMessage>;
+  }
+
+  return null;
+}
+
+function getPersistedDeliveryStatus(row: Pick<PersistedChatMessageRow | InboxRow, 'raw' | 'fromMe'>) {
+  const snapshot = getRawEvolutionSnapshot(row.raw);
+  if (typeof snapshot?.status === 'string' && snapshot.status.trim()) {
+    return snapshot.status;
+  }
+
+  return row.fromMe ? 'DELIVERY_ACK' : '';
+}
+
+function getPersistedMessageUpdates(raw: Prisma.JsonValue | null) {
+  const snapshot = getRawEvolutionSnapshot(raw);
+  return Array.isArray(snapshot?.MessageUpdate) ? snapshot.MessageUpdate : undefined;
+}
+
 export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): EvolutionMessage {
+  const rawSnapshot = getRawEvolutionSnapshot(row.raw);
+
   return {
     id: String(row.id),
     key: {
-      id: row.messageId,
-      fromMe: row.fromMe,
-      remoteJid: row.remoteJid,
-      remoteJidAlt: row.remoteJidAlt ?? undefined,
-      senderPn: row.senderPn ?? undefined,
+      ...(rawSnapshot?.key ?? {}),
+      id: rawSnapshot?.key?.id || row.messageId,
+      fromMe: rawSnapshot?.key?.fromMe ?? row.fromMe,
+      remoteJid: rawSnapshot?.key?.remoteJid || row.remoteJid,
+      remoteJidAlt: rawSnapshot?.key?.remoteJidAlt || row.remoteJidAlt || undefined,
+      senderPn: rawSnapshot?.key?.senderPn || row.senderPn || undefined,
     },
-    pushName: row.pushName,
-    senderPn: row.senderPn,
-    participant: null,
-    messageType: row.messageType,
+    pushName: rawSnapshot?.pushName ?? row.pushName,
+    senderPn: rawSnapshot?.senderPn ?? row.senderPn,
+    participant: rawSnapshot?.participant ?? null,
+    messageType: rawSnapshot?.messageType ?? row.messageType,
     message: buildMessageContent(row),
-    contextInfo: null,
-    source: row.instanceType || 'local',
-    messageTimestamp: dateToEpochSeconds(row.messageTimestamp),
-    instanceId: row.instanceName,
-    sessionId: null,
-    status: 'LOCAL',
+    contextInfo: rawSnapshot?.contextInfo ?? null,
+    source: rawSnapshot?.source ?? row.instanceType ?? 'local',
+    messageTimestamp: rawSnapshot?.messageTimestamp ?? dateToEpochSeconds(row.messageTimestamp),
+    instanceId: rawSnapshot?.instanceId ?? row.instanceName,
+    sessionId: rawSnapshot?.sessionId ?? null,
+    status: getPersistedDeliveryStatus(row),
+    MessageUpdate: getPersistedMessageUpdates(row.raw),
   };
 }
 
 function inboxRowToChat(row: InboxRow): ChatData {
   const timestamp = row.messageTimestamp ?? row.sessionUpdatedAt;
+  const rawSnapshot = getRawEvolutionSnapshot(row.raw);
   const lastMessage: LastMessage | null = row.messageId
     ? {
         id: String(row.messageId),
         key: {
-          id: row.messageId,
-          fromMe: Boolean(row.fromMe),
-          remoteJid: row.remoteJid,
-          remoteJidAlt: row.remoteJidAlt ?? undefined,
+          ...(rawSnapshot?.key ?? {}),
+          id: rawSnapshot?.key?.id || row.messageId,
+          fromMe: rawSnapshot?.key?.fromMe ?? Boolean(row.fromMe),
+          remoteJid: rawSnapshot?.key?.remoteJid || row.remoteJid,
+          remoteJidAlt: rawSnapshot?.key?.remoteJidAlt || row.remoteJidAlt || undefined,
         },
-        pushName: row.pushName,
-        participant: null,
-        messageType: row.messageType || 'conversation',
+        pushName: rawSnapshot?.pushName ?? row.pushName,
+        senderPn: rawSnapshot?.senderPn ?? undefined,
+        participant: rawSnapshot?.participant ?? null,
+        messageType: rawSnapshot?.messageType || row.messageType || 'conversation',
         message: buildMessageContent(row),
-        contextInfo: null,
-        source: row.instanceType || 'local',
-        messageTimestamp: dateToEpochSeconds(timestamp),
-        instanceId: row.instanceName,
-        sessionId: String(row.sessionId),
-        status: 'LOCAL',
+        contextInfo: rawSnapshot?.contextInfo ?? null,
+        source: rawSnapshot?.source ?? row.instanceType ?? 'local',
+        messageTimestamp: rawSnapshot?.messageTimestamp ?? dateToEpochSeconds(timestamp),
+        instanceId: rawSnapshot?.instanceId ?? row.instanceName,
+        sessionId: rawSnapshot?.sessionId ?? String(row.sessionId),
+        status: getPersistedDeliveryStatus(row),
       }
     : null;
 

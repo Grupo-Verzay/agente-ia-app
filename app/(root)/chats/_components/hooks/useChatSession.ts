@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { getSessionByRemoteJid } from '@/actions/session-action';
 import { updateLeadPushNameAction } from '@/actions/registro-action';
@@ -37,6 +37,10 @@ export function useChatSession({
   const [session, setSession] = useState<Session | null>(null);
   const [contactNameDraft, setContactNameDraft] = useState('');
   const [isContactUpdatePending, setIsContactUpdatePending] = useState(false);
+  const aliasesKey = useMemo(
+    () => Array.from(new Set((remoteJidAliases ?? []).filter(Boolean))).sort().join('|'),
+    [remoteJidAliases],
+  );
 
   const fetchSessionStatus = useCallback(async () => {
     if (!userId || !remoteJid) {
@@ -47,7 +51,7 @@ export function useChatSession({
 
     try {
       const candidates = Array.from(
-        new Set([remoteJid, ...(remoteJidAliases ?? [])].filter(Boolean)),
+        new Set([remoteJid, ...aliasesKey.split('|')].filter(Boolean)),
       );
 
       const effectiveUserIds = sessionUserIds?.length ? sessionUserIds : [userId];
@@ -73,7 +77,7 @@ export function useChatSession({
       setSession(null);
       console.error('Error al obtener el estado de la sesión:', error);
     }
-  }, [userId, remoteJid, remoteJidAliases, onSessionResolved]);
+  }, [userId, remoteJid, aliasesKey, sessionUserIds, onSessionResolved]);
 
   useEffect(() => {
     if (userId && remoteJid) {
