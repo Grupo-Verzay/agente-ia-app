@@ -68,6 +68,7 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
     const [isUpdatingStatus, startStatusTransition] = useTransition()
     const router = useRouter()
     const isRecurring = Boolean(reminder.repeatType && reminder.repeatType !== "NONE")
+    const isSent = Boolean(reminder.sentAt)
     const phone = fmtPhone(reminder.remoteJid)
     const repeatLabel = isRecurring
         ? repeatTypes.find(type => type.value === reminder.repeatType)?.label ?? "Recurrente"
@@ -126,6 +127,12 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                             <Badge className={`h-5 gap-1 px-1.5 py-0 text-[10px] font-medium border-0 shrink-0 ${isRecurring ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
                                 {isRecurring ? <><Repeat2 className="h-3 w-3" />{repeatLabel}</> : "Unico"}
                             </Badge>
+                            {isSent && (
+                                <Badge className="h-5 gap-1 border-0 bg-emerald-100 px-1.5 py-0 text-[10px] font-medium text-emerald-700 shrink-0 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Enviado
+                                </Badge>
+                            )}
                         </div>
 
                         {reminder.pushName && (
@@ -208,6 +215,12 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                             <Badge className={`h-5 gap-1 px-1.5 py-0 text-[10px] font-medium border-0 ${isRecurring ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
                                 {isRecurring ? <><Repeat2 className="h-3 w-3" />{repeatLabel}</> : "Unico"}
                             </Badge>
+                            {isSent && (
+                                <Badge className="h-5 gap-1 border-0 bg-emerald-100 px-1.5 py-0 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Enviado
+                                </Badge>
+                            )}
                             {hasMedia && (
                                 <Badge className="h-5 gap-1 border-0 bg-sky-100 px-1.5 py-0 text-[10px] text-sky-700">
                                     <FileIcon className="h-3 w-3" />

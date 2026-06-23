@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { ReminderListClient, ReminderSkeleton, ReminderModal } from './';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Bell, CalendarDays, Clock3, Kanban, List, Repeat2, Search, Settings2 } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarDays, CheckCircle2, Clock3, Kanban, List, Repeat2, Search, Settings2 } from 'lucide-react';
 import { MainReminderInterface } from '@/schema/reminder';
 import { Input } from '@/components/ui/input';
 import { closeDialog, openCreateDialog, useReminderDialogStore } from '@/stores';
@@ -36,10 +36,13 @@ const parseReminderTime = (time: string | null) => {
   return new Date(Number(year), Number(month) - 1, Number(day), Number(hours), Number(minutes)).getTime();
 };
 
-type ReminderGroup = 'pending' | 'today' | 'tomorrow' | 'recurring' | 'expired';
+type ReminderGroup = 'pending' | 'today' | 'tomorrow' | 'recurring' | 'sent' | 'expired';
 
 const getReminderGroup = (reminder: Reminders, now: number, tomorrow: number, dayAfterTomorrow: number): ReminderGroup => {
   if (reminder.repeatType && reminder.repeatType !== 'NONE') return 'recurring';
+
+  // Ya enviado → evidencia de "Enviado" (no "Vencido"), sin importar su hora.
+  if (reminder.sentAt) return 'sent';
 
   const timestamp = parseReminderTime(reminder.time);
   if (timestamp === null || timestamp >= dayAfterTomorrow) return 'pending';
@@ -74,6 +77,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
       today: 0,
       tomorrow: 0,
       recurring: 0,
+      sent: 0,
       expired: 0,
     };
 
@@ -147,6 +151,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
       today: [],
       tomorrow: [],
       recurring: [],
+      sent: [],
       expired: [],
     };
 
@@ -160,6 +165,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
       { key: 'today', label: 'Para hoy', color: '#3B82F6', items: groups.today },
       { key: 'tomorrow', label: 'Mañana', color: '#22C55E', items: groups.tomorrow },
       { key: 'recurring', label: 'Recurrentes', color: '#8B5CF6', items: groups.recurring },
+      { key: 'sent', label: 'Enviados', color: '#10B981', items: groups.sent },
       { key: 'expired', label: 'Vencidos', color: '#EF4444', items: groups.expired },
     ];
   }, [filteredReminders]);
@@ -178,7 +184,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
       <div className={`sticky top-0 z-1 mb-2 ${themeClass}`}>
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-2">
           {!isScheduleView && (
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-5">
               <div className="min-w-0">
                 <MetricCard icon={<Bell className="h-4 w-4" />} label="Pendientes" value={reminderMetrics.pending} helper={isCampaignPage ? "Campañas pendientes por enviar" : "Recordatorios pendientes por enviar"} color="#F59E0B" />
               </div>
@@ -189,7 +195,10 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
                 <MetricCard icon={<Repeat2 className="h-4 w-4" />} label="Recurrentes" value={reminderMetrics.recurring} helper={isCampaignPage ? "Campañas configuradas para repetirse" : "Recordatorios configurados para repetirse"} color="#8B5CF6" />
               </div>
               <div className="min-w-0">
-                <MetricCard icon={<AlertTriangle className="h-4 w-4" />} label="Vencidos" value={reminderMetrics.expired} helper={isCampaignPage ? "Campañas con fecha anterior al momento actual" : "Recordatorios con fecha anterior al momento actual"} color="#EF4444" />
+                <MetricCard icon={<CheckCircle2 className="h-4 w-4" />} label="Enviados" value={reminderMetrics.sent} helper={isCampaignPage ? "Campañas ya enviadas" : "Recordatorios ya enviados"} color="#10B981" />
+              </div>
+              <div className="min-w-0">
+                <MetricCard icon={<AlertTriangle className="h-4 w-4" />} label="Vencidos" value={reminderMetrics.expired} helper={isCampaignPage ? "Campañas vencidas sin enviar" : "Recordatorios vencidos sin enviar"} color="#EF4444" />
               </div>
             </div>
           )}
