@@ -67,7 +67,7 @@ function AgendaCardItem({ card, isDragging = false }: { card: AgendaKanbanCard; 
                     <User className="h-3.5 w-3.5 text-primary" />
                 </div>
                 <div className="min-w-0">
-                    <p className="text-sm font-medium truncate leading-tight uppercase">
+                    <p className="text-sm font-medium truncate leading-tight capitalize">
                         {card.pushName ?? 'Sin nombre'}
                     </p>
                     <Link

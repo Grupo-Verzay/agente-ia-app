@@ -85,7 +85,7 @@ function BookingCardItem({ card, isDragging = false, onDelete }: {
                         <User className="h-3.5 w-3.5 text-primary" />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate leading-tight uppercase">{card.clientName || 'Sin nombre'}</p>
+                        <p className="text-sm font-medium truncate leading-tight capitalize">{card.clientName || 'Sin nombre'}</p>
                         <p className="text-[11px] text-muted-foreground truncate">{card.clientPhone}</p>
                     </div>
                     {!isDragging && onDelete && (

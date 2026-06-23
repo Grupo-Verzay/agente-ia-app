@@ -154,7 +154,7 @@ function KanbanCardItem({
                         <User className="h-3.5 w-3.5 text-primary" />
                     </div>
                     <div className="min-w-0">
-                        <p className="text-sm font-medium truncate leading-tight uppercase">{card.pushName}</p>
+                        <p className="text-sm font-medium truncate leading-tight capitalize">{card.pushName}</p>
                         <Link
                             href={`/chats?jid=${encodeURIComponent(card.remoteJid)}`}
                             className="text-[11px] text-primary hover:underline block"
