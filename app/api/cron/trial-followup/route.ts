@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { ADMIN_USER_ID } from '@/types/generic'
 
 const CRON_HEADER = 'x-cron-secret'
 
@@ -103,23 +104,46 @@ async function runTrialFollowUps() {
   const results = { sent: 0, skipped: 0, failed: 0, deferred: 0 }
   if (trialUsers.length === 0) return results
 
-  // Carga en lote para evitar N+1: configs y credenciales de cada reseller.
+  // Carga en lote para evitar N+1: configs por reseller + config central (admin) y logs.
   const resellerIds = Array.from(new Set(trialUsers.map(u => u.demoResellerId).filter((id): id is string => !!id)))
-  const [configs, resellers, logs] = await Promise.all([
+  const [configs, adminConfig, logs] = await Promise.all([
     db.trialFollowUpConfig.findMany({ where: { resellerId: { in: resellerIds } } }),
-    db.user.findMany({
-      where: { id: { in: resellerIds } },
-      select: { id: true, apiKey: { select: { url: true, key: true } } },
-    }),
+    db.trialFollowUpConfig.findUnique({ where: { resellerId: ADMIN_USER_ID } }),
     db.trialFollowUpLog.findMany({ where: { userId: { in: trialUsers.map(u => u.id) } } }),
   ])
   const configByReseller = new Map(configs.map(c => [c.resellerId, c]))
-  const resellerById = new Map(resellers.map(r => [r.id, r]))
   const logsByUser = new Map<string, typeof logs>()
   for (const log of logs) {
     const arr = logsByUser.get(log.userId) ?? []
     arr.push(log)
     logsByUser.set(log.userId, arr)
+  }
+
+  // Resolver el servidor Evolution (url + key) de cada instancia seleccionada de
+  // forma dinámica: instancia -> usuario dueño -> su apiKey (servidor evoapiN).
+  // Así la URL sale de la instancia elegida en el panel, no de un env fijo.
+  const neededInstances = Array.from(new Set(
+    [adminConfig?.instanceName, ...configs.map(c => c.instanceName)]
+      .filter((n): n is string => !!n && n.trim() !== ''),
+  ))
+  const instanceCredByName = new Map<string, { url: string; key: string }>()
+  if (neededInstances.length > 0) {
+    const instRows = await db.instancia.findMany({
+      where: { instanceName: { in: neededInstances } },
+      select: { instanceName: true, userId: true },
+    })
+    const ownerIds = Array.from(new Set(instRows.map(r => r.userId)))
+    const owners = await db.user.findMany({
+      where: { id: { in: ownerIds } },
+      select: { id: true, apiKey: { select: { url: true, key: true } } },
+    })
+    const apiKeyByUser = new Map(owners.map(o => [o.id, o.apiKey]))
+    for (const row of instRows) {
+      const ak = apiKeyByUser.get(row.userId)
+      if (ak?.url && ak.key && !instanceCredByName.has(row.instanceName)) {
+        instanceCredByName.set(row.instanceName, { url: ak.url, key: ak.key })
+      }
+    }
   }
 
   for (const user of trialUsers) {
@@ -148,26 +172,13 @@ async function runTrialFollowUps() {
       continue
     }
 
-    // Config del reseller
-    const config = user.demoResellerId ? configByReseller.get(user.demoResellerId) ?? null : null
+    // Config aplicable: la del reseller del usuario; si no tiene, la central (admin).
+    const config =
+      (user.demoResellerId ? configByReseller.get(user.demoResellerId) : null) ?? adminConfig ?? null
 
     // Apagado global o apagado específico para este día.
     const dayEnabledKey = `enabled${targetDay}` as 'enabled1' | 'enabled3' | 'enabled6'
     if (config && (!config.enabled || !config[dayEnabledKey])) { results.skipped++; continue }
-
-    // Credenciales Evolution
-    const instanceName = config?.instanceName || fallbackInstanceName
-    let apiUrl = fallbackApiUrl
-    let apiKey = fallbackApiKey
-
-    // Si el reseller tiene su propia instancia configurada, usar sus credenciales
-    if (config?.instanceName && user.demoResellerId) {
-      const resellerUser = resellerById.get(user.demoResellerId)
-      if (resellerUser?.apiKey) {
-        apiUrl = resellerUser.apiKey.url
-        apiKey = resellerUser.apiKey.key
-      }
-    }
 
     const recordLog = (status: 'SENT' | 'FAILED', error?: string) =>
       db.trialFollowUpLog.upsert({
@@ -175,6 +186,25 @@ async function runTrialFollowUps() {
         create: { userId: user.id, day: targetDay, status, error: error ?? null, attempts: 1, sentAt: now },
         update: { status, error: error ?? null, attempts: { increment: 1 }, sentAt: now },
       })
+
+    // Credenciales Evolution. Si hay instancia seleccionada, su servidor se
+    // resuelve dinámicamente desde la instancia (mismo criterio que el botón
+    // "Probar a mi número"). Si no hay instancia, se usa el número central de
+    // respaldo (FOLLOWUP_* env).
+    const selectedInstance = (config?.instanceName ?? '').trim()
+    let instanceName = selectedInstance || fallbackInstanceName
+    let apiUrl = fallbackApiUrl
+    let apiKey = fallbackApiKey
+    if (selectedInstance) {
+      const creds = instanceCredByName.get(selectedInstance)
+      if (!creds) {
+        await recordLog('FAILED', `Instancia "${selectedInstance}" sin servidor/credenciales`)
+        results.failed++
+        continue
+      }
+      apiUrl = creds.url
+      apiKey = creds.key
+    }
 
     if (!instanceName || !apiUrl || !apiKey) {
       await recordLog('FAILED', 'Sin credenciales Evolution configuradas')
