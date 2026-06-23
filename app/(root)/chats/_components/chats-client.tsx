@@ -65,6 +65,8 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
 type ApiKeyData = { url: string; key: string };
 const INITIAL_MESSAGE_PAGE_SIZE = 5;
 const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
+const SELECTED_CHAT_SYNC_DELAY_MS = 1600;
+const SELECTED_CHAT_POLLING_DELAY_MS = 2500;
 
 type ChatMessageInfo = {
   total?: number;
@@ -897,34 +899,38 @@ export function ChatsClient({
 
         if (!shouldOpenFromLocalFirst) return;
 
-        void effectiveWarmMessages(remoteJid, {
-          page: 1,
-          pageSize: INITIAL_MESSAGE_PAGE_SIZE,
-          remoteJidAliases,
-        })
-          .then((syncResult) => {
-            if (selectionRequestRef.current !== requestId || !syncResult?.success) return;
-            const merged = mergeMessages(messagesRef.current, syncResult.data || []);
-            const nextInfo = {
-              total: syncResult.total,
-              pages: syncResult.pages,
-              currentPage: syncResult.currentPage,
-              nextPage: syncResult.nextPage,
-              instanceName: effectiveInstanceName,
-              remoteJid,
-              remoteJidAliases,
-              apiKeyData: effectiveApiKeyData,
-            };
-            setMessages(merged);
-            setInfo(nextInfo);
-            messageCacheRef.current.set(cacheKey, {
-              messages: merged,
-              info: nextInfo,
-            });
+        window.setTimeout(() => {
+          if (selectionRequestRef.current !== requestId) return;
+
+          void effectiveWarmMessages(remoteJid, {
+            page: 1,
+            pageSize: INITIAL_MESSAGE_PAGE_SIZE,
+            remoteJidAliases,
           })
-          .catch(() => {
-            // Keep the local messages visible if the background sync fails.
-          });
+            .then((syncResult) => {
+              if (selectionRequestRef.current !== requestId || !syncResult?.success) return;
+              const merged = mergeMessages(messagesRef.current, syncResult.data || []);
+              const nextInfo = {
+                total: syncResult.total,
+                pages: syncResult.pages,
+                currentPage: syncResult.currentPage,
+                nextPage: syncResult.nextPage,
+                instanceName: effectiveInstanceName,
+                remoteJid,
+                remoteJidAliases,
+                apiKeyData: effectiveApiKeyData,
+              };
+              setMessages(merged);
+              setInfo(nextInfo);
+              messageCacheRef.current.set(cacheKey, {
+                messages: merged,
+                info: nextInfo,
+              });
+            })
+            .catch(() => {
+              // Keep the local messages visible if the background sync fails.
+            });
+        }, SELECTED_CHAT_SYNC_DELAY_MS);
       } catch {
         setMessages([]);
         setInfo((currentInfo) => ({
@@ -1349,7 +1355,7 @@ export function ChatsClient({
     };
 
     if (selectedJid) {
-      void tick();
+      pollingRef.current = setTimeout(() => void tick(), SELECTED_CHAT_POLLING_DELAY_MS);
     }
 
     const onVisibility = () => {
