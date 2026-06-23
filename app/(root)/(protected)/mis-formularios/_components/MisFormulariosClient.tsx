@@ -193,7 +193,7 @@ export function MisFormulariosClient({ initialForms, userId }: Props) {
                   {/* Title row */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-base truncate">{form.title}</h3>
+                      <h3 className="font-semibold text-base truncate uppercase">{form.title}</h3>
                       <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
                         /f/{userId.slice(0, 8)}.../{form.slug}
                       </p>

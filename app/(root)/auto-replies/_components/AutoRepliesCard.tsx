@@ -103,8 +103,9 @@ export const AutoRepliesCard = ({ autoReplie, workflows }: autoReplies) => {
                                 <Input
                                     autoFocus
                                     value={name}
-                                    onChange={(e) => setName(e.target.value)}
+                                    onChange={(e) => setName(e.target.value.toUpperCase())}
                                     onBlur={handleSaveName}
+                                    style={{ textTransform: "uppercase" }}
                                     onKeyDown={(e) => {
                                         if (e.key === "Enter") handleSaveName();
                                         if (e.key === "Escape") {
@@ -122,7 +123,7 @@ export const AutoRepliesCard = ({ autoReplie, workflows }: autoReplies) => {
                                     onClick={() => setEditingName(true)}
                                 >
                                     <Hash size={10} className="shrink-0" />
-                                    <span className="truncate">{name}</span>
+                                    <span className="truncate uppercase">{name}</span>
                                     <PencilLine size={10} className="ml-0.5 shrink-0 text-blue-500" />
                                 </Badge>
                             )

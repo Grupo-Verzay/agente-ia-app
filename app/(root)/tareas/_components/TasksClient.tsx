@@ -561,7 +561,7 @@ function KanbanCard({ task, onComplete, onCancel, onDelete }: {
         {/* Contenido izquierdo */}
         <div className="min-w-0 flex-1 flex flex-col gap-1">
           {/* Fila 1: título */}
-          <p className={cn("app-item-title truncate leading-tight", isDone && "line-through text-muted-foreground")}>
+          <p className={cn("app-item-title truncate leading-tight uppercase", isDone && "line-through text-muted-foreground")}>
             {task.title}
           </p>
 
@@ -691,7 +691,7 @@ function TaskCard({
 
         <div className="min-w-0 flex-1">
           {/* Fila 1: título */}
-          <p className={cn("app-item-title leading-snug", isDone && "line-through")}>{task.title}</p>
+          <p className={cn("app-item-title leading-snug uppercase", isDone && "line-through")}>{task.title}</p>
 
           <div className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
             {/* Fila 2: contacto + teléfono */}

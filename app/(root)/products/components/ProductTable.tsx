@@ -37,7 +37,7 @@ export const ProductTable = ({
     };
 
     const columns = useMemo<ColumnDef<ProductType>[]>(() => [
-        { header: "Nombre", accessorKey: "title" },
+        { header: "Nombre", accessorKey: "title", cell: ({ getValue }) => <span className="uppercase">{(getValue() as string) ?? ""}</span> },
         {
             header: "SKU",
             accessorKey: "sku",
