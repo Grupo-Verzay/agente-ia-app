@@ -11,6 +11,8 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { DEFAULT_SERVICE_REMINDERS } from '@/types/reminder';
+import { serviceDefaultMsg } from '@/app/(root)/schedule/_components/services/defaultServiceValues';
 
 // ─── Tipos de respuesta ───────────────────────────────────────────────────────
 
@@ -209,7 +211,18 @@ export async function createTeamService(
     data: { name: string; description?: string; duration: number; messageText?: string; remindersConfig?: any; color?: string; order?: number },
 ) {
     try {
-        const service = await db.teamService.create({ data: { teamId, ...data } });
+        // Sembrar valores por defecto al crear: mensaje de confirmación y los 5
+        // recordatorios por servicio, salvo que ya vengan definidos.
+        const hasReminders =
+            Array.isArray(data.remindersConfig) && data.remindersConfig.length > 0;
+        const remindersConfig = hasReminders
+            ? data.remindersConfig
+            : DEFAULT_SERVICE_REMINDERS;
+        const messageText = data.messageText?.trim() ? data.messageText : serviceDefaultMsg;
+
+        const service = await db.teamService.create({
+            data: { teamId, ...data, messageText, remindersConfig },
+        });
         return { success: true, message: 'Servicio creado.', data: service };
     } catch (error) {
         console.error('[createTeamService]', error);

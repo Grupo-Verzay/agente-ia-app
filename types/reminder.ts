@@ -43,3 +43,30 @@ export const DEFAULT_REMINDERS_TEMPLATES: ReminderTemplate[] = [
             "😊 *¡Comenzamos!*\n\n@client_name, tu sesión empieza en *1 MINUTO*. Por favor ingresa para comenzar a tiempo.",
     },
 ];
+
+// ── Bookings: recordatorios por defecto por servicio ──────────────────────────
+// El módulo de Bookings guarda los recordatorios en TeamService.remindersConfig
+// como { title, timeMinutes, message }, donde timeMinutes son los minutos ANTES
+// de la cita. Convertimos las plantillas globales ("days-1", "hours-3", ...) a
+// ese formato para sembrarlos al crear un servicio.
+
+export type ServiceReminderDefault = {
+    title: string;
+    timeMinutes: number;
+    message: string;
+};
+
+function timeStringToMinutes(time: string): number {
+    const [unit, numStr] = time.split("-");
+    const n = parseInt(numStr, 10) || 0;
+    if (unit === "hours") return n * 60;
+    if (unit === "days") return n * 1440;
+    return n;
+}
+
+export const DEFAULT_SERVICE_REMINDERS: ServiceReminderDefault[] =
+    DEFAULT_REMINDERS_TEMPLATES.map((tpl) => ({
+        title: tpl.title,
+        timeMinutes: timeStringToMinutes(tpl.time),
+        message: tpl.description ?? "",
+    }));

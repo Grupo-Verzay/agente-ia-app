@@ -102,7 +102,7 @@ function ReminderFormDialog({ open, initial, userId, onClose, onSave, saving }: 
     const isEdit = Boolean(initial);
 
     const [title, setTitle]           = useState(initial?.title ?? '');
-    const [message, setMessage]       = useState(initial?.message ?? 'Hola @client_name, te recordamos tu cita: @appointment_datetime');
+    const [message, setMessage]       = useState(initial?.message ?? '👋 Hola @client_name, te recordamos tu *RESERVA* de *@service_name*: @appointment_datetime');
     const [timeValue, setTimeValue]   = useState(minsToTimeInput(initial?.timeMinutes ?? 60));
     const [mediaPreview, setMediaPreview] = useState<{ fileName: string; mimeType: string; size: number; type: MediaType } | null>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -113,7 +113,7 @@ function ReminderFormDialog({ open, initial, userId, onClose, onSave, saving }: 
     useEffect(() => {
         if (open) {
             setTitle(initial?.title ?? '');
-            setMessage(initial?.message ?? 'Hola @client_name, te recordamos tu cita: @appointment_datetime');
+            setMessage(initial?.message ?? '👋 Hola @client_name, te recordamos tu *RESERVA* de *@service_name*: @appointment_datetime');
             setTimeValue(minsToTimeInput(initial?.timeMinutes ?? 60));
             setMediaPreview(null);
             setSelectedFile(null);
@@ -215,7 +215,7 @@ function ReminderFormDialog({ open, initial, userId, onClose, onSave, saving }: 
                             className="min-h-[72px] max-h-[180px] resize-y text-sm"
                         />
                         <p className="text-[10px] text-muted-foreground">
-                            Variables: @client_name · @appointment_datetime · @appointment_duration
+                            Variables: @client_name · @service_name · @appointment_datetime · @appointment_duration
                         </p>
                     </div>
 

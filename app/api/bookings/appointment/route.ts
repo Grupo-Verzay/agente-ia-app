@@ -189,7 +189,7 @@ async function runPostBookingTasks({
         if (reminderDate.getTime() <= Date.now()) return;
 
         const seguimientoTime = subtractSecondsFromTime(new Date(startTime), seconds);
-        const mensaje = formatReminderMessage(rem.message, pushName, startTime, timezone, slotDuration, clientTimezone);
+        const mensaje = formatReminderMessage(rem.message, pushName, startTime, timezone, slotDuration, clientTimezone, service?.name ?? '');
 
         await db.seguimiento.create({
           data: {
