@@ -286,7 +286,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
                 <div className="flex shrink-0 items-center justify-between px-3 py-2" style={{ backgroundColor: column.color }}>
                   <div className="flex items-center gap-1.5">
                     <CalendarDays className="h-3.5 w-3.5 text-white/80" />
-                    <span className="text-sm font-semibold text-white">{column.label}</span>
+                    <span className="text-sm font-semibold text-white uppercase">{column.label}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Badge className="border-0 bg-white/20 text-xs font-medium text-white">{column.items.length}</Badge>
