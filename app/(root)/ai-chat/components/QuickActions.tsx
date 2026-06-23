@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { sendChatAction } from "@/actions/ai-chat-actions";
 import { useChatStore } from "@/stores/ai-chat/useChatStore";
 import { useChatContext } from "../hooks/useChatContext";
+import { cn } from "@/lib/utils";
 
 const CLIENT_TIMEOUT_MS = 26000;
 
@@ -118,7 +119,7 @@ export const QuickActions = () => {
 
     return (
         <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-            {suggestions.map((suggestion) => (
+            {suggestions.map((suggestion, index) => (
                 <Button
                     key={suggestion.label}
                     type="button"
@@ -126,7 +127,10 @@ export const QuickActions = () => {
                     size="sm"
                     disabled={isTyping}
                     onClick={() => sendSuggestion(suggestion)}
-                    className="h-8 min-w-0 justify-center rounded-md px-2 text-xs"
+                    className={cn(
+                        "h-8 min-w-0 justify-center rounded-md px-2 text-xs",
+                        suggestions.length === 3 && index === 2 && "col-span-2 sm:col-span-1",
+                    )}
                     title={suggestion.prompt}
                 >
                     <span className="truncate">{suggestion.label}</span>
