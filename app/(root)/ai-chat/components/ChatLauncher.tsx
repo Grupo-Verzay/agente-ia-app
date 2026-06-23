@@ -22,9 +22,9 @@ export const ChatLauncher = ({
             aria-controls={controlsId}
             aria-expanded={open}
             className={cn(
-                "group fixed z-40 flex h-12 w-12 items-center justify-center rounded-l-full border border-r-0 border-primary/25 bg-background text-primary shadow-lg shadow-black/10 transition-all hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                "group fixed z-[60] flex h-12 w-12 items-center justify-center rounded-l-full border border-r-0 border-primary/25 bg-background text-primary shadow-lg shadow-black/10 transition-all hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                 "right-0 top-1/2 -translate-y-1/2",
-                "max-sm:bottom-5 max-sm:right-4 max-sm:top-auto max-sm:h-14 max-sm:w-14 max-sm:translate-y-0 max-sm:rounded-full max-sm:border max-sm:p-0",
+                "max-sm:right-0 max-sm:top-1/2 max-sm:h-12 max-sm:w-12 max-sm:-translate-y-1/2 max-sm:rounded-l-full max-sm:border max-sm:border-r-0 max-sm:p-0",
                 open && "bg-primary text-primary-foreground",
                 className,
             )}
