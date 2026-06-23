@@ -33,6 +33,14 @@ services:
 
       - FOLLOW_UP_RUNNER_URL=
       - FOLLOW_UP_RUNNER_KEY=
+
+      # --- Tiempo real (Chats) ---
+      # URL pública del servidor de WebSocket (api-webhook), p. ej.
+      # https://webhook.tu-dominio.com . El cliente la recibe vía /api/realtime/token.
+      - REALTIME_URL=
+      # Secreto compartido con api-webhook para firmar/verificar el token del
+      # WebSocket. DEBE ser el MISMO valor en ambos servicios.
+      - REALTIME_JWT_SECRET=
     deploy:
       mode: replicated
       replicas: 1

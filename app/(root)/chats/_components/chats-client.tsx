@@ -17,6 +17,7 @@ import { assignTagToSessionAction } from "@/actions/tag-actions";
 import { getChatContactSessions } from "@/actions/session-action";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { useAdvisorNotifications } from "@/hooks/chats/useAdvisorNotifications";
+import { useChatsRealtime } from "@/hooks/chats/useChatsRealtime";
 import type {
   ChatData,
   EvolutionMessage,
@@ -1423,6 +1424,38 @@ export function ChatsClient({
     setComposeInitialContact({ jid: selectedJid, name, phone });
     setIsComposeOpen(true);
   }, [selectedJid, currentContact, currentContactSession]);
+
+  // ─── Tiempo real (Fase 1): el socket dispara el refetch ya probado ───
+  // Si el realtime no está configurado por entorno, el hook no hace nada y todo
+  // sigue con el polling de fondo. Es puramente aditivo (acelerador).
+  const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useChatsRealtime({
+    enabled: normalizedInitialChatsResult.success,
+    onChatChanged: (payload) => {
+      const jid = payload.remoteJid;
+      // Si es el chat abierto, refresca sus mensajes al instante.
+      const isOpenChat =
+        jid && (jid === selectedJid || currentContact?.aliases?.includes(jid));
+      if (isOpenChat && selectedJid) {
+        void pollAndCompareMessages(selectedJid, currentContact?.aliases);
+      }
+      // Para la lista, refresco con debounce (coalesce ráfagas de eventos)
+      // para no golpear Evolution en cada mensaje.
+      if (realtimeRefreshTimerRef.current) {
+        clearTimeout(realtimeRefreshTimerRef.current);
+      }
+      realtimeRefreshTimerRef.current = setTimeout(() => {
+        void refreshSidebarData();
+      }, 2000);
+    },
+  });
+  useEffect(() => {
+    return () => {
+      if (realtimeRefreshTimerRef.current) {
+        clearTimeout(realtimeRefreshTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <>
