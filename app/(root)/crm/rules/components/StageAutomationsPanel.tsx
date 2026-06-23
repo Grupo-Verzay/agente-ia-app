@@ -117,7 +117,7 @@ function ActionConfigForm({
         <div className="space-y-3">
           <div className="space-y-1">
             <Label>Título</Label>
-            <Input value={String(config.title ?? "")} onChange={(e) => set("title", e.target.value)} placeholder="Título de la tarea" />
+            <Input value={String(config.title ?? "")} onChange={(e) => set("title", e.target.value.toUpperCase())} placeholder="Título de la tarea" className="uppercase" />
           </div>
           <div className="space-y-1">
             <Label>Descripción (opcional)</Label>

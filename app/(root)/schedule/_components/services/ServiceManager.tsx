@@ -193,7 +193,7 @@ function ServiceFormDialog({
                                 <FormItem>
                                     <FormLabel className="text-sm font-semibold">Nombre del servicio</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="Ej: Asesoría técnica" {...field} />
+                                        <Input placeholder="Ej: Asesoría técnica" {...field} className="uppercase" onChange={(e) => field.onChange(e.target.value.toUpperCase())} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

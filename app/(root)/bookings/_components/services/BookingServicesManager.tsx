@@ -204,7 +204,7 @@ function ServiceFormDialog({
                             <FormField control={form.control} name="name" render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Nombre del servicio</FormLabel>
-                                    <FormControl><Input placeholder="Ej: Consulta médica" {...field} /></FormControl>
+                                    <FormControl><Input placeholder="Ej: Consulta médica" {...field} className="uppercase" onChange={(e) => field.onChange(e.target.value.toUpperCase())} /></FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )} />

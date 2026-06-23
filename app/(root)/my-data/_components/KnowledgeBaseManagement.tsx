@@ -285,9 +285,9 @@ export function KnowledgeBaseManagement({ userId, refreshKey, onDataChanged }: P
               <Input
                 id="kb-title"
                 value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value.toUpperCase() }))}
                 placeholder="Ej: Producto A — Características"
-                className="text-sm"
+                className="text-sm uppercase"
               />
             </div>
 
