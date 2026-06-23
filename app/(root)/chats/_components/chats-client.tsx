@@ -67,6 +67,9 @@ const INITIAL_MESSAGE_PAGE_SIZE = 5;
 const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
 const SELECTED_CHAT_SYNC_DELAY_MS = 1600;
 const SELECTED_CHAT_POLLING_DELAY_MS = 2500;
+// Intervalo de refresco de la lista de chats. Se elevó de 10s a 20s para
+// reducir la carga (cada ciclo golpea Evolution + BD + recálculo de la UI).
+const LIST_SYNC_INTERVAL_MS = 20000;
 
 type ChatMessageInfo = {
   total?: number;
@@ -329,7 +332,10 @@ export function ChatsClient({
   const selectionRequestRef = useRef(0);
   const bootstrapRequestedRef = useRef(false);
   const messageCacheRef = useRef<Map<string, ChatMessageCacheEntry>>(new Map());
-  const BASE_INTERVAL = 3000;
+  // Poll de mensajes del chat abierto. Se elevó de 3s a 6s: sigue detectando
+  // mensajes entrantes con fluidez pero reduce a la mitad las llamadas a
+  // Evolution y las escrituras en BD por ciclo.
+  const BASE_INTERVAL = 6000;
   const MAX_BACKOFF = 30000;
 
   const getMessageKey = useCallback((message: EvolutionMessage) => {
@@ -1307,6 +1313,13 @@ export function ChatsClient({
     const loop = async () => {
       if (stopped) return;
 
+      // No refrescar la lista cuando la pestaña está en segundo plano:
+      // evita golpear Evolution + BD + recálculo de UI sin que nadie lo vea.
+      if (typeof document !== "undefined" && document.hidden) {
+        timer = setTimeout(loop, LIST_SYNC_INTERVAL_MS);
+        return;
+      }
+
       const result = await refetchAllInstances();
       if (result.success) {
         const filtered = filterChatList(result);
@@ -1316,7 +1329,7 @@ export function ChatsClient({
         }
       }
 
-      timer = setTimeout(loop, 10000);
+      timer = setTimeout(loop, LIST_SYNC_INTERVAL_MS);
     };
 
     if (normalizedInitialChatsResult.success) {
@@ -1452,7 +1465,7 @@ export function ChatsClient({
           onCompose={instanceActionSets && instanceActionSets.length > 0 ? () => setIsComposeOpen(true) : undefined}
           onAssignAdvisor={
             assignAdvisorAction || takeSessionAction || releaseSessionAction || transferSessionAction
-              ? (remoteJid, advisorId) => handleAssignAdvisor(remoteJid, advisorId)
+              ? handleAssignAdvisor
               : undefined
           }
           onBulkArchive={handleBulkArchive}

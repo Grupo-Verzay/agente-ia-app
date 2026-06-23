@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Archive, CalendarClock, Check, CheckCircle, Copy, Lock, MailOpen, MailX, MoreVertical, PencilLine, Pin, Star, Tag, Trash2, UserCheck, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -96,7 +97,7 @@ type ChatContactItemProps = {
   hasNotes?: boolean;
 };
 
-export function ChatContactItem({
+function ChatContactItemBase({
   contact,
   onArchive,
   onDeleteRequest,
@@ -561,3 +562,8 @@ export function ChatContactItem({
     </div>
   );
 }
+
+// Memoizado: con props/callbacks estables, los items de la lista no se
+// re-renderizan en cada poll de mensajes/lista. Solo se actualizan cuando
+// cambian sus propios datos.
+export const ChatContactItem = React.memo(ChatContactItemBase);

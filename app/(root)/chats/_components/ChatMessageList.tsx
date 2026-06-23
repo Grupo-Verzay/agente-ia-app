@@ -119,7 +119,7 @@ interface ChatMessageListProps {
   activeSearchMessageId?: string;
 }
 
-export const ChatMessageList: React.FC<ChatMessageListProps> = ({
+const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   uiMessages,
   loading,
   listRef,
@@ -332,3 +332,8 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     </div>
   );
 };
+
+// Memoizado: evita re-renderizar toda la lista de mensajes cuando el padre
+// (ChatMain) se re-renderiza por estados no relacionados, p. ej. cada tecla
+// escrita en el input. Solo re-renderiza si cambian sus props.
+export const ChatMessageList = React.memo(ChatMessageListBase);

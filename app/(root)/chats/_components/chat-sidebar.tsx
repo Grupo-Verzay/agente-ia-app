@@ -76,6 +76,24 @@ import {
 } from "./chat-sidebar.utils";
 import type { SidebarContact, TabKey, TabCounts } from "./chat-sidebar.types";
 
+// --- Virtualización de la lista lateral ---
+// A partir de este número de contactos visibles, solo se renderizan los items
+// dentro (y cerca) del viewport. Por debajo se renderiza la lista completa,
+// con el mismo comportamiento de siempre.
+const SIDEBAR_VIRTUALIZE_AFTER = 50;
+const SIDEBAR_OVERSCAN_ITEMS = 10;
+// Alturas estimadas (px). Los contactos con sesión CRM muestran una fila de
+// badges (más altos); los demás son más compactos. Es solo una estimación
+// para posicionar el viewport; la altura real la sigue dando el contenido.
+const SIDEBAR_ITEM_HEIGHT_WITH_BADGES = 100;
+const SIDEBAR_ITEM_HEIGHT_PLAIN = 68;
+
+function estimateSidebarItemHeight(contact: SidebarContact) {
+  return contact.chatSession
+    ? SIDEBAR_ITEM_HEIGHT_WITH_BADGES
+    : SIDEBAR_ITEM_HEIGHT_PLAIN;
+}
+
 type ChatSidebarProps = {
   allTags?: SimpleTag[];
   chatPreferences: ChatConversationPreferenceMap;
@@ -194,6 +212,10 @@ export function ChatSidebar({
   const [notesOnly, setNotesOnly] = useState(false);
   const [clientStatusFilter, setClientStatusFilter] = useState<ClientStatus | null>(null);
   const [serviceTypeFilter, setServiceTypeFilter] = useState<ServiceType | null>(null);
+
+  // Virtualización: contenedor scrolleable + viewport observado.
+  const listScrollRef = React.useRef<HTMLDivElement>(null);
+  const [listViewport, setListViewport] = useState({ scrollTop: 0, height: 0 });
 
   const isOwnerOrAdmin = advisorRole !== "agente";
   const showAdvisorFilter = isOwnerOrAdmin && (advisors?.length ?? 0) > 0;
@@ -438,12 +460,76 @@ export function ChatSidebar({
     });
   }, [contacts, q, selectedTagIds, tab, advisorFilter, unreadOnly, starredOnly, notesOnly, clientStatusFilter, serviceTypeFilter, starredJids, currentAdvisorId]);
 
+  // Ref con la lista filtrada actual, para usar dentro de efectos sin volver a
+  // dispararlos en cada cambio de la lista (p. ej. polls).
+  const filteredRef = React.useRef(filtered);
   React.useEffect(() => {
-    if (selectedJid) {
-      document
-        .querySelector(`[data-chat-id="${selectedJid}"]`)
-        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    filteredRef.current = filtered;
+  }, [filtered]);
+
+  const handleListScroll = useCallback(() => {
+    const el = listScrollRef.current;
+    if (el) setListViewport({ scrollTop: el.scrollTop, height: el.clientHeight });
+  }, []);
+
+  // Inicializa/actualiza el viewport cuando cambia el contenido o el tamaño.
+  React.useEffect(() => {
+    const el = listScrollRef.current;
+    if (el) setListViewport({ scrollTop: el.scrollTop, height: el.clientHeight });
+  }, [filtered.length, tab]);
+
+  // Ventana de items a renderizar (virtualización por estimación de altura).
+  const listVirtual = useMemo(() => {
+    if (filtered.length <= SIDEBAR_VIRTUALIZE_AFTER) {
+      return { beforeHeight: 0, afterHeight: 0, items: filtered };
     }
+
+    const heights = filtered.map(estimateSidebarItemHeight);
+    const offsets: number[] = [];
+    let totalHeight = 0;
+    for (const height of heights) {
+      offsets.push(totalHeight);
+      totalHeight += height;
+    }
+
+    const viewportHeight = listViewport.height || 640;
+    const from = Math.max(0, listViewport.scrollTop - viewportHeight);
+    const to = listViewport.scrollTop + viewportHeight * 2;
+
+    let startIndex = offsets.findIndex((offset, index) => offset + heights[index] >= from);
+    if (startIndex === -1) startIndex = 0;
+    let endIndex = offsets.findIndex((offset) => offset > to);
+    if (endIndex === -1) endIndex = filtered.length;
+
+    startIndex = Math.max(0, startIndex - SIDEBAR_OVERSCAN_ITEMS);
+    endIndex = Math.min(filtered.length, endIndex + SIDEBAR_OVERSCAN_ITEMS);
+
+    return {
+      beforeHeight: offsets[startIndex] ?? 0,
+      afterHeight: Math.max(0, totalHeight - (offsets[endIndex] ?? totalHeight)),
+      items: filtered.slice(startIndex, endIndex),
+    };
+  }, [filtered, listViewport.height, listViewport.scrollTop]);
+
+  React.useEffect(() => {
+    if (!selectedJid) return;
+
+    const el = document.querySelector(`[data-chat-id="${selectedJid}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
+    }
+
+    // Item fuera de la ventana virtualizada: desplazar el contenedor hasta su
+    // posición estimada para que se renderice y quede visible.
+    const list = filteredRef.current;
+    const index = list.findIndex((c) => c.id === selectedJid);
+    if (index < 0) return;
+    const container = listScrollRef.current;
+    if (!container) return;
+    let offset = 0;
+    for (let i = 0; i < index; i++) offset += estimateSidebarItemHeight(list[i]);
+    container.scrollTo({ top: Math.max(0, offset - 100), behavior: "smooth" });
   }, [selectedJid]);
 
   React.useEffect(() => {
@@ -593,6 +679,31 @@ export function ChatSidebar({
     if (res.success) toast.success("Etiqueta asignada.");
     else toast.error(res.message ?? "Error al asignar etiqueta.");
   }, [chatSessions]);
+
+  // Callbacks estables para los items (necesarios para que React.memo de
+  // ChatContactItem evite re-renders en cada poll).
+  const handleItemTogglePin = useCallback(
+    (id: string, isPinned: boolean) => void onTogglePin?.(id, isPinned),
+    [onTogglePin],
+  );
+  const handleItemArchive = useCallback(
+    (id: string, isArchived: boolean) => void onArchiveChat?.(id, isArchived),
+    [onArchiveChat],
+  );
+  const handleItemMarkRead = useCallback(
+    (id: string) => {
+      const c = contacts.find((x) => x.id === id);
+      if (c?.lastMessageId) markMessageAsSeen(id, c.lastMessageId);
+    },
+    [contacts, markMessageAsSeen],
+  );
+  const handleItemRenameRequest = useCallback(
+    (contact: SidebarContact) => {
+      setRenameDraft(contact.name);
+      setRenameTarget(contact);
+    },
+    [],
+  );
 
   const emptyMessage =
     tab === "archived"
@@ -747,10 +858,15 @@ export function ChatSidebar({
           )}
         </div>
 
-        <div role="list" className="flex-1 space-y-1 overflow-y-auto p-1">
+        <div
+          role="list"
+          ref={listScrollRef}
+          onScroll={handleListScroll}
+          className="flex-1 overflow-y-auto p-1"
+        >
           {tab === "deleted" ? (
             deletedContacts.length > 0 ? (
-              <>
+              <div className="flex flex-col gap-1">
                 <p className="px-2 py-1 text-xs text-muted-foreground">
                   {deletedContacts.length} chat{deletedContacts.length !== 1 ? "s" : ""}{" "}
                   eliminado{deletedContacts.length !== 1 ? "s" : ""}
@@ -762,19 +878,23 @@ export function ChatSidebar({
                     onRestore={(id) => void onRestoreChat?.(id)}
                   />
                 ))}
-              </>
+              </div>
             ) : (
               <ChatEmptyState Icon={Trash2} message={emptyMessage} />
             )
           ) : result.success && filtered.length > 0 ? (
-            filtered.map((contact) => (
+            <div className="flex flex-col gap-1">
+              {listVirtual.beforeHeight > 0 && (
+                <div aria-hidden="true" style={{ height: listVirtual.beforeHeight }} />
+              )}
+              {listVirtual.items.map((contact) => (
               <ChatContactItem
                 key={contact.id}
                 contact={contact}
                 selected={selectedJid === contact.id && (selectedInstanceName == null || contact.instanceName === selectedInstanceName)}
                 onSelect={handleSelectJid}
-                onTogglePin={(id, isPinned) => void onTogglePin?.(id, isPinned)}
-                onArchive={(id, isArchived) => void onArchiveChat?.(id, isArchived)}
+                onTogglePin={handleItemTogglePin}
+                onArchive={handleItemArchive}
                 onDeleteRequest={setDeleteTarget}
                 onLeadStatusChange={onLeadStatusChange}
                 onServiceTypeChange={onServiceTypeChange}
@@ -788,16 +908,20 @@ export function ChatSidebar({
                 isChecked={selectedJids.size > 0 ? selectedJids.has(contact.id) : undefined}
                 onToggleSelect={toggleSelectJid}
                 allTags={allTags}
-                onMarkRead={(id) => { const c = filtered.find((x) => x.id === id); if (c?.lastMessageId) markMessageAsSeen(id, c.lastMessageId); }}
-                onMarkUnread={(id) => markMessageAsUnseen(id)}
+                onMarkRead={handleItemMarkRead}
+                onMarkUnread={markMessageAsUnseen}
                 onResolve={handleResolve}
                 onAssignTag={handleAssignTag}
-                onRenameRequest={(contact) => { setRenameDraft(contact.name); setRenameTarget(contact); }}
+                onRenameRequest={handleItemRenameRequest}
                 isStarred={starredJids.has(contact.id)}
                 onToggleStar={toggleStarred}
                 hasNotes={contact.hasNotes}
               />
-            ))
+              ))}
+              {listVirtual.afterHeight > 0 && (
+                <div aria-hidden="true" style={{ height: listVirtual.afterHeight }} />
+              )}
+            </div>
           ) : (
             <ChatEmptyState
               Icon={Inbox}
