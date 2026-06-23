@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { redirect } from "next/navigation";
-import type { ApiKey, Instancia, QuickReply, Workflow } from "@prisma/client";
+import type { ApiKey, Instancia } from "@prisma/client";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPersistedInboxChats } from "@/lib/chat-persistence";
@@ -27,22 +27,11 @@ import {
   sendBaileysWorkflowAction,
   sendBaileysQuickReplyAction,
 } from "@/actions/baileys-chat-actions";
-import { getChatConversationPreferencesByUserId } from "@/actions/chat-conversation-actions";
 import { getInstancesByUserId } from "@/actions/instances-actions";
 import { getLinkedAccountsInstances, getMasterAccountInstances } from "@/actions/linked-account-actions";
-import { getAllRRs, getAllRRsByUserIds } from "@/actions/rr-actions";
-import { normalizeQuickReplyCategory } from "@/lib/quick-reply-categories";
-import { getChatContactSessions } from "@/actions/session-action";
-import { listTagsAction } from "@/actions/tag-actions";
-import { getWorkFlowByUser } from "@/actions/workflow-actions";
-import { getTeamAdvisorInfos } from "@/actions/team-actions";
 import { assignSessionToAdvisor, takeSession, releaseSession, transferSession } from "@/actions/advisor-assign-actions";
 import { ChatsClient, type InstanceActionSet } from "./_components/chats-client";
 import { normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
-import type {
-  ChatQuickReplyOption,
-  ChatWorkflowOption,
-} from "@/types/chat";
 
 type InstanceHealth = {
   instanceName: string;
@@ -73,16 +62,6 @@ function hasInstancias(
 
 function hasApikey(result: { data?: ApiKey | null }): result is { data: ApiKey } {
   return Boolean(result.data);
-}
-
-function hasWorkflows(result: { data?: Workflow[] | null }): result is { data: Workflow[] } {
-  return Array.isArray(result.data);
-}
-
-function hasQuickReplies(
-  result: { data?: QuickReply[] | null },
-): result is { data: QuickReply[] } {
-  return Array.isArray(result.data);
 }
 
 async function settle<T>(promise: Promise<T>): Promise<T | null> {
@@ -122,15 +101,11 @@ export default async function ChatsPage({
   const [
     resInstancias,
     resApikey,
-    workflowsResponse,
-    quickRepliesResponse0,
     linkedAccountsResponse,
     masterAccountsResponse,
   ] = await Promise.all([
     settle(getInstancesByUserId(effectiveOwnerId)),
     settle(getApiKeyById(ownerApiKeyId ?? "")),
-    settle(getWorkFlowByUser(effectiveOwnerId)),
-    settle(getAllRRs(effectiveOwnerId)),
     settle(getLinkedAccountsInstances(effectiveOwnerId)),
     settle(getMasterAccountInstances(user.sessionUserId ?? user.id)),
   ]);
@@ -159,12 +134,6 @@ export default async function ChatsPage({
     ...linkedAccountsData.map((la) => la.linkedUserId),
     ...masterAccountsData.map((ma) => ma.masterUserId),
   ].filter((id, idx, arr) => Boolean(id) && arr.indexOf(id) === idx);
-
-  // Si hay cuentas vinculadas, recargar quick replies de todos los userIds
-  const quickRepliesResponse =
-    allSessionUserIds.length > 1
-      ? await settle(getAllRRsByUserIds(allSessionUserIds))
-      : quickRepliesResponse0;
 
   // Meta enriquecida para la UI (incluye info de cuenta vinculada)
   const instanciasMeta = [
@@ -411,77 +380,8 @@ export default async function ChatsPage({
   // initialMessages se carga en el cliente via warmMessagesAction para no bloquear el render
   const initialMessages: EvoMsgFromAction[] = [];
 
-  const workflows = workflowsResponse && hasWorkflows(workflowsResponse) ? workflowsResponse.data : [];
-  const workflowOptions: ChatWorkflowOption[] = workflows.map((workflow) => ({
-    id: workflow.id,
-    name: workflow.name,
-    isPro: workflow.isPro,
-  }));
-
-  const quickReplies = quickRepliesResponse && hasQuickReplies(quickRepliesResponse) ? quickRepliesResponse.data : [];
-  const quickReplyOptions: ChatQuickReplyOption[] = quickReplies
-    .map((quickReply) => {
-      const workflow = workflows.find((item) => item.id === quickReply.workflowId);
-      const message = quickReply.mensaje?.trim() ?? "";
-      if (!message) return null;
-
-      return {
-        id: quickReply.id,
-        name: quickReply.name ?? null,
-        message,
-        category: normalizeQuickReplyCategory(quickReply.category),
-        workflowId: quickReply.workflowId ?? null,
-        workflowName: workflow?.name ?? null,
-      };
-    })
-    .filter((item): item is ChatQuickReplyOption => item !== null);
-
   const advisorRole: string | null = user.advisorRole;
   const currentAdvisorId: string = user.id;
-
-  const [tagsRes, chatSessionsRes, chatPreferencesRes, advisorsRes, clientValidationConfig] = await Promise.all([
-    settle(listTagsAction(effectiveOwnerId)),
-    chatsResult.success
-      ? settle(
-          getChatContactSessions(
-            allSessionUserIds,
-            chatsResult.data.map((chat) => ({
-              remoteJid: chat.remoteJid,
-              remoteJidAlt: chat.remoteJidAlt,
-              senderPn: chat.senderPn,
-              pushName: chat.pushName,
-              aliases: chat.aliases,
-            })),
-          ),
-        )
-      : Promise.resolve(null),
-    settle(getChatConversationPreferencesByUserId(effectiveOwnerId)),
-    settle(getTeamAdvisorInfos()),
-    db.externalDataToolConfig.findFirst({
-      where: { userId: effectiveOwnerId, toolType: 'client_validation', isEnabled: true },
-      select: { id: true },
-    }).catch(() => null),
-  ]);
-
-  const allTags =
-    tagsRes?.data?.map((tag) => ({
-      id: tag.id,
-      name: tag.name,
-      slug: tag.slug,
-      color: tag.color,
-      order: tag.order ?? 0,
-      sessionCount: tag._count?.sessionTags ?? 0,
-    })) ?? [];
-
-  const initialChatSessions = chatSessionsRes?.success ? chatSessionsRes.data ?? {} : {};
-  const initialChatPreferences =
-    chatPreferencesRes?.success ? chatPreferencesRes.data ?? {} : {};
-  const advisorsFromTeam = advisorsRes?.success ? advisorsRes.data ?? [] : [];
-  // El dueno se incluye a si mismo para poder autoasignarse desde el badge
-  const isOwner = !user.ownerId;
-  const advisors = isOwner && user.id && user.email
-    ? [{ id: user.id, name: user.name ?? null, email: user.email, advisorRole: null as string | null }, ...advisorsFromTeam]
-    : advisorsFromTeam;
   const actionContext =
     whatsappInstancia && apiKey && !isBaileys
       ? { apiKeyData: { url: apiKey.url, key: apiKey.key }, instanceName: whatsappInstancia.instanceName }
@@ -519,8 +419,8 @@ export default async function ChatsPage({
       sessionUserIds={allSessionUserIds}
       instancias={instanciasMeta}
       chatsResult={chatsResult}
-      initialChatPreferences={initialChatPreferences}
-      initialChatSessions={initialChatSessions}
+      initialChatPreferences={{}}
+      initialChatSessions={{}}
       initialSelectedJid={initialSelectedJid}
       initialMessages={initialMessages}
       instanceName={whatsappInstancia?.instanceName}
@@ -532,17 +432,17 @@ export default async function ChatsPage({
       apiKeyData={apiKey ? { url: apiKey.url, key: apiKey.key } : undefined}
       instanceActionSets={instanceActionSets}
       instanceHealth={instanceHealth}
-      allTags={allTags}
-      workflows={workflowOptions}
-      quickReplies={quickReplyOptions}
-      advisors={advisors}
+      allTags={[]}
+      workflows={[]}
+      quickReplies={[]}
+      advisors={[]}
       currentAdvisorId={currentAdvisorId}
       advisorRole={advisorRole}
       assignAdvisorAction={assignAdvisorAction}
       takeSessionAction={takeSessionAction}
       releaseSessionAction={releaseSessionAction}
       transferSessionAction={transferSessionAction}
-      clientValidationEnabled={!!clientValidationConfig}
+      clientValidationEnabled={false}
     />
   );
 }

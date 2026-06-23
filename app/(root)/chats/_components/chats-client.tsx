@@ -12,6 +12,7 @@ import {
   toggleChatPinAction,
 } from "@/actions/chat-conversation-actions";
 import { assignSessionToAdvisor } from "@/actions/advisor-assign-actions";
+import { loadChatBootstrapData } from "@/actions/chat-bootstrap-actions";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
 import { getChatContactSessions } from "@/actions/session-action";
 import type { AdvisorInfo } from "@/actions/team-actions";
@@ -63,6 +64,29 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
 
 type ApiKeyData = { url: string; key: string };
 const INITIAL_MESSAGE_PAGE_SIZE = 5;
+const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
+const MESSAGE_PREWARM_LIMIT = 5;
+
+type ChatMessageInfo = {
+  total?: number;
+  pages?: number;
+  currentPage?: number;
+  nextPage?: number | null;
+  instanceName?: string;
+  remoteJid?: string;
+  remoteJidAliases?: string[];
+  apiKeyData?: ApiKeyData;
+  contactName?: string;
+};
+
+type ChatMessageCacheEntry = {
+  messages: EvolutionMessage[];
+  info: ChatMessageInfo;
+};
+
+function getMessageCacheKey(instanceName: string | null | undefined, remoteJid: string) {
+  return `${instanceName ?? ""}:${remoteJid}`;
+}
 
 export type InstanceHealth = {
   instanceName: string;
@@ -203,21 +227,21 @@ export function ChatsClient({
   sendWorkflowAction,
   sendQuickReplyAction,
   refetchChatsAction,
-  advisors = [],
+  advisors: initialAdvisors = [],
   currentAdvisorId,
   advisorRole,
   assignAdvisorAction,
   takeSessionAction,
   releaseSessionAction,
   transferSessionAction,
-  clientValidationEnabled = false,
+  clientValidationEnabled: initialClientValidationEnabled = false,
   instanceName,
   apiKeyData,
   instanceActionSets,
   instanceHealth = [],
-  allTags,
-  workflows,
-  quickReplies,
+  allTags: initialAllTags,
+  workflows: initialWorkflows,
+  quickReplies: initialQuickReplies,
 }: ChatsClientProps) {
   const normalizedInitialChatsResult = useMemo(
     () => filterChatList(initialChatsResult),
@@ -258,20 +282,16 @@ export function ChatsClient({
   const [chatPreferences, setChatPreferences] =
     useState<ChatConversationPreferenceMap>(initialChatPreferences);
   const [chatSessions, setChatSessions] = useState<ChatContactSessionMap>(initialChatSessions);
+  const [allTags, setAllTags] = useState<SimpleTag[]>(initialAllTags);
+  const [workflows, setWorkflows] = useState<ChatWorkflowOption[]>(initialWorkflows);
+  const [quickReplies, setQuickReplies] =
+    useState<ChatQuickReplyOption[]>(initialQuickReplies);
+  const [advisors, setAdvisors] = useState<AdvisorInfo[]>(initialAdvisors);
+  const [clientValidationEnabled, setClientValidationEnabled] = useState(
+    initialClientValidationEnabled,
+  );
   const [messages, setMessages] = useState<EvolutionMessage[]>(initialMessages || []);
-  const [info, setInfo] = useState<
-    | {
-        total?: number;
-        pages?: number;
-        currentPage?: number;
-        nextPage?: number | null;
-        instanceName?: string;
-        remoteJid?: string;
-        remoteJidAliases?: string[];
-        apiKeyData?: ApiKeyData;
-      }
-    | undefined
-  >(
+  const [info, setInfo] = useState<ChatMessageInfo | undefined>(
     initialSelectedJid
       ? {
           instanceName,
@@ -306,6 +326,9 @@ export function ChatsClient({
   const messagesRef = useRef<EvolutionMessage[]>(initialMessages || []);
   const activeActionSetRef = useRef<InstanceActionSet | null>(null);
   const selectionRequestRef = useRef(0);
+  const bootstrapRequestedRef = useRef(false);
+  const messageCacheRef = useRef<Map<string, ChatMessageCacheEntry>>(new Map());
+  const prewarmedMessageKeysRef = useRef<Set<string>>(new Set());
   const BASE_INTERVAL = 3000;
   const MAX_BACKOFF = 30000;
 
@@ -412,7 +435,7 @@ export function ChatsClient({
       status: currentContact?.lastMessage?.messageTimestamp ? "ultimo mensaje" : "-",
       isPinned: currentPreference?.isPinned ?? false,
     };
-  }, [currentContact, currentContactSession, currentPreference?.isPinned, selectedJid]);
+  }, [currentContact, currentContactSession, currentPreference?.isPinned, info?.contactName, selectedJid]);
 
   useEffect(() => {
     if (initialSelectedJid && !selectedJid && visibleContacts.length > 0) {
@@ -510,6 +533,42 @@ export function ChatsClient({
     },
     [sessionUserIds, userId],
   );
+
+  useEffect(() => {
+    if (bootstrapRequestedRef.current || !currentChatsResult.success) return;
+    bootstrapRequestedRef.current = true;
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void loadChatBootstrapData({
+        sessionUserIds: sessionUserIds?.length ? sessionUserIds : [userId],
+        chatDescriptors: buildChatContactDescriptors(currentChatsResult.data),
+      }).then((result) => {
+        if (cancelled || !result.success || !result.data) return;
+
+        setAllTags(result.data.allTags);
+        setWorkflows(result.data.workflows);
+        setQuickReplies(result.data.quickReplies);
+        setAdvisors(result.data.advisors);
+        setClientValidationEnabled(result.data.clientValidationEnabled);
+        setChatPreferences(result.data.chatPreferences);
+        setChatSessions((prev) => {
+          const next = { ...result.data.chatSessions };
+          for (const jid of Object.keys(next)) {
+            if (!next[jid].customName && prev[jid]?.customName) {
+              next[jid] = { ...next[jid], customName: prev[jid].customName };
+            }
+          }
+          return next;
+        });
+      });
+    }, 100);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [currentChatsResult, sessionUserIds, userId]);
 
   const refetchAllInstances = useCallback(async (): Promise<FetchChatsResult> => {
     if (!instanceActionSets?.length) return refetchChatsAction();
@@ -762,6 +821,8 @@ export function ChatsClient({
       const effectiveInstanceName = selectedContact?.instanceName ?? instanceName;
       const effectiveApiKeyData = actionSet?.instanceType === "baileys" ? undefined : apiKeyData;
       const effectiveWarmMessages = actionSet?.warmMessages ?? warmMessagesAction;
+      const cacheKey = getMessageCacheKey(effectiveInstanceName, remoteJid);
+      const cachedMessages = messageCacheRef.current.get(cacheKey);
 
       if (selectedJid !== remoteJid) setSelectedJid(remoteJid);
       setSelectedInstanceName(selectedContact?.instanceName ?? null);
@@ -779,8 +840,23 @@ export function ChatsClient({
       }));
       const requestId = selectionRequestRef.current + 1;
       selectionRequestRef.current = requestId;
-      setLoading(true);
-      setMessages([]);
+      if (cachedMessages) {
+        setLoading(false);
+        setMessages(cachedMessages.messages);
+        setInfo({
+          ...cachedMessages.info,
+          instanceName: effectiveInstanceName,
+          remoteJid,
+          remoteJidAliases,
+          apiKeyData: effectiveApiKeyData,
+          contactName: selectedContact?.pushName && !isBadContactName(selectedContact.pushName)
+            ? selectedContact.pushName
+            : cachedMessages.info.contactName,
+        });
+      } else {
+        setLoading(true);
+        setMessages([]);
+      }
 
       try {
         const shouldOpenFromLocalFirst = actionSet?.instanceType !== "baileys";
@@ -794,8 +870,7 @@ export function ChatsClient({
         if (selectionRequestRef.current !== requestId) return;
 
         if (localResult?.success) {
-          setMessages(localResult.data || []);
-          setInfo({
+          const nextInfo = {
             total: localResult.total,
             pages: localResult.pages,
             currentPage: localResult.currentPage,
@@ -804,6 +879,12 @@ export function ChatsClient({
             remoteJid,
             remoteJidAliases,
             apiKeyData: effectiveApiKeyData,
+          };
+          setMessages(localResult.data || []);
+          setInfo(nextInfo);
+          messageCacheRef.current.set(cacheKey, {
+            messages: localResult.data || [],
+            info: nextInfo,
           });
         } else {
           setMessages([]);
@@ -825,8 +906,8 @@ export function ChatsClient({
         })
           .then((syncResult) => {
             if (selectionRequestRef.current !== requestId || !syncResult?.success) return;
-            setMessages((previous) => mergeMessages(previous, syncResult.data || []));
-            setInfo({
+            const merged = mergeMessages(messagesRef.current, syncResult.data || []);
+            const nextInfo = {
               total: syncResult.total,
               pages: syncResult.pages,
               currentPage: syncResult.currentPage,
@@ -835,6 +916,12 @@ export function ChatsClient({
               remoteJid,
               remoteJidAliases,
               apiKeyData: effectiveApiKeyData,
+            };
+            setMessages(merged);
+            setInfo(nextInfo);
+            messageCacheRef.current.set(cacheKey, {
+              messages: merged,
+              info: nextInfo,
             });
           })
           .catch(() => {
@@ -855,6 +942,61 @@ export function ChatsClient({
     },
     [apiKeyData, contacts, instanceActionSets, instanceName, isSidebarVisible, mergeMessages, selectedJid, warmMessagesAction],
   );
+
+  useEffect(() => {
+    if (!visibleContacts.length) return;
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        for (const contact of visibleContacts.slice(0, MESSAGE_PREWARM_LIMIT)) {
+          if (cancelled) return;
+
+          const actionSet =
+            instanceActionSets?.find((s) => s.instanceName === contact.instanceName) ?? null;
+          if (actionSet?.instanceType === "baileys") continue;
+
+          const remoteJid = contact.remoteJid;
+          const effectiveInstanceName = contact.instanceName ?? instanceName;
+          const cacheKey = getMessageCacheKey(effectiveInstanceName, remoteJid);
+          if (prewarmedMessageKeysRef.current.has(cacheKey)) continue;
+
+          prewarmedMessageKeysRef.current.add(cacheKey);
+          const warmMessages = actionSet?.warmMessages ?? warmMessagesAction;
+          const result = await warmMessages(remoteJid, {
+            page: 1,
+            pageSize: INITIAL_MESSAGE_PAGE_SIZE,
+            remoteJidAliases: contact.aliases,
+            localOnly: true,
+          });
+
+          if (cancelled || !result?.success) continue;
+
+          messageCacheRef.current.set(cacheKey, {
+            messages: result.data || [],
+            info: {
+              total: result.total,
+              pages: result.pages,
+              currentPage: result.currentPage,
+              nextPage: result.nextPage,
+              instanceName: effectiveInstanceName,
+              remoteJid,
+              remoteJidAliases: contact.aliases,
+              apiKeyData,
+              contactName: contact.pushName && !isBadContactName(contact.pushName)
+                ? contact.pushName
+                : undefined,
+            },
+          });
+        }
+      })();
+    }, 700);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [apiKeyData, instanceActionSets, instanceName, visibleContacts, warmMessagesAction]);
 
   const handleSendAny = useCallback(
     async (payload: OutgoingMessagePayload) => {
@@ -1229,7 +1371,9 @@ export function ChatsClient({
     };
 
     if (normalizedInitialChatsResult.success) {
-      void loop();
+      timer = setTimeout(() => {
+        void loop();
+      }, INITIAL_CHAT_SYNC_DELAY_MS);
     }
 
     return () => {
