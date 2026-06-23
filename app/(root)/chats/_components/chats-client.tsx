@@ -287,11 +287,13 @@ export function ChatsClient({
   const [isContactPanelOpen, setIsContactPanelOpen] = useState(false);
   const [isChatListCollapsed, setIsChatListCollapsed] = useState(false);
   const [chatListTab, setChatListTab] = useState<TabKey>("all");
+  const [unreadOnly, setUnreadOnly] = useState(true);
   const [closeInfoPanelSignal, setCloseInfoPanelSignal] = useState(0);
   const [sessionRefreshSignal, setSessionRefreshSignal] = useState(0);
 
-  const goToChatTab = useCallback((tab: TabKey) => {
+  const goToChatTab = useCallback((tab: TabKey, unread = false) => {
     setChatListTab(tab);
+    setUnreadOnly(unread);
     setIsChatListCollapsed(false);
     setIsSidebarVisible(true);
   }, []);
@@ -1372,6 +1374,8 @@ export function ChatsClient({
           onCollapse={() => setIsChatListCollapsed(true)}
           tab={chatListTab}
           onTabChange={setChatListTab}
+          unreadOnly={unreadOnly}
+          onUnreadOnlyChange={setUnreadOnly}
           onRenameSuccess={() => setSessionRefreshSignal((n) => n + 1)}
           onSessionRename={handleSessionRename}
         />
@@ -1434,34 +1438,34 @@ export function ChatsClient({
               <button
                 type="button"
                 onClick={() => goToChatTab("mine")}
-                className="flex w-full items-center gap-3 rounded-xl border border-violet-200 bg-violet-50 dark:border-violet-800/50 dark:bg-violet-950/30 px-4 py-3 text-left transition-colors hover:bg-violet-100 dark:hover:bg-violet-900/40"
+                className="flex w-full items-center gap-3 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-left transition-colors hover:bg-violet-100 dark:border-violet-800/50 dark:bg-violet-950/30 dark:hover:bg-violet-900/40"
               >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">M</span>
                 <div>
-                  <p className="text-sm font-semibold text-violet-700 dark:text-violet-400">Pestaña Mías</p>
+                  <p className="text-sm font-semibold text-violet-700 dark:text-violet-400">Mías</p>
                   <p className="text-xs text-muted-foreground">Conversaciones asignadas a ti</p>
                 </div>
               </button>
               <button
                 type="button"
                 onClick={() => goToChatTab("all")}
-                className="flex w-full items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-800/50 dark:bg-blue-950/30 px-4 py-3 text-left transition-colors hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                className="flex w-full items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-left transition-colors hover:bg-blue-100 dark:border-blue-800/50 dark:bg-blue-950/30 dark:hover:bg-blue-900/40"
               >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500 text-xs font-bold text-white">T</span>
                 <div>
-                  <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">Pestaña Todos</p>
+                  <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">Todos</p>
                   <p className="text-xs text-muted-foreground">Todas las conversaciones activas</p>
                 </div>
               </button>
               <button
                 type="button"
-                onClick={() => goToChatTab("archived")}
-                className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/30 px-4 py-3 text-left transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/60"
+                onClick={() => goToChatTab("all", true)}
+                className="flex w-full items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-left transition-colors hover:bg-orange-100 dark:border-orange-800/50 dark:bg-orange-950/30 dark:hover:bg-orange-900/40"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-400 text-xs font-bold text-white">▼</span>
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">N</span>
                 <div>
-                  <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Más opciones</p>
-                  <p className="text-xs text-muted-foreground">Chats archivados y eliminados</p>
+                  <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">No leídos</p>
+                  <p className="text-xs text-muted-foreground">Conversaciones pendientes por leer</p>
                 </div>
               </button>
             </div>

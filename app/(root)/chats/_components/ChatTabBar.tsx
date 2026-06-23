@@ -47,37 +47,39 @@ const GROUPS_COLOR = "#28A745";
 export function ChatTabBar({ onTabChange, tab, tabCounts, showMine = false, rightSlot, unreadOnly, onToggleUnread, unreadCount, starredOnly, onToggleStarred, starredCount, notesOnly, onToggleNotes, notesCount, clientStatusFilter, onSetClientStatus, clientActiveCount, clientInactiveCount, serviceTypeFilter, onSetServiceType, iaCount, humanCount }: ChatTabBarProps) {
   const visibleTabs = MAIN_TABS.filter((t) => t.key !== "mine" || showMine);
   const isOverflowActive = tab === "archived" || tab === "deleted" || starredOnly || notesOnly || !!clientStatusFilter || !!serviceTypeFilter;
+  const renderTab = ({ key, label, color }: (typeof MAIN_TABS)[number]) => {
+    const count = tabCounts[key];
+    const isActive = tab === key;
+
+    return (
+      <button
+        key={key}
+        type="button"
+        onClick={() => onTabChange(key)}
+        className="inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium whitespace-nowrap transition-all"
+        style={
+          isActive
+            ? { background: color, borderColor: color, color: "#fff" }
+            : { borderColor: `${color}50`, color, background: `${color}10` }
+        }
+      >
+        <span>{label}</span>
+        {count > 0 && (
+          <span
+            className="flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none text-white"
+            style={{ background: isActive ? "rgba(255,255,255,0.3)" : color }}
+          >
+            {count}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <div className="flex w-full items-center gap-1">
       <div className="flex flex-1 items-center justify-evenly gap-1 overflow-hidden">
-        {visibleTabs.map(({ key, label, Icon, color }) => {
-          const count = tabCounts[key];
-          const isActive = tab === key;
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => onTabChange(key)}
-              className="inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium whitespace-nowrap transition-all"
-              style={
-                isActive
-                  ? { background: color, borderColor: color, color: "#fff" }
-                  : { borderColor: `${color}50`, color, background: `${color}10` }
-              }
-            >
-              <span>{label}</span>
-              {count > 0 && (
-                <span
-                  className="flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-full px-0.5 text-[9px] font-bold leading-none text-white"
-                  style={{ background: isActive ? "rgba(255,255,255,0.3)" : color }}
-                >
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
+        {visibleTabs.map(renderTab)}
 
         {/* Botón No leídos */}
         {onToggleUnread && (

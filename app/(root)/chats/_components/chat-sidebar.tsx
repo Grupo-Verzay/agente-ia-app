@@ -112,6 +112,8 @@ type ChatSidebarProps = {
   onCollapse?: () => void;
   tab?: TabKey;
   onTabChange?: (tab: TabKey) => void;
+  unreadOnly?: boolean;
+  onUnreadOnlyChange?: (unreadOnly: boolean) => void;
   onRenameSuccess?: () => void;
   onSessionRename?: (jid: string, name: string) => void;
 };
@@ -152,6 +154,8 @@ export function ChatSidebar({
   onCollapse,
   tab: tabProp,
   onTabChange: onTabChangeProp,
+  unreadOnly: unreadOnlyProp,
+  onUnreadOnlyChange,
   onRenameSuccess,
   onSessionRename,
 }: ChatSidebarProps) {
@@ -168,7 +172,16 @@ export function ChatSidebar({
   const [deleteTarget, setDeleteTarget] = useState<SidebarContact | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
   const [advisorFilter, setAdvisorFilter] = useState<string | null>(null); // null=todos, 'unassigned'=sin asignar, id=asesor específico
-  const [unreadOnly, setUnreadOnly] = useState(true);
+  const [internalUnreadOnly, setInternalUnreadOnly] = useState(true);
+  const unreadOnly = unreadOnlyProp ?? internalUnreadOnly;
+  const setUnreadOnly = useCallback(
+    (value: boolean | ((current: boolean) => boolean)) => {
+      const next = typeof value === "function" ? value(unreadOnly) : value;
+      if (onUnreadOnlyChange) onUnreadOnlyChange(next);
+      else setInternalUnreadOnly(next);
+    },
+    [onUnreadOnlyChange, unreadOnly],
+  );
   const [selectedJids, setSelectedJids] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [forcedUnreadJids, setForcedUnreadJids] = useState<Set<string>>(new Set());
@@ -356,10 +369,10 @@ export function ChatSidebar({
   // Si el filtro "No leídos" está activo pero ya no hay chats sin leer
   // (al entrar sin pendientes o tras leer todos), vuelve a "Todos".
   useEffect(() => {
-    if (unreadOnly && filterCounts.unread === 0) {
+    if (unreadOnly && contacts.length > 0 && filterCounts.unread === 0) {
       setUnreadOnly(false);
     }
-  }, [unreadOnly, filterCounts.unread]);
+  }, [contacts.length, unreadOnly, filterCounts.unread, setUnreadOnly]);
 
   const filtered = useMemo(() => {
     if (tab === "deleted") return [];
@@ -463,7 +476,7 @@ export function ChatSidebar({
     setServiceTypeFilter(null);
     setSelectedTagIds(new Set());
     void onSelectRemoteJid?.("");
-  }, [applyTab, onSelectRemoteJid]);
+  }, [applyTab, onSelectRemoteJid, setUnreadOnly]);
 
   const toggleTagFilter = useCallback((tagId: number) => {
     setSelectedTagIds((prev) => {
@@ -563,7 +576,7 @@ export function ChatSidebar({
     } else {
       toast.error(res.message ?? "Error al actualizar.");
     }
-  }, [renameTarget, renameDraft, chatSessions, onRefresh, onRenameSuccess]);
+  }, [renameTarget, renameDraft, chatSessions, onRefresh, onRenameSuccess, onSessionRename]);
 
   const handleResolve = useCallback(async (remoteJid: string) => {
     const session = chatSessions[remoteJid];
