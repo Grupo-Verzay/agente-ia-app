@@ -117,7 +117,7 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
                                 <BellRing className="h-4 w-4" />
                             </div>
-                            <h3 className="app-item-title flex-1 truncate text-foreground">{reminder.title}</h3>
+                            <h3 className="app-item-title flex-1 truncate text-foreground uppercase">{reminder.title}</h3>
                             {hasMedia && (
                                 <Badge className="h-5 gap-1 border-0 bg-sky-100 px-1.5 py-0 text-[10px] text-sky-700">
                                     <FileIcon className="h-3 w-3" />
@@ -185,7 +185,7 @@ export const ReminderList = ({ reminder, workflow, deliverySummary, compact = fa
                             <BellRing className="h-4 w-4" />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <h3 className="app-item-title truncate text-foreground">{reminder.title}</h3>
+                            <h3 className="app-item-title truncate text-foreground uppercase">{reminder.title}</h3>
                             <div className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
                                 {reminder.pushName && (
                                     <span className="flex items-center gap-1">
