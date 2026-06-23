@@ -41,7 +41,10 @@ export const buildStatusOwnerMessage = ({
     const serviceName = appointment.service?.name ?? "—";
     const clientName = appointment.clientName || appointment.session?.pushName || "Cliente";
 
-    const scheduleUrl = userId === "cm84mjtp50000l6soenaosi2z" ? 'https://verzay.com/agendar-una-cita' : `https://agente.ia-app.com/schedule/${userId}`;
+    const scheduleUrl =
+        userId === "cm84mjtp50000l6soenaosi2z" ? 'https://verzay.com/agendar-una-reunion' // VERZAY_VENTAS
+        : userId === "cm842kthc0000qd2l66nbnytv" ? 'https://verzay.com/agenda-tu-reunion' // VERZAY_ADMIN
+        : `https://agente.ia-app.com/schedule/${userId}`;
 
     // Motivo opcional (útil en cancelación, pero funciona en cualquier estado)
     const reasonBlock = opts?.reason ? `\n\n📝 Motivo: ${opts.reason}` : "";
