@@ -395,7 +395,7 @@ export async function updateUserMeetingDuration(
 
     // 5) Si hay URL, concatenarla al final del description del recordatorio minutes-1
     if (url) {
-      const newDesc = `${DEFAULT_REMINDERS_TEMPLATES[4].description} Este es el link de acceso.\n\n👉${url}`;
+      const newDesc = `${DEFAULT_REMINDERS_TEMPLATES[4].description} Este es el link de acceso.\n\n👉 ${url}`;
 
       await db.reminders.update({
         where: { id: reminderMinutes1.id },
