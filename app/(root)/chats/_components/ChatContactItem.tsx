@@ -347,7 +347,7 @@ export function ChatContactItem({
                 )}
                 <span
                   className={cn(
-                    "app-item-title shrink-0",
+                    "app-item-title shrink-0 capitalize",
                     isUnread && "text-foreground",
                   )}
                 >

@@ -293,7 +293,7 @@ const sessionStatusTone = session?.status
               {header.isPinned && (
                 <Pin className="h-3 w-3 fill-current text-amber-500 flex-shrink-0" />
               )}
-              <h2 className="truncate text-sm font-bold leading-tight">{displayedContactName}</h2>
+              <h2 className="truncate text-sm font-bold leading-tight capitalize">{displayedContactName}</h2>
             </div>
             {adSourceLabel && (
               <span className="flex items-center gap-0.5 text-[0.6rem] leading-none text-blue-500 dark:text-blue-400 truncate">
@@ -507,7 +507,7 @@ const sessionStatusTone = session?.status
               {header.isPinned && (
                 <Pin className="h-4 w-4 fill-current text-amber-500 flex-shrink-0" />
               )}
-              <h2 className="truncate text-sm font-bold" title={displayedContactName}>{displayedContactName}</h2>
+              <h2 className="truncate text-sm font-bold capitalize" title={displayedContactName}>{displayedContactName}</h2>
               {session && (
                 <Button
                   type="button"

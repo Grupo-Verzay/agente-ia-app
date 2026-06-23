@@ -52,7 +52,7 @@ export function CrmRecordNameCell({
     return (
         <div className="group max-w-[110px]">
             <div className="flex items-center gap-1">
-                <span className="truncate font-medium">{name}</span>
+                <span className="truncate font-medium capitalize">{name}</span>
                 <button
                     type="button"
                     onClick={handleOpen}

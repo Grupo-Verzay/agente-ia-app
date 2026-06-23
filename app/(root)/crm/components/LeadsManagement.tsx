@@ -259,7 +259,7 @@ export const LeadsManagement = ({
                                                 ].join(" ")}
                                             >
                                                 <div className="flex items-center justify-between gap-2">
-                                                    <span className="font-medium truncate">
+                                                    <span className="font-medium truncate capitalize">
                                                         {displayNombre}
                                                     </span>
                                                     <div className="flex items-center gap-1">

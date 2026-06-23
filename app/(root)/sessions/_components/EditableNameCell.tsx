@@ -51,7 +51,7 @@ export function EditableNameCell({
 
     return (
         <div className="group flex max-w-[150px] items-center gap-1">
-            <span className="truncate">{name}</span>
+            <span className="truncate capitalize">{name}</span>
             <button
                 type="button"
                 onClick={handleOpen}

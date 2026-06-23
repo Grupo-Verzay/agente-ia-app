@@ -355,7 +355,7 @@ export function ContactInfoPanel({
                 disabled={savingName}
               />
             ) : (
-              <span className="font-semibold text-sm leading-tight">{displayedContactName}</span>
+              <span className="font-semibold text-sm leading-tight capitalize">{displayedContactName}</span>
             )}
             {!editingName && (
               <button
