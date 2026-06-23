@@ -461,7 +461,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
           <div className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto py-2 pr-1">
             <div className="flex flex-col gap-1.5">
               <Label>Título</Label>
-              <Input value={titleInput} onChange={(e) => setTitleInput(e.target.value)} />
+              <Input value={titleInput} onChange={(e) => setTitleInput(e.target.value.toUpperCase())} className="uppercase" />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Slug (URL)</Label>

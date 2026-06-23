@@ -326,7 +326,11 @@ export const ReminderForm = ({
 
                 <div className="flex flex-col gap-1.5">
                     <Label className="text-sm font-semibold">Título</Label>
-                    <Input placeholder="Ej: Recordatorio cita" {...register("title")} />
+                    <Input
+                        placeholder="Ej: Recordatorio cita"
+                        className="uppercase"
+                        {...register("title", { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })}
+                    />
                     {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
                 </div>
 
