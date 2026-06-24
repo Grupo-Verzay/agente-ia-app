@@ -24,14 +24,20 @@ export function colorForAvatar(seed: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-/** SVG (string) de un avatar: círculo de color + silueta blanca. */
+/**
+ * SVG (string) de un avatar: fondo en tono pastel del color + silueta de
+ * usuario del mismo color (estilo suave tipo WhatsApp / ícono de Lucide).
+ */
 export function buildColoredAvatarSvg(seed: string): string {
-  const bg = colorForAvatar(seed);
+  const color = colorForAvatar(seed);
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">` +
-    `<circle cx="40" cy="40" r="40" fill="${bg}"/>` +
-    `<circle cx="40" cy="33" r="13" fill="#ffffff" fill-opacity="0.95"/>` +
-    `<path d="M17 66c0-12.7 10.3-23 23-23s23 10.3 23 23" fill="#ffffff" fill-opacity="0.95"/>` +
+    // Fondo: mismo color con baja opacidad (pastel)
+    `<circle cx="40" cy="40" r="40" fill="${color}" fill-opacity="0.18"/>` +
+    // Cabeza
+    `<circle cx="40" cy="29" r="11" fill="${color}"/>` +
+    // Hombros: busto redondeado, centrado y con margen respecto al borde
+    `<path d="M40 43c-10.6 0-19.2 7.7-19.2 17.2 0 .9.7 1.6 1.6 1.6h35.2c.9 0 1.6-.7 1.6-1.6C59.2 50.7 50.6 43 40 43z" fill="${color}"/>` +
     `</svg>`
   );
 }
@@ -48,8 +54,12 @@ export function coloredAvatarDataUri(seed: string): string {
  * - Sin foto → avatar coloreado como data-URI (cero peticiones).
  * - URL local ("/...") → tal cual.
  */
+// Versión del avatar: subir este número al cambiar el diseño del avatar
+// generado invalida el caché del navegador para las URLs del proxy.
+const AVATAR_VERSION = "2";
+
 export function avatarSrcFor(url: string | null | undefined, seed: string): string {
   if (!url) return coloredAvatarDataUri(seed);
   if (url.startsWith("/")) return url;
-  return `/api/avatar?u=${encodeURIComponent(url)}&s=${encodeURIComponent(seed)}`;
+  return `/api/avatar?u=${encodeURIComponent(url)}&s=${encodeURIComponent(seed)}&v=${AVATAR_VERSION}`;
 }

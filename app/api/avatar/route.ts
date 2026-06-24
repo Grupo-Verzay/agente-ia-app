@@ -8,7 +8,9 @@ function coloredAvatarResponse(seed: string) {
     status: 200,
     headers: {
       "Content-Type": "image/svg+xml",
-      "Cache-Control": "public, max-age=3600",
+      // Caché corto: el SVG es trivial de generar y así un cambio de diseño se
+      // refleja pronto (evita avatares "viejos" cacheados tras un despliegue).
+      "Cache-Control": "public, max-age=300",
     },
   });
 }
