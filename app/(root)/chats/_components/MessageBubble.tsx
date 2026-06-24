@@ -135,7 +135,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         {showAvatar && (
           <div className="mr-1">
             <Avatar className="w-7 h-7">
-              <AvatarImage src={avatarSrc || '/default-avatar.png'} />
+              <AvatarImage src={avatarSrc || '/placeholder.svg'} />
               <AvatarFallback>{initialFromName()}</AvatarFallback>
             </Avatar>
           </div>
@@ -162,7 +162,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         {showAvatar && (
           <div className="mr-1">
             <Avatar className="w-7 h-7">
-              <AvatarImage src={avatarSrc || '/default-avatar.png'} />
+              <AvatarImage src={avatarSrc || '/placeholder.svg'} />
               <AvatarFallback>{initialFromName()}</AvatarFallback>
             </Avatar>
           </div>

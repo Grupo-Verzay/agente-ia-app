@@ -6,6 +6,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { extractWhatsAppDigits } from "@/lib/whatsapp-jid";
+import { avatarSrcFor } from "@/lib/avatar";
 import type { ChatData } from "@/actions/chat-actions";
 
 export const CHAT_TIME_FORMATTER = new Intl.DateTimeFormat("es-CO", {
@@ -45,7 +46,7 @@ export function nameFrom(chat: ChatData): string {
 }
 
 export function avatarFrom(chat: ChatData): string {
-  return chat.profilePicUrl || "/placeholder.svg?height=40&width=40";
+  return avatarSrcFor(chat.profilePicUrl);
 }
 
 export function isGroupJid(jid: string): boolean {

@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 const publicRoutes = ["/", "/prices", "/inicio", "/completar-registro"];
 const authRoutes = ["/login", "/register"];
 const apiAuthPrefix = "/api/auth";
+const apiAvatarPrefix = "/api/avatar";
 const apiCronPrefix = "/api/cron";
 const apiSchedulePrefix = "/api/schedule";
 const apiAdminPrefix = "/api/admin";
@@ -27,6 +28,7 @@ export default auth((req) => {
   }
 
   if (currentPath.startsWith(apiAuthPrefix)) return NextResponse.next();
+  if (currentPath.startsWith(apiAvatarPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiCronPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiSchedulePrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiAdminPrefix)) return NextResponse.next();

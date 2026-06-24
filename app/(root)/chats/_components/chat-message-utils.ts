@@ -192,7 +192,7 @@ export function toUIMessages(
       id: m.key?.id || m.id || (ts ? String(ts) : '') + Math.random().toString(36).slice(2),
       sender,
       content,
-      avatarSrc: sender === 'user' ? '/default.png' : avatarUrl,
+      avatarSrc: sender === 'user' ? '/placeholder.svg' : avatarUrl,
       ts: ts ? ts * 1000 : undefined,
       media: media || undefined,
       status: isUser ? normalizeDeliveryState(resolveEvolutionMessageStatus(m)) : undefined,

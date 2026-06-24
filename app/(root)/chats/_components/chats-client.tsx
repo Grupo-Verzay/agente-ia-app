@@ -33,6 +33,7 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
 import { fmtPhone, extractWhatsAppDigits } from "@/lib/whatsapp-jid";
+import { avatarSrcFor } from "@/lib/avatar";
 import type { OutgoingMessagePayload } from "./chat-main";
 import type {
   ChatConversationPreference,
@@ -438,7 +439,7 @@ export function ChatsClient({
         if (infoName && !isBadContactName(infoName)) return infoName;
         return extractWhatsAppDigits(selectedJid) || selectedJid?.split("@")[0] || "Sin nombre";
       })(),
-      avatarSrc: currentContact?.profilePicUrl || "/placeholder.svg",
+      avatarSrc: avatarSrcFor(currentContact?.profilePicUrl),
       status: currentContact?.lastMessage?.messageTimestamp ? "ultimo mensaje" : "-",
       isPinned: currentPreference?.isPinned ?? false,
     };
