@@ -71,7 +71,7 @@ function TabNavInner({ tabs, excludePanelRoutes }: Props) {
                                 key={tab.url}
                                 href={tab.url}
                                 className={cn(
-                                    "inline-flex items-center whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors border-b-2",
+                                    "inline-flex items-center whitespace-nowrap px-4 py-3 text-base font-medium transition-colors border-b-2",
                                     active
                                         ? "border-primary text-foreground"
                                         : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"

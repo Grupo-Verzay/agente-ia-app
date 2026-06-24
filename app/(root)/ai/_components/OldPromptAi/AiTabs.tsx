@@ -62,7 +62,7 @@ export const AiTabs = ({
                             key={key}
                             onClick={() => handleTabClick(key)}
                             className={cn(
-                                'px-4 py-2 rounded-t-md font-medium text-sm border-b-2 transition-colors duration-150 whitespace-nowrap',
+                                'inline-flex items-center whitespace-nowrap px-4 py-3 text-base font-medium border-b-2 transition-colors',
                                 activeTab === key
                                     ? 'border-primary text-primary'
                                     : 'border-transparent text-muted-foreground'
@@ -107,7 +107,7 @@ export const PromptPreviewDialog = ({ activeTab, activeLabel, promptFormatted }:
 
     return (
         <>
-            <Button variant="outline" onClick={() => setOpen(true)}>
+            <Button variant="outline" className="h-10 px-4 text-base font-medium" onClick={() => setOpen(true)}>
                 Previsualizar
             </Button>
 
