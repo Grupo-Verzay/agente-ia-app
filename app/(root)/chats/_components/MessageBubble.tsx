@@ -22,7 +22,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({ message, isUserMessage 
   if (!message) return null;
 
   if (message.length <= MAX_LENGTH) {
-    return <p className="text-base sm:text-sm whitespace-pre-wrap">{message}</p>;
+    return <p className="text-base sm:text-[15px] whitespace-pre-wrap">{message}</p>;
   }
 
   const displayedText = isExpanded ? message : `${message.substring(0, MAX_LENGTH)}...`;
@@ -31,7 +31,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({ message, isUserMessage 
     : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300';
 
   return (
-    <p className="text-base sm:text-sm whitespace-pre-wrap">
+    <p className="text-base sm:text-[15px] whitespace-pre-wrap">
       {displayedText}
       <button
         onClick={() => setIsExpanded((v) => !v)}
