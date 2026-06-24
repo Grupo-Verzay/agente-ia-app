@@ -4,7 +4,6 @@ import { useState } from "react";
 import { FormPromptAiProps, PromptAiFormValues } from "@/schema/ai";
 import { SystemMessage, TypePromptAi } from "@prisma/client";
 import { useDebounce } from "@/hooks/useDebounce";
-import { Input } from "@/components/ui/input";
 import { AiTabs, MessageTabs, PromptDialog } from "./";
 import { GenericDeleteDialog } from "@/components/shared/GenericDeleteDialog";
 import { deletePromptAi, deletePromptAiByUserId } from "@/actions/ai-actions";
@@ -17,7 +16,13 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, Plus } from "lucide-react";
+import { MoreVertical } from "lucide-react";
+import { PaymentReceiptPromptBuilder } from "../PaymentReceiptPromptBuilder";
+import { AGENT_PROMPT_IDS } from "@/lib/agent-prompt-ids";
+import {
+    buildDefaultPaymentReceiptAnalyzerPrompt,
+    withOfficialPaymentAccountsSection,
+} from "@/lib/payment-receipt-analyzer-prompt";
 
 export function formatPromptByType(promptAi: any[], type: string) {
     const filtered = (promptAi ?? []).filter((m) => m.typePrompt === type);
@@ -40,7 +45,12 @@ export function formatPromptArray(data: any): string {
     return result.trim();
 }
 
-export const MainAi = ({ promptAi, userId, paymentReceiptPrompt }: FormPromptAiProps) => {
+export const MainAi = ({
+    promptAi,
+    userId,
+    paymentReceiptPrompt,
+    paymentMethods = [],
+}: FormPromptAiProps) => {
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [dialogOpen, setDialogOpen] = useState<boolean>(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState<boolean>(false);
@@ -52,6 +62,9 @@ export const MainAi = ({ promptAi, userId, paymentReceiptPrompt }: FormPromptAiP
     const trainingPromptFormatted = formatPromptByType(promptAi ?? [], "TRAINING");
     const faqsPromptFormatted = formatPromptByType(promptAi ?? [], "FAQs");
     const analyzerPromptFormatted = formatPromptByType(promptAi ?? [], "ANALYZER");
+    const paymentReceiptPromptText = paymentReceiptPrompt?.promptText
+        ? withOfficialPaymentAccountsSection(paymentReceiptPrompt.promptText, paymentMethods)
+        : buildDefaultPaymentReceiptAnalyzerPrompt(paymentMethods);
 
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
@@ -116,16 +129,18 @@ export const MainAi = ({ promptAi, userId, paymentReceiptPrompt }: FormPromptAiP
                         promptsByTab={{
                             TRAINING: trainingPromptFormatted,
                             FAQs: faqsPromptFormatted,
-                            ANALYZER: analyzerPromptFormatted,
+                            ANALYZER: paymentReceiptPromptText || analyzerPromptFormatted,
                         }}
                     />
 
                     <div className="ml-auto flex items-center gap-2">
-                        <Button
-                            onClick={openCreateDialog}
-                        >
-                            Nuevo
-                        </Button>
+                        {activeTab !== TypePromptAi.ANALYZER && (
+                            <Button
+                                onClick={openCreateDialog}
+                            >
+                                Nuevo
+                            </Button>
+                        )}
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline">
@@ -145,16 +160,28 @@ export const MainAi = ({ promptAi, userId, paymentReceiptPrompt }: FormPromptAiP
             </div>
 
             <div className="flex-1 overflow-y-auto">
-                <MessageTabs
-                    messages={filteredMessages}
-                    debouncedSearchTerm={debouncedSearchTerm}
-                    highlightMatch={highlightMatch}
-                    truncateMessage={truncateMessage}
-                    openEditDialog={openEditDialog}
-                    activeTab={activeTab}
-                    setDeleteDialogOpen={setDeleteDialogOpen}
-                    setDataDelete={setDataDelete}
-                />
+                {activeTab === TypePromptAi.ANALYZER ? (
+                    <PaymentReceiptPromptBuilder
+                        userId={userId}
+                        agentId={AGENT_PROMPT_IDS.paymentReceiptAnalyzer}
+                        title="Analizador de comprobantes"
+                        description="Valida comprobantes de renovacion usando las cuentas oficiales activas configuradas en Admin > Pagos."
+                        initialPromptText={paymentReceiptPromptText}
+                        initialExists={!!paymentReceiptPrompt}
+                        showInlineSaveButton
+                    />
+                ) : (
+                    <MessageTabs
+                        messages={filteredMessages}
+                        debouncedSearchTerm={debouncedSearchTerm}
+                        highlightMatch={highlightMatch}
+                        truncateMessage={truncateMessage}
+                        openEditDialog={openEditDialog}
+                        activeTab={activeTab}
+                        setDeleteDialogOpen={setDeleteDialogOpen}
+                        setDataDelete={setDataDelete}
+                    />
+                )}
             </div>
 
             <PromptDialog

@@ -1,6 +1,7 @@
 import { SystemMessage, TypePromptAi } from "@prisma/client";
 import { SubmitHandler } from "react-hook-form";
 import { z } from "zod";
+import type { PaymentMethodConfigItem } from "@/actions/payment-method-config-actions";
 
 export const TYPE_AI_LABELS: Record<TypePromptAi, string> = {
     [TypePromptAi.TRAINING]: 'Prompt padre',
@@ -26,6 +27,7 @@ export interface FormPromptAiProps {
         version: number;
         promptText: string;
     } | null
+    paymentMethods?: PaymentMethodConfigItem[]
 };
 export interface AiCreatePromptProps {
     userId: string

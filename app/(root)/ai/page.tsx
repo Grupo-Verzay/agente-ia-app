@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { SystemMessage } from '@prisma/client';
 import { getPromptAiByUserId } from '@/actions/ai-actions';
+import { getActivePaymentMethodConfigs } from '@/actions/payment-method-config-actions';
 import { getAgentPromptByUserAndAgentId } from '@/actions/system-prompt-actions';
 import { AGENT_PROMPT_IDS } from '@/lib/agent-prompt-ids';
 import { MessagesSkeleton } from './_components/OldPromptAi';
@@ -28,10 +29,13 @@ const AiPage = async ({ params, searchParams }: PageProps) => {
 
     const resPromptAi = await getPromptAiByUserId(effectiveId);
     const promptAi = Array.isArray(resPromptAi.data) ? resPromptAi.data : [];
-    const paymentReceiptPrompt = await getAgentPromptByUserAndAgentId({
-        userId: effectiveId,
-        agentId: AGENT_PROMPT_IDS.paymentReceiptAnalyzer,
-    });
+    const [paymentReceiptPrompt, paymentMethodsRes] = await Promise.all([
+        getAgentPromptByUserAndAgentId({
+            userId: effectiveId,
+            agentId: AGENT_PROMPT_IDS.paymentReceiptAnalyzer,
+        }),
+        getActivePaymentMethodConfigs(),
+    ]);
 
     return (
         <Suspense fallback={<MessagesSkeleton />}>
@@ -45,6 +49,7 @@ const AiPage = async ({ params, searchParams }: PageProps) => {
                         promptText: paymentReceiptPrompt.promptText,
                     }
                     : null}
+                paymentMethods={paymentMethodsRes.data}
             />
         </Suspense>
     );

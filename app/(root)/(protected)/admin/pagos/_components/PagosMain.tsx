@@ -62,7 +62,7 @@ function SortableMethodItem({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-1.5">
+    <div ref={setNodeRef} style={style} className="flex w-full min-w-0 items-center gap-1.5">
       <div
         className="cursor-grab rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted shrink-0"
         {...attributes}
@@ -70,9 +70,9 @@ function SortableMethodItem({
       >
         <GripVertical className="h-4 w-4" />
       </div>
-      <Card className="flex-1 border-border">
+      <Card className="min-w-0 flex-1 overflow-hidden border-border">
         <CardHeader className="p-3">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             {m.icon && <span className="text-xl shrink-0">{m.icon}</span>}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -83,7 +83,7 @@ function SortableMethodItem({
                 )}
               </div>
               {m.accountFields.length > 0 && (
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="block max-w-full truncate text-xs text-muted-foreground">
                   {m.accountFields.map((f) => f.value).filter(Boolean).join(" · ")}
                 </p>
               )}
