@@ -1,13 +1,19 @@
 // useBusinessAutosave.ts
 "use client";
 
-import { patchBusinessSection } from "@/actions/system-prompt-actions";
+import { patchBusinessAndFirma } from "@/actions/system-prompt-actions";
 import { FormValues } from "@/types/agentAi";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { UseFormReturn } from "react-hook-form";
 import { toast } from "sonner";
 
 export type AutosaveStatus = "idle" | "saving" | "saved" | "error";
+
+export type FirmaPayload = {
+    firmaEnabled: boolean;
+    firmaText: string;
+    firmaName: string;
+};
 
 function createDebounced<F extends (...args: any[]) => any>(fn: F, ms = 700) {
     let t: ReturnType<typeof setTimeout> | null = null;
@@ -33,6 +39,11 @@ export function useBusinessAutosave(opts: {
     onConflict?: (serverState: any) => void;
     onStatusChange?: (status: AutosaveStatus) => void;
     mode?: "auto" | "manual";
+    /**
+     * La firma se edita en la pestaña de negocio pero se almacena en `extras`.
+     * Se persiste junto con el negocio en la misma transacción.
+     */
+    firma?: FirmaPayload;
 }) {
     const {
         form,
@@ -42,12 +53,19 @@ export function useBusinessAutosave(opts: {
         onConflict,
         onStatusChange,
         mode = "auto",
+        firma,
     } = opts;
 
     const versionRef = useRef(version);
     useEffect(() => {
         versionRef.current = version;
     }, [version]);
+
+    // Mantén la firma en un ref para que forceSave/saveFn siempre usen el valor actual.
+    const firmaRef = useRef<FirmaPayload | undefined>(firma);
+    useEffect(() => {
+        firmaRef.current = firma;
+    }, [firma]);
 
     const notifyStatus = useCallback((status: AutosaveStatus) => {
         onStatusChange?.(status);
@@ -56,8 +74,10 @@ export function useBusinessAutosave(opts: {
     // 👇 Lógica REAL de guardado (sin debounce)
     const saveFn = useCallback(
         async (data: FormValues) => {
-            // Si no hay nombre, no guardamos (como ya tenías)
-            if (!data?.nombre || !data.nombre.trim()) return;
+            const firmaPayload = firmaRef.current;
+            const hasFirma = !!firmaPayload?.firmaName?.trim();
+            // Guardamos si hay nombre de negocio o si hay firma que persistir.
+            if ((!data?.nombre || !data.nombre.trim()) && !hasFirma) return;
             if (!promptId) return;
 
             notifyStatus("saving");
@@ -81,10 +101,15 @@ export function useBusinessAutosave(opts: {
                     notas: data.notas ?? "",
                 };
 
-                const res = await patchBusinessSection({
+                const res = await patchBusinessAndFirma({
                     promptId,
                     version: versionRef.current,
-                    data: dto,
+                    business: dto,
+                    firma: {
+                        firmaEnabled: firmaPayload?.firmaEnabled ?? false,
+                        firmaText: firmaPayload?.firmaText ?? "",
+                        firmaName: firmaPayload?.firmaName ?? "",
+                    },
                 });
 
                 if (res?.conflict) {

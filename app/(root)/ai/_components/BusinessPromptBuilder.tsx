@@ -38,6 +38,7 @@ import {
     promptSchema,
 } from "@/types/agentAi";
 import { useBusinessAutosave, AutosaveStatus } from "./hooks/useBusinessAutosave";
+import { buildFirmaBlock } from "./helpers/firmaTemplate";
 
 /* ---------- CAMPOS ADICIONALES DISPONIBLES ---------- */
 const optionalFields = [
@@ -75,6 +76,8 @@ export const BusinessPromptBuilder = ({
         mode: "onChange",
     });
 
+    const firmaText = useMemo(() => buildFirmaBlock(signatureName), [signatureName]);
+
     const { forceSave } = useBusinessAutosave({
         form,
         promptId,
@@ -83,6 +86,11 @@ export const BusinessPromptBuilder = ({
         onConflict,
         onStatusChange: setAutosaveStatus,
         mode: "manual",
+        firma: {
+            firmaEnabled,
+            firmaText,
+            firmaName: signatureName,
+        },
     });
 
     useEffect(() => {

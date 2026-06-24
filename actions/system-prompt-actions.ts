@@ -55,6 +55,57 @@ export async function patchBusinessSection(input: {
     return result;
 }
 
+/**
+ * Guarda la sección de negocio Y la firma del agente en una sola transacción.
+ * La firma se edita en la pestaña de negocio pero se almacena dentro de `extras`,
+ * por eso debe persistirse aquí preservando los `steps` existentes de extras.
+ */
+export async function patchBusinessAndFirma(input: {
+    promptId: string;
+    version: number;
+    business: z.input<typeof BusinessDraftSchema>;
+    firma: { firmaEnabled: boolean; firmaText: string; firmaName: string };
+}) {
+    const { promptId, version, business, firma } = input;
+    const parsedBusiness = BusinessDraftSchema.parse(business);
+
+    return await db.$transaction(async (tx) => {
+        const current = await tx.agentPrompt.findUnique({ where: { id: promptId } });
+        if (!current) throw new Error('Prompt no encontrado');
+
+        if (current.version !== version) {
+            return { ok: false as const, conflict: true as const, data: current };
+        }
+
+        const sectionsRaw = (current.sections ?? {}) as Record<string, any>;
+        if (!sectionsRaw.management) sectionsRaw.management = {};
+        if (!sectionsRaw.keywords) sectionsRaw.keywords = { rules: [] };
+        const parsed = SectionsDraftSchema.parse(sectionsRaw);
+
+        const next = { ...parsed };
+        next.business = BusinessDraftSchema.parse({ ...parsed.business, ...parsedBusiness });
+        // Solo sobreescribe los campos de firma; conserva los steps de extras.
+        next.extras = ExtrasDraftSchema.parse({
+            ...parsed.extras,
+            firmaEnabled: firma.firmaEnabled,
+            firmaText: firma.firmaText,
+            firmaName: firma.firmaName,
+        });
+
+        const updated = await tx.agentPrompt.update({
+            where: { id: promptId },
+            data: {
+                sections: next,
+                version: { increment: 1 },
+                businessName: next.business.nombre || null,
+                businessSector: next.business.sector || null,
+            },
+        });
+
+        return { ok: true as const, conflict: false as const, data: updated };
+    });
+}
+
 export async function patchTrainingSection(input: {
     promptId: string;
     version: number;
