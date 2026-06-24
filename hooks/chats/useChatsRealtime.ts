@@ -3,9 +3,19 @@
 import { useEffect, useRef } from "react";
 import { io, type Socket } from "socket.io-client";
 
+export type RealtimeMessage = {
+  id: string | null;
+  fromMe: boolean;
+  content: string;
+  messageType: string;
+  pushName: string | null;
+  ts: number;
+};
+
 export type ChatChangedPayload = {
   remoteJid: string;
   instanceName: string | null;
+  message?: RealtimeMessage | null;
   ts: number;
 };
 

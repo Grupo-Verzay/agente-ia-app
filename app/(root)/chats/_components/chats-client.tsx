@@ -17,7 +17,7 @@ import { assignTagToSessionAction } from "@/actions/tag-actions";
 import { getChatContactSessions } from "@/actions/session-action";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { useAdvisorNotifications } from "@/hooks/chats/useAdvisorNotifications";
-import { useChatsRealtime } from "@/hooks/chats/useChatsRealtime";
+import { useChatsRealtime, type ChatChangedPayload } from "@/hooks/chats/useChatsRealtime";
 import type {
   ChatData,
   EvolutionMessage,
@@ -69,9 +69,10 @@ const INITIAL_MESSAGE_PAGE_SIZE = 5;
 const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
 const SELECTED_CHAT_SYNC_DELAY_MS = 1600;
 const SELECTED_CHAT_POLLING_DELAY_MS = 2500;
-// Intervalo de refresco de la lista de chats. Se elevó de 10s a 20s para
-// reducir la carga (cada ciclo golpea Evolution + BD + recálculo de la UI).
-const LIST_SYNC_INTERVAL_MS = 20000;
+// Intervalo de refresco de la lista de chats. Con el tiempo real activo, el
+// socket mantiene la frescura; el polling queda como FALLBACK a 60s (antes 20s)
+// para reconciliar si el WebSocket se cae. Reduce mucho la carga a Evolution+BD.
+const LIST_SYNC_INTERVAL_MS = 60000;
 
 type ChatMessageInfo = {
   total?: number;
@@ -334,11 +335,11 @@ export function ChatsClient({
   const selectionRequestRef = useRef(0);
   const bootstrapRequestedRef = useRef(false);
   const messageCacheRef = useRef<Map<string, ChatMessageCacheEntry>>(new Map());
-  // Poll de mensajes del chat abierto. Se elevó de 3s a 6s: sigue detectando
-  // mensajes entrantes con fluidez pero reduce a la mitad las llamadas a
-  // Evolution y las escrituras en BD por ciclo.
-  const BASE_INTERVAL = 6000;
-  const MAX_BACKOFF = 30000;
+  // Poll de mensajes del chat abierto. Con el tiempo real activo, el socket
+  // entrega los mensajes al instante; este poll queda como FALLBACK a 20s
+  // (antes 6s) y además sincroniza/persiste con Evolution periódicamente.
+  const BASE_INTERVAL = 20000;
+  const MAX_BACKOFF = 45000;
 
   const getMessageKey = useCallback((message: EvolutionMessage) => {
     return (
@@ -1426,22 +1427,93 @@ export function ChatsClient({
     setIsComposeOpen(true);
   }, [selectedJid, currentContact, currentContactSession]);
 
-  // ─── Tiempo real (Fase 1): el socket dispara el refetch ya probado ───
+  // ─── Tiempo real (Fase 2): append directo + refetch como fallback ───
   // Si el realtime no está configurado por entorno, el hook no hace nada y todo
   // sigue con el polling de fondo. Es puramente aditivo (acelerador).
   const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Inserta un mensaje entrante de texto en el chat abierto sin consultar a
+  // Evolution. mergeMessages deduplica por key.id (los entrantes siempre traen
+  // id real de WhatsApp), por lo que el siguiente poll no lo duplica.
+  const appendRealtimeMessage = useCallback(
+    (payload: { remoteJid: string; message: NonNullable<ChatChangedPayload["message"]> }) => {
+      const m = payload.message;
+      const evoMsg = {
+        key: { id: m.id ?? undefined, fromMe: m.fromMe, remoteJid: payload.remoteJid },
+        message: { conversation: m.content },
+        messageType: m.messageType,
+        messageTimestamp: m.ts,
+        pushName: m.pushName ?? undefined,
+      } as unknown as EvolutionMessage;
+      setMessages((prev) => mergeMessages(prev, [evoMsg]));
+    },
+    [mergeMessages],
+  );
+
+  // Actualiza la entrada de la lista (último mensaje + no leído) y la sube,
+  // sin refetch. La ordenación final la hace el sidebar por timestamp.
+  const updateChatListLocal = useCallback(
+    (payload: { remoteJid: string; message: NonNullable<ChatChangedPayload["message"]> }) => {
+      const m = payload.message;
+      setCurrentChatsResult((prev) => {
+        if (!prev.success) return prev;
+        const idx = prev.data.findIndex(
+          (c) => c.remoteJid === payload.remoteJid || c.aliases?.includes(payload.remoteJid),
+        );
+        if (idx === -1) return prev;
+        const chat = prev.data[idx];
+        const newLastMessage = {
+          ...(chat.lastMessage ?? {}),
+          key: {
+            ...(chat.lastMessage?.key ?? {}),
+            id: m.id ?? chat.lastMessage?.key?.id,
+            fromMe: m.fromMe,
+            remoteJid: payload.remoteJid,
+          },
+          message: { conversation: m.content },
+          messageType: m.messageType,
+          messageTimestamp: m.ts,
+          pushName: m.pushName ?? chat.lastMessage?.pushName,
+        };
+        const updated = {
+          ...chat,
+          lastMessage: newLastMessage as typeof chat.lastMessage,
+          unreadCount: m.fromMe ? chat.unreadCount ?? 0 : (chat.unreadCount ?? 0) + 1,
+        };
+        return {
+          ...prev,
+          data: [updated, ...prev.data.slice(0, idx), ...prev.data.slice(idx + 1)],
+        };
+      });
+    },
+    [],
+  );
+
   useChatsRealtime({
     enabled: normalizedInitialChatsResult.success,
     onChatChanged: (payload) => {
       const jid = payload.remoteJid;
-      // Si es el chat abierto, refresca sus mensajes al instante.
       const isOpenChat =
         jid && (jid === selectedJid || currentContact?.aliases?.includes(jid));
+      const m = payload.message;
+      const existsInList =
+        currentChatsResult.success &&
+        currentChatsResult.data.some(
+          (c) => c.remoteJid === jid || c.aliases?.includes(jid),
+        );
+
+      // Append directo: solo texto con id y chat ya presente en la lista.
+      if (m && m.content && m.id && existsInList) {
+        if (isOpenChat) appendRealtimeMessage({ remoteJid: jid, message: m });
+        updateChatListLocal({ remoteJid: jid, message: m });
+        return; // sin golpear Evolution
+      }
+
+      // Fallback (multimedia, saliente, chat nuevo o sin id): comportamiento
+      // probado de Fase 1 (refetch del chat abierto + lista con debounce).
       if (isOpenChat && selectedJid) {
         void pollAndCompareMessages(selectedJid, currentContact?.aliases);
       }
-      // Para la lista, refresco con debounce (coalesce ráfagas de eventos)
-      // para no golpear Evolution en cada mensaje.
       if (realtimeRefreshTimerRef.current) {
         clearTimeout(realtimeRefreshTimerRef.current);
       }
