@@ -1,6 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { buildColoredAvatarSvg } from "@/lib/avatar";
 
 export const dynamic = "force-dynamic";
+
+function coloredAvatarResponse(seed: string) {
+  return new NextResponse(buildColoredAvatarSvg(seed), {
+    status: 200,
+    headers: {
+      "Content-Type": "image/svg+xml",
+      "Cache-Control": "public, max-age=3600",
+    },
+  });
+}
 
 // Hosts permitidos para el proxy (evita SSRF). Las fotos de perfil de WhatsApp
 // vienen de *.whatsapp.net; agrega aquí otros orígenes legítimos si hiciera falta.
@@ -19,21 +30,21 @@ function isAllowedHost(hostname: string): boolean {
  */
 export async function GET(request: NextRequest) {
   const raw = request.nextUrl.searchParams.get("u");
-  const placeholder = new URL("/placeholder.svg", request.nextUrl.origin);
+  const seed = request.nextUrl.searchParams.get("s") || raw || "";
 
   if (!raw) {
-    return NextResponse.redirect(placeholder);
+    return coloredAvatarResponse(seed);
   }
 
   let target: URL;
   try {
     target = new URL(raw);
   } catch {
-    return NextResponse.redirect(placeholder);
+    return coloredAvatarResponse(seed);
   }
 
   if (target.protocol !== "https:" || !isAllowedHost(target.hostname)) {
-    return NextResponse.redirect(placeholder);
+    return coloredAvatarResponse(seed);
   }
 
   try {
@@ -47,7 +58,8 @@ export async function GET(request: NextRequest) {
 
     const contentType = upstream.headers.get("content-type") || "";
     if (!upstream.ok || !contentType.startsWith("image/")) {
-      return NextResponse.redirect(placeholder);
+      // Foto caducada/403 → avatar coloreado (mismo color del contacto).
+      return coloredAvatarResponse(seed);
     }
 
     const body = await upstream.arrayBuffer();
@@ -61,6 +73,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch {
-    return NextResponse.redirect(placeholder);
+    return coloredAvatarResponse(seed);
   }
 }

@@ -440,7 +440,7 @@ export function ChatsClient({
         if (infoName && !isBadContactName(infoName)) return infoName;
         return extractWhatsAppDigits(selectedJid) || selectedJid?.split("@")[0] || "Sin nombre";
       })(),
-      avatarSrc: avatarSrcFor(currentContact?.profilePicUrl),
+      avatarSrc: avatarSrcFor(currentContact?.profilePicUrl, selectedJid),
       status: currentContact?.lastMessage?.messageTimestamp ? "ultimo mensaje" : "-",
       isPinned: currentPreference?.isPinned ?? false,
     };

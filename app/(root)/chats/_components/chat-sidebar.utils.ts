@@ -46,7 +46,7 @@ export function nameFrom(chat: ChatData): string {
 }
 
 export function avatarFrom(chat: ChatData): string {
-  return avatarSrcFor(chat.profilePicUrl);
+  return avatarSrcFor(chat.profilePicUrl, chat.remoteJid);
 }
 
 export function isGroupJid(jid: string): boolean {
