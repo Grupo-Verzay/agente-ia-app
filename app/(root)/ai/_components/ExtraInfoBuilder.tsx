@@ -40,7 +40,6 @@ import type {
 } from "@/types/agentAi";
 import type { Workflow } from "@prisma/client";
 import { buildExtrasMarkdown } from "./helpers/actionsBuilders";
-import { buildFirmaBlock } from "./helpers/firmaTemplate";
 
 import {
     DndContext,
@@ -134,21 +133,12 @@ export function ExtraInfoBuilder({
     flows = [],
     notificationNumber,
     registerSaveHandler,
-    firmaEnabled,
-    signatureName,
-    onFirmaEnabledChange,
-    onSignatureNameChange,
 }: ExtraInfoBuilderProps & { flows?: Workflow[] }) {
     /* ====== Estado: pasos (antes "items") ====== */
     const [items, setItems] = useState<ExtraItemType[]>(
         initialExtras?.items && initialExtras.items.length > 0
             ? (initialExtras.items as ExtraItemType[])
             : []
-    );
-
-    const firmaText = useMemo(
-        () => buildFirmaBlock(signatureName),
-        [signatureName]
     );
 
     const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
@@ -169,18 +159,11 @@ export function ExtraInfoBuilder({
     const collapseAll = useCallback(() => setExpandedItems(new Set()), []);
     const expandAll = useCallback(() => setExpandedItems(new Set(items.map((s) => s.id))), [items]);
 
-    /* ====== AUTOSAVE (sections.extras.steps + firma*) ====== */
+    /* ====== AUTOSAVE (sections.extras.steps) ====== */
     const stableOnConflict = useCallback(
         (serverState: any) => {
             const s = serverState?.sections?.extras ?? {};
             setItems((s.steps ?? []) as ExtraItemType[]);
-
-            const savedText = s.firmaText ?? "";
-            const m = savedText.match(/@([a-zA-Z0-9_]+)/);
-            const resolvedName = m ? m[1] : s.firmaName ?? "";
-            onSignatureNameChange(resolvedName);
-            onFirmaEnabledChange(resolvedName.trim().length > 0);
-
             onConflict?.(serverState);
         },
         [onConflict]
@@ -190,12 +173,9 @@ export function ExtraInfoBuilder({
         promptId,
         version,
         items,
-        firmaEnabled,
-        firmaText,
-        firmaName: signatureName,
         onVersionChange,
         onConflict: stableOnConflict,
-        onStatusChange: setAutosaveStatus, // 👈 NUEVO
+        onStatusChange: setAutosaveStatus,
         mode: "manual"
     });
 
@@ -220,9 +200,6 @@ export function ExtraInfoBuilder({
         onChange?.({
             mainMessage: first?.mainMessage ?? "",
             elements: first?.elements ?? [],
-            firmaEnabled,
-            firmaText,
-            firmaName: signatureName,
             prompt,
         });
 

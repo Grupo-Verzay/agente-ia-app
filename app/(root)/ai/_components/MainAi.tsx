@@ -659,14 +659,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 }}
                                 initialExtras={{
                                     items: sections?.extras?.steps ?? [],
-                                    firmaEnabled: sections?.extras?.firmaEnabled ?? false,
-                                    firmaText: sections?.extras?.firmaText ?? undefined,
-                                    firmaName: sections?.extras?.firmaName ?? undefined,
                                 }}
-                                firmaEnabled={firmaEnabled}
-                                signatureName={signatureName}
-                                onFirmaEnabledChange={setFirmaEnabled}
-                                onSignatureNameChange={setSignatureName}
                                 registerSaveHandler={(fn) => registerSaveHandler("more", fn)}
                             />
                         </TabsContent>

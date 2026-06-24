@@ -25,9 +25,6 @@ export function useExtrasAutosave(opts: {
     promptId: string;
     version: number;
     items: ExtraItemType[];
-    firmaEnabled: boolean;
-    firmaText: string;
-    firmaName: string;
     onVersionChange: (next: number) => void;
     onConflict?: (serverState: any) => void;
     onStatusChange?: (status: AutosaveStatus) => void;
@@ -37,9 +34,6 @@ export function useExtrasAutosave(opts: {
         promptId,
         version,
         items,
-        firmaEnabled,
-        firmaText,
-        firmaName,
         onVersionChange,
         onConflict,
         onStatusChange,
@@ -62,8 +56,8 @@ export function useExtrasAutosave(opts: {
     }, []);
 
     const payloadHash = useMemo(
-        () => JSON.stringify({ steps: items, firmaEnabled, firmaText, firmaName }),
-        [items, firmaEnabled, firmaText, firmaName]
+        () => JSON.stringify({ steps: items }),
+        [items]
     );
     const lastHashRef = useRef<string>("");
 
@@ -77,9 +71,6 @@ export function useExtrasAutosave(opts: {
     const saveFn = useCallback(
         async (payload: {
             steps: ExtraItemType[];
-            firmaEnabled: boolean;
-            firmaText: string;
-            firmaName: string;
         }) => {
             if (!promptId) return;
             if (!mountedRef.current) return;
@@ -92,9 +83,6 @@ export function useExtrasAutosave(opts: {
                     version: versionRef.current,
                     data: {
                         steps: payload.steps,
-                        firmaEnabled: payload.firmaEnabled,
-                        firmaText: payload.firmaText,
-                        firmaName: payload.firmaName,
                     },
                 });
 
@@ -134,19 +122,19 @@ export function useExtrasAutosave(opts: {
         if (lastHashRef.current === payloadHash) return;
         lastHashRef.current = payloadHash;
 
-        runSave({ steps: items, firmaEnabled, firmaText, firmaName });
+        runSave({ steps: items });
 
         return () => {
             runSave.cancel?.();
         };
-    }, [mode, promptId, payloadHash, items, firmaEnabled, firmaText, firmaName, runSave]);
+    }, [mode, promptId, payloadHash, items, runSave]);
 
     const forceSave = useCallback(async () => {
         if (!promptId) return;
         lastHashRef.current = payloadHash;
 
-        await saveFn({ steps: items, firmaEnabled, firmaText, firmaName });
-    }, [promptId, payloadHash, items, firmaEnabled, firmaText, firmaName, saveFn]);
+        await saveFn({ steps: items });
+    }, [promptId, payloadHash, items, saveFn]);
 
     return { forceSave };
 }

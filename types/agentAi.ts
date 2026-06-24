@@ -756,9 +756,6 @@ export interface ExtraInfoBuilderProps {
     onChange?: (state: {
         mainMessage: string;
         elements: ElementItem[]
-        firmaEnabled: boolean;
-        firmaText: string;
-        firmaName: string;
         prompt: string;
     }) => void;
     promptId: string;
@@ -766,11 +763,7 @@ export interface ExtraInfoBuilderProps {
     onVersionChange: (v: number) => void;
     onConflict?: (serverState: any) => void;
     registerSaveHandler?: (fn: () => Promise<void>) => void;
-    initialExtras?: { items?: Array<any>; firmaEnabled?: boolean; firmaText?: string, firmaName?: string };
-    firmaEnabled: boolean;
-    signatureName: string;
-    onFirmaEnabledChange: (v: boolean) => void;
-    onSignatureNameChange: (v: string) => void;
+    initialExtras?: { items?: Array<any> };
 }
 
 export interface FunctionSelectorInterface {

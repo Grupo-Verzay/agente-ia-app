@@ -175,24 +175,20 @@ export async function patchProductsSection(input: {
 export async function patchExtrasSection(input: {
     promptId: string;
     version: number;
-    data: z.input<typeof ExtrasDraftSchema>; // { firmaEnabled?, firmaText?, firmaName?, items? }
+    data: { steps?: z.input<typeof ExtrasDraftSchema>["steps"] };
 }) {
     const { promptId, version, data } = input;
 
-    // Normaliza con Draft (defaults seguros)
-    const parsed = ExtrasDraftSchema.parse({
-        firmaEnabled: false,
-        firmaText: "",
-        firmaName: "",
-        items: [],
-        ...data,
-    });
+    // Extras solo gestiona los `steps`. La firma se administra desde la
+    // pestaña de negocio (patchBusinessAndFirma); aquí NO se toca para no
+    // sobreescribirla — patchSection hace merge y conserva los campos de firma.
+    const steps = ExtrasDraftSchema.shape.steps.parse(data?.steps ?? []);
 
     return await patchSection({
         promptId,
         version,
         sectionKey: "extras",
-        patch: parsed,
+        patch: { steps },
     });
 }
 
