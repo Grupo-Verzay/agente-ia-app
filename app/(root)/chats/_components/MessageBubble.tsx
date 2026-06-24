@@ -95,7 +95,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onReact,
   onDelete,
 }) => {
-  const showAvatar = !isUserMessage;
+  // Sin avatar por mensaje (como WhatsApp en chats 1-a-1): burbujas limpias y
+  // más espacio. El avatar del contacto ya se ve en la cabecera del chat.
+  const showAvatar = false;
 
   const senderIcon = isUserMessage ? (
     <span className="flex items-center gap-0.5 text-[0.6rem] leading-none text-gray-300" title={sentByAi ? 'Enviado por el Agente IA' : 'Enviado por asesor humano'}>
