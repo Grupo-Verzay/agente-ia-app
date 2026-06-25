@@ -107,15 +107,18 @@ export function buildBillingMessage(args: {
         ? Math.abs(daysRemaining)
         : null;
 
+    // Ícono según la etapa: 1 día vencido = ⚠️ (advertencia), 2+ = 🔴 (alerta fuerte).
+    const overdueIcon = overdueDays === 1 ? "⚠️" : "🔴";
+
     const header = type === "REMINDER_3D"
         ? `🏢 ${companyName || "Cliente"}:`
         : type === "DUE_TODAY"
             ? `🏢 ${companyName || "Cliente"}:\n🔔 *Hoy vence su servicio:*`
-            : `🏢 ${companyName || "Cliente"}:\n🚫 *Su servicio esta vencido desde hace ${overdueDays ?? 0} ${overdueDays === 1 ? "dia" : "dias"}:*`;
+            : `🏢 ${companyName || "Cliente"}:\n${overdueIcon} *Su servicio esta vencido desde hace ${overdueDays ?? 0} ${overdueDays === 1 ? "dia" : "dias"}:*`;
 
     return [
         header,
-        type === "REMINDER_3D" ? `📋 *Servicio a vencer:*` : "",
+        type === "REMINDER_3D" ? `⏰ *Servicio a vencer:*` : "",
         `--------•--------•--------•--------`,
         dueDateLine,
         daysRemainingLine,
