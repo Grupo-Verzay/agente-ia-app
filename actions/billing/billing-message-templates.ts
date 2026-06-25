@@ -81,18 +81,19 @@ export function buildBillingMessage(args: {
 
     if (type === "STATUS_SUSPENDED") {
         // Mensaje del día del corte (al cumplirse los días de gracia: 0, 1, 2, 3, 5...).
+        // Negrillas según el patrón original: solo etiquetas (*Vencía:*, *Días de vencido:*,
+        // *Plan*, *Licencia*) y la línea de estado; empresa sin negrilla.
         const overdueDays =
             typeof daysRemaining === "number" ? Math.abs(Math.min(daysRemaining, 0)) : 0;
-        const planClean = planLabel.replace(/\*/g, "");
-        const licenseClean = licenseLabel.replace(/\*/g, "").replace(/\bdias\b/gi, "días");
+        const licenseClean = licenseLabel.replace(/\bdias\b/gi, "días");
         return [
-            `🏢 *${companyName || "Cliente"}:*`,
-            `🚫 Tu servicio ha sido suspendido hoy`,
+            `🏢 ${companyName || "Cliente"}:`,
+            `🚫 *Tu servicio ha sido suspendido hoy*`,
             `--------•--------•--------•--------`,
-            dueDate ? `📅 *Vencía: ${fmtDateDDMMYYYY(dueDate)}*` : `📅 *Vencía: Sin fecha*`,
-            `⚠️ Días de vencido: ${overdueDays}`,
+            dueDate ? `📅 *Vencía:* ${fmtDateDDMMYYYY(dueDate)}` : `📅 *Vencía:* Sin fecha`,
+            `⚠️ *Días de vencido:* ${overdueDays}`,
             `--------•--------•--------•--------`,
-            `🛠️ *${planClean}*`,
+            `🛠️ ${planLabel}`,
             `📅 ${licenseClean}`,
             `💵 ${fmtPriceLine({ price, currencyCode, currencyFlag })}`,
             `--------•--------•--------•--------`,
@@ -113,12 +114,12 @@ export function buildBillingMessage(args: {
     const header = type === "REMINDER_3D"
         ? `🏢 ${companyName || "Cliente"}:`
         : type === "DUE_TODAY"
-            ? `🏢 ${companyName || "Cliente"}:\n🔔 *Hoy vence su servicio:*`
-            : `🏢 ${companyName || "Cliente"}:\n${overdueIcon} *Su servicio esta vencido desde hace ${overdueDays ?? 0} ${overdueDays === 1 ? "dia" : "dias"}:*`;
+            ? `🏢 ${companyName || "Cliente"}:\n🔔 *Hoy vence su servicio*`
+            : `🏢 ${companyName || "Cliente"}:\n${overdueIcon} *Su servicio esta vencido desde hace ${overdueDays ?? 0} ${overdueDays === 1 ? "dia" : "dias"}*`;
 
     return [
         header,
-        type === "REMINDER_3D" ? `⏰ *Servicio a vencer:*` : "",
+        type === "REMINDER_3D" ? `⏰ *Servicio a vencer*` : "",
         `--------•--------•--------•--------`,
         dueDateLine,
         daysRemainingLine,
