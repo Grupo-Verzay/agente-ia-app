@@ -21,15 +21,42 @@ const DEFAULT_MESSAGES: Record<number, string> = {
 const FOLLOW_UP_DAYS = [1, 3, 6]
 const MAX_ATTEMPTS = 3
 
-// Ventana horaria local del cliente en la que es aceptable enviar (evita madrugadas).
-// Para que esto funcione el cron debe correr cada hora; la unicidad por (userId, day)
-// garantiza que solo se envíe una vez aunque corra varias veces al día.
-const SEND_AFTER_HOUR = 9 // no enviar antes de las 9:00 local
-const SEND_BEFORE_HOUR = 21 // no enviar a partir de las 21:00 local
+// Hora local del cliente en la que se envía el seguimiento. El cron corre cada
+// hora al minuto :30, así que al exigir la hora 9 el mensaje llega ~9:30 AM
+// local. Si el seguimiento vence fuera de esta hora, se difiere a la mañana
+// siguiente (nunca se envía por la tarde/noche). La unicidad por (userId, day)
+// garantiza que solo se envíe una vez aunque el cron corra varias veces al día.
+const SEND_HOUR = 9 // enviar únicamente durante la hora 9 local (→ ~9:30 AM)
 const DEFAULT_TIMEZONE = 'America/Bogota'
 
-function daysSince(date: Date): number {
-  return Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24))
+// Clave de fecha local (YYYY-MM-DD) según la zona horaria del usuario.
+function localDateKey(date: Date, timezone: string | null | undefined): string {
+  const tz = timezone || DEFAULT_TIMEZONE
+  try {
+    // en-CA produce el orden YYYY-MM-DD.
+    return new Intl.DateTimeFormat('en-CA', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      timeZone: tz,
+    }).format(date)
+  } catch {
+    return new Intl.DateTimeFormat('en-CA', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      timeZone: DEFAULT_TIMEZONE,
+    }).format(date)
+  }
+}
+
+// Días calendario transcurridos desde el registro, en la zona horaria del
+// usuario. Usar días calendario (y no 24h corridas) hace que "día 1" sea SIEMPRE
+// la mañana siguiente al registro, sin importar la hora a la que se registró.
+function daysSince(createdAt: Date, now: Date, timezone: string | null | undefined): number {
+  const start = new Date(`${localDateKey(createdAt, timezone)}T00:00:00Z`).getTime()
+  const today = new Date(`${localDateKey(now, timezone)}T00:00:00Z`).getTime()
+  return Math.round((today - start) / (1000 * 60 * 60 * 24))
 }
 
 // La URL de Evolution puede estar guardada sin protocolo (ej. "evoapi.ia-app.com").
@@ -147,7 +174,7 @@ async function runTrialFollowUps() {
   }
 
   for (const user of trialUsers) {
-    const days = daysSince(user.createdAt)
+    const days = daysSince(user.createdAt, now, user.timezone)
     const userLogs = logsByUser.get(user.id) ?? []
     const logByDay = new Map(userLogs.map(l => [l.day, l]))
 
@@ -164,10 +191,11 @@ async function runTrialFollowUps() {
     })
     if (targetDay === undefined) continue
 
-    // Respeta la zona horaria del cliente: si es de madrugada/noche, no se envía
-    // ahora; se difiere a la siguiente corrida horaria que caiga dentro de la ventana.
+    // Respeta la zona horaria del cliente: solo se envía durante la hora 9 local
+    // (el cron corre a :30 → llega ~9:30 AM). Fuera de esa hora se difiere a la
+    // mañana siguiente.
     const hour = localHour(now, user.timezone)
-    if (hour < SEND_AFTER_HOUR || hour >= SEND_BEFORE_HOUR) {
+    if (hour !== SEND_HOUR) {
       results.deferred++
       continue
     }
