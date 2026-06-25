@@ -127,10 +127,12 @@ export function evaluateBillingLifecycle(
         };
     }
 
-    // Suspender mínimo al día -(OVERDUE_DAYS_BILLING+1), respetando graceDays si es mayor
-    const effectiveGraceDays = Math.max(graceDays, OVERDUE_DAYS_BILLING);
+    // Suspender EXACTAMENTE al cumplirse los días de gracia configurados (graceDays literal).
+    // Vence en el día 0; tras `graceDays` días vencidos (daysRemaining = -graceDays) se
+    // suspende: desactiva el agente, elimina la instancia de Evolution y corta el acceso.
+    // graceDays=0 → corte INMEDIATO al vencer (incluye la prueba gratis, que se crea con 0).
     const overdueBeyondGrace =
-        daysRemaining !== null && daysRemaining < -effectiveGraceDays;
+        daysRemaining !== null && daysRemaining <= -graceDays;
 
     const nextBillingStatus: BillingStatus = overdueBeyondGrace ? "UNPAID" : "PAID";
     const nextAccessStatus: AccessStatus = overdueBeyondGrace ? "SUSPENDED" : "ACTIVE";
