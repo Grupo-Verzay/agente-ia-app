@@ -80,18 +80,21 @@ export function buildBillingMessage(args: {
     }
 
     if (type === "STATUS_SUSPENDED") {
+        // Mensaje del día del corte (al cumplirse los días de gracia: 0, 1, 2, 3, 5...).
+        const overdueDays =
+            typeof daysRemaining === "number" ? Math.abs(Math.min(daysRemaining, 0)) : 0;
+        const planClean = planLabel.replace(/\*/g, "");
+        const licenseClean = licenseLabel.replace(/\*/g, "").replace(/\bdias\b/gi, "días");
         return [
-            `🚫 *Estado de su servicio actualizado*`,
-            // `${companyName || "Cliente"}, su servicio fue suspendido por vencimiento fuera de los dias de gracia.`,
+            `🏢 *${companyName || "Cliente"}:*`,
+            `🚫 Tu servicio ha sido suspendido hoy`,
             `--------•--------•--------•--------`,
-            dueDateLine,
-            daysRemainingLine,
+            dueDate ? `📅 *Vencía: ${fmtDateDDMMYYYY(dueDate)}*` : `📅 *Vencía: Sin fecha*`,
+            `⚠️ Días de vencido: ${overdueDays}`,
             `--------•--------•--------•--------`,
-            `🛠️ ${planLabel}`,
-            `🗓️ ${licenseLabel}`,
+            `🛠️ *${planClean}*`,
+            `📅 ${licenseClean}`,
             `💵 ${fmtPriceLine({ price, currencyCode, currencyFlag })}`,
-            // `📌 *Billing:* ${billingStatus ?? "UNPAID"}`,
-            // `📌 *Acceso:* ${accessStatus ?? "SUSPENDED"}`,
             `--------•--------•--------•--------`,
             `💱 *Medios de pago:*`,
             `${paymentLinkOrText}`,

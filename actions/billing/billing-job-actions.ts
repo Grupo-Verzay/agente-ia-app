@@ -297,6 +297,49 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                             userId: billing.userId,
                         });
                     }
+
+                    // Avisar al cliente que su servicio fue suspendido. Este mensaje
+                    // REEMPLAZA al recordatorio de "vencido/paga" ese día (ver continue abajo).
+                    attempted++;
+                    const suspendedMsg = await sendBillingTemplateMessage({
+                        billing,
+                        template: "STATUS_SUSPENDED",
+                        dispatcher,
+                        now,
+                        source: "billing-cron-suspended",
+                    });
+                    if (suspendedMsg.success) {
+                        sent++;
+                        sentItems.push({
+                            userBillingId: billing.id,
+                            userId: billing.userId,
+                            name: candidateName,
+                            remoteJid: suspendedMsg.remoteJid ?? "",
+                            template: "STATUS_SUSPENDED",
+                            kind: "STATE_CHANGE",
+                            success: true,
+                            sentAt: new Date().toISOString(),
+                            error: null,
+                        });
+                        pushLog({
+                            at: new Date().toISOString(),
+                            level: "INFO",
+                            message: "Mensaje de suspensión enviado al cliente.",
+                            userBillingId: billing.id,
+                            userId: billing.userId,
+                            template: "STATUS_SUSPENDED",
+                        });
+                    } else {
+                        errors++;
+                        pushLog({
+                            at: new Date().toISOString(),
+                            level: "ERROR",
+                            message: `No se pudo enviar el mensaje de suspensión: ${suspendedMsg.message}`,
+                            userBillingId: billing.id,
+                            userId: billing.userId,
+                            template: "STATUS_SUSPENDED",
+                        });
+                    }
                 }
 
                 if (syncResult.webhookResult && !syncResult.webhookResult.success && !syncResult.webhookResult.skipped) {
@@ -307,6 +350,12 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                         userBillingId: billing.id,
                         userId: billing.userId,
                     });
+                }
+
+                // Si acabamos de suspender, el cliente ya recibió el mensaje de
+                // suspensión arriba: no enviar también el recordatorio de "vencido/paga".
+                if (syncResult.stateChanged && billing.accessStatus === "SUSPENDED") {
+                    continue;
                 }
 
                 if (syncResult.notificationResult) {
