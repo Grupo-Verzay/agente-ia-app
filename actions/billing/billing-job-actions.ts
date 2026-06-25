@@ -7,7 +7,7 @@ import { endOfDay, format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 
 import { ResponseFormat, SOON_DAYS_BILLING, DELETE_DAYS_BILLING } from "@/types/billing";
-import { deleteInstanceInternal } from "@/actions/api-action";
+import { deleteInstanceInternal, deleteInstanceEvolutionAware } from "@/actions/api-action";
 import { assertAdminOrReseller } from "./helpers/billing-helpers.server";
 import {
     evaluateBillingLifecycle,
@@ -265,7 +265,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                     suspendedApplied++;
 
                     try {
-                        const deleteResult = await deleteInstanceInternal(billing.userId);
+                        const deleteResult = await deleteInstanceEvolutionAware(billing.userId);
                         if (deleteResult.success && deleteResult.instanceName) {
                             await db.userBilling.update({
                                 where: { userId: billing.userId },
@@ -278,11 +278,12 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                                 userBillingId: billing.id,
                                 userId: billing.userId,
                             });
-                        } else if (!deleteResult.success && deleteResult.message !== "El usuario no tiene ninguna instancia activa.") {
+                        } else if (!deleteResult.success) {
+                            // Evolution caído: el registro queda en BD y se reintenta abajo (y en próximas corridas).
                             pushLog({
                                 at: new Date().toISOString(),
                                 level: "WARN",
-                                message: `No se pudo eliminar la instancia de Evolution: ${deleteResult.message}`,
+                                message: `No se pudo eliminar la instancia de Evolution (se reintentará): ${deleteResult.message}`,
                                 userBillingId: billing.id,
                                 userId: billing.userId,
                             });
@@ -455,6 +456,53 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
             }
         }
 
+        // ── Reintento de borrado de instancia para suspendidos cuya instancia ──
+        //    sigue viva en Evolution (p. ej. Evolution estaba caído el día de la
+        //    suspensión). El registro en BD persiste como señal de pendiente.
+        let retriedInstanceDeletions = 0;
+        const suspendedWithInstance = await db.userBilling.findMany({
+            where: {
+                accessStatus: "SUSPENDED",
+                user: { instancias: { some: { instanceType: "Whatsapp" } } },
+            },
+            select: { id: true, userId: true },
+        });
+        for (const sb of suspendedWithInstance) {
+            try {
+                const retryResult = await deleteInstanceEvolutionAware(sb.userId);
+                if (retryResult.success && retryResult.instanceName) {
+                    await db.userBilling.update({
+                        where: { userId: sb.userId },
+                        data: { lastInstanceName: retryResult.instanceName },
+                    });
+                    retriedInstanceDeletions++;
+                    pushLog({
+                        at: new Date().toISOString(),
+                        level: "INFO",
+                        message: `Instancia de Evolution eliminada en reintento: ${retryResult.instanceName}.`,
+                        userBillingId: sb.id,
+                        userId: sb.userId,
+                    });
+                } else if (!retryResult.success) {
+                    pushLog({
+                        at: new Date().toISOString(),
+                        level: "WARN",
+                        message: `Reintento de borrado de instancia falló (Evolution sigue caído): ${retryResult.message}`,
+                        userBillingId: sb.id,
+                        userId: sb.userId,
+                    });
+                }
+            } catch (retryErr: any) {
+                pushLog({
+                    at: new Date().toISOString(),
+                    level: "WARN",
+                    message: `Error inesperado en reintento de borrado de instancia: ${retryErr?.message}`,
+                    userBillingId: sb.id,
+                    userId: sb.userId,
+                });
+            }
+        }
+
         // ── Eliminar cuentas con 30+ días vencidas sin pagar ──────────────────
         const deletionCutoff = endOfDay(
             new Date(now.getTime() - DELETE_DAYS_BILLING * 24 * 60 * 60 * 1000)
@@ -548,7 +596,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
         pushLog({
             at: new Date().toISOString(),
             level: "INFO",
-            message: `Resumen job billing: attempted=${attempted}, sent=${sent}, suspended=${suspendedApplied}, deleted=${deletedApplied}, errors=${errors}.`,
+            message: `Resumen job billing: attempted=${attempted}, sent=${sent}, suspended=${suspendedApplied}, instanciasReintentadas=${retriedInstanceDeletions}, deleted=${deletedApplied}, errors=${errors}.`,
         });
 
         return {

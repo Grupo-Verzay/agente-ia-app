@@ -598,6 +598,83 @@ export async function deleteInstanceInternal(
   }
 }
 
+/**
+ * Elimina la instancia de Evolution SOLO si Evolution confirma el borrado
+ * (respuesta OK, 404 = ya no existe, u otro 4xx no transitorio). Si Evolution
+ * está caído/inalcanzable (error de red o 5xx), CONSERVA el registro en BD para
+ * poder reintentar después: el registro presente actúa como señal de
+ * "borrado pendiente". Devuelve `retryable: true` cuando el fallo es transitorio.
+ *
+ * A diferencia de `deleteInstanceInternal`, que limpia el registro aunque
+ * Evolution no responda (dejando la instancia huérfana sin posibilidad de
+ * reintento), esta variante es la que usa el cron de billing.
+ */
+export async function deleteInstanceEvolutionAware(
+  userId: string,
+  instanceType: string = 'Whatsapp'
+): Promise<{ success: boolean; retryable: boolean; message: string; instanceName: string | null }> {
+  try {
+    const instanciaActiva = await checkActiveInstance(userId, instanceType);
+    if (!instanciaActiva) {
+      return { success: true, retryable: false, message: "Sin instancia activa.", instanceName: null };
+    }
+
+    const instanceName = instanciaActiva.instanceName;
+
+    if (isWhatsappLike(instanceType)) {
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        include: { apiKey: true },
+      });
+
+      // Sin apiKey no se puede contactar a Evolution; limpiamos el registro para
+      // no reintentar de forma indefinida (no es un fallo transitorio).
+      if (!user || !user.apiKey) {
+        await db.instancia.delete({ where: { id: instanciaActiva.id } });
+        return { success: true, retryable: false, message: "Instancia sin ApiKey: registro eliminado.", instanceName };
+      }
+
+      const { key: apiKey, url: serverUrl } = user.apiKey;
+
+      // logout best-effort: no condiciona el resultado.
+      await fetch(`https://${serverUrl}/instance/logout/${instanceName}`, {
+        method: 'DELETE',
+        headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+      }).catch(() => {});
+
+      let reached = false;
+      let deleteStatus = 0;
+      try {
+        const res = await fetch(`https://${serverUrl}/instance/delete/${instanceName}`, {
+          method: 'DELETE',
+          headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+        });
+        reached = true;
+        deleteStatus = res.status;
+      } catch {
+        reached = false;
+      }
+
+      // Evolution inalcanzable o error de servidor → transitorio → reintentar luego.
+      // Conservamos el registro en BD como señal de borrado pendiente.
+      if (!reached || deleteStatus >= 500) {
+        return {
+          success: false,
+          retryable: true,
+          message: `Evolution no confirmó el borrado (${reached ? `status=${deleteStatus}` : 'sin respuesta'}). Se reintentará.`,
+          instanceName,
+        };
+      }
+      // OK / 404 (ya no existe) / 4xx no transitorio → resuelto en Evolution.
+    }
+
+    await db.instancia.delete({ where: { id: instanciaActiva.id } });
+    return { success: true, retryable: false, message: "Instancia eliminada exitosamente.", instanceName };
+  } catch (error: any) {
+    return { success: false, retryable: true, message: error?.message || "Error al eliminar la instancia.", instanceName: null };
+  }
+}
+
 export async function createInstanceInternal(
   userId: string,
   instanceName: string,
