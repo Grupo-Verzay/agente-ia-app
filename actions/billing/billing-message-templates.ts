@@ -32,15 +32,15 @@ export function buildBillingMessage(args: {
         accessStatus,
     } = args;
 
-    const dueDateLine = dueDate ? `📆 *Vence:* ${fmtDateDDMMYYYY(dueDate)}` : "📆 *Vence:* Sin fecha";
+    const dueDateLine = dueDate ? `📅 *Vence:* ${fmtDateDDMMYYYY(dueDate)}` : "📅 *Vence:* Sin fecha";
     const daysRemainingLine =
         typeof daysRemaining === "number"
             ? daysRemaining < 0
-                ? `⚠️ *Dias de vencido:* ${Math.abs(daysRemaining)}`
+                ? `⚠️ *Días de vencido:* ${Math.abs(daysRemaining)}`
                 : daysRemaining === 0
                     ? `⏳ *Vence:* Hoy`
-                    : `⏳ *Dias restantes:* ${daysRemaining}`
-            : "⏳ *Dias restantes:* Sin calcular";
+                    : `⏳ *Días restantes:* ${daysRemaining}`
+            : "⏳ *Días restantes:* Sin calcular";
 
     if (type === "STATUS_ACTIVE") {
         return [
@@ -51,7 +51,7 @@ export function buildBillingMessage(args: {
             daysRemainingLine,
             `--------•--------•--------•--------`,
             `🛠️ ${planLabel}`,
-            `🗓️ ${licenseLabel}`,
+            `📅 ${licenseLabel}`,
             `💵 ${fmtPriceLine({ price, currencyCode, currencyFlag })}`,
             // `📌 *Billing:* ${billingStatus ?? "PAID"}`,
             // `📌 *Acceso:* ${accessStatus ?? "ACTIVE"}`,
@@ -69,7 +69,7 @@ export function buildBillingMessage(args: {
             daysRemainingLine,
             `--------•--------•--------•--------`,
             `🛠️ ${planLabel}`,
-            `🗓️ ${licenseLabel}`,
+            `📅 ${licenseLabel}`,
             `💵 ${fmtPriceLine({ price, currencyCode, currencyFlag })}`,
             // `📌 *Billing:* ${billingStatus ?? "UNPAID"}`,
             // `📌 *Acceso:* ${accessStatus ?? "ACTIVE"}`,
@@ -85,7 +85,6 @@ export function buildBillingMessage(args: {
         // *Plan*, *Licencia*) y la línea de estado; empresa sin negrilla.
         const overdueDays =
             typeof daysRemaining === "number" ? Math.abs(Math.min(daysRemaining, 0)) : 0;
-        const licenseClean = licenseLabel.replace(/\bdias\b/gi, "días");
         return [
             `🏢 ${companyName || "Cliente"}:`,
             `🚫 *Tu servicio ha sido suspendido hoy*`,
@@ -94,7 +93,7 @@ export function buildBillingMessage(args: {
             `⚠️ *Días de vencido:* ${overdueDays}`,
             `--------•--------•--------•--------`,
             `🛠️ ${planLabel}`,
-            `📅 ${licenseClean}`,
+            `📅 ${licenseLabel}`,
             `💵 ${fmtPriceLine({ price, currencyCode, currencyFlag })}`,
             `--------•--------•--------•--------`,
             `💱 *Medios de pago:*`,
@@ -115,7 +114,7 @@ export function buildBillingMessage(args: {
         ? `🏢 ${companyName || "Cliente"}:`
         : type === "DUE_TODAY"
             ? `🏢 ${companyName || "Cliente"}:\n🔔 *Hoy vence su servicio*`
-            : `🏢 ${companyName || "Cliente"}:\n${overdueIcon} *Su servicio esta vencido desde hace ${overdueDays ?? 0} ${overdueDays === 1 ? "dia" : "dias"}*`;
+            : `🏢 ${companyName || "Cliente"}:\n${overdueIcon} *Su servicio está vencido desde hace ${overdueDays ?? 0} ${overdueDays === 1 ? "día" : "días"}*`;
 
     return [
         header,
@@ -125,7 +124,7 @@ export function buildBillingMessage(args: {
         daysRemainingLine,
         `--------•--------•--------•--------`,
         `🛠️ ${planLabel}`,
-        `🗓️ ${licenseLabel}`,
+        `📅 ${licenseLabel}`,
         `💵 ${fmtPriceLine({ price, currencyCode, currencyFlag })}`,
         `--------•--------•--------•--------`,
         `💱 *Medios de pago:*`,
