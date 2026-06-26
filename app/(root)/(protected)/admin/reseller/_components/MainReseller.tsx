@@ -12,12 +12,13 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { User } from "@prisma/client"
-import { Loader2, Package, Users, Plus } from "lucide-react"
+import { Loader2, Package, Users, Plus, RefreshCw } from "lucide-react"
 import { getClientsByReseller, assignClientToReseller, removeClientFromReseller } from "@/actions/reseller-action"
 import {
   getResellersWithPools,
   assignLicenses,
   updateDemoLimit,
+  reconcileResellerLicenses,
   type ResellerWithPools,
 } from "@/actions/reseller-license-actions"
 import { getAllSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions"
@@ -55,6 +56,22 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
   const [demoLimitDialog, setDemoLimitDialog] = useState(false)
   const [demoLimitForm, setDemoLimitForm] = useState({ resellerUserId: "", demoLimit: 3 })
   const [saving, setSaving] = useState(false)
+  const [reconciling, setReconciling] = useState(false)
+
+  const handleReconcile = async () => {
+    setReconciling(true)
+    try {
+      const res = await reconcileResellerLicenses()
+      if (res.success) {
+        toast.success(res.message)
+        void fetchLicenses()
+      } else {
+        toast.error(res.message)
+      }
+    } finally {
+      setReconciling(false)
+    }
+  }
 
   // ── Cargar clientes ──
   useEffect(() => {
@@ -250,6 +267,19 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
         {/* ── TAB LICENCIAS ── */}
         {tab === "licencias" && (
           <div className="space-y-4">
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs gap-1.5"
+                onClick={handleReconcile}
+                disabled={reconciling}
+                title="Recalcula el uso etiquetando a los clientes existentes con su plan"
+              >
+                {reconciling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                Reconciliar licencias
+              </Button>
+            </div>
             {loadingLicenses ? (
               <div className="flex justify-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

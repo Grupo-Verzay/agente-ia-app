@@ -343,8 +343,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       {/* Input + botones */}
       <div className="relative flex flex-nowrap items-center gap-2">
         <div className="relative flex flex-nowrap z-10 items-center justify-center">
-          {/* Firma + SwitchStatus — solo desktop */}
-          <div className="pr-2 md:flex hidden items-center gap-1">
+          {/* Firma + SwitchStatus — visible también en móvil (firma del asesor) */}
+          <div className="pr-2 flex items-center gap-1">
             {session && (
               <SwitchStatus
                 key={`${session.id}-${session.status ? 'on' : 'off'}`}
