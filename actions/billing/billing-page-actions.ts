@@ -39,7 +39,11 @@ export async function getClientsWithBilling(): Promise<ResponseFormat<any[]>> {
       where: {
         status: true,
         ownerId: null,
-        ...(assignedUserIds ? { id: { in: assignedUserIds } } : {}),
+        // Admin: solo clientes directos + cuentas principales de resellers.
+        // Los clientes ASIGNADOS a un reseller (demoResellerId) los cobra el
+        // reseller, no la plataforma, así que se excluyen de Finanzas del admin.
+        // (En la vista del reseller sí se listan vía assignedUserIds.)
+        ...(assignedUserIds ? { id: { in: assignedUserIds } } : { demoResellerId: null }),
       },
       select: {
         id: true,
