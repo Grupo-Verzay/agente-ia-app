@@ -1,37 +1,55 @@
+import type { Metadata } from 'next';
 import { Bot } from 'lucide-react';
 import Link from 'next/link';
 import { RegistroReunionForm } from './_components/RegistroReunionForm';
 import { getResellerPublicConfig } from '@/actions/reseller-plan-actions';
 import { getSiteConfig } from '@/actions/admin/site-config-actions';
+import { getPublicBrandingBySlug } from '@/actions/public-branding-actions';
 import { getCountryCodes } from '@/actions/get-country-action';
-
-export const metadata = { title: 'Activa tu cuenta gratis | Agente IA' };
 
 interface Props {
   searchParams: { r?: string; tipo?: string };
 }
 
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  // Si viene de un reseller (?r=slug) usa su marca; si no, la de la plataforma.
+  const branding = await getPublicBrandingBySlug(searchParams.r ?? '');
+  return {
+    title: `Activa tu cuenta gratis | ${branding.brandName}`,
+    icons: { icon: branding.faviconUrl },
+  };
+}
+
 export default async function CompletarRegistroPage({ searchParams }: Props) {
   const resellerSlug = searchParams.r;
   const isReseller = searchParams.tipo === 'reseller';
-  const [resellerConfig, countries] = await Promise.all([
+  const [resellerConfig, countries, branding] = await Promise.all([
     resellerSlug
       ? getResellerPublicConfig(resellerSlug)
       : getSiteConfig().then(c => ({ sheetsUrl: c.sheetsUrl, sheetsRegistroName: null })),
     getCountryCodes(),
+    getPublicBrandingBySlug(resellerSlug ?? ''),
   ]);
   const resellerSheetsUrl = resellerConfig.sheetsUrl;
   const resellerFormName = resellerConfig.sheetsRegistroName;
+  const accent = branding.primaryColor?.trim() || null;
 
   return (
     <div className="flex min-h-full flex-col items-center px-4 py-12">
       {/* Header */}
       <div className="mb-8 flex flex-col items-center gap-3 text-center">
         <Link href="/inicio" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600">
-            <Bot className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-lg font-bold text-white">Agente IA</span>
+          {branding.logoUrl ? (
+            <img src={branding.logoUrl} alt={branding.brandName} className="h-9 w-9 rounded-xl object-cover" />
+          ) : (
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600"
+              style={accent ? { backgroundColor: accent } : undefined}
+            >
+              <Bot className="h-5 w-5 text-white" />
+            </div>
+          )}
+          <span className="text-lg font-bold text-white">{branding.brandName}</span>
         </Link>
         <div className="mt-2">
           <h1 className="text-2xl font-bold text-white sm:text-3xl">

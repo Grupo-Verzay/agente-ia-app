@@ -6,9 +6,10 @@ import { submitFormResponse, type FormData, type FormFieldData, type FormFieldTy
 
 interface Props {
   form: FormData;
+  accentColor?: string | null;
 }
 
-export function PublicFormClient({ form }: Props) {
+export function PublicFormClient({ form, accentColor }: Props) {
   const [values, setValues] = useState<Record<string, string | boolean | string[]>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
@@ -163,7 +164,8 @@ export function PublicFormClient({ form }: Props) {
       <button
         type="submit"
         disabled={submitting || Object.values(uploading).some(Boolean)}
-        className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed px-6 py-3 text-sm font-semibold text-white transition"
+        style={accentColor ? { backgroundColor: accentColor } : undefined}
+        className={`w-full flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white transition disabled:opacity-60 disabled:cursor-not-allowed ${accentColor ? '' : 'bg-blue-600 hover:bg-blue-700'}`}
       >
         {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
         {submitting ? 'Enviando...' : 'Enviar formulario'}

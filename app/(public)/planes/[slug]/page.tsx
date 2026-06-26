@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPlanDetailBySlug } from "@/actions/plan-detail-actions";
+import { getSiteConfig } from "@/actions/admin/site-config-actions";
 import { PlanDetailPage } from "./_components/PlanDetailPage";
 
 const PLAN_LABELS: Record<string, string> = {
@@ -13,8 +14,12 @@ type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ tipo?:
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params;
   const { tipo = "IA" } = await searchParams;
-  const res = await getPlanDetailBySlug(slug, tipo);
-  if (!res.success || !res.plan) return { title: "Plan | Agente IA" };
+  const [res, siteConfig] = await Promise.all([
+    getPlanDetailBySlug(slug, tipo),
+    getSiteConfig(),
+  ]);
+  const favicon = siteConfig.faviconUrl?.trim() || "/favicon.ico";
+  if (!res.success || !res.plan) return { title: "Plan | Agente IA", icons: { icon: favicon } };
 
   const planName = PLAN_LABELS[res.plan.plan] ?? res.plan.plan;
   const detail = res.data;
@@ -22,6 +27,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   return {
     title: detail?.metaTitle ?? `Plan ${planName} | Agente IA`,
     description: detail?.metaDescription ?? `Todo lo que incluye el plan ${planName} de Agente IA`,
+    icons: { icon: favicon },
     openGraph: detail?.ogImageUrl ? { images: [{ url: detail.ogImageUrl }] } : undefined,
   };
 }

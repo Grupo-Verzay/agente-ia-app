@@ -4,7 +4,11 @@ import { getSiteConfig } from "@/actions/admin/site-config-actions";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+export async function generateMetadata(): Promise<Metadata> {
+  const config = await getSiteConfig();
+  const favicon = config.faviconUrl?.trim() || "/favicon.ico";
+  return {
+  icons: { icon: favicon },
   title: "Conviértete en Reseller de Agente IA — Programa White Label",
   description:
     "Ofrece Agente IA con tu propia marca. Vende la plataforma de automatización de WhatsApp más completa y genera ingresos recurrentes con tu propio negocio de IA.",
@@ -28,7 +32,8 @@ export const metadata: Metadata = {
       "Ofrece la plataforma con tu propia marca y genera ingresos recurrentes.",
   },
   robots: { index: true, follow: true },
-};
+  };
+}
 
 export default async function ResellersPage() {
   const config = await getSiteConfig();

@@ -1,7 +1,17 @@
+import type { Metadata } from 'next';
 import { getPublicCatalog } from '@/actions/products-actions';
 import { notFound } from 'next/navigation';
 import { Bot, Instagram, Facebook } from 'lucide-react';
+import { getPublicBrandingByUserId } from '@/actions/public-branding-actions';
 import { CatalogoClient } from './_components/CatalogoClient';
+
+export async function generateMetadata({ params }: { params: { userId: string } }): Promise<Metadata> {
+  const branding = await getPublicBrandingByUserId(params.userId);
+  return {
+    title: `${branding.brandName} — Catálogo`,
+    icons: { icon: branding.faviconUrl },
+  };
+}
 
 export default async function CatalogoPublicoPage({
   params,
