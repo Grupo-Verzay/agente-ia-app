@@ -46,7 +46,7 @@ export function ExpandableTextarea({
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
-          className={`resize-none text-sm pr-9 ${className ?? ''}`}
+          className={`resize-y text-sm pr-9 ${className ?? ''}`}
         />
         <button
           type="button"

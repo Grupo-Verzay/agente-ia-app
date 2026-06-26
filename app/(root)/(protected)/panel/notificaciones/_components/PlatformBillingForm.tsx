@@ -90,7 +90,7 @@ export function PlatformBillingForm({ initial }: Props) {
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
               <ExpandableTextarea
-                rows={5}
+                rows={3}
                 value={value}
                 placeholder="Mensaje estándar por defecto. Edítalo si quieres personalizarlo."
                 title={label}
