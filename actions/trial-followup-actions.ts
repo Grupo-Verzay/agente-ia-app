@@ -24,9 +24,25 @@ function normalizeBaseUrl(url: string | null | undefined): string {
 }
 
 const DEFAULT_MESSAGES = {
-  message1: '¡Hola {nombre}! 👋 Ya tienes acceso a tu prueba gratis. ¿Tienes alguna pregunta para empezar?',
-  message3: '¡Hola {nombre}! ¿Cómo va tu experiencia? Si necesitas ayuda para configurar algo, estamos aquí. 🚀',
-  message6: '¡Hola {nombre}! Tu prueba gratis termina mañana. ¿Quieres continuar con todos estos beneficios? Escríbenos para elegir tu plan. 💬',
+  message1: `👋 *¡Hola {nombre}!* Ya tienes acceso a tu *prueba gratis*. 🚀
+
+El *Copiloto IA* te guía paso a paso y te ayuda a *generar automáticamente las instrucciones y flujos* para tu Agente IA. 🤖
+
+❓ ¿Tienes alguna *pregunta para empezar?*`,
+  message3: `👋 *¡Hola {nombre}!*
+
+Han pasado 3 días desde que activaste tu *prueba gratis*. 🚀
+
+¿Cómo va tu experiencia? ¿Has podido *configurar tu Agente IA* y *sus funcionabilidades?* 🤖
+
+Si necesitas ayuda, estamos para apoyarte. ✅`,
+  message6: `⏰ *¡Hola {nombre}!*
+
+Tu *prueba gratis* finaliza mañana. 🚀
+
+🤖 ¿Te gustaría seguir disfrutando de tu *Agente IA* y todas sus funcionalidades?
+
+💬 Escríbenos para ayudarte a elegir el plan ideal.`,
 }
 
 export async function getTrialFollowUpConfig(resellerId?: string) {
@@ -120,12 +136,33 @@ export async function getAvailableInstances(): Promise<{
     }
     const raw = await res.json()
     const list = Array.isArray(raw) ? raw : []
-    const data = list
+    let data = list
       .map((i: any) => ({
         name: i?.name ?? i?.instance?.instanceName ?? '',
         status: i?.connectionStatus ?? i?.instance?.status ?? 'unknown',
       }))
       .filter((i: { name: string }) => !!i.name)
+
+    // Evolution devuelve TODAS las instancias del servidor. Los admins ven
+    // todas; un reseller solo debe ver SUS instancias (su cuenta principal +
+    // las de sus clientes), no las de toda la plataforma.
+    if (user.role !== 'admin' && user.role !== 'super_admin') {
+      const [demoClients, assignments] = await Promise.all([
+        db.user.findMany({ where: { demoResellerId: user.id }, select: { id: true } }),
+        db.reseller.findMany({ where: { resellerid: user.id }, select: { userId: true } }),
+      ])
+      const ownerIds = new Set<string>([user.id])
+      demoClients.forEach((c) => ownerIds.add(c.id))
+      assignments.forEach((a) => { if (a.userId) ownerIds.add(a.userId) })
+
+      const myInstancias = await db.instancia.findMany({
+        where: { userId: { in: Array.from(ownerIds) } },
+        select: { instanceName: true },
+      })
+      const allowed = new Set(myInstancias.map((i) => i.instanceName))
+      data = data.filter((i: { name: string }) => allowed.has(i.name))
+    }
+
     return { success: true, message: 'Instancias obtenidas', data }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

@@ -13,9 +13,25 @@ function isAuthorized(request: Request): boolean {
 }
 
 const DEFAULT_MESSAGES: Record<number, string> = {
-  1: '¡Hola {nombre}! 👋 Ya tienes acceso a tu prueba gratis. ¿Tienes alguna pregunta para empezar?',
-  3: '¡Hola {nombre}! ¿Cómo va tu experiencia? Si necesitas ayuda para configurar algo, estamos aquí. 🚀',
-  6: '¡Hola {nombre}! Tu prueba gratis termina mañana. ¿Quieres continuar con todos estos beneficios? Escríbenos para elegir tu plan. 💬',
+  1: `👋 *¡Hola {nombre}!* Ya tienes acceso a tu *prueba gratis*. 🚀
+
+El *Copiloto IA* te guía paso a paso y te ayuda a *generar automáticamente las instrucciones y flujos* para tu Agente IA. 🤖
+
+❓ ¿Tienes alguna *pregunta para empezar?*`,
+  3: `👋 *¡Hola {nombre}!*
+
+Han pasado 3 días desde que activaste tu *prueba gratis*. 🚀
+
+¿Cómo va tu experiencia? ¿Has podido *configurar tu Agente IA* y *sus funcionabilidades?* 🤖
+
+Si necesitas ayuda, estamos para apoyarte. ✅`,
+  6: `⏰ *¡Hola {nombre}!*
+
+Tu *prueba gratis* finaliza mañana. 🚀
+
+🤖 ¿Te gustaría seguir disfrutando de tu *Agente IA* y todas sus funcionalidades?
+
+💬 Escríbenos para ayudarte a elegir el plan ideal.`,
 }
 
 const FOLLOW_UP_DAYS = [1, 3, 6]
