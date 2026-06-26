@@ -6,7 +6,7 @@ import { SERVER_TIME_ZONE } from "@/lib/utils";
 import { endOfDay, format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 
-import { ResponseFormat, SOON_DAYS_BILLING, DELETE_DAYS_BILLING } from "@/types/billing";
+import { ResponseFormat, SOON_DAYS_BILLING, DELETE_DAYS_BILLING, PRE_DELETE_WARN_DAYS } from "@/types/billing";
 import { deleteInstanceInternal, deleteInstanceEvolutionAware } from "@/actions/api-action";
 import { assertAdminOrReseller } from "./helpers/billing-helpers.server";
 import {
@@ -17,6 +17,7 @@ import {
     loadBillingDispatcherConfig,
     sendBillingTemplateMessage,
     syncUserBillingLifecycle,
+    getBillingUserRecord,
 } from "./helpers/billing-notifications.server";
 
 type BillingJobLogEntry = {
@@ -552,6 +553,66 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
             }
         }
 
+        // ── Aviso final pre-eliminación (3 días antes) + 50% de descuento ─────
+        // Se envía una sola vez (preDeleteWarnedAt) a las cuentas con vencimiento
+        // entre DELETE_DAYS-PRE_DELETE_WARN_DAYS (27) y DELETE_DAYS (30) días.
+        const warnFromCutoff = endOfDay(
+            new Date(now.getTime() - (DELETE_DAYS_BILLING - PRE_DELETE_WARN_DAYS) * 24 * 60 * 60 * 1000)
+        );
+        const warnUntilCutoff = endOfDay(
+            new Date(now.getTime() - DELETE_DAYS_BILLING * 24 * 60 * 60 * 1000)
+        );
+        let preDeleteWarned = 0;
+        const warnCandidates = await db.userBilling.findMany({
+            where: {
+                billingStatus: "UNPAID",
+                preDeleteWarnedAt: null,
+                dueDate: { not: null, lte: warnFromCutoff, gt: warnUntilCutoff },
+                user: { role: "user" },
+            },
+            select: { id: true, userId: true },
+        });
+        for (const wc of warnCandidates) {
+            try {
+                const billing = await getBillingUserRecord(wc.userId);
+                if (!billing) continue;
+                const res = await sendBillingTemplateMessage({
+                    billing,
+                    template: "PRE_DELETE_DISCOUNT",
+                    dispatcher,
+                    now,
+                    source: "billing-pre-delete",
+                });
+                if (res.success) {
+                    await db.userBilling.update({ where: { id: wc.id }, data: { preDeleteWarnedAt: now } });
+                    preDeleteWarned++;
+                    pushLog({
+                        at: new Date().toISOString(),
+                        level: "INFO",
+                        message: "Aviso pre-eliminación (50% off) enviado.",
+                        userBillingId: wc.id,
+                        userId: wc.userId,
+                    });
+                } else {
+                    pushLog({
+                        at: new Date().toISOString(),
+                        level: "WARN",
+                        message: `No se pudo enviar el aviso pre-eliminación: ${res.message}`,
+                        userBillingId: wc.id,
+                        userId: wc.userId,
+                    });
+                }
+            } catch (warnErr: any) {
+                pushLog({
+                    at: new Date().toISOString(),
+                    level: "WARN",
+                    message: `Error inesperado en aviso pre-eliminación: ${warnErr?.message}`,
+                    userBillingId: wc.id,
+                    userId: wc.userId,
+                });
+            }
+        }
+
         // ── Eliminar cuentas con 30+ días vencidas sin pagar ──────────────────
         const deletionCutoff = endOfDay(
             new Date(now.getTime() - DELETE_DAYS_BILLING * 24 * 60 * 60 * 1000)
@@ -568,6 +629,28 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
         let deletedApplied = 0;
         for (const dc of deletionCandidates) {
             try {
+                // Avisar al cliente que su cuenta fue eliminada (antes de borrarla,
+                // mientras aún existe su número de notificación).
+                try {
+                    const billing = await getBillingUserRecord(dc.userId);
+                    if (billing) {
+                        await sendBillingTemplateMessage({
+                            billing,
+                            template: "ACCOUNT_DELETED",
+                            dispatcher,
+                            now,
+                            source: "billing-account-deleted",
+                        });
+                    }
+                } catch (msgErr: any) {
+                    pushLog({
+                        at: new Date().toISOString(),
+                        level: "WARN",
+                        message: `No se pudo enviar el aviso de cuenta eliminada: ${msgErr?.message}`,
+                        userId: dc.userId,
+                    });
+                }
+
                 await deleteInstanceInternal(dc.userId).catch(() => null);
                 await db.user.delete({ where: { id: dc.userId } });
                 deletedApplied++;
@@ -645,7 +728,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
         pushLog({
             at: new Date().toISOString(),
             level: "INFO",
-            message: `Resumen job billing: attempted=${attempted}, sent=${sent}, suspended=${suspendedApplied}, instanciasReintentadas=${retriedInstanceDeletions}, deleted=${deletedApplied}, errors=${errors}.`,
+            message: `Resumen job billing: attempted=${attempted}, sent=${sent}, suspended=${suspendedApplied}, instanciasReintentadas=${retriedInstanceDeletions}, avisosPreEliminacion=${preDeleteWarned}, deleted=${deletedApplied}, errors=${errors}.`,
         });
 
         return {

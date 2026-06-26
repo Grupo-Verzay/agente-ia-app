@@ -1,6 +1,8 @@
 export const SOON_DAYS_BILLING = 3;
 export const OVERDUE_DAYS_BILLING = 3;
 export const DELETE_DAYS_BILLING = 30;
+// Días antes del borrado (día 30) en que se envía el aviso final + descuento.
+export const PRE_DELETE_WARN_DAYS = 3; // → aviso al día 27 de vencido
 
 /**
  * Formato estándar de respuesta (backend)
@@ -17,7 +19,9 @@ export type BillingTemplateType =
     | "EXPIRED"
     | "STATUS_ACTIVE"
     | "STATUS_PENDING"
-    | "STATUS_SUSPENDED";
+    | "STATUS_SUSPENDED"
+    | "PRE_DELETE_DISCOUNT"
+    | "ACCOUNT_DELETED";
 
 // ------- Types (mantenerlo simple para no tocar tus types existentes)
 export type BillingStatus = "PAID" | "UNPAID";

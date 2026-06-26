@@ -103,6 +103,45 @@ export function buildBillingMessage(args: {
         ].join("\n");
     }
 
+    if (type === "PRE_DELETE_DISCOUNT") {
+        // Aviso final (3 días antes del borrado) con 50% de descuento.
+        const overdue = typeof daysRemaining === "number" ? Math.abs(Math.min(daysRemaining, 0)) : 0;
+        const halfPrice = price != null && !Number.isNaN(Number(price)) ? Number(price) / 2 : null;
+        const lines = [
+            `🏢 ${companyName || "Cliente"}:`,
+            `⚠️ *Tu cuenta se eliminará en 3 días*`,
+            `--------•--------•--------•--------`,
+            `Tu servicio sigue vencido. Si no reactivas, el sistema eliminará tu cuenta y *todos tus datos* en 3 días.`,
+            dueDate ? `📅 *Vencía:* ${fmtDateDDMMYYYY(dueDate)}` : `📅 *Vencía:* Sin fecha`,
+            `⚠️ *Días de vencido:* ${overdue}`,
+            `--------•--------•--------•--------`,
+            `🎁 *Reactiva ahora con 50% de descuento*`,
+            `🛠️ ${planLabel}`,
+        ];
+        if (halfPrice != null) {
+            lines.push(`💵 *Ahora:* ${fmtPriceLine({ price: halfPrice, currencyCode, currencyFlag })} (50% OFF)`);
+        }
+        lines.push(
+            `--------•--------•--------•--------`,
+            `💱 *Medios de pago:*`,
+            `${paymentLinkOrText}`,
+            `--------•--------•--------•--------`,
+            `Aprovecha el descuento antes de perder tu información.`,
+        );
+        return lines.join("\n");
+    }
+
+    if (type === "ACCOUNT_DELETED") {
+        return [
+            `🏢 ${companyName || "Cliente"}:`,
+            `🗑️ *Tu cuenta ha sido eliminada*`,
+            `--------•--------•--------•--------`,
+            `Tu cuenta y *todos tus datos* fueron eliminados del sistema por falta de pago tras el periodo de vencimiento.`,
+            `--------•--------•--------•--------`,
+            `Si deseas volver a usar el servicio, escríbenos para crear una cuenta nueva.`,
+        ].join("\n");
+    }
+
     const overdueDays = typeof daysRemaining === "number" && daysRemaining < 0
         ? Math.abs(daysRemaining)
         : null;

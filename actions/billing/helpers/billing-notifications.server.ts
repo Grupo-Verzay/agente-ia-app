@@ -148,6 +148,9 @@ function buildStatusUpdateData(
         suspendedReason: isSuspending ? "Vencido fuera de los dias de gracia" : null,
         serviceEndAt: isSuspending ? current.serviceEndAt ?? now : null,
         serviceStartAt: isActivating ? current.serviceStartAt ?? now : current.serviceStartAt ?? undefined,
+        // Al reactivar, limpiar el aviso pre-eliminación para que un futuro
+        // ciclo de vencimiento vuelva a avisar.
+        preDeleteWarnedAt: isActivating ? null : undefined,
     };
 }
 

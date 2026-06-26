@@ -875,6 +875,7 @@ model UserBilling {
   serviceStartAt         DateTime?
   lastInstanceName       String?
   licenseDays            Int?
+  preDeleteWarnedAt      DateTime?
   user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([dueDate])
