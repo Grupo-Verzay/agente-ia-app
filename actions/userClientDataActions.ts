@@ -95,7 +95,9 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
     }
 
     const users = await db.user.findMany({
-      where: userIds ? { id: { in: userIds } } : undefined,
+      // Excluir asesores (sub-cuentas con ownerId): no son clientes, se
+      // gestionan dentro del equipo de su cuenta padre.
+      where: userIds ? { id: { in: userIds }, ownerId: null } : { ownerId: null },
       include: {
         pausar: true,
         aiConfigs: true,
