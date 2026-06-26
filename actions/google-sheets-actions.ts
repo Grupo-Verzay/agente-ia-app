@@ -2,6 +2,7 @@
 
 import { google } from 'googleapis';
 import { db } from '@/lib/db';
+import { normalizeContactFieldsConfig } from '@/lib/contact-fields';
 
 /* ── Service account auth ──────────────────────────────────── */
 function getAuth() {
@@ -109,58 +110,61 @@ export async function getUserSheetsUrl(userId: string): Promise<string | null> {
 }
 
 /* ── Sync ──────────────────────────────────────────────────── */
-const HEADERS = [
-  'Teléfono', 'Nombre', 'Empresa', 'Cargo', 'Documento',
-  'Email', 'Teléfono alt.', 'Fecha', 'País', 'Ciudad', 'Dirección',
-  'Sitio web', 'Instagram', 'Facebook', 'LinkedIn', 'Notas', 'Actualizado',
-];
-const COL_END = 'Q'; // 17 columnas
+// Convierte un índice de columna (1-based) a letra A1 (1→A, 27→AA…).
+function columnLetter(n: number): string {
+  let s = '';
+  let x = n;
+  while (x > 0) {
+    const m = (x - 1) % 26;
+    s = String.fromCharCode(65 + m) + s;
+    x = Math.floor((x - 1) / 26);
+  }
+  return s || 'A';
+}
 
 export async function syncContactToGoogleSheets(
   userId: string,
-  payload: {
-    phone: string;
-    name: string;
-    email?: string;
-    empresa?: string;
-    ciudad?: string;
-    cargo?: string;
-    notas?: string;
-    documento?: string;
-    telefono?: string;
-    fecha?: string;
-    pais?: string;
-    direccion?: string;
-    sitioWeb?: string;
-    instagram?: string;
-    facebook?: string;
-    linkedin?: string;
-  },
+  payload: { phone: string; name: string } & Record<string, string | undefined>,
 ): Promise<{ success: boolean; error?: string }> {
-  const config = await getGoogleSheetsConfig(userId);
+  // Lee la hoja y la config de campos del usuario en una sola consulta.
+  const userRec = await db.user.findUnique({
+    where: { id: userId },
+    select: { googleSheetsWebhookUrl: true, contactFieldsConfig: true },
+  });
+  const config = (userRec as { googleSheetsWebhookUrl?: string | null })?.googleSheetsWebhookUrl ?? null;
   if (!config) return { success: false, error: 'No hay hoja configurada' };
 
   const sheetId = extractSheetId(config) ?? config;
+
+  // Columnas dinámicas según los campos habilitados del usuario.
+  const fieldDefs = normalizeContactFieldsConfig(
+    (userRec as { contactFieldsConfig?: unknown })?.contactFieldsConfig,
+  )
+    .filter((f) => f.enabled)
+    .sort((a, b) => a.order - b.order);
+
+  const headers = ['Teléfono', 'Nombre', ...fieldDefs.map((f) => f.label), 'Actualizado'];
+  const colEnd = columnLetter(headers.length);
+  const row = [
+    payload.phone,
+    payload.name,
+    ...fieldDefs.map((f) => payload[f.key] ?? ''),
+    new Date().toLocaleString('es-CO'),
+  ];
 
   try {
     const auth = getAuth();
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // Asegurar que existan los encabezados en la fila 1
-    const meta = await sheets.spreadsheets.values.get({
+    // Escribir/actualizar SIEMPRE los encabezados (reflejan la config actual).
+    await sheets.spreadsheets.values.update({
       spreadsheetId: sheetId,
-      range: `A1:${COL_END}1`,
+      range: `A1:${colEnd}1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [headers] },
     });
-    if (!meta.data.values?.length) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: sheetId,
-        range: `A1:${COL_END}1`,
-        valueInputOption: 'RAW',
-        requestBody: { values: [HEADERS] },
-      });
-    }
 
-    // Buscar fila existente por teléfono
+    // Buscar fila existente por teléfono (columna A = clave de match).
     const existing = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
       range: 'A:A',
@@ -168,37 +172,17 @@ export async function syncContactToGoogleSheets(
     const phones = existing.data.values?.flat() ?? [];
     const rowIdx = phones.findIndex((p, i) => i > 0 && p === payload.phone);
 
-    const row = [
-      payload.phone,
-      payload.name,
-      payload.empresa ?? '',
-      payload.cargo ?? '',
-      payload.documento ?? '',
-      payload.email ?? '',
-      payload.telefono ?? '',
-      payload.fecha ?? '',
-      payload.pais ?? '',
-      payload.ciudad ?? '',
-      payload.direccion ?? '',
-      payload.sitioWeb ?? '',
-      payload.instagram ?? '',
-      payload.facebook ?? '',
-      payload.linkedin ?? '',
-      payload.notas ?? '',
-      new Date().toLocaleString('es-CO'),
-    ];
-
     if (rowIdx > 0) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: sheetId,
-        range: `A${rowIdx + 1}:${COL_END}${rowIdx + 1}`,
+        range: `A${rowIdx + 1}:${colEnd}${rowIdx + 1}`,
         valueInputOption: 'RAW',
         requestBody: { values: [row] },
       });
     } else {
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
-        range: `A:${COL_END}`,
+        range: `A:${colEnd}`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: [row] },
