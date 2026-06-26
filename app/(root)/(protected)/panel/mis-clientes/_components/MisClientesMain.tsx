@@ -17,6 +17,7 @@ import {
   getMyResellerDemos,
   createDemoAccount,
   createClientAccount,
+  convertDemoToClient,
 } from "@/actions/reseller-license-actions";
 import { PLAN_LABELS } from "@/types/plans";
 
@@ -76,6 +77,32 @@ export function MisClientesMain() {
 
   const [demoForm, setDemoForm] = useState({ name: "", email: "", company: "", password: "" });
   const [clientForm, setClientForm] = useState({ name: "", email: "", company: "", password: "", subscriptionPlanId: "", plan: "" as Plan | "" });
+
+  // convertir demo → cliente de pago
+  const [convertTarget, setConvertTarget] = useState<DemoItem | null>(null);
+  const [convertPlanId, setConvertPlanId] = useState("");
+  const [converting, setConverting] = useState(false);
+
+  const handleConvert = async () => {
+    if (!convertTarget || !convertPlanId) {
+      toast.error("Selecciona un plan");
+      return;
+    }
+    setConverting(true);
+    try {
+      const res = await convertDemoToClient(convertTarget.id, convertPlanId);
+      if (res.success) {
+        toast.success(res.message);
+        setConvertTarget(null);
+        setConvertPlanId("");
+        await load();
+      } else {
+        toast.error(res.message);
+      }
+    } finally {
+      setConverting(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -280,6 +307,14 @@ export function MisClientesMain() {
                               {expired ? "Vencida" : `${days}d`}
                             </Badge>
                           )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => { setConvertTarget(d); setConvertPlanId(""); }}
+                          >
+                            Convertir a cliente
+                          </Button>
                         </div>
                       </div>
                     );
@@ -321,6 +356,44 @@ export function MisClientesMain() {
             <Button variant="outline" onClick={() => setDemoDialog(false)}>Cancelar</Button>
             <Button onClick={handleCreateDemo} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Crear demo"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: convertir demo → cliente de pago */}
+      <Dialog open={!!convertTarget} onOpenChange={(o) => { if (!o) { setConvertTarget(null); setConvertPlanId(""); } }}>
+        <DialogContent className="flex max-h-[585px] max-w-sm flex-col">
+          <DialogHeader>
+            <DialogTitle>Convertir a cliente de pago</DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              {convertTarget?.name ?? convertTarget?.email} pasará a cliente de pago. Conserva todos sus datos y consume 1 licencia.
+            </p>
+          </DialogHeader>
+          <div className="flex-1 space-y-4 overflow-y-auto py-2">
+            <div className="space-y-1">
+              <Label>Plan</Label>
+              <Select value={convertPlanId} onValueChange={setConvertPlanId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona un plan..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {dashboard?.pools.filter(p => p.availableLicenses > 0).map(pool => (
+                    <SelectItem key={pool.subscriptionPlanId} value={pool.subscriptionPlanId}>
+                      {PLAN_LABELS[pool.plan]} · {pool.availableLicenses} disp. · {pool.credits.toLocaleString()} créditos
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {dashboard && dashboard.pools.filter(p => p.availableLicenses > 0).length === 0 && (
+                <p className="text-[11px] text-destructive">No tienes licencias disponibles. Pide más a tu administrador.</p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setConvertTarget(null); setConvertPlanId(""); }}>Cancelar</Button>
+            <Button onClick={handleConvert} disabled={converting || !convertPlanId}>
+              {converting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Convertir"}
             </Button>
           </DialogFooter>
         </DialogContent>

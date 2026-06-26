@@ -453,3 +453,89 @@ export async function reconcileResellerLicenses() {
     return { success: false, message: "Error al reconciliar", updated: 0 };
   }
 }
+
+// ── Reseller: convertir una DEMO en cliente de pago (conserva todos los datos) ──
+// Promueve la cuenta (isDemo:false), le asigna el plan/pool elegido (consume 1
+// licencia), renueva el billing a PAID/ACTIVE (+30 días) y recarga los créditos
+// del plan. La cuenta es la misma: chats, contactos y config se conservan.
+export async function convertDemoToClient(demoUserId: string, subscriptionPlanId: string) {
+  try {
+    const me = await currentUser();
+    if (!me || me.role !== "reseller") return { success: false, message: "Sin permisos" };
+
+    const demo = await db.user.findUnique({
+      where: { id: demoUserId },
+      select: { id: true, isDemo: true, demoResellerId: true },
+    });
+    if (!demo || demo.demoResellerId !== me.id) {
+      return { success: false, message: "Demo no encontrada o no pertenece a tu cuenta." };
+    }
+    if (!demo.isDemo) {
+      return { success: false, message: "Esta cuenta ya es cliente de pago." };
+    }
+
+    const pool = await db.resellerLicensePool.findUnique({
+      where: { resellerUserId_subscriptionPlanId: { resellerUserId: me.id, subscriptionPlanId } },
+      include: { subscriptionPlan: true },
+    });
+    if (!pool) return { success: false, message: "No tienes licencias de ese plan." };
+
+    const usedNow = await db.user.count({
+      where: { demoResellerId: me.id, isDemo: false, resellerSubscriptionPlanId: subscriptionPlanId },
+    });
+    if (usedNow >= pool.totalLicenses) {
+      return { success: false, message: `Sin licencias disponibles para ese plan. Tienes ${pool.totalLicenses - usedNow} disponibles.` };
+    }
+
+    const now = new Date();
+    const dueDate = new Date(now);
+    dueDate.setDate(dueDate.getDate() + 30);
+    const renewalDate = new Date(now);
+    renewalDate.setMonth(renewalDate.getMonth() + 1);
+
+    await db.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: demoUserId },
+        data: {
+          isDemo: false,
+          plan: pool.subscriptionPlan.plan,
+          resellerSubscriptionPlanId: subscriptionPlanId,
+          demoExpiresAt: null,
+          trialEndsAt: null,
+        },
+      });
+
+      await tx.userBilling.update({
+        where: { userId: demoUserId },
+        data: {
+          billingStatus: "PAID",
+          accessStatus: "ACTIVE",
+          dueDate,
+          serviceStartAt: now,
+          serviceEndsAt: dueDate,
+          suspendedAt: null,
+          suspendedReason: null,
+          preDeleteWarnedAt: null,
+          lastPaymentAt: now,
+        },
+      });
+
+      const upd = await tx.iaCredit.updateMany({
+        where: { userId: demoUserId },
+        data: { total: pool.subscriptionPlan.credits, used: 0, renewalDate },
+      });
+      if (upd.count === 0) {
+        await tx.iaCredit.create({
+          data: { userId: demoUserId, total: pool.subscriptionPlan.credits, used: 0, renewalDate },
+        });
+      }
+    });
+
+    revalidatePath("/panel/mis-clientes");
+    revalidatePath("/panel/clientes");
+    return { success: true, message: "Demo convertida a cliente de pago." };
+  } catch (e) {
+    console.error("[convertDemoToClient]", e);
+    return { success: false, message: "Error al convertir la demo." };
+  }
+}
