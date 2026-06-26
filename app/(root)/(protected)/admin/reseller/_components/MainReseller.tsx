@@ -93,7 +93,8 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
         getAllSubscriptionPlans(),
       ])
       if (resRes.success) setResellersData(resRes.data)
-      if (planRes.success) setPlans(planRes.data.filter(p => !p.isResellerPlan && p.assistanceType === "IA" && p.isActive))
+      // Mostrar TODOS los planes IA (incluidos los desactivados) para asignar licencias.
+      if (planRes.success) setPlans(planRes.data.filter(p => !p.isResellerPlan && p.assistanceType === "IA"))
     } finally {
       setLoadingLicenses(false)
     }
