@@ -8,6 +8,7 @@ export interface ResellerInfoResponse {
         name: string | null;
         email: string;
         image: string | null;
+        faviconUrl: string | null;
         theme: ThemeApp;
         company: string;
         notificationNumber: string;
@@ -22,6 +23,7 @@ export interface ResellerData {
     name: string | null
     email: string
     image: string | null
+    faviconUrl: string | null
     theme: ThemeApp
     company: string
     notificationNumber: string

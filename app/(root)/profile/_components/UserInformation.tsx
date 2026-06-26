@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { UserWithPausar } from "@/lib/types";
 import { BrandSelector } from "../../../../components/custom";
-import { updatePlatformLogoUrl } from "@/actions/admin/site-config-actions";
+import { updatePlatformLogoUrl, updatePlatformFaviconUrl } from "@/actions/admin/site-config-actions";
 import { useResellerStore } from "@/stores/resellers/resellerStore";
 import { Role } from "@prisma/client";
 import { ApiKeyConfigurator, ChangePasswordCard, ChangeEmailCard } from "./";
@@ -194,6 +194,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
     const [loadingField, setLoadingField] = useState<string | null>(null);
     const [timezone, setTimezone] = useState<string>("");
     const fileRef = useRef<HTMLInputElement | null>(null);
+    const faviconRef = useRef<HTMLInputElement | null>(null);
     const [headerDaysRemaining, setHeaderDaysRemaining] = useState<number | null>(null);
     const [headerCredits, setHeaderCredits] = useState<number | null>(null);
 
@@ -328,6 +329,41 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
         }
     };
 
+    const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !userId) return toast.error('No hay archivo seleccionado');
+        const toastId = toast.loading('Subiendo favicon...');
+        setLoadingField('faviconUrl');
+        try {
+            const content = await file.arrayBuffer();
+            const optimizedFile = await optimizeFile({
+                name: file.name, size: file.size, type: file.type,
+                content: Array.from(new Uint8Array(content)),
+            });
+            const blob = new Blob([new Uint8Array(optimizedFile.buffer)], { type: optimizedFile.type });
+            const formData = new FormData();
+            formData.append('file', blob);
+            formData.append('userID', userId);
+            formData.append('workflowID', userId);
+
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            if (!res.ok) throw new Error(await res.text());
+            const { url } = await res.json();
+
+            const result = await updateClientDataByField(userId, 'faviconUrl', url);
+            if (!result.success) throw new Error(result.message);
+            setUser(prev => prev ? { ...prev, faviconUrl: url } : prev);
+            if (user?.role === Role.super_admin && activeTab === 'apariencia') {
+                await updatePlatformFaviconUrl(url);
+            }
+            toast.success('Favicon actualizado', { id: toastId });
+        } catch (error: any) {
+            toast.error(error?.message || 'Error al subir el favicon', { id: toastId });
+        } finally {
+            setLoadingField(null);
+        }
+    };
+
     const DEFAULT_MAPS_URL = 'https://maps.google.com/?q=0,0';
     const [mapsEnabled, setMapsEnabled] = useState<boolean>(
         !!(user?.mapsUrl as string) && (user?.mapsUrl as string) !== DEFAULT_MAPS_URL
@@ -434,6 +470,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
             <Card className="border-border rounded-xl shrink-0 mb-4">
                 <CardContent className="p-3 sm:p-4">
                     <Input id="avatar" type="file" accept="image/*" ref={fileRef} onChange={handleImageUpload} className="hidden" />
+                    <Input id="favicon" type="file" accept="image/png,image/x-icon,image/svg+xml,image/jpeg,image/webp" ref={faviconRef} onChange={handleFaviconUpload} className="hidden" />
                     <div className="flex items-center gap-3">
                         {/* Avatar */}
                         <div className="shrink-0 h-9 w-9 rounded-full overflow-hidden bg-muted border border-border">
@@ -1132,6 +1169,39 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                     : <Camera className="h-3.5 w-3.5 mr-1.5" />
                                                 }
                                                 {user?.image ? 'Cambiar logo' : 'Subir logo'}
+                                            </Button>
+                                        </CardContent>
+                                    </Card>
+
+                                    <Card className="border-border flex flex-col">
+                                        <CardHeader className="pb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                    <Sparkles className="w-4 h-4 text-primary" />
+                                                </div>
+                                                <div>
+                                                    <CardTitle className="text-sm font-semibold">Favicon</CardTitle>
+                                                    <CardDescription className="text-xs">
+                                                        {user.role === Role.super_admin || isReseller
+                                                            ? 'Ícono de la pestaña del navegador para tus clientes'
+                                                            : 'Ícono que aparece en la pestaña del navegador'}
+                                                    </CardDescription>
+                                                </div>
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent className="flex flex-col gap-2 pt-2">
+                                            <p className="text-xs text-muted-foreground">PNG, ICO, SVG o WEBP · Recomendado 32×32 o 64×64 px</p>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => faviconRef.current?.click()}
+                                                disabled={loadingField === 'faviconUrl'}
+                                            >
+                                                {loadingField === 'faviconUrl'
+                                                    ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                                    : <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                                                }
+                                                {(user as { faviconUrl?: string | null })?.faviconUrl ? 'Cambiar favicon' : 'Subir favicon'}
                                             </Button>
                                         </CardContent>
                                     </Card>

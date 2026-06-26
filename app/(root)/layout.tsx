@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
 import { requireAuth } from "@/lib/require-auth";
@@ -27,6 +28,34 @@ import { TaskNotificationProvider } from "@/components/providers/TaskNotificatio
 import { ChatUnreadProvider } from "@/components/providers/ChatUnreadProvider";
 import type { UserNavPref } from "@/types/nav-preference";
 import { getUserIntegrations } from "@/actions/user-integration-actions";
+
+// Branding por reseller: favicon y título de pestaña según el reseller del
+// usuario logueado (con fallback al favicon global de SiteConfig y luego al
+// favicon por defecto de la plataforma).
+export async function generateMetadata(): Promise<Metadata> {
+    const fallback: Metadata = { title: "Agente IA", icons: { icon: "/favicon.ico" } };
+    try {
+        const user = await currentUser();
+        if (!user) return fallback;
+
+        const [reseller, siteConfig] = await Promise.all([
+            getResellerProfileForUser(user.id),
+            getSiteConfig(),
+        ]);
+
+        const favicon =
+            reseller?.data?.faviconUrl?.trim() ||
+            siteConfig.faviconUrl?.trim() ||
+            "/favicon.ico";
+
+        const company = reseller?.data?.company?.trim();
+        const title = company && company !== "Empresa Demo" ? company : "Agente IA";
+
+        return { title, icons: { icon: favicon } };
+    } catch {
+        return fallback;
+    }
+}
 
 export default async function RootGroupLayout({
     children,

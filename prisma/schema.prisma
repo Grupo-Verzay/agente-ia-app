@@ -621,6 +621,7 @@ model User {
   autoReactivate                     String?
   webhookUrl                         String?                      @default("https://n8npro.verzay.co/webhook")
   theme                              ThemeApp?                    @default(Default)
+  faviconUrl                         String?                      @map("favicon_url")
   muteAgentResponses                 Boolean                      @default(false)
   timezone                           String?
   meetingDuration                    Int?
@@ -1360,6 +1361,7 @@ model SiteConfig {
   headline               String?
   subheadline            String?
   logoUrl                String?
+  faviconUrl             String?
   instagram              String?
   facebook               String?
   videoUrl               String?

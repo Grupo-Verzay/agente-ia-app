@@ -16,6 +16,7 @@ export type SiteConfigData = {
   headline: string | null;
   subheadline: string | null;
   logoUrl: string | null;
+  faviconUrl: string | null;
   instagram: string | null;
   facebook: string | null;
   videoUrl: string | null;
@@ -33,7 +34,7 @@ export type SiteConfigData = {
 const EMPTY: SiteConfigData = {
   whatsappNumber: null, meetingUrl: null, sheetsUrl: null,
   primaryColor: null, bgColor: null, headline: null, subheadline: null,
-  logoUrl: null, instagram: null, facebook: null,
+  logoUrl: null, faviconUrl: null, instagram: null, facebook: null,
   videoUrl: null, ctaHeadline: null, ctaSubtitle: null,
   testimonials: null, stats: null,
   resellerWhatsappNumber: null,
@@ -56,6 +57,7 @@ export async function getSiteConfig(): Promise<SiteConfigData> {
       headline: c.headline ?? null,
       subheadline: c.subheadline ?? null,
       logoUrl: c.logoUrl ?? null,
+      faviconUrl: c.faviconUrl ?? null,
       instagram: c.instagram ?? null,
       facebook: c.facebook ?? null,
       videoUrl: c.videoUrl ?? null,
@@ -93,6 +95,25 @@ export async function updatePlatformLogoUrl(logoUrl: string): Promise<{ success:
   }
 }
 
+export async function updatePlatformFaviconUrl(faviconUrl: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const user = await currentUser();
+    if (!user || user.role !== "super_admin") {
+      return { success: false, message: "Solo el Super Admin puede actualizar el favicon de plataforma" };
+    }
+    await db.siteConfig.upsert({
+      where: { id: 1 },
+      update: { faviconUrl },
+      create: { id: 1, faviconUrl },
+    });
+    revalidatePath("/inicio");
+    revalidatePath("/resellers");
+    return { success: true, message: "Favicon actualizado" };
+  } catch {
+    return { success: false, message: "Error al actualizar favicon" };
+  }
+}
+
 export async function updateSiteConfig(data: SiteConfigData): Promise<{ success: boolean; message: string }> {
   try {
     const user = await currentUser();
@@ -108,6 +129,7 @@ export async function updateSiteConfig(data: SiteConfigData): Promise<{ success:
       headline: data.headline || null,
       subheadline: data.subheadline || null,
       logoUrl: data.logoUrl || null,
+      faviconUrl: data.faviconUrl || null,
       instagram: data.instagram || null,
       facebook: data.facebook || null,
       videoUrl: data.videoUrl || null,
