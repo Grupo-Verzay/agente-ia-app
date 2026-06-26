@@ -667,6 +667,7 @@ model User {
   demoCredits                        Int                          @default(0) @map("demo_credits")
   trialEndsAt                        DateTime?                    @map("trial_ends_at")
   trialFollowUpConfig                TrialFollowUpConfig?
+  resellerBillingConfig              ResellerBillingConfig?
   trialFollowUpLogs                  TrialFollowUpLog[]
   accounts                           Account[]
   agentPrompts                       AgentPrompt[]
@@ -1991,6 +1992,24 @@ model TrialFollowUpConfig {
   reseller     User     @relation(fields: [resellerId], references: [id], onDelete: Cascade)
 
   @@map("trial_follow_up_configs")
+}
+
+model ResellerBillingConfig {
+  id           String   @id @default(uuid())
+  resellerId   String   @unique
+  enabled      Boolean  @default(true)
+  instanceName String?
+  graceDays    Int      @default(3)
+  msgReminder  String?
+  msgDueToday  String?
+  msgOverdue   String?
+  msgSuspended String?
+  msgDeleted   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  reseller     User     @relation(fields: [resellerId], references: [id], onDelete: Cascade)
+
+  @@map("reseller_billing_configs")
 }
 
 model TrialFollowUpLog {

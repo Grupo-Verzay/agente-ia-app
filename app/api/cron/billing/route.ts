@@ -1,4 +1,5 @@
 import { runBillingDailyJobSystem } from "@/actions/billing/billing-job-actions";
+import { runResellerBillingForAll } from "@/actions/billing/reseller-billing-actions";
 import { NextResponse } from "next/server";
 
 const CRON_HEADER = "x-cron-secret";
@@ -30,7 +31,16 @@ export async function POST(request: Request) {
   }
 
   const result = await runBillingDailyJobSystem();
-  return NextResponse.json(result, { status: result.success ? 200 : 500 });
+
+  // Cobros por-reseller (sus clientes), con la instancia y mensajes del reseller.
+  let resellerBilling: unknown = null;
+  try {
+    resellerBilling = await runResellerBillingForAll();
+  } catch (e) {
+    resellerBilling = { error: e instanceof Error ? e.message : String(e) };
+  }
+
+  return NextResponse.json({ ...result, resellerBilling }, { status: result.success ? 200 : 500 });
 }
 
 export async function GET(request: Request) {
