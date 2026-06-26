@@ -125,16 +125,18 @@ export function MiLanding() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4 h-full overflow-y-auto">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
 
-      {/* Header */}
-      <div>
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 bg-muted/60 border-b border-border/40 px-4 pt-4 pb-3 shrink-0">
         <h2 className="text-lg font-semibold">Mi Landing Page</h2>
         <p className="text-sm text-muted-foreground">
           Configura el contenido y apariencia de tu página pública.
         </p>
       </div>
 
+      {/* Contenido */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
       {/* Página pública */}
       <Card>
         <CardHeader className="pb-2 pt-4">
@@ -357,6 +359,7 @@ export function MiLanding() {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

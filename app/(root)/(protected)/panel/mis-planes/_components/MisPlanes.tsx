@@ -128,16 +128,18 @@ export function MisPlanes() {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-4 h-full overflow-y-auto">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
 
-      {/* Header */}
-      <div>
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 bg-muted/60 border-b border-border/40 px-4 pt-4 pb-3 shrink-0">
         <h2 className="text-lg font-semibold">Mis Planes</h2>
         <p className="text-sm text-muted-foreground">
           Personaliza los precios, créditos y características de tus planes.
         </p>
       </div>
 
+      {/* Contenido */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
       {/* Planes */}
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -214,6 +216,7 @@ export function MisPlanes() {
           ))}
         </div>
       )}
+      </div>
 
       {/* Dialog edición */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
