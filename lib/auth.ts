@@ -1,7 +1,7 @@
 // lib/auth.ts
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { isAdminLike } from "@/lib/rbac";
+import { isAdminLike, isAdminOrReseller } from "@/lib/rbac";
 import { cookies } from "next/headers";
 import type { Prisma } from "@prisma/client";
 
@@ -69,6 +69,22 @@ export async function currentUser(request?: Request): Promise<CurrentUser | null
 
     if (impersonateId && isAdminLike(realUser.role)) {
         effectiveUserId = impersonateId;
+    } else if (impersonateId && isAdminOrReseller(realUser.role)) {
+        // Reseller (no admin): solo puede actuar como uno de SUS clientes
+        // (asignados en `reseller` o creados como demo por él).
+        const target = await db.user.findUnique({
+            where: { id: impersonateId },
+            select: { demoResellerId: true },
+        });
+        let owns = target?.demoResellerId === realUser.id;
+        if (!owns) {
+            const assignment = await db.reseller.findFirst({
+                where: { userId: impersonateId, resellerid: realUser.id },
+                select: { id: true },
+            });
+            owns = !!assignment;
+        }
+        if (owns) effectiveUserId = impersonateId;
     } else if (activeAccountId && activeAccountId !== realUser.id) {
         try {
             const membership = await db.$queryRaw<{ role: AccountRole }[]>`

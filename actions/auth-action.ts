@@ -2,7 +2,7 @@
 
 import { auth, signIn } from "@/auth";
 import { db } from "@/lib/db";
-import { isAdminLike } from "@/lib/rbac";
+import { isAdminLike, isAdminOrReseller } from "@/lib/rbac";
 import { loginSchema, registerSchema } from "@/lib/zod";
 import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
@@ -226,19 +226,30 @@ export async function impersonateUser(targetUserId: string) {
 
   const realUser = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { role: true },
+    select: { id: true, role: true },
   });
 
-  if (!realUser || !isAdminLike(realUser.role)) {
+  if (!realUser || !isAdminOrReseller(realUser.role)) {
     return { success: false, message: "No autorizado" };
   }
 
   const exists = await db.user.findUnique({
     where: { id: targetUserId },
-    select: { id: true },
+    select: { id: true, demoResellerId: true },
   });
 
   if (!exists) return { success: false, message: "Usuario no existe" };
+
+  // Los resellers (no admin) solo pueden entrar a SUS propios clientes:
+  // ya sea asignados en la tabla `reseller` o creados como demo por ellos.
+  if (!isAdminLike(realUser.role)) {
+    const ownsByAssignment = await db.reseller.findFirst({
+      where: { userId: targetUserId, resellerid: realUser.id },
+      select: { id: true },
+    });
+    const owns = exists.demoResellerId === realUser.id || !!ownsByAssignment;
+    if (!owns) return { success: false, message: "No autorizado" };
+  }
 
   cookies().set("impersonate_user_id", targetUserId, {
     httpOnly: true,
