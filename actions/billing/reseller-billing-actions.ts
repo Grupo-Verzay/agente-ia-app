@@ -14,12 +14,34 @@ import { fmtDateDDMMYYYY } from './helpers/billing-helpers';
 
 // Mensajes por defecto (editables por cada reseller). Placeholders disponibles:
 // {nombre}, {empresa}, {fecha}, {dias}
+// Por defecto, mismos textos/estilo que usa Verzay en su cobro (placeholders).
 const DEFAULT_RESELLER_BILLING = {
-  msgReminder: '👋 *Hola {nombre}!* Tu servicio vence el *{fecha}*. Renueva a tiempo para no perder el acceso. 🙌',
-  msgDueToday: '⏰ *Hola {nombre}!* Hoy ({fecha}) vence tu servicio. Renueva hoy para mantenerlo activo. 🙌',
-  msgOverdue: '🔴 *Hola {nombre}!* Tu servicio está vencido (venció el {fecha}). Regulariza el pago para reactivarlo. 💳',
-  msgSuspended: '🚫 *Hola {nombre}!* Tu servicio fue *suspendido* por falta de pago. Regulariza para reactivarlo. 💳',
-  msgDeleted: '🗑️ *Hola {nombre}!* Tu cuenta y todos tus datos fueron eliminados por falta de pago.',
+  msgReminder: `🏢 *{empresa}*
+📋 *Tu servicio está por vencer*
+📅 *Vence:* {fecha}
+⏳ *Días restantes:* {dias}
+
+Renueva a tiempo para no perder el acceso. 🙌`,
+  msgDueToday: `🏢 *{empresa}*
+🔔 *Hoy vence tu servicio*
+📅 *Vence:* {fecha}
+
+Renueva hoy para mantenerlo activo. 🙌`,
+  msgOverdue: `🏢 *{empresa}*
+🔴 *Tu servicio está vencido desde hace {dias} día(s)*
+📅 *Vencía:* {fecha}
+
+Regulariza el pago para reactivarlo. 💳`,
+  msgSuspended: `🏢 *{empresa}*
+🚫 *Tu servicio ha sido suspendido*
+📅 *Vencía:* {fecha}
+⚠️ *Días de vencido:* {dias}
+
+Regulariza el pago para reactivar el servicio. 💳`,
+  msgDeleted: `🏢 *{empresa}*
+🗑️ *Tu cuenta ha sido eliminada*
+
+Tu cuenta y todos tus datos fueron eliminados por falta de pago. Si deseas volver, escríbenos para crear una cuenta nueva.`,
 };
 
 export type ResellerBillingConfigData = {

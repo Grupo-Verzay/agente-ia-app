@@ -196,6 +196,10 @@ export default async function RootGroupLayout({
         url: item.url.replace("/admin/", "/panel/"),
         title: item.title,
     }));
+    // Pestaña dedicada de Notificaciones (cobros) para resellers.
+    if (user.role === "reseller" && !panelTabs.some((t) => t.url === "/panel/notificaciones")) {
+        panelTabs.push({ url: "/panel/notificaciones", title: "Notificaciones" });
+    }
 
     return (
         <>
