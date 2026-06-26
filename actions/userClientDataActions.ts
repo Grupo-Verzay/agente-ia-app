@@ -453,20 +453,42 @@ export const updateAbrirPhrase = async (userId: string, mensaje: string) => {
 export const createUserWithPausar = async (
   userData: Omit<UserWithPausar, 'id' | 'createdAt' | 'updatedAt' | 'pausar'> & {
     openingPhrase?: string;
+    subscriptionPlanId?: string;
   }
 ): Promise<ClientResponse<UserWithPausar>> => {
   try {
     const me = await ensureAdminOrResellerUser();
 
-    const { openingPhrase, ...userFields } = userData;
+    const { openingPhrase, subscriptionPlanId, ...userFields } = userData;
 
     // Si el creador es reseller, vincular el cliente a su pool y heredar su
     // configuración de Evolution/IA cuando el formulario no la trae (esos
     // campos están ocultos para resellers).
+    let pool: {
+      id: string;
+      usedLicenses: number;
+      totalLicenses: number;
+      subscriptionPlan: { credits: number };
+    } | null = null;
     if (me.role === 'reseller') {
       if (!userFields.demoResellerId) userFields.demoResellerId = me.id;
       if (!userFields.apiKeyId) userFields.apiKeyId = me.apiKeyId ?? null;
       if (!userFields.apiUrl) userFields.apiUrl = me.apiUrl;
+
+      // Validar la licencia del plan elegido ANTES de crear (consume 1 licencia).
+      if (subscriptionPlanId) {
+        pool = await db.resellerLicensePool.findUnique({
+          where: { resellerUserId_subscriptionPlanId: { resellerUserId: me.id, subscriptionPlanId } },
+          include: { subscriptionPlan: true },
+        });
+        if (!pool) return { success: false, message: 'No tienes licencias de ese plan.' };
+        if (pool.usedLicenses >= pool.totalLicenses) {
+          return {
+            success: false,
+            message: `Sin licencias disponibles para ese plan. Tienes ${pool.totalLicenses - pool.usedLicenses} disponibles.`,
+          };
+        }
+      }
     }
 
     // apiKeyId vacío ("") no es una FK válida → normalizar a null.
@@ -478,6 +500,19 @@ export const createUserWithPausar = async (
     const user = await db.user.create({
       data: userFields,
     });
+
+    // 1b. Si se consumió un pool de licencias: crear créditos e incrementar uso.
+    if (pool) {
+      const renewalDate = new Date();
+      renewalDate.setMonth(renewalDate.getMonth() + 1);
+      await db.iaCredit.create({
+        data: { userId: user.id, total: pool.subscriptionPlan.credits, used: 0, renewalDate },
+      });
+      await db.resellerLicensePool.update({
+        where: { id: pool.id },
+        data: { usedLicenses: { increment: 1 } },
+      });
+    }
 
     let pausarRecord: Pausar | null = null;
 

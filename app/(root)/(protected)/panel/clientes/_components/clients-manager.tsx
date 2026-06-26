@@ -56,7 +56,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
     const [statusFilter, setStatusFilter] = useState<StatusKey | null>(null);
 
 
-    const handleCreate = async (formData: UserFormValues) => {
+    const handleCreate = async (formData: UserFormValues & { subscriptionPlanId?: string }) => {
         const toastId = 'create-client';
         toast.loading('Creando cliente...', { id: toastId });
 
@@ -116,6 +116,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
             tokenVersion: 0,
             enableVoiceResponses: false,
             voiceId: 'nova',
+            subscriptionPlanId: formData.subscriptionPlanId,
         } as Parameters<typeof createUserWithPausar>[0]);
 
         if (result.success) {

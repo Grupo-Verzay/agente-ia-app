@@ -50,7 +50,7 @@ const ROLE_LABELS: Record<Role, string> = {
 interface Props {
   openCreateDialog: boolean;
   setOpenCreateDialog: (open: boolean) => void;
-  handleCreate: (formData: UserFormValues) => void;
+  handleCreate: (formData: UserFormValues & { subscriptionPlanId?: string }) => void;
   apikeys: ApiKey[];
   countries: Country[];
   currentUserRol?: string;
@@ -121,12 +121,18 @@ export const CreateDialog = ({
   };
 
   const onSubmit = (data: UserFormValues) => {
+    // El reseller debe elegir un plan (pool de licencias) para consumir 1 licencia.
+    if (isReseller && !selectedPoolId) {
+      toast.error("Selecciona un plan");
+      return;
+    }
     handleCreate({
       ...data,
       status,
       enabledSynthesizer: crmDisabled ? false : enabledSynthesizer,
       enabledLeadStatusClassifier: crmDisabled ? false : enabledLeadStatusClassifier,
       enabledCrmFollowUps: crmDisabled ? false : enabledCrmFollowUps,
+      subscriptionPlanId: isReseller ? selectedPoolId : undefined,
     });
   };
 
