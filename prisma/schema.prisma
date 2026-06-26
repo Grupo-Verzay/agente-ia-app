@@ -623,6 +623,7 @@ model User {
   theme                              ThemeApp?                    @default(Default)
   faviconUrl                         String?                      @map("favicon_url")
   brandName                          String?                      @map("brand_name")
+  contactFieldsConfig                Json?                        @map("contact_fields_config")
   muteAgentResponses                 Boolean                      @default(false)
   timezone                           String?
   meetingDuration                    Int?

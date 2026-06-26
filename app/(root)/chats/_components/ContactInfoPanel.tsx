@@ -5,8 +5,14 @@ import {
   X, Loader2, Phone, Megaphone, Mail, Building2, MapPin,
   Briefcase, FileText, Check, ChevronDown, Home, CreditCard, Calendar, Flag,
   Sheet, Send, Info, BotIcon, Pencil, CheckCircle2,
-  Globe, AtSign, Share2, Linkedin,
+  Globe, AtSign, Share2, Linkedin, Tag,
 } from 'lucide-react';
+import { getContactFieldsConfig } from '@/actions/contact-fields-actions';
+import {
+  ContactFieldDef,
+  DEFAULT_CONTACT_FIELDS,
+  DEFAULT_CONTACT_SECTIONS,
+} from '@/lib/contact-fields';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -27,36 +33,32 @@ import * as SwitchPrimitive from '@radix-ui/react-switch';
 import { initialFromName } from './chat-message-utils';
 import type { Session } from '@/types/session';
 
-/* ── Contact data fields ───────────────────────────────────── */
-type ContactFields = {
-  email: string;
-  empresa: string;
-  ciudad: string;
-  cargo: string;
-  notas: string;
-  telefono: string;
-  fecha: string;
-  pais: string;
-  sitioWeb: string;
-  instagram: string;
-  facebook: string;
-  linkedin: string;
-  direccion: string;
-  documento: string;
-};
-const EMPTY_FIELDS: ContactFields = { email: '', empresa: '', ciudad: '', cargo: '', notas: '', sitioWeb: '', instagram: '', facebook: '', linkedin: '', direccion: '', documento: '', telefono: '', fecha: '', pais: '' };
+/* ── Contact data fields (dinámicos por usuario) ───────────── */
+// Los datos se guardan como JSON flexible, así que la ficha admite cualquier
+// clave. La estructura de campos/secciones la define la config del usuario.
+type ContactFields = Record<string, string>;
+const EMPTY_FIELDS: ContactFields = {};
 
-type FieldConfig = { field: keyof ContactFields; icon: React.ElementType; label: string; multiline?: boolean };
+// Resuelve el nombre de ícono (string en la config) a un componente lucide.
+const ICON_MAP: Record<string, React.ElementType> = {
+  Building2, Briefcase, CreditCard, Phone, Mail, Calendar, Flag, MapPin,
+  Home, Globe, AtSign, Share2, Linkedin, FileText, Tag,
+};
+const resolveIcon = (name: string): React.ElementType => ICON_MAP[name] ?? Tag;
+
+const SECTION_ICON_BY_TITLE: Record<string, string> = Object.fromEntries(
+  DEFAULT_CONTACT_SECTIONS.map((s) => [s.title, s.icon]),
+);
 
 /* ── Inline field ──────────────────────────────────────────── */
 interface InlineFieldProps {
   icon: React.ElementType;
   label: string;
-  field: keyof ContactFields;
+  field: string;
   value: string;
   multiline?: boolean;
   saved: boolean;
-  onChange: (field: keyof ContactFields, value: string) => void;
+  onChange: (field: string, value: string) => void;
   onSave: () => void;
 }
 
@@ -155,7 +157,8 @@ export function ContactInfoPanel({
   onSessionRefresh,
 }: ContactInfoPanelProps) {
   const [fields, setFields] = useState<ContactFields>(EMPTY_FIELDS);
-  const [savedField, setSavedField] = useState<keyof ContactFields | null>(null);
+  const [fieldDefs, setFieldDefs] = useState<ContactFieldDef[]>(DEFAULT_CONTACT_FIELDS);
+  const [savedField, setSavedField] = useState<string | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sheetsUrl, setSheetsUrl] = useState('');
@@ -174,6 +177,15 @@ export function ContactInfoPanel({
   const adSource = session.adSource as { title?: string; body?: string; sourceUrl?: string } | null | undefined;
   const adLabel = adSource?.title || (adSource?.sourceUrl ? (() => { try { return new URL(adSource.sourceUrl!).hostname.replace(/^www\./, ''); } catch { return 'Anuncio'; } })() : null);
 
+  /* Load contact field config (per user) */
+  useEffect(() => {
+    let cancelled = false;
+    getContactFieldsConfig(userId).then((defs) => {
+      if (!cancelled && Array.isArray(defs) && defs.length) setFieldDefs(defs);
+    });
+    return () => { cancelled = true; };
+  }, [userId]);
+
   /* Load external contact data */
   useEffect(() => {
     if (!remoteJid) { setLoadingData(false); return; }
@@ -182,22 +194,9 @@ export function ContactInfoPanel({
     getExternalClientDataByRemoteJid(userId, remoteJid).then((rec) => {
       if (!cancelled && rec?.data && typeof rec.data === 'object') {
         const d = rec.data as Record<string, unknown>;
-        setFields({
-          email: String(d.email ?? ''),
-          empresa: String(d.empresa ?? ''),
-          ciudad: String(d.ciudad ?? ''),
-          cargo: String(d.cargo ?? ''),
-          notas: String(d.notas ?? ''),
-          telefono: String(d.telefono ?? ''),
-          fecha: String(d.fecha ?? ''),
-          pais: String(d.pais ?? ''),
-          sitioWeb: String(d.sitioWeb ?? ''),
-          instagram: String(d.instagram ?? ''),
-          facebook: String(d.facebook ?? ''),
-          linkedin: String(d.linkedin ?? ''),
-          direccion: String(d.direccion ?? ''),
-          documento: String(d.documento ?? ''),
-        });
+        const loaded: ContactFields = {};
+        for (const [k, v] of Object.entries(d)) loaded[k] = String(v ?? '');
+        setFields(loaded);
       }
       if (!cancelled) setLoadingData(false);
     });
@@ -240,7 +239,7 @@ export function ContactInfoPanel({
     });
   }, [userId]);
 
-  const handleFieldChange = useCallback((field: keyof ContactFields, value: string) => {
+  const handleFieldChange = useCallback((field: string, value: string) => {
     setFields((prev) => ({ ...prev, [field]: value }));
     setSavedField(null);
   }, []);
@@ -249,7 +248,7 @@ export function ContactInfoPanel({
     if (!remoteJid) return;
     if (pendingRef.current) clearTimeout(pendingRef.current);
     try {
-      await upsertExternalClientData(userId, remoteJid, fields as Record<string, string>, 'manual');
+      await upsertExternalClientData(userId, remoteJid, fields, 'manual');
     } catch {
       toast.error('No se pudo guardar');
     }
@@ -282,47 +281,23 @@ export function ContactInfoPanel({
     else toast.error(res.error ?? 'Error al sincronizar');
   };
 
-  const SECTIONS_CONFIG: { title: string; icon: React.ElementType; fields: FieldConfig[] }[] = [
-    {
-      title: 'Datos de negocio', icon: Building2,
-      fields: [
-        { field: 'empresa',   icon: Building2,  label: 'Empresa' },
-        { field: 'cargo',     icon: Briefcase,  label: 'Cargo' },
-        { field: 'documento', icon: CreditCard, label: 'Documento' },
-      ],
-    },
-    {
-      title: 'Contacto', icon: Phone,
-      fields: [
-        { field: 'telefono', icon: Phone,    label: 'Teléfono' },
-        { field: 'email',    icon: Mail,     label: 'Email' },
-        { field: 'fecha',    icon: Calendar, label: 'Fecha' },
-      ],
-    },
-    {
-      title: 'Ubicación', icon: MapPin,
-      fields: [
-        { field: 'pais',      icon: Flag,    label: 'País' },
-        { field: 'ciudad',    icon: MapPin,  label: 'Ciudad' },
-        { field: 'direccion', icon: Home,    label: 'Dirección' },
-      ],
-    },
-    {
-      title: 'Presencia digital', icon: Globe,
-      fields: [
-        { field: 'sitioWeb',  icon: Globe,    label: 'Sitio web' },
-        { field: 'instagram', icon: AtSign,   label: 'Instagram' },
-        { field: 'facebook',  icon: Share2,   label: 'Facebook' },
-        { field: 'linkedin',  icon: Linkedin, label: 'LinkedIn' },
-      ],
-    },
-    {
-      title: 'Libre', icon: FileText,
-      fields: [
-        { field: 'notas', icon: FileText, label: 'Notas', multiline: true },
-      ],
-    },
-  ];
+  // Secciones armadas dinámicamente desde la config del usuario: solo campos
+  // habilitados, ordenados por `order`, agrupados por sección (en orden de
+  // primera aparición).
+  const SECTIONS_CONFIG = (() => {
+    const sorted = [...fieldDefs].filter((f) => f.enabled).sort((a, b) => a.order - b.order);
+    const order: string[] = [];
+    const bySection = new Map<string, ContactFieldDef[]>();
+    for (const f of sorted) {
+      if (!bySection.has(f.section)) { bySection.set(f.section, []); order.push(f.section); }
+      bySection.get(f.section)!.push(f);
+    }
+    return order.map((title) => ({
+      title,
+      icon: resolveIcon(SECTION_ICON_BY_TITLE[title] ?? 'FileText'),
+      fields: bySection.get(title)!,
+    }));
+  })();
 
   return (
     <aside className="flex flex-col w-full md:w-80 shrink-0 border-l bg-background h-full overflow-hidden absolute inset-0 z-20 md:static md:z-auto md:inset-auto">
@@ -422,15 +397,15 @@ export function ContactInfoPanel({
           SECTIONS_CONFIG.map(({ title, icon, fields: sectionFields }) => (
             <Section key={title} title={title} icon={icon} defaultOpen={title === 'Datos de negocio' || title === 'Contacto'}>
               <div className="space-y-2 py-1">
-                {sectionFields.map(({ field, icon: fieldIcon, label, multiline }) => (
+                {sectionFields.map((f) => (
                   <InlineField
-                    key={field}
-                    icon={fieldIcon}
-                    label={label}
-                    field={field}
-                    value={fields[field]}
-                    multiline={multiline}
-                    saved={savedField === field}
+                    key={f.key}
+                    icon={resolveIcon(f.icon)}
+                    label={f.label}
+                    field={f.key}
+                    value={fields[f.key] ?? ''}
+                    multiline={f.multiline}
+                    saved={savedField === f.key}
                     onChange={handleFieldChange}
                     onSave={handleSave}
                   />
