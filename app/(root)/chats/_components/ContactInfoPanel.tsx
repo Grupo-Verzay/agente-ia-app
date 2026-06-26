@@ -5,7 +5,7 @@ import {
   X, Loader2, Phone, Megaphone, Mail, Building2, MapPin,
   Briefcase, FileText, Check, ChevronDown, Home, CreditCard, Calendar, Flag,
   Sheet, Send, Info, BotIcon, Pencil, CheckCircle2,
-  Globe, AtSign, Share2, Linkedin, Tag,
+  Globe, AtSign, Share2, Linkedin, Tag, SlidersHorizontal,
 } from 'lucide-react';
 import { getContactFieldsConfig } from '@/actions/contact-fields-actions';
 import {
@@ -13,6 +13,7 @@ import {
   DEFAULT_CONTACT_FIELDS,
   DEFAULT_CONTACT_SECTIONS,
 } from '@/lib/contact-fields';
+import { ContactFieldsConfigDialog } from './ContactFieldsConfigDialog';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -158,6 +159,7 @@ export function ContactInfoPanel({
 }: ContactInfoPanelProps) {
   const [fields, setFields] = useState<ContactFields>(EMPTY_FIELDS);
   const [fieldDefs, setFieldDefs] = useState<ContactFieldDef[]>(DEFAULT_CONTACT_FIELDS);
+  const [configOpen, setConfigOpen] = useState(false);
   const [savedField, setSavedField] = useState<string | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -304,10 +306,23 @@ export function ContactInfoPanel({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/30 shrink-0">
         <span className="text-sm font-semibold">Contacto</span>
-        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={onClose} title="Cerrar">
-          <X className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={() => setConfigOpen(true)} title="Configurar campos">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={onClose} title="Cerrar">
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
+
+      <ContactFieldsConfigDialog
+        userId={userId}
+        open={configOpen}
+        onOpenChange={setConfigOpen}
+        fields={fieldDefs}
+        onSaved={setFieldDefs}
+      />
 
       <div className="flex-1 overflow-y-auto [scrollbar-width:thin]">
 
