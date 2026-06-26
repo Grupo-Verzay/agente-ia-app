@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { UserWithPausar } from "@/lib/types";
 import { BrandSelector } from "../../../../components/custom";
-import { updatePlatformLogoUrl, updatePlatformFaviconUrl } from "@/actions/admin/site-config-actions";
+import { updatePlatformLogoUrl, updatePlatformFaviconUrl, updatePlatformBrandName } from "@/actions/admin/site-config-actions";
 import { useResellerStore } from "@/stores/resellers/resellerStore";
 import { Role } from "@prisma/client";
 import { ApiKeyConfigurator, ChangePasswordCard, ChangeEmailCard } from "./";
@@ -359,6 +359,28 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
             toast.success('Favicon actualizado', { id: toastId });
         } catch (error: any) {
             toast.error(error?.message || 'Error al subir el favicon', { id: toastId });
+        } finally {
+            setLoadingField(null);
+        }
+    };
+
+    const handleBrandNameBlur = async () => {
+        if (!userId) return;
+        const value = String((user as { brandName?: string | null })?.brandName ?? "").trim();
+        setLoadingField('brandName');
+        toast.loading('Guardando...', { id: 'brandName' });
+        try {
+            const result = await updateClientDataByField(userId, 'brandName', value);
+            if (!result.success) {
+                toast.error(result.message || 'Error al guardar.', { id: 'brandName' });
+                return;
+            }
+            if (user?.role === Role.super_admin && activeTab === 'apariencia') {
+                await updatePlatformBrandName(value);
+            }
+            toast.success('Guardado', { id: 'brandName' });
+        } catch (error: any) {
+            toast.error(error?.message || 'Error al guardar', { id: 'brandName' });
         } finally {
             setLoadingField(null);
         }
@@ -1210,6 +1232,37 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                         <CardHeader className="pb-3">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                    <PenLine className="w-4 h-4 text-primary" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <CardTitle className="text-sm font-semibold">Nombre de la marca</CardTitle>
+                                                    <CardDescription className="text-xs">
+                                                        Texto que aparece en la pestaña del navegador
+                                                    </CardDescription>
+                                                </div>
+                                                {loadingField === 'brandName' && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent className="flex flex-col flex-1 pt-2">
+                                            <div className="mt-auto flex flex-col gap-2">
+                                                <p className="text-xs text-muted-foreground">Si lo dejas vacío se usa el nombre de tu empresa.</p>
+                                                <Input
+                                                    id="brandName"
+                                                    name="brandName"
+                                                    placeholder="Ej. CRM Pensionados"
+                                                    value={(user as { brandName?: string | null })?.brandName ?? ""}
+                                                    disabled={loadingField === 'brandName'}
+                                                    onChange={(e) => handleChange("brandName" as keyof UserWithPausar, e.target.value)}
+                                                    onBlur={handleBrandNameBlur}
+                                                />
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+
+                                    <Card className="border-border flex flex-col">
+                                        <CardHeader className="pb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                                                     <Palette className="w-4 h-4 text-primary" />
                                                 </div>
                                                 <div>
@@ -1219,7 +1272,9 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                             </div>
                                         </CardHeader>
                                         <CardContent className="flex flex-col flex-1">
-                                            <BrandSelector fallbackUserId={userId} />
+                                            <div className="mt-auto">
+                                                <BrandSelector fallbackUserId={userId} />
+                                            </div>
                                         </CardContent>
                                     </Card>
                                 </div>

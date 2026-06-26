@@ -48,8 +48,9 @@ export async function generateMetadata(): Promise<Metadata> {
             siteConfig.faviconUrl?.trim() ||
             "/favicon.ico";
 
+        const brandName = reseller?.data?.brandName?.trim() || siteConfig.brandName?.trim();
         const company = reseller?.data?.company?.trim();
-        const title = company && company !== "Empresa Demo" ? company : "Agente IA";
+        const title = brandName || (company && company !== "Empresa Demo" ? company : "Agente IA");
 
         return { title, icons: { icon: favicon } };
     } catch {

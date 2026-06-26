@@ -17,6 +17,7 @@ export type SiteConfigData = {
   subheadline: string | null;
   logoUrl: string | null;
   faviconUrl: string | null;
+  brandName: string | null;
   instagram: string | null;
   facebook: string | null;
   videoUrl: string | null;
@@ -34,7 +35,7 @@ export type SiteConfigData = {
 const EMPTY: SiteConfigData = {
   whatsappNumber: null, meetingUrl: null, sheetsUrl: null,
   primaryColor: null, bgColor: null, headline: null, subheadline: null,
-  logoUrl: null, faviconUrl: null, instagram: null, facebook: null,
+  logoUrl: null, faviconUrl: null, brandName: null, instagram: null, facebook: null,
   videoUrl: null, ctaHeadline: null, ctaSubtitle: null,
   testimonials: null, stats: null,
   resellerWhatsappNumber: null,
@@ -58,6 +59,7 @@ export async function getSiteConfig(): Promise<SiteConfigData> {
       subheadline: c.subheadline ?? null,
       logoUrl: c.logoUrl ?? null,
       faviconUrl: c.faviconUrl ?? null,
+      brandName: c.brandName ?? null,
       instagram: c.instagram ?? null,
       facebook: c.facebook ?? null,
       videoUrl: c.videoUrl ?? null,
@@ -114,6 +116,25 @@ export async function updatePlatformFaviconUrl(faviconUrl: string): Promise<{ su
   }
 }
 
+export async function updatePlatformBrandName(brandName: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const user = await currentUser();
+    if (!user || user.role !== "super_admin") {
+      return { success: false, message: "Solo el Super Admin puede actualizar el nombre de plataforma" };
+    }
+    await db.siteConfig.upsert({
+      where: { id: 1 },
+      update: { brandName },
+      create: { id: 1, brandName },
+    });
+    revalidatePath("/inicio");
+    revalidatePath("/resellers");
+    return { success: true, message: "Nombre de marca actualizado" };
+  } catch {
+    return { success: false, message: "Error al actualizar el nombre de marca" };
+  }
+}
+
 export async function updateSiteConfig(data: SiteConfigData): Promise<{ success: boolean; message: string }> {
   try {
     const user = await currentUser();
@@ -130,6 +151,7 @@ export async function updateSiteConfig(data: SiteConfigData): Promise<{ success:
       subheadline: data.subheadline || null,
       logoUrl: data.logoUrl || null,
       faviconUrl: data.faviconUrl || null,
+      brandName: data.brandName || null,
       instagram: data.instagram || null,
       facebook: data.facebook || null,
       videoUrl: data.videoUrl || null,
