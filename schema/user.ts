@@ -14,18 +14,23 @@ export const userSchema = z.object({
         .string()
         .min(2, "Frase de seguimiento muy corta")
         .max(100, "Frase demasiado larga"),
+    // Estos 3 son obligatorios solo para admins (que los ven en el form).
+    // Para resellers están ocultos y los asigna el servidor (heredados del
+    // reseller); por eso se permite vacío y la validación aplica solo si se llenan.
     webhookUrl: z
         .string()
         .url("URL del webhook inválida")
-        .min(20, "Debe tener al menos 20 caracteres"),
+        .min(20, "Debe tener al menos 20 caracteres")
+        .or(z.literal("")),
     apiUrl: z
         .string()
-        .min(30, "URL demasiado corta"),
+        .min(30, "URL demasiado corta")
+        .or(z.literal("")),
     role: z.enum(["user", "admin", "reseller", "super_admin"], {
         required_error: "Debes seleccionar un rol",
     }),
     plan: z.enum(PLAN_VALUES),
-    apiKeyId: z.string().min(1, "Selecciona una API Key"),
+    apiKeyId: z.string().min(1, "Selecciona una API Key").or(z.literal("")),
 
 
     mapsUrl: z.string().url().optional(),

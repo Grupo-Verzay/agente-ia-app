@@ -460,10 +460,19 @@ export const createUserWithPausar = async (
 
     const { openingPhrase, ...userFields } = userData;
 
-    // Si el creador es reseller, vincular el cliente a su pool
-    if (me.role === 'reseller' && !userFields.demoResellerId) {
-      userFields.demoResellerId = me.id;
+    // Si el creador es reseller, vincular el cliente a su pool y heredar su
+    // configuración de Evolution/IA cuando el formulario no la trae (esos
+    // campos están ocultos para resellers).
+    if (me.role === 'reseller') {
+      if (!userFields.demoResellerId) userFields.demoResellerId = me.id;
+      if (!userFields.apiKeyId) userFields.apiKeyId = me.apiKeyId ?? null;
+      if (!userFields.apiUrl) userFields.apiUrl = me.apiUrl;
     }
+
+    // apiKeyId vacío ("") no es una FK válida → normalizar a null.
+    if (!userFields.apiKeyId) userFields.apiKeyId = null;
+    // apiUrl no puede ir vacío (columna con default de plataforma).
+    if (!userFields.apiUrl) userFields.apiUrl = 'https://api.openAI.co';
 
     // 1. Crear el usuario
     const user = await db.user.create({
