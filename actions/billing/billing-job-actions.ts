@@ -205,6 +205,9 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
             where: {
                 user: {
                     status: true,
+                    // El cron de plataforma NO gestiona clientes de resellers:
+                    // su ciclo de cobro lo maneja el reseller.
+                    demoResellerId: null,
                 },
                 dueDate: {
                     not: null,
@@ -513,7 +516,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
         const suspendedWithInstance = await db.userBilling.findMany({
             where: {
                 accessStatus: "SUSPENDED",
-                user: { instancias: { some: { instanceType: "Whatsapp" } } },
+                user: { demoResellerId: null, instancias: { some: { instanceType: "Whatsapp" } } },
             },
             select: { id: true, userId: true },
         });
@@ -568,7 +571,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                 billingStatus: "UNPAID",
                 preDeleteWarnedAt: null,
                 dueDate: { not: null, lte: warnFromCutoff, gt: warnUntilCutoff },
-                user: { role: "user" },
+                user: { role: "user", demoResellerId: null },
             },
             select: { id: true, userId: true },
         });
@@ -621,7 +624,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
             where: {
                 billingStatus: "UNPAID",
                 dueDate: { not: null, lte: deletionCutoff },
-                user: { role: "user" },
+                user: { role: "user", demoResellerId: null },
             },
             select: { id: true, userId: true, user: { select: { name: true, email: true } } },
         });
@@ -673,6 +676,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
         const debtorsRaw = await db.userBilling.findMany({
             where: {
                 dueDate: { not: null },
+                user: { demoResellerId: null },
             },
             include: {
                 user: {
