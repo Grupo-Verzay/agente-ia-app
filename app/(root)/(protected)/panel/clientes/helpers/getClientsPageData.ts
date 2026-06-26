@@ -87,11 +87,24 @@ export async function getClientsPageData(): Promise<
 
         const availableApikeys = apikeys.filter((k) => (usage[k.id] || 0) < 100);
 
+        // Uso DINÁMICO por pool: clientes activos reales etiquetados con cada plan.
+        const licenseUsage = user.role === 'reseller'
+            ? await db.user.groupBy({
+                by: ['resellerSubscriptionPlanId'],
+                where: { demoResellerId: user.id, isDemo: false, resellerSubscriptionPlanId: { not: null } },
+                _count: { _all: true },
+            })
+            : [];
+        const usedByPlan = new Map<string, number>();
+        for (const row of licenseUsage) {
+            if (row.resellerSubscriptionPlanId) usedByPlan.set(row.resellerSubscriptionPlanId, row._count._all);
+        }
+
         const resellerPools: ResellerPoolOption[] = pools.map(p => ({
             subscriptionPlanId: p.subscriptionPlanId,
             plan: p.subscriptionPlan.plan,
             planLabel: PLAN_LABELS[p.subscriptionPlan.plan],
-            availableLicenses: p.totalLicenses - p.usedLicenses,
+            availableLicenses: p.totalLicenses - (usedByPlan.get(p.subscriptionPlanId) ?? 0),
         }));
 
         return {

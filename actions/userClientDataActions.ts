@@ -475,19 +475,26 @@ export const createUserWithPausar = async (
       if (!userFields.apiKeyId) userFields.apiKeyId = me.apiKeyId ?? null;
       if (!userFields.apiUrl) userFields.apiUrl = me.apiUrl;
 
-      // Validar la licencia del plan elegido ANTES de crear (consume 1 licencia).
+      // Validar la licencia del plan elegido ANTES de crear (consume 1 cupo).
+      // El uso se calcula DINÁMICAMENTE = clientes activos reales de ese pool,
+      // así eliminar un cliente libera el cupo automáticamente (modelo A).
       if (subscriptionPlanId) {
         pool = await db.resellerLicensePool.findUnique({
           where: { resellerUserId_subscriptionPlanId: { resellerUserId: me.id, subscriptionPlanId } },
           include: { subscriptionPlan: true },
         });
         if (!pool) return { success: false, message: 'No tienes licencias de ese plan.' };
-        if (pool.usedLicenses >= pool.totalLicenses) {
+        const used = await db.user.count({
+          where: { demoResellerId: me.id, isDemo: false, resellerSubscriptionPlanId: subscriptionPlanId },
+        });
+        if (used >= pool.totalLicenses) {
           return {
             success: false,
-            message: `Sin licencias disponibles para ese plan. Tienes ${pool.totalLicenses - pool.usedLicenses} disponibles.`,
+            message: `Sin licencias disponibles para ese plan. Tienes ${pool.totalLicenses - used} disponibles.`,
           };
         }
+        // Etiquetar al cliente con el pool que consume (clave para contar y liberar).
+        userFields.resellerSubscriptionPlanId = subscriptionPlanId;
       }
     }
 
@@ -501,16 +508,13 @@ export const createUserWithPausar = async (
       data: userFields,
     });
 
-    // 1b. Si se consumió un pool de licencias: crear créditos e incrementar uso.
+    // 1b. Si se consumió un pool de licencias, crear los créditos IA del plan.
+    // (El uso del pool se cuenta dinámicamente; no se toca usedLicenses.)
     if (pool) {
       const renewalDate = new Date();
       renewalDate.setMonth(renewalDate.getMonth() + 1);
       await db.iaCredit.create({
         data: { userId: user.id, total: pool.subscriptionPlan.credits, used: 0, renewalDate },
-      });
-      await db.resellerLicensePool.update({
-        where: { id: pool.id },
-        data: { usedLicenses: { increment: 1 } },
       });
     }
 
@@ -602,8 +606,15 @@ export async function deleteUser(id: string) {
 
   try {
     const me = await currentUser();
-    if (!me || !isAdminLike(me.role)) {
+    if (!me || !isAdminOrReseller(me.role)) {
       return { success: false, message: "No autorizado." };
+    }
+    // Resellers solo pueden eliminar a SUS propios clientes.
+    if (!isAdminLike(me.role)) {
+      const target = await db.user.findUnique({ where: { id }, select: { demoResellerId: true } });
+      if (!target || target.demoResellerId !== me.id) {
+        return { success: false, message: "No autorizado." };
+      }
     }
 
     await db.$transaction(async (tx) => {

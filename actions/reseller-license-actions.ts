@@ -52,6 +52,19 @@ export async function getResellersWithPools() {
       orderBy: { name: "asc" },
     });
 
+    // Uso DINÁMICO por (reseller, pool): clientes activos reales.
+    const usage = await db.user.groupBy({
+      by: ["demoResellerId", "resellerSubscriptionPlanId"],
+      where: { isDemo: false, demoResellerId: { not: null }, resellerSubscriptionPlanId: { not: null } },
+      _count: { _all: true },
+    });
+    const usedMap = new Map<string, number>();
+    for (const row of usage) {
+      if (row.demoResellerId && row.resellerSubscriptionPlanId) {
+        usedMap.set(`${row.demoResellerId}::${row.resellerSubscriptionPlanId}`, row._count._all);
+      }
+    }
+
     return {
       success: true,
       data: resellers.map((r) => ({
@@ -61,19 +74,22 @@ export async function getResellersWithPools() {
         company: r.company,
         demoLimit: r.reseller_reseller_reselleridToUser[0]?.demoLimit ?? 3,
         demosUsed: r.demoAccounts.length,
-        pools: r.resellerLicensePools.map((pool) => ({
+        pools: r.resellerLicensePools.map((pool) => {
+          const used = usedMap.get(`${pool.resellerUserId}::${pool.subscriptionPlanId}`) ?? 0;
+          return {
           id: pool.id,
           resellerUserId: pool.resellerUserId,
           subscriptionPlanId: pool.subscriptionPlanId,
           plan: pool.subscriptionPlan.plan,
           assistanceType: pool.subscriptionPlan.assistanceType,
           totalLicenses: pool.totalLicenses,
-          usedLicenses: pool.usedLicenses,
-          availableLicenses: pool.totalLicenses - pool.usedLicenses,
+          usedLicenses: used,
+          availableLicenses: pool.totalLicenses - used,
           priceWholesale: pool.subscriptionPlan.priceWholesale != null
             ? Number(pool.subscriptionPlan.priceWholesale)
             : null,
-        })),
+          };
+        }),
       })) as ResellerWithPools[],
     };
   } catch (e) {
@@ -165,22 +181,36 @@ export async function getMyResellerDashboard() {
       where: { demoResellerId: user.id, isDemo: true },
     });
 
+    // Uso DINÁMICO por pool: clientes activos reales.
+    const usage = await db.user.groupBy({
+      by: ["resellerSubscriptionPlanId"],
+      where: { demoResellerId: user.id, isDemo: false, resellerSubscriptionPlanId: { not: null } },
+      _count: { _all: true },
+    });
+    const usedByPlan = new Map<string, number>();
+    for (const row of usage) {
+      if (row.resellerSubscriptionPlanId) usedByPlan.set(row.resellerSubscriptionPlanId, row._count._all);
+    }
+
     return {
       success: true,
       data: {
         demoLimit: resellerProfile?.demoLimit ?? 3,
         demosUsed,
         demosAvailable: Math.max(0, (resellerProfile?.demoLimit ?? 3) - demosUsed),
-        pools: pools.map((pool) => ({
-          id: pool.id,
-          subscriptionPlanId: pool.subscriptionPlanId,
-          plan: pool.subscriptionPlan.plan,
-          assistanceType: pool.subscriptionPlan.assistanceType,
-          credits: pool.subscriptionPlan.credits,
-          totalLicenses: pool.totalLicenses,
-          usedLicenses: pool.usedLicenses,
-          availableLicenses: pool.totalLicenses - pool.usedLicenses,
-        })),
+        pools: pools.map((pool) => {
+          const used = usedByPlan.get(pool.subscriptionPlanId) ?? 0;
+          return {
+            id: pool.id,
+            subscriptionPlanId: pool.subscriptionPlanId,
+            plan: pool.subscriptionPlan.plan,
+            assistanceType: pool.subscriptionPlan.assistanceType,
+            credits: pool.subscriptionPlan.credits,
+            totalLicenses: pool.totalLicenses,
+            usedLicenses: used,
+            availableLicenses: pool.totalLicenses - used,
+          };
+        }),
       },
     };
   } catch (e) {
@@ -332,8 +362,11 @@ export async function createClientAccount(data: {
     });
 
     if (!pool) return { success: false, message: "No tienes licencias de ese plan" };
-    if (pool.usedLicenses >= pool.totalLicenses) {
-      return { success: false, message: `Sin licencias disponibles para ese plan. Tienes ${pool.totalLicenses - pool.usedLicenses} disponibles.` };
+    const usedNow = await db.user.count({
+      where: { demoResellerId: user.id, isDemo: false, resellerSubscriptionPlanId: data.subscriptionPlanId },
+    });
+    if (usedNow >= pool.totalLicenses) {
+      return { success: false, message: `Sin licencias disponibles para ese plan. Tienes ${pool.totalLicenses - usedNow} disponibles.` };
     }
 
     const exists = await db.user.findUnique({ where: { email: data.email } });
@@ -356,6 +389,7 @@ export async function createClientAccount(data: {
         plan: data.plan,
         isDemo: false,
         demoResellerId: user.id,
+        resellerSubscriptionPlanId: data.subscriptionPlanId,
         demoCredits: 0,
       },
     });
@@ -369,15 +403,53 @@ export async function createClientAccount(data: {
       },
     });
 
-    await db.resellerLicensePool.update({
-      where: { id: pool.id },
-      data: { usedLicenses: { increment: 1 } },
-    });
+    // El uso del pool se cuenta dinámicamente (clientes activos con este plan);
+    // no se toca usedLicenses. Eliminar al cliente libera el cupo solo.
 
     revalidatePath("/panel/mis-clientes");
     return { success: true, message: "Cliente creado exitosamente", data: { id: client.id, email: client.email } };
   } catch (e) {
     console.error("[createClientAccount]", e);
     return { success: false, message: "Error al crear el cliente" };
+  }
+}
+
+// ── Admin: reconciliar el histórico (etiquetar clientes viejos con su pool) ──
+// Asigna resellerSubscriptionPlanId a los clientes que aún no lo tienen,
+// emparejando por (reseller + plan). Best-effort: si un reseller tiene varios
+// pools con el mismo plan, usa el primero. Sirve para que el conteo dinámico
+// incluya a los clientes creados antes de este cambio.
+export async function reconcileResellerLicenses() {
+  try {
+    const me = await currentUser();
+    if (!me || !isAdminLike(me.role)) return { success: false, message: "Sin permisos", updated: 0 };
+
+    const clients = await db.user.findMany({
+      where: { isDemo: false, demoResellerId: { not: null }, resellerSubscriptionPlanId: null },
+      select: { id: true, demoResellerId: true, plan: true },
+    });
+
+    const pools = await db.resellerLicensePool.findMany({ include: { subscriptionPlan: true } });
+    const poolByResellerPlan = new Map<string, string>();
+    for (const p of pools) {
+      const key = `${p.resellerUserId}::${p.subscriptionPlan.plan}`;
+      if (!poolByResellerPlan.has(key)) poolByResellerPlan.set(key, p.subscriptionPlanId);
+    }
+
+    let updated = 0;
+    for (const c of clients) {
+      if (!c.demoResellerId) continue;
+      const planId = poolByResellerPlan.get(`${c.demoResellerId}::${c.plan}`);
+      if (!planId) continue;
+      await db.user.update({ where: { id: c.id }, data: { resellerSubscriptionPlanId: planId } });
+      updated++;
+    }
+
+    revalidatePath("/admin/reseller");
+    revalidatePath("/panel/clientes");
+    return { success: true, message: `Reconciliados ${updated} clientes.`, updated };
+  } catch (e) {
+    console.error("[reconcileResellerLicenses]", e);
+    return { success: false, message: "Error al reconciliar", updated: 0 };
   }
 }

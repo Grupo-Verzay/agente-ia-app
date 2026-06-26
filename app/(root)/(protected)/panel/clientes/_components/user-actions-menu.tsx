@@ -84,7 +84,7 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
                     >
                         Ingresar
                     </DropdownMenuItem>
-                    {(currentUserRol === 'admin' || currentUserRol === 'super_admin') &&
+                    {(currentUserRol === 'admin' || currentUserRol === 'super_admin' || currentUserRol === 'reseller') &&
                         <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem

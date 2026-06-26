@@ -663,6 +663,7 @@ model User {
   isDemo                             Boolean                      @default(false) @map("is_demo")
   demoExpiresAt                      DateTime?                    @map("demo_expires_at")
   demoResellerId                     String?                      @map("demo_reseller_id")
+  resellerSubscriptionPlanId         String?                      @map("reseller_subscription_plan_id")
   demoCredits                        Int                          @default(0) @map("demo_credits")
   trialEndsAt                        DateTime?                    @map("trial_ends_at")
   trialFollowUpConfig                TrialFollowUpConfig?
