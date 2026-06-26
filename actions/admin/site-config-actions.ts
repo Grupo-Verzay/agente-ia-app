@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
+import { DEFAULT_BILLING_TEMPLATES } from "@/actions/billing/billing-message-templates";
 
 export type { TestimonialData, StatData };
 
@@ -147,21 +148,26 @@ export type PlatformBillingMessages = {
 };
 
 export async function getPlatformBillingMessages(): Promise<PlatformBillingMessages> {
-  const empty: PlatformBillingMessages = {
-    msgReminder: "", msgDueToday: "", msgOverdue: "", msgSuspended: "", msgDeleted: "",
+  // Prellenado con el patrón por defecto de Verzay (misma fuente que los resellers).
+  const defaults: PlatformBillingMessages = {
+    msgReminder: DEFAULT_BILLING_TEMPLATES.msgReminder,
+    msgDueToday: DEFAULT_BILLING_TEMPLATES.msgDueToday,
+    msgOverdue: DEFAULT_BILLING_TEMPLATES.msgOverdue,
+    msgSuspended: DEFAULT_BILLING_TEMPLATES.msgSuspended,
+    msgDeleted: DEFAULT_BILLING_TEMPLATES.msgDeleted,
   };
   try {
     const c = await db.siteConfig.findUnique({ where: { id: 1 } });
-    if (!c) return empty;
+    if (!c) return defaults;
     return {
-      msgReminder: c.billingMsgReminder ?? "",
-      msgDueToday: c.billingMsgDueToday ?? "",
-      msgOverdue: c.billingMsgOverdue ?? "",
-      msgSuspended: c.billingMsgSuspended ?? "",
-      msgDeleted: c.billingMsgDeleted ?? "",
+      msgReminder: c.billingMsgReminder ?? defaults.msgReminder,
+      msgDueToday: c.billingMsgDueToday ?? defaults.msgDueToday,
+      msgOverdue: c.billingMsgOverdue ?? defaults.msgOverdue,
+      msgSuspended: c.billingMsgSuspended ?? defaults.msgSuspended,
+      msgDeleted: c.billingMsgDeleted ?? defaults.msgDeleted,
     };
   } catch {
-    return empty;
+    return defaults;
   }
 }
 
@@ -173,12 +179,17 @@ export async function savePlatformBillingMessages(
     if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
       return { success: false, message: "No autorizado" };
     }
+    // null = idéntico al patrón por defecto (el cron usa el mensaje dinámico exacto).
+    const overrideOrNull = (value: string | null | undefined, def: string) => {
+      const v = (value ?? "").trim();
+      return v && v !== def.trim() ? v : null;
+    };
     const payload = {
-      billingMsgReminder: data.msgReminder?.trim() || null,
-      billingMsgDueToday: data.msgDueToday?.trim() || null,
-      billingMsgOverdue: data.msgOverdue?.trim() || null,
-      billingMsgSuspended: data.msgSuspended?.trim() || null,
-      billingMsgDeleted: data.msgDeleted?.trim() || null,
+      billingMsgReminder: overrideOrNull(data.msgReminder, DEFAULT_BILLING_TEMPLATES.msgReminder),
+      billingMsgDueToday: overrideOrNull(data.msgDueToday, DEFAULT_BILLING_TEMPLATES.msgDueToday),
+      billingMsgOverdue: overrideOrNull(data.msgOverdue, DEFAULT_BILLING_TEMPLATES.msgOverdue),
+      billingMsgSuspended: overrideOrNull(data.msgSuspended, DEFAULT_BILLING_TEMPLATES.msgSuspended),
+      billingMsgDeleted: overrideOrNull(data.msgDeleted, DEFAULT_BILLING_TEMPLATES.msgDeleted),
     };
     await db.siteConfig.upsert({
       where: { id: 1 },

@@ -224,6 +224,7 @@ function resolveOverrideTemplate(tpl: string, input: ReturnType<typeof buildInpu
     dias: String(days),
     precio,
     plan: input.planLabel,
+    licencia: input.licenseLabel,
     link: input.paymentLinkOrText,
   };
   let out = tpl;
@@ -243,3 +244,85 @@ export function buildBillingMessageForRecord(
   if (overrideTpl && overrideTpl.trim()) return resolveOverrideTemplate(overrideTpl.trim(), input);
   return buildBillingMessage(input);
 }
+
+/* ── Patrón por defecto (Verzay) mostrado en los formularios ─────────────── */
+// Fuente ÚNICA: se muestra prellenado igual en Verzay y en los resellers. Si el
+// usuario lo deja idéntico, el cron usa el mensaje dinámico exacto (con íconos y
+// plurales según el caso); si lo edita, se guarda como override de esta plantilla.
+const SEP = "--------•--------•--------•--------";
+export const DEFAULT_BILLING_TEMPLATES = {
+  msgReminder: [
+    `🏢 {empresa}:`,
+    `⏰ *Servicio a vencer*`,
+    SEP,
+    `📅 *Vence:* {fecha}`,
+    `⏳ *Días restantes:* {dias}`,
+    SEP,
+    `🛠️ {plan}`,
+    `📅 {licencia}`,
+    `💵 {precio}`,
+    SEP,
+    `💱 *Medios de pago:*`,
+    `{link}`,
+    SEP,
+    `Una vez realizado, enviar el soporte a este chat`,
+  ].join("\n"),
+  msgDueToday: [
+    `🏢 {empresa}:`,
+    `🔔 *Hoy vence su servicio*`,
+    SEP,
+    `📅 *Vence:* {fecha}`,
+    `⏳ *Vence:* Hoy`,
+    SEP,
+    `🛠️ {plan}`,
+    `📅 {licencia}`,
+    `💵 {precio}`,
+    SEP,
+    `💱 *Medios de pago:*`,
+    `{link}`,
+    SEP,
+    `Una vez realizado, enviar el soporte a este chat`,
+  ].join("\n"),
+  msgOverdue: [
+    `🏢 {empresa}:`,
+    `🔴 *Su servicio está vencido desde hace {dias} días*`,
+    SEP,
+    `📅 *Vence:* {fecha}`,
+    `⚠️ *Días de vencido:* {dias}`,
+    SEP,
+    `🛠️ {plan}`,
+    `📅 {licencia}`,
+    `💵 {precio}`,
+    SEP,
+    `💱 *Medios de pago:*`,
+    `{link}`,
+    SEP,
+    `Una vez realizado, enviar el soporte a este chat`,
+  ].join("\n"),
+  msgSuspended: [
+    `🏢 {empresa}:`,
+    `🚫 *Tu servicio ha sido suspendido hoy*`,
+    SEP,
+    `📅 *Vencía:* {fecha}`,
+    `⚠️ *Días de vencido:* {dias}`,
+    SEP,
+    `🛠️ {plan}`,
+    `📅 {licencia}`,
+    `💵 {precio}`,
+    SEP,
+    `💱 *Medios de pago:*`,
+    `{link}`,
+    SEP,
+    `Regulariza el pago para reactivar el servicio.`,
+  ].join("\n"),
+  msgDeleted: [
+    `🏢 {empresa}:`,
+    `🗑️ *Tu cuenta ha sido eliminada*`,
+    SEP,
+    `Tu cuenta y *todos tus datos* fueron eliminados del sistema por falta de pago tras el periodo de vencimiento.`,
+    SEP,
+    `Si deseas volver a usar el servicio, escríbenos para crear una cuenta nueva.`,
+  ].join("\n"),
+};
+
+export type DefaultBillingTemplateKey = keyof typeof DEFAULT_BILLING_TEMPLATES;

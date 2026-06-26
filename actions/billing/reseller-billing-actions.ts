@@ -10,7 +10,7 @@ import {
   getBillingDaysRemaining,
   shouldSkipBillingReminderToday,
 } from './helpers/billing-lifecycle';
-import { buildBillingMessageForRecord } from './billing-message-templates';
+import { buildBillingMessageForRecord, DEFAULT_BILLING_TEMPLATES } from './billing-message-templates';
 
 // Los mensajes del reseller son, POR DEFECTO, idénticos a los de Verzay: el cron
 // usa el mismo `buildBillingMessageForRecord`. Cada campo `msgX` es un OVERRIDE
@@ -48,16 +48,16 @@ async function sendReseller(sendUrl: string, apikey: string, phone: string, text
 export async function getResellerBillingConfig(resellerId?: string): Promise<ResellerBillingConfigData> {
   const me = await currentUser();
   const targetId = resellerId && isAdminLike(me?.role) ? resellerId : me?.id;
-  // Mensajes vacíos = se usa el estándar de Verzay (idéntico).
+  // Se muestra prellenado con el patrón por defecto de Verzay (idéntico para todos).
   const empty: ResellerBillingConfigData = {
     enabled: true,
     instanceName: null,
     graceDays: 3,
-    msgReminder: '',
-    msgDueToday: '',
-    msgOverdue: '',
-    msgSuspended: '',
-    msgDeleted: '',
+    msgReminder: DEFAULT_BILLING_TEMPLATES.msgReminder,
+    msgDueToday: DEFAULT_BILLING_TEMPLATES.msgDueToday,
+    msgOverdue: DEFAULT_BILLING_TEMPLATES.msgOverdue,
+    msgSuspended: DEFAULT_BILLING_TEMPLATES.msgSuspended,
+    msgDeleted: DEFAULT_BILLING_TEMPLATES.msgDeleted,
   };
   if (!targetId) return empty;
   const c = await db.resellerBillingConfig.findUnique({ where: { resellerId: targetId } });
@@ -66,11 +66,11 @@ export async function getResellerBillingConfig(resellerId?: string): Promise<Res
     enabled: c.enabled,
     instanceName: c.instanceName,
     graceDays: c.graceDays,
-    msgReminder: c.msgReminder ?? '',
-    msgDueToday: c.msgDueToday ?? '',
-    msgOverdue: c.msgOverdue ?? '',
-    msgSuspended: c.msgSuspended ?? '',
-    msgDeleted: c.msgDeleted ?? '',
+    msgReminder: c.msgReminder ?? DEFAULT_BILLING_TEMPLATES.msgReminder,
+    msgDueToday: c.msgDueToday ?? DEFAULT_BILLING_TEMPLATES.msgDueToday,
+    msgOverdue: c.msgOverdue ?? DEFAULT_BILLING_TEMPLATES.msgOverdue,
+    msgSuspended: c.msgSuspended ?? DEFAULT_BILLING_TEMPLATES.msgSuspended,
+    msgDeleted: c.msgDeleted ?? DEFAULT_BILLING_TEMPLATES.msgDeleted,
   };
 }
 
@@ -80,15 +80,20 @@ export async function saveResellerBillingConfig(
   const me = await currentUser();
   if (!me || !isAdminOrReseller(me.role)) return { success: false, message: 'No autorizado.' };
   const resellerId = me.id;
+  // null = idéntico al patrón por defecto (el cron usa el mensaje dinámico exacto).
+  const overrideOrNull = (value: string | null | undefined, def: string) => {
+    const v = (value ?? '').trim();
+    return v && v !== def.trim() ? v : null;
+  };
   const payload = {
     enabled: data.enabled,
     instanceName: data.instanceName?.trim() || null,
     graceDays: Number.isFinite(data.graceDays) ? Math.max(0, Math.trunc(data.graceDays)) : 3,
-    msgReminder: data.msgReminder?.trim() || null,
-    msgDueToday: data.msgDueToday?.trim() || null,
-    msgOverdue: data.msgOverdue?.trim() || null,
-    msgSuspended: data.msgSuspended?.trim() || null,
-    msgDeleted: data.msgDeleted?.trim() || null,
+    msgReminder: overrideOrNull(data.msgReminder, DEFAULT_BILLING_TEMPLATES.msgReminder),
+    msgDueToday: overrideOrNull(data.msgDueToday, DEFAULT_BILLING_TEMPLATES.msgDueToday),
+    msgOverdue: overrideOrNull(data.msgOverdue, DEFAULT_BILLING_TEMPLATES.msgOverdue),
+    msgSuspended: overrideOrNull(data.msgSuspended, DEFAULT_BILLING_TEMPLATES.msgSuspended),
+    msgDeleted: overrideOrNull(data.msgDeleted, DEFAULT_BILLING_TEMPLATES.msgDeleted),
   };
   try {
     await db.resellerBillingConfig.upsert({

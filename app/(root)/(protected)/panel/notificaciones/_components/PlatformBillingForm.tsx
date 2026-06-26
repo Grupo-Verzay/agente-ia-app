@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { ExpandableTextarea } from '@/components/shared/ExpandableTextarea'
 import {
   savePlatformBillingMessages,
   type PlatformBillingMessages,
@@ -71,7 +71,7 @@ export function PlatformBillingForm({ initial }: Props) {
           </CardTitle>
           <CardDescription className="mt-1 text-xs">
             Estos son los mensajes que se envían a tus clientes (y el estándar que heredan los resellers).
-            Déjalo <b>vacío</b> para usar el texto por defecto. Placeholders:{' '}
+            Vienen con el patrón por defecto; edítalos si quieres personalizarlos. Placeholders:{' '}
             <code className="bg-muted px-1 rounded text-[11px]">{'{empresa} {fecha} {dias} {precio} {plan} {link}'}</code>.
           </CardDescription>
         </CardHeader>
@@ -89,17 +89,16 @@ export function PlatformBillingForm({ initial }: Props) {
               <CardDescription className="text-xs">{hint}</CardDescription>
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
-              <Textarea
-                rows={3}
+              <ExpandableTextarea
+                rows={5}
                 value={value}
-                placeholder="Vacío = se usa el mensaje estándar por defecto. Escribe aquí solo si quieres personalizarlo."
-                onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
-                className="resize-none text-sm"
+                placeholder="Mensaje estándar por defecto. Edítalo si quieres personalizarlo."
+                title={label}
+                description={hint}
+                onChange={(v) => setForm(f => ({ ...f, [key]: v }))}
               />
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-muted-foreground">
-                  {value.trim() ? `${value.length} caracteres (personalizado)` : 'Usando el mensaje estándar'}
-                </span>
+                <span className="text-[11px] text-muted-foreground">{value.length} caracteres</span>
               </div>
               {value.trim() && (
                 <div className="rounded-md bg-muted/50 px-3 py-2">

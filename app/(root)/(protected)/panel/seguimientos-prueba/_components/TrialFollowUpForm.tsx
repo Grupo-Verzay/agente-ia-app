@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { ExpandableTextarea } from '@/components/shared/ExpandableTextarea'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
@@ -241,12 +241,13 @@ export function TrialFollowUpForm({ initial }: Props) {
               </div>
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
-              <Textarea
+              <ExpandableTextarea
                 rows={3}
                 placeholder="Deja vacío para usar el mensaje por defecto de la plataforma"
                 value={value}
-                onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
-                className="resize-none text-sm"
+                title={day}
+                description={hint}
+                onChange={(v) => setForm(f => ({ ...f, [key]: v }))}
               />
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-muted-foreground">{value.length} caracteres</span>

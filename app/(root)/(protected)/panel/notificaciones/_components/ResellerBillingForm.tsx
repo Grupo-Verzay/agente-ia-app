@@ -5,8 +5,8 @@ import { toast } from 'sonner'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { ExpandableTextarea } from '@/components/shared/ExpandableTextarea'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getAvailableInstances, sendTrialTestMessage } from '@/actions/trial-followup-actions'
@@ -121,8 +121,8 @@ export function ResellerBillingForm({ initial }: Props) {
               </CardTitle>
               <CardDescription className="mt-1 text-xs">
                 Recordatorios, suspensión y baja por falta de pago para TUS clientes, según la fecha de cobro que defines en Finanzas.
-                Por defecto se envían los <b>mismos mensajes que usa Verzay</b>. Solo edita un mensaje si quieres personalizarlo
-                — déjalo <b>vacío</b> para usar el estándar. Placeholders: <code className="bg-muted px-1 rounded text-[11px]">{'{empresa} {fecha} {dias} {precio} {plan} {link}'}</code>.
+                Vienen con los <b>mismos mensajes que usa Verzay</b>. Edítalos si quieres personalizarlos.
+                Placeholders: <code className="bg-muted px-1 rounded text-[11px]">{'{empresa} {fecha} {dias} {precio} {plan} {link}'}</code>.
               </CardDescription>
             </div>
             <Switch checked={form.enabled} onCheckedChange={(v) => setForm(f => ({ ...f, enabled: v }))} />
@@ -198,16 +198,17 @@ export function ResellerBillingForm({ initial }: Props) {
               <CardDescription className="text-xs">{hint}</CardDescription>
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
-              <Textarea
-                rows={3}
+              <ExpandableTextarea
+                rows={5}
                 value={value}
-                placeholder="Vacío = se usa el mensaje estándar de Verzay (idéntico). Escribe aquí solo si quieres personalizarlo."
-                onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
-                className="resize-none text-sm"
+                placeholder="Mensaje estándar de Verzay. Edítalo si quieres personalizarlo."
+                title={label}
+                description={hint}
+                onChange={(v) => setForm(f => ({ ...f, [key]: v }))}
               />
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-muted-foreground">
-                  {value.trim() ? `${value.length} caracteres (personalizado)` : 'Usando el mensaje estándar de Verzay'}
+                  {value.length} caracteres
                 </span>
                 <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => handleTest(key)} disabled={testing !== null}>
                   <Send className="h-3 w-3" />
