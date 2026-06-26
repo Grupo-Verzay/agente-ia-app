@@ -364,8 +364,9 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
   stats: StatData[] | null;
   showAssistanceIA: boolean;
   showAssistanceHUMANO: boolean;
+  faviconUrl: string | null;
 }> {
-  const EMPTY_EXTRA = { primaryColor: null, bgColor: null, headline: null, subheadline: null, logoUrl: null, instagram: null, facebook: null, videoUrl: null, ctaHeadline: null, ctaSubtitle: null, testimonials: null, stats: null, showAssistanceIA: true, showAssistanceHUMANO: true };
+  const EMPTY_EXTRA = { primaryColor: null, bgColor: null, headline: null, subheadline: null, logoUrl: null, instagram: null, facebook: null, videoUrl: null, ctaHeadline: null, ctaSubtitle: null, testimonials: null, stats: null, showAssistanceIA: true, showAssistanceHUMANO: true, faviconUrl: null };
   try {
     const resellerRow = await db.reseller.findFirst({
       where: { slug },
@@ -384,7 +385,7 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
       getActiveSubscriptionPlans(),
       db.user.findUnique({
         where: { id: resellerUserId },
-        select: { notificationNumber: true, meetingUrl: true },
+        select: { notificationNumber: true, meetingUrl: true, faviconUrl: true },
       }),
     ]);
 
@@ -436,6 +437,7 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
       stats: Array.isArray(resellerRow.stats) ? (resellerRow.stats as StatData[]) : null,
       showAssistanceIA: resellerRow.showAssistanceIA ?? true,
       showAssistanceHUMANO: resellerRow.showAssistanceHUMANO ?? true,
+      faviconUrl: resellerUser?.faviconUrl ?? null,
     };
   } catch (e) {
     console.error("[getResellerPlansBySlug]", e);

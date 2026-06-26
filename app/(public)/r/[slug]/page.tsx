@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getResellerPlansBySlug } from "@/actions/reseller-plan-actions";
+import { getSiteConfig } from "@/actions/admin/site-config-actions";
 import { ResellerLandingClient } from "./_components/ResellerLandingClient";
 
 export const dynamic = "force-dynamic";
@@ -9,9 +10,15 @@ interface Props {
 }
 
 export async function generateMetadata({ params }: Props) {
-  const { businessName } = await getResellerPlansBySlug(params.slug);
+  const [{ businessName, faviconUrl }, siteConfig] = await Promise.all([
+    getResellerPlansBySlug(params.slug),
+    getSiteConfig(),
+  ]);
+  // Favicon del reseller; si no tiene, el de la plataforma (SiteConfig); si no, el default.
+  const favicon = faviconUrl?.trim() || siteConfig.faviconUrl?.trim() || "/favicon.ico";
   return {
     title: businessName ? `${businessName} — Planes` : "Planes",
+    icons: { icon: favicon },
   };
 }
 
