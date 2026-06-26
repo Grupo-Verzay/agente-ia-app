@@ -1380,6 +1380,13 @@ model SiteConfig {
   resellerMeetingUrl     String?
   showAssistanceIA       Boolean  @default(true)
   showAssistanceHUMANO   Boolean  @default(true)
+  // Overrides de los mensajes de cobro de la plataforma (Verzay). Vacío = texto
+  // estándar por defecto. Placeholders: {empresa} {fecha} {dias} {precio} {plan} {link}
+  billingMsgReminder     String?
+  billingMsgDueToday     String?
+  billingMsgOverdue      String?
+  billingMsgSuspended    String?
+  billingMsgDeleted      String?
   updatedAt              DateTime @updatedAt
 
   @@map("site_config")

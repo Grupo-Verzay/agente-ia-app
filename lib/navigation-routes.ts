@@ -95,5 +95,6 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/panel/analytics" },
     { route: "/panel/mis-estadisticas" },
     { route: "/panel/seguimientos-prueba" },
+    { route: "/panel/notificaciones" },
     { route: "/reseller-panel" },
 ];

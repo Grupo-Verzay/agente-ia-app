@@ -135,6 +135,63 @@ export async function updatePlatformBrandName(brandName: string): Promise<{ succ
   }
 }
 
+/* ── Mensajes de cobro de la plataforma (Verzay) ────────────────────────── */
+// Overrides editables; vacío = texto estándar por defecto (idéntico al que ven
+// los resellers). Placeholders: {empresa} {fecha} {dias} {precio} {plan} {link}
+export type PlatformBillingMessages = {
+  msgReminder: string;
+  msgDueToday: string;
+  msgOverdue: string;
+  msgSuspended: string;
+  msgDeleted: string;
+};
+
+export async function getPlatformBillingMessages(): Promise<PlatformBillingMessages> {
+  const empty: PlatformBillingMessages = {
+    msgReminder: "", msgDueToday: "", msgOverdue: "", msgSuspended: "", msgDeleted: "",
+  };
+  try {
+    const c = await db.siteConfig.findUnique({ where: { id: 1 } });
+    if (!c) return empty;
+    return {
+      msgReminder: c.billingMsgReminder ?? "",
+      msgDueToday: c.billingMsgDueToday ?? "",
+      msgOverdue: c.billingMsgOverdue ?? "",
+      msgSuspended: c.billingMsgSuspended ?? "",
+      msgDeleted: c.billingMsgDeleted ?? "",
+    };
+  } catch {
+    return empty;
+  }
+}
+
+export async function savePlatformBillingMessages(
+  data: PlatformBillingMessages,
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const user = await currentUser();
+    if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+      return { success: false, message: "No autorizado" };
+    }
+    const payload = {
+      billingMsgReminder: data.msgReminder?.trim() || null,
+      billingMsgDueToday: data.msgDueToday?.trim() || null,
+      billingMsgOverdue: data.msgOverdue?.trim() || null,
+      billingMsgSuspended: data.msgSuspended?.trim() || null,
+      billingMsgDeleted: data.msgDeleted?.trim() || null,
+    };
+    await db.siteConfig.upsert({
+      where: { id: 1 },
+      update: payload,
+      create: { id: 1, ...payload },
+    });
+    return { success: true, message: "Mensajes de cobro guardados." };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { success: false, message: msg };
+  }
+}
+
 export async function updateSiteConfig(data: SiteConfigData): Promise<{ success: boolean; message: string }> {
   try {
     const user = await currentUser();

@@ -2,6 +2,7 @@
 
 import { AccessStatus, BillingStatus, BillingTemplateType } from "@/types/billing";
 import { fmtDateDDMMYYYY, fmtPriceLine } from "./helpers/billing-helpers";
+import { getBillingDaysRemaining } from "./helpers/billing-lifecycle";
 
 export function buildBillingMessage(args: {
     type: BillingTemplateType;
@@ -173,4 +174,72 @@ export function buildBillingMessage(args: {
     ]
         .filter(Boolean)
         .join("\n");
+}
+
+/* ── Builder reutilizable a partir de un registro de billing ─────────────── */
+// Permite que Verzay (plataforma) y los resellers usen EL MISMO mensaje por
+// defecto (idéntico). Si se pasa un override (texto editado), se usa ese con
+// placeholders {nombre} {empresa} {fecha} {dias} {precio} {plan} {link}.
+type BillingRecordLike = {
+  dueDate?: Date | string | null;
+  paymentNotes?: string | null;
+  paymentMethodLabel?: string | null;
+  serviceName?: string | null;
+  licenseDays?: number | null;
+  price?: any;
+  currencyCode?: string | null;
+  billingStatus?: BillingStatus | null;
+  accessStatus?: AccessStatus | null;
+  user?: { name?: string | null; company?: string | null } | null;
+};
+
+function buildInputFromRecord(billing: BillingRecordLike, type: BillingTemplateType, now: Date) {
+  const dueDate = billing.dueDate ? new Date(billing.dueDate) : null;
+  const daysRemaining = getBillingDaysRemaining(dueDate, now);
+  const paymentText = (billing.paymentNotes?.trim() || billing.paymentMethodLabel?.trim() || "").trim() || "-";
+  return {
+    type,
+    dueDate,
+    daysRemaining,
+    planLabel: billing.serviceName ? `*Plan* ${billing.serviceName}` : "Plan Agente IA",
+    licenseLabel: `*Licencia* ${billing.licenseDays ?? 30} días`,
+    price: billing.price,
+    currencyCode: billing.currencyCode || "COP",
+    currencyFlag: billing.currencyCode === "USD" ? "US" : null,
+    paymentLinkOrText: paymentText,
+    companyName: billing.user?.company || billing.user?.name || "Cliente",
+    billingStatus: billing.billingStatus ?? null,
+    accessStatus: billing.accessStatus ?? null,
+  };
+}
+
+function resolveOverrideTemplate(tpl: string, input: ReturnType<typeof buildInputFromRecord>): string {
+  const days = typeof input.daysRemaining === "number" ? Math.abs(input.daysRemaining) : 0;
+  const fecha = input.dueDate ? fmtDateDDMMYYYY(input.dueDate) : "";
+  const precio = fmtPriceLine({ price: input.price, currencyCode: input.currencyCode, currencyFlag: input.currencyFlag });
+  const map: Record<string, string> = {
+    nombre: input.companyName,
+    empresa: input.companyName,
+    fecha,
+    dias: String(days),
+    precio,
+    plan: input.planLabel,
+    link: input.paymentLinkOrText,
+  };
+  let out = tpl;
+  for (const [k, v] of Object.entries(map)) {
+    out = out.replace(new RegExp(`\{${k}\}`, "gi"), v ?? "");
+  }
+  return out;
+}
+
+export function buildBillingMessageForRecord(
+  billing: BillingRecordLike,
+  type: BillingTemplateType,
+  now: Date = new Date(),
+  overrideTpl?: string | null,
+): string {
+  const input = buildInputFromRecord(billing, type, now);
+  if (overrideTpl && overrideTpl.trim()) return resolveOverrideTemplate(overrideTpl.trim(), input);
+  return buildBillingMessage(input);
 }

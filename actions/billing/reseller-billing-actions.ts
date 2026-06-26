@@ -3,46 +3,19 @@
 import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import { isAdminOrReseller, isAdminLike } from '@/lib/rbac';
-import { DELETE_DAYS_BILLING } from '@/types/billing';
+import { BillingTemplateType, DELETE_DAYS_BILLING } from '@/types/billing';
 import { deleteInstanceEvolutionAware } from '@/actions/api-action';
 import { setUserBillingWebhookEnabled } from './helpers/billing-notifications.server';
 import {
   getBillingDaysRemaining,
   shouldSkipBillingReminderToday,
 } from './helpers/billing-lifecycle';
-import { fmtDateDDMMYYYY } from './helpers/billing-helpers';
+import { buildBillingMessageForRecord } from './billing-message-templates';
 
-// Mensajes por defecto (editables por cada reseller). Placeholders disponibles:
-// {nombre}, {empresa}, {fecha}, {dias}
-// Por defecto, mismos textos/estilo que usa Verzay en su cobro (placeholders).
-const DEFAULT_RESELLER_BILLING = {
-  msgReminder: `🏢 *{empresa}*
-📋 *Tu servicio está por vencer*
-📅 *Vence:* {fecha}
-⏳ *Días restantes:* {dias}
-
-Renueva a tiempo para no perder el acceso. 🙌`,
-  msgDueToday: `🏢 *{empresa}*
-🔔 *Hoy vence tu servicio*
-📅 *Vence:* {fecha}
-
-Renueva hoy para mantenerlo activo. 🙌`,
-  msgOverdue: `🏢 *{empresa}*
-🔴 *Tu servicio está vencido desde hace {dias} día(s)*
-📅 *Vencía:* {fecha}
-
-Regulariza el pago para reactivarlo. 💳`,
-  msgSuspended: `🏢 *{empresa}*
-🚫 *Tu servicio ha sido suspendido*
-📅 *Vencía:* {fecha}
-⚠️ *Días de vencido:* {dias}
-
-Regulariza el pago para reactivar el servicio. 💳`,
-  msgDeleted: `🏢 *{empresa}*
-🗑️ *Tu cuenta ha sido eliminada*
-
-Tu cuenta y todos tus datos fueron eliminados por falta de pago. Si deseas volver, escríbenos para crear una cuenta nueva.`,
-};
+// Los mensajes del reseller son, POR DEFECTO, idénticos a los de Verzay: el cron
+// usa el mismo `buildBillingMessageForRecord`. Cada campo `msgX` es un OVERRIDE
+// opcional (vacío = se usa el mensaje estándar de Verzay). Placeholders del
+// override: {nombre} {empresa} {fecha} {dias} {precio} {plan} {link}.
 
 export type ResellerBillingConfigData = {
   enabled: boolean;
@@ -61,14 +34,6 @@ function normalizeBaseUrl(url: string | null | undefined): string {
   return /^https?:\/\//i.test(t) ? t : `https://${t}`;
 }
 
-function resolveMsg(tpl: string | null | undefined, fallback: string, vars: Record<string, string>): string {
-  let out = (tpl && tpl.trim()) ? tpl : fallback;
-  for (const [k, v] of Object.entries(vars)) {
-    out = out.replace(new RegExp(`\\{${k}\\}`, 'gi'), v || '');
-  }
-  return out;
-}
-
 async function sendReseller(sendUrl: string, apikey: string, phone: string, text: string) {
   const remoteJid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
   const res = await fetch(sendUrl, {
@@ -83,15 +48,16 @@ async function sendReseller(sendUrl: string, apikey: string, phone: string, text
 export async function getResellerBillingConfig(resellerId?: string): Promise<ResellerBillingConfigData> {
   const me = await currentUser();
   const targetId = resellerId && isAdminLike(me?.role) ? resellerId : me?.id;
+  // Mensajes vacíos = se usa el estándar de Verzay (idéntico).
   const empty: ResellerBillingConfigData = {
     enabled: true,
     instanceName: null,
     graceDays: 3,
-    msgReminder: DEFAULT_RESELLER_BILLING.msgReminder,
-    msgDueToday: DEFAULT_RESELLER_BILLING.msgDueToday,
-    msgOverdue: DEFAULT_RESELLER_BILLING.msgOverdue,
-    msgSuspended: DEFAULT_RESELLER_BILLING.msgSuspended,
-    msgDeleted: DEFAULT_RESELLER_BILLING.msgDeleted,
+    msgReminder: '',
+    msgDueToday: '',
+    msgOverdue: '',
+    msgSuspended: '',
+    msgDeleted: '',
   };
   if (!targetId) return empty;
   const c = await db.resellerBillingConfig.findUnique({ where: { resellerId: targetId } });
@@ -100,11 +66,11 @@ export async function getResellerBillingConfig(resellerId?: string): Promise<Res
     enabled: c.enabled,
     instanceName: c.instanceName,
     graceDays: c.graceDays,
-    msgReminder: c.msgReminder ?? DEFAULT_RESELLER_BILLING.msgReminder,
-    msgDueToday: c.msgDueToday ?? DEFAULT_RESELLER_BILLING.msgDueToday,
-    msgOverdue: c.msgOverdue ?? DEFAULT_RESELLER_BILLING.msgOverdue,
-    msgSuspended: c.msgSuspended ?? DEFAULT_RESELLER_BILLING.msgSuspended,
-    msgDeleted: c.msgDeleted ?? DEFAULT_RESELLER_BILLING.msgDeleted,
+    msgReminder: c.msgReminder ?? '',
+    msgDueToday: c.msgDueToday ?? '',
+    msgOverdue: c.msgOverdue ?? '',
+    msgSuspended: c.msgSuspended ?? '',
+    msgDeleted: c.msgDeleted ?? '',
   };
 }
 
@@ -166,6 +132,10 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
       include: { user: { select: { id: true, name: true, company: true, notificationNumber: true } } },
     });
 
+    // Mensaje por defecto idéntico a Verzay; `override` solo si el reseller editó.
+    const buildMsg = (cli: (typeof clients)[number], type: BillingTemplateType, override?: string | null) =>
+      buildBillingMessageForRecord(cli, type, now, override);
+
     for (const cli of clients) {
       try {
         const dueDate = cli.dueDate ? new Date(cli.dueDate) : null;
@@ -175,13 +145,6 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
         const phone = (cli.notifyRemoteJid?.trim() || cli.user.notificationNumber?.trim() || '');
         if (!phone) continue;
 
-        const vars = {
-          nombre: cli.user.name ?? cli.user.company ?? 'Cliente',
-          empresa: cli.user.company ?? '',
-          fecha: fmtDateDDMMYYYY(dueDate),
-          dias: String(Math.abs(days)),
-        };
-
         const effectiveGrace = cfg.graceDays;
         const shouldSuspend = days <= -effectiveGrace && cli.accessStatus !== 'SUSPENDED';
         const shouldDelete = days <= -DELETE_DAYS_BILLING;
@@ -189,7 +152,7 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
         // 1) Eliminación a los 30 días vencido
         if (shouldDelete) {
           try {
-            await sendReseller(sendUrl, apikey, phone, resolveMsg(cfg.msgDeleted, DEFAULT_RESELLER_BILLING.msgDeleted, vars));
+            await sendReseller(sendUrl, apikey, phone, buildMsg(cli, 'ACCOUNT_DELETED', cfg.msgDeleted));
           } catch { /* avisar es best-effort */ }
           await deleteInstanceEvolutionAware(cli.user.id).catch(() => null);
           await db.user.delete({ where: { id: cli.user.id } }).catch(() => null);
@@ -207,7 +170,7 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
           await setUserBillingWebhookEnabled({ userId: cli.user.id, enable: false }).catch(() => null);
           await deleteInstanceEvolutionAware(cli.user.id).catch(() => null);
           try {
-            await sendReseller(sendUrl, apikey, phone, resolveMsg(cfg.msgSuspended, DEFAULT_RESELLER_BILLING.msgSuspended, vars));
+            await sendReseller(sendUrl, apikey, phone, buildMsg(cli, 'STATUS_SUSPENDED', cfg.msgSuspended));
             result.sent++;
           } catch { result.errors++; }
           result.suspended++;
@@ -223,9 +186,9 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
         if (skipToday) continue;
 
         let text: string | null = null;
-        if (days === 3) text = resolveMsg(cfg.msgReminder, DEFAULT_RESELLER_BILLING.msgReminder, vars);
-        else if (days === 0) text = resolveMsg(cfg.msgDueToday, DEFAULT_RESELLER_BILLING.msgDueToday, vars);
-        else if (days < 0) text = resolveMsg(cfg.msgOverdue, DEFAULT_RESELLER_BILLING.msgOverdue, vars);
+        if (days === 3) text = buildMsg(cli, 'REMINDER_3D', cfg.msgReminder);
+        else if (days === 0) text = buildMsg(cli, 'DUE_TODAY', cfg.msgDueToday);
+        else if (days < 0) text = buildMsg(cli, 'EXPIRED', cfg.msgOverdue);
 
         if (!text) continue;
         try {

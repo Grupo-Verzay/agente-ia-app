@@ -30,13 +30,24 @@ const MSGS: { key: MsgKey; label: string; hint: string }[] = [
   { key: 'msgDeleted', label: 'Cuenta eliminada', hint: 'Al dar de baja la cuenta (30 días)' },
 ]
 
-const SAMPLE = { nombre: 'María', empresa: 'Acme', fecha: '15/07/2026', dias: '3' }
+const SAMPLE = {
+  nombre: 'María',
+  empresa: 'Acme',
+  fecha: '15/07/2026',
+  dias: '3',
+  precio: '$120.000 COP',
+  plan: '*Plan* Agente IA',
+  link: 'https://pago.tudominio.com',
+}
 const fillVars = (text: string) =>
   text
     .replace(/\{nombre\}/gi, SAMPLE.nombre)
     .replace(/\{empresa\}/gi, SAMPLE.empresa)
     .replace(/\{fecha\}/gi, SAMPLE.fecha)
     .replace(/\{dias\}/gi, SAMPLE.dias)
+    .replace(/\{precio\}/gi, SAMPLE.precio)
+    .replace(/\{plan\}/gi, SAMPLE.plan)
+    .replace(/\{link\}/gi, SAMPLE.link)
 
 export function ResellerBillingForm({ initial }: Props) {
   const [form, setForm] = useState<ResellerBillingConfigData>(initial)
@@ -69,6 +80,11 @@ export function ResellerBillingForm({ initial }: Props) {
     loadInstances()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const handleCancel = () => {
+    setForm(initial)
+    toast.message('Cambios descartados')
+  }
 
   const handleSave = async () => {
     if (form.enabled && !form.instanceName?.trim()) {
@@ -105,7 +121,8 @@ export function ResellerBillingForm({ initial }: Props) {
               </CardTitle>
               <CardDescription className="mt-1 text-xs">
                 Recordatorios, suspensión y baja por falta de pago para TUS clientes, según la fecha de cobro que defines en Finanzas.
-                Usa <code className="bg-muted px-1 rounded text-[11px]">{'{nombre} {empresa} {fecha} {dias}'}</code>.
+                Por defecto se envían los <b>mismos mensajes que usa Verzay</b>. Solo edita un mensaje si quieres personalizarlo
+                — déjalo <b>vacío</b> para usar el estándar. Placeholders: <code className="bg-muted px-1 rounded text-[11px]">{'{empresa} {fecha} {dias} {precio} {plan} {link}'}</code>.
               </CardDescription>
             </div>
             <Switch checked={form.enabled} onCheckedChange={(v) => setForm(f => ({ ...f, enabled: v }))} />
@@ -184,26 +201,34 @@ export function ResellerBillingForm({ initial }: Props) {
               <Textarea
                 rows={3}
                 value={value}
+                placeholder="Vacío = se usa el mensaje estándar de Verzay (idéntico). Escribe aquí solo si quieres personalizarlo."
                 onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))}
                 className="resize-none text-sm"
               />
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-muted-foreground">{value.length} caracteres</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {value.trim() ? `${value.length} caracteres (personalizado)` : 'Usando el mensaje estándar de Verzay'}
+                </span>
                 <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => handleTest(key)} disabled={testing !== null}>
                   <Send className="h-3 w-3" />
                   {testing === key ? 'Enviando…' : 'Probar a mi número'}
                 </Button>
               </div>
-              <div className="rounded-md bg-muted/50 px-3 py-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Vista previa</p>
-                <p className="mt-0.5 text-sm whitespace-pre-wrap">{fillVars(value)}</p>
-              </div>
+              {value.trim() && (
+                <div className="rounded-md bg-muted/50 px-3 py-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Vista previa</p>
+                  <p className="mt-0.5 text-sm whitespace-pre-wrap">{fillVars(value)}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )
       })}
 
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between">
+        <Button variant="outline" onClick={handleCancel} disabled={saving}>
+          Cancelar
+        </Button>
         <Button onClick={handleSave} disabled={saving}>
           {saving ? 'Guardando...' : 'Guardar cobros'}
         </Button>

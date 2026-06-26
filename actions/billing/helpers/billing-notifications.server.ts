@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { ADMIN_USER_ID } from "@/types/generic";
 import type { BillingStatus, BillingTemplateType, AccessStatus } from "@/types/billing";
 
-import { buildBillingMessage } from "../billing-message-templates";
+import { buildBillingMessage, buildBillingMessageForRecord } from "../billing-message-templates";
 import {
     evaluateBillingLifecycle,
     getBillingDaysRemaining,
@@ -201,6 +201,34 @@ export async function loadBillingDispatcherConfig(): Promise<BillingDispatcherCo
     };
 }
 
+// Override editable por Verzay (SiteConfig). Solo aplica a las 5 plantillas que
+// el reseller también puede personalizar; el resto usa el texto estándar.
+async function loadPlatformBillingOverride(template: BillingTemplateType): Promise<string | null> {
+    try {
+        const c = await db.siteConfig.findUnique({
+            where: { id: 1 },
+            select: {
+                billingMsgReminder: true,
+                billingMsgDueToday: true,
+                billingMsgOverdue: true,
+                billingMsgSuspended: true,
+                billingMsgDeleted: true,
+            },
+        });
+        if (!c) return null;
+        switch (template) {
+            case "REMINDER_3D": return c.billingMsgReminder?.trim() || null;
+            case "DUE_TODAY": return c.billingMsgDueToday?.trim() || null;
+            case "EXPIRED": return c.billingMsgOverdue?.trim() || null;
+            case "STATUS_SUSPENDED": return c.billingMsgSuspended?.trim() || null;
+            case "ACCOUNT_DELETED": return c.billingMsgDeleted?.trim() || null;
+            default: return null;
+        }
+    } catch {
+        return null;
+    }
+}
+
 export async function sendBillingTemplateMessage(args: {
     billing: BillingUserRecord;
     template: BillingTemplateType;
@@ -230,7 +258,12 @@ export async function sendBillingTemplateMessage(args: {
     }
 
     const now = args.now ?? new Date();
-    const text = buildBillingMessage(buildBillingMessageInput(args.billing, args.template, now));
+    // Verzay puede editar sus mensajes de cobro desde /admin/notificaciones.
+    // Si hay override para esta plantilla, se usa; si no, el texto estándar.
+    const override = await loadPlatformBillingOverride(args.template);
+    const text = override
+        ? buildBillingMessageForRecord(args.billing, args.template, now, override)
+        : buildBillingMessage(buildBillingMessageInput(args.billing, args.template, now));
     const result = await sendingMessages({
         url: buildSendTextUrl(dispatcher.instanceName, dispatcher.serverUrl),
         apikey: dispatcher.instanceId,
