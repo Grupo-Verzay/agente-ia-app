@@ -430,6 +430,9 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
     const isMuted = user.muteAgentResponses ?? false;
     const isReseller = user.role === Role.reseller;
     const canSeeApariencia = true; // todos los usuarios pueden personalizar su logo y tema
+    // Favicon y Nombre de la marca solo aplican a Super-Admin y Resellers
+    // (los usuarios normales heredan el branding de su reseller).
+    const canSeeBrandingExtras = user.role === Role.super_admin || isReseller;
 
     const handleVoiceSave = async (
         enabled: boolean,
@@ -1195,6 +1198,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                         </CardContent>
                                     </Card>
 
+                                    {canSeeBrandingExtras && (
                                     <Card className="border-border flex flex-col">
                                         <CardHeader className="pb-3">
                                             <div className="flex items-center gap-3">
@@ -1227,7 +1231,9 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                             </Button>
                                         </CardContent>
                                     </Card>
+                                    )}
 
+                                    {canSeeBrandingExtras && (
                                     <Card className="border-border flex flex-col">
                                         <CardHeader className="pb-3">
                                             <div className="flex items-center gap-3">
@@ -1258,6 +1264,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                             </div>
                                         </CardContent>
                                     </Card>
+                                    )}
 
                                     <Card className="border-border flex flex-col">
                                         <CardHeader className="pb-3">
