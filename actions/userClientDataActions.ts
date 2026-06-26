@@ -97,15 +97,28 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
       }
     }
 
+    // Para el panel de admin: excluir clientes asignados a CUALQUIER reseller,
+    // tanto por el método nuevo (demoResellerId) como por el viejo (tabla reseller).
+    let resellerAssignedIds: string[] = [];
+    if (!userIds && filter?.excludeResellerClients) {
+      const oldAssigned = await db.reseller.findMany({
+        where: { userId: { not: null } },
+        select: { userId: true },
+      });
+      resellerAssignedIds = oldAssigned.map(a => a.userId).filter(Boolean) as string[];
+    }
+
     const users = await db.user.findMany({
       // Excluir asesores (sub-cuentas con ownerId): no son clientes, se
       // gestionan dentro del equipo de su cuenta padre.
-      // Opcionalmente excluir clientes de resellers (demoResellerId != null).
+      // Opcionalmente excluir clientes de resellers (demoResellerId != null
+      // y/o asignados por la tabla reseller vieja).
       where: userIds
         ? { id: { in: userIds }, ownerId: null }
         : {
             ownerId: null,
             ...(filter?.excludeResellerClients ? { demoResellerId: null } : {}),
+            ...(resellerAssignedIds.length ? { id: { notIn: resellerAssignedIds } } : {}),
           },
       include: {
         pausar: true,
