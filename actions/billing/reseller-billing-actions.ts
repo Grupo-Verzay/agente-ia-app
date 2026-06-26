@@ -14,7 +14,7 @@ import { fmtDateDDMMYYYY } from './helpers/billing-helpers';
 
 // Mensajes por defecto (editables por cada reseller). Placeholders disponibles:
 // {nombre}, {empresa}, {fecha}, {dias}
-export const DEFAULT_RESELLER_BILLING = {
+const DEFAULT_RESELLER_BILLING = {
   msgReminder: '👋 *Hola {nombre}!* Tu servicio vence el *{fecha}*. Renueva a tiempo para no perder el acceso. 🙌',
   msgDueToday: '⏰ *Hola {nombre}!* Hoy ({fecha}) vence tu servicio. Renueva hoy para mantenerlo activo. 🙌',
   msgOverdue: '🔴 *Hola {nombre}!* Tu servicio está vencido (venció el {fecha}). Regulariza el pago para reactivarlo. 💳',
