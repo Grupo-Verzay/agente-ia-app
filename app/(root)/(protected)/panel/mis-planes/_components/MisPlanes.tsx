@@ -139,7 +139,7 @@ export function MisPlanes() {
       </div>
 
       {/* Contenido */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+      <div className="flex-1 min-h-0 overflow-y-auto py-4">
       {/* Planes */}
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

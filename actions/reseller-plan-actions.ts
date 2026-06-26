@@ -47,6 +47,8 @@ export type ResellerProfileData = {
   ctaSubtitle: string | null;
   testimonials: TestimonialData[] | null;
   stats: StatData[] | null;
+  showAssistanceIA: boolean;
+  showAssistanceHUMANO: boolean;
 };
 
 function mapPlan(p: {
@@ -93,7 +95,7 @@ export async function getMyResellerPlans(): Promise<{
     const [resellerRow, resellerUser] = await Promise.all([
       db.reseller.findFirst({
         where: { resellerid: user.id },
-        select: { slug: true, businessName: true, sheetsUrl: true, primaryColor: true, bgColor: true, headline: true, subheadline: true, logoUrl: true, instagram: true, facebook: true, videoUrl: true, ctaHeadline: true, ctaSubtitle: true, testimonials: true, stats: true },
+        select: { slug: true, businessName: true, sheetsUrl: true, primaryColor: true, bgColor: true, headline: true, subheadline: true, logoUrl: true, instagram: true, facebook: true, videoUrl: true, ctaHeadline: true, ctaSubtitle: true, testimonials: true, stats: true, showAssistanceIA: true, showAssistanceHUMANO: true },
       }),
       db.user.findUnique({
         where: { id: user.id },
@@ -122,6 +124,8 @@ export async function getMyResellerPlans(): Promise<{
             ctaSubtitle: resellerRow.ctaSubtitle ?? null,
             testimonials: Array.isArray(resellerRow.testimonials) ? (resellerRow.testimonials as TestimonialData[]) : null,
             stats: Array.isArray(resellerRow.stats) ? (resellerRow.stats as StatData[]) : null,
+            showAssistanceIA: resellerRow.showAssistanceIA ?? true,
+            showAssistanceHUMANO: resellerRow.showAssistanceHUMANO ?? true,
           }
         : null,
     };
@@ -227,6 +231,8 @@ export async function updateResellerProfile(data: {
   ctaSubtitle?: string;
   testimonials?: TestimonialData[];
   stats?: StatData[];
+  showAssistanceIA?: boolean;
+  showAssistanceHUMANO?: boolean;
 }) {
   try {
     const user = await currentUser();
@@ -252,6 +258,8 @@ export async function updateResellerProfile(data: {
       ctaSubtitle: data.ctaSubtitle || null,
       testimonials: data.testimonials ?? null,
       stats: data.stats ?? null,
+      showAssistanceIA: data.showAssistanceIA ?? true,
+      showAssistanceHUMANO: data.showAssistanceHUMANO ?? true,
     };
 
     const existing = await db.reseller.findFirst({ where: { resellerid: user.id } });
@@ -354,12 +362,14 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
   ctaSubtitle: string | null;
   testimonials: TestimonialData[] | null;
   stats: StatData[] | null;
+  showAssistanceIA: boolean;
+  showAssistanceHUMANO: boolean;
 }> {
-  const EMPTY_EXTRA = { primaryColor: null, bgColor: null, headline: null, subheadline: null, logoUrl: null, instagram: null, facebook: null, videoUrl: null, ctaHeadline: null, ctaSubtitle: null, testimonials: null, stats: null };
+  const EMPTY_EXTRA = { primaryColor: null, bgColor: null, headline: null, subheadline: null, logoUrl: null, instagram: null, facebook: null, videoUrl: null, ctaHeadline: null, ctaSubtitle: null, testimonials: null, stats: null, showAssistanceIA: true, showAssistanceHUMANO: true };
   try {
     const resellerRow = await db.reseller.findFirst({
       where: { slug },
-      select: { resellerid: true, businessName: true, primaryColor: true, bgColor: true, headline: true, subheadline: true, logoUrl: true, instagram: true, facebook: true, videoUrl: true, ctaHeadline: true, ctaSubtitle: true, testimonials: true, stats: true },
+      select: { resellerid: true, businessName: true, primaryColor: true, bgColor: true, headline: true, subheadline: true, logoUrl: true, instagram: true, facebook: true, videoUrl: true, ctaHeadline: true, ctaSubtitle: true, testimonials: true, stats: true, showAssistanceIA: true, showAssistanceHUMANO: true },
     });
     if (!resellerRow?.resellerid) {
       return { success: false, plans: [], businessName: null, resellerUserId: null, whatsappNumber: null, meetingUrl: null, ...EMPTY_EXTRA };
@@ -424,6 +434,8 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
       ctaSubtitle: resellerRow.ctaSubtitle ?? null,
       testimonials: Array.isArray(resellerRow.testimonials) ? (resellerRow.testimonials as TestimonialData[]) : null,
       stats: Array.isArray(resellerRow.stats) ? (resellerRow.stats as StatData[]) : null,
+      showAssistanceIA: resellerRow.showAssistanceIA ?? true,
+      showAssistanceHUMANO: resellerRow.showAssistanceHUMANO ?? true,
     };
   } catch (e) {
     console.error("[getResellerPlansBySlug]", e);

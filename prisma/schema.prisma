@@ -1346,6 +1346,9 @@ model Reseller {
   ctaSubtitle                    String?
   testimonials                   Json?
   stats                          Json?
+  // Controla qué tipos de asistencia se muestran en la sección de precios de su landing.
+  showAssistanceIA               Boolean  @default(true)
+  showAssistanceHUMANO           Boolean  @default(true)
   createdAt                      DateTime @default(now())
   updatedAt                      DateTime @updatedAt
   theme                          ThemeApp @default(Default)

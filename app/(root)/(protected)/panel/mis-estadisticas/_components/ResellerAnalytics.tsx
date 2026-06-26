@@ -78,7 +78,7 @@ export function ResellerAnalytics({ data }: { data: ResellerAnalyticsData }) {
 
   return (
     <TooltipProvider delayDuration={120}>
-      <div className="flex h-full min-w-0 w-full flex-col gap-3 overflow-auto p-1">
+      <div className="flex h-full min-w-0 w-full flex-col gap-3 overflow-auto">
 
         {/* ── 4 Metric Cards ── */}
         <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">

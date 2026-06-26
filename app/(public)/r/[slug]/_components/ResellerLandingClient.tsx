@@ -403,13 +403,29 @@ interface Props {
   ctaSubtitle: string | null;
   testimonials: TestimonialData[] | null;
   stats: StatData[] | null;
+  showAssistanceIA?: boolean;
+  showAssistanceHUMANO?: boolean;
 }
 
-export function ResellerLandingClient({ plans, businessName, slug, whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats }: Props) {
-  const [assistanceType, setAssistanceType] = useState<AssistanceType>("IA");
+export function ResellerLandingClient({ plans, businessName, slug, whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats, showAssistanceIA = true, showAssistanceHUMANO = true }: Props) {
+  // Un tipo se muestra solo si el reseller lo habilitó (flag de su landing) y hay
+  // al menos un plan de ese tipo. Si solo queda uno, no se muestra el selector IA/Humana.
+  const hasIA = showAssistanceIA && plans.some((p) => p.assistanceType === "IA");
+  const hasHumano = showAssistanceHUMANO && plans.some((p) => p.assistanceType === "HUMANO");
+  const availableTypes: AssistanceType[] = [];
+  if (hasIA) availableTypes.push("IA");
+  if (hasHumano) availableTypes.push("HUMANO");
+  const showAssistanceToggle = availableTypes.length > 1;
+
+  const [assistanceType, setAssistanceType] = useState<AssistanceType>(hasIA ? "IA" : "HUMANO");
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("yearly");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  // Tipo efectivo: si el seleccionado dejó de tener planes activos, usa el disponible.
+  const effectiveType: AssistanceType = availableTypes.includes(assistanceType)
+    ? assistanceType
+    : (availableTypes[0] ?? "IA");
 
   const brandName = businessName ?? slug;
   const waNumber = whatsappNumber?.replace(/\D/g, "") ?? "";
@@ -419,7 +435,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
   const heroSub = subheadline ?? "Transforma tus mensajes en un sistema automático de ventas y atención al cliente — desde el primer día, sin programación.";
 
   const visiblePlans = [...plans]
-    .filter((p) => p.assistanceType === assistanceType && p.isActive)
+    .filter((p) => p.assistanceType === effectiveType && p.isActive)
     .sort((a, b) => PLAN_ORDER.indexOf(a.plan) - PLAN_ORDER.indexOf(b.plan));
 
   const bg = bgColor && /^#[0-9a-fA-F]{3,8}$/.test(bgColor) ? bgColor : null;
@@ -776,14 +792,16 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
                   </button>
                 ))}
               </div>
-              <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
-                <button onClick={() => setAssistanceType("IA")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", assistanceType === "IA" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
-                  <Zap className="h-3.5 w-3.5" /> Asistencia IA
-                </button>
-                <button onClick={() => setAssistanceType("HUMANO")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", assistanceType === "HUMANO" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
-                  <Users className="h-3.5 w-3.5" /> Asistencia Humana
-                </button>
-              </div>
+              {showAssistanceToggle && (
+                <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
+                  <button onClick={() => setAssistanceType("IA")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", effectiveType === "IA" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
+                    <Zap className="h-3.5 w-3.5" /> Asistencia IA
+                  </button>
+                  <button onClick={() => setAssistanceType("HUMANO")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", effectiveType === "HUMANO" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
+                    <Users className="h-3.5 w-3.5" /> Asistencia Humana
+                  </button>
+                </div>
+              )}
               <p className="mt-5 text-xs text-slate-500">Precios en USD · Sin tarjeta de crédito requerida</p>
             </div>
             {visiblePlans.length === 0 ? (
@@ -791,7 +809,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {visiblePlans.map((plan) => (
-                  <PlanCard key={plan.id} plan={plan} assistanceType={assistanceType} billingPeriod={billingPeriod} whatsapp={waNumber} resellerSlug={slug} brand={brand} />
+                  <PlanCard key={plan.id} plan={plan} assistanceType={effectiveType} billingPeriod={billingPeriod} whatsapp={waNumber} resellerSlug={slug} brand={brand} />
                 ))}
               </div>
             )}

@@ -38,6 +38,8 @@ export default async function ResellerLandingPage({ params }: Props) {
       ctaSubtitle={result.ctaSubtitle}
       testimonials={result.testimonials}
       stats={result.stats}
+      showAssistanceIA={result.showAssistanceIA}
+      showAssistanceHUMANO={result.showAssistanceHUMANO}
     />
   );
 }

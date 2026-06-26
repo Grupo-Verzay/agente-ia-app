@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Loader2, Globe, Save, Calendar, FileSpreadsheet, MessageCircle,
   Instagram, Facebook, Palette, Type, Image, ChevronDown,
@@ -47,10 +48,12 @@ export function MiLanding() {
     { value: "", label: "" }, { value: "", label: "" },
     { value: "", label: "" }, { value: "", label: "" },
   ]);
+  const [showAssistanceIA, setShowAssistanceIA] = useState(true);
+  const [showAssistanceHUMANO, setShowAssistanceHUMANO] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basicos: true, identidad: false, hero: false, redes: false,
-    video: false, cta: false, stats: false, testimonios: false,
+    video: false, cta: false, stats: false, testimonios: false, planes: false,
   });
   const toggle = (k: string) => setOpenSections(p => ({ ...p, [k]: !p[k] }));
 
@@ -77,6 +80,8 @@ export function MiLanding() {
         setCtaSubtitleInput(res.profile?.ctaSubtitle ?? "");
         if (res.profile?.testimonials?.length) setTestimonialInputs(res.profile.testimonials);
         if (res.profile?.stats?.length) setStatInputs(res.profile.stats);
+        setShowAssistanceIA(res.profile?.showAssistanceIA ?? true);
+        setShowAssistanceHUMANO(res.profile?.showAssistanceHUMANO ?? true);
       }
     } finally {
       setLoading(false);
@@ -106,6 +111,8 @@ export function MiLanding() {
       ctaSubtitle: ctaSubtitleInput,
       testimonials: testimonialInputs,
       stats: statInputs,
+      showAssistanceIA,
+      showAssistanceHUMANO,
     });
     if (res.success) {
       toast.success(res.message);
@@ -136,7 +143,7 @@ export function MiLanding() {
       </div>
 
       {/* Contenido */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+      <div className="flex-1 min-h-0 overflow-y-auto py-4">
       {/* Página pública */}
       <Card>
         <CardHeader className="pb-2 pt-4">
@@ -332,6 +339,27 @@ export function MiLanding() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* ── Sección de planes ── */}
+          <div>
+            <button type="button" className="flex w-full items-center justify-between py-3" onClick={() => toggle('planes')}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sección de planes</p>
+              <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", openSections.planes && "-rotate-180")} />
+            </button>
+            <div className={cn(openSections.planes ? "pb-3 space-y-3" : "hidden")}>
+              <p className="text-sm text-muted-foreground">
+                Controla qué tipos de asistencia aparecen en la sección de precios de tu landing.
+              </p>
+              <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+                <Label className="text-sm">Mostrar Asistencia IA</Label>
+                <Switch checked={showAssistanceIA} onCheckedChange={setShowAssistanceIA} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+                <Label className="text-sm">Mostrar Asistencia Humana</Label>
+                <Switch checked={showAssistanceHUMANO} onCheckedChange={setShowAssistanceHUMANO} />
+              </div>
             </div>
           </div>
 
