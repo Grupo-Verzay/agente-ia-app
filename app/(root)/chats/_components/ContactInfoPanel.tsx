@@ -14,6 +14,7 @@ import {
   DEFAULT_CONTACT_SECTIONS,
 } from '@/lib/contact-fields';
 import { ContactFieldsConfigDialog } from './ContactFieldsConfigDialog';
+import { resolveContactIcon } from './contact-field-icons';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -41,11 +42,7 @@ type ContactFields = Record<string, string>;
 const EMPTY_FIELDS: ContactFields = {};
 
 // Resuelve el nombre de ícono (string en la config) a un componente lucide.
-const ICON_MAP: Record<string, React.ElementType> = {
-  Building2, Briefcase, CreditCard, Phone, Mail, Calendar, Flag, MapPin,
-  Home, Globe, AtSign, Share2, Linkedin, FileText, Tag,
-};
-const resolveIcon = (name: string): React.ElementType => ICON_MAP[name] ?? Tag;
+const resolveIcon = resolveContactIcon;
 
 const SECTION_ICON_BY_TITLE: Record<string, string> = Object.fromEntries(
   DEFAULT_CONTACT_SECTIONS.map((s) => [s.title, s.icon]),

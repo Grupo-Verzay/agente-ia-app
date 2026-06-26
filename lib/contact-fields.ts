@@ -44,6 +44,40 @@ export const DEFAULT_CONTACT_FIELDS: ContactFieldDef[] = [
   { key: 'notas',     label: 'Notas',     section: 'Libre',             icon: 'FileText',   multiline: true, enabled: true, order: 13 },
 ];
 
+// Nombres de ícono disponibles (deben existir en el ICON_MAP del cliente).
+export const CONTACT_ICON_NAMES = [
+  'Building2', 'Briefcase', 'CreditCard', 'Phone', 'Mail', 'Calendar', 'Flag',
+  'MapPin', 'Home', 'Globe', 'AtSign', 'Share2', 'Linkedin', 'FileText', 'Tag',
+] as const;
+
+// Reglas palabra-clave → ícono para auto-asignar según la etiqueta del campo.
+const ICON_RULES: [RegExp, string][] = [
+  [/correo|email|e-mail|mail/i, 'Mail'],
+  [/tel[eé]fono|celular|m[oó]vil|whatsapp|contacto|llamar|n[uú]mero/i, 'Phone'],
+  [/empresa|negocio|compa[nñ][ií]a|organizaci[oó]n|raz[oó]n social/i, 'Building2'],
+  [/cargo|puesto|rol|profesi[oó]n|ocupaci[oó]n|oficio/i, 'Briefcase'],
+  [/documento|c[eé]dula|dni|identificaci[oó]n|nit|rut|pasaporte|p[oó]liza|matr[ií]cula|placa/i, 'CreditCard'],
+  [/fecha|cumplea[nñ]os|nacimiento|d[ií]a|vencimiento|registro/i, 'Calendar'],
+  [/pa[ií]s/i, 'Flag'],
+  [/ciudad|regi[oó]n|zona|barrio|localidad|municipio|estado|provincia/i, 'MapPin'],
+  [/direcci[oó]n|domicilio|casa|ubicaci[oó]n/i, 'Home'],
+  [/sitio|web|p[aá]gina|url|portal/i, 'Globe'],
+  [/instagram|ig\b/i, 'AtSign'],
+  [/facebook|fb\b/i, 'Share2'],
+  [/linkedin/i, 'Linkedin'],
+  [/nota|comentario|observaci[oó]n|detalle|descripci[oó]n|info/i, 'FileText'],
+];
+
+// Devuelve el nombre del ícono más apropiado según la etiqueta (auto-asignación).
+export function pickIconForLabel(label: string): string {
+  const text = (label || '').trim();
+  if (!text) return 'Tag';
+  for (const [rx, icon] of ICON_RULES) {
+    if (rx.test(text)) return icon;
+  }
+  return 'Tag';
+}
+
 // Quita marcas diacríticas combinantes (U+0300–U+036F) sin usar un literal
 // regex con esos caracteres (evita problemas de codificación del archivo).
 function stripDiacritics(input: string): string {

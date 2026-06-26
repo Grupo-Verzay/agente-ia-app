@@ -18,8 +18,9 @@ import {
   SortableContext, useSortable, arrayMove, verticalListSortingStrategy, sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ContactFieldDef, DEFAULT_CONTACT_SECTIONS } from '@/lib/contact-fields';
+import { ContactFieldDef, DEFAULT_CONTACT_SECTIONS, pickIconForLabel } from '@/lib/contact-fields';
 import { saveContactFieldsConfig } from '@/actions/contact-fields-actions';
+import { resolveContactIcon } from './contact-field-icons';
 
 interface Props {
   userId: string;
@@ -68,9 +69,26 @@ function SortableRow({
         className="shrink-0"
       />
 
+      {(() => {
+        const Icon = resolveContactIcon(field.icon);
+        return (
+          <span
+            className="h-7 w-7 shrink-0 flex items-center justify-center rounded-md bg-muted text-muted-foreground"
+            title="El ícono se asigna automáticamente según el nombre"
+          >
+            <Icon className="h-3.5 w-3.5" />
+          </span>
+        );
+      })()}
+
       <Input
         value={field.label}
-        onChange={(e) => onChange({ ...field, label: e.target.value })}
+        onChange={(e) => {
+          const label = e.target.value;
+          // El sistema asigna el ícono automáticamente según el nombre (solo
+          // para campos personalizados; los base conservan su ícono curado).
+          onChange({ ...field, label, icon: field.custom ? pickIconForLabel(label) : field.icon });
+        }}
         placeholder="Etiqueta"
         className="h-8 flex-1 min-w-0"
       />
@@ -142,7 +160,7 @@ export function ContactFieldsConfigDialog({ userId, open, onOpenChange, fields, 
           key,
           label: 'Nuevo campo',
           section: sectionSuggestions[0] ?? 'Libre',
-          icon: 'Tag',
+          icon: pickIconForLabel('Nuevo campo'),
           enabled: true,
           order: prev.length,
           custom: true,
