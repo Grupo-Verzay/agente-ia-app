@@ -22,6 +22,7 @@ const billingUserRecordArgs = Prisma.validator<Prisma.UserBillingDefaultArgs>()(
                 company: true,
                 notificationNumber: true,
                 plan: true,
+                role: true,
                 webhookUrl: true,
                 apiKey: {
                     select: {
@@ -360,6 +361,50 @@ export async function setUserBillingWebhookEnabled(args: {
     }
 }
 
+// Motivo con el que se marca a los clientes suspendidos POR la cascada del
+// reseller (para poder reactivarlos solo a ellos cuando el reseller pague).
+const RESELLER_CASCADE_REASON = "Suspendido: el reseller no pagó su pack de licencias";
+
+/**
+ * Cascada de acceso del reseller a TODOS sus clientes.
+ * - activate=false: suspende a todos sus clientes (status off, billing SUSPENDED,
+ *   agente off). Es reversible (no borra instancias).
+ * - activate=true: reactiva SOLO los que fueron suspendidos por esta cascada.
+ */
+async function cascadeResellerAccessToClients(resellerId: string, activate: boolean, now: Date) {
+    if (activate) {
+        const clients = await db.userBilling.findMany({
+            where: {
+                accessStatus: "SUSPENDED",
+                suspendedReason: RESELLER_CASCADE_REASON,
+                user: { demoResellerId: resellerId },
+            },
+            select: { userId: true },
+        });
+        for (const c of clients) {
+            await db.user.update({ where: { id: c.userId }, data: { status: true } });
+            await db.userBilling.updateMany({
+                where: { userId: c.userId },
+                data: { accessStatus: "ACTIVE", suspendedAt: null, suspendedReason: null },
+            });
+            await setUserBillingWebhookEnabled({ userId: c.userId, enable: true });
+        }
+    } else {
+        const clients = await db.user.findMany({
+            where: { demoResellerId: resellerId, status: true },
+            select: { id: true },
+        });
+        for (const c of clients) {
+            await db.user.update({ where: { id: c.id }, data: { status: false } });
+            await db.userBilling.updateMany({
+                where: { userId: c.id },
+                data: { accessStatus: "SUSPENDED", suspendedAt: now, suspendedReason: RESELLER_CASCADE_REASON },
+            });
+            await setUserBillingWebhookEnabled({ userId: c.id, enable: false });
+        }
+    }
+}
+
 export async function syncUserBillingLifecycle(args: {
     userId: string;
     now?: Date;
@@ -419,6 +464,17 @@ export async function syncUserBillingLifecycle(args: {
             now,
             source: args.source ?? "billing-sync",
         });
+
+    // Si el que cambió de estado es un RESELLER, propagar a sus clientes:
+    // suspendido → suspender a todos; reactivado → reactivar a los que esta
+    // misma cascada había suspendido.
+    if (updated.user?.role === "reseller") {
+        try {
+            await cascadeResellerAccessToClients(updated.userId, updated.accessStatus !== "SUSPENDED", now);
+        } catch (e) {
+            console.error("[cascadeResellerAccessToClients]", e);
+        }
+    }
 
     return {
         success: true,
