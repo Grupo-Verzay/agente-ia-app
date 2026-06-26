@@ -53,7 +53,9 @@ export async function getClientsPageData(): Promise<
                 ? getEnrichedClients({ userIds: allIds })
                 : Promise.resolve({ success: true, data: [] as ClientInterface[] });
         } else {
-            usersPromise = getEnrichedClients();
+            // Admin/super_admin: excluir clientes asignados a resellers (solo se
+            // ve la cuenta principal del reseller, no sus clientes).
+            usersPromise = getEnrichedClients({ excludeResellerClients: true });
         }
 
         const poolsPromise = user.role === 'reseller'

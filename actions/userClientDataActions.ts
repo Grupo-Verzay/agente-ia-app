@@ -21,6 +21,9 @@ interface ClientResponse<T = undefined> {
 type FilterOptions = {
   resellerId?: string;
   userIds?: string[];
+  // Excluye clientes asignados a un reseller (demoResellerId != null). Para que
+  // el panel de Verzay no liste los clientes de los resellers.
+  excludeResellerClients?: boolean;
 };
 const RESTRICTED_FIELDS = new Set<string>(['openMsg']);
 const BOOLEAN_FIELDS = [
@@ -97,7 +100,13 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
     const users = await db.user.findMany({
       // Excluir asesores (sub-cuentas con ownerId): no son clientes, se
       // gestionan dentro del equipo de su cuenta padre.
-      where: userIds ? { id: { in: userIds }, ownerId: null } : { ownerId: null },
+      // Opcionalmente excluir clientes de resellers (demoResellerId != null).
+      where: userIds
+        ? { id: { in: userIds }, ownerId: null }
+        : {
+            ownerId: null,
+            ...(filter?.excludeResellerClients ? { demoResellerId: null } : {}),
+          },
       include: {
         pausar: true,
         aiConfigs: true,
