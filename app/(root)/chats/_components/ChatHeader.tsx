@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, CheckCircle, LogOut, ChevronDown, UserPlus, UserRound, SquarePen, Power, Search } from 'lucide-react';
+import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, UserRound, SquarePen, Power, Search } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -140,7 +140,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     await onAssignAdvisor?.(null);
   };
 
-const sessionStatusTone = session?.status
+  const handleCall = () => {
+    toast.info('Próximamente disponible en planes Premium', { duration: 4000 });
+  };
+
+  const sessionStatusTone = session?.status
     ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
     : 'border-amber-300 bg-amber-100 text-amber-800';
 
@@ -533,6 +537,16 @@ const sessionStatusTone = session?.status
         <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {session && (
             <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 rounded-full bg-green-100 dark:bg-green-950/40 text-green-600 hover:bg-green-200 dark:hover:bg-green-900/50"
+                onClick={handleCall}
+                title="Llamar por WhatsApp"
+              >
+                <Phone className="h-4 w-4" />
+              </Button>
               {advisorBadge}
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
