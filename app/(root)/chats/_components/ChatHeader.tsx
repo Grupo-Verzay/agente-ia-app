@@ -25,6 +25,7 @@ import { resolveSession } from '@/actions/advisor-assign-actions';
 import { SintesisEditDialog } from './SintesisEditDialog';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
 import { LeadContextSheet } from './LeadContextSheet';
+import { CallDialog } from './CallDialog';
 import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { TaskFormDialog } from './TaskFormDialog';
@@ -140,16 +141,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     await onAssignAdvisor?.(null);
   };
 
+  const [callOpen, setCallOpen] = useState(false);
+  const callDigits = (displayedWhatsapp || remoteJid || '').replace(/\D/g, '');
   const handleCall = () => {
-    const digits = (displayedWhatsapp || remoteJid || '').replace(/\D/g, '');
-    if (!digits) {
+    if (!callDigits) {
       toast.error('No hay número de WhatsApp para llamar.');
       return;
     }
-    const phone = `+${digits}`;
-    try { void navigator.clipboard?.writeText(phone); } catch { /* clipboard puede fallar sin HTTPS */ }
-    window.open('https://calls.ia-app.com', 'wacalls', 'width=920,height=720');
-    toast.success(`Número ${phone} copiado. Pégalo en el marcador de AstraCalls y pulsa "Call".`, { duration: 6000 });
+    setCallOpen(true);
   };
 
   const sessionStatusTone = session?.status
@@ -672,6 +671,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         session={session}
         currentUserId={userId}
       />
+
+      {callDigits && (
+        <CallDialog
+          open={callOpen}
+          onClose={() => setCallOpen(false)}
+          phone={callDigits}
+          contactName={displayedContactName}
+        />
+      )}
     </div>
   );
 };
