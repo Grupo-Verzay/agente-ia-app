@@ -72,11 +72,17 @@ export async function linkMyCallSession(): Promise<{ success: boolean; sid?: str
 
   // Crear sesión nueva si no tiene
   if (!sid) {
+    // Nombre legible: instancia WhatsApp > empresa > nombre > email
+    const [inst, u] = await Promise.all([
+      db.instancia.findFirst({ where: { userId: me.id, instanceType: 'Whatsapp' }, select: { instanceName: true } }),
+      db.user.findUnique({ where: { id: me.id }, select: { company: true, name: true } }),
+    ]);
+    const sessionName = inst?.instanceName || u?.company || u?.name || me.email || me.id;
     try {
       const r = await fetch(`${BASE}/api/sessions`, {
         method: 'POST',
         headers: headers(),
-        body: JSON.stringify({ name: me.email || me.id }),
+        body: JSON.stringify({ name: sessionName }),
       });
       if (!r.ok) return { success: false, message: `No se pudo crear la sesión (${r.status}).` };
       const data = await r.json().catch(() => ({}));
