@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Phone, Loader2, RefreshCw, Trash2, QrCode, CheckCircle2 } from 'lucide-react';
+import { Phone, Loader2, RefreshCw, Trash2, QrCode, CheckCircle2, Power } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -119,15 +119,18 @@ export function CallLinkCard() {
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5 text-sm font-medium text-green-600">
-                  <CheckCircle2 className="h-4 w-4" /> Conectado
-                </div>
+                <div className="truncate text-sm font-medium">WhatsApp</div>
                 {jid && <div className="truncate text-xs text-muted-foreground">+{jid.split('@')[0]}</div>}
               </div>
             </div>
-            <Button variant="destructive" className="w-full gap-2" onClick={unlink}>
-              <Trash2 className="h-4 w-4" /> Desvincular
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button className="w-full gap-2 bg-green-600 text-white hover:bg-green-700" onClick={() => void refresh()}>
+                <CheckCircle2 className="h-4 w-4" /> Conectado
+              </Button>
+              <Button variant="destructive" className="w-full gap-2" onClick={unlink}>
+                <Power className="h-4 w-4" /> Desvincular
+              </Button>
+            </div>
           </div>
         ) : qr ? (
           <div className="flex flex-col items-center gap-2">
