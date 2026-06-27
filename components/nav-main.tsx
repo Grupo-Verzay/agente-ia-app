@@ -232,7 +232,7 @@ export function NavMain({ user }: { user: User }) {
                         if (sidebarState === 'collapsed' && !isMobile && !openMobile) {
                             return (
                                 <SidebarMenuItem key={id}>
-                                    <Popover>
+                                    <Popover open={openModuleId === id} onOpenChange={(o) => setOpenModuleId(o ? id : null)}>
                                         <PopoverTrigger asChild>
                                             <SidebarMenuButton className={intgParentClasses} tooltip={displayLabel}>
                                                 {Icon && <Icon className={clsx('h-5', isAnyIntgActive && 'invert brightness-200')} />}
@@ -247,6 +247,7 @@ export function NavMain({ user }: { user: User }) {
                                                     onClick={() => {
                                                         if (sub.url) setCanvaUrl(sub.url);
                                                         handleRoute(label, sub.dest);
+                                                        setOpenModuleId(null);
                                                     }}
                                                     className={clsx(
                                                         'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-left transition-colors',
@@ -291,7 +292,7 @@ export function NavMain({ user }: { user: User }) {
                     if (sidebarState === 'collapsed' && !isMobile && !openMobile) {
                         return (
                             <SidebarMenuItem key={id}>
-                                <Popover>
+                                <Popover open={openModuleId === id} onOpenChange={(o) => setOpenModuleId(o ? id : null)}>
                                     <PopoverTrigger asChild>
                                         <SidebarMenuButton className={parentClasses} tooltip={displayLabel}>
                                             {Icon && <Icon className={parentIconClasses} />}
@@ -307,7 +308,7 @@ export function NavMain({ user }: { user: User }) {
                                             return (
                                                 <button
                                                     key={subItem.id}
-                                                    onClick={() => handleRoute(label, dest, subItem.customUrl ?? item.customUrl, isSubLocked)}
+                                                    onClick={() => { handleRoute(label, dest, subItem.customUrl ?? item.customUrl, isSubLocked); setOpenModuleId(null); }}
                                                     className={clsx(
                                                         'flex w-full items-center rounded-md px-2 py-1.5 text-sm text-left transition-colors',
                                                         isSubActive
