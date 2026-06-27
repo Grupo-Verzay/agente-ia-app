@@ -54,7 +54,7 @@ const SocialIconSelector = ({ instanceType }: SocialIconSelectorProps) => {
         return (
             <>
                 <FaInstagram className="text-pink-500 rounded-sm w-6 h-6" />
-                <span className="text-xl font-bold">Instagram</span>
+                <span className="text-xl font-bold">Mensajería Instagram</span>
             </>
         )
     }
@@ -62,7 +62,7 @@ const SocialIconSelector = ({ instanceType }: SocialIconSelectorProps) => {
         return (
             <>
                 <FaFacebook className="text-[#1877F2] rounded-sm w-6 h-6" />
-                <span className="text-xl font-bold">Facebook</span>
+                <span className="text-xl font-bold">Mensajería Facebook</span>
             </>
         )
     }

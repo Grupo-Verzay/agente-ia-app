@@ -620,6 +620,17 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                         />
                                     ))}
                                 <MetaInstanceCreator userId={userId} company={user?.company as string} />
+                                {telegramInstances.length > 0 ? (
+                                    telegramInstances.map((inst) => (
+                                        <TelegramInstanceCard
+                                            key={inst.instanceName}
+                                            instanceName={inst.instanceName}
+                                            botUsername={(inst as any).metaPhoneNumberId ?? null}
+                                        />
+                                    ))
+                                ) : (
+                                    <TelegramInstanceCreator userId={userId} company={user?.company as string} />
+                                )}
                                 {user?.onFacebook ? (
                                     <>
                                         {metaInstances
@@ -665,17 +676,6 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                         instanceType={"Instagram"}
                                         prompts={instancesData["Instagram"].prompts}
                                     />
-                                )}
-                                {telegramInstances.length > 0 ? (
-                                    telegramInstances.map((inst) => (
-                                        <TelegramInstanceCard
-                                            key={inst.instanceName}
-                                            instanceName={inst.instanceName}
-                                            botUsername={(inst as any).metaPhoneNumberId ?? null}
-                                        />
-                                    ))
-                                ) : (
-                                    <TelegramInstanceCreator userId={userId} company={user?.company as string} />
                                 )}
                             </div>
                         </TabPanel>

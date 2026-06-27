@@ -54,7 +54,7 @@ export const FacebookInstanceCreator = ({ userId, company }: FacebookInstanceCre
         <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
           <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
             <FaFacebook className="rounded-sm w-6 h-6" style={{ color: '#1877F2' }} />
-            <span className="text-xl font-bold">Facebook Messenger</span>
+            <span className="text-xl font-bold">Mensajería Facebook</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 px-6 pb-3 pt-0">
@@ -80,7 +80,7 @@ export const FacebookInstanceCreator = ({ userId, company }: FacebookInstanceCre
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Nueva instancia Facebook Messenger</DialogTitle>
+            <DialogTitle>Nueva instancia Mensajería Facebook</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">

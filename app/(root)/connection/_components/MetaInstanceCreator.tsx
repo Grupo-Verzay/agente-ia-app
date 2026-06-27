@@ -55,7 +55,7 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
         <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
           <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
             <FaWhatsapp className="text-green-500 rounded-sm w-6 h-6" />
-            <span className="text-xl font-bold">Meta Cloud API</span>
+            <span className="text-xl font-bold">WhatsApp Cloud API</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 px-6 pb-3 pt-0">
@@ -77,7 +77,7 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Nueva instancia Meta Cloud API</DialogTitle>
+            <DialogTitle>Nueva instancia WhatsApp Cloud API</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             {/* Nombre de instancia — solo lectura, derivado de la empresa */}

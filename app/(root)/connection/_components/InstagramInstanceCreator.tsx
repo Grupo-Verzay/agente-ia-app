@@ -54,7 +54,7 @@ export const InstagramInstanceCreator = ({ userId, company }: InstagramInstanceC
         <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
           <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
             <FaInstagram className="text-pink-500 rounded-sm w-6 h-6" />
-            <span className="text-xl font-bold">Instagram DMs</span>
+            <span className="text-xl font-bold">Mensajería Instagram</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 px-6 pb-3 pt-0">
@@ -80,7 +80,7 @@ export const InstagramInstanceCreator = ({ userId, company }: InstagramInstanceC
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Nueva instancia Instagram DMs</DialogTitle>
+            <DialogTitle>Nueva instancia Mensajería Instagram</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">
