@@ -18,6 +18,7 @@ import {
   getResellersWithPools,
   assignLicenses,
   deleteLicensePool,
+  migrateLegacyClientsToPool,
   type ResellerWithPools,
 } from "@/actions/reseller-license-actions"
 import { getAllSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions"
@@ -134,6 +135,17 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
     if (!confirm("¿Eliminar este pool de licencias?")) return
     const res = await deleteLicensePool(poolId)
     if (res.success) { toast.success(res.message); void fetchLicenses() }
+    else toast.error(res.message)
+  }
+
+  const [migrating, setMigrating] = useState(false)
+  const handleMigrateLegacy = async (subscriptionPlanId: string, planLabel: string) => {
+    if (assignedClients.length === 0) { toast.message("No hay clientes del método antiguo para migrar."); return }
+    if (!confirm(`¿Migrar ${assignedClients.length} cliente(s) del método antiguo al pool ${planLabel}? Pasarán a contar en el pool, al cobro del reseller y a recibir avisos desde su línea.`)) return
+    setMigrating(true)
+    const res = await migrateLegacyClientsToPool(selectedReseller, subscriptionPlanId)
+    setMigrating(false)
+    if (res.success) { toast.success(res.message); setRefreshTrigger(t => t + 1); void fetchLicenses() }
     else toast.error(res.message)
   }
 
@@ -269,6 +281,17 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
                       >
                         {isFull ? "Sin cupo" : `${pool.availableLicenses} disp.`}
                       </Badge>
+                      {assignedClients.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleMigrateLegacy(pool.subscriptionPlanId, `${PLAN_LABELS[pool.plan]} · ${pool.assistanceType}`)}
+                          disabled={migrating}
+                          className="shrink-0 rounded border border-primary/40 px-1.5 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+                          title="Migrar clientes del método antiguo a este pool"
+                        >
+                          {migrating ? "Migrando…" : "Migrar antiguos"}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleDeletePool(pool.id)}

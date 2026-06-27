@@ -123,6 +123,61 @@ export async function assignLicenses(
   }
 }
 
+// ── Admin: migrar clientes del método viejo (tabla reseller) al pool nuevo ──
+// Toma los clientes asignados por la UI vieja (tabla reseller) y los pasa al
+// sistema nuevo: setea demoResellerId + el plan del pool, y borra la asignación
+// vieja. Así cuentan en el pool, entran al cobro del reseller y reciben avisos
+// desde su línea.
+export async function migrateLegacyClientsToPool(
+  resellerUserId: string,
+  subscriptionPlanId: string,
+) {
+  try {
+    const user = await currentUser();
+    if (!user || !isAdminLike(user.role)) return { success: false, message: "Sin permisos" };
+
+    const pool = await db.resellerLicensePool.findUnique({
+      where: { resellerUserId_subscriptionPlanId: { resellerUserId, subscriptionPlanId } },
+    });
+    if (!pool) return { success: false, message: "El reseller no tiene un pool de ese plan." };
+
+    const legacy = await db.reseller.findMany({
+      where: { resellerid: resellerUserId, userId: { not: null } },
+      select: { userId: true },
+    });
+    const legacyUserIds = legacy.map((l) => l.userId).filter(Boolean) as string[];
+    if (legacyUserIds.length === 0) {
+      return { success: false, message: "No hay clientes del método antiguo para migrar." };
+    }
+
+    const used = await db.user.count({
+      where: { demoResellerId: resellerUserId, isDemo: false, resellerSubscriptionPlanId: subscriptionPlanId },
+    });
+    const available = pool.totalLicenses - used;
+    if (legacyUserIds.length > available) {
+      return {
+        success: false,
+        message: `El pool tiene ${available} licencia(s) libre(s) y hay ${legacyUserIds.length} para migrar. Sube el total del pool primero.`,
+      };
+    }
+
+    await db.user.updateMany({
+      where: { id: { in: legacyUserIds } },
+      data: { demoResellerId: resellerUserId, resellerSubscriptionPlanId: subscriptionPlanId, isDemo: false },
+    });
+    await db.reseller.deleteMany({
+      where: { resellerid: resellerUserId, userId: { in: legacyUserIds } },
+    });
+
+    revalidatePath("/admin/reseller");
+    revalidatePath("/panel/reseller");
+    return { success: true, message: `${legacyUserIds.length} cliente(s) migrados al pool.` };
+  } catch (e) {
+    console.error("[migrateLegacyClientsToPool]", e);
+    return { success: false, message: "Error al migrar clientes." };
+  }
+}
+
 // ── Admin: eliminar pool de licencias de un reseller ──────────────────────
 
 export async function deleteLicensePool(poolId: string) {
