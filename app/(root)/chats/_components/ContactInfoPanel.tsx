@@ -41,6 +41,12 @@ import type { Session } from '@/types/session';
 type ContactFields = Record<string, string>;
 const EMPTY_FIELDS: ContactFields = {};
 
+// Cache por-usuario de datos que NO dependen del chat. ChatMain se remonta por
+// cada conversación (key=selectedJid), así que sin esto se re-consultarían en
+// cada apertura aunque el resultado sea siempre el mismo para el usuario.
+let fieldsConfigCache: { userId: string; value: ContactFieldDef[] } | null = null;
+let sheetsUrlCache: { userId: string; value: string } | null = null;
+
 // Resuelve el nombre de ícono (string en la config) a un componente lucide.
 const resolveIcon = resolveContactIcon;
 
@@ -176,11 +182,18 @@ export function ContactInfoPanel({
   const adSource = session.adSource as { title?: string; body?: string; sourceUrl?: string } | null | undefined;
   const adLabel = adSource?.title || (adSource?.sourceUrl ? (() => { try { return new URL(adSource.sourceUrl!).hostname.replace(/^www\./, ''); } catch { return 'Anuncio'; } })() : null);
 
-  /* Load contact field config (per user) */
+  /* Load contact field config (per user) — cacheado: no depende del chat */
   useEffect(() => {
+    if (fieldsConfigCache?.userId === userId) {
+      setFieldDefs(fieldsConfigCache.value);
+      return;
+    }
     let cancelled = false;
     getContactFieldsConfig(userId).then((defs) => {
-      if (!cancelled && Array.isArray(defs) && defs.length) setFieldDefs(defs);
+      if (cancelled) return;
+      const value = Array.isArray(defs) && defs.length ? defs : DEFAULT_CONTACT_FIELDS;
+      fieldsConfigCache = { userId, value };
+      setFieldDefs(value);
     });
     return () => { cancelled = true; };
   }, [userId]);
@@ -230,12 +243,22 @@ export function ContactInfoPanel({
     });
   };
 
-  /* Load Google Sheets config */
+  /* Load Google Sheets config (per user) — cacheado: no depende del chat */
   useEffect(() => {
+    if (sheetsUrlCache?.userId === userId) {
+      setSheetsUrl(sheetsUrlCache.value);
+      setSheetsSaved(!!sheetsUrlCache.value);
+      return;
+    }
+    let cancelled = false;
     getGoogleSheetsWebhookUrl(userId).then((url) => {
-      setSheetsUrl(url ?? '');
-      setSheetsSaved(!!url);
+      if (cancelled) return;
+      const value = url ?? '';
+      sheetsUrlCache = { userId, value };
+      setSheetsUrl(value);
+      setSheetsSaved(!!value);
     });
+    return () => { cancelled = true; };
   }, [userId]);
 
   const handleFieldChange = useCallback((field: string, value: string) => {
@@ -260,6 +283,7 @@ export function ContactInfoPanel({
     setSavingUrl(false);
     if (res.success) {
       setSheetsUrl(sheetsDraft);
+      sheetsUrlCache = { userId, value: sheetsDraft };
       setSheetsDraft('');
       toast.success('Hoja guardada');
       setSheetsSaved(true);
@@ -318,7 +342,7 @@ export function ContactInfoPanel({
         open={configOpen}
         onOpenChange={setConfigOpen}
         fields={fieldDefs}
-        onSaved={setFieldDefs}
+        onSaved={(defs) => { fieldsConfigCache = { userId, value: defs }; setFieldDefs(defs); }}
       />
 
       <div className="flex-1 overflow-y-auto [scrollbar-width:thin]">
