@@ -4,7 +4,6 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { createInstance } from '@/actions/api-action';
 import { toast } from 'sonner';
 import { ClientInstanceCard, ConnectionCard } from './';
-import { CallLinkCard } from './CallLinkCard';
 import { ConnectionMainInterface, FormInstanceConnectionValues, sanitizeInstanceName } from '@/schema/connection';
 import { PromptInstance } from '@prisma/client';
 import { checkInstanceNameExists, createBaileysInstance } from '@/actions/instances-actions';
@@ -92,27 +91,22 @@ export const ConnectionMain = ({
     })();
   }, [autoCreate]);
 
-  return (
-    <div className="flex flex-col gap-4">
-      {instance ? (
-        <ClientInstanceCard
-          intanceName={instanceName}
-          instanceType={instanceType}
-          user={user}
-          currentInstanceInfo={currentInstanceInfo}
-          prompts={filteredPrompts}
-        />
-      ) : (
-        <ConnectionCard
-          user={user}
-          handleSubmit={onSubmit}
-          loading={loading}
-          defaultValues={{ instanceName: derivedInstanceName, instanceType: instanceType }}
-          instanceType={instanceType}
-          checkNameAvailable={checkNameAvailable}
-        />
-      )}
-      {instanceType === 'Whatsapp' && <CallLinkCard />}
-    </div>
+  return instance ? (
+    <ClientInstanceCard
+      intanceName={instanceName}
+      instanceType={instanceType}
+      user={user}
+      currentInstanceInfo={currentInstanceInfo}
+      prompts={filteredPrompts}
+    />
+  ) : (
+    <ConnectionCard
+      user={user}
+      handleSubmit={onSubmit}
+      loading={loading}
+      defaultValues={{ instanceName: derivedInstanceName, instanceType: instanceType }}
+      instanceType={instanceType}
+      checkNameAvailable={checkNameAvailable}
+    />
   );
 };

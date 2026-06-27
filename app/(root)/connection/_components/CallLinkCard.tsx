@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Phone, Loader2, CheckCircle2 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+import { Phone, Loader2, RefreshCw, Trash2, QrCode, CheckCircle2 } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
@@ -60,7 +61,7 @@ export function CallLinkCard() {
   const startPairing = async () => {
     setPairing(true); setQr(null);
     const res = await linkMyCallSession();
-    if (!res.success) { toast.error(res.message || 'No se pudo vincular.'); setPairing(false); return; }
+    if (!res.success) { toast.error(res.message || 'No se pudo conectar.'); setPairing(false); return; }
     await tick();
     stopPoll();
     pollRef.current = setInterval(() => { void tick(); }, 20_000);
@@ -76,49 +77,84 @@ export function CallLinkCard() {
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></CardContent>
+      <Card className="border-border flex-1">
+        <CardContent className="flex justify-center py-10">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </CardContent>
       </Card>
     );
   }
   if (!isConfigured) return null; // llamadas no habilitadas en el servidor
 
+  const connected = linked && state === 'open';
+
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Phone className="h-4 w-4 text-green-600" /> Llamadas por WhatsApp
-        </CardTitle>
-        <CardDescription className="text-xs">
-          Vincula tu número para hacer llamadas de voz desde los chats (escanea como un dispositivo más).
-        </CardDescription>
+    <Card className="border-border flex-1">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="flex min-w-0 items-center gap-2">
+            <Phone className="h-4 w-4 shrink-0 text-green-600" />
+            <span className="truncate">Llamadas WhatsApp</span>
+          </CardTitle>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => void refresh()} title="Actualizar">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            {linked && (
+              <Button variant="destructive" size="icon" className="h-8 w-8" onClick={unlink} title="Desvincular">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="flex flex-col items-center gap-3 pb-5">
-        {linked && state === 'open' ? (
-          <>
-            <div className="flex items-center gap-2 font-medium text-green-600">
-              <CheckCircle2 className="h-5 w-5" /> Conectado
+
+      <CardContent>
+        {connected ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <Avatar className="rounded-lg">
+                <AvatarFallback className="rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
+                  <Phone className="h-4 w-4" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-green-600">
+                  <CheckCircle2 className="h-4 w-4" /> Conectado
+                </div>
+                {jid && <div className="truncate text-xs text-muted-foreground">+{jid.split('@')[0]}</div>}
+              </div>
             </div>
-            {jid && <p className="text-xs text-muted-foreground">+{jid.split('@')[0]}</p>}
-            <Button variant="outline" size="sm" onClick={unlink}>Desvincular</Button>
-          </>
+            <Button variant="destructive" className="w-full gap-2" onClick={unlink}>
+              <Trash2 className="h-4 w-4" /> Desvincular
+            </Button>
+          </div>
         ) : qr ? (
-          <>
+          <div className="flex flex-col items-center gap-2">
             <p className="max-w-[280px] text-center text-xs text-muted-foreground">
-              Abre WhatsApp → <b>Dispositivos vinculados</b> → <b>Vincular dispositivo</b> y escanea:
+              WhatsApp → <b>Dispositivos vinculados</b> → <b>Vincular dispositivo</b>, y escanea:
             </p>
             <div className="rounded-lg border bg-white p-3">
-              <QRCodeSVG value={qr} size={220} marginSize={1} />
+              <QRCodeSVG value={qr} size={200} marginSize={1} />
             </div>
             <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" /> Esperando escaneo…
             </p>
-          </>
+          </div>
         ) : (
-          <Button onClick={startPairing} disabled={pairing} className="gap-2">
-            {pairing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Phone className="h-4 w-4" />}
-            {pairing ? 'Generando QR…' : 'Vincular número'}
-          </Button>
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-muted-foreground">
+              Vincula tu número para hacer llamadas de voz por WhatsApp desde los chats.
+            </p>
+            <Button
+              className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
+              onClick={startPairing}
+              disabled={pairing}
+            >
+              {pairing ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
+              {pairing ? 'Generando QR…' : 'Conectar'}
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>

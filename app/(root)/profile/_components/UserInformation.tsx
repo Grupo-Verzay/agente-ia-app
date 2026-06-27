@@ -45,6 +45,7 @@ import { ApiKeyConfigurator, ChangePasswordCard, ChangeEmailCard } from "./";
 import { NotificationContactsManager } from "./NotificationContactsManager";
 import { UserInformationProps } from "../page";
 import { ConnectionMain } from "../../connection/_components";
+import { CallLinkCard } from "../../connection/_components/CallLinkCard";
 import { MetaInstanceCard } from "../../connection/_components/MetaInstanceCard";
 import { MetaInstanceCreator } from "../../connection/_components/MetaInstanceCreator";
 import { FacebookInstanceCreator } from "../../connection/_components/FacebookInstanceCreator";
@@ -604,6 +605,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     prompts={instancesData["Whatsapp"].prompts}
                                     autoCreate={autoSetup && !instancesData["Whatsapp"].instance}
                                 />
+                                <CallLinkCard />
                                 {metaInstances
                                     .filter((inst) => ((inst as any).metaChannel ?? 'whatsapp') === 'whatsapp')
                                     .map((inst) => (
