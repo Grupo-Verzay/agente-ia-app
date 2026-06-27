@@ -98,7 +98,9 @@ export const ClientInstanceCard = ({
       <Card className="border-border flex-1">
         <CardHeader>
           <div className="flex justify-between items-center gap-2">
-            <CardTitle className="min-w-0 truncate" title={intanceName ?? ''}>{intanceName}</CardTitle>
+            <CardTitle className="min-w-0 truncate">
+              {instanceType === 'Whatsapp' ? 'Mensajería WhatsApp' : `Mensajería ${instanceType}`}
+            </CardTitle>
             <div className="shrink-0">
               <ConnectionActions
                 handleDelete={() => setShowDeleteDialog(true)}
@@ -117,19 +119,12 @@ export const ClientInstanceCard = ({
                 {profilePicUrl && <AvatarImage src={profilePicUrl} alt={intanceName ?? ''} />}
                 <AvatarFallback className="rounded-lg">{userInitial}</AvatarFallback>
               </Avatar>
-              <div>
-                {profileName ? (
-                  <>
-                    <div className="text-sm font-medium">{profileName}</div>
-                    <div className="text-xs text-muted-foreground">
-                      +{ownerJid?.split('@')[0]}
-                    </div>
-                  </>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium">{intanceName}</div>
+                {ownerJid ? (
+                  <div className="truncate text-xs text-muted-foreground">+{ownerJid.split('@')[0]}</div>
                 ) : (
-                  <>
-                    <Skeleton className="h-4 w-[120px] mb-1" />
-                    <Skeleton className="h-3 w-[100px]" />
-                  </>
+                  <Skeleton className="h-3 w-[100px]" />
                 )}
               </div>
             </>

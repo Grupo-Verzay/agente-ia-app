@@ -20,6 +20,7 @@ export function CallLinkCard() {
   const [linked, setLinked] = useState(false);
   const [state, setState] = useState<string | undefined>();
   const [jid, setJid] = useState<string | undefined>();
+  const [name, setName] = useState<string | undefined>();
   const [qr, setQr] = useState<string | null>(null);
   const [pairing, setPairing] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -32,6 +33,7 @@ export function CallLinkCard() {
     setLinked(s.linked);
     setState(s.state);
     setJid(s.jid);
+    setName(s.name);
     setLoading(false);
     return s;
   };
@@ -119,7 +121,7 @@ export function CallLinkCard() {
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium">WhatsApp</div>
+                <div className="truncate text-sm font-medium">{name || 'WhatsApp'}</div>
                 {jid && <div className="truncate text-xs text-muted-foreground">+{jid.split('@')[0]}</div>}
               </div>
             </div>

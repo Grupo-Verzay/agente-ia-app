@@ -48,13 +48,14 @@ export async function getMyCallSession(): Promise<{
   linked: boolean;
   state?: string;
   jid?: string;
+  name?: string;
 }> {
   if (!configured()) return { configured: false, linked: false };
   const sid = await getMySid();
   if (!sid) return { configured: true, linked: false };
   const s = (await fetchSessions()).find((x) => x.id === sid);
   if (!s) return { configured: true, linked: false };
-  return { configured: true, linked: true, state: s.state, jid: s.jid };
+  return { configured: true, linked: true, state: s.state, jid: s.jid, name: s.name };
 }
 
 /* ── Crear/asegurar la sesión del usuario y disparar el emparejamiento ──── */
