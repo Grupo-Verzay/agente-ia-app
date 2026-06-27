@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { FaWhatsapp, FaInstagram, FaFacebook } from 'react-icons/fa';
+import { MessageCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -95,11 +96,12 @@ export const ClientInstanceCard = ({
 
   return (
     <>
-      <Card className="border-border flex-1">
+      <Card className="border-border flex h-full flex-col">
         <CardHeader>
           <div className="flex justify-between items-center gap-2">
-            <CardTitle className="min-w-0 truncate">
-              {instanceType === 'Whatsapp' ? 'Mensajería WhatsApp' : `Mensajería ${instanceType}`}
+            <CardTitle className="flex min-w-0 items-center gap-2">
+              <MessageCircle className="h-4 w-4 shrink-0 text-green-600" />
+              <span className="truncate">{instanceType === 'Whatsapp' ? 'Mensajería WhatsApp' : `Mensajería ${instanceType}`}</span>
             </CardTitle>
             <div className="shrink-0">
               <ConnectionActions
@@ -112,7 +114,7 @@ export const ClientInstanceCard = ({
           </div>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="flex flex-1 flex-col">
           <div className="flex items-center gap-3">
             {instanceType === 'Whatsapp' && (<>
               <Avatar className="rounded-lg">
@@ -132,7 +134,7 @@ export const ClientInstanceCard = ({
             {(instanceType != 'Whatsapp') && (isActive ? 'Activo 🟢' : 'Desactivado 🔴')}
           </div>
 
-          <div className="flex items-center justify-between mt-4 text-xs flex-col gap-2">
+          <div className="mt-auto flex items-center justify-between pt-4 text-xs flex-col gap-2">
             <div className="flex flex-1 justify-end gap-1 items-center flex-row w-full">
               {instanceType === 'Whatsapp' && (
                 <>

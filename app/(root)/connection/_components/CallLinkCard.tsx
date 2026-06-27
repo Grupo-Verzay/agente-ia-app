@@ -91,19 +91,19 @@ export function CallLinkCard() {
   const connected = linked && state === 'open';
 
   return (
-    <Card className="border-border flex-1">
+    <Card className="border-border flex h-full flex-col">
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="flex min-w-0 items-center gap-2">
             <Phone className="h-4 w-4 shrink-0 text-green-600" />
             <span className="truncate">Llamadas WhatsApp</span>
           </CardTitle>
-          <div className="flex shrink-0 items-center gap-1">
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => void refresh()} title="Actualizar">
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" size="icon" onClick={() => void refresh()} title="Actualizar">
               <RefreshCw className="h-4 w-4" />
             </Button>
             {linked && (
-              <Button variant="destructive" size="icon" className="h-8 w-8" onClick={unlink} title="Desvincular">
+              <Button variant="destructive" size="icon" onClick={unlink} title="Desvincular">
                 <Trash2 className="h-4 w-4" />
               </Button>
             )}
@@ -111,9 +111,9 @@ export function CallLinkCard() {
         </div>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="flex flex-1 flex-col">
         {connected ? (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-1 flex-col gap-3">
             <div className="flex items-center gap-3">
               <Avatar className="rounded-lg">
                 <AvatarFallback className="rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
@@ -122,10 +122,10 @@ export function CallLinkCard() {
               </Avatar>
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{name || 'WhatsApp'}</div>
-                {jid && <div className="truncate text-xs text-muted-foreground">+{jid.split('@')[0]}</div>}
+                {jid && <div className="truncate text-xs text-muted-foreground">+{jid.split('@')[0].split(':')[0]}</div>}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="mt-auto grid grid-cols-2 gap-2">
               <Button className="w-full gap-2 bg-green-600 text-white hover:bg-green-700" onClick={() => void refresh()}>
                 <CheckCircle2 className="h-4 w-4" /> Conectado
               </Button>
