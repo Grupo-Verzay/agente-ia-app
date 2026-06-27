@@ -398,8 +398,34 @@ export const EditDialog = ({
     return map[id] ?? { checked: false, onChange: () => {} };
   };
 
-  const switchFields = fields.filter(f => switchFieldIds.includes(f.id));
   const regularFields = fields.filter(f => !switchFieldIds.includes(f.id));
+
+  const renderSwitch = (id: string, label: string) => {
+    const { checked, onChange } = getSwitchState(id);
+    const readOnly = fields.find(f => f.id === id)?.readOnly ?? false;
+    return (
+      <div key={id} className="flex items-center justify-between gap-2 pr-4">
+        <Label htmlFor={id} className="text-xs font-semibold text-foreground">{label}</Label>
+        <input type="hidden" name={id} value={checked ? "true" : "false"} />
+        <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={readOnly} />
+      </div>
+    );
+  };
+
+  // Arriba: Estado + canales. Abajo (junto a Rol/Plan): switches de IA.
+  const topSwitches: [string, string][] = [
+    ['status', 'Estado'],
+    ['onCalls', 'Llamadas'],
+    ['onFacebook', 'Facebook'],
+    ['onInstagram', 'Instagram'],
+    ['onWhatsappCloud', 'Cloud API'],
+    ['onTelegram', 'Telegram'],
+  ];
+  const aiSwitches: [string, string][] = [
+    ['enabledSynthesizer', 'Sintetizador'],
+    ['enabledLeadStatusClassifier', 'Clasificacion'],
+    ['enabledCrmFollowUps', 'Follow ups'],
+  ];
 
   const showAiConfig = currentUserRol !== 'reseller';
 
@@ -414,18 +440,9 @@ export const EditDialog = ({
         <form action={(formData) => handleEdit(user.id, formData)}>
           <div className="overflow-auto max-h-[28rem] pr-2">
             <div className="grid gap-4 py-4">
-              {/* Switches en grid 2 columnas */}
+              {/* Switches de canal (Estado + canales) en grid 2 columnas */}
               <div className="grid grid-cols-2 gap-2">
-                {switchFields.map(({ id, label, readOnly }) => {
-                  const { checked, onChange } = getSwitchState(id);
-                  return (
-                    <div key={id} className="flex items-center justify-between gap-2 pr-4">
-                      <Label htmlFor={id} className="text-xs font-semibold text-foreground">{label}</Label>
-                      <input type="hidden" name={id} value={checked ? "true" : "false"} />
-                      <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={readOnly} />
-                    </div>
-                  );
-                })}
+                {topSwitches.map(([id, label]) => renderSwitch(id, label))}
               </div>
 
               {/* Campos regulares */}
@@ -443,8 +460,8 @@ export const EditDialog = ({
                   if (id in pairs) {
                     const pairedId = pairs[id];
                     const pairedField = regularFields.find(f => f.id === pairedId);
-                    return (
-                      <div key={id} className="grid grid-cols-2 gap-2">
+                    const pairContent = (
+                      <>
                         <div className="flex flex-col gap-1">
                           <Label htmlFor={id} className="text-xs font-semibold text-foreground">{label}</Label>
                           {handleRenderField(id, defaultValue, readOnly, label)}
@@ -455,7 +472,21 @@ export const EditDialog = ({
                             {handleRenderField(pairedId, pairedField.defaultValue, pairedField.readOnly, pairedField.label)}
                           </div>
                         )}
-                      </div>
+                      </>
+                    );
+                    if (id === 'role') {
+                      // Rol/Plan seguido de los switches de IA (Sintetizador/Clasificacion/Follow ups)
+                      return (
+                        <div key={id} className="flex flex-col gap-4">
+                          <div className="grid grid-cols-2 gap-2">{pairContent}</div>
+                          <div className="grid grid-cols-3 gap-2">
+                            {aiSwitches.map(([sid, slabel]) => renderSwitch(sid, slabel))}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={id} className="grid grid-cols-2 gap-2">{pairContent}</div>
                     );
                   }
                   return (
