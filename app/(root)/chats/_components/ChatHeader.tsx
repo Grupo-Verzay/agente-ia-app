@@ -141,7 +141,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   };
 
   const handleCall = () => {
-    toast.info('Próximamente disponible en planes Premium', { duration: 4000 });
+    const digits = (displayedWhatsapp || remoteJid || '').replace(/\D/g, '');
+    if (!digits) {
+      toast.error('No hay número de WhatsApp para llamar.');
+      return;
+    }
+    const phone = `+${digits}`;
+    try { void navigator.clipboard?.writeText(phone); } catch { /* clipboard puede fallar sin HTTPS */ }
+    window.open('https://calls.ia-app.com', 'wacalls', 'width=920,height=720');
+    toast.success(`Número ${phone} copiado. Pégalo en el marcador de AstraCalls y pulsa "Call".`, { duration: 6000 });
   };
 
   const sessionStatusTone = session?.status
