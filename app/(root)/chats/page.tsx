@@ -27,6 +27,13 @@ import {
   sendBaileysWorkflowAction,
   sendBaileysQuickReplyAction,
 } from "@/actions/baileys-chat-actions";
+import {
+  fetchChannelChats,
+  warmChannelMessages,
+  sendChannelTextAction,
+  sendChannelWorkflowAction,
+  sendChannelQuickReplyAction,
+} from "@/actions/channel-chat-actions";
 import { getInstancesByUserId } from "@/actions/instances-actions";
 import { getLinkedAccountsInstances, getMasterAccountInstances } from "@/actions/linked-account-actions";
 import { assignSessionToAdvisor, takeSession, releaseSession, transferSession } from "@/actions/advisor-assign-actions";
@@ -360,6 +367,25 @@ export default async function ChatsPage({
           : refetchChatsManualAction.bind(null, instActionCtx),
       } satisfies InstanceActionSet;
     });
+  }
+
+  // Canales que viven en el store unificado (Telegram, Meta). Se agregan SIEMPRE,
+  // independientemente de fetchPlans (que solo cubre Evolution/Baileys), para que
+  // sus conversaciones se puedan abrir y responder desde la misma bandeja.
+  const channelInstances = instancias.filter(
+    (inst) => inst.instanceType === "meta" || inst.instanceType === "telegram",
+  );
+  for (const inst of channelInstances) {
+    if (instanceActionSets.some((s) => s.instanceName === inst.instanceName)) continue;
+    instanceActionSets.push({
+      instanceName: inst.instanceName,
+      instanceType: inst.instanceType ?? undefined,
+      warmMessages: warmChannelMessages.bind(null, inst.instanceName),
+      sendText: sendChannelTextAction.bind(null, inst.instanceName),
+      sendWorkflow: sendChannelWorkflowAction.bind(null, inst.instanceName),
+      sendQuickReply: sendChannelQuickReplyAction.bind(null, inst.instanceName),
+      refetchChats: fetchChannelChats.bind(null, inst.instanceName),
+    } satisfies InstanceActionSet);
   }
 
   const isBaileys = whatsappInstancia?.instanceType === "baileys";
