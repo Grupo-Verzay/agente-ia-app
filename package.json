@@ -72,6 +72,7 @@
     "next-auth": "^5.0.0-beta.19",
     "next-themes": "^0.3.0",
     "openai": "^6.24.0",
+    "qrcode.react": "^4.2.0",
     "qs": "^6.14.0",
     "react": "^18",
     "react-day-picker": "^8.10.1",
