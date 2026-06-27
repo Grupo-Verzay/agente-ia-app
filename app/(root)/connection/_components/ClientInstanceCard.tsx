@@ -97,14 +97,16 @@ export const ClientInstanceCard = ({
     <>
       <Card className="border-border flex-1">
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>{intanceName}</CardTitle>
-            <ConnectionActions
-              handleDelete={() => setShowDeleteDialog(true)}
-              handleRename={() => setShowRenameDialog(true)}
-              handleRecreate={instanceType === 'Whatsapp' ? () => setShowRecreateDialog(true) : undefined}
-              handlePrompt={instanceType !== 'Whatsapp' ? () => setShowPromptDialog(true) : undefined}
-            />
+          <div className="flex justify-between items-center gap-2">
+            <CardTitle className="min-w-0 truncate" title={intanceName ?? ''}>{intanceName}</CardTitle>
+            <div className="shrink-0">
+              <ConnectionActions
+                handleDelete={() => setShowDeleteDialog(true)}
+                handleRename={() => setShowRenameDialog(true)}
+                handleRecreate={instanceType === 'Whatsapp' ? () => setShowRecreateDialog(true) : undefined}
+                handlePrompt={instanceType !== 'Whatsapp' ? () => setShowPromptDialog(true) : undefined}
+              />
+            </div>
           </div>
         </CardHeader>
 
