@@ -112,7 +112,7 @@ export const ConnectionMain = ({
           checkNameAvailable={checkNameAvailable}
         />
       )}
-      <CallLinkCard />
+      {instanceType === 'Whatsapp' && <CallLinkCard />}
     </div>
   );
 };
