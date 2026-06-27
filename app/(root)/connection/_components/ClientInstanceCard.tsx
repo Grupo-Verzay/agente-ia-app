@@ -118,8 +118,9 @@ export const ClientInstanceCard = ({
           <div className="flex items-center gap-3">
             {instanceType === 'Whatsapp' && (<>
               <Avatar className="rounded-lg">
-                {profilePicUrl && <AvatarImage src={profilePicUrl} alt={intanceName ?? ''} />}
-                <AvatarFallback className="rounded-lg">{userInitial}</AvatarFallback>
+                <AvatarFallback className="rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
+                  <MessageCircle className="h-4 w-4" />
+                </AvatarFallback>
               </Avatar>
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{intanceName}</div>
