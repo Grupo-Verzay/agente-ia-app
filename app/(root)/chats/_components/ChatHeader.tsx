@@ -372,6 +372,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <Power className="h-3.5 w-3.5" />
               </Button>
 
+              {/* Llamar por WhatsApp */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 rounded-full bg-green-100 dark:bg-green-950/40 text-green-600 hover:bg-green-200 dark:hover:bg-green-900/50"
+                onClick={handleCall}
+                title="Llamar por WhatsApp"
+              >
+                <Phone className="h-3.5 w-3.5" />
+              </Button>
+
               {sessionActions}
 
               {/* Separador */}
