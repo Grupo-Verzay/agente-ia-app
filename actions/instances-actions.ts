@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { z } from "zod";
 import { Instancia } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "crypto";
 
 const getInstancesSchema = z.object({
   userId: z.string().min(1, "El userId es obligatorio"),
@@ -405,6 +406,173 @@ export async function deleteMetaInstance(
   } catch (error: any) {
     console.error('[deleteMetaInstance]', error);
     return { success: false, message: 'Error al eliminar la instancia.' };
+  }
+}
+
+/* ─── Telegram Bot API instances ───────────────────────────── */
+
+const TELEGRAM_API = 'https://api.telegram.org';
+
+/** Valida el bot token contra getMe y devuelve el username del bot. */
+async function telegramGetMe(
+  botToken: string,
+): Promise<{ ok: boolean; username?: string; message?: string }> {
+  try {
+    const res = await fetch(`${TELEGRAM_API}/bot${botToken}/getMe`, { cache: 'no-store' });
+    const json = await res.json();
+    if (!json?.ok) {
+      return { ok: false, message: json?.description ?? 'Token inválido.' };
+    }
+    return { ok: true, username: json.result?.username };
+  } catch {
+    return { ok: false, message: 'No se pudo contactar a Telegram.' };
+  }
+}
+
+/** Registra el webhook del bot apuntando a nuestro backend. */
+async function telegramSetWebhook(
+  botToken: string,
+  instanceName: string,
+  secretToken: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const backendUrl = process.env.BACKEND_URL?.replace(/\/$/, '');
+  if (!backendUrl) {
+    return { ok: false, message: 'BACKEND_URL no configurado en el servidor.' };
+  }
+  const webhookUrl = `${backendUrl}/webhook/telegram/${encodeURIComponent(instanceName)}`;
+  try {
+    const res = await fetch(`${TELEGRAM_API}/bot${botToken}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: webhookUrl,
+        secret_token: secretToken,
+        allowed_updates: ['message', 'edited_message'],
+      }),
+      cache: 'no-store',
+    });
+    const json = await res.json();
+    if (!json?.ok) return { ok: false, message: json?.description ?? 'No se pudo configurar el webhook.' };
+    return { ok: true };
+  } catch {
+    return { ok: false, message: 'No se pudo configurar el webhook en Telegram.' };
+  }
+}
+
+export async function createTelegramInstance(params: {
+  instanceName: string;
+  userId: string;
+  botToken: string;
+}): Promise<{ success: boolean; message: string }> {
+  const { instanceName, userId, botToken } = params;
+  if (!instanceName || !userId || !botToken) {
+    return { success: false, message: 'Nombre y Bot Token son requeridos.' };
+  }
+
+  // 1. Validar el token con Telegram
+  const me = await telegramGetMe(botToken.trim());
+  if (!me.ok) {
+    return { success: false, message: me.message ?? 'Bot Token inválido.' };
+  }
+
+  // 2. Secret token para validar los webhooks entrantes
+  const secretToken = randomUUID().replace(/-/g, '');
+
+  try {
+    await db.instancia.create({
+      data: {
+        instanceName,
+        instanceType: 'telegram',
+        userId,
+        instanceId: `telegram-${me.username ?? instanceName}`,
+        metaAccessToken: botToken.trim(),
+        metaVerifyToken: secretToken,
+        metaChannel: 'telegram',
+        metaPhoneNumberId: me.username ?? null,
+      } as any,
+    });
+  } catch (error: any) {
+    console.error('[createTelegramInstance]', error);
+    return { success: false, message: error?.message ?? 'Error al crear la instancia de Telegram.' };
+  }
+
+  // 3. Configurar el webhook automáticamente
+  const hook = await telegramSetWebhook(botToken.trim(), instanceName, secretToken);
+
+  revalidatePath('/connection');
+
+  if (!hook.ok) {
+    return {
+      success: true,
+      message: `Bot @${me.username ?? ''} conectado, pero el webhook no se configuró: ${hook.message ?? ''}`,
+    };
+  }
+  return { success: true, message: `Bot @${me.username ?? ''} conectado y webhook configurado.` };
+}
+
+export async function updateTelegramInstance(params: {
+  instanceName: string;
+  botToken: string;
+}): Promise<{ success: boolean; message: string }> {
+  const { instanceName, botToken } = params;
+  if (!instanceName || !botToken) {
+    return { success: false, message: 'Bot Token requerido.' };
+  }
+
+  const me = await telegramGetMe(botToken.trim());
+  if (!me.ok) {
+    return { success: false, message: me.message ?? 'Bot Token inválido.' };
+  }
+
+  const secretToken = randomUUID().replace(/-/g, '');
+
+  try {
+    await db.instancia.updateMany({
+      where: { instanceName },
+      data: {
+        metaAccessToken: botToken.trim(),
+        metaVerifyToken: secretToken,
+        metaPhoneNumberId: me.username ?? null,
+      } as any,
+    });
+  } catch (error: any) {
+    console.error('[updateTelegramInstance]', error);
+    return { success: false, message: 'Error al actualizar el token.' };
+  }
+
+  const hook = await telegramSetWebhook(botToken.trim(), instanceName, secretToken);
+  revalidatePath('/connection');
+
+  if (!hook.ok) {
+    return { success: true, message: `Token actualizado, pero el webhook no se configuró: ${hook.message ?? ''}` };
+  }
+  return { success: true, message: `Token actualizado (@${me.username ?? ''}) y webhook reconfigurado.` };
+}
+
+export async function deleteTelegramInstance(
+  instanceName: string,
+): Promise<{ success: boolean; message: string }> {
+  if (!instanceName) return { success: false, message: 'Nombre de instancia requerido.' };
+  try {
+    const inst = await db.instancia.findFirst({
+      where: { instanceName, instanceType: 'telegram' },
+      select: { metaAccessToken: true },
+    });
+
+    // Eliminar el webhook en Telegram (best-effort)
+    if (inst?.metaAccessToken) {
+      await fetch(`${TELEGRAM_API}/bot${inst.metaAccessToken}/deleteWebhook`, {
+        method: 'POST',
+        cache: 'no-store',
+      }).catch(() => {});
+    }
+
+    await db.instancia.deleteMany({ where: { instanceName } });
+    revalidatePath('/connection');
+    return { success: true, message: 'Bot de Telegram desconectado.' };
+  } catch (error: any) {
+    console.error('[deleteTelegramInstance]', error);
+    return { success: false, message: 'Error al desconectar el bot.' };
   }
 }
 

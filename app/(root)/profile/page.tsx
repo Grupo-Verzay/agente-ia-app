@@ -27,6 +27,7 @@ export interface UserInformationProps {
   countries: any[];
   instancesData: InstancesData;
   metaInstances: Instancia[];
+  telegramInstances: Instancia[];
   autoOpenApiKey?: boolean;
   autoSetup?: boolean;
 }
@@ -93,11 +94,13 @@ const ProfilePage = async ({ searchParams }: { searchParams?: { openApiKey?: str
   };
 
   const metaInstances: Instancia[] = [];
+  const telegramInstances: Instancia[] = [];
 
   // Asignar instancias sin sobrescribir otras
   instancias.forEach((instancia) => {
     const type = instancia.instanceType?.trim();
     if (type === 'meta') { metaInstances.push(instancia); return; }
+    if (type === 'telegram') { telegramInstances.push(instancia); return; }
     const normalized = normalizeType(instancia.instanceType);
     if (!instancesData[normalized].instance) {
       instancesData[normalized].instance = instancia;
@@ -134,7 +137,7 @@ const ProfilePage = async ({ searchParams }: { searchParams?: { openApiKey?: str
 
   return (
     <>
-      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} metaInstances={metaInstances} autoOpenApiKey={searchParams?.openApiKey === 'true'} autoSetup={searchParams?.autoSetup === '1'} />
+      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} metaInstances={metaInstances} telegramInstances={telegramInstances} autoOpenApiKey={searchParams?.openApiKey === 'true'} autoSetup={searchParams?.autoSetup === '1'} />
     </>
   );
 }

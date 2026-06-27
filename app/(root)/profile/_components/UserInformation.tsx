@@ -50,6 +50,8 @@ import { MetaInstanceCard } from "../../connection/_components/MetaInstanceCard"
 import { MetaInstanceCreator } from "../../connection/_components/MetaInstanceCreator";
 import { FacebookInstanceCreator } from "../../connection/_components/FacebookInstanceCreator";
 import { InstagramInstanceCreator } from "../../connection/_components/InstagramInstanceCreator";
+import { TelegramInstanceCreator } from "../../connection/_components/TelegramInstanceCreator";
+import { TelegramInstanceCard } from "../../connection/_components/TelegramInstanceCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -187,7 +189,7 @@ const CardLabel = ({ icon: Icon, children }: { icon: React.ElementType; children
 );
 
 // ── Main component ────────────────────────────────────────────────────────────
-export const UserInformation = ({ userId, countries, instancesData, metaInstances, autoOpenApiKey, autoSetup }: UserInformationProps) => {
+export const UserInformation = ({ userId, countries, instancesData, metaInstances, telegramInstances, autoOpenApiKey, autoSetup }: UserInformationProps) => {
     const reseller = useResellerStore((state) => state.reseller);
 
     const [user, setUser] = useState<(UserWithPausar & { openMsg?: string })>();
@@ -663,6 +665,17 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                         instanceType={"Instagram"}
                                         prompts={instancesData["Instagram"].prompts}
                                     />
+                                )}
+                                {telegramInstances.length > 0 ? (
+                                    telegramInstances.map((inst) => (
+                                        <TelegramInstanceCard
+                                            key={inst.instanceName}
+                                            instanceName={inst.instanceName}
+                                            botUsername={(inst as any).metaPhoneNumberId ?? null}
+                                        />
+                                    ))
+                                ) : (
+                                    <TelegramInstanceCreator userId={userId} company={user?.company as string} />
                                 )}
                             </div>
                         </TabPanel>

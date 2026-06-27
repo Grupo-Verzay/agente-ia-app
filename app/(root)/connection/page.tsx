@@ -12,6 +12,8 @@ import { MetaInstanceCard } from "./_components/MetaInstanceCard";
 import { MetaInstanceCreator } from "./_components/MetaInstanceCreator";
 import { FacebookInstanceCreator } from "./_components/FacebookInstanceCreator";
 import { InstagramInstanceCreator } from "./_components/InstagramInstanceCreator";
+import { TelegramInstanceCreator } from "./_components/TelegramInstanceCreator";
+import { TelegramInstanceCard } from "./_components/TelegramInstanceCard";
 
 // Tipo de la respuesta esperada
 interface ActionResponse<T> {
@@ -33,7 +35,7 @@ function hasPrompts(result: { data?: PromptInstance[] | null }): result is { dat
 
 // 🔹 Normaliza el tipo (null/undefined -> "Desconocido")
 const normalizeType = (t?: string | null): string => {
-    const valid = ["Whatsapp", "Instagram", "Facebook", "baileys", "meta"];
+    const valid = ["Whatsapp", "Instagram", "Facebook", "baileys", "meta", "telegram"];
     if (!t) return "Desconocido";
     const normalized = t.trim();
     return valid.includes(normalized) ? normalized : "Desconocido";
@@ -76,12 +78,17 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
     const metaWhatsappInstances: Instancia[] = [];
     const metaFacebookInstances: Instancia[] = [];
     const metaInstagramInstances: Instancia[] = [];
+    const telegramInstances: Instancia[] = [];
 
     // Asignar instancias sin interferir entre tipos
     instancias.forEach(instancia => {
         const type = normalizeType(instancia.instanceType);
         if (type === 'baileys') {
             baileysInstances.push(instancia);
+            return;
+        }
+        if (type === 'telegram') {
+            telegramInstances.push(instancia);
             return;
         }
         if (type === 'meta') {
@@ -161,9 +168,19 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
                     pageId={(inst as any).metaPageId ?? ''}
                 />
             ))}
+            {telegramInstances.map((inst) => (
+                <TelegramInstanceCard
+                    key={inst.instanceName}
+                    instanceName={inst.instanceName}
+                    botUsername={(inst as any).metaPhoneNumberId ?? null}
+                />
+            ))}
             <MetaInstanceCreator userId={effectiveId} company={user.company as string} />
             <FacebookInstanceCreator userId={effectiveId} company={user.company as string} />
             <InstagramInstanceCreator userId={effectiveId} company={user.company as string} />
+            {telegramInstances.length === 0 && (
+                <TelegramInstanceCreator userId={effectiveId} company={user.company as string} />
+            )}
         </div>
     );
 };
