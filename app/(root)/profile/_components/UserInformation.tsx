@@ -52,6 +52,10 @@ import { FacebookInstanceCreator } from "../../connection/_components/FacebookIn
 import { InstagramInstanceCreator } from "../../connection/_components/InstagramInstanceCreator";
 import { TelegramInstanceCreator } from "../../connection/_components/TelegramInstanceCreator";
 import { TelegramInstanceCard } from "../../connection/_components/TelegramInstanceCard";
+import { LockedChannelCard } from "../../connection/_components/LockedChannelCard";
+import { FaWhatsapp, FaTelegramPlane } from "react-icons/fa";
+import { Phone } from "lucide-react";
+import { sanitizeInstanceName } from "@/schema/connection";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -607,29 +611,55 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     prompts={instancesData["Whatsapp"].prompts}
                                     autoCreate={autoSetup && !instancesData["Whatsapp"].instance}
                                 />
-                                <CallLinkCard />
-                                {metaInstances
-                                    .filter((inst) => ((inst as any).metaChannel ?? 'whatsapp') === 'whatsapp')
-                                    .map((inst) => (
-                                        <MetaInstanceCard
-                                            key={inst.instanceName}
-                                            instanceName={inst.instanceName}
-                                            metaChannel="whatsapp"
-                                            phoneNumberId={(inst as any).metaPhoneNumberId ?? ''}
-                                            wabaId={(inst as any).metaWabaId}
-                                        />
-                                    ))}
-                                <MetaInstanceCreator userId={userId} company={user?.company as string} />
-                                {telegramInstances.length > 0 ? (
-                                    telegramInstances.map((inst) => (
-                                        <TelegramInstanceCard
-                                            key={inst.instanceName}
-                                            instanceName={inst.instanceName}
-                                            botUsername={(inst as any).metaPhoneNumberId ?? null}
-                                        />
-                                    ))
+                                {user?.onCalls ? (
+                                    <CallLinkCard />
                                 ) : (
-                                    <TelegramInstanceCreator userId={userId} company={user?.company as string} />
+                                    <LockedChannelCard
+                                        icon={<Phone className="w-6 h-6 text-green-600" />}
+                                        title="Llamadas WhatsApp"
+                                        instanceName={sanitizeInstanceName(user?.company ?? userId ?? '')}
+                                    />
+                                )}
+                                {user?.onWhatsappCloud ? (
+                                    <>
+                                        {metaInstances
+                                            .filter((inst) => ((inst as any).metaChannel ?? 'whatsapp') === 'whatsapp')
+                                            .map((inst) => (
+                                                <MetaInstanceCard
+                                                    key={inst.instanceName}
+                                                    instanceName={inst.instanceName}
+                                                    metaChannel="whatsapp"
+                                                    phoneNumberId={(inst as any).metaPhoneNumberId ?? ''}
+                                                    wabaId={(inst as any).metaWabaId}
+                                                />
+                                            ))}
+                                        <MetaInstanceCreator userId={userId} company={user?.company as string} />
+                                    </>
+                                ) : (
+                                    <LockedChannelCard
+                                        icon={<FaWhatsapp className="w-6 h-6 text-green-500" />}
+                                        title="WhatsApp Cloud API"
+                                        instanceName={sanitizeInstanceName(user?.company ?? userId ?? '')}
+                                    />
+                                )}
+                                {user?.onTelegram ? (
+                                    telegramInstances.length > 0 ? (
+                                        telegramInstances.map((inst) => (
+                                            <TelegramInstanceCard
+                                                key={inst.instanceName}
+                                                instanceName={inst.instanceName}
+                                                botUsername={(inst as any).metaPhoneNumberId ?? null}
+                                            />
+                                        ))
+                                    ) : (
+                                        <TelegramInstanceCreator userId={userId} company={user?.company as string} />
+                                    )
+                                ) : (
+                                    <LockedChannelCard
+                                        icon={<FaTelegramPlane className="w-6 h-6" style={{ color: '#229ED9' }} />}
+                                        title="Mensajería Telegram"
+                                        instanceName={`${sanitizeInstanceName(user?.company ?? userId ?? '')}_tg`}
+                                    />
                                 )}
                                 {user?.onFacebook ? (
                                     <>

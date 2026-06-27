@@ -631,6 +631,9 @@ model User {
   productLimit                       Int?
   onFacebook                         Boolean                      @default(false)
   onInstagram                        Boolean                      @default(false)
+  onTelegram                         Boolean                      @default(false)
+  onWhatsappCloud                    Boolean                      @default(false) @map("on_whatsapp_cloud")
+  onCalls                            Boolean                      @default(false) @map("on_calls")
   aiModelId                          String?
   defaultAiModelId                   String?
   defaultProviderId                  String?
