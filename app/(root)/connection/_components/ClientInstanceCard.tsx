@@ -135,11 +135,11 @@ export const ClientInstanceCard = ({
             {(instanceType != 'Whatsapp') && (isActive ? 'Activo 🟢' : 'Desactivado 🔴')}
           </div>
 
-          <div className="mt-auto flex items-center justify-between pt-4 text-xs flex-col gap-2">
-            <div className="flex flex-1 justify-end gap-1 items-center flex-row w-full">
-              {instanceType === 'Whatsapp' && (
-                <>
-                  <QRCodeGenerator userId={user.id} />
+          <div className="mt-auto grid grid-cols-2 items-stretch gap-2 pt-4">
+            {instanceType === 'Whatsapp' && (
+              <>
+                <div className="[&_button]:w-full"><QRCodeGenerator userId={user.id} /></div>
+                <div className="[&_button]:w-full">
                   <EnableToggleButton
                     userId={user.id}
                     userName={user.name}
@@ -147,9 +147,9 @@ export const ClientInstanceCard = ({
                     apikey={user.apiKeyId as string}
                     webhookUrl={user?.webhookUrl ?? 'https://backend.ia-app.com/webhook'}
                   />
-                </>
-              )}
-            </div>
+                </div>
+              </>
+            )}
           </div>
         </CardContent>
 

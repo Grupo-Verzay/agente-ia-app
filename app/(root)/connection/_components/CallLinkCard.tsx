@@ -147,12 +147,12 @@ export function CallLinkCard() {
             </p>
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-1 flex-col gap-2">
             <p className="text-xs text-muted-foreground">
               Vincula tu número para hacer llamadas de voz por WhatsApp desde los chats.
             </p>
             <Button
-              className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
+              className="mt-auto w-full gap-2 bg-green-600 text-white hover:bg-green-700"
               onClick={startPairing}
               disabled={pairing}
             >
