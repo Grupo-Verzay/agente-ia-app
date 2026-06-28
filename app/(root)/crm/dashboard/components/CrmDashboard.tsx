@@ -16,7 +16,10 @@ import {
     Users,
     Wallet,
     Kanban,
+    Phone,
     PhoneCall,
+    PhoneOutgoing,
+    PhoneMissed,
     X,
 } from "lucide-react";
 import type { RegistrosFilters } from "@/actions/registro-action";
@@ -32,6 +35,16 @@ import { AnalyticsView } from "./AnalyticsView";
 import { KanbanBoard } from "../../kanban/_components/KanbanBoard";
 import { WeeklyReportsView, type ReportStats } from "./WeeklyReportsView";
 import { CallsCrmClient } from "../../llamadas/_components/CallsCrmClient";
+import type { CallsKpis } from "@/actions/calls-crm-actions";
+
+const fmtCallDuration = (secs: number) => {
+    if (!secs) return "—";
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+};
 
 const ANALYTICS_PERIODS: { label: string; value: AnalyticsPeriod }[] = [
     { label: "7 días", value: "7d" },
@@ -99,6 +112,7 @@ export const CrmDashboard = ({
     const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreRangeKey>>(new Set());
     const [scoreCounts, setScoreCounts] = useState<Record<string, number>>({});
     const [reportStats, setReportStats] = useState<ReportStats>({ total: 0, sent: 0, avgLeads: 0, avgConversions: 0 });
+    const [callKpis, setCallKpis] = useState<CallsKpis | undefined>(undefined);
 
     const toggleScoreRange = (key: ScoreRangeKey) => {
         setSelectedScoreRanges(new Set([key]));
@@ -172,9 +186,23 @@ export const CrmDashboard = ({
         <TooltipProvider delayDuration={120}>
             <div className="flex h-full min-h-0 min-w-0 w-full flex-col gap-2 overflow-hidden">
                 {/* Metric Cards */}
-                {viewMode !== "llamadas" && (
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
-                    {viewMode === "reportes" ? (
+                    {viewMode === "llamadas" ? (
+                        <>
+                            <div className="min-w-0 sm:flex-1">
+                                <MetricCard icon={<Phone className="h-4 w-4" />} label="Total" value={callKpis?.total ?? 0} helper={`Duración total ${fmtCallDuration(callKpis?.totalDurationSecs ?? 0)}`} color="#3B82F6" />
+                            </div>
+                            <div className="min-w-0 sm:flex-1">
+                                <MetricCard icon={<PhoneOutgoing className="h-4 w-4" />} label="Salientes" value={callKpis?.outgoing ?? 0} helper="Llamadas realizadas desde el panel" color="#22C55E" />
+                            </div>
+                            <div className="min-w-0 sm:flex-1">
+                                <MetricCard icon={<PhoneMissed className="h-4 w-4" />} label="Entrantes" value={callKpis?.incoming ?? 0} helper="Llamadas recibidas / perdidas" color="#EF4444" />
+                            </div>
+                            <div className="min-w-0 sm:flex-1">
+                                <MetricCard icon={<PhoneCall className="h-4 w-4" />} label="Contestadas" value={callKpis?.answered ?? 0} helper={`Duración promedio ${fmtCallDuration(callKpis?.avgDurationSecs ?? 0)}`} color="#8B5CF6" />
+                            </div>
+                        </>
+                    ) : viewMode === "reportes" ? (
                         <>
                             <div className="min-w-0 sm:flex-1">
                                 <MetricCard icon={<FileText className="h-4 w-4" />} label="Total reportes" value={reportStats.total} helper="Últimos 12 guardados" color="#3B82F6" />
@@ -308,7 +336,6 @@ export const CrmDashboard = ({
                         </>
                     )}
                 </div>
-                )}
 
                 {/* View toggle + period selector + actions */}
                 <div className="flex flex-wrap items-center gap-2">
@@ -493,7 +520,7 @@ export const CrmDashboard = ({
                     </div>
                 ) : viewMode === "llamadas" ? (
                     <div className="flex-1 min-h-0 overflow-y-auto">
-                        <CallsCrmClient embedded />
+                        <CallsCrmClient embedded onKpisChange={setCallKpis} />
                     </div>
                 ) : (
                     <AnalyticsView userId={userId} stats={stats} period={period} />

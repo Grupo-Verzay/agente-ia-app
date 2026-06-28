@@ -27,7 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { getCallsCrmData, type CallsCrmData, type CallRow } from '@/actions/calls-crm-actions';
+import { getCallsCrmData, type CallsCrmData, type CallRow, type CallsKpis } from '@/actions/calls-crm-actions';
 import { MetricCard } from '@/components/custom/MetricCard';
 import { CallDialog } from '../../../chats/_components/CallDialog';
 
@@ -59,7 +59,10 @@ const DATE_FMT = new Intl.DateTimeFormat('es-CO', {
   minute: '2-digit',
 });
 
-export function CallsCrmClient({ embedded = false }: { embedded?: boolean } = {}) {
+export function CallsCrmClient({
+  embedded = false,
+  onKpisChange,
+}: { embedded?: boolean; onKpisChange?: (kpis: CallsKpis | undefined) => void } = {}) {
   const [data, setData] = useState<CallsCrmData | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
@@ -82,6 +85,9 @@ export function CallsCrmClient({ embedded = false }: { embedded?: boolean } = {}
   useEffect(() => { load(); }, [load]);
 
   const kpis = data?.kpis;
+
+  // En modo embebido las 4 tarjetas se pintan en el slot superior del dashboard.
+  useEffect(() => { onKpisChange?.(kpis); }, [kpis, onKpisChange]);
 
   const pieData = useMemo(
     () => [
@@ -165,7 +171,8 @@ export function CallsCrmClient({ embedded = false }: { embedded?: boolean } = {}
         </CardContent>
       </Card>
 
-      {/* KPIs (4 tarjetas estándar) */}
+      {/* KPIs (4 tarjetas estándar) — en modo embebido van en el slot superior del dashboard */}
+      {!embedded && (
       <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
         <div className="min-w-0 sm:flex-1">
           <MetricCard
@@ -204,6 +211,7 @@ export function CallsCrmClient({ embedded = false }: { embedded?: boolean } = {}
           />
         </div>
       </div>
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
