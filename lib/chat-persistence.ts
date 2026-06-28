@@ -307,13 +307,19 @@ function inboxRowToChat(row: InboxRow): ChatData {
       }
     : null;
 
+  // Indicador de "pendiente de responder" para canales del store unificado
+  // (Telegram/Meta): 1 si el último mensaje es del cliente. WhatsApp/Baileys
+  // conservan su comportamiento (0) para no alterar su flujo de no-leídos.
+  const isUnifiedChannel = row.instanceType === 'telegram' || row.instanceType === 'meta';
+  const unreadCount = isUnifiedChannel && row.fromMe === false ? 1 : 0;
+
   return {
     id: String(row.sessionId),
     remoteJid: row.remoteJid,
     remoteJidAlt: row.remoteJidAlt,
     pushName: row.pushName,
     profilePicUrl: null,
-    unreadCount: 0,
+    unreadCount,
     updatedAt: timestamp.toISOString(),
     lastMessage,
     instanceName: row.instanceName,

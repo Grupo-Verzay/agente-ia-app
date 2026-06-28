@@ -82,7 +82,43 @@ export async function sendChannelTextAction(
 ): Promise<SendMessageResult> {
   try {
     if (payload.kind === 'media') {
-      return { success: false, message: 'El envío manual de multimedia aún no está disponible para este canal.', remoteJid };
+      const res = await fetch(
+        `${backendUrl()}/whatsapp/baileys/send-media-channel/${encodeURIComponent(instanceName)}`,
+        {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            remoteJid,
+            mediatype: payload.mediatype,
+            mediaUrl: payload.mediaUrl,
+            mimetype: payload.mimetype,
+            fileName: payload.fileName,
+            caption: payload.caption,
+            ptt: payload.ptt ?? false,
+          }),
+          cache: 'no-store',
+        },
+      );
+      if (!res.ok) {
+        const reason = await res.json().then((j) => j?.message).catch(() => null);
+        return { success: false, message: typeof reason === 'string' && reason ? reason : `Error ${res.status} al enviar.`, remoteJid };
+      }
+      const publicUrl = await res.json().then((j) => j?.mediaUrl).catch(() => null);
+      const owner = await resolveInstanceOwner(instanceName);
+      if (owner?.userId) {
+        await persistChatMessage({
+          userId: owner.userId,
+          instanceName,
+          instanceType: owner.instanceType ?? undefined,
+          remoteJid,
+          fromMe: true,
+          messageType: `${String(payload.mediatype ?? 'media')}Message`,
+          content: String(payload.caption ?? payload.fileName ?? '[Media]'),
+          mediaUrl: typeof publicUrl === 'string' ? publicUrl : (typeof payload.mediaUrl === 'string' ? payload.mediaUrl : null),
+          messageTimestamp: new Date(),
+        });
+      }
+      return { success: true, message: 'Enviado.', remoteJid };
     }
     const text = (payload.text ?? '').trim();
     if (!text) return { success: false, message: 'Mensaje vacío.', remoteJid };
