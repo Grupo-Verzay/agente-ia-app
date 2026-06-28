@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getInstances, generateQRCode } from '@/actions/api-action';
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, QrCode, CheckCircle } from "lucide-react";
+import { QrScanDialog } from "@/components/shared/QrScanDialog";
+import { QrCode } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from 'next/navigation';
 import { Skeleton } from './ui/skeleton';
@@ -129,12 +129,6 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorComponentProps> = ({ userId }) =>
         };
     }, [fetchQRCode, userId]);
 
-    const handleBackdropClick = (event: React.MouseEvent) => {
-        if (event.currentTarget === event.target) {
-            setIsModalOpen(false);
-        }
-    };
-
     return (
         <>
             {loading ? (
@@ -155,68 +149,40 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorComponentProps> = ({ userId }) =>
                 </Button>
             )}
 
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent onClick={handleBackdropClick} className="border-border">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <QrCode className="w-5 h-5" />
-                            {isApiDisconnected
-                                ? "API de Evolution desconectada"
-                                : isWhatsappConnected
-                                    ? "¡Conexión exitosa!"
-                                    : "Escanea el código QR"}
-                        </DialogTitle>
-                        <DialogDescription>
-                            {isApiDisconnected
-                                ? "Revisa tu configuración (token, instancia, credenciales) para restablecer la conexión."
-                                : isWhatsappConnected
-                                    ? "Ya puedes usar la integración con WhatsApp."
-                                    : "Sigue las instrucciones antes de escanear el código QR."}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    {loading && (
-                        <div className="flex items-center justify-center">
-                            <Loader2 className="animate-spin w-6 h-6" />
-                        </div>
-                    )}
-
-                    {error && !loading && (
-                        <p className="text-sm text-red-500">{error}</p>
-                    )}
-
-                    {!error && !loading && (
-                        <>
-                            {isWhatsappConnected ? (
-                                <div className="flex flex-col items-center gap-2">
-                                    <CheckCircle className="w-10 h-10 text-green-500" />
-                                    <p className="text-green-600 font-medium">WhatsApp conectado correctamente</p>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center">
-                                    {qrCode && (
-                                        <Image
-                                            src={qrCode}
-                                            alt="Código QR"
-                                            width={224}
-                                            height={224}
-                                            className="mx-auto rounded-lg border"
-                                        />
-                                    )}
-                                    <div className="mt-4 text-left space-y-2 text-sm max-w-sm">
-                                        <h3 className="font-semibold text-base">🤚 Lee antes de escanear:</h3>
-                                        <ul className="list-decimal list-inside space-y-1">
-                                            <li>Abre <span className="font-bold">WhatsApp Business</span> en tu teléfono.</li>
-                                            <li>Toca <span className="font-bold">Dispositivos vinculados</span> &gt; vincular un <span className="font-bold">dispositivo</span>.</li>
-                                            <li>Apunta la <span className="font-bold">cámara</span> para escanear el <span className="font-bold">QR</span>.</li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            )}
-                        </>
-                    )}
-                </DialogContent>
-            </Dialog>
+            <QrScanDialog
+                open={isModalOpen}
+                onOpenChange={setIsModalOpen}
+                title={
+                    isApiDisconnected
+                        ? "API de Evolution desconectada"
+                        : isWhatsappConnected
+                            ? "¡Conexión exitosa!"
+                            : "Escanea el código QR"
+                }
+                description={
+                    isApiDisconnected
+                        ? undefined
+                        : isWhatsappConnected
+                            ? "Ya puedes usar la integración con WhatsApp."
+                            : "Sigue las instrucciones antes de escanear el código QR."
+                }
+                loading={loading}
+                error={
+                    error
+                        ? error
+                        : isApiDisconnected
+                            ? "Revisa tu configuración (token, instancia, credenciales) para restablecer la conexión."
+                            : null
+                }
+                connected={isWhatsappConnected}
+                connectedText="WhatsApp conectado correctamente"
+                qr={qrCode ? <Image src={qrCode} alt="Código QR" width={200} height={200} /> : undefined}
+                steps={[
+                    <>Abre <span className="font-bold">WhatsApp Business</span> en tu teléfono.</>,
+                    <>Toca <span className="font-bold">Dispositivos vinculados</span> &gt; vincular un <span className="font-bold">dispositivo</span>.</>,
+                    <>Apunta la <span className="font-bold">cámara</span> para escanear el <span className="font-bold">QR</span>.</>,
+                ]}
+            />
         </>
     );
 };

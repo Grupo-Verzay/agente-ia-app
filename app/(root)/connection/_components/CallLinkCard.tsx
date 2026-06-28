@@ -6,7 +6,7 @@ import { Phone, Loader2, RefreshCw, Trash2, QrCode, CheckCircle2, Power } from '
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { QrScanDialog } from '@/components/shared/QrScanDialog';
 import { toast } from 'sonner';
 import {
   getMyCallSession,
@@ -164,32 +164,19 @@ export function CallLinkCard() {
     </Card>
 
       {/* QR en diálogo (fuera de la tarjeta, grande y centrado) */}
-      <Dialog open={qrOpen} onOpenChange={(o) => { if (!o) closeQrDialog(); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Vincular llamadas WhatsApp</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-3 py-2">
-            <p className="max-w-[300px] text-center text-xs text-muted-foreground">
-              En WhatsApp → <b>Dispositivos vinculados</b> → <b>Vincular dispositivo</b>, y escanea este código:
-            </p>
-            {qr ? (
-              <div className="rounded-lg border bg-white p-3">
-                <QRCodeSVG value={qr} size={240} marginSize={1} />
-              </div>
-            ) : (
-              <div className="flex h-[266px] w-[266px] items-center justify-center rounded-lg border bg-muted/30">
-                <span className="flex flex-col items-center gap-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-6 w-6 animate-spin" /> Generando QR…
-                </span>
-              </div>
-            )}
-            <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" /> Esperando escaneo…
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <QrScanDialog
+        open={qrOpen}
+        onOpenChange={(o) => { if (!o) closeQrDialog(); }}
+        title="Vincular llamadas WhatsApp"
+        description="Sigue las instrucciones antes de escanear el código QR."
+        qr={qr ? <QRCodeSVG value={qr} size={200} marginSize={1} /> : undefined}
+        steps={[
+          <>Abre <span className="font-bold">WhatsApp</span> en tu teléfono.</>,
+          <>Toca <span className="font-bold">Dispositivos vinculados</span> &gt; <span className="font-bold">Vincular un dispositivo</span>.</>,
+          <>Apunta la <span className="font-bold">cámara</span> para escanear el <span className="font-bold">QR</span>.</>,
+        ]}
+        waiting
+      />
     </>
   );
 }
