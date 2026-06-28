@@ -557,9 +557,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               {tagsCombobox}
-              {/* 4. Gestión */}
+              {/* 4. Gestión — el toggle de Sesión en PC vive en la barra de escribir (junto a la firma) */}
               {advisorBadge}
-              {sessionToggle}
             </>
           )}
           {onToggleInfoPanel && session && (

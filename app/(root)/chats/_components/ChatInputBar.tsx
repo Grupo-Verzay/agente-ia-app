@@ -12,6 +12,7 @@ import { SafeImage } from '@/components/custom/SafeImage';
 import { AttachmentMenu } from './attachment-menu';
 import { ChatAutomationPicker } from './ChatAutomationPicker';
 import { TemplatePickerDialog } from './TemplatePickerDialog';
+import { SwitchStatus } from '../../sessions/_components';
 import type { MetaTemplateOption } from '@/actions/channel-chat-actions';
 import { cn } from '@/lib/utils';
 import { formatSecs } from './chat-message-utils';
@@ -222,8 +223,10 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   };
 
   // Firma del asesor — se muestra inline en desktop y dentro del menú "+" en móvil.
+  // OJO: se renderiza en 2 lugares (desktop/móvil); el Popover va SIN `open`
+  // controlado para que cada instancia tenga su propio estado y no se peleen.
   const signatureControl = session ? (
-    <Popover open={isPopoverOpen} onOpenChange={handlePopoverOpenChange}>
+    <Popover onOpenChange={handlePopoverOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
@@ -411,9 +414,19 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       {/* Input + botones */}
       <div className="relative flex flex-nowrap items-center gap-2">
         <div className="relative flex flex-nowrap z-10 items-center justify-center">
-          {/* Firma del asesor — inline solo en desktop (en móvil va dentro del menú "+").
-              El estado de la sesión (Activa/Pausada) ahora vive en la ficha de contacto. */}
+          {/* Estado de sesión (Activa/Pausada) + Firma — inline solo en desktop.
+              En móvil el toggle de sesión vive en el header y la firma en el menú "+". */}
           <div className="hidden sm:flex pr-2 items-center gap-1">
+            {session && (
+              <span className="hidden md:flex items-center">
+                <SwitchStatus
+                  key={`${session.id}-${session.status ? 'on' : 'off'}`}
+                  sessionId={session.id ?? -1}
+                  checked={session.status ?? false}
+                  mutateSessions={onSessionMutate}
+                />
+              </span>
+            )}
             {signatureControl}
           </div>
 
