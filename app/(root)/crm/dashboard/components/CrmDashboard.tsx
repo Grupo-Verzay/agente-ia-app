@@ -16,6 +16,7 @@ import {
     Users,
     Wallet,
     Kanban,
+    PhoneCall,
     X,
 } from "lucide-react";
 import type { RegistrosFilters } from "@/actions/registro-action";
@@ -360,6 +361,14 @@ export const CrmDashboard = ({
                         >
                             <FileText className="h-3.5 w-3.5" />
                             Reportes
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => router.push("/crm/llamadas")}
+                            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                            <PhoneCall className="h-3.5 w-3.5" />
+                            Llamadas
                         </button>
                     </div>
 
