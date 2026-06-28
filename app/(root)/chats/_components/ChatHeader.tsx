@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, UserRound, SquarePen, Power, Search } from 'lucide-react';
+import { ArrowRight, ClipboardList, Megaphone, PanelRightClose, PanelRightOpen, PencilLine, Pin, Phone, CheckCircle, LogOut, ChevronDown, UserPlus, UserRound, SquarePen, Search } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,6 @@ import type { Session, SimpleTag } from '@/types/session';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import { AdvisorAssignBadge } from './AdvisorAssignBadge';
 import { SessionTagsCombobox } from '../../tags/components';
-import { updateSessionStatus } from '@/actions/session-action';
 import { LeadStatusSelect } from './LeadStatusSelect';
 import { resolveSession } from '@/actions/advisor-assign-actions';
 import { SintesisEditDialog } from './SintesisEditDialog';
@@ -106,7 +105,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const initialSelectedTagIds = session?.tags?.map((t) => t?.id).filter(Boolean) ?? [];
   const [resolving, setResolving] = useState(false);
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
-  const [sessionStatusLoading, setSessionStatusLoading] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
 
   const isAgent = !!advisorRole;
@@ -342,36 +340,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         {session && mobileToolsOpen && (
           <div className="-mx-2 border-t border-border/30 bg-muted/30">
             <div className="flex items-center justify-between px-2 py-1.5 overflow-x-auto scrollbar-none">
-              {/* Sesión on/off */}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                disabled={sessionStatusLoading}
-                className={cn(
-                  'h-7 w-7 rounded-full shrink-0 transition-colors',
-                  session.status
-                    ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                )}
-                title={session.status ? 'Pausar sesión' : 'Activar sesión'}
-                onClick={async () => {
-                  setSessionStatusLoading(true);
-                  const next = !(session.status ?? false);
-                  const res = await updateSessionStatus(session.id, next);
-                  if (res.success) {
-                    toast.success(next ? 'Sesión activada.' : 'Sesión pausada.');
-                    onSessionMutate();
-                    await onSessionRefresh();
-                  } else {
-                    toast.error(res.message || 'Error al actualizar sesión.');
-                  }
-                  setSessionStatusLoading(false);
-                }}
-              >
-                <Power className="h-3.5 w-3.5" />
-              </Button>
-
               {/* Llamar por WhatsApp */}
               <Button
                 type="button"
@@ -428,16 +396,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
 
               {advisorBadge}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-full shrink-0 hover:bg-muted"
-                onClick={onOpenContactEditor}
-                title="Editar contacto"
-              >
-                <PencilLine className="h-3.5 w-3.5" />
-              </Button>
             </div>
           </div>
         )}
