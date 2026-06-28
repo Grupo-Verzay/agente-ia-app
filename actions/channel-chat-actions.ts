@@ -96,7 +96,15 @@ export async function sendChannelTextAction(
         cache: 'no-store',
       },
     );
-    if (!res.ok) return { success: false, message: `Error ${res.status} al enviar.`, remoteJid };
+    if (!res.ok) {
+      // El backend devuelve un motivo legible (p.ej. fuera de la ventana de 24h de Meta).
+      const reason = await res.json().then((j) => j?.message).catch(() => null);
+      return {
+        success: false,
+        message: typeof reason === 'string' && reason ? reason : `Error ${res.status} al enviar.`,
+        remoteJid,
+      };
+    }
 
     const owner = await resolveInstanceOwner(instanceName);
     if (owner?.userId) {
