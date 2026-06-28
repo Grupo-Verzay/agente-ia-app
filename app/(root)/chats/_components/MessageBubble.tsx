@@ -281,7 +281,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       )}
       {isUserMessage && replyBtn}
       {isUserMessage && contextMenu}
-      <div className={cn('px-2 pt-2 pb-5 break-words relative inline-block max-w-[94%] sm:max-w-[78%] lg:max-w-[72%]', bubbleClass)}>
+      <div className={cn('px-2 pt-2 pb-1.5 break-words relative inline-block max-w-[94%] sm:max-w-[78%] lg:max-w-[72%]', bubbleClass)}>
         {adPreview && (
           <div className={cn(
             'mb-1.5 rounded-lg overflow-hidden border text-xs',
@@ -341,11 +341,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
         {media && <MediaRenderer media={media} />}
         {message && (
-          <div className={cn(contentClass, 'pr-10')}>
+          <div className={contentClass}>
             <ExpandableText message={message} isUserMessage={isUserMessage} />
           </div>
         )}
-        <div className="absolute right-2 bottom-1">{timeAndStatus}</div>
+        {/* Metadatos en flujo normal: la burbuja crece hasta cubrir ícono, nombre y hora */}
+        <div className="flex justify-end mt-0.5">{timeAndStatus}</div>
         {reaction && (
           <span
             className={cn(
