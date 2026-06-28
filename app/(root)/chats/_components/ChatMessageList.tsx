@@ -320,6 +320,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
                   status={item.message.status}
                   kind={item.message.kind}
                   call={item.message.call}
+                  reaction={item.message.reaction}
                   callPhone={callPhone}
                   callContactName={callContactName}
                   quotedMessage={item.message.quotedMessage}

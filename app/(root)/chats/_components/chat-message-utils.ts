@@ -119,7 +119,11 @@ export function toUIMessages(
   avatarUrl: string | undefined,
   base64Map: Map<string, { dataUrl: string; mime: string; length: number }>,
 ): UIBubble[] {
-  return messages.map((m) => {
+  // Reacciones: emoji pegado al mensaje objetivo (estilo WhatsApp). Última gana;
+  // text vacío = reacción removida.
+  const reactions = new Map<string, string>();
+
+  const bubbles = messages.map((m): UIBubble | null => {
     const isUser = m.key?.fromMe === true;
     const sender: 'user' | 'other' = isUser ? 'user' : 'other';
     const ts = m.messageTimestamp;
@@ -128,6 +132,14 @@ export function toUIMessages(
     let kind: UIBubble['kind'];
     let call: UIBubble['call'];
     const messageData = (m.message || {}) as import('@/actions/chat-actions').MessageContent;
+
+    // Las reacciones NO son una burbuja propia: se adjuntan a su mensaje objetivo.
+    if (m.messageType === 'reactionMessage') {
+      const rm = (messageData as Record<string, any>).reactionMessage;
+      const targetId: string | undefined = rm?.key?.id;
+      if (targetId) reactions.set(targetId, (rm?.text as string) ?? '');
+      return null;
+    }
 
     switch (m.messageType) {
       case 'conversation':
@@ -159,10 +171,6 @@ export function toUIMessages(
         kind = 'sticker';
         break;
       }
-      case 'reactionMessage':
-        content = messageData.reactionMessage?.text || '';
-        kind = 'reaction';
-        break;
       case 'call': {
         kind = 'call';
         const callRaw = ((messageData as Record<string, any>).call ?? {}) as {
@@ -217,6 +225,16 @@ export function toUIMessages(
       adPreview,
     };
   });
+
+  const result = bubbles.filter((b): b is UIBubble => b !== null);
+  // Adjunta cada reacción a su mensaje objetivo (si está cargado en la lista).
+  if (reactions.size) {
+    for (const b of result) {
+      const emoji = reactions.get(b.id);
+      if (emoji) b.reaction = emoji;
+    }
+  }
+  return result;
 }
 
 // Re-export cn for convenience in chat components

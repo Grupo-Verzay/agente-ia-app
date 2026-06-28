@@ -72,6 +72,8 @@ interface MessageBubbleProps {
   status?: MessageDeliveryState;
   kind?: UIBubble['kind'];
   call?: UIBubble['call'];
+  /** Emoji de reacción pegado al mensaje (estilo WhatsApp) */
+  reaction?: string;
   /** Teléfono del contacto (solo dígitos) para "devolver llamada" */
   callPhone?: string;
   callContactName?: string;
@@ -94,6 +96,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   status,
   kind,
   call,
+  reaction,
   callPhone,
   callContactName,
   quotedMessage,
@@ -267,7 +270,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   );
 
   return (
-    <div className={cn('flex items-end gap-1 my-1 group', isUserMessage ? 'justify-end' : 'justify-start')}>
+    <div className={cn('flex items-end gap-1 my-1 group', reaction && 'mb-4', isUserMessage ? 'justify-end' : 'justify-start')}>
       {showAvatar && (
         <div className="mr-1">
           <Avatar className="w-7 h-7">
@@ -343,6 +346,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         )}
         <div className="absolute right-2 bottom-1">{timeAndStatus}</div>
+        {reaction && (
+          <span
+            className={cn(
+              'absolute -bottom-3.5 z-10 flex items-center justify-center rounded-full border border-gray-200 bg-white px-1 py-0.5 text-sm leading-none shadow-sm dark:border-gray-600 dark:bg-gray-700',
+              isUserMessage ? 'right-2' : 'left-2',
+            )}
+            role="img"
+            aria-label="Reacción"
+          >
+            {reaction}
+          </span>
+        )}
       </div>
       {!isUserMessage && replyBtn}
       {!isUserMessage && contextMenu}
