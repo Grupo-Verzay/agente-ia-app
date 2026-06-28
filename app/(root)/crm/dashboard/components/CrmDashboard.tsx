@@ -31,6 +31,7 @@ import { CrmRecordsSection } from "./records-table/CrmRecordsSection";
 import { AnalyticsView } from "./AnalyticsView";
 import { KanbanBoard } from "../../kanban/_components/KanbanBoard";
 import { WeeklyReportsView, type ReportStats } from "./WeeklyReportsView";
+import { CallsCrmClient } from "../../llamadas/_components/CallsCrmClient";
 
 const ANALYTICS_PERIODS: { label: string; value: AnalyticsPeriod }[] = [
     { label: "7 días", value: "7d" },
@@ -93,7 +94,7 @@ export const CrmDashboard = ({
     initialView?: "registros" | "analiticas" | "kanban" | "reportes";
 }) => {
     const router = useRouter();
-    const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban" | "reportes">(initialView ?? "analiticas");
+    const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban" | "reportes" | "llamadas">(initialView ?? "analiticas");
     const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
     const [selectedScoreRanges, setSelectedScoreRanges] = useState<Set<ScoreRangeKey>>(new Set());
     const [scoreCounts, setScoreCounts] = useState<Record<string, number>>({});
@@ -127,7 +128,7 @@ export const CrmDashboard = ({
     };
 
     const { data: analyticsData, isLoading: analyticsLoading } = useSWR(
-        viewMode !== "registros" && viewMode !== "reportes"
+        viewMode !== "registros" && viewMode !== "reportes" && viewMode !== "llamadas"
             ? ["crm-analytics", userId, viewMode === "kanban" ? "all" : period]
             : null,
         ([, uid, p]) => getAnalyticsDataByUserId(uid, p as AnalyticsPeriod)
@@ -171,6 +172,7 @@ export const CrmDashboard = ({
         <TooltipProvider delayDuration={120}>
             <div className="flex h-full min-h-0 min-w-0 w-full flex-col gap-2 overflow-hidden">
                 {/* Metric Cards */}
+                {viewMode !== "llamadas" && (
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
                     {viewMode === "reportes" ? (
                         <>
@@ -306,6 +308,7 @@ export const CrmDashboard = ({
                         </>
                     )}
                 </div>
+                )}
 
                 {/* View toggle + period selector + actions */}
                 <div className="flex flex-wrap items-center gap-2">
@@ -364,15 +367,20 @@ export const CrmDashboard = ({
                         </button>
                         <button
                             type="button"
-                            onClick={() => router.push("/crm/llamadas")}
-                            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                            onClick={() => setViewMode("llamadas")}
+                            className={[
+                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                viewMode === "llamadas"
+                                    ? "bg-background shadow-sm text-foreground"
+                                    : "text-muted-foreground hover:text-foreground",
+                            ].join(" ")}
                         >
                             <PhoneCall className="h-3.5 w-3.5" />
                             Llamadas
                         </button>
                     </div>
 
-                    {viewMode !== "kanban" && viewMode !== "reportes" && (
+                    {viewMode !== "kanban" && viewMode !== "reportes" && viewMode !== "llamadas" && (
                         <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
                             {ANALYTICS_PERIODS.map((p) => (
                                 <button
@@ -482,6 +490,10 @@ export const CrmDashboard = ({
                         onScrollRootReady={onScrollRootReady}
                         hideDateBadge={period !== "all"}
                     />
+                    </div>
+                ) : viewMode === "llamadas" ? (
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                        <CallsCrmClient />
                     </div>
                 ) : (
                     <AnalyticsView userId={userId} stats={stats} period={period} />
