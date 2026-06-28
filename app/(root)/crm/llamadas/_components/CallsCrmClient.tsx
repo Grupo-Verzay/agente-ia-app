@@ -8,6 +8,7 @@ import {
   PhoneCall,
   Loader2,
   RefreshCw,
+  Search,
 } from 'lucide-react';
 import {
   Bar,
@@ -67,6 +68,7 @@ export function CallsCrmClient({
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
   const [direction, setDirection] = useState<'all' | 'outgoing' | 'incoming'>('all');
+  const [query, setQuery] = useState('');
   const [callTarget, setCallTarget] = useState<{ phone: string; name?: string } | null>(null);
   const [dialNumber, setDialNumber] = useState('');
 
@@ -107,21 +109,44 @@ export function CallsCrmClient({
     [data],
   );
 
+  const visibleCalls = useMemo(() => {
+    const raw = query.trim().toLowerCase();
+    const digits = raw.replace(/\D/g, '');
+    const calls = data?.calls ?? [];
+    if (!raw) return calls;
+    return calls.filter((c) => {
+      const nameHit = (c.contactName ?? '').toLowerCase().includes(raw);
+      const phoneHit = digits.length > 0 && c.phone.includes(digits);
+      return nameHit || phoneHit;
+    });
+  }, [data, query]);
+
   return (
     <div className={cn('flex flex-col gap-3', embedded ? 'h-full' : 'h-full overflow-y-auto p-1 sm:p-2')}>
-      {/* Encabezado / controles */}
-      <div className={cn('flex flex-wrap items-center gap-2', embedded ? 'justify-end' : 'justify-between')}>
-        {!embedded && (
-          <div className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
-              <PhoneCall className="h-5 w-5" />
-            </span>
-            <div>
-              <h1 className="text-lg font-bold leading-tight">Llamadas</h1>
-              <p className="text-xs text-muted-foreground">Registro y métricas de llamadas por WhatsApp</p>
-            </div>
+      {/* Título (solo página independiente) */}
+      {!embedded && (
+        <div className="flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
+            <PhoneCall className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-lg font-bold leading-tight">Llamadas</h1>
+            <p className="text-xs text-muted-foreground">Registro y métricas de llamadas por WhatsApp</p>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Toolbar: buscador + rango de días */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="relative w-full sm:w-72">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por contacto o número..."
+            className="h-9 pl-9"
+          />
+        </div>
         <div className="flex items-center gap-2">
           {/* Rango de días */}
           <div className="flex rounded-lg border border-border p-0.5">
@@ -284,8 +309,10 @@ export function CallsCrmClient({
         <CardContent>
           {loading ? (
             <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-          ) : (data?.calls.length ?? 0) === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">No hay llamadas en este periodo.</p>
+          ) : visibleCalls.length === 0 ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              {query.trim() ? 'No hay llamadas que coincidan con la búsqueda.' : 'No hay llamadas en este periodo.'}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -299,7 +326,7 @@ export function CallsCrmClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {data!.calls.map((c) => (
+                  {visibleCalls.map((c) => (
                     <CallTableRow key={c.id} call={c} onCall={() => setCallTarget({ phone: c.phone, name: c.contactName ?? undefined })} />
                   ))}
                 </tbody>
