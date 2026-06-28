@@ -66,12 +66,8 @@ const ProfilePage = async ({ searchParams }: { searchParams?: { openApiKey?: str
     redirect('/login');
   };
 
-  // Los asesores (sub-cuentas) no acceden a Perfil: toda la configuración
-  // (conexión, instancias, integraciones, etc.) la maneja la cuenta principal.
-  if (user.ownerId) {
-    redirect('/chats');
-  }
-
+  // Los asesores (sub-cuentas) SÍ acceden a Perfil. Usan effectiveId, por lo que
+  // ven/gestionan la configuración (conexión, instancias, etc.) de la cuenta principal.
   const effectiveId = user.effectiveId;
 
   // Obtener instancias, API key y prompts en paralelo

@@ -50,9 +50,7 @@ export function NavMain({ user }: { user: User }) {
         .filter(link => {
             // /equipo solo visible para dueños, nunca para asesores
             if (link.route === '/equipo' && isAdvisor) return false;
-            // /profile (Perfil/Conexión/instancias) nunca para asesores:
-            // toda esa configuración la maneja el dueño de la cuenta principal.
-            if (link.route === '/profile' && isAdvisor) return false;
+            // /profile (Perfil/Conexión/Ajustes) sí es visible para asesores.
             // /panel/mis-planes solo para resellers
             if (link.route === '/panel/mis-planes' && user.role !== 'reseller') return false;
             // /panel y sub-rutas nunca aparecen en sidebar para resellers (van en tabs superiores)
