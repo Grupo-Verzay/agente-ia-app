@@ -340,7 +340,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         {/* Herramientas expandibles — una fila con scroll */}
         {session && mobileToolsOpen && (
           <div className="-mx-2 border-t border-border/30 bg-muted/30">
-            <div className="flex items-center justify-between px-2 py-1.5 overflow-x-auto scrollbar-none">
+            <div className="flex items-center gap-1.5 px-2 py-1.5 overflow-x-auto scrollbar-none">
               {/* 1. Acción directa */}
               <Button
                 type="button"
@@ -352,10 +352,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               >
                 <Phone className="h-3.5 w-3.5" />
               </Button>
-
-              {/* Separador */}
-              <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
-
               {/* 2. CRM / agenda */}
               <ChatReminderDialog session={session!} userId={userId} />
               <ChatAppointmentStatusButton
@@ -375,10 +371,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               >
                 <ClipboardList className="h-3.5 w-3.5" />
               </Button>
-
-              {/* Separador */}
-              <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
-
               {/* 3. Datos del contacto */}
               <ChatRegistrosBadge
                 sessionId={session.id}
@@ -396,10 +388,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               {tagsCombobox}
-
-              {/* Separador */}
-              <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
-
               {/* 4. Gestión */}
               {advisorBadge}
               {sessionToggle}
@@ -518,7 +506,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {session && (
             <>
               {/* 1. Acción directa */}
@@ -532,9 +520,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               >
                 <Phone className="h-4 w-4" />
               </Button>
-
-              <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
-
               {/* 2. CRM / agenda */}
               <ChatReminderDialog session={session!} userId={userId} />
               <ChatAppointmentStatusButton
@@ -554,9 +539,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               >
                 <ClipboardList className="h-3.5 w-3.5" />
               </Button>
-
-              <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
-
               {/* 3. Datos del contacto */}
               <ChatRegistrosBadge
                 sessionId={session.id}
@@ -575,9 +557,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               {tagsCombobox}
-
-              <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
-
               {/* 4. Gestión */}
               {advisorBadge}
               {sessionToggle}
