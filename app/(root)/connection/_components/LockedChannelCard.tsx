@@ -30,7 +30,7 @@ export const LockedChannelCard = ({ icon, title, instanceName }: LockedChannelCa
           </div>
         </div>
       </CardContent>
-      <CardFooter className="mt-auto px-6 pb-4 pt-0">
+      <CardFooter className="mt-auto px-6 pb-6 pt-0">
         <Button
           variant="secondary"
           className="w-full cursor-not-allowed bg-muted-foreground/35 text-foreground/85 hover:bg-muted-foreground/35 font-semibold"

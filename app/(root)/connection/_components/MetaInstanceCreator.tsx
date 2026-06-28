@@ -67,7 +67,7 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
             </div>
           </div>
         </CardContent>
-        <CardFooter className="mt-auto px-6 pb-4 pt-0">
+        <CardFooter className="mt-auto px-6 pb-6 pt-0">
           <Button onClick={() => setOpen(true)} className="w-full bg-[#1877F2] hover:bg-[#166FE5] text-white">
             Crear instancia Meta API
           </Button>

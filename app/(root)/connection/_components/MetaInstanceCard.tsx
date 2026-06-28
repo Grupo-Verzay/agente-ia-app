@@ -118,7 +118,7 @@ export const MetaInstanceCard = ({
 
   return (
     <>
-      <Card className="border-border flex-1">
+      <Card className="border-border flex h-full flex-col">
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle>{instanceName}</CardTitle>
@@ -158,7 +158,7 @@ export const MetaInstanceCard = ({
           </div>
         </CardContent>
 
-        <CardFooter>
+        <CardFooter className="mt-auto">
           <Button size="sm" variant="outline" onClick={() => setShowEditDialog(true)} className="w-full gap-1.5">
             <Pencil className="w-4 h-4" />
             Editar credenciales

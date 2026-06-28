@@ -55,7 +55,7 @@ export const TelegramInstanceCard = ({ instanceName, botUsername }: TelegramInst
 
   return (
     <>
-      <Card className="border-border flex-1">
+      <Card className="border-border flex h-full flex-col">
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle>{instanceName}</CardTitle>
@@ -85,7 +85,7 @@ export const TelegramInstanceCard = ({ instanceName, botUsername }: TelegramInst
           </div>
         </CardContent>
 
-        <CardFooter>
+        <CardFooter className="mt-auto">
           <Button size="sm" variant="outline" onClick={() => setShowEditDialog(true)} className="w-full gap-1.5">
             <Pencil className="w-4 h-4" />
             Actualizar token
