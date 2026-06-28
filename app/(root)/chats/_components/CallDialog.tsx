@@ -84,7 +84,14 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
       if (cancelledRef.current) { mic.getTracks().forEach((t) => t.stop()); return; }
       micRef.current = mic;
 
-      const pc = new RTCPeerConnection({ iceServers: [] });
+      const pc = new RTCPeerConnection({
+        // STUN: el navegador descubre su IP pública (srflx) para que el servidor
+        // de AstraCalls pueda establecer el audio detrás de NAT (antes quedaba
+        // "Conectando…" porque sin STUN no había ruta de media).
+        iceServers: [
+          { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+        ],
+      });
       pcRef.current = pc;
       mic.getAudioTracks().forEach((t) => pc.addTrack(t, mic));
       pc.addTransceiver('audio', { direction: 'recvonly' });
@@ -96,8 +103,15 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
       await pc.setLocalDescription(offer);
       await new Promise<void>((resolve) => {
         if (pc.iceGatheringState === 'complete') return resolve();
+        // Fallback: no esperar indefinidamente el gathering (con STUN basta con
+        // los candidatos reunidos en ~2s; algunos navegadores nunca marcan
+        // 'complete' si un STUN no responde).
+        const to = setTimeout(resolve, 2500);
         pc.addEventListener('icegatheringstatechange', () => {
-          if (pc.iceGatheringState === 'complete') resolve();
+          if (pc.iceGatheringState === 'complete') {
+            clearTimeout(to);
+            resolve();
+          }
         });
       });
 
