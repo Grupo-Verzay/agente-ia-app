@@ -340,7 +340,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         {session && mobileToolsOpen && (
           <div className="-mx-2 border-t border-border/30 bg-muted/30">
             <div className="flex items-center justify-between px-2 py-1.5 overflow-x-auto scrollbar-none">
-              {/* Llamar por WhatsApp */}
+              {/* 1. Acción directa */}
               <Button
                 type="button"
                 variant="ghost"
@@ -352,25 +352,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <Phone className="h-3.5 w-3.5" />
               </Button>
 
-              {sessionActions}
-
               {/* Separador */}
               <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
 
-              <ChatRegistrosBadge
-                sessionId={session.id}
-                sessionPushName={session.pushName}
-                whatsapp={displayedWhatsapp}
-                userId={session.userId}
-                remoteJid={session.remoteJid}
-                instanceId={session.instanceId}
-                flujos={session.flujos}
-                leadStatus={session.leadStatus}
-                leadScore={session.leadScore}
-                leadScoreReason={session.leadScoreReason}
-                tags={session.tags}
-                sessionSeguimientos={session.seguimientos}
-              />
+              {/* 2. CRM / agenda */}
               <ChatReminderDialog session={session!} userId={userId} />
               <ChatAppointmentStatusButton
                 sessionId={session.id}
@@ -389,13 +374,34 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               >
                 <ClipboardList className="h-3.5 w-3.5" />
               </Button>
+
+              {/* Separador */}
+              <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
+
+              {/* 3. Datos del contacto */}
+              <ChatRegistrosBadge
+                sessionId={session.id}
+                sessionPushName={session.pushName}
+                whatsapp={displayedWhatsapp}
+                userId={session.userId}
+                remoteJid={session.remoteJid}
+                instanceId={session.instanceId}
+                flujos={session.flujos}
+                leadStatus={session.leadStatus}
+                leadScore={session.leadScore}
+                leadScoreReason={session.leadScoreReason}
+                tags={session.tags}
+                sessionSeguimientos={session.seguimientos}
+              />
               <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               {tagsCombobox}
 
               {/* Separador */}
               <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
 
+              {/* 4. Gestión */}
               {advisorBadge}
+              {sessionActions}
             </div>
           </div>
         )}
@@ -514,6 +520,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {session && (
             <>
+              {/* 1. Acción directa */}
               <Button
                 type="button"
                 variant="ghost"
@@ -524,9 +531,32 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               >
                 <Phone className="h-4 w-4" />
               </Button>
-              {advisorBadge}
-              <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
-              <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
+
+              <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
+
+              {/* 2. CRM / agenda */}
+              <ChatReminderDialog session={session!} userId={userId} />
+              <ChatAppointmentStatusButton
+                sessionId={session.id}
+                userId={session.userId}
+                pushName={session.pushName}
+                remoteJid={session.remoteJid}
+                instanceId={session.instanceId}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 rounded-md border border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                onClick={() => setTaskDialogOpen(true)}
+                title="Nueva tarea"
+              >
+                <ClipboardList className="h-3.5 w-3.5" />
+              </Button>
+
+              <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
+
+              {/* 3. Datos del contacto */}
               <ChatRegistrosBadge
                 sessionId={session.id}
                 sessionPushName={session.pushName}
@@ -541,25 +571,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 tags={session.tags}
                 sessionSeguimientos={session.seguimientos}
               />
-              <ChatReminderDialog session={session!} userId={userId} />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0 rounded-md border border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                onClick={() => setTaskDialogOpen(true)}
-                title="Nueva tarea"
-              >
-                <ClipboardList className="h-3.5 w-3.5" />
-              </Button>
-              <ChatAppointmentStatusButton
-                sessionId={session.id}
-                userId={session.userId}
-                pushName={session.pushName}
-                remoteJid={session.remoteJid}
-                instanceId={session.instanceId}
-              />
+              <LeadContextSheet session={session} onScoreUpdated={onSessionRefresh} />
+              <SintesisEditDialog sessionId={session.id} onUpdated={onSessionRefresh} />
               {tagsCombobox}
+
+              <div className="h-4 w-px bg-border/50 shrink-0 mx-0.5" />
+
+              {/* 4. Gestión */}
+              {advisorBadge}
             </>
           )}
           {onToggleInfoPanel && session && (
