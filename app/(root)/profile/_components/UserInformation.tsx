@@ -194,7 +194,7 @@ const CardLabel = ({ icon: Icon, children }: { icon: React.ElementType; children
 );
 
 // ── Main component ────────────────────────────────────────────────────────────
-export const UserInformation = ({ userId, countries, instancesData, metaInstances, telegramInstances, autoOpenApiKey, autoSetup, isAdvisor = false }: UserInformationProps) => {
+export const UserInformation = ({ userId, countries, instancesData, metaInstances, telegramInstances, autoOpenApiKey, autoSetup, readOnly = false }: UserInformationProps) => {
     const reseller = useResellerStore((state) => state.reseller);
 
     const [user, setUser] = useState<(UserWithPausar & { openMsg?: string })>();
@@ -557,7 +557,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
             </Card>
 
             {/* Aviso de solo lectura para asesores (sub-cuentas) */}
-            {isAdvisor && (
+            {readOnly && (
                 <div className="mb-2 flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-200">
                     <Eye className="h-4 w-4 shrink-0" />
                     <span>Modo solo lectura. Solo el administrador de la cuenta puede modificar estos ajustes.</span>
@@ -608,7 +608,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                     Para asesores: solo lectura — se desactivan los controles (botones,
                     inputs, switches) sin afectar la navegación de pestañas ni el scroll. */}
                 <div
-                    className={`flex-1 min-h-0 relative mt-1 ${isAdvisor
+                    className={`flex-1 min-h-0 relative mt-1 ${readOnly
                         ? '[&_button]:pointer-events-none [&_button]:opacity-70 [&_input]:pointer-events-none [&_textarea]:pointer-events-none [&_select]:pointer-events-none [&_[role=switch]]:pointer-events-none [&_[role=combobox]]:pointer-events-none [&_[contenteditable]]:pointer-events-none'
                         : ''
                         }`}
