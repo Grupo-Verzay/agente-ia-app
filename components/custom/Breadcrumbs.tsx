@@ -247,6 +247,7 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
               <div className="ml-auto flex min-w-0 items-center justify-end gap-2 pr-1">
                 <GlobalSearch />
                 <SupportButton
+                  label="Ayuda"
                   message="Hola, necesito ayuda con la plataforma."
                   className="text-primary hover:text-primary hover:bg-primary/10 border border-primary/30"
                 />

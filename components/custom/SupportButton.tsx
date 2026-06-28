@@ -13,9 +13,12 @@ import { toast } from 'sonner';
 export const SupportButton = ({
   message,
   className,
+  label,
 }: {
   message?: string;
   className?: string;
+  /** Si se pasa, muestra el texto junto al ícono (oculto en móvil). */
+  label?: string;
 }) => {
   const [loading, setLoading] = useState(false);
 
@@ -30,22 +33,21 @@ export const SupportButton = ({
     }
   };
 
+  const Icon = loading ? Loader2 : HelpCircle;
+
   return (
     <Button
       type="button"
       variant="ghost"
-      size="icon"
+      size={label ? 'sm' : 'icon'}
       onClick={handleClick}
       disabled={loading}
       title="Ayuda / Soporte"
       aria-label="Ayuda / Soporte"
-      className={className}
+      className={`gap-1.5 ${className ?? ''}`}
     >
-      {loading ? (
-        <Loader2 className="h-5 w-5 animate-spin" />
-      ) : (
-        <HelpCircle className="h-5 w-5" />
-      )}
+      <Icon className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+      {label && <span className="hidden sm:inline">{label}</span>}
     </Button>
   );
 };
