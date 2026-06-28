@@ -19,7 +19,6 @@ import {
 import ThemeSwitcher from "./custom/ThemeSwitcher"
 import LogoutButton from "./logout-button"
 import { NavCustomizer } from "./custom/NavCustomizer"
-import { SupportButton } from "./custom/SupportButton"
 import { ResellerInfoResponse } from "@/schema/reseller"
 import { usePathname } from "next/navigation"
 
@@ -40,7 +39,6 @@ function SidebarFooterContent({ user, resellerImage, resellerCompany }: { user: 
             </div>
             <div className="flex flex-row w-full justify-center items-center">
                 <LogoutButton user={user} resellerImage={resellerImage} resellerCompany={resellerCompany} />
-                <SupportButton message="Hola, necesito ayuda con la plataforma." />
                 {!collapsed && <NavCustomizer userId={user.id} />}
                 {!collapsed && (
                     <div>
