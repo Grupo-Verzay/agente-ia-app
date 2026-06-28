@@ -26,6 +26,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { getCallsCrmData, type CallsCrmData, type CallRow } from '@/actions/calls-crm-actions';
 import { CallDialog } from '../../../chats/_components/CallDialog';
@@ -64,6 +65,12 @@ export function CallsCrmClient() {
   const [days, setDays] = useState(30);
   const [direction, setDirection] = useState<'all' | 'outgoing' | 'incoming'>('all');
   const [callTarget, setCallTarget] = useState<{ phone: string; name?: string } | null>(null);
+  const [dialNumber, setDialNumber] = useState('');
+
+  const dialDigits = dialNumber.replace(/\D/g, '');
+  const startDial = () => {
+    if (dialDigits.length >= 6) setCallTarget({ phone: dialDigits });
+  };
 
   const load = useCallback(() => {
     setLoading(true);
@@ -128,6 +135,33 @@ export function CallsCrmClient() {
           </Button>
         </div>
       </div>
+
+      {/* Marcador */}
+      <Card className="border-border">
+        <CardContent className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center">
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
+              <PhoneOutgoing className="h-4 w-4" />
+            </span>
+            Marcador
+          </span>
+          <Input
+            value={dialNumber}
+            onChange={(e) => setDialNumber(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') startDial(); }}
+            placeholder="Número con código de país, ej. 573001234567"
+            inputMode="tel"
+            className="h-9 flex-1"
+          />
+          <Button
+            className="h-9 gap-2 bg-green-600 text-white hover:bg-green-700"
+            onClick={startDial}
+            disabled={dialDigits.length < 6}
+          >
+            <Phone className="h-4 w-4" /> Llamar
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
