@@ -97,7 +97,7 @@ export const ClientInstanceCard = ({
   return (
     <>
       <Card className="border-border flex h-full flex-col">
-        <CardHeader>
+        <CardHeader className="p-4 pb-2">
           <div className="flex justify-between items-center gap-2">
             <CardTitle className="flex min-w-0 items-center gap-2">
               <MessageCircle className="h-4 w-4 shrink-0 text-green-600" />
@@ -114,7 +114,7 @@ export const ClientInstanceCard = ({
           </div>
         </CardHeader>
 
-        <CardContent className="flex flex-1 flex-col">
+        <CardContent className="flex flex-1 flex-col p-4 pt-0">
           <div className="flex items-center gap-3">
             {instanceType === 'Whatsapp' && (<>
               <Avatar className="rounded-lg">

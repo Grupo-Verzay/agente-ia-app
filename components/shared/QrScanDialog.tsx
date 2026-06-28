@@ -46,7 +46,7 @@ export function QrScanDialog({
 }: QrScanDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm border-border">
+      <DialogContent className="max-w-md border-border">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <QrCode className="h-5 w-5" />
@@ -68,7 +68,7 @@ export function QrScanDialog({
           </div>
         ) : (
           <div className="flex flex-col items-center">
-            <div className="flex h-[248px] w-[248px] items-center justify-center rounded-lg border bg-white p-3">
+            <div className="flex h-[312px] w-[312px] items-center justify-center rounded-lg border bg-white p-2">
               {qr ?? (
                 <span className="flex flex-col items-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="h-6 w-6 animate-spin" /> Generando QR…

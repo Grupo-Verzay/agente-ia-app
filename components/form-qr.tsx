@@ -176,7 +176,7 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorComponentProps> = ({ userId }) =>
                 }
                 connected={isWhatsappConnected}
                 connectedText="WhatsApp conectado correctamente"
-                qr={qrCode ? <Image src={qrCode} alt="Código QR" width={200} height={200} /> : undefined}
+                qr={qrCode ? <Image src={qrCode} alt="Código QR" width={296} height={296} /> : undefined}
                 steps={[
                     <>Abre <span className="font-bold">WhatsApp Business</span> en tu teléfono.</>,
                     <>Toca <span className="font-bold">Dispositivos vinculados</span> &gt; vincular un <span className="font-bold">dispositivo</span>.</>,

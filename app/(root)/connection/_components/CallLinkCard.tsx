@@ -103,7 +103,7 @@ export function CallLinkCard() {
   return (
     <>
     <Card className="border-border flex h-full flex-col">
-      <CardHeader>
+      <CardHeader className="p-4 pb-2">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="flex min-w-0 items-center gap-2">
             <Phone className="h-4 w-4 shrink-0 text-green-600" />
@@ -122,7 +122,7 @@ export function CallLinkCard() {
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-1 flex-col">
+      <CardContent className="flex flex-1 flex-col p-4 pt-0">
         {connected ? (
           <div className="flex flex-1 flex-col gap-3">
             <div className="flex items-center gap-3">
@@ -169,7 +169,7 @@ export function CallLinkCard() {
         onOpenChange={(o) => { if (!o) closeQrDialog(); }}
         title="Vincular llamadas WhatsApp"
         description="Sigue las instrucciones antes de escanear el código QR."
-        qr={qr ? <QRCodeSVG value={qr} size={200} marginSize={1} /> : undefined}
+        qr={qr ? <QRCodeSVG value={qr} size={296} marginSize={0} /> : undefined}
         steps={[
           <>Abre <span className="font-bold">WhatsApp</span> en tu teléfono.</>,
           <>Toca <span className="font-bold">Dispositivos vinculados</span> &gt; <span className="font-bold">Vincular un dispositivo</span>.</>,
