@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { activateAllSessions, deactivateAllSessions, deleteAllSessions, getSessionsByUserId, getSessionsCountByUserId, searchSessionsByUserId } from "@/actions/session-action";
+import { activateAllSessions, cleanupJunkSessions, deactivateAllSessions, deleteAllSessions, getSessionsByUserId, getSessionsCountByUserId, searchSessionsByUserId } from "@/actions/session-action";
 import { clearAllHistory } from "@/actions/n8n-chat-historial-action";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -209,7 +209,8 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
               onDeleteAll={deleteAllSessions}
               onClearHistory={clearAllHistory}
               onClearSeguimientos={deleteSeguimientosByInstanceName}
-              onSuccess={() => router.refresh()}
+              onCleanupJunk={cleanupJunkSessions}
+              onSuccess={() => { mutate(); router.refresh(); }}
             />
           </div>
         </ModuleToolbar>

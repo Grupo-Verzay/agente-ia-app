@@ -17,7 +17,7 @@ import {
 import { Registro, Session } from "@prisma/client";
 import { BulkActionsDropdown, FilterLeadsByStats, FilterSessionTypes, SessionStatsInterface, SwitchStatus } from "../../sessions/_components";
 import { clearAllHistory } from "@/actions/n8n-chat-historial-action";
-import { activateAllSessions, deactivateAllSessions, deleteAllSessions, getSessionsCountByUserId } from "@/actions/session-action";
+import { activateAllSessions, cleanupJunkSessions, deactivateAllSessions, deleteAllSessions, getSessionsCountByUserId } from "@/actions/session-action";
 import { deleteSeguimientosByInstanceName } from "@/actions/seguimientos-actions";
 import { useRouter } from "next/navigation";
 import { ActionsCell } from "../../sessions/_components/Columns";
@@ -224,7 +224,8 @@ export const LeadsManagement = ({
                                     onDeleteAll={deleteAllSessions}
                                     onClearHistory={clearAllHistory}
                                     onClearSeguimientos={deleteSeguimientosByInstanceName}
-                                    onSuccess={() => router.refresh()}
+                                    onCleanupJunk={cleanupJunkSessions}
+                                    onSuccess={() => { mutateSessions(); router.refresh(); }}
                                 />
                             </div>
 

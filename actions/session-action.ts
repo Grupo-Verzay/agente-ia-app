@@ -21,6 +21,8 @@ import {
   SingleSessionResponse,
 } from '@/types/session';
 import { assertUserCanUseApp } from './billing/helpers/app-access-guard';
+import { currentUser } from '@/lib/auth';
+import { revalidatePath } from 'next/cache';
 import {
   buildWhatsAppJidCandidates,
   normalizeWhatsAppConversationJid,
@@ -769,6 +771,57 @@ export async function deleteAllSessions(userId: string): Promise<SessionsListRes
     }
   }
 };
+
+/**
+ * Limpia "leads basura" de la cuenta indicada: sesiones que no son un contacto
+ * 1:1 real (grupos @g.us, difusiones/estados, newsletters o JIDs sin número
+ * válido, que se mostraban como "+0" o "Você"). Acotado a la cuenta activa del
+ * usuario. Las filas hijas se borran en cascada (FK onDelete: Cascade).
+ */
+export async function cleanupJunkSessions(
+  userId: string,
+): Promise<ActionResponse<{ deleted: number }>> {
+  try {
+    if (!userId) {
+      return { success: false, message: 'No existe el userId.' };
+    }
+
+    const me = await currentUser();
+    if (!me || me.effectiveId !== userId) {
+      return { success: false, message: 'No autorizado.' };
+    }
+
+    const deleted = await db.$executeRaw`
+      DELETE FROM "Session"
+      WHERE "userId" = ${userId}
+        AND (
+          btrim("remoteJid") = ''
+          OR lower("remoteJid") LIKE '%@g.us'
+          OR lower("remoteJid") LIKE '%broadcast%'
+          OR lower("remoteJid") LIKE '%@newsletter'
+          OR length(regexp_replace("remoteJid", '[^0-9]', '', 'g')) < 6
+        )
+    `;
+
+    revalidatePath('/sessions');
+    revalidatePath('/crm');
+
+    return {
+      success: true,
+      message:
+        deleted > 0
+          ? `Se eliminaron ${deleted} leads vacíos o inválidos.`
+          : 'No había leads vacíos para limpiar.',
+      data: { deleted },
+    };
+  } catch (error) {
+    console.error('[cleanupJunkSessions]', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'No se pudo limpiar.',
+    };
+  }
+}
 
 export async function registerSession(input: z.infer<typeof registerSessionSchema>): Promise<SessionResponse<PrismaSession>> {
   const validation = registerSessionSchema.safeParse(input);

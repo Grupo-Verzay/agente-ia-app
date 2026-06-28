@@ -30,10 +30,11 @@ import {
     UserX,
     Trash2,
     History,
-    MoreHorizontal
+    MoreHorizontal,
+    Eraser
 } from 'lucide-react'
 
-type BulkActionType = 'activate' | 'deactivate' | 'deleteAll' | 'clearHistory' | 'clearSeguimientos'
+type BulkActionType = 'activate' | 'deactivate' | 'deleteAll' | 'clearHistory' | 'clearSeguimientos' | 'cleanupJunk'
 // type BulkActionType = 'activate' | 'deactivate' | 'deleteAll'
 
 interface BulkActionsDropdownProps {
@@ -43,6 +44,7 @@ interface BulkActionsDropdownProps {
     onDeleteAll: (userId: string) => Promise<unknown>
     onClearHistory: (userId: string) => Promise<unknown>
     onClearSeguimientos: (userId: string) => Promise<unknown>
+    onCleanupJunk?: (userId: string) => Promise<unknown>
     onSuccess?: () => void
 }
 
@@ -53,6 +55,7 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
     onDeleteAll,
     onClearHistory,
     onClearSeguimientos,
+    onCleanupJunk,
     onSuccess,
 }) => {
     const [dialogOpen, setDialogOpen] = useState(false)
@@ -100,6 +103,12 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
             handler: onClearSeguimientos,
             toastId: 'clear-reminders',
         },
+        cleanupJunk: {
+            label: 'Limpiar leads vacíos',
+            confirmPhrase: 'si',
+            handler: onCleanupJunk ?? (async () => ({ success: false, message: 'No disponible' })),
+            toastId: 'cleanup-junk',
+        },
     };
 
     const openDialog = (type: BulkActionType) => {
@@ -116,7 +125,7 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
         toast.loading(`${label}...`, { id: toastId })
 
         try {
-            const result = await handler(userId)
+            const result = (await handler(userId)) as { success?: boolean; message?: string }
             if (result.success) {
                 toast.success(result.message || `${label} completado`, { id: toastId })
                 onSuccess?.()
@@ -181,6 +190,15 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
                         <UserX className="mr-2 h-4 w-4" />
                         Desactivar clientes
                     </DropdownMenuItem>
+                    {onCleanupJunk && (
+                        <DropdownMenuItem
+                            onClick={() => openDialog('cleanupJunk')}
+                            className="text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/40"
+                        >
+                            <Eraser className="mr-2 h-4 w-4" />
+                            Limpiar leads vacíos
+                        </DropdownMenuItem>
+                    )}
 
                     <DropdownMenuSeparator />
 
