@@ -30,6 +30,8 @@ export interface UserInformationProps {
   telegramInstances: Instancia[];
   autoOpenApiKey?: boolean;
   autoSetup?: boolean;
+  /** Asesores (sub-cuentas) ven el perfil en solo lectura. */
+  isAdvisor?: boolean;
 }
 
 // Adapta las funciones de tipo para manejar arrays
@@ -133,7 +135,7 @@ const ProfilePage = async ({ searchParams }: { searchParams?: { openApiKey?: str
 
   return (
     <>
-      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} metaInstances={metaInstances} telegramInstances={telegramInstances} autoOpenApiKey={searchParams?.openApiKey === 'true'} autoSetup={searchParams?.autoSetup === '1'} />
+      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} metaInstances={metaInstances} telegramInstances={telegramInstances} autoOpenApiKey={searchParams?.openApiKey === 'true'} autoSetup={searchParams?.autoSetup === '1'} isAdvisor={!!user.ownerId} />
     </>
   );
 }
