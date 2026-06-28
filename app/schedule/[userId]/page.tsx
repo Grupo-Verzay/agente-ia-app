@@ -5,10 +5,41 @@ import { getRemindersByUserId } from "@/actions/reminders-actions";
 import { getCountryCodes } from "@/actions/get-country-action";
 import { fetchInstanceAction } from "@/actions/fetch-intance-action";
 import { getActiveBookingQuestions } from "@/actions/booking-questions-actions";
+import { getResellerProfileForUser } from "@/actions/reseller-action";
+import { getSiteConfig } from "@/actions/admin/site-config-actions";
+import type { Metadata } from "next";
 import { SchedulePageClient } from "../_components/SchedulePageClient";
 
 function hasReminder(result: { data?: Reminders[] }): result is { data: Reminders[] } {
     return !!result.data
+}
+
+// Favicon y título de la marca (reseller del asesor → plataforma → fallback),
+// para que estas páginas usen el mismo favicon que la app y no el genérico.
+export async function generateMetadata(
+    { params }: { params: { userId: string } },
+): Promise<Metadata> {
+    const fallback: Metadata = { title: "Agendar cita", icons: { icon: "/favicon.ico" } };
+    try {
+        const [reseller, siteConfig] = await Promise.all([
+            getResellerProfileForUser(params.userId),
+            getSiteConfig(),
+        ]);
+        const favicon =
+            reseller?.data?.faviconUrl?.trim() ||
+            siteConfig.faviconUrl?.trim() ||
+            "/favicon.ico";
+        const brandName = reseller?.data?.brandName?.trim() || siteConfig.brandName?.trim();
+        const company = reseller?.data?.company?.trim();
+        const brand = brandName || (company && company !== "Empresa Demo" ? company : null);
+        return {
+            title: brand ? `Agendar cita | ${brand}` : "Agendar cita",
+            description: "Programa una cita personalizada con nuestro asesor",
+            icons: { icon: favicon },
+        };
+    } catch {
+        return fallback;
+    }
 }
 
 // Puedes precargar el asesor para mostrar info contextual
