@@ -28,6 +28,7 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/crm/kanban" },
     { route: "/crm/reportes" },
     { route: "/crm/rules" },
+    { route: "/crm/llamadas" },
     { route: "/ia" },
     { route: "/tags" },
     { route: "/tareas" },

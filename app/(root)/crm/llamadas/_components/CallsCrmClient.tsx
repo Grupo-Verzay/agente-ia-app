@@ -1,0 +1,307 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Phone,
+  PhoneOutgoing,
+  PhoneMissed,
+  PhoneCall,
+  Clock,
+  Loader2,
+  RefreshCw,
+} from 'lucide-react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { getCallsCrmData, type CallsCrmData, type CallRow } from '@/actions/calls-crm-actions';
+import { CallDialog } from '../../../chats/_components/CallDialog';
+
+const DAY_OPTIONS = [
+  { label: '7 días', value: 7 },
+  { label: '30 días', value: 30 },
+  { label: '90 días', value: 90 },
+];
+
+const DIRECTION_OPTIONS: { label: string; value: 'all' | 'outgoing' | 'incoming' }[] = [
+  { label: 'Todas', value: 'all' },
+  { label: 'Salientes', value: 'outgoing' },
+  { label: 'Entrantes', value: 'incoming' },
+];
+
+function fmtDuration(secs: number): string {
+  if (!secs) return '—';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+const DATE_FMT = new Intl.DateTimeFormat('es-CO', {
+  day: '2-digit',
+  month: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+export function CallsCrmClient() {
+  const [data, setData] = useState<CallsCrmData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(30);
+  const [direction, setDirection] = useState<'all' | 'outgoing' | 'incoming'>('all');
+  const [callTarget, setCallTarget] = useState<{ phone: string; name?: string } | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    getCallsCrmData({ days, direction })
+      .then(setData)
+      .finally(() => setLoading(false));
+  }, [days, direction]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const kpis = data?.kpis;
+
+  const pieData = useMemo(
+    () => [
+      { name: 'Salientes', value: kpis?.outgoing ?? 0, color: '#22c55e' },
+      { name: 'Entrantes', value: kpis?.incoming ?? 0, color: '#ef4444' },
+    ],
+    [kpis],
+  );
+
+  const barData = useMemo(
+    () =>
+      (data?.byDay ?? []).map((d) => ({
+        date: d.date.slice(5), // MM-DD
+        Salientes: d.outgoing,
+        Entrantes: d.incoming,
+      })),
+    [data],
+  );
+
+  return (
+    <div className="flex h-full flex-col gap-4 overflow-y-auto p-1 sm:p-2">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
+            <PhoneCall className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-lg font-bold leading-tight">Llamadas</h1>
+            <p className="text-xs text-muted-foreground">Registro y métricas de llamadas por WhatsApp</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Rango de días */}
+          <div className="flex rounded-lg border border-border p-0.5">
+            {DAY_OPTIONS.map((o) => (
+              <button
+                key={o.value}
+                onClick={() => setDays(o.value)}
+                className={cn(
+                  'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                  days === o.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={load} title="Actualizar">
+            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+          </Button>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        <KpiCard label="Total" value={kpis?.total ?? 0} icon={<Phone className="h-4 w-4" />} tone="muted" />
+        <KpiCard label="Salientes" value={kpis?.outgoing ?? 0} icon={<PhoneOutgoing className="h-4 w-4" />} tone="green" />
+        <KpiCard label="Entrantes" value={kpis?.incoming ?? 0} icon={<PhoneMissed className="h-4 w-4" />} tone="red" />
+        <KpiCard label="Contestadas" value={kpis?.answered ?? 0} icon={<PhoneCall className="h-4 w-4" />} tone="blue" />
+        <KpiCard label="Duración prom." value={fmtDuration(kpis?.avgDurationSecs ?? 0)} icon={<Clock className="h-4 w-4" />} tone="muted" />
+        <KpiCard label="Duración total" value={fmtDuration(kpis?.totalDurationSecs ?? 0)} icon={<Clock className="h-4 w-4" />} tone="muted" />
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
+        <Card className="border-border lg:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Llamadas por día</CardTitle>
+          </CardHeader>
+          <CardContent className="h-64">
+            {barData.length === 0 ? (
+              <EmptyChart loading={loading} />
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="Salientes" fill="#22c55e" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="Entrantes" fill="#ef4444" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Distribución</CardTitle>
+          </CardHeader>
+          <CardContent className="h-64">
+            {(kpis?.total ?? 0) === 0 ? (
+              <EmptyChart loading={loading} />
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2}>
+                    {pieData.map((e) => (
+                      <Cell key={e.name} fill={e.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabla */}
+      <Card className="border-border flex-1">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+          <CardTitle className="text-sm">Historial</CardTitle>
+          <div className="flex rounded-lg border border-border p-0.5">
+            {DIRECTION_OPTIONS.map((o) => (
+              <button
+                key={o.value}
+                onClick={() => setDirection(o.value)}
+                className={cn(
+                  'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                  direction === o.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+          ) : (data?.calls.length ?? 0) === 0 ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">No hay llamadas en este periodo.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs text-muted-foreground">
+                    <th className="py-2 pr-3 font-medium">Contacto</th>
+                    <th className="py-2 pr-3 font-medium">Tipo</th>
+                    <th className="py-2 pr-3 font-medium">Duración</th>
+                    <th className="py-2 pr-3 font-medium">Fecha</th>
+                    <th className="py-2 pr-3 font-medium text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data!.calls.map((c) => (
+                    <CallTableRow key={c.id} call={c} onCall={() => setCallTarget({ phone: c.phone, name: c.contactName ?? undefined })} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {callTarget && /\d{6,}/.test(callTarget.phone) && (
+        <CallDialog
+          open={!!callTarget}
+          onClose={() => setCallTarget(null)}
+          phone={callTarget.phone}
+          contactName={callTarget.name}
+        />
+      )}
+    </div>
+  );
+}
+
+function KpiCard({ label, value, icon, tone }: { label: string; value: string | number; icon: React.ReactNode; tone: 'green' | 'red' | 'blue' | 'muted' }) {
+  const toneCls =
+    tone === 'green' ? 'bg-green-100 text-green-600 dark:bg-green-950/40'
+    : tone === 'red' ? 'bg-red-100 text-red-600 dark:bg-red-950/40'
+    : tone === 'blue' ? 'bg-blue-100 text-blue-600 dark:bg-blue-950/40'
+    : 'bg-muted text-muted-foreground';
+  return (
+    <Card className="border-border">
+      <CardContent className="flex items-center gap-3 p-3">
+        <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', toneCls)}>{icon}</span>
+        <div className="min-w-0">
+          <div className="truncate text-lg font-bold leading-tight">{value}</div>
+          <div className="truncate text-xs text-muted-foreground">{label}</div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CallTableRow({ call, onCall }: { call: CallRow; onCall: () => void }) {
+  const isOut = call.direction === 'outgoing';
+  return (
+    <tr className="border-b last:border-0 hover:bg-muted/40">
+      <td className="py-2 pr-3">
+        <div className="font-medium">{call.contactName || `+${call.phone}`}</div>
+        {call.contactName && <div className="text-xs text-muted-foreground">+{call.phone}</div>}
+      </td>
+      <td className="py-2 pr-3">
+        {isOut ? (
+          <Badge variant="outline" className="gap-1 border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-400">
+            <PhoneOutgoing className="h-3 w-3" /> Saliente
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="gap-1 border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
+            <PhoneMissed className="h-3 w-3" /> Perdida
+          </Badge>
+        )}
+      </td>
+      <td className="py-2 pr-3 tabular-nums text-muted-foreground">{fmtDuration(call.durationSecs)}</td>
+      <td className="py-2 pr-3 text-muted-foreground">{DATE_FMT.format(new Date(call.ts))}</td>
+      <td className="py-2 pr-3 text-right">
+        {/\d{6,}/.test(call.phone) && (
+          <Button size="sm" className="h-7 gap-1 bg-green-600 text-white hover:bg-green-700" onClick={onCall}>
+            <Phone className="h-3 w-3" /> Llamar
+          </Button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function EmptyChart({ loading }: { loading: boolean }) {
+  return (
+    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Sin datos'}
+    </div>
+  );
+}
