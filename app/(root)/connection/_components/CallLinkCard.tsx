@@ -172,8 +172,9 @@ export function CallLinkCard() {
         qr={qr ? <QRCodeSVG value={qr} size={296} marginSize={0} /> : undefined}
         steps={[
           <>Abre <span className="font-bold">WhatsApp</span> en tu teléfono.</>,
-          <>Toca <span className="font-bold">Dispositivos vinculados</span> &gt; <span className="font-bold">Vincular un dispositivo</span>.</>,
-          <>Apunta la <span className="font-bold">cámara</span> para escanear el <span className="font-bold">QR</span>.</>,
+          <>Toca <span className="font-bold">Dispositivos vinculados</span>.</>,
+          <><span className="font-bold">Vincular un nuevo dispositivo</span>.</>,
+          <>Apunta la <span className="font-bold">cámara</span> y escanea el <span className="font-bold">QR</span>.</>,
         ]}
         waiting
       />

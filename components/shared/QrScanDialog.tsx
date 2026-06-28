@@ -76,8 +76,8 @@ export function QrScanDialog({
               )}
             </div>
             {steps.length > 0 && (
-              <div className="mt-4 w-full space-y-2 text-left text-xs">
-                <h3 className="text-sm font-semibold">🤚 Lee antes de escanear:</h3>
+              <div className="mt-4 w-full space-y-2 text-left text-sm">
+                <h3 className="text-base font-semibold">🤚 Lee antes de escanear:</h3>
                 <ol className="list-outside list-decimal space-y-1 pl-4">
                   {steps.map((s, i) => (
                     <li key={i} className="leading-snug">{s}</li>
