@@ -1,9 +1,11 @@
-import { currentUser } from '@/lib/auth';
-import { redirect } from 'next/navigation';
-import { CallsCrmClient } from './_components/CallsCrmClient';
+import { currentUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { MainDashboard } from "../dashboard/components/MainDashboard";
 
-export default async function CallsCrmPage() {
-  const user = await currentUser();
-  if (!user) redirect('/login');
-  return <CallsCrmClient />;
-}
+const LlamadasPage = async () => {
+    const user = await currentUser();
+    if (!user) redirect("/login");
+    return <MainDashboard userId={user.effectiveId} initialView="llamadas" />;
+};
+
+export default LlamadasPage;

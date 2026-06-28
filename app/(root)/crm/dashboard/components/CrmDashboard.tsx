@@ -104,7 +104,7 @@ export const CrmDashboard = ({
     isLoadingMore?: boolean;
     sentinelRef: RefObject<HTMLDivElement>;
     onScrollRootReady: (el: HTMLDivElement | null) => void;
-    initialView?: "registros" | "analiticas" | "kanban" | "reportes";
+    initialView?: "registros" | "analiticas" | "kanban" | "reportes" | "llamadas";
 }) => {
     const router = useRouter();
     const [viewMode, setViewMode] = useState<"registros" | "analiticas" | "kanban" | "reportes" | "llamadas">(initialView ?? "analiticas");
