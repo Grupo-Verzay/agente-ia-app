@@ -400,9 +400,9 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                                     <Image
                                         src={logoSrc}
                                         alt={user.company ? `Logo de ${user.company}` : "Logo"}
-                                        width={28}
-                                        height={28}
-                                        className="h-7 w-7 rounded-full border border-border object-cover shrink-0"
+                                        width={32}
+                                        height={32}
+                                        className="h-8 w-8 rounded-md object-contain shrink-0"
                                         onError={() => setLogoSrc(FALLBACK_LOGO)}
                                     />
                                     <span className="text-xs text-muted-foreground leading-none">
