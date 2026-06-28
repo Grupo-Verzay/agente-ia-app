@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ChatSessionActions } from './ChatSessionActions';
+import { SwitchStatus } from '../../sessions/_components';
 import { initialFromName } from './chat-message-utils';
 import type { ChatHeader as ChatHeaderData } from './chat-message-types';
 import type { Session, SimpleTag } from '@/types/session';
@@ -166,10 +166,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     />
   );
 
-  const sessionActions = session && (
-    <ChatSessionActions
-      session={session}
-      userId={userId}
+  const sessionToggle = session && (
+    <SwitchStatus
+      key={`${session.id}-${session.status ? 'on' : 'off'}`}
+      sessionId={session.id}
+      checked={session.status ?? false}
       mutateSessions={onSessionMutate}
     />
   );
@@ -401,7 +402,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
               {/* 4. Gestión */}
               {advisorBadge}
-              {sessionActions}
+              {sessionToggle}
             </div>
           </div>
         )}
@@ -579,6 +580,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
               {/* 4. Gestión */}
               {advisorBadge}
+              {sessionToggle}
             </>
           )}
           {onToggleInfoPanel && session && (

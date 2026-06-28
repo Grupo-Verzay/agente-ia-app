@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 import {
   X, Loader2, Phone, Megaphone, Mail, Building2, MapPin,
   Briefcase, FileText, Check, ChevronDown, Home, CreditCard, Calendar, Flag,
-  Sheet, Send, Info, BotIcon, Pencil, CheckCircle2, Power,
+  Sheet, Send, Info, BotIcon, Pencil, CheckCircle2,
   Globe, AtSign, Share2, Linkedin, Tag, SlidersHorizontal,
 } from 'lucide-react';
 import { getContactFieldsConfig } from '@/actions/contact-fields-actions';
@@ -30,7 +30,7 @@ import {
   syncContactToGoogleSheets,
 } from '@/actions/google-sheets-actions';
 import { updateLeadPushNameAction } from '@/actions/registro-action';
-import { toggleAgentDisabled, updateSessionStatus } from '@/actions/session-action';
+import { toggleAgentDisabled } from '@/actions/session-action';
 import * as SwitchPrimitive from '@radix-ui/react-switch';
 import { initialFromName } from './chat-message-utils';
 import type { Session } from '@/types/session';
@@ -171,7 +171,6 @@ export function ContactInfoPanel({
   const [sheetsSaved, setSheetsSaved] = useState(false);
   const [editingSheets, setEditingSheets] = useState(false);
   const [agentEnabled, setAgentEnabled] = useState(!session.agentDisabled);
-  const [sessionActive, setSessionActive] = useState(session.status ?? false);
   const [isPending, startTransition] = useTransition();
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(displayedContactName);
@@ -241,20 +240,6 @@ export function ContactInfoPanel({
       if (!res?.success) { setAgentEnabled(prev); toast.error('No se pudo actualizar'); return; }
       onSessionMutate();
       toast.success(next ? 'Agente habilitado' : 'Agente pausado');
-    });
-  };
-
-  // Mantén el toggle de sesión en sync si cambia desde otro lado (ej. el header)
-  useEffect(() => { setSessionActive(session.status ?? false); }, [session.status]);
-
-  const handleToggleSession = (next: boolean) => {
-    const prev = sessionActive;
-    setSessionActive(next);
-    startTransition(async () => {
-      const res = await updateSessionStatus(session.id, next);
-      if (!res?.success) { setSessionActive(prev); toast.error('No se pudo actualizar la sesión'); return; }
-      onSessionMutate();
-      toast.success(next ? 'Sesión activada' : 'Sesión pausada');
     });
   };
 
@@ -411,32 +396,6 @@ export function ContactInfoPanel({
               <FileText className="h-2.5 w-2.5" />{notesCount} nota{notesCount > 1 ? 's' : ''}
             </Badge>
           )}
-
-          {/* Sesión (Activa/Pausada) toggle */}
-          <div className="flex items-center justify-between w-full mt-0.5 px-3 py-0.5">
-            <div className="flex items-center gap-2">
-              <Power className={cn('h-4 w-4 transition-colors', sessionActive ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground')} />
-              <p className="text-xs font-medium">Sesión {sessionActive ? 'activa' : 'pausada'}</p>
-            </div>
-            <SwitchPrimitive.Root
-              checked={sessionActive}
-              onCheckedChange={handleToggleSession}
-              disabled={isPending}
-              className={cn(
-                'relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full border transition-colors duration-300',
-                'border-input bg-input/60',
-                'data-[state=checked]:border-green-500 data-[state=checked]:bg-green-500',
-                'focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
-              )}
-            >
-              <SwitchPrimitive.Thumb className={cn(
-                'pointer-events-none flex h-5 w-5 items-center justify-center rounded-full bg-background shadow-sm',
-                'transition-transform duration-300 translate-x-1 data-[state=checked]:translate-x-6',
-              )}>
-                <Power className={cn('h-3 w-3 transition-colors', sessionActive ? 'text-green-500' : 'text-muted-foreground')} />
-              </SwitchPrimitive.Thumb>
-            </SwitchPrimitive.Root>
-          </div>
 
           {/* Agente IA toggle */}
           <div className="flex items-center justify-between w-full mt-0.5 px-3 py-0.5">
