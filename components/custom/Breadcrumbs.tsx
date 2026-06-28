@@ -130,7 +130,7 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
   return (
     <>
       <div className={`h-18 shrink-0 ${isFlow && 'flex flex-1'}`}>
-          <header className="sticky top-0 w-full border-b border-border bg-background flex items-center px-4 dark:bg-gray-900 dark:text-white">
+          <header className="sticky top-0 w-full border-b border-border bg-background flex items-center pl-4 pr-3 dark:bg-gray-900 dark:text-white">
             <Breadcrumb className="py-3 flex flex-row flex-1 overflow-hidden dark:bg-gray-900 dark:text-white">
               <BreadcrumbList>
                 {!isFlow && (
@@ -244,7 +244,7 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
                   </Dialog>
                 </div>
               )}
-              <div className="ml-auto flex min-w-0 items-center justify-end gap-2 pr-1">
+              <div className="ml-auto flex min-w-0 items-center justify-end gap-2">
                 <GlobalSearch />
                 <SupportButton
                   label="Ayuda"
