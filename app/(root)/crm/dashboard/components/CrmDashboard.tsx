@@ -355,19 +355,6 @@ export const CrmDashboard = ({
                         </button>
                         <button
                             type="button"
-                            onClick={() => setViewMode("llamadas")}
-                            className={[
-                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                                viewMode === "llamadas"
-                                    ? "bg-background shadow-sm text-foreground"
-                                    : "text-muted-foreground hover:text-foreground",
-                            ].join(" ")}
-                        >
-                            <PhoneCall className="h-3.5 w-3.5" />
-                            Llamadas
-                        </button>
-                        <button
-                            type="button"
                             onClick={() => setViewMode("registros")}
                             className={[
                                 "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
@@ -378,6 +365,19 @@ export const CrmDashboard = ({
                         >
                             <LayoutList className="h-3.5 w-3.5" />
                             Registros
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode("llamadas")}
+                            className={[
+                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                viewMode === "llamadas"
+                                    ? "bg-background shadow-sm text-foreground"
+                                    : "text-muted-foreground hover:text-foreground",
+                            ].join(" ")}
+                        >
+                            <PhoneCall className="h-3.5 w-3.5" />
+                            Llamadas
                         </button>
                         <button
                             type="button"
