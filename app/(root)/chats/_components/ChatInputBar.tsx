@@ -23,7 +23,6 @@ import type { ComposeMedia } from './attachment-menu';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
 import type { Session } from '@/types/session';
 import type { RecordedAudioData, UIBubble } from './chat-message-types';
-import { SwitchStatus } from '../../sessions/_components';
 import { getQuickReplyCategoryClass, getQuickReplyCategoryLabel } from '@/lib/quick-reply-categories';
 
 interface ChatInputBarProps {
@@ -401,17 +400,10 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       {/* Input + botones */}
       <div className="relative flex flex-nowrap items-center gap-2">
         <div className="relative flex flex-nowrap z-10 items-center justify-center">
-          {/* SwitchStatus (bot/humano) — siempre visible. Firma: inline solo en desktop. */}
-          <div className="pr-2 flex items-center gap-1">
-            {session && (
-              <SwitchStatus
-                key={`${session.id}-${session.status ? 'on' : 'off'}`}
-                checked={session.status ?? false}
-                sessionId={session.id ?? -1}
-                mutateSessions={onSessionMutate}
-              />
-            )}
-            <div className="hidden sm:block">{signatureControl}</div>
+          {/* Firma del asesor — inline solo en desktop (en móvil va dentro del menú "+").
+              El estado de la sesión (Activa/Pausada) ahora vive en la ficha de contacto. */}
+          <div className="hidden sm:flex pr-2 items-center gap-1">
+            {signatureControl}
           </div>
 
           {/* Botón toggle — solo móvil */}
