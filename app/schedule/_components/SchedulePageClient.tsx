@@ -61,8 +61,13 @@ interface SchedulePageClientProps extends ScheduleInterface {
     questions?: BookingQuestionItem[];
 }
 
+const FALLBACK_LOGO = "/assets/image/logo_app.png";
+
 export const SchedulePageClient = ({ user, reminders, countries, prefillName = '', prefillPhone = '', questions = [] }: SchedulePageClientProps) => {
     const [step, setStep] = useState(0);
+    // Logo del asesor con respaldo: cubre tanto string vacío ("") como fallos de
+    // carga (404 / dominio no permitido), para que nunca se vea roto el alt.
+    const [logoSrc, setLogoSrc] = useState(user.image || FALLBACK_LOGO);
     const hasForm = questions.length > 0;
     const FORM_STEP = hasForm ? 3 : -1;
     const DATA_STEP = hasForm ? 4 : 3;
@@ -393,11 +398,12 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                             <CardContent className="p-3 space-y-2">
                                 <div className="flex items-center gap-2">
                                     <Image
-                                        src={user.image ?? "/assets/image/logo_app.png"}
-                                        alt="IA Agent Logo"
+                                        src={logoSrc}
+                                        alt={user.company ? `Logo de ${user.company}` : "Logo"}
                                         width={28}
                                         height={28}
-                                        className="rounded-full border border-border object-cover shrink-0"
+                                        className="h-7 w-7 rounded-full border border-border object-cover shrink-0"
+                                        onError={() => setLogoSrc(FALLBACK_LOGO)}
                                     />
                                     <span className="text-xs text-muted-foreground leading-none">
                                         Agendar con <span className="font-semibold text-foreground">{user.company || "nuestro asesor"}</span>
