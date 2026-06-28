@@ -6,6 +6,7 @@ import { Phone, Loader2, RefreshCw, Trash2, QrCode, CheckCircle2, Power } from '
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
   getMyCallSession,
@@ -23,9 +24,17 @@ export function CallLinkCard() {
   const [name, setName] = useState<string | undefined>();
   const [qr, setQr] = useState<string | null>(null);
   const [pairing, setPairing] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPoll = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+
+  const closeQrDialog = () => {
+    stopPoll();
+    setQrOpen(false);
+    setPairing(false);
+    setQr(null);
+  };
 
   const refresh = async () => {
     const s = await getMyCallSession();
@@ -46,14 +55,15 @@ export function CallLinkCard() {
   const tick = async () => {
     const st = await getMyCallSession();
     if (st.state === 'open') {
-      setLinked(true); setState('open'); setJid(st.jid); setQr(null); setPairing(false);
-      stopPoll();
+      setLinked(true); setState('open'); setJid(st.jid);
+      stopPoll(); setQrOpen(false); setQr(null); setPairing(false);
       toast.success('Número vinculado para llamadas. ✅');
       return;
     }
     const q = await getMyCallQr();
     if (q.state === 'open') {
-      await refresh(); setQr(null); setPairing(false); stopPoll();
+      await refresh();
+      stopPoll(); setQrOpen(false); setQr(null); setPairing(false);
       toast.success('Número vinculado para llamadas. ✅');
       return;
     }
@@ -61,9 +71,9 @@ export function CallLinkCard() {
   };
 
   const startPairing = async () => {
-    setPairing(true); setQr(null);
+    setPairing(true); setQr(null); setQrOpen(true); // abre el diálogo con loader
     const res = await linkMyCallSession();
-    if (!res.success) { toast.error(res.message || 'No se pudo conectar.'); setPairing(false); return; }
+    if (!res.success) { toast.error(res.message || 'No se pudo conectar.'); closeQrDialog(); return; }
     await tick();
     stopPoll();
     pollRef.current = setInterval(() => { void tick(); }, 20_000);
@@ -91,6 +101,7 @@ export function CallLinkCard() {
   const connected = linked && state === 'open';
 
   return (
+    <>
     <Card className="border-border flex h-full flex-col">
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
@@ -134,18 +145,6 @@ export function CallLinkCard() {
               </Button>
             </div>
           </div>
-        ) : qr ? (
-          <div className="flex flex-col items-center gap-2">
-            <p className="max-w-[280px] text-center text-xs text-muted-foreground">
-              WhatsApp → <b>Dispositivos vinculados</b> → <b>Vincular dispositivo</b>, y escanea:
-            </p>
-            <div className="rounded-lg border bg-white p-3">
-              <QRCodeSVG value={qr} size={200} marginSize={1} />
-            </div>
-            <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" /> Esperando escaneo…
-            </p>
-          </div>
         ) : (
           <div className="flex flex-1 flex-col gap-2">
             <p className="text-xs text-muted-foreground">
@@ -163,5 +162,34 @@ export function CallLinkCard() {
         )}
       </CardContent>
     </Card>
+
+      {/* QR en diálogo (fuera de la tarjeta, grande y centrado) */}
+      <Dialog open={qrOpen} onOpenChange={(o) => { if (!o) closeQrDialog(); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Vincular llamadas WhatsApp</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-3 py-2">
+            <p className="max-w-[300px] text-center text-xs text-muted-foreground">
+              En WhatsApp → <b>Dispositivos vinculados</b> → <b>Vincular dispositivo</b>, y escanea este código:
+            </p>
+            {qr ? (
+              <div className="rounded-lg border bg-white p-3">
+                <QRCodeSVG value={qr} size={240} marginSize={1} />
+              </div>
+            ) : (
+              <div className="flex h-[266px] w-[266px] items-center justify-center rounded-lg border bg-muted/30">
+                <span className="flex flex-col items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-6 w-6 animate-spin" /> Generando QR…
+                </span>
+              </div>
+            )}
+            <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" /> Esperando escaneo…
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
