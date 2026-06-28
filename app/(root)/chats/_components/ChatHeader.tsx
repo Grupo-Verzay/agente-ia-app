@@ -340,7 +340,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         {/* Herramientas expandibles — una fila con scroll */}
         {session && mobileToolsOpen && (
           <div className="-mx-2 border-t border-border/30 bg-muted/30">
-            <div className="flex items-center gap-1.5 px-2 py-1.5 overflow-x-auto scrollbar-none">
+            <div className="flex items-center justify-between gap-1.5 px-2 py-1.5 overflow-x-auto scrollbar-none">
               {/* 1. Acción directa */}
               <Button
                 type="button"
