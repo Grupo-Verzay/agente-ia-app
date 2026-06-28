@@ -244,21 +244,23 @@ export const Breadcrumbs = ({ isFlow = false }: { isFlow?: boolean }) => {
                   </Dialog>
                 </div>
               )}
-              <div className="ml-auto flex min-w-0 items-center justify-end gap-2">
-                <GlobalSearch />
-                <SupportButton
-                  label="Ayuda"
-                  message="Hola, necesito ayuda con la plataforma."
-                  className="text-primary hover:text-primary hover:bg-primary/10 border border-primary/30"
-                />
-                <NotificationCenter />
-              </div>
               {isFlow &&
                 <div className="flex flex-1 justify-end">
                   <ThemeSwitcher />
                 </div>
               }
             </Breadcrumb>
+            {/* Fuera del Breadcrumb (overflow-hidden) para que el badge de la campana
+                no se recorte. */}
+            <div className="ml-2 flex shrink-0 items-center gap-2">
+              <GlobalSearch />
+              <SupportButton
+                label="Ayuda"
+                message="Hola, necesito ayuda con la plataforma."
+                className="text-primary hover:text-primary hover:bg-primary/10 border border-primary/30"
+              />
+              <NotificationCenter />
+            </div>
           </header>
         </div >
     </>
