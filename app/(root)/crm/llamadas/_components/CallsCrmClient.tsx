@@ -9,6 +9,7 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  Download,
 } from 'lucide-react';
 import {
   Bar,
@@ -121,6 +122,28 @@ export function CallsCrmClient({
     });
   }, [data, query]);
 
+  const handleExport = () => {
+    if (visibleCalls.length === 0) return;
+    const header = ['Contacto', 'Número', 'Tipo', 'Duración (s)', 'Fecha'];
+    const rows = visibleCalls.map((c) => [
+      c.contactName ?? '',
+      c.phone,
+      c.direction === 'outgoing' ? 'Saliente' : 'Entrante',
+      String(c.durationSecs),
+      new Date(c.ts).toLocaleString('es-CO'),
+    ]);
+    const csv = [header, ...rows]
+      .map((r) => r.map((f) => `"${String(f).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `llamadas-${days}d.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className={cn('flex flex-col gap-3', embedded ? 'h-full' : 'h-full overflow-y-auto p-1 sm:p-2')}>
       {/* Título (solo página independiente) */}
@@ -163,7 +186,17 @@ export function CallsCrmClient({
               </button>
             ))}
           </div>
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={load} title="Actualizar">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1.5"
+            onClick={handleExport}
+            disabled={visibleCalls.length === 0}
+          >
+            <Download className="h-4 w-4 shrink-0" />
+            <span className="truncate">Exportar</span>
+          </Button>
+          <Button variant="outline" size="icon" className="h-9 w-9" onClick={load} title="Actualizar">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
         </div>
@@ -184,7 +217,7 @@ export function CallsCrmClient({
             onKeyDown={(e) => { if (e.key === 'Enter') startDial(); }}
             placeholder="Número con código de país, ej. 573001234567"
             inputMode="tel"
-            className="h-9 flex-1"
+            className="h-9 w-full sm:w-80"
           />
           <Button
             className="h-9 gap-2 bg-green-600 text-white hover:bg-green-700"
