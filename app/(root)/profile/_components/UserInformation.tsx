@@ -52,6 +52,7 @@ import { FacebookInstanceCreator } from "../../connection/_components/FacebookIn
 import { InstagramInstanceCreator } from "../../connection/_components/InstagramInstanceCreator";
 import { TelegramInstanceCreator } from "../../connection/_components/TelegramInstanceCreator";
 import { TelegramInstanceCard } from "../../connection/_components/TelegramInstanceCard";
+import { SupportButton } from "../../connection/_components/SupportButton";
 import { LockedChannelCard } from "../../connection/_components/LockedChannelCard";
 import { FaWhatsapp, FaTelegramPlane } from "react-icons/fa";
 import { Phone } from "lucide-react";
@@ -601,7 +602,10 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                     {/* ── Tab: Conexión ─────────────────────────── */}
                     <TabsContent value="conexion" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
-                            <SectionTitle>Canal de comunicación</SectionTitle>
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <SectionTitle>Canal de comunicación</SectionTitle>
+                                <SupportButton message="Hola, necesito ayuda para conectar mis canales de mensajería en la plataforma." />
+                            </div>
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                                 <ConnectionMain
                                     user={user}
