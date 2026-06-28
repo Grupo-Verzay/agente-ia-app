@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getAnalyticsDataByUserId, type AnalyticsPeriod } from "@/actions/analytics-action";
+import { getCallsCrmData } from "@/actions/calls-crm-actions";
 import { TagStatsCard } from "./TagStatsCard";
 import type { DashboardStats } from "./MainDashboard";
 import type { TipoRegistro } from "@/types/session";
@@ -34,6 +35,7 @@ const ANALYTICS_SECTIONS = {
     rendimiento:  "Rendimiento del Agente IA",
     leads:        "Leads y seguimientos",
     citas:        "Citas",
+    llamadas:     "Llamadas",
     sesiones:     "Sesiones",
     flujos:       "Flujos",
     etiquetas:    "Etiquetas y madurez",
@@ -141,8 +143,29 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
     const a = data?.success ? data.data : null;
     const loading = isLoading;
 
+    /* llamadas (bloque resumido) */
+    const callDays = period === "7d" ? 7 : period === "90d" ? 90 : period === "all" ? 365 : 30;
+    const { data: callsData, isLoading: callsLoading } = useSWR(
+        ["crm-analytics-calls", userId, period],
+        () => getCallsCrmData({ days: callDays })
+    );
+    const callKpis = callsData?.kpis;
+    const callsBarData = (callsData?.byDay ?? []).map((d) => ({
+        date: d.date.slice(5),
+        Salientes: d.outgoing,
+        Entrantes: d.incoming,
+    }));
+    const fmtCallDuration = (secs: number) => {
+        if (!secs) return "—";
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const s = secs % 60;
+        if (h > 0) return `${h}h ${m}m`;
+        return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    };
+
     const [visibleSections, setVisibleSections] = useState<Record<SectionKey, boolean>>({
-        actividad: true, rendimiento: true, leads: true, citas: true, sesiones: true,
+        actividad: true, rendimiento: true, leads: true, citas: true, llamadas: true, sesiones: true,
         flujos: true, etiquetas: true, ventas: true, productos: true, sistema: true,
     });
 
@@ -674,6 +697,53 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                         {loading ? <EmptyState text="Cargando..." /> : apptData.length === 0
                             ? <EmptyState text="Aún no hay citas agendadas." />
                             : <DonutChart data={apptData} />}
+                    </CardContent>
+                </Card>
+            </div>
+            </>)}
+
+            {/* --- ? LLAMADAS --- */}
+            {visibleSections.llamadas && (<>
+            <SectionLabel>Llamadas</SectionLabel>
+            <div className="grid gap-4 lg:grid-cols-2">
+                <Card className="border-border bg-muted/10">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-base text-muted-foreground">Resumen de llamadas</CardTitle>
+                        <CardDescription>Llamadas por WhatsApp en el período.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <KpiList items={[
+                            { label: "Total llamadas",  value: callsLoading ? "…" : (callKpis?.total ?? 0),    color: "#3B82F6" },
+                            { label: "Salientes",       value: callsLoading ? "…" : (callKpis?.outgoing ?? 0), color: "#22C55E" },
+                            { label: "Entrantes",       value: callsLoading ? "…" : (callKpis?.incoming ?? 0), color: "#EF4444" },
+                            { label: "Contestadas",     value: callsLoading ? "…" : (callKpis?.answered ?? 0), color: "#8B5CF6" },
+                            { label: "Duración total",  value: callsLoading ? "…" : fmtCallDuration(callKpis?.totalDurationSecs ?? 0), color: "#14B8A6" },
+                            { label: "Duración prom.",  value: callsLoading ? "…" : fmtCallDuration(callKpis?.avgDurationSecs ?? 0),   color: "#0EA5E9" },
+                        ]} />
+                    </CardContent>
+                </Card>
+
+                <Card className="border-border">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Llamadas por día</CardTitle>
+                        <CardDescription>Salientes vs entrantes en el período.</CardDescription>
+                    </CardHeader>
+                    <CardContent className={CHART_H}>
+                        {callsLoading ? <EmptyState text="Cargando..." /> : callsBarData.length === 0
+                            ? <EmptyState text="No hay llamadas en el período." />
+                            : (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={callsBarData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} vertical={false} />
+                                        <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                                        <Tooltip />
+                                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                                        <Bar dataKey="Salientes" fill="#22C55E" radius={[3, 3, 0, 0]} />
+                                        <Bar dataKey="Entrantes" fill="#EF4444" radius={[3, 3, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            )}
                     </CardContent>
                 </Card>
             </div>
