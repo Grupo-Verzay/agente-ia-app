@@ -149,7 +149,7 @@ const EnableToggleButton: React.FC<EnableToggleButtonProps> = ({
               enabled: nextEnabled,
               url: webhookUrl,
               base64: true,
-              events: ["MESSAGES_UPSERT"],
+              events: ["MESSAGES_UPSERT", "CALL"],
             },
           }),
         }
