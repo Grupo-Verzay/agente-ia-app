@@ -117,6 +117,9 @@ interface ChatMessageListProps {
   loadingOlderMessages?: boolean;
   searchMatchIds?: Set<string>;
   activeSearchMessageId?: string;
+  /** Teléfono del contacto (solo dígitos) para el botón "devolver llamada" en burbujas de llamada */
+  callPhone?: string;
+  callContactName?: string;
 }
 
 const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
@@ -135,6 +138,8 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   loadingOlderMessages,
   searchMatchIds,
   activeSearchMessageId,
+  callPhone,
+  callContactName,
 }) => {
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   const bgStyle = isDark ? WA_STYLE_DARK : WA_STYLE_LIGHT;
@@ -314,6 +319,9 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
                   media={item.message.media}
                   status={item.message.status}
                   kind={item.message.kind}
+                  call={item.message.call}
+                  callPhone={callPhone}
+                  callContactName={callContactName}
                   quotedMessage={item.message.quotedMessage}
                   adPreview={item.message.adPreview}
                   onReply={onSetReplyTo ? () => onSetReplyTo(item.message) : undefined}

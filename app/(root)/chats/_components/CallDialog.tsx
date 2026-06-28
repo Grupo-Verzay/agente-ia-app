@@ -5,7 +5,7 @@ import { Phone, PhoneOff, Loader2, Mic, MicOff, Volume2, RotateCcw } from 'lucid
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { startAstraCall, astraCallWebrtc, endAstraCall } from '@/actions/astracalls-actions';
+import { startAstraCall, astraCallWebrtc, endAstraCall, logOutgoingCallAction } from '@/actions/astracalls-actions';
 
 interface Props {
   open: boolean;
@@ -30,6 +30,8 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
   const callRef = useRef<{ sid: string; callId: string } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cancelledRef = useRef(false);
+  const secondsRef = useRef(0);
+  const loggedRef = useRef(false);
 
   const cleanup = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -47,6 +49,11 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
 
   const handleClose = () => {
     cancelledRef.current = true;
+    // Registrar la llamada saliente en los Chats (solo si llegó a conectar)
+    if (!loggedRef.current && secondsRef.current > 0) {
+      loggedRef.current = true;
+      void logOutgoingCallAction(phone, secondsRef.current);
+    }
     hangup();
     onClose();
   };
@@ -56,6 +63,8 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
     hangup();
     setState('connecting');
     setSeconds(0);
+    secondsRef.current = 0;
+    loggedRef.current = false;
     setErrorMsg('');
     setMuted(false);
 
@@ -102,7 +111,10 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
       }
       await pc.setRemoteDescription({ type: 'answer', sdp: res.sdpAnswer });
       setState('in-call');
-      timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
+      timerRef.current = setInterval(() => {
+        secondsRef.current += 1;
+        setSeconds(secondsRef.current);
+      }, 1000);
     } catch (e: any) {
       if (cancelledRef.current) return;
       setErrorMsg(

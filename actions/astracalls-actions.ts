@@ -8,6 +8,7 @@
 
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { persistChatMessage } from '@/lib/chat-persistence';
 
 const BASE = (process.env.ASTRACALLS_URL || '').replace(/\/+$/, '');
 const KEY = process.env.ASTRACALLS_API_KEY || '';
@@ -215,6 +216,40 @@ export async function astraCallWebrtc(
     return { success: true, sdpAnswer };
   } catch (e: any) {
     return { success: false, message: e?.message || 'Error de audio.' };
+  }
+}
+
+/** Registra en los Chats una llamada SALIENTE hecha desde la app (burbuja "Llamada realizada"). */
+export async function logOutgoingCallAction(
+  phone: string,
+  durationSecs: number,
+  isVideo = false,
+): Promise<void> {
+  try {
+    const me = await currentUser();
+    const userId = me?.ownerId ?? me?.id;
+    if (!userId) return;
+    const digits = (phone || '').replace(/\D/g, '');
+    if (!digits) return;
+    const inst = await db.instancia.findFirst({
+      where: { userId, instanceType: 'Whatsapp' },
+      select: { instanceName: true },
+    });
+    if (!inst?.instanceName) return;
+    await persistChatMessage({
+      userId,
+      instanceName: inst.instanceName,
+      instanceType: 'evolution',
+      remoteJid: `${digits}@s.whatsapp.net`,
+      messageId: `callout_${Date.now()}_${digits}`,
+      fromMe: true,
+      messageType: 'call',
+      content: isVideo ? 'Videollamada realizada' : 'Llamada realizada',
+      raw: { call: { direction: 'outgoing', isVideo, durationSecs } },
+      messageTimestamp: new Date(),
+    });
+  } catch {
+    /* best-effort, nunca rompe la llamada */
   }
 }
 

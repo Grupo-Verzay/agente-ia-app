@@ -66,7 +66,9 @@ export type UIBubble = {
   ts?: number;
   media?: MediaData;
   status?: MessageDeliveryState;
-  kind?: 'sticker' | 'reaction';
+  kind?: 'sticker' | 'reaction' | 'call';
+  /** Info de llamada (cuando kind === 'call') */
+  call?: { direction: 'incoming' | 'outgoing'; isVideo?: boolean; durationSecs?: number };
   quotedMessage?: { id: string; content: string; sender: 'user' | 'other'; mediaType?: string };
   adPreview?: {
     title?: string;

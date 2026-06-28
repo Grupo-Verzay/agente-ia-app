@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Check, CheckCheck, CircleAlert, Clock, Reply } from 'lucide-react';
+import { Check, CheckCheck, CircleAlert, Clock, Reply, PhoneMissed, PhoneOutgoing, Video, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MediaRenderer } from './MediaRenderer';
 import { CHAT_TIME_FORMATTER, initialFromName } from './chat-message-utils';
 import { MessageContextMenu } from './MessageContextMenu';
+import { CallDialog } from './CallDialog';
 import type { MediaData, MessageDeliveryState, UIBubble } from './chat-message-types';
 
 /* ─── ExpandableText ─── */
@@ -70,6 +71,10 @@ interface MessageBubbleProps {
   media?: MediaData;
   status?: MessageDeliveryState;
   kind?: UIBubble['kind'];
+  call?: UIBubble['call'];
+  /** Teléfono del contacto (solo dígitos) para "devolver llamada" */
+  callPhone?: string;
+  callContactName?: string;
   quotedMessage?: UIBubble['quotedMessage'];
   adPreview?: UIBubble['adPreview'];
   onReply?: () => void;
@@ -88,6 +93,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   media,
   status,
   kind,
+  call,
+  callPhone,
+  callContactName,
   quotedMessage,
   adPreview,
   onReply,
@@ -95,6 +103,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onReact,
   onDelete,
 }) => {
+  const [callOpen, setCallOpen] = useState(false);
   // Sin avatar por mensaje (como WhatsApp en chats 1-a-1): burbujas limpias y
   // más espacio. El avatar del contacto ya se ve en la cabecera del chat.
   const showAvatar = false;
@@ -130,6 +139,48 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       )}
     </div>
   );
+
+  if (kind === 'call') {
+    const isOutgoing = call?.direction === 'outgoing';
+    const isVideo = !!call?.isVideo;
+    const dur = call?.durationSecs ?? 0;
+    const durLabel = dur > 0
+      ? ` (${String(Math.floor(dur / 60)).padStart(2, '0')}:${String(dur % 60).padStart(2, '0')})`
+      : '';
+    const label = isOutgoing
+      ? `${isVideo ? 'Videollamada' : 'Llamada'} realizada${durLabel}`
+      : `${isVideo ? 'Videollamada' : 'Llamada'} perdida`;
+    const CallIcon = isOutgoing ? PhoneOutgoing : PhoneMissed;
+    return (
+      <div className="my-2 flex justify-center">
+        <div className={cn(
+          'flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs shadow-sm',
+          isOutgoing
+            ? 'border-border bg-muted/60 text-muted-foreground'
+            : 'border-red-200 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400',
+        )}>
+          {isVideo ? <Video className="h-3.5 w-3.5 shrink-0" /> : <CallIcon className="h-3.5 w-3.5 shrink-0" />}
+          <span className="font-medium">{label}</span>
+          {timestamp && (
+            <span className="text-[0.65rem] opacity-70">{CHAT_TIME_FORMATTER.format(new Date(timestamp))}</span>
+          )}
+          {callPhone && (
+            <button
+              type="button"
+              onClick={() => setCallOpen(true)}
+              className="ml-1 flex items-center gap-1 rounded-full bg-green-600 px-2 py-0.5 text-[0.65rem] font-semibold text-white transition-colors hover:bg-green-700"
+              title="Devolver llamada"
+            >
+              <Phone className="h-3 w-3" /> Llamar
+            </button>
+          )}
+        </div>
+        {callPhone && (
+          <CallDialog open={callOpen} onClose={() => setCallOpen(false)} phone={callPhone} contactName={callContactName} />
+        )}
+      </div>
+    );
+  }
 
   if (kind === 'sticker') {
     return (

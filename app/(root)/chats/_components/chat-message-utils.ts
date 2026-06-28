@@ -126,6 +126,7 @@ export function toUIMessages(
     let content = '';
     let media: MediaData | null = null;
     let kind: UIBubble['kind'];
+    let call: UIBubble['call'];
     const messageData = (m.message || {}) as import('@/actions/chat-actions').MessageContent;
 
     switch (m.messageType) {
@@ -162,6 +163,21 @@ export function toUIMessages(
         content = messageData.reactionMessage?.text || '';
         kind = 'reaction';
         break;
+      case 'call': {
+        kind = 'call';
+        const callRaw = ((messageData as Record<string, any>).call ?? {}) as {
+          direction?: 'incoming' | 'outgoing';
+          isVideo?: boolean;
+          durationSecs?: number;
+        };
+        call = {
+          direction: callRaw.direction ?? 'incoming',
+          isVideo: !!callRaw.isVideo,
+          durationSecs: callRaw.durationSecs ?? 0,
+        };
+        content = messageData?.conversation || (call.isVideo ? 'Videollamada' : 'Llamada');
+        break;
+      }
       default:
         content = `[Mensaje ${m.messageType || 'desconocido'}]`;
     }
@@ -197,6 +213,7 @@ export function toUIMessages(
       media: media || undefined,
       status: isUser ? normalizeDeliveryState(resolveEvolutionMessageStatus(m)) : undefined,
       kind,
+      call,
       adPreview,
     };
   });

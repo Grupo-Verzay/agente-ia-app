@@ -897,6 +897,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         loadingOlderMessages={loadingOlderMessages}
         searchMatchIds={searchMatchIds}
         activeSearchMessageId={activeSearchMessageId}
+        callPhone={(displayedWhatsapp || '').replace(/\D/g, '')}
+        callContactName={displayedContactName}
       />
 
       <SuggestedReplyBar

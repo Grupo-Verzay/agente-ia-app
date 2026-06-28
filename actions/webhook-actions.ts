@@ -50,7 +50,7 @@ export async function toggleWebhook({
                         enabled: enable,
                         url: webhookUrl,
                         base64: true,
-                        events: ['MESSAGES_UPSERT'],
+                        events: ['MESSAGES_UPSERT', 'CALL'],
                     },
                 }),
                 cache: 'no-store',
