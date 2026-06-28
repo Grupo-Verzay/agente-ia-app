@@ -15,7 +15,7 @@ interface Props {
   contactName?: string;
 }
 
-type CallState = 'connecting' | 'in-call' | 'ended' | 'error';
+type CallState = 'connecting' | 'ringing' | 'in-call' | 'ended' | 'error';
 
 export function CallDialog({ open, onClose, phone, contactName }: Props) {
   const [state, setState] = useState<CallState>('connecting');
@@ -29,12 +29,14 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const callRef = useRef<{ sid: string; callId: string } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const answerPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cancelledRef = useRef(false);
   const secondsRef = useRef(0);
   const loggedRef = useRef(false);
 
   const cleanup = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (answerPollRef.current) { clearInterval(answerPollRef.current); answerPollRef.current = null; }
     try { micRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ }
     try { pcRef.current?.close(); } catch { /* ignore */ }
     micRef.current = null;
@@ -126,10 +128,30 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
         return;
       }
       await pc.setRemoteDescription({ type: 'answer', sdp: res.sdpAnswer });
-      setState('in-call');
-      timerRef.current = setInterval(() => {
-        secondsRef.current += 1;
-        setSeconds(secondsRef.current);
+      // Aún no es "en llamada": está sonando. El contador arranca cuando el otro
+      // contesta, lo que detectamos en cuanto empieza a llegar audio (getStats).
+      setState('ringing');
+      answerPollRef.current = setInterval(() => {
+        const cur = pcRef.current;
+        if (!cur) return;
+        void cur.getStats().then((stats) => {
+          let answered = false;
+          stats.forEach((r: any) => {
+            if (r.type === 'inbound-rtp' && (r.kind === 'audio' || r.mediaType === 'audio') && (r.bytesReceived ?? 0) > 0) {
+              answered = true;
+            }
+          });
+          if (answered) {
+            if (answerPollRef.current) { clearInterval(answerPollRef.current); answerPollRef.current = null; }
+            setState('in-call');
+            secondsRef.current = 0;
+            setSeconds(0);
+            timerRef.current = setInterval(() => {
+              secondsRef.current += 1;
+              setSeconds(secondsRef.current);
+            }, 1000);
+          }
+        }).catch(() => { /* ignore */ });
       }, 1000);
     } catch (e: any) {
       if (cancelledRef.current) return;
@@ -198,6 +220,11 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
             {state === 'connecting' && (
               <span className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Conectando…
+              </span>
+            )}
+            {state === 'ringing' && (
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Llamando…
               </span>
             )}
             {state === 'in-call' && <span className="font-mono text-base text-green-600">{mmss}</span>}
