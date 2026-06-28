@@ -209,7 +209,12 @@ export async function astraCallWebrtc(
       headers: headers(),
       body: JSON.stringify({ sdp_offer: sdpOffer }),
     });
-    if (!r.ok) return { success: false, message: `Conexión de audio falló (${r.status}).` };
+    if (!r.ok) {
+      if (r.status === 404) {
+        return { success: false, message: 'La llamada no se pudo conectar (no contestaron a tiempo). Intenta de nuevo.' };
+      }
+      return { success: false, message: `Conexión de audio falló (${r.status}).` };
+    }
     const data = await r.json().catch(() => ({}));
     const sdpAnswer = data?.sdp_answer as string | undefined;
     if (!sdpAnswer) return { success: false, message: 'No se recibió respuesta de audio.' };

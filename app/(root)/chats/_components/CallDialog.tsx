@@ -103,15 +103,17 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
       await pc.setLocalDescription(offer);
       await new Promise<void>((resolve) => {
         if (pc.iceGatheringState === 'complete') return resolve();
-        // Fallback: no esperar indefinidamente el gathering (con STUN basta con
-        // los candidatos reunidos en ~2s; algunos navegadores nunca marcan
-        // 'complete' si un STUN no responde).
-        const to = setTimeout(resolve, 2500);
+        let done = false;
+        const finish = () => { if (!done) { done = true; clearTimeout(to); resolve(); } };
+        // Enviar la oferta cuanto antes para que la llamada no expire (evita el
+        // 404). Basta el primer candidato público (srflx) del STUN; si no llega,
+        // un tope de 1.2s.
+        const to = setTimeout(finish, 1200);
         pc.addEventListener('icegatheringstatechange', () => {
-          if (pc.iceGatheringState === 'complete') {
-            clearTimeout(to);
-            resolve();
-          }
+          if (pc.iceGatheringState === 'complete') finish();
+        });
+        pc.addEventListener('icecandidate', (ev) => {
+          if (ev.candidate && ev.candidate.candidate.includes('typ srflx')) finish();
         });
       });
 
