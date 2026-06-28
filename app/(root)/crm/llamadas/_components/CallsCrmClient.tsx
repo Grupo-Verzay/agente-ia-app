@@ -6,7 +6,6 @@ import {
   PhoneOutgoing,
   PhoneMissed,
   PhoneCall,
-  Clock,
   Loader2,
   RefreshCw,
 } from 'lucide-react';
@@ -29,6 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { getCallsCrmData, type CallsCrmData, type CallRow } from '@/actions/calls-crm-actions';
+import { MetricCard } from '@/components/custom/MetricCard';
 import { CallDialog } from '../../../chats/_components/CallDialog';
 
 const DAY_OPTIONS = [
@@ -59,7 +59,7 @@ const DATE_FMT = new Intl.DateTimeFormat('es-CO', {
   minute: '2-digit',
 });
 
-export function CallsCrmClient() {
+export function CallsCrmClient({ embedded = false }: { embedded?: boolean } = {}) {
   const [data, setData] = useState<CallsCrmData | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
@@ -102,18 +102,20 @@ export function CallsCrmClient() {
   );
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto p-1 sm:p-2">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
-            <PhoneCall className="h-5 w-5" />
-          </span>
-          <div>
-            <h1 className="text-lg font-bold leading-tight">Llamadas</h1>
-            <p className="text-xs text-muted-foreground">Registro y métricas de llamadas por WhatsApp</p>
+    <div className={cn('flex flex-col gap-3', embedded ? 'h-full' : 'h-full overflow-y-auto p-1 sm:p-2')}>
+      {/* Encabezado / controles */}
+      <div className={cn('flex flex-wrap items-center gap-2', embedded ? 'justify-end' : 'justify-between')}>
+        {!embedded && (
+          <div className="flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
+              <PhoneCall className="h-5 w-5" />
+            </span>
+            <div>
+              <h1 className="text-lg font-bold leading-tight">Llamadas</h1>
+              <p className="text-xs text-muted-foreground">Registro y métricas de llamadas por WhatsApp</p>
+            </div>
           </div>
-        </div>
+        )}
         <div className="flex items-center gap-2">
           {/* Rango de días */}
           <div className="flex rounded-lg border border-border p-0.5">
@@ -163,14 +165,44 @@ export function CallsCrmClient() {
         </CardContent>
       </Card>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        <KpiCard label="Total" value={kpis?.total ?? 0} icon={<Phone className="h-4 w-4" />} tone="muted" />
-        <KpiCard label="Salientes" value={kpis?.outgoing ?? 0} icon={<PhoneOutgoing className="h-4 w-4" />} tone="green" />
-        <KpiCard label="Entrantes" value={kpis?.incoming ?? 0} icon={<PhoneMissed className="h-4 w-4" />} tone="red" />
-        <KpiCard label="Contestadas" value={kpis?.answered ?? 0} icon={<PhoneCall className="h-4 w-4" />} tone="blue" />
-        <KpiCard label="Duración prom." value={fmtDuration(kpis?.avgDurationSecs ?? 0)} icon={<Clock className="h-4 w-4" />} tone="muted" />
-        <KpiCard label="Duración total" value={fmtDuration(kpis?.totalDurationSecs ?? 0)} icon={<Clock className="h-4 w-4" />} tone="muted" />
+      {/* KPIs (4 tarjetas estándar) */}
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+        <div className="min-w-0 sm:flex-1">
+          <MetricCard
+            icon={<Phone className="h-4 w-4" />}
+            label="Total"
+            value={kpis?.total ?? 0}
+            helper={`Duración total ${fmtDuration(kpis?.totalDurationSecs ?? 0)}`}
+            color="#3B82F6"
+          />
+        </div>
+        <div className="min-w-0 sm:flex-1">
+          <MetricCard
+            icon={<PhoneOutgoing className="h-4 w-4" />}
+            label="Salientes"
+            value={kpis?.outgoing ?? 0}
+            helper="Llamadas realizadas desde el panel"
+            color="#22C55E"
+          />
+        </div>
+        <div className="min-w-0 sm:flex-1">
+          <MetricCard
+            icon={<PhoneMissed className="h-4 w-4" />}
+            label="Entrantes"
+            value={kpis?.incoming ?? 0}
+            helper="Llamadas recibidas / perdidas"
+            color="#EF4444"
+          />
+        </div>
+        <div className="min-w-0 sm:flex-1">
+          <MetricCard
+            icon={<PhoneCall className="h-4 w-4" />}
+            label="Contestadas"
+            value={kpis?.answered ?? 0}
+            helper={`Duración promedio ${fmtDuration(kpis?.avgDurationSecs ?? 0)}`}
+            color="#8B5CF6"
+          />
+        </div>
       </div>
 
       {/* Charts */}
@@ -278,25 +310,6 @@ export function CallsCrmClient() {
         />
       )}
     </div>
-  );
-}
-
-function KpiCard({ label, value, icon, tone }: { label: string; value: string | number; icon: React.ReactNode; tone: 'green' | 'red' | 'blue' | 'muted' }) {
-  const toneCls =
-    tone === 'green' ? 'bg-green-100 text-green-600 dark:bg-green-950/40'
-    : tone === 'red' ? 'bg-red-100 text-red-600 dark:bg-red-950/40'
-    : tone === 'blue' ? 'bg-blue-100 text-blue-600 dark:bg-blue-950/40'
-    : 'bg-muted text-muted-foreground';
-  return (
-    <Card className="border-border">
-      <CardContent className="flex items-center gap-3 p-3">
-        <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', toneCls)}>{icon}</span>
-        <div className="min-w-0">
-          <div className="truncate text-lg font-bold leading-tight">{value}</div>
-          <div className="truncate text-xs text-muted-foreground">{label}</div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

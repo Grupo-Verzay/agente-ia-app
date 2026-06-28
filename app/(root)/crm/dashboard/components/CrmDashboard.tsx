@@ -328,6 +328,19 @@ export const CrmDashboard = ({
                         </button>
                         <button
                             type="button"
+                            onClick={() => setViewMode("llamadas")}
+                            className={[
+                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                viewMode === "llamadas"
+                                    ? "bg-background shadow-sm text-foreground"
+                                    : "text-muted-foreground hover:text-foreground",
+                            ].join(" ")}
+                        >
+                            <PhoneCall className="h-3.5 w-3.5" />
+                            Llamadas
+                        </button>
+                        <button
+                            type="button"
                             onClick={() => setViewMode("registros")}
                             className={[
                                 "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
@@ -364,19 +377,6 @@ export const CrmDashboard = ({
                         >
                             <FileText className="h-3.5 w-3.5" />
                             Reportes
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode("llamadas")}
-                            className={[
-                                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                                viewMode === "llamadas"
-                                    ? "bg-background shadow-sm text-foreground"
-                                    : "text-muted-foreground hover:text-foreground",
-                            ].join(" ")}
-                        >
-                            <PhoneCall className="h-3.5 w-3.5" />
-                            Llamadas
                         </button>
                     </div>
 
@@ -493,7 +493,7 @@ export const CrmDashboard = ({
                     </div>
                 ) : viewMode === "llamadas" ? (
                     <div className="flex-1 min-h-0 overflow-y-auto">
-                        <CallsCrmClient />
+                        <CallsCrmClient embedded />
                     </div>
                 ) : (
                     <AnalyticsView userId={userId} stats={stats} period={period} />
