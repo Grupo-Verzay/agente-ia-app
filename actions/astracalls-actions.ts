@@ -124,6 +124,15 @@ export async function getMyCallQr(): Promise<{ qr?: string; state?: string; mess
     const reader = r.body.getReader();
     const decoder = new TextDecoder();
     let buf = '';
+
+    // Re-disparar el emparejamiento AHORA que el stream ya está escuchando, para
+    // no perder el evento del QR por una carrera (si /pair se llamó antes de
+    // conectar el SSE, el QR ya se habría emitido y este listener no lo vería).
+    void fetch(`${BASE}/api/sessions/${sid}/pair`, {
+      method: 'POST',
+      headers: headers(),
+      body: '{}',
+    }).catch(() => { /* el QR igual debería llegar por el stream */ });
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -137,10 +146,18 @@ export async function getMyCallQr(): Promise<{ qr?: string; state?: string; mess
         if (!payload) continue;
         try {
           const ev = JSON.parse(payload);
-          if (ev?.sessionId !== sid) continue;
-          if (ev.type === 'auth-state' && ev.state === 'open') return { state: 'open' };
-          if ((ev.type === 'session-qr' || ev.type === 'auth-state') && ev.qr) {
-            return { qr: ev.qr as string, state: ev.state };
+          // El id de sesión puede venir en distintos campos según la versión de la API.
+          // Solo descartamos si el evento pertenece CLARAMENTE a otra sesión; si no
+          // trae id reconocible, no lo filtramos (evita perder el QR por nombre de campo).
+          const evSid = ev?.sessionId ?? ev?.session ?? ev?.id ?? ev?.accountId;
+          if (evSid && evSid !== sid) continue;
+          if ((ev.type === 'auth-state' || ev.state) && ev.state === 'open' && !ev.qr) {
+            return { state: 'open' };
+          }
+          // El QR puede llegar como ev.qr o ev.qrCode, en varios tipos de evento.
+          const qrValue = ev.qr ?? ev.qrCode ?? ev.code;
+          if (qrValue) {
+            return { qr: qrValue as string, state: ev.state };
           }
         } catch {
           /* ignore malformed */
