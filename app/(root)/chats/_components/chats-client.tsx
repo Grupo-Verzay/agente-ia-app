@@ -15,6 +15,7 @@ import { assignSessionToAdvisor } from "@/actions/advisor-assign-actions";
 import { loadChatBootstrapData } from "@/actions/chat-bootstrap-actions";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
 import { getChatContactSessions } from "@/actions/session-action";
+import { sendMetaTemplate, type MetaTemplateOption } from "@/actions/channel-chat-actions";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import { useAdvisorNotifications } from "@/hooks/chats/useAdvisorNotifications";
 import { useChatsRealtime, type ChatChangedPayload } from "@/hooks/chats/useChatsRealtime";
@@ -1079,6 +1080,31 @@ export function ChatsClient({
     ],
   );
 
+  const handleSendTemplate = useCallback(
+    async (template: MetaTemplateOption, params: string[]) => {
+      if (!selectedJid) {
+        throw new Error("No hay un chat seleccionado para enviar la plantilla.");
+      }
+      const instName = activeActionSetRef.current?.instanceName ?? currentContact?.instanceName;
+      if (!instName) {
+        throw new Error("No se encontró la instancia del chat.");
+      }
+      const result = await sendMetaTemplate(instName, selectedJid, template, params);
+      if (result.success) {
+        await pollAndCompareMessages(selectedJid, currentContact?.aliases);
+        await refreshSidebarData();
+      }
+      return result;
+    },
+    [
+      currentContact?.aliases,
+      currentContact?.instanceName,
+      pollAndCompareMessages,
+      refreshSidebarData,
+      selectedJid,
+    ],
+  );
+
   const handleToggleChatPin = useCallback(
     async (remoteJid: string, isPinned: boolean) => {
       const result = await toggleChatPinAction({
@@ -1610,6 +1636,8 @@ export function ChatsClient({
             onSend={handleSendAny}
             onSendQuickReply={handleSendQuickReply}
             onSendWorkflow={handleSendWorkflow}
+            instanceType={currentContact?.instanceType}
+            onSendTemplate={handleSendTemplate}
             onSessionResolved={handleSessionResolved}
             onSessionTagsChange={handleSessionTagsChange}
             quickReplies={quickReplies}

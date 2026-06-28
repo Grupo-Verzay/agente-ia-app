@@ -11,6 +11,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { SafeImage } from '@/components/custom/SafeImage';
 import { AttachmentMenu } from './attachment-menu';
 import { ChatAutomationPicker } from './ChatAutomationPicker';
+import { TemplatePickerDialog } from './TemplatePickerDialog';
+import type { MetaTemplateOption } from '@/actions/channel-chat-actions';
 import { cn } from '@/lib/utils';
 import { formatSecs } from './chat-message-utils';
 import {
@@ -51,6 +53,12 @@ interface ChatInputBarProps {
   onApplySlashSuggestion: (message: string) => void;
   onSendQuickReply: (quickReplyId: number) => Promise<ChatToolActionResult>;
   onSendWorkflow: (workflowId: string) => Promise<ChatToolActionResult>;
+  instanceType?: string;
+  instanceName?: string;
+  onSendTemplate?: (
+    template: MetaTemplateOption,
+    params: string[],
+  ) => Promise<{ success: boolean; message?: string }>;
   onSessionMutate: () => void;
   onGenerateSuggestion?: () => void;
   noteMode?: boolean;
@@ -84,6 +92,9 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   onApplySlashSuggestion,
   onSendQuickReply,
   onSendWorkflow,
+  instanceType,
+  instanceName,
+  onSendTemplate,
   onSessionMutate,
   onGenerateSuggestion,
   noteMode = false,
@@ -442,6 +453,10 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               onSendQuickReply={onSendQuickReply}
               onSendWorkflow={onSendWorkflow}
             />
+            {/* Plantillas de WhatsApp Cloud (Meta): permiten escribir fuera de la ventana de 24h */}
+            {instanceType === 'meta' && instanceName && onSendTemplate && (
+              <TemplatePickerDialog instanceName={instanceName} onSendTemplate={onSendTemplate} />
+            )}
             <AttachmentMenu onComposeMediaChange={composeMediaList.length < 4 ? (m) => m && onAddComposeMedia(m) : undefined} maxBase64MB={8} />
             {onToggleNoteMode && session && !isRecording && !isPreviewingAudio && (
               <Button

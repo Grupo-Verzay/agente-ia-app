@@ -161,6 +161,84 @@ export async function sendChannelTextAction(
   }
 }
 
+/* ─── Plantillas de WhatsApp Cloud (Meta) ─── */
+
+export interface MetaTemplateOption {
+  name: string;
+  language: string;
+  category: string;
+  bodyText: string;
+  paramCount: number;
+}
+
+/** Lista las plantillas aprobadas de la WABA de una instancia Meta. */
+export async function listMetaTemplates(
+  instanceName: string,
+): Promise<{ success: boolean; templates: MetaTemplateOption[] }> {
+  try {
+    const res = await fetch(
+      `${backendUrl()}/whatsapp/baileys/meta-templates/${encodeURIComponent(instanceName)}`,
+      { headers: authHeaders(), cache: 'no-store' },
+    );
+    if (!res.ok) return { success: false, templates: [] };
+    const json = await res.json();
+    return { success: true, templates: (json?.templates ?? []) as MetaTemplateOption[] };
+  } catch {
+    return { success: false, templates: [] };
+  }
+}
+
+/** Renderiza el cuerpo de la plantilla sustituyendo {{1}}, {{2}}… por los params. */
+function renderTemplateBody(bodyText: string, params: string[]): string {
+  return bodyText.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n) => params[Number(n) - 1] ?? `{{${n}}}`);
+}
+
+/** Envía una plantilla de WhatsApp Cloud y persiste el saliente en el panel. */
+export async function sendMetaTemplate(
+  instanceName: string,
+  remoteJid: string,
+  template: MetaTemplateOption,
+  params: string[],
+): Promise<SendMessageResult> {
+  try {
+    const res = await fetch(
+      `${backendUrl()}/whatsapp/baileys/send-template/${encodeURIComponent(instanceName)}`,
+      {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          remoteJid,
+          name: template.name,
+          language: template.language,
+          params,
+        }),
+        cache: 'no-store',
+      },
+    );
+    if (!res.ok) {
+      const reason = await res.json().then((j) => j?.message).catch(() => null);
+      return { success: false, message: typeof reason === 'string' && reason ? reason : `Error ${res.status} al enviar la plantilla.`, remoteJid };
+    }
+
+    const owner = await resolveInstanceOwner(instanceName);
+    if (owner?.userId) {
+      await persistChatMessage({
+        userId: owner.userId,
+        instanceName,
+        instanceType: owner.instanceType ?? 'meta',
+        remoteJid,
+        fromMe: true,
+        messageType: 'conversation',
+        content: renderTemplateBody(template.bodyText, params) || `[Plantilla: ${template.name}]`,
+        messageTimestamp: new Date(),
+      });
+    }
+    return { success: true, message: 'Plantilla enviada.', remoteJid };
+  } catch (err: any) {
+    return { success: false, message: err?.message ?? 'Error al enviar la plantilla.', remoteJid };
+  }
+}
+
 export async function sendChannelWorkflowAction(
   _instanceName: string,
   _remoteJid: string,

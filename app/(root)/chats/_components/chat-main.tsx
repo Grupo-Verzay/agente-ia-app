@@ -28,6 +28,7 @@ import {
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatInputBar } from './ChatInputBar';
+import type { MetaTemplateOption } from '@/actions/channel-chat-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SuggestedReplyBar } from './SuggestedReplyBar';
@@ -63,6 +64,11 @@ type ChatMainProps = {
   onSend: (payload: OutgoingMessagePayload) => void | Promise<void>;
   onSendWorkflow: (workflowId: string) => Promise<ChatToolActionResult>;
   onSendQuickReply: (quickReplyId: number) => Promise<ChatToolActionResult>;
+  instanceType?: string;
+  onSendTemplate?: (
+    template: MetaTemplateOption,
+    params: string[],
+  ) => Promise<{ success: boolean; message?: string }>;
   onBackToList: () => void;
   allTags: SimpleTag[];
   workflows: ChatWorkflowOption[];
@@ -93,6 +99,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   onSend,
   onSendQuickReply,
   onSendWorkflow,
+  instanceType,
+  onSendTemplate,
   onBackToList,
   quickReplies,
   userId,
@@ -945,6 +953,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onApplySlashSuggestion={applySlashSuggestion}
         onSendQuickReply={onSendQuickReply}
         onSendWorkflow={onSendWorkflow}
+        instanceType={instanceType}
+        instanceName={info?.instanceName}
+        onSendTemplate={onSendTemplate}
         onSessionMutate={mutateSessionStatus}
         onGenerateSuggestion={() => void generateSuggestion()}
         noteMode={noteMode}
