@@ -156,7 +156,9 @@ export async function toggleAdvisorAvailability(advisorId: string, available: bo
 export async function getTeamAdvisorInfos(): Promise<ActionResult<AdvisorInfo[]>> {
   const user = await currentUser();
   if (!user?.id) return { success: false, message: "No autorizado." };
-  const ownerId: string = user.id;
+  // Owner efectivo: si la cuenta está vinculada bajo otra (admin asociado), el
+  // equipo se busca por el dueño raíz, no por el id propio (que no tiene equipo).
+  const ownerId: string = user.ownerId ?? user.id;
 
   const rows = await db.$queryRaw<AdvisorInfo[]>`
     WITH members AS (
