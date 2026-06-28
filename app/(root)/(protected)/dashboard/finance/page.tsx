@@ -156,7 +156,7 @@ export default async function FinanceHomePage() {
       </div>
 
       {/* Totales clickeables */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {/* Ventas */}
         <Link href="/dashboard/finance/sales" className="block">
           <Card className="border-border transition hover:bg-muted/40">

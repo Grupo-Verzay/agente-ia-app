@@ -110,7 +110,7 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
     const anyQuickFilterActive = !!paidFilter || !!dueFilter;
 
     return (
-        <div className={cn("grid grid-cols-1 md:grid-cols-4 gap-3", className)}>
+        <div className={cn("grid grid-cols-2 md:grid-cols-4 gap-3", className)}>
             <StatCard
                 title="Total"
                 value={total}

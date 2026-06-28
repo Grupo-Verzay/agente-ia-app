@@ -184,15 +184,12 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
       <div className={`sticky top-0 z-1 mb-2 ${themeClass}`}>
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-2">
           {!isScheduleView && (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
               <div className="min-w-0">
                 <MetricCard icon={<Bell className="h-4 w-4" />} label="Pendientes" value={reminderMetrics.pending} helper={isCampaignPage ? "Campañas pendientes por enviar" : "Recordatorios pendientes por enviar"} color="#F59E0B" />
               </div>
               <div className="min-w-0">
                 <MetricCard icon={<Clock3 className="h-4 w-4" />} label="Para hoy" value={reminderMetrics.today} helper={isCampaignPage ? "Campañas programadas para hoy" : "Recordatorios programados para hoy"} color="#3B82F6" />
-              </div>
-              <div className="min-w-0">
-                <MetricCard icon={<Repeat2 className="h-4 w-4" />} label="Recurrentes" value={reminderMetrics.recurring} helper={isCampaignPage ? "Campañas configuradas para repetirse" : "Recordatorios configurados para repetirse"} color="#8B5CF6" />
               </div>
               <div className="min-w-0">
                 <MetricCard icon={<CheckCircle2 className="h-4 w-4" />} label="Enviados" value={reminderMetrics.sent} helper={isCampaignPage ? "Campañas ya enviadas" : "Recordatorios ya enviados"} color="#10B981" />
