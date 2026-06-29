@@ -11,6 +11,7 @@ import {
     Clock,
     Calendar,
     ClipboardList,
+    Inbox,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { MetricCard } from '@/components/custom/MetricCard';
@@ -22,10 +23,11 @@ import { AgendaKanban } from './dashboard/AgendaKanban';
 import { ShareScheduleLinkButton, UserAvailabilityForm } from './availability';
 import { UpdateMeetingDuration } from './settings';
 import { BookingFormBuilder } from './form/BookingFormBuilder';
+import { BookingFormResponsesList } from './form/BookingFormResponsesList';
 import { getAppointmentStatusCounts } from '@/actions/appointments-actions';
 import { AppointmentStatus } from '@prisma/client';
 
-type TabValue = 'dashboard' | 'availability' | 'kanban' | 'services' | 'reminders' | 'form' | 'settings';
+type TabValue = 'dashboard' | 'availability' | 'kanban' | 'services' | 'reminders' | 'form' | 'registros' | 'settings';
 
 const TABS: { value: TabValue; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
     { value: 'dashboard',    label: 'Dashboard',      Icon: LayoutDashboard },
@@ -34,6 +36,7 @@ const TABS: { value: TabValue; label: string; Icon: React.ComponentType<{ classN
     { value: 'services',     label: 'Servicios',      Icon: Wrench },
     { value: 'reminders',    label: 'Recordatorios',  Icon: Bell },
     { value: 'form',         label: 'Formulario',     Icon: ClipboardList },
+    { value: 'registros',    label: 'Registros',      Icon: Inbox },
     { value: 'settings',     label: 'Ajustes',        Icon: Settings2 },
 ];
 
@@ -191,6 +194,13 @@ export const MainSchedule = ({
                                 <BookingFormBuilder userId={userId} />
                             </CardContent>
                         </Card>
+                    </div>
+                )}
+
+                {/* Registros */}
+                {tab === 'registros' && (
+                    <div className="h-full min-h-0">
+                        <BookingFormResponsesList userId={userId} />
                     </div>
                 )}
 

@@ -163,3 +163,85 @@ export async function getBookingFormResponseByBooking(bookingAppointmentId: stri
     return null;
   }
 }
+
+export type BookingResponseRow = {
+  id: string;
+  createdAt: string;
+  clientName: string;
+  clientPhone: string;
+  appointmentStart: string | null;
+  appointmentTimezone: string | null;
+  serviceName: string | null;
+  status: string | null;
+  syncedToSheets: boolean;
+  sheetsSyncedAt: string | null;
+  answers: FormAnswer[];
+};
+
+/**
+ * Lista todas las respuestas del formulario de agendamiento de un asesor para
+ * mostrarlas en la App (pestaña "Registros"). El nombre/WhatsApp/fecha/servicio
+ * no viven en booking_form_responses (solo el vínculo a la cita), así que se
+ * resuelven uniendo con la cita asociada (Appointment o BookingAppointment).
+ */
+export async function getBookingFormResponses(userId: string): Promise<BookingResponseRow[]> {
+  if (!userId) return [];
+  try {
+    const rows = await db.bookingFormResponse.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        appointment: {
+          include: {
+            service: { select: { name: true } },
+            session: { select: { remoteJid: true, pushName: true, customName: true } },
+          },
+        },
+        bookingAppointment: {
+          include: { teamService: { select: { name: true } } },
+        },
+      },
+    });
+
+    return rows.map((r) => {
+      const appt = r.appointment;
+      const bk = r.bookingAppointment;
+      const phoneFromSession = appt?.session?.remoteJid
+        ? appt.session.remoteJid.split('@')[0]
+        : '';
+      const clientName =
+        appt?.clientName ||
+        bk?.clientName ||
+        appt?.session?.customName ||
+        appt?.session?.pushName ||
+        '';
+      const start = appt?.startTime ?? bk?.startTime ?? null;
+
+      return {
+        id: r.id,
+        createdAt: r.createdAt.toISOString(),
+        clientName,
+        clientPhone: bk?.clientPhone || phoneFromSession || '',
+        appointmentStart: start ? start.toISOString() : null,
+        appointmentTimezone: appt?.timezone ?? bk?.timezone ?? null,
+        serviceName: appt?.service?.name ?? bk?.teamService?.name ?? null,
+        status: appt?.status ?? bk?.status ?? null,
+        syncedToSheets: r.syncedToSheets,
+        sheetsSyncedAt: r.sheetsSyncedAt ? r.sheetsSyncedAt.toISOString() : null,
+        answers: Array.isArray(r.answers) ? (r.answers as unknown as FormAnswer[]) : [],
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function deleteBookingFormResponse(id: string): Promise<{ success: boolean }> {
+  if (!id) return { success: false };
+  try {
+    await db.bookingFormResponse.delete({ where: { id } });
+    return { success: true };
+  } catch {
+    return { success: false };
+  }
+}
