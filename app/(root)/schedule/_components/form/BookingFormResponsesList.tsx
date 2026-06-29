@@ -26,7 +26,7 @@ export type BookingResponseCounts = {
   total: number;
   synced: number;
   pending: number;
-  today: number;
+  recent: number;
 };
 
 interface Props {
@@ -37,11 +37,9 @@ interface Props {
 
 function computeCounts(rows: BookingResponseRow[]): BookingResponseCounts {
   const synced = rows.filter((r) => r.syncedToSheets).length;
-  const todayStr = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
-  const today = rows.filter(
-    (r) => new Date(r.createdAt).toLocaleDateString('es-CO', { timeZone: 'America/Bogota' }) === todayStr,
-  ).length;
-  return { total: rows.length, synced, pending: rows.length - synced, today };
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recent = rows.filter((r) => new Date(r.createdAt).getTime() >= weekAgo).length;
+  return { total: rows.length, synced, pending: rows.length - synced, recent };
 }
 
 const STATUS_LABEL: Record<string, string> = {

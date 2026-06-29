@@ -66,7 +66,7 @@ export const MainSchedule = ({
 }: MainReminderInterface) => {
     const [tab, setTab] = useState<TabValue>('dashboard');
     const [statusCounts, setStatusCounts] = useState<{ status: AppointmentStatus; count: number }[]>([]);
-    const [bookingCounts, setBookingCounts] = useState<BookingResponseCounts>({ total: 0, synced: 0, pending: 0, today: 0 });
+    const [bookingCounts, setBookingCounts] = useState<BookingResponseCounts>({ total: 0, synced: 0, pending: 0, recent: 0 });
     const userId: string = user.effectiveId ?? user.id;
 
     const handleBookingCounts = useCallback((counts: BookingResponseCounts) => {
@@ -93,7 +93,7 @@ export const MainSchedule = ({
         { key: 'total',   label: 'Total registros', value: bookingCounts.total,   color: '#3B82F6', Icon: ClipboardList, helper: 'Respuestas recibidas' },
         { key: 'synced',  label: 'Sincronizados',   value: bookingCounts.synced,  color: '#22C55E', Icon: CheckCircle2,  helper: 'Subidos a Google Sheets' },
         { key: 'pending', label: 'Pendientes',      value: bookingCounts.pending, color: '#EAB308', Icon: Clock,         helper: 'Sin sincronizar a Sheets' },
-        { key: 'today',   label: 'Hoy',             value: bookingCounts.today,   color: '#8B5CF6', Icon: CalendarClock, helper: 'Registros recibidos hoy' },
+        { key: 'recent',  label: 'Esta semana',     value: bookingCounts.recent,  color: '#8B5CF6', Icon: CalendarClock, helper: 'Registros de los últimos 7 días' },
     ];
 
     return (
