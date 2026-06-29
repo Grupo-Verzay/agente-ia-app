@@ -99,10 +99,10 @@ async function transcribe(wavBase64: string, cfg: AiCfg): Promise<string> {
   return '';
 }
 
-const SUMMARY_SYSTEM = `Eres un asistente de ventas. Resume la siguiente transcripción de una llamada en español, en este formato:
-- 3 a 5 puntos clave (viñetas, breves)
-- Una línea final "Próximo paso:" con la acción recomendada
-Sé conciso y concreto. Si la transcripción está vacía o es inútil, responde "Sin contenido suficiente".`;
+const SUMMARY_SYSTEM = `Eres un asistente de ventas. Resume en español la siguiente transcripción de una llamada, en este formato:
+- 1 a 5 puntos clave (viñetas breves), según el contenido disponible.
+- Una línea final "Próximo paso:" con la acción recomendada (si no hay datos claros, sugiere "Hacer seguimiento").
+Resume SIEMPRE que haya texto, aunque la llamada sea corta o informal. Solo responde exactamente "Sin contenido" si la transcripción está completamente vacía.`;
 
 async function summarize(transcript: string, cfg: AiCfg): Promise<string> {
   if (!transcript.trim()) return '';

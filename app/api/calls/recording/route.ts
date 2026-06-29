@@ -22,19 +22,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'bad params' }, { status: 400 });
   }
 
+  // Reenvía el Range del navegador para permitir duración/seek en el reproductor.
+  const range = req.headers.get('range');
   const upstream = await fetch(`${BASE}/api/sessions/${sid}/calls/${callId}/recording`, {
-    headers: { 'X-API-Key': KEY },
+    headers: { 'X-API-Key': KEY, ...(range ? { Range: range } : {}) },
     cache: 'no-store',
   });
-  if (!upstream.ok || !upstream.body) {
+  if ((!upstream.ok && upstream.status !== 206) || !upstream.body) {
     return NextResponse.json({ error: 'no recording' }, { status: 404 });
   }
 
-  return new NextResponse(upstream.body, {
-    status: 200,
-    headers: {
-      'Content-Type': 'audio/wav',
-      'Cache-Control': 'private, max-age=3600',
-    },
-  });
+  const headers = new Headers();
+  headers.set('Content-Type', 'audio/wav');
+  headers.set('Cache-Control', 'private, max-age=3600');
+  // Pasa cabeceras de tamaño/rango para que el navegador muestre la duración.
+  for (const h of ['content-length', 'content-range', 'accept-ranges']) {
+    const v = upstream.headers.get(h);
+    if (v) headers.set(h, v);
+  }
+
+  return new NextResponse(upstream.body, { status: upstream.status, headers });
 }
