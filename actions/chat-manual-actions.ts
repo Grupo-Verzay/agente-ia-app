@@ -60,6 +60,11 @@ type OutgoingMediaPayload = {
 
 type OutgoingMessagePayload = OutgoingTextPayload | OutgoingMediaPayload;
 const DEFAULT_CHAT_MESSAGE_PAGE_SIZE = 10;
+// Ventana de mensajes que se trae y persiste de Evolution al sincronizar un chat
+// (página 1). Se desacopla del tamaño de página de la UI: Evolution solo se
+// consulta en la apertura, así que pedir una ventana amplia llena la BD local con
+// suficiente historial para que el scroll-back funcione sin quedarse corto.
+const EVOLUTION_SYNC_WINDOW_SIZE = 100;
 
 function buildOutgoingHistoryEntry(payload: OutgoingMessagePayload) {
   if (payload.kind === "text") {
@@ -365,11 +370,19 @@ export async function warmChatMessagesAction(
     };
   }
 
+  // En la sincronización inicial (página 1) traemos una ventana amplia de Evolution
+  // y la persistimos, para que el scroll-back posterior (que lee de la BD local)
+  // disponga de suficiente historial. En páginas posteriores se respeta el tamaño
+  // recibido para no descuadrar el offset que Evolution aplica por página.
+  const fetchOptions =
+    page === 1
+      ? { ...options, pageSize: Math.max(options?.pageSize ?? 0, EVOLUTION_SYNC_WINDOW_SIZE) }
+      : options;
   const result = await findMessagesByRemoteJid(
     context.apiKeyData,
     context.instanceName,
     remoteJid,
-    options,
+    fetchOptions,
   );
 
   if (result.success && effectiveOwnerId) {
