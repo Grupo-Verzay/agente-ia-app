@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import { getDispositionMeta } from "@/lib/call-dispositions";
 
 const SCORE_PROMPT = `Eres un experto en ventas y CRM. Analiza el siguiente resumen de conversación con un prospecto y asígnale un Lead Score del 0 al 100.
 
@@ -79,6 +80,57 @@ async function getUserAiConfig(userId: string) {
     };
 }
 
+/**
+ * Construye un texto-resumen de las llamadas recientes del lead (resultado/
+ * disposición + nº de perdidas) para alimentar el lead scoring. Devuelve "" si
+ * no hay llamadas relevantes.
+ */
+async function buildCallResultsContext(
+    userId: string,
+    jids: (string | null | undefined)[],
+): Promise<string> {
+    const remoteJids = Array.from(new Set(jids.filter((j): j is string => !!j)));
+    if (!remoteJids.length) return "";
+
+    try {
+        const calls = await db.chatMessage.findMany({
+            where: { userId, messageType: "call", remoteJid: { in: remoteJids } },
+            orderBy: { messageTimestamp: "desc" },
+            take: 30,
+            select: { raw: true, fromMe: true },
+        });
+        if (!calls.length) return "";
+
+        const dispCounts = new Map<string, number>();
+        let missed = 0;
+        let outgoing = 0;
+        for (const c of calls) {
+            const rawObj = c.raw && typeof c.raw === "object" && !Array.isArray(c.raw)
+                ? (c.raw as Record<string, any>)
+                : {};
+            const callRaw = (rawObj.call ?? {}) as { direction?: string; disposition?: string };
+            const meta = getDispositionMeta(callRaw.disposition);
+            if (meta) dispCounts.set(meta.label, (dispCounts.get(meta.label) ?? 0) + 1);
+            const isOut = callRaw.direction === "outgoing" || c.fromMe;
+            if (isOut) outgoing += 1;
+            else missed += 1;
+        }
+
+        const parts: string[] = [];
+        parts.push(`Total de llamadas registradas: ${calls.length} (${outgoing} salientes, ${missed} entrantes/perdidas).`);
+        if (dispCounts.size) {
+            const detail = Array.from(dispCounts.entries())
+                .map(([label, n]) => `${label}: ${n}`)
+                .join(", ");
+            parts.push(`Resultados de llamadas: ${detail}.`);
+        }
+        return `[RESULTADO DE LLAMADAS]\n${parts.join("\n")}`;
+    } catch (err) {
+        console.warn("[buildCallResultsContext]", err);
+        return "";
+    }
+}
+
 export async function scoreLeadBySessionId(sessionId: number): Promise<{
     success: boolean;
     score?: number;
@@ -112,13 +164,21 @@ export async function scoreLeadBySessionId(sessionId: number): Promise<{
 
         if (!session) return { success: false, message: "Sesión no encontrada." };
 
+        // Resumen del resultado de llamadas recientes (disposiciones registradas),
+        // para que la puntuación también considere lo ocurrido por teléfono.
+        const callContext = await buildCallResultsContext(user.id, [
+            session.remoteJid,
+            session.remoteJidAlt,
+        ]);
+
         const textos = [
             ...session.crmFollowUps.map((f) => f.summarySnapshot).filter(Boolean),
             ...session.registros.map((r) => r.resumen).filter(Boolean),
+            ...(callContext ? [callContext] : []),
         ] as string[];
 
         if (!textos.length) {
-            return { success: false, message: "Sin síntesis o reportes para puntuar." };
+            return { success: false, message: "Sin síntesis, reportes ni llamadas para puntuar." };
         }
 
         const resumenCombinado = textos.join("\n\n---\n\n");

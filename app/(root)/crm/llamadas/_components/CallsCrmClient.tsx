@@ -10,6 +10,9 @@ import {
   RefreshCw,
   Search,
   Download,
+  ChevronDown,
+  CalendarClock,
+  Tag,
 } from 'lucide-react';
 import {
   Bar,
@@ -28,8 +31,30 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { getCallsCrmData, type CallsCrmData, type CallRow, type CallsKpis } from '@/actions/calls-crm-actions';
+import { toast } from 'sonner';
+import {
+  getCallsCrmData,
+  setCallDisposition,
+  scheduleCallbackAction,
+  type CallsCrmData,
+  type CallRow,
+  type CallsKpis,
+} from '@/actions/calls-crm-actions';
+import { CALL_DISPOSITIONS, getDispositionMeta } from '@/lib/call-dispositions';
 import { MetricCard } from '@/components/custom/MetricCard';
 import { CallDialog } from '../../../chats/_components/CallDialog';
 
@@ -71,6 +96,7 @@ export function CallsCrmClient({
   const [direction, setDirection] = useState<'all' | 'outgoing' | 'incoming'>('all');
   const [query, setQuery] = useState('');
   const [callTarget, setCallTarget] = useState<{ phone: string; name?: string } | null>(null);
+  const [callbackTarget, setCallbackTarget] = useState<{ phone: string; name?: string } | null>(null);
   const [dialNumber, setDialNumber] = useState('');
 
   const dialDigits = dialNumber.replace(/\D/g, '');
@@ -86,6 +112,20 @@ export function CallsCrmClient({
   }, [days, direction]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Actualiza la disposición de una llamada (optimista en el estado local).
+  const applyDisposition = useCallback(async (callId: string, value: string) => {
+    setData((prev) =>
+      prev
+        ? { ...prev, calls: prev.calls.map((c) => (c.id === callId ? { ...c, disposition: value } : c)) }
+        : prev,
+    );
+    const res = await setCallDisposition(callId, value);
+    if (!res.success) {
+      toast.error(res.message ?? 'No se pudo guardar el resultado.');
+      load(); // revertir desde el servidor
+    }
+  }, [load]);
 
   const kpis = data?.kpis;
 
@@ -385,6 +425,7 @@ export function CallsCrmClient({
                   <tr className="border-b text-left text-xs text-muted-foreground">
                     <th className="py-2 pr-3 font-medium">Contacto</th>
                     <th className="py-2 pr-3 font-medium">Tipo</th>
+                    <th className="py-2 pr-3 font-medium">Resultado</th>
                     <th className="py-2 pr-3 font-medium">Duración</th>
                     <th className="py-2 pr-3 font-medium">Fecha</th>
                     <th className="py-2 pr-3 font-medium text-right">Acción</th>
@@ -392,7 +433,13 @@ export function CallsCrmClient({
                 </thead>
                 <tbody>
                   {visibleCalls.map((c) => (
-                    <CallTableRow key={c.id} call={c} onCall={() => setCallTarget({ phone: c.phone, name: c.contactName ?? undefined })} />
+                    <CallTableRow
+                      key={c.id}
+                      call={c}
+                      onCall={() => setCallTarget({ phone: c.phone, name: c.contactName ?? undefined })}
+                      onDisposition={(value) => applyDisposition(c.id, value)}
+                      onCallback={() => setCallbackTarget({ phone: c.phone, name: c.contactName ?? undefined })}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -409,12 +456,124 @@ export function CallsCrmClient({
           contactName={callTarget.name}
         />
       )}
+
+      {callbackTarget && (
+        <CallbackDialog
+          open={!!callbackTarget}
+          onClose={() => setCallbackTarget(null)}
+          phone={callbackTarget.phone}
+          contactName={callbackTarget.name}
+        />
+      )}
     </div>
   );
 }
 
-function CallTableRow({ call, onCall }: { call: CallRow; onCall: () => void }) {
+/** Diálogo para agendar un callback (tarea interna "volver a llamar"). */
+function CallbackDialog({
+  open,
+  onClose,
+  phone,
+  contactName,
+}: {
+  open: boolean;
+  onClose: () => void;
+  phone: string;
+  contactName?: string;
+}) {
+  // Valor por defecto: dentro de 1 hora, formato datetime-local (sin zona).
+  const defaultWhen = useMemo(() => {
+    const d = new Date(Date.now() + 60 * 60 * 1000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }, []);
+  const [when, setWhen] = useState(defaultWhen);
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!when) return;
+    const due = new Date(when);
+    if (isNaN(due.getTime())) {
+      toast.error('Fecha inválida.');
+      return;
+    }
+    setSaving(true);
+    const res = await scheduleCallbackAction({
+      phone,
+      contactName: contactName ?? null,
+      dueDate: due.toISOString(),
+      note: note.trim() || null,
+    });
+    setSaving(false);
+    if (res.success) {
+      toast.success('Callback agendado. Lo verás en Tareas.');
+      onClose();
+    } else {
+      toast.error(res.message ?? 'No se pudo agendar el callback.');
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Agendar callback</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 py-1">
+          <div className="text-sm">
+            <span className="font-medium">{contactName || `+${phone}`}</span>
+            {contactName && <span className="ml-1 text-muted-foreground">+{phone}</span>}
+          </div>
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+            Fecha y hora
+            <Input
+              type="datetime-local"
+              value={when}
+              onChange={(e) => setWhen(e.target.value)}
+              className="h-9"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+            Nota (opcional)
+            <Input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Motivo o detalle del callback"
+              className="h-9"
+            />
+          </label>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button
+            className="gap-2 bg-green-600 text-white hover:bg-green-700"
+            onClick={() => void handleSave()}
+            disabled={saving || !when}
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
+            Agendar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CallTableRow({
+  call,
+  onCall,
+  onDisposition,
+  onCallback,
+}: {
+  call: CallRow;
+  onCall: () => void;
+  onDisposition: (value: string) => void;
+  onCallback: () => void;
+}) {
   const isOut = call.direction === 'outgoing';
+  const dispMeta = getDispositionMeta(call.disposition);
+  const callable = /\d{6,}/.test(call.phone);
   return (
     <tr className="border-b last:border-0 hover:bg-muted/40">
       <td className="py-2 pr-3">
@@ -432,14 +591,56 @@ function CallTableRow({ call, onCall }: { call: CallRow; onCall: () => void }) {
           </Badge>
         )}
       </td>
+      <td className="py-2 pr-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium transition-colors',
+                dispMeta
+                  ? dispMeta.badgeClass
+                  : 'border-dashed border-border bg-transparent text-muted-foreground hover:bg-muted/60',
+              )}
+            >
+              {dispMeta ? (
+                <><Tag className="h-3 w-3" /> {dispMeta.label}</>
+              ) : (
+                <>Marcar resultado</>
+              )}
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {CALL_DISPOSITIONS.map((d) => (
+              <DropdownMenuItem key={d.value} onSelect={() => onDisposition(d.value)}>
+                {d.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </td>
       <td className="py-2 pr-3 tabular-nums text-muted-foreground">{fmtDuration(call.durationSecs)}</td>
       <td className="py-2 pr-3 text-muted-foreground">{DATE_FMT.format(new Date(call.ts))}</td>
-      <td className="py-2 pr-3 text-right">
-        {/\d{6,}/.test(call.phone) && (
-          <Button size="sm" className="h-7 gap-1 bg-green-600 text-white hover:bg-green-700" onClick={onCall}>
-            <Phone className="h-3 w-3" /> Llamar
-          </Button>
-        )}
+      <td className="py-2 pr-3">
+        <div className="flex items-center justify-end gap-1.5">
+          {callable && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1"
+              onClick={onCallback}
+              title="Agendar callback"
+            >
+              <CalendarClock className="h-3 w-3" /> Callback
+            </Button>
+          )}
+          {callable && (
+            <Button size="sm" className="h-7 gap-1 bg-green-600 text-white hover:bg-green-700" onClick={onCall}>
+              <Phone className="h-3 w-3" /> Llamar
+            </Button>
+          )}
+        </div>
       </td>
     </tr>
   );

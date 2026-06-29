@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Phone, Trash2 } from "lucide-react";
 import type { Registro } from "@prisma/client";
+
+import { CallDialog } from "@/app/(root)/chats/_components/CallDialog";
 
 import {
   deleteRegistro,
@@ -35,9 +37,17 @@ export function CrmRecordActionsCell({
   const [editOpen, setEditOpen] = useState(false);
   const [deleteRecordOpen, setDeleteRecordOpen] = useState(false);
   const [deleteLeadMovementsOpen, setDeleteLeadMovementsOpen] = useState(false);
+  const [callOpen, setCallOpen] = useState(false);
 
   const displayName = getDisplayNombreFromRegistro(registro);
   const displayWhatsapp = getDisplayWhatsappFromSession(registro.session);
+
+  // Dígitos del teléfono del lead para la llamada por WhatsApp (sin sufijos @).
+  const callDigits = (registro.session.remoteJid || "")
+    .split("@")[0]
+    .split(":")[0]
+    .replace(/\D/g, "");
+  const canCall = callDigits.length >= 6;
 
   const handleDeleteRegistro = async () => {
     const toastId = `crm-delete-registro-${registro.id}`;
@@ -83,6 +93,13 @@ export function CrmRecordActionsCell({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {canCall && (
+            <DropdownMenuItem onSelect={() => setCallOpen(true)}>
+              <Phone className="h-4 w-4" />
+              Llamar
+            </DropdownMenuItem>
+          )}
+
           <DropdownMenuItem onSelect={() => setEditOpen(true)}>
             <Pencil className="h-4 w-4" />
             Editar registro
@@ -140,6 +157,15 @@ export function CrmRecordActionsCell({
         tone="destructive"
         onConfirm={handleDeleteLeadMovements}
       />
+
+      {canCall && callOpen && (
+        <CallDialog
+          open={callOpen}
+          onClose={() => setCallOpen(false)}
+          phone={callDigits}
+          contactName={displayName}
+        />
+      )}
     </>
   );
 }

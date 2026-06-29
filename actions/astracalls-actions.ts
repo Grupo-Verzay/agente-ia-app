@@ -241,37 +241,59 @@ export async function astraCallWebrtc(
   }
 }
 
-/** Registra en los Chats una llamada SALIENTE hecha desde la app (burbuja "Llamada realizada"). */
+/**
+ * Registra en los Chats una llamada SALIENTE hecha desde la app (burbuja
+ * "Llamada realizada"). Devuelve el id de la fila chat_messages para poder
+ * adjuntarle luego la disposición (resultado). `disposition` es opcional y se
+ * guarda dentro de raw.call.disposition.
+ */
 export async function logOutgoingCallAction(
   phone: string,
   durationSecs: number,
   isVideo = false,
-): Promise<void> {
+  disposition?: string,
+): Promise<{ id: string | null }> {
   try {
     const me = await currentUser();
     const userId = me?.ownerId ?? me?.id;
-    if (!userId) return;
+    if (!userId) return { id: null };
     const digits = (phone || '').replace(/\D/g, '');
-    if (!digits) return;
+    if (!digits) return { id: null };
     const inst = await db.instancia.findFirst({
       where: { userId, instanceType: 'Whatsapp' },
       select: { instanceName: true },
     });
-    if (!inst?.instanceName) return;
+    if (!inst?.instanceName) return { id: null };
+    const remoteJid = `${digits}@s.whatsapp.net`;
+    const messageId = `callout_${Date.now()}_${digits}`;
     await persistChatMessage({
       userId,
       instanceName: inst.instanceName,
       instanceType: 'evolution',
-      remoteJid: `${digits}@s.whatsapp.net`,
-      messageId: `callout_${Date.now()}_${digits}`,
+      remoteJid,
+      messageId,
       fromMe: true,
       messageType: 'call',
       content: isVideo ? 'Videollamada realizada' : 'Llamada realizada',
-      raw: { call: { direction: 'outgoing', isVideo, durationSecs } },
+      raw: {
+        call: {
+          direction: 'outgoing',
+          isVideo,
+          durationSecs,
+          ...(disposition ? { disposition } : {}),
+        },
+      },
       messageTimestamp: new Date(),
     });
+    // Recuperar el id recién insertado para poder fijar la disposición después.
+    const row = await db.chatMessage.findFirst({
+      where: { userId, instanceName: inst.instanceName, messageId, fromMe: true },
+      select: { id: true },
+    });
+    return { id: row ? String(row.id) : null };
   } catch {
     /* best-effort, nunca rompe la llamada */
+    return { id: null };
   }
 }
 

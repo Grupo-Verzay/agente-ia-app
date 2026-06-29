@@ -6,6 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { startAstraCall, astraCallWebrtc, endAstraCall, logOutgoingCallAction } from '@/actions/astracalls-actions';
+import { setCallDisposition } from '@/actions/calls-crm-actions';
+import { CALL_DISPOSITIONS } from '@/lib/call-dispositions';
 
 interface Props {
   open: boolean;
@@ -23,6 +25,8 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
   const [errorMsg, setErrorMsg] = useState('');
   const [muted, setMuted] = useState(false);
   const [speakerOn, setSpeakerOn] = useState(false);
+  const [disposition, setDisposition] = useState<string | null>(null);
+  const [savingDisp, setSavingDisp] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const micRef = useRef<MediaStream | null>(null);
@@ -33,6 +37,7 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
   const cancelledRef = useRef(false);
   const secondsRef = useRef(0);
   const loggedRef = useRef(false);
+  const loggedIdRef = useRef<string | null>(null);
 
   const cleanup = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -51,13 +56,36 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
 
   const handleClose = () => {
     cancelledRef.current = true;
-    // Registrar la llamada saliente en los Chats (solo si llegó a conectar)
+    // Registrar la llamada saliente en los Chats (solo si llegó a conectar y no
+    // se registró ya al elegir un resultado).
     if (!loggedRef.current && secondsRef.current > 0) {
       loggedRef.current = true;
       void logOutgoingCallAction(phone, secondsRef.current);
     }
     hangup();
     onClose();
+  };
+
+  // Registrar/actualizar la disposición (resultado) de la llamada. Si la llamada
+  // aún no se registró (p. ej. "no contesta", 0s), la registra ahora con el
+  // resultado; si ya estaba registrada, sólo actualiza la disposición.
+  const chooseDisposition = async (value: string) => {
+    if (savingDisp) return;
+    setDisposition(value);
+    setSavingDisp(true);
+    try {
+      if (!loggedRef.current) {
+        loggedRef.current = true;
+        const res = await logOutgoingCallAction(phone, secondsRef.current, false, value);
+        loggedIdRef.current = res.id;
+      } else if (loggedIdRef.current) {
+        await setCallDisposition(loggedIdRef.current, value);
+      }
+    } catch {
+      /* best-effort */
+    } finally {
+      setSavingDisp(false);
+    }
   };
 
   const startCall = useCallback(async () => {
@@ -67,6 +95,8 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
     setSeconds(0);
     secondsRef.current = 0;
     loggedRef.current = false;
+    loggedIdRef.current = null;
+    setDisposition(null);
     setErrorMsg('');
     setMuted(false);
 
@@ -262,6 +292,33 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
                 </span>
                 Altavoz
               </button>
+            </div>
+          )}
+
+          {/* Resultado de la llamada (disposición) — al finalizar */}
+          {finished && (
+            <div className="w-full">
+              <p className="mb-1.5 text-center text-xs font-medium text-muted-foreground">
+                ¿Cómo resultó la llamada?
+              </p>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {CALL_DISPOSITIONS.map((d) => (
+                  <button
+                    key={d.value}
+                    type="button"
+                    disabled={savingDisp}
+                    onClick={() => void chooseDisposition(d.value)}
+                    className={cn(
+                      'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50',
+                      disposition === d.value
+                        ? d.badgeClass
+                        : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted',
+                    )}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
