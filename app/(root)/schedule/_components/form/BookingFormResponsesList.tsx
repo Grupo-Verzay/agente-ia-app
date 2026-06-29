@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import {
-  RefreshCw, Trash2, Eye, Download,
+  RefreshCw, Trash2, Eye, Download, Search,
   CheckCircle2, Clock, Filter, User, Phone, CalendarClock, Wrench,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -68,8 +69,22 @@ function fmtDateTime(iso: string | null, timezone?: string | null): string {
 export function BookingFormResponsesList({ userId, onCountsChange }: Props) {
   const [rows, setRows] = useState<BookingResponseRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
   const [viewRow, setViewRow] = useState<BookingResponseRow | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const filtered = useMemo(() => {
+    const indexed = rows.map((row, idx) => ({ row, num: rows.length - idx }));
+    const q = query.trim().toLowerCase();
+    if (!q) return indexed;
+    return indexed.filter(({ row }) =>
+      [row.clientName, row.clientPhone, row.serviceName, ...row.answers.map((a) => a.answer)]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [rows, query]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,11 +149,14 @@ export function BookingFormResponsesList({ userId, onCountsChange }: Props) {
 
           {/* Toolbar (las métricas viven en la fila superior de MainSchedule) */}
           <ModuleToolbar className="shrink-0">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold truncate">Registros del formulario</p>
-                <p className="text-xs text-muted-foreground truncate">Respuestas recibidas en el agendamiento de citas</p>
-              </div>
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por título, número o nombre..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="w-full pl-8"
+              />
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={load} disabled={loading}>
@@ -157,7 +175,7 @@ export function BookingFormResponsesList({ userId, onCountsChange }: Props) {
 
       {/* Contenido scrollable */}
       <div className="flex-1 overflow-y-auto">
-        <div className="p-3">
+        <div className="pb-4">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
               <RefreshCw className="w-6 h-6 text-muted-foreground animate-spin" />
@@ -171,9 +189,17 @@ export function BookingFormResponsesList({ userId, onCountsChange }: Props) {
               <p className="font-medium">Sin registros aún</p>
               <p className="text-sm text-muted-foreground">Los registros aparecerán aquí cuando alguien llene el formulario de agendamiento.</p>
             </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+              <div className="p-3 rounded-full bg-muted">
+                <Search className="w-6 h-6 text-muted-foreground" />
+              </div>
+              <p className="font-medium">Sin resultados</p>
+              <p className="text-sm text-muted-foreground">No hay registros que coincidan con “{query}”.</p>
+            </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {rows.map((row, i) => (
+              {filtered.map(({ row, num }) => (
                 <div
                   key={row.id}
                   className="flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-3 shadow-sm hover:shadow-md transition-shadow"
@@ -190,7 +216,7 @@ export function BookingFormResponsesList({ userId, onCountsChange }: Props) {
                       <Badge variant={row.syncedToSheets ? 'default' : 'secondary'} className="text-xs py-0 h-4">
                         {row.syncedToSheets ? 'Sincronizado' : 'Pendiente'}
                       </Badge>
-                      <span className="text-xs font-mono text-muted-foreground">#{rows.length - i}</span>
+                      <span className="text-xs font-mono text-muted-foreground">#{num}</span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5 truncate flex items-center gap-2">
                       {row.clientPhone && <span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" />{row.clientPhone}</span>}
