@@ -2,10 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Phone, Loader2, RefreshCw, Trash2, QrCode, CheckCircle2, Power } from 'lucide-react';
+import { Phone, Loader2, RefreshCw, Trash2, QrCode, CheckCircle2, Power, Bot } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { QrScanDialog } from '@/components/shared/QrScanDialog';
 import { toast } from 'sonner';
 import {
@@ -14,6 +17,7 @@ import {
   getMyCallQr,
   unlinkMyCallSession,
 } from '@/actions/astracalls-actions';
+import { getVoicebotConfig, setVoicebotConfig, VOICEBOT_VOICES } from '@/actions/voicebot-actions';
 
 export function CallLinkCard() {
   const [loading, setLoading] = useState(true);
@@ -136,6 +140,9 @@ export function CallLinkCard() {
                 {jid && <div className="truncate text-xs text-muted-foreground">+{jid.split('@')[0].split(':')[0]}</div>}
               </div>
             </div>
+
+            <VoicebotSettings />
+
             <div className="mt-auto grid grid-cols-2 gap-2">
               <Button className="w-full gap-2 bg-green-600 text-white hover:bg-green-700" onClick={() => void refresh()}>
                 <CheckCircle2 className="h-4 w-4" /> Conectado
@@ -179,5 +186,79 @@ export function CallLinkCard() {
         waiting
       />
     </>
+  );
+}
+
+/** Configuración del voicebot (Item 7): contestar llamadas entrantes con IA. */
+function VoicebotSettings() {
+  const [loaded, setLoaded] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const [voice, setVoice] = useState('alloy');
+  const [transferTo, setTransferTo] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void getVoicebotConfig().then((r) => {
+      if (r.success && r.data) {
+        setEnabled(r.data.enabled);
+        setVoice(r.data.voice ?? 'alloy');
+        setTransferTo(r.data.transferTo ?? '');
+      }
+      setLoaded(true);
+    });
+  }, []);
+
+  const save = async (patch: { enabled?: boolean; voice?: string; transferTo?: string }) => {
+    setSaving(true);
+    const res = await setVoicebotConfig(patch);
+    setSaving(false);
+    if (!res.success) toast.error(res.message ?? 'No se pudo guardar.');
+  };
+
+  const toggle = async (v: boolean) => {
+    setEnabled(v);
+    await save({ enabled: v });
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <Bot className="h-4 w-4 text-violet-600" /> Contestar con IA
+        </span>
+        <Switch checked={enabled} onCheckedChange={(v) => void toggle(v)} disabled={saving} />
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        El asistente de voz contesta las llamadas entrantes y conversa con tu Agente IA.
+      </p>
+      {enabled && (
+        <div className="mt-3 flex flex-col gap-2">
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+            Voz del asistente
+            <Select value={voice} onValueChange={(v) => { setVoice(v); void save({ voice: v }); }}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {VOICEBOT_VOICES.map((vn) => (
+                  <SelectItem key={vn} value={vn} className="capitalize">{vn}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+            Transferir a (número del asesor, opcional)
+            <Input
+              value={transferTo}
+              onChange={(e) => setTransferTo(e.target.value)}
+              onBlur={() => void save({ transferTo })}
+              placeholder="573001234567"
+              inputMode="tel"
+              className="h-9"
+            />
+          </label>
+        </div>
+      )}
+    </div>
   );
 }

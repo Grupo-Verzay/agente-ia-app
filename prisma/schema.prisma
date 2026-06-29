@@ -134,6 +134,10 @@ model Instancia {
   metaVerifyToken        String? @map("meta_verify_token")
   metaChannel            String? @default("whatsapp") @map("meta_channel")
   metaPageId             String? @map("meta_page_id")
+  // Voicebot (Item 7): contesta llamadas entrantes con IA de voz, por cuenta.
+  voicebotEnabled        Boolean @default(false) @map("voicebot_enabled")
+  voicebotVoice          String? @map("voicebot_voice")
+  voicebotTransferTo     String? @map("voicebot_transfer_to")
   user                   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
