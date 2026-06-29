@@ -110,6 +110,19 @@ export function CallsCrmClient({
     [data],
   );
 
+  // Últimos números marcados (únicos) para rellamada rápida.
+  const recentDials = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { phone: string; name?: string }[] = [];
+    for (const c of data?.calls ?? []) {
+      if (!/\d{6,}/.test(c.phone) || seen.has(c.phone)) continue;
+      seen.add(c.phone);
+      out.push({ phone: c.phone, name: c.contactName ?? undefined });
+      if (out.length >= 5) break;
+    }
+    return out;
+  }, [data]);
+
   const visibleCalls = useMemo(() => {
     const raw = query.trim().toLowerCase();
     const digits = raw.replace(/\D/g, '');
@@ -226,6 +239,25 @@ export function CallsCrmClient({
           >
             <Phone className="h-4 w-4" /> Llamar
           </Button>
+
+          {/* Rellamada rápida: últimos números marcados */}
+          {recentDials.length > 0 && (
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 sm:justify-end">
+              <span className="text-xs font-medium text-muted-foreground">Rellamar:</span>
+              {recentDials.map((d) => (
+                <button
+                  key={d.phone}
+                  type="button"
+                  onClick={() => setCallTarget({ phone: d.phone, name: d.name })}
+                  title={`Llamar a ${d.name || `+${d.phone}`}`}
+                  className="inline-flex max-w-[10rem] items-center gap-1 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-green-300 hover:bg-green-50 hover:text-green-700 dark:hover:border-green-900/50 dark:hover:bg-green-950/30 dark:hover:text-green-400"
+                >
+                  <Phone className="h-3 w-3 shrink-0 text-green-600" />
+                  <span className="truncate">{d.name || `+${d.phone}`}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
