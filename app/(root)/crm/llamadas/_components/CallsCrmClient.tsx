@@ -11,8 +11,11 @@ import {
   Search,
   Download,
   ChevronDown,
+  ChevronUp,
   CalendarClock,
   Tag,
+  FileText,
+  Sparkles,
 } from 'lucide-react';
 import {
   Bar,
@@ -574,10 +577,29 @@ function CallTableRow({
   const isOut = call.direction === 'outgoing';
   const dispMeta = getDispositionMeta(call.disposition);
   const callable = /\d{6,}/.test(call.phone);
+  const [expanded, setExpanded] = useState(false);
+  const hasDetail = call.hasRecording || !!call.transcript || !!call.summary;
+  const recordingUrl =
+    call.astraSid && call.astraCallId
+      ? `/api/calls/recording?sid=${encodeURIComponent(call.astraSid)}&callId=${encodeURIComponent(call.astraCallId)}`
+      : null;
   return (
+    <>
     <tr className="border-b last:border-0 hover:bg-muted/40">
       <td className="py-2 pr-3">
-        <div className="font-medium">{call.contactName || `+${call.phone}`}</div>
+        <div className="flex items-center gap-1.5">
+          {hasDetail && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="text-muted-foreground hover:text-foreground"
+              title={expanded ? 'Ocultar detalle' : 'Ver grabación / transcripción'}
+            >
+              {expanded ? <ChevronUp className="h-4 w-4" /> : <FileText className="h-4 w-4 text-blue-600" />}
+            </button>
+          )}
+          <span className="font-medium">{call.contactName || `+${call.phone}`}</span>
+        </div>
         {call.contactName && <div className="text-xs text-muted-foreground">+{call.phone}</div>}
       </td>
       <td className="py-2 pr-3">
@@ -643,6 +665,43 @@ function CallTableRow({
         </div>
       </td>
     </tr>
+    {expanded && hasDetail && (
+      <tr className="border-b bg-muted/20">
+        <td colSpan={6} className="px-3 py-3">
+          <div className="flex flex-col gap-3">
+            {recordingUrl && (
+              <div>
+                <div className="mb-1 text-xs font-medium text-muted-foreground">Grabación</div>
+                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                <audio controls preload="none" src={recordingUrl} className="h-9 w-full max-w-md" />
+              </div>
+            )}
+            {call.summary && (
+              <div>
+                <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Sparkles className="h-3.5 w-3.5 text-violet-600" /> Resumen IA
+                </div>
+                <p className="whitespace-pre-wrap rounded-md bg-background p-2 text-sm">{call.summary}</p>
+              </div>
+            )}
+            {call.transcript && (
+              <div>
+                <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <FileText className="h-3.5 w-3.5" /> Transcripción
+                </div>
+                <p className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-md bg-background p-2 text-sm text-muted-foreground">
+                  {call.transcript}
+                </p>
+              </div>
+            )}
+            {!call.transcript && !call.summary && call.hasRecording && (
+              <p className="text-xs text-muted-foreground">Procesando transcripción…</p>
+            )}
+          </div>
+        </td>
+      </tr>
+    )}
+    </>
   );
 }
 

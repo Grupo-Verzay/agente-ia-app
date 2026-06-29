@@ -20,6 +20,11 @@ export interface CallRow {
   durationSecs: number;
   status: string;
   disposition: string | null;
+  hasRecording: boolean;
+  transcript: string | null;
+  summary: string | null;
+  astraSid: string | null;
+  astraCallId: string | null;
   ts: number; // epoch ms
 }
 
@@ -83,7 +88,17 @@ export async function getCallsCrmData(params?: {
 
   const calls: CallRow[] = rows.map((r) => {
     const rawObj = r.raw && typeof r.raw === 'object' ? (r.raw as Record<string, any>) : {};
-    const callRaw = (rawObj.call ?? {}) as { direction?: string; durationSecs?: number; status?: string; disposition?: string };
+    const callRaw = (rawObj.call ?? {}) as {
+      direction?: string;
+      durationSecs?: number;
+      status?: string;
+      disposition?: string;
+      hasRecording?: boolean;
+      transcript?: string | null;
+      summary?: string | null;
+      astraSid?: string;
+      astraCallId?: string;
+    };
     const direction: CallDirection =
       callRaw.direction === 'outgoing' ? 'outgoing'
       : callRaw.direction === 'incoming' ? 'incoming'
@@ -97,6 +112,11 @@ export async function getCallsCrmData(params?: {
       durationSecs: Number(callRaw.durationSecs ?? 0) || 0,
       status: String(callRaw.status ?? ''),
       disposition: callRaw.disposition ? String(callRaw.disposition) : null,
+      hasRecording: Boolean(callRaw.hasRecording),
+      transcript: callRaw.transcript ? String(callRaw.transcript) : null,
+      summary: callRaw.summary ? String(callRaw.summary) : null,
+      astraSid: callRaw.astraSid ? String(callRaw.astraSid) : null,
+      astraCallId: callRaw.astraCallId ? String(callRaw.astraCallId) : null,
       ts: new Date(r.messageTimestamp).getTime(),
     };
   });

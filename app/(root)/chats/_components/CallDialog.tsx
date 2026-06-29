@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { startAstraCall, astraCallWebrtc, endAstraCall, logOutgoingCallAction } from '@/actions/astracalls-actions';
 import { setCallDisposition } from '@/actions/calls-crm-actions';
+import { processCallRecordingAction } from '@/actions/calls-recording-actions';
 import { CALL_DISPOSITIONS } from '@/lib/call-dispositions';
 
 interface Props {
@@ -38,6 +39,8 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
   const secondsRef = useRef(0);
   const loggedRef = useRef(false);
   const loggedIdRef = useRef<string | null>(null);
+  // sid/callId de AstraCalls (persisten tras colgar, para bajar la grabación)
+  const astraMetaRef = useRef<{ sid: string; callId: string } | null>(null);
 
   const cleanup = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -54,13 +57,38 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
     cleanup();
   }, [cleanup]);
 
+  // Dispara la transcripción+resumen de la grabación. La grabación se finaliza
+  // en el servidor al colgar, así que reintenta un par de veces con espera.
+  const processRecording = (chatMessageId: string | null) => {
+    const meta = astraMetaRef.current;
+    if (!chatMessageId || !meta || secondsRef.current <= 0) return;
+    let attempts = 0;
+    const tryProcess = async () => {
+      attempts += 1;
+      const res = await processCallRecordingAction({
+        chatMessageId,
+        astraSid: meta.sid,
+        astraCallId: meta.callId,
+      });
+      if (!res.success && attempts < 3) {
+        setTimeout(() => { void tryProcess(); }, 2500);
+      }
+    };
+    setTimeout(() => { void tryProcess(); }, 1500);
+  };
+
   const handleClose = () => {
     cancelledRef.current = true;
     // Registrar la llamada saliente en los Chats (solo si llegó a conectar y no
     // se registró ya al elegir un resultado).
     if (!loggedRef.current && secondsRef.current > 0) {
       loggedRef.current = true;
-      void logOutgoingCallAction(phone, secondsRef.current);
+      const m = astraMetaRef.current;
+      const meta = m ? { astraSid: m.sid, astraCallId: m.callId } : undefined;
+      void logOutgoingCallAction(phone, secondsRef.current, false, undefined, meta).then((res) => {
+        loggedIdRef.current = res.id;
+        processRecording(res.id);
+      });
     }
     hangup();
     onClose();
@@ -76,8 +104,11 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
     try {
       if (!loggedRef.current) {
         loggedRef.current = true;
-        const res = await logOutgoingCallAction(phone, secondsRef.current, false, value);
+        const m = astraMetaRef.current;
+        const meta = m ? { astraSid: m.sid, astraCallId: m.callId } : undefined;
+        const res = await logOutgoingCallAction(phone, secondsRef.current, false, value, meta);
         loggedIdRef.current = res.id;
+        processRecording(res.id);
       } else if (loggedIdRef.current) {
         await setCallDisposition(loggedIdRef.current, value);
       }
@@ -96,6 +127,7 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
     secondsRef.current = 0;
     loggedRef.current = false;
     loggedIdRef.current = null;
+    astraMetaRef.current = null;
     setDisposition(null);
     setErrorMsg('');
     setMuted(false);
@@ -109,6 +141,7 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
       return;
     }
     callRef.current = { sid: started.sid, callId: started.callId };
+    astraMetaRef.current = { sid: started.sid, callId: started.callId };
 
     // 2) WebRTC: micrófono + oferta + intercambio SDP
     try {
