@@ -51,6 +51,33 @@ export const getWorkFlowByUser = async (userId?: string): Promise<GetWorkFlowRes
     }
 };
 
+/**
+ * Igual que getWorkFlowByUser pero para varias cuentas (scope de equipo): el
+ * dueño + las cuentas vinculadas. Permite que un agente/admin vea y envíe los
+ * workflows del dueño de la línea principal desde su propio usuario.
+ */
+export const getWorkFlowByUserIds = async (userIds: string[]): Promise<GetWorkFlowResponse> => {
+    const ids = Array.from(new Set((userIds ?? []).filter(Boolean)));
+    if (!ids.length) {
+        return { success: false, error: "No autenticado.", message: "No autenticado." };
+    }
+
+    try {
+        const workflows = await db.workflow.findMany({
+            where: { userId: { in: ids } },
+            orderBy: [{ triggerOnNewSession: "desc" }, { order: "asc" }, { createdAt: "asc" }],
+        }).catch(() => db.workflow.findMany({
+            where: { userId: { in: ids } },
+            orderBy: [{ createdAt: "asc" }],
+        }));
+
+        return { success: true, data: workflows };
+    } catch (error) {
+        console.error("Error al obtener los workflows:", error);
+        return { success: false, error: "Hubo un problema al obtener los workflows.", message: "Hubo un problema al obtener los workflows." };
+    }
+};
+
 export interface CreateWorkflowTriggerPayload {
     name: string;
     mode: "keywords" | "prompt";

@@ -7,7 +7,7 @@ import { getChatConversationPreferencesByUserId } from "@/actions/chat-conversat
 import { getChatContactSessions } from "@/actions/session-action";
 import { listTagsAction } from "@/actions/tag-actions";
 import { getTeamAdvisorInfos } from "@/actions/team-actions";
-import { getWorkFlowByUser } from "@/actions/workflow-actions";
+import { getWorkFlowByUserIds } from "@/actions/workflow-actions";
 import { getAllRRsByUserIds } from "@/actions/rr-actions";
 import type { AdvisorInfo } from "@/actions/team-actions";
 import type {
@@ -90,7 +90,7 @@ export async function loadChatBootstrapData(
       ? settle(getChatContactSessions(sessionUserIds, descriptors))
       : Promise.resolve(null),
     settle(getChatConversationPreferencesByUserId(effectiveOwnerId)),
-    settle(getWorkFlowByUser(effectiveOwnerId)),
+    settle(getWorkFlowByUserIds(sessionUserIds)),
     settle(getAllRRsByUserIds(sessionUserIds)),
     settle(getTeamAdvisorInfos()),
     db.externalDataToolConfig

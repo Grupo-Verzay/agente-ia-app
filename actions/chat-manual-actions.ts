@@ -586,6 +586,42 @@ export async function toggleSessionSignatureAction(
   return { success: true, message: enabled ? "Firma activada." : "Firma desactivada." };
 }
 
+/**
+ * Devuelve el conjunto de userIds cuyos recursos (respuestas rápidas, workflows)
+ * puede usar el usuario actual: él mismo + las cuentas DUEÑAS a las que está
+ * vinculado como agente/administrador (línea principal del equipo) + las
+ * sub-cuentas vinculadas si él es el dueño. Así un agente/admin puede enviar las
+ * respuestas rápidas y los flujos del dueño desde su propio usuario.
+ */
+async function getAuthorizedAccountUserIds(user: {
+  id: string;
+  effectiveId: string;
+  ownerId?: string | null;
+  sessionUserId?: string | null;
+}): Promise<string[]> {
+  const ids = new Set<string>(
+    [user.effectiveId, user.id, user.ownerId, user.sessionUserId].filter(
+      (v): v is string => Boolean(v),
+    ),
+  );
+  const realId = user.sessionUserId ?? user.id;
+  try {
+    const [masters, linked] = await Promise.all([
+      db.$queryRaw<{ id: string }[]>`
+        SELECT "master_user_id" AS id FROM "linked_accounts" WHERE "linked_user_id" = ${realId}
+      `,
+      db.$queryRaw<{ id: string }[]>`
+        SELECT "linked_user_id" AS id FROM "linked_accounts" WHERE "master_user_id" = ${user.effectiveId}
+      `,
+    ]);
+    masters.forEach((r) => r.id && ids.add(r.id));
+    linked.forEach((r) => r.id && ids.add(r.id));
+  } catch {
+    // Tabla linked_accounts ausente o error: degradar a las cuentas base.
+  }
+  return Array.from(ids);
+}
+
 export async function sendManualWorkflowAction(
   context: ChatActionContext,
   remoteJid: string,
@@ -599,16 +635,17 @@ export async function sendManualWorkflowAction(
   }
 
   const user = await requireCurrentUser();
-  const effectiveId = user.effectiveId;
+  const authorizedUserIds = await getAuthorizedAccountUserIds(user);
   const workflow = await db.workflow.findFirst({
     where: {
       id: workflowId,
-      userId: effectiveId,
+      userId: { in: authorizedUserIds },
     },
     select: {
       id: true,
       name: true,
       isPro: true,
+      userId: true,
     },
   });
 
@@ -635,7 +672,7 @@ export async function sendManualWorkflowAction(
       remoteJid,
       payload,
       source: "manual_chat_workflow",
-      userId: effectiveId,
+      userId: workflow.userId,
       instanceType: "evolution",
       historyType: "workflow",
       metadata: {
@@ -692,16 +729,17 @@ export async function sendManualQuickReplyAction(
   }
 
   const user = await requireCurrentUser();
-  const effectiveId = user.effectiveId;
+  const authorizedUserIds = await getAuthorizedAccountUserIds(user);
   const quickReply = await db.quickReply.findFirst({
     where: {
       id: quickReplyId,
-      userId: effectiveId,
+      userId: { in: authorizedUserIds },
     },
     select: {
       id: true,
       mensaje: true,
       workflowId: true,
+      userId: true,
     },
   });
 
@@ -730,7 +768,7 @@ export async function sendManualQuickReplyAction(
       remoteJid,
       payload: { kind: "text", text: message },
       source: "manual_chat_quick_reply",
-      userId: effectiveId,
+      userId: quickReply.userId,
       instanceType: "evolution",
       historyType: "notification",
       metadata: { quickReplyId: quickReply.id, workflowId: quickReply.workflowId },
@@ -742,7 +780,7 @@ export async function sendManualQuickReplyAction(
   //    webhook no lo vuelva a disparar cuando el cliente responda.
   if (hasWorkflow) {
     const workflow = await db.workflow.findFirst({
-      where: { id: quickReply.workflowId!, userId: effectiveId },
+      where: { id: quickReply.workflowId!, userId: { in: authorizedUserIds } },
       select: { id: true, name: true },
     });
 
