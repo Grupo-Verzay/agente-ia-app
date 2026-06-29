@@ -10,6 +10,8 @@ import {
     Settings2,
     Clock,
     Calendar,
+    CalendarClock,
+    CheckCircle2,
     ClipboardList,
     Inbox,
 } from 'lucide-react';
@@ -23,7 +25,7 @@ import { AgendaKanban } from './dashboard/AgendaKanban';
 import { ShareScheduleLinkButton, UserAvailabilityForm } from './availability';
 import { UpdateMeetingDuration } from './settings';
 import { BookingFormBuilder } from './form/BookingFormBuilder';
-import { BookingFormResponsesList } from './form/BookingFormResponsesList';
+import { BookingFormResponsesList, type BookingResponseCounts } from './form/BookingFormResponsesList';
 import { getAppointmentStatusCounts } from '@/actions/appointments-actions';
 import { AppointmentStatus } from '@prisma/client';
 
@@ -64,7 +66,12 @@ export const MainSchedule = ({
 }: MainReminderInterface) => {
     const [tab, setTab] = useState<TabValue>('dashboard');
     const [statusCounts, setStatusCounts] = useState<{ status: AppointmentStatus; count: number }[]>([]);
+    const [bookingCounts, setBookingCounts] = useState<BookingResponseCounts>({ total: 0, synced: 0, pending: 0, today: 0 });
     const userId: string = user.effectiveId ?? user.id;
+
+    const handleBookingCounts = useCallback((counts: BookingResponseCounts) => {
+        setBookingCounts(counts);
+    }, []);
 
     const loadCounts = useCallback(async () => {
         const res = await getAppointmentStatusCounts(userId);
@@ -81,21 +88,42 @@ export const MainSchedule = ({
         ...STATUS_META[status],
     }));
 
+    // Métricas de la pestaña "Registros" (4 cards, mismo patrón que la fila superior).
+    const bookingMetrics: { key: string; label: string; value: number; color: string; Icon: React.ComponentType<{ className?: string }>; helper: string }[] = [
+        { key: 'total',   label: 'Total registros', value: bookingCounts.total,   color: '#3B82F6', Icon: ClipboardList, helper: 'Respuestas recibidas' },
+        { key: 'synced',  label: 'Sincronizados',   value: bookingCounts.synced,  color: '#22C55E', Icon: CheckCircle2,  helper: 'Subidos a Google Sheets' },
+        { key: 'pending', label: 'Pendientes',      value: bookingCounts.pending, color: '#EAB308', Icon: Clock,         helper: 'Sin sincronizar a Sheets' },
+        { key: 'today',   label: 'Hoy',             value: bookingCounts.today,   color: '#8B5CF6', Icon: CalendarClock, helper: 'Registros recibidos hoy' },
+    ];
+
     return (
         <div className="flex h-full w-full flex-col gap-3" data-schedule-view>
-            {/* Metric cards — siempre visibles, altura fija */}
+            {/* Metric cards — siempre visibles, altura fija. En "Registros" muestran
+                las métricas de los registros del formulario (4 cards). */}
             <div className="grid grid-cols-2 gap-2 shrink-0 sm:flex sm:flex-wrap sm:gap-3">
-                {topMetrics.map((m) => (
-                    <div key={m.status} className="min-w-0 sm:flex-1">
-                        <MetricCard
-                            icon={<Calendar className="h-4 w-4" />}
-                            label={m.label}
-                            value={m.count}
-                            helper={`Citas en estado "${m.label}"`}
-                            color={m.color}
-                        />
-                    </div>
-                ))}
+                {tab === 'registros'
+                    ? bookingMetrics.map((m) => (
+                        <div key={m.key} className="min-w-0 sm:flex-1">
+                            <MetricCard
+                                icon={<m.Icon className="h-4 w-4" />}
+                                label={m.label}
+                                value={m.value}
+                                helper={m.helper}
+                                color={m.color}
+                            />
+                        </div>
+                    ))
+                    : topMetrics.map((m) => (
+                        <div key={m.status} className="min-w-0 sm:flex-1">
+                            <MetricCard
+                                icon={<Calendar className="h-4 w-4" />}
+                                label={m.label}
+                                value={m.count}
+                                helper={`Citas en estado "${m.label}"`}
+                                color={m.color}
+                            />
+                        </div>
+                    ))}
             </div>
 
             {/* Tab nav — CRM style, izquierda, altura fija */}
@@ -200,7 +228,7 @@ export const MainSchedule = ({
                 {/* Registros */}
                 {tab === 'registros' && (
                     <div className="h-full min-h-0">
-                        <BookingFormResponsesList userId={userId} />
+                        <BookingFormResponsesList userId={userId} onCountsChange={handleBookingCounts} />
                     </div>
                 )}
 

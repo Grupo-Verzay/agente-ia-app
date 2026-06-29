@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
-  RefreshCw, Trash2, Eye, Download, ClipboardList,
+  RefreshCw, Trash2, Eye, Download,
   CheckCircle2, Clock, Filter, User, Phone, CalendarClock, Wrench,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,6 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { MetricCard } from '@/components/custom/MetricCard';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import { themeClass } from '@/types/generic';
 import {
@@ -23,8 +22,26 @@ import {
   type BookingResponseRow,
 } from '@/actions/booking-form-actions';
 
+export type BookingResponseCounts = {
+  total: number;
+  synced: number;
+  pending: number;
+  today: number;
+};
+
 interface Props {
   userId: string;
+  /** Sube los conteos a la fila de métricas superior de MainSchedule. */
+  onCountsChange?: (counts: BookingResponseCounts) => void;
+}
+
+function computeCounts(rows: BookingResponseRow[]): BookingResponseCounts {
+  const synced = rows.filter((r) => r.syncedToSheets).length;
+  const todayStr = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
+  const today = rows.filter(
+    (r) => new Date(r.createdAt).toLocaleDateString('es-CO', { timeZone: 'America/Bogota' }) === todayStr,
+  ).length;
+  return { total: rows.length, synced, pending: rows.length - synced, today };
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -50,7 +67,7 @@ function fmtDateTime(iso: string | null, timezone?: string | null): string {
   }
 }
 
-export function BookingFormResponsesList({ userId }: Props) {
+export function BookingFormResponsesList({ userId, onCountsChange }: Props) {
   const [rows, setRows] = useState<BookingResponseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewRow, setViewRow] = useState<BookingResponseRow | null>(null);
@@ -61,13 +78,10 @@ export function BookingFormResponsesList({ userId }: Props) {
     const data = await getBookingFormResponses(userId);
     setRows(data);
     setLoading(false);
-  }, [userId]);
+    onCountsChange?.(computeCounts(data));
+  }, [userId, onCountsChange]);
 
   useEffect(() => { load(); }, [load]);
-
-  const total = rows.length;
-  const synced = rows.filter((r) => r.syncedToSheets).length;
-  const pending = total - synced;
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -75,7 +89,11 @@ export function BookingFormResponsesList({ userId }: Props) {
     setDeleteId(null);
     if (!res.success) return toast.error('No se pudo eliminar el registro.');
     toast.success('Registro eliminado');
-    setRows((prev) => prev.filter((r) => r.id !== deleteId));
+    setRows((prev) => {
+      const next = prev.filter((r) => r.id !== deleteId);
+      onCountsChange?.(computeCounts(next));
+      return next;
+    });
   };
 
   const handleExportCSV = () => {
@@ -116,20 +134,7 @@ export function BookingFormResponsesList({ userId }: Props) {
       <div className={`sticky top-0 z-10 mb-2 ${themeClass}`}>
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-2">
 
-          {/* MetricCards */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <div className="min-w-0">
-              <MetricCard label="Total registros" value={total} icon={<ClipboardList className="h-4 w-4" />} color="#3B82F6" />
-            </div>
-            <div className="min-w-0">
-              <MetricCard label="Sincronizados" value={synced} icon={<CheckCircle2 className="h-4 w-4" />} color="#22C55E" />
-            </div>
-            <div className="min-w-0">
-              <MetricCard label="Pendientes" value={pending} icon={<Clock className="h-4 w-4" />} color="#EAB308" />
-            </div>
-          </div>
-
-          {/* Toolbar */}
+          {/* Toolbar (las métricas viven en la fila superior de MainSchedule) */}
           <ModuleToolbar className="shrink-0">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <div className="min-w-0">

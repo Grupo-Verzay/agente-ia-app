@@ -17,7 +17,8 @@ import {
   getMyCallQr,
   unlinkMyCallSession,
 } from '@/actions/astracalls-actions';
-import { getVoicebotConfig, setVoicebotConfig, VOICEBOT_VOICES } from '@/actions/voicebot-actions';
+import { getVoicebotConfig, setVoicebotConfig } from '@/actions/voicebot-actions';
+import { VOICEBOT_VOICES } from '@/lib/voicebot-voices';
 
 export function CallLinkCard() {
   const [loading, setLoading] = useState(true);

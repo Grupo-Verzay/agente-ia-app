@@ -7,15 +7,13 @@
 
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { VOICEBOT_VOICES } from '@/lib/voicebot-voices';
 
 export interface VoicebotConfig {
   enabled: boolean;
   voice: string | null;
   transferTo: string | null;
 }
-
-/** Voces disponibles de OpenAI Realtime (las más naturales). */
-export const VOICEBOT_VOICES = ['alloy', 'verse', 'shimmer', 'coral', 'sage', 'ash'] as const;
 
 async function getWhatsappInstance(userId: string) {
   return db.instancia.findFirst({
