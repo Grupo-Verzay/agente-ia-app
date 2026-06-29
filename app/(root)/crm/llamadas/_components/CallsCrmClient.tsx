@@ -16,6 +16,7 @@ import {
   Tag,
   FileText,
   Sparkles,
+  Bot,
 } from 'lucide-react';
 import {
   Bar,
@@ -58,6 +59,7 @@ import {
   type CallsKpis,
 } from '@/actions/calls-crm-actions';
 import { CALL_DISPOSITIONS, getDispositionMeta } from '@/lib/call-dispositions';
+import { startBotCallAction } from '@/actions/voicebot-actions';
 import { MetricCard } from '@/components/custom/MetricCard';
 import { CallDialog } from '../../../chats/_components/CallDialog';
 
@@ -102,9 +104,18 @@ export function CallsCrmClient({
   const [callbackTarget, setCallbackTarget] = useState<{ phone: string; name?: string } | null>(null);
   const [dialNumber, setDialNumber] = useState('');
 
+  const [botDialing, setBotDialing] = useState(false);
   const dialDigits = dialNumber.replace(/\D/g, '');
   const startDial = () => {
     if (dialDigits.length >= 6) setCallTarget({ phone: dialDigits });
+  };
+  const startBotDial = async () => {
+    if (dialDigits.length < 6 || botDialing) return;
+    setBotDialing(true);
+    const res = await startBotCallAction(dialDigits);
+    setBotDialing(false);
+    if (res.success) toast.success('El asistente de voz IA está llamando…');
+    else toast.error(res.message ?? 'No se pudo iniciar la llamada con IA.');
   };
 
   const load = useCallback(() => {
@@ -281,6 +292,16 @@ export function CallsCrmClient({
             disabled={dialDigits.length < 6}
           >
             <Phone className="h-4 w-4" /> Llamar
+          </Button>
+          <Button
+            variant="outline"
+            className="h-9 gap-2 border-violet-300 text-violet-700 hover:bg-violet-50 dark:border-violet-900/50 dark:text-violet-400 dark:hover:bg-violet-950/30"
+            onClick={() => void startBotDial()}
+            disabled={dialDigits.length < 6 || botDialing}
+            title="El asistente de voz IA llama y conversa por ti"
+          >
+            {botDialing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
+            Llamar con IA
           </Button>
 
           {/* Rellamada rápida: últimos números marcados */}

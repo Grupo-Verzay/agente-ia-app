@@ -227,12 +227,13 @@ function VoicebotSettings() {
     <div className="rounded-lg border border-border p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-sm font-medium">
-          <Bot className="h-4 w-4 text-violet-600" /> Contestar con IA
+          <Bot className="h-4 w-4 text-violet-600" /> Asistente de voz IA
         </span>
         <Switch checked={enabled} onCheckedChange={(v) => void toggle(v)} disabled={saving} />
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        El asistente de voz contesta las llamadas entrantes y conversa con tu Agente IA.
+        Habilita el asistente de voz IA para llamar a tus clientes (botón
+        “Llamar con IA” en CRM → Llamadas) y conversar con tu Agente IA.
       </p>
       {enabled && (
         <div className="mt-3 flex flex-col gap-2">
