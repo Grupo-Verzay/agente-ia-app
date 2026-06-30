@@ -478,7 +478,7 @@ export function CallsCrmClient({
                     <th className="py-2 pr-3 font-medium">Tipo</th>
                     <th className="py-2 pr-3 font-medium">Duración</th>
                     <th className="py-2 pr-3 font-medium">Fecha</th>
-                    <th className="py-2 pr-3 font-medium">Síntesis</th>
+                    <th className="py-2 pr-3 font-medium">Síntesis del lead</th>
                     <th className="py-2 pr-3 font-medium">Resultado</th>
                     <th className="py-2 pr-3 font-medium">Estado</th>
                     <th className="py-2 pr-3 font-medium text-right">Acciones</th>
@@ -493,6 +493,7 @@ export function CallsCrmClient({
                       onDisposition={(value) => applyDisposition(c.id, value)}
                       onCallback={() => setCallbackTarget({ phone: c.phone, name: c.contactName ?? undefined })}
                       onOpenChat={() => openChat(c.phone)}
+                      onChanged={load}
                       onDelete={async () => {
                         if (!confirm('¿Eliminar esta llamada del historial?')) return;
                         const res = await deleteCallAction(c.id);
@@ -688,6 +689,7 @@ function CallTableRow({
   onCallback,
   onOpenChat,
   onDelete,
+  onChanged,
 }: {
   call: CallRow;
   onCall: () => void;
@@ -695,6 +697,7 @@ function CallTableRow({
   onCallback: () => void;
   onOpenChat: () => void;
   onDelete: () => void;
+  onChanged?: () => void;
 }) {
   const isOut = call.direction === 'outgoing';
   const dispMeta = getDispositionMeta(call.disposition);
@@ -702,7 +705,7 @@ function CallTableRow({
   const [detailOpen, setDetailOpen] = useState(false);
   const hasDetail = call.hasRecording || !!call.transcript || !!call.summary;
   const name = cleanName(call.contactName);
-  const sintesis = (call.summary || '').trim();
+  const sintesis = (call.leadSynthesis || '').trim();
   const recordingUrl =
     call.astraSid && call.astraCallId
       ? `/api/calls/recording?sid=${encodeURIComponent(call.astraSid)}&callId=${encodeURIComponent(call.astraCallId)}`
@@ -833,6 +836,7 @@ function CallTableRow({
       recordingUrl={recordingUrl}
       open={detailOpen}
       onOpenChange={setDetailOpen}
+      onSynthesisSaved={onChanged}
     />
     </>
   );

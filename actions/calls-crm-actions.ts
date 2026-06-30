@@ -23,6 +23,7 @@ export interface CallRow {
   hasRecording: boolean;
   transcript: string | null;
   summary: string | null;
+  leadSynthesis: string | null; // "Detalle del lead (síntesis)" = summarySnapshot del lead
   astraSid: string | null;
   astraCallId: string | null;
   ts: number; // epoch ms
@@ -124,11 +125,45 @@ export async function getCallsCrmData(params?: {
       hasRecording: Boolean(callRaw.hasRecording),
       transcript: callRaw.transcript ? String(callRaw.transcript) : null,
       summary: callRaw.summary ? String(callRaw.summary) : null,
+      leadSynthesis: null as string | null,
       astraSid: callRaw.astraSid ? String(callRaw.astraSid) : null,
       astraCallId: callRaw.astraCallId ? String(callRaw.astraCallId) : null,
       ts: new Date(r.messageTimestamp).getTime(),
     };
   });
+
+  // Síntesis del lead ("Detalle del lead") por teléfono: sesión → último follow-up
+  // con summarySnapshot. En lote para no hacer N consultas.
+  try {
+    const phones = Array.from(new Set(calls.map((c) => c.phone).filter(Boolean)));
+    if (phones.length > 0) {
+      const jids = phones.map((p) => `${p}@s.whatsapp.net`);
+      const sessions = await db.session.findMany({
+        where: { userId: { in: scopeIds }, remoteJid: { in: jids } },
+        select: { id: true, remoteJid: true },
+      });
+      if (sessions.length > 0) {
+        const sessionIdToJid = new Map(sessions.map((s) => [s.id, s.remoteJid]));
+        const followUps = await db.crmFollowUp.findMany({
+          where: { sessionId: { in: sessions.map((s) => s.id) }, summarySnapshot: { not: null } },
+          orderBy: { createdAt: 'desc' },
+          select: { sessionId: true, summarySnapshot: true },
+        });
+        const jidToSynthesis = new Map<string, string>();
+        for (const f of followUps) {
+          const jid = f.sessionId != null ? sessionIdToJid.get(f.sessionId) : undefined;
+          if (jid && !jidToSynthesis.has(jid) && f.summarySnapshot?.trim()) {
+            jidToSynthesis.set(jid, f.summarySnapshot.trim());
+          }
+        }
+        for (const c of calls) {
+          c.leadSynthesis = jidToSynthesis.get(`${c.phone}@s.whatsapp.net`) ?? null;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[getCallsCrmData] síntesis', err);
+  }
 
   const outgoing = calls.filter((c) => c.direction === 'outgoing');
   const incoming = calls.filter((c) => c.direction === 'incoming');

@@ -7,7 +7,7 @@ import {
   Sheet, Send, Info, BotIcon, Pencil, CheckCircle2,
   Globe, AtSign, Share2, Linkedin, Tag, SlidersHorizontal,
 } from 'lucide-react';
-import { getContactFieldsConfig } from '@/actions/contact-fields-actions';
+import { getContactFieldsConfig, getContactAccountOwnerId } from '@/actions/contact-fields-actions';
 import {
   ContactFieldDef,
   DEFAULT_CONTACT_FIELDS,
@@ -180,9 +180,17 @@ export function ContactInfoPanel({
   const [syncing, setSyncing] = useState(false);
 
   // La ficha (config de campos + datos + Sheets) pertenece a la CUENTA DUEÑA del
-  // contacto (session.userId), no al usuario logueado. Así cualquier agente que
-  // entre a ese chat de la cuenta principal ve y edita lo mismo que el dueño.
-  const ownerId = session.userId;
+  // equipo (cuenta principal), no al usuario logueado: así cualquier agente
+  // vinculado ve y edita los MISMOS campos y datos que el dueño. Se inicializa
+  // con session.userId y se refina a la cuenta maestra del equipo (linked_accounts).
+  const [ownerId, setOwnerId] = useState(session.userId);
+  useEffect(() => {
+    let cancelled = false;
+    getContactAccountOwnerId().then((id) => {
+      if (!cancelled && id) setOwnerId(id);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const adSource = session.adSource as { title?: string; body?: string; sourceUrl?: string } | null | undefined;
   const adLabel = adSource?.title || (adSource?.sourceUrl ? (() => { try { return new URL(adSource.sourceUrl!).hostname.replace(/^www\./, ''); } catch { return 'Anuncio'; } })() : null);
