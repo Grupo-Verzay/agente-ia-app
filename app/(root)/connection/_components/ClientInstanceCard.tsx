@@ -115,27 +115,29 @@ export const ClientInstanceCard = ({
         </CardHeader>
 
         <CardContent className="flex flex-1 flex-col p-4 pt-0">
-          <div className="flex items-center gap-3">
-            {instanceType === 'Whatsapp' && (<>
-              <Avatar className="rounded-lg">
-                <AvatarFallback className="rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
-                  <MessageCircle className="h-4 w-4" />
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{intanceName}</div>
-                {ownerJid ? (
-                  <div className="truncate text-xs text-muted-foreground">+{ownerJid.split('@')[0]}</div>
-                ) : (
-                  <Skeleton className="h-3 w-[100px]" />
-                )}
-              </div>
-            </>
-            )}
-            {(instanceType != 'Whatsapp') && (isActive ? 'Activo 🟢' : 'Desactivado 🔴')}
+          <div className="flex flex-1 items-center">
+            <div className="flex items-center gap-3">
+              {instanceType === 'Whatsapp' && (<>
+                <Avatar className="rounded-lg">
+                  <AvatarFallback className="rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
+                    <MessageCircle className="h-4 w-4" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium">{intanceName}</div>
+                  {ownerJid ? (
+                    <div className="truncate text-xs text-muted-foreground">+{ownerJid.split('@')[0]}</div>
+                  ) : (
+                    <Skeleton className="h-3 w-[100px]" />
+                  )}
+                </div>
+              </>
+              )}
+              {(instanceType != 'Whatsapp') && (isActive ? 'Activo 🟢' : 'Desactivado 🔴')}
+            </div>
           </div>
 
-          <div className="mt-auto grid grid-cols-2 items-stretch gap-2 pt-4">
+          <div className="grid grid-cols-2 items-stretch gap-2 pt-4">
             {instanceType === 'Whatsapp' && (
               <>
                 <div className="[&_button]:w-full"><QRCodeGenerator userId={user.id} /></div>

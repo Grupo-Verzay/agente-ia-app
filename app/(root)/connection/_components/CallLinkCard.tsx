@@ -27,6 +27,7 @@ import {
 } from '@/actions/astracalls-actions';
 import { getVoicebotConfig, setVoicebotConfig } from '@/actions/voicebot-actions';
 import { VOICEBOT_VOICES } from '@/lib/voicebot-voices';
+import { Textarea } from '@/components/ui/textarea';
 
 export function CallLinkCard() {
   const [loading, setLoading] = useState(true);
@@ -129,19 +130,21 @@ export function CallLinkCard() {
       <CardContent className="flex flex-1 flex-col p-4 pt-0">
         {connected ? (
           <div className="flex flex-1 flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <Avatar className="rounded-lg">
-                <AvatarFallback className="rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
-                  <Phone className="h-4 w-4" />
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{name || 'WhatsApp'}</div>
-                {jid && <div className="truncate text-xs text-muted-foreground">+{jid.split('@')[0].split(':')[0]}</div>}
+            <div className="flex flex-1 items-center">
+              <div className="flex items-center gap-3">
+                <Avatar className="rounded-lg">
+                  <AvatarFallback className="rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
+                    <Phone className="h-4 w-4" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium">{name || 'WhatsApp'}</div>
+                  {jid && <div className="truncate text-xs text-muted-foreground">+{jid.split('@')[0].split(':')[0]}</div>}
+                </div>
               </div>
             </div>
 
-            <div className="mt-auto grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <Button className="w-full gap-2 bg-green-600 text-white hover:bg-green-700" onClick={() => void refresh()}>
                 <CheckCircle2 className="h-4 w-4" /> Conectado
               </Button>
@@ -197,6 +200,7 @@ function VoicebotControl() {
   const [enabled, setEnabled] = useState(false);
   const [voice, setVoice] = useState('alloy');
   const [transferTo, setTransferTo] = useState('');
+  const [prompt, setPrompt] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -205,12 +209,13 @@ function VoicebotControl() {
         setEnabled(r.data.enabled);
         setVoice(r.data.voice ?? 'alloy');
         setTransferTo(r.data.transferTo ?? '');
+        setPrompt(r.data.prompt ?? '');
       }
       setLoaded(true);
     });
   }, []);
 
-  const save = async (patch: { enabled?: boolean; voice?: string; transferTo?: string }) => {
+  const save = async (patch: { enabled?: boolean; voice?: string; transferTo?: string; prompt?: string }) => {
     setSaving(true);
     const res = await setVoicebotConfig(patch);
     setSaving(false);
@@ -248,7 +253,7 @@ function VoicebotControl() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bot className="h-4 w-4 text-violet-600" /> Asistente de voz IA
@@ -282,6 +287,22 @@ function VoicebotControl() {
                 inputMode="tel"
                 className="h-9"
               />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+              Prompt del agente de llamadas
+              <Textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onBlur={() => void save({ prompt })}
+                placeholder={
+                  'Escribe aquí cómo debe comportarse el agente EN LLAMADAS (separado del de WhatsApp).\n\nEjemplo:\n— Eres el asistente telefónico de [empresa].\n— Objetivo de la llamada: confirmar interés y agendar una cita.\n— Sé breve y natural; haz una pregunta a la vez.\n— Si piden info por escrito, envíala por WhatsApp.\n— Datos clave: [horarios, precios, ubicación...]'
+                }
+                rows={7}
+                className="resize-none text-xs leading-relaxed"
+              />
+              <span className="text-[11px] font-normal text-muted-foreground/80">
+                Si lo dejas vacío, el bot usará el prompt del Agente de WhatsApp (puede sonar confuso en llamadas). Recomendado: escribe uno propio, claro y corto para teléfono.
+              </span>
             </label>
           </div>
 
