@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Phone, Save, Sparkles, Loader2 } from 'lucide-react';
+import { Save, Sparkles, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -125,28 +124,13 @@ export function CallAgentEditor() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 overflow-y-auto">
-      <div className="w-full space-y-4">
-        {/* Encabezado */}
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto">
+      <div className="w-full space-y-4 p-3">
+        {/* Barra de acciones */}
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/ia"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted"
-              title="Volver"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-            <div className="flex items-center gap-2">
-              <div className="h-9 w-9 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
-                <Phone className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold leading-tight">Agente de Llamadas (Voz)</h2>
-                <p className="text-xs text-muted-foreground">Prompt exclusivo para las llamadas con IA</p>
-              </div>
-            </div>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Prompt exclusivo para las <strong>llamadas con IA</strong> (voz). No afecta al de chat.
+          </p>
           <Button onClick={() => void save()} disabled={saving || !dirty} className="gap-1.5">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Guardar
@@ -184,7 +168,7 @@ export function CallAgentEditor() {
             className="min-h-[420px] resize-y text-sm leading-relaxed font-mono"
           />
           <p className="text-[11px] text-muted-foreground">
-            Este prompt es solo para llamadas; no afecta al agente de WhatsApp. Si lo dejas vacío, el bot usará el prompt del chat (puede sonar confuso). La voz y el tono se ajustan en <strong>Conexión</strong> y en tu <strong>Perfil → Instrucciones de voz</strong>.
+            Si lo dejas vacío, el bot usará el prompt del chat (puede sonar confuso). La voz y el tono se ajustan en <strong>Conexión</strong> y en tu <strong>Perfil → Instrucciones de voz</strong>.
           </p>
         </div>
       </div>

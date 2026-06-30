@@ -193,6 +193,37 @@ export async function patchExtrasSection(input: {
 }
 
 /** Obtiene o crea el draft del agente. */
+/**
+ * Igual que getOrCreatePrompt, pero para entrenamientos POR CANAL. Si el canal
+ * (agentId) no tiene entrenamiento propio, lo crea como COPIA del entrenamiento
+ * base de WhatsApp QR (system-prompt-ai), para que arranque igual y luego se
+ * personalice. El base se obtiene/crea normalmente.
+ */
+export async function getOrCreateChannelPrompt(opts: { userId: string; agentId: string }) {
+    const BASE = 'system-prompt-ai';
+    const { userId, agentId } = opts;
+    if (!agentId || agentId === BASE) {
+        return getOrCreatePrompt({ userId, agentId: BASE });
+    }
+
+    const existing = await db.agentPrompt.findFirst({ where: { userId, agentId } });
+    if (existing) return existing;
+
+    // Copiar del entrenamiento base de WhatsApp.
+    const base = await getOrCreatePrompt({ userId, agentId: BASE });
+    return db.agentPrompt.create({
+        data: {
+            userId,
+            agentId,
+            status: 'draft',
+            sections: base.sections as any,
+            promptText: base.promptText,
+            businessName: base.businessName,
+            businessSector: base.businessSector,
+        },
+    });
+}
+
 export async function getOrCreatePrompt(opts: { userId: string; agentId: string }) {
     const { userId, agentId } = opts;
 
