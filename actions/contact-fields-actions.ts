@@ -10,31 +10,6 @@ import {
 } from '@/lib/contact-fields';
 
 /**
- * Resuelve la cuenta DUEÑA (principal) cuya ficha de contacto debe usarse, para
- * que todo el equipo vea/edite los MISMOS campos y datos:
- * - Subcuenta (User.ownerId) -> el dueño.
- * - Agente/admin vinculado (linked_accounts) -> la cuenta maestra.
- * - Si no, su propia cuenta (effectiveId).
- */
-export async function getContactAccountOwnerId(): Promise<string | null> {
-  const me = await currentUser();
-  if (!me) return null;
-  if (me.ownerId) return me.ownerId;
-  const realId = me.sessionUserId ?? me.id;
-  try {
-    const rows = await db.$queryRaw<{ id: string }[]>`
-      SELECT "master_user_id" as id FROM "linked_accounts"
-      WHERE "linked_user_id" = ${realId}
-      LIMIT 1
-    `;
-    if (rows.length && rows[0]?.id) return rows[0].id;
-  } catch {
-    // tabla linked_accounts ausente: usar la cuenta propia
-  }
-  return me.effectiveId ?? me.id;
-}
-
-/**
  * Devuelve la config de campos de la ficha de contacto del usuario.
  * Si no tiene config guardada, devuelve los campos por defecto.
  */
