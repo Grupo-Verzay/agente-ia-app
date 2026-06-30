@@ -126,7 +126,7 @@ export function CallAgentEditor() {
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-y-auto">
-      <div className="mx-auto w-full max-w-3xl space-y-4 px-2 py-2 sm:px-4">
+      <div className="w-full space-y-4">
         {/* Encabezado */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">

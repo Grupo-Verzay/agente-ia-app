@@ -21,7 +21,7 @@ const AgenteSelectorPage = async () => {
             </div>
 
             {/* Contenido */}
-            <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+            <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className="flex flex-col justify-center min-h-[60vh]">
                     <div className="w-full space-y-5">
                         <div className="text-center space-y-1 mb-2">
