@@ -34,8 +34,8 @@ export function ChannelTabs() {
   const active = pathname?.split('/')[2] || 'whatsapp';
 
   return (
-    <div className="shrink-0 overflow-x-auto border-b border-border/40 px-2 py-2 sm:px-3">
-      <div className="inline-flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
+    <div className="shrink-0 border-b border-border/40 px-2 py-2 sm:px-3">
+      <div className="flex w-full gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
         {TRAINING_CHANNELS.map((c) => {
           const Icon = ICONS[c.slug] ?? FaWhatsapp;
           const isActive = active === c.slug;
@@ -44,13 +44,13 @@ export function ChannelTabs() {
               key={c.slug}
               href={`/ia/${c.slug}`}
               className={cn(
-                'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                'flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1.5 text-sm font-medium transition-colors',
                 isActive
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              <Icon className={cn('h-4 w-4', ICON_COLORS[c.slug])} />
+              <Icon className={cn('h-4 w-4 shrink-0', ICON_COLORS[c.slug])} />
               {c.label}
             </Link>
           );
