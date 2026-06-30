@@ -18,19 +18,6 @@ import {
   Sparkles,
   Bot,
 } from 'lucide-react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -145,24 +132,6 @@ export function CallsCrmClient({
 
   // En modo embebido las 4 tarjetas se pintan en el slot superior del dashboard.
   useEffect(() => { onKpisChange?.(kpis); }, [kpis, onKpisChange]);
-
-  const pieData = useMemo(
-    () => [
-      { name: 'Salientes', value: kpis?.outgoing ?? 0, color: '#22c55e' },
-      { name: 'Entrantes', value: kpis?.incoming ?? 0, color: '#ef4444' },
-    ],
-    [kpis],
-  );
-
-  const barData = useMemo(
-    () =>
-      (data?.byDay ?? []).map((d) => ({
-        date: d.date.slice(5), // MM-DD
-        Salientes: d.outgoing,
-        Entrantes: d.incoming,
-      })),
-    [data],
-  );
 
   // Últimos números marcados (únicos) para rellamada rápida.
   const recentDials = useMemo(() => {
@@ -367,54 +336,7 @@ export function CallsCrmClient({
       </div>
       )}
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
-        <Card className="border-border lg:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Llamadas por día</CardTitle>
-          </CardHeader>
-          <CardContent className="h-64">
-            {barData.length === 0 ? (
-              <EmptyChart loading={loading} />
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="Salientes" fill="#22c55e" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="Entrantes" fill="#ef4444" radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-border">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Distribución</CardTitle>
-          </CardHeader>
-          <CardContent className="h-64">
-            {(kpis?.total ?? 0) === 0 ? (
-              <EmptyChart loading={loading} />
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2}>
-                    {pieData.map((e) => (
-                      <Cell key={e.name} fill={e.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {/* Gráficos eliminados aquí: ya están en la pestaña Analíticas. */}
 
       {/* Tabla */}
       <Card className="border-border flex-1">
@@ -726,10 +648,3 @@ function CallTableRow({
   );
 }
 
-function EmptyChart({ loading }: { loading: boolean }) {
-  return (
-    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Sin datos'}
-    </div>
-  );
-}
