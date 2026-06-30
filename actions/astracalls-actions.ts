@@ -252,7 +252,7 @@ export async function logOutgoingCallAction(
   durationSecs: number,
   isVideo = false,
   disposition?: string,
-  meta?: { astraSid?: string; astraCallId?: string },
+  meta?: { astraSid?: string; astraCallId?: string; isBot?: boolean },
 ): Promise<{ id: string | null }> {
   try {
     const me = await currentUser();
@@ -275,12 +275,13 @@ export async function logOutgoingCallAction(
       messageId,
       fromMe: true,
       messageType: 'call',
-      content: isVideo ? 'Videollamada realizada' : 'Llamada realizada',
+      content: meta?.isBot ? 'Llamada con IA realizada' : (isVideo ? 'Videollamada realizada' : 'Llamada realizada'),
       raw: {
         call: {
           direction: 'outgoing',
           isVideo,
           durationSecs,
+          ...(meta?.isBot ? { isBot: true } : {}),
           ...(disposition ? { disposition } : {}),
           ...(meta?.astraSid ? { astraSid: meta.astraSid } : {}),
           ...(meta?.astraCallId ? { astraCallId: meta.astraCallId } : {}),

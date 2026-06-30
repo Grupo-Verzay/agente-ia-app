@@ -8,6 +8,7 @@
 import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { VOICEBOT_VOICES } from '@/lib/voicebot-voices';
+import { logOutgoingCallAction } from '@/actions/astracalls-actions';
 
 const ASTRA_BASE = (process.env.ASTRACALLS_URL || '').replace(/\/+$/, '');
 const ASTRA_KEY = process.env.ASTRACALLS_API_KEY || '';
@@ -122,6 +123,9 @@ export async function startBotCallAction(
       }
       return { success: false, message: t?.error || `No se pudo iniciar la llamada del bot (${r.status}).` };
     }
+    // Registra la llamada del bot como SALIENTE (IA) para que no la tomen como
+    // perdida (el evento de Evolution se deduplica en el backend).
+    await logOutgoingCallAction(digits, 0, false, undefined, { isBot: true });
     return { success: true };
   } catch (e: any) {
     return { success: false, message: e?.message || 'Error iniciando la llamada del bot.' };
