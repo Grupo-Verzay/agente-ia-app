@@ -4,10 +4,13 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover";
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import {
     Tooltip,
     TooltipContent,
@@ -34,7 +37,7 @@ export function CrmRecordDetailCell({
 
     const handleOpenChange = (nextOpen: boolean) => {
         setOpen(nextOpen);
-        setDraft(detalleRaw);
+        if (nextOpen) setDraft(detalleRaw);
     };
 
     const handleSave = async () => {
@@ -51,79 +54,74 @@ export function CrmRecordDetailCell({
     const detalleChanged = isDetalleChanged(detalleRaw, draft);
 
     return (
-        <TooltipProvider delayDuration={400}>
-            <Tooltip>
-                <Popover open={open} onOpenChange={handleOpenChange}>
+        <>
+            <TooltipProvider delayDuration={400}>
+                <Tooltip>
                     <TooltipTrigger asChild>
-                        <PopoverTrigger asChild>
-                            <button
-                                type="button"
-                                className="w-[165px] text-left"
-                                title="Ver y editar detalle"
-                            >
-                                <span className={`block truncate text-sm ${isEmpty ? "text-muted-foreground italic" : ""}`}>
-                                    {detalle}
-                                </span>
-                            </button>
-                        </PopoverTrigger>
+                        <button
+                            type="button"
+                            className="w-[165px] text-left"
+                            title="Ver y editar detalle"
+                            onClick={() => handleOpenChange(true)}
+                        >
+                            <span className={`block truncate text-sm ${isEmpty ? "text-muted-foreground italic" : ""}`}>
+                                {detalle}
+                            </span>
+                        </button>
                     </TooltipTrigger>
 
-                    <PopoverContent
-                        side="top"
-                        align="start"
-                        className="w-[min(92vw,560px)] p-3"
-                    >
-                        <div className="space-y-3">
-                            <div>
-                                <p className="text-sm font-medium">Detalle editable</p>
-                                <p className="text-xs text-muted-foreground">
-                                    Ajusta el contexto comercial o de soporte del registro.
-                                </p>
-                            </div>
+                    {!open && (
+                        <TooltipContent
+                            side="top"
+                            align="start"
+                            className="w-96 max-h-64 overflow-y-auto space-y-1 rounded-xl border border-border/60 bg-background p-3 text-foreground shadow-md"
+                        >
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                Detalle
+                            </p>
+                            <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                                {detalle}
+                            </p>
+                        </TooltipContent>
+                    )}
+                </Tooltip>
+            </TooltipProvider>
 
-                            <Textarea
-                                value={draft}
-                                onChange={(event) => setDraft(event.target.value)}
-                                className="min-h-[160px] resize-y"
-                                placeholder="Escribe el detalle del registro..."
-                            />
+            <Dialog open={open} onOpenChange={handleOpenChange}>
+                <DialogContent className="sm:max-w-[560px]">
+                    <DialogHeader>
+                        <DialogTitle>Detalle editable</DialogTitle>
+                        <DialogDescription>
+                            Ajusta el contexto comercial o de soporte del registro.
+                        </DialogDescription>
+                    </DialogHeader>
 
-                            <div className="flex items-center justify-end gap-2">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    disabled={isSaving}
-                                    onClick={() => handleOpenChange(false)}
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    disabled={!onChangeDetalle || !detalleChanged || isSaving}
-                                    onClick={handleSave}
-                                >
-                                    Guardar
-                                </Button>
-                            </div>
-                        </div>
-                    </PopoverContent>
-                </Popover>
+                    <Textarea
+                        value={draft}
+                        onChange={(event) => setDraft(event.target.value)}
+                        className="min-h-[220px] resize-y"
+                        placeholder="Escribe el detalle del registro..."
+                    />
 
-                {!open && (
-                    <TooltipContent
-                        side="top"
-                        align="start"
-                        className="w-96 max-h-64 overflow-y-auto space-y-1 rounded-xl border border-border/60 bg-background p-3 text-foreground shadow-md"
-                    >
-                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                            Detalle
-                        </p>
-                        <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                            {detalle}
-                        </p>
-                    </TooltipContent>
-                )}
-            </Tooltip>
-        </TooltipProvider>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={isSaving}
+                            onClick={() => handleOpenChange(false)}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            size="sm"
+                            disabled={!onChangeDetalle || !detalleChanged || isSaving}
+                            onClick={handleSave}
+                        >
+                            Guardar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }

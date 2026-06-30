@@ -11,11 +11,9 @@ import {
   Search,
   Download,
   ChevronDown,
-  ChevronUp,
   CalendarClock,
   Tag,
   FileText,
-  Sparkles,
   Bot,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,6 +41,7 @@ import {
   setCallDisposition,
   scheduleCallbackAction,
   clearMissedCallsAction,
+  setCallLeadStatusAction,
   type CallsCrmData,
   type CallRow,
   type CallsKpis,
@@ -51,6 +50,7 @@ import { CALL_DISPOSITIONS, getDispositionMeta } from '@/lib/call-dispositions';
 import { startBotCallAction } from '@/actions/voicebot-actions';
 import { MetricCard } from '@/components/custom/MetricCard';
 import { CallDialog } from '../../../chats/_components/CallDialog';
+import { CallDetailDialog } from './CallDetailDialog';
 
 const DAY_OPTIONS = [
   { label: '7 días', value: 7 },
@@ -539,6 +539,67 @@ function CallbackDialog({
   );
 }
 
+const LEAD_STATUS_META: Record<string, { label: string; className: string }> = {
+  FRIO: { label: 'Frío', className: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-400' },
+  TIBIO: { label: 'Tibio', className: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-400' },
+  CALIENTE: { label: 'Caliente', className: 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-400' },
+  FINALIZADO: { label: 'Finalizado', className: 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-400' },
+  DESCARTADO: { label: 'Descartado', className: 'border-zinc-200 bg-zinc-100 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400' },
+};
+
+// Control compacto para fijar/cambiar el estado del lead desde la fila de llamada.
+// Si el lead no existe aún, la acción lo crea (lead mínimo) para no perder el contacto.
+function LeadStatusButton({ phone, contactName }: { phone: string; contactName?: string | null }) {
+  const [status, setStatus] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const meta = status ? LEAD_STATUS_META[status] : null;
+
+  const apply = async (value: string | null) => {
+    const prev = status;
+    setStatus(value);
+    setSaving(true);
+    const res = await setCallLeadStatusAction({ phone, contactName, leadStatus: value });
+    setSaving(false);
+    if (!res.success) {
+      setStatus(prev);
+      toast.error(res.message || 'No se pudo cambiar el estado.');
+      return;
+    }
+    toast.success(res.created ? 'Lead creado y estado guardado.' : 'Estado del lead actualizado.');
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          disabled={saving}
+          title="Estado del lead"
+          className={cn(
+            'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium transition-colors disabled:opacity-60',
+            meta ? meta.className : 'border-dashed border-border bg-transparent text-muted-foreground hover:bg-muted/60',
+          )}
+        >
+          {meta ? meta.label : 'Estado'}
+          <ChevronDown className="h-3 w-3 opacity-60" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {Object.entries(LEAD_STATUS_META).map(([value, m]) => (
+          <DropdownMenuItem key={value} onSelect={() => apply(value)}>
+            {m.label}
+          </DropdownMenuItem>
+        ))}
+        {status && (
+          <DropdownMenuItem onSelect={() => apply(null)} className="text-muted-foreground">
+            Quitar estado
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function CallTableRow({
   call,
   onCall,
@@ -555,7 +616,7 @@ function CallTableRow({
   const isOut = call.direction === 'outgoing';
   const dispMeta = getDispositionMeta(call.disposition);
   const callable = /\d{6,}/.test(call.phone);
-  const [expanded, setExpanded] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const hasDetail = call.hasRecording || !!call.transcript || !!call.summary;
   const recordingUrl =
     call.astraSid && call.astraCallId
@@ -566,16 +627,14 @@ function CallTableRow({
     <tr className="border-b last:border-0 hover:bg-muted/40">
       <td className="py-2 pr-3">
         <div className="flex items-center gap-1.5">
-          {hasDetail && (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="text-muted-foreground hover:text-foreground"
-              title={expanded ? 'Ocultar detalle' : 'Ver grabación / transcripción'}
-            >
-              {expanded ? <ChevronUp className="h-4 w-4" /> : <FileText className="h-4 w-4 text-blue-600" />}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setDetailOpen(true)}
+            className="text-muted-foreground hover:text-foreground"
+            title="Ver detalle de la llamada y del lead"
+          >
+            <FileText className={`h-4 w-4 ${hasDetail ? 'text-blue-600' : 'text-muted-foreground/60'}`} />
+          </button>
           <button
             type="button"
             onClick={onOpenChat}
@@ -631,6 +690,7 @@ function CallTableRow({
       <td className="py-2 pr-3 text-muted-foreground">{DATE_FMT.format(new Date(call.ts))}</td>
       <td className="py-2 pr-3">
         <div className="flex items-center justify-end gap-1.5">
+          <LeadStatusButton phone={call.phone} contactName={call.contactName} />
           {callable && (
             <Button
               variant="outline"
@@ -650,42 +710,12 @@ function CallTableRow({
         </div>
       </td>
     </tr>
-    {expanded && hasDetail && (
-      <tr className="border-b bg-muted/20">
-        <td colSpan={6} className="px-3 py-3">
-          <div className="flex flex-col gap-3">
-            {recordingUrl && (
-              <div>
-                <div className="mb-1 text-xs font-medium text-muted-foreground">Grabación</div>
-                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                <audio controls preload="none" src={recordingUrl} className="h-9 w-full max-w-md" />
-              </div>
-            )}
-            {call.summary && (
-              <div>
-                <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                  <Sparkles className="h-3.5 w-3.5 text-violet-600" /> Resumen IA
-                </div>
-                <p className="whitespace-pre-wrap rounded-md bg-background p-2 text-sm">{call.summary}</p>
-              </div>
-            )}
-            {call.transcript && (
-              <div>
-                <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                  <FileText className="h-3.5 w-3.5" /> Transcripción
-                </div>
-                <p className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-md bg-background p-2 text-sm text-muted-foreground">
-                  {call.transcript}
-                </p>
-              </div>
-            )}
-            {!call.transcript && !call.summary && call.hasRecording && (
-              <p className="text-xs text-muted-foreground">Procesando transcripción…</p>
-            )}
-          </div>
-        </td>
-      </tr>
-    )}
+    <CallDetailDialog
+      call={call}
+      recordingUrl={recordingUrl}
+      open={detailOpen}
+      onOpenChange={setDetailOpen}
+    />
     </>
   );
 }

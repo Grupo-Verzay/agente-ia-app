@@ -222,6 +222,29 @@ export async function clearMissedCallsAction(): Promise<{ success: boolean; dele
 }
 
 /**
+ * Resuelve el sessionId del lead asociado a un número de teléfono, para poder
+ * abrir/editar la síntesis del lead desde el detalle de una llamada.
+ * Usa el mismo scope de dueño que el resto del módulo de llamadas.
+ */
+export async function getSessionIdByPhone(phone: string): Promise<number | null> {
+  const me = await currentUser();
+  const ownerId = me?.effectiveId ?? me?.ownerId ?? me?.id;
+  if (!ownerId) return null;
+  const digits = (phone || '').replace(/\D/g, '');
+  if (!digits) return null;
+  try {
+    const session = await db.session.findFirst({
+      where: { userId: ownerId, remoteJid: `${digits}@s.whatsapp.net` },
+      select: { id: true },
+    });
+    return session?.id ?? null;
+  } catch (err) {
+    console.error('[getSessionIdByPhone]', err);
+    return null;
+  }
+}
+
+/**
  * Crea una tarea interna de "volver a llamar" (callback) para el asesor.
  * Usa la tabla `tasks` (sistema interno de tareas), NO el sistema de seguimientos
  * que envía WhatsApp al cliente. dueDate es ISO; se asigna al dueño de la cuenta.
@@ -273,5 +296,69 @@ export async function scheduleCallbackAction(input: {
   } catch (err) {
     console.error('[scheduleCallbackAction]', err);
     return { success: false, message: 'No se pudo agendar el callback.' };
+  }
+}
+
+export const CALL_LEAD_STATUSES = ['FRIO', 'TIBIO', 'CALIENTE', 'FINALIZADO', 'DESCARTADO'] as const;
+
+/**
+ * Cambia el estado del lead asociado al número de la llamada, directamente desde
+ * el CRM de llamadas. Si aún no existe lead/sesión para ese número, lo crea
+ * (lead mínimo) para que aparezca en el CRM. Pasa null para quitar el estado.
+ */
+export async function setCallLeadStatusAction(input: {
+  phone: string;
+  contactName?: string | null;
+  leadStatus: string | null;
+}): Promise<{ success: boolean; message?: string; created?: boolean }> {
+  const me = await currentUser();
+  const ownerId = me?.ownerId ?? me?.id;
+  if (!ownerId) return { success: false, message: 'No autorizado.' };
+
+  const status = input.leadStatus;
+  if (status && !CALL_LEAD_STATUSES.includes(status as (typeof CALL_LEAD_STATUSES)[number])) {
+    return { success: false, message: 'Estado inválido.' };
+  }
+  const digits = (input.phone || '').replace(/\D/g, '');
+  if (!digits) return { success: false, message: 'Número inválido.' };
+  const remoteJid = `${digits}@s.whatsapp.net`;
+
+  try {
+    const existing = await db.session.findFirst({
+      where: { userId: ownerId, remoteJid },
+      select: { id: true },
+    });
+
+    if (existing) {
+      await db.session.update({
+        where: { id: existing.id },
+        data: { leadStatus: (status as any) ?? null, leadStatusUpdatedAt: new Date() },
+      });
+      return { success: true };
+    }
+
+    // No existe lead: crear uno mínimo para no perder el contacto de la llamada.
+    const user = await db.user.findUnique({
+      where: { id: ownerId },
+      select: { instancias: { where: { instanceType: 'Whatsapp' }, select: { instanceId: true }, take: 1 } },
+    });
+    const instanceId = user?.instancias?.[0]?.instanceId;
+    if (!instanceId) return { success: false, message: 'No hay instancia de WhatsApp para crear el lead.' };
+
+    await db.session.create({
+      data: {
+        userId: ownerId,
+        remoteJid,
+        pushName: input.contactName?.trim() || `+${digits}`,
+        instanceId,
+        status: true,
+        leadStatus: (status as any) ?? null,
+        leadStatusUpdatedAt: new Date(),
+      },
+    });
+    return { success: true, created: true };
+  } catch (err) {
+    console.error('[setCallLeadStatusAction]', err);
+    return { success: false, message: 'No se pudo actualizar el estado del lead.' };
   }
 }
