@@ -14,14 +14,14 @@ interface LockedChannelCardProps {
 /** Tarjeta de canal deshabilitado — mismo estilo que Facebook/Instagram bloqueados. */
 export const LockedChannelCard = ({ icon, title, instanceName }: LockedChannelCardProps) => {
   return (
-    <Card className="border-border flex-1 flex flex-col">
+    <Card className="border-border flex h-full flex-col">
       <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
         <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
           {icon}
           <span className="text-xl font-bold">{title}</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="px-6 pb-3 pt-0">
+      <CardContent className="px-4 pb-3 pt-0">
         <div className="space-y-1.5">
           <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
           <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
@@ -30,7 +30,7 @@ export const LockedChannelCard = ({ icon, title, instanceName }: LockedChannelCa
           </div>
         </div>
       </CardContent>
-      <CardFooter className="mt-auto px-6 pb-6 pt-0">
+      <CardFooter className="mt-auto px-4 pb-4 pt-0">
         <Button
           variant="secondary"
           className="w-full cursor-not-allowed bg-muted-foreground/35 text-foreground/85 hover:bg-muted-foreground/35 font-semibold"
