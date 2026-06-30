@@ -260,16 +260,21 @@ export async function logOutgoingCallAction(
     if (!userId) return { id: null };
     const digits = (phone || '').replace(/\D/g, '');
     if (!digits) return { id: null };
-    const inst = await db.instancia.findFirst({
-      where: { userId, instanceType: 'Whatsapp' },
-      select: { instanceName: true },
-    });
-    if (!inst?.instanceName) return { id: null };
+    // Instancia para asociar la llamada. NO exigir 'Whatsapp' exacto: muchas
+    // cuentas usan otros tipos (evolution/baileys/meta) o varios canales. Si no
+    // hay ninguna, se usa un nombre por defecto para NO perder el registro.
+    const inst =
+      (await db.instancia.findFirst({
+        where: { userId, instanceType: { in: ['Whatsapp', 'whatsapp', 'evolution', 'baileys'] } },
+        select: { instanceName: true },
+      })) ??
+      (await db.instancia.findFirst({ where: { userId }, select: { instanceName: true } }));
+    const instanceName = inst?.instanceName || 'llamadas';
     const remoteJid = `${digits}@s.whatsapp.net`;
     const messageId = `callout_${Date.now()}_${digits}`;
     await persistChatMessage({
       userId,
-      instanceName: inst.instanceName,
+      instanceName,
       instanceType: 'evolution',
       remoteJid,
       messageId,
@@ -291,7 +296,7 @@ export async function logOutgoingCallAction(
     });
     // Recuperar el id recién insertado para poder fijar la disposición después.
     const row = await db.chatMessage.findFirst({
-      where: { userId, instanceName: inst.instanceName, messageId, fromMe: true },
+      where: { userId, instanceName, messageId, fromMe: true },
       select: { id: true },
     });
     return { id: row ? String(row.id) : null };

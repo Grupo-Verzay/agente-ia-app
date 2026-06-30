@@ -42,6 +42,7 @@ import {
   scheduleCallbackAction,
   clearMissedCallsAction,
   setCallLeadStatusAction,
+  diagnoseCallsAction,
   type CallsCrmData,
   type CallRow,
   type CallsKpis,
@@ -393,9 +394,33 @@ export function CallsCrmClient({
           {loading ? (
             <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
           ) : visibleCalls.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">
-              {query.trim() ? 'No hay llamadas que coincidan con la búsqueda.' : 'No hay llamadas en este periodo.'}
-            </p>
+            <div className="flex flex-col items-center gap-3 py-10">
+              <p className="text-center text-sm text-muted-foreground">
+                {query.trim() ? 'No hay llamadas que coincidan con la búsqueda.' : 'No hay llamadas en este periodo.'}
+              </p>
+              {!query.trim() && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={async () => {
+                    const d = await diagnoseCallsAction();
+                    const lines = [
+                      `Llamadas encontradas (todas las fechas): ${d.totalInScope}`,
+                      `Por cuenta: ${d.perScope.map((p) => `${p.id.slice(-6)}=${p.calls}`).join(', ') || '—'}`,
+                      d.lastCall
+                        ? `Última: ${new Date(d.lastCall.ts).toLocaleString()} — "${d.lastCall.content}"`
+                        : 'Última: ninguna',
+                      `Instancias: ${d.instances.map((i) => `${i.instanceName ?? '?'}(${i.instanceType ?? '?'})`).join(', ') || '—'}`,
+                    ];
+                    // eslint-disable-next-line no-alert
+                    alert(lines.join('\n'));
+                  }}
+                >
+                  🔍 Diagnóstico
+                </Button>
+              )}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

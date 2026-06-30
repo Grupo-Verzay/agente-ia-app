@@ -66,11 +66,13 @@ export async function getCallsCrmData(params?: {
 }): Promise<CallsCrmData> {
   const me = await currentUser();
   // Las llamadas pueden quedar guardadas bajo cualquiera de los ids ligados al
-  // usuario (cuenta activa, dueño del equipo o la propia). Leemos bajo TODOS para
-  // que el historial no desaparezca al cambiar de cuenta/equipo. Son ids de su
-  // propia identidad, no hay fuga entre clientes.
+  // usuario (cuenta activa, dueño del equipo, la propia o la sesión real del
+  // admin). Leemos bajo TODOS para que el historial no desaparezca al cambiar de
+  // cuenta/equipo. Son ids de su propia identidad, no hay fuga entre clientes.
   const scopeIds = Array.from(
-    new Set([me?.effectiveId, me?.ownerId, me?.id].filter(Boolean)),
+    new Set(
+      [me?.effectiveId, me?.ownerId, me?.id, (me as any)?.sessionUserId].filter(Boolean),
+    ),
   ) as string[];
   if (scopeIds.length === 0) return EMPTY;
 
@@ -308,6 +310,47 @@ export async function scheduleCallbackAction(input: {
     console.error('[scheduleCallbackAction]', err);
     return { success: false, message: 'No se pudo agendar el callback.' };
   }
+}
+
+/** Diagnóstico: cuántas llamadas hay por cada id del usuario, la última y las instancias. */
+export async function diagnoseCallsAction(): Promise<{
+  scopeIds: string[];
+  perScope: { id: string; calls: number }[];
+  totalInScope: number;
+  lastCall: { ts: number; userId: string; content: string } | null;
+  instances: { instanceName: string | null; instanceType: string | null }[];
+}> {
+  const me = await currentUser();
+  const scopeIds = Array.from(
+    new Set([me?.effectiveId, me?.ownerId, me?.id, (me as any)?.sessionUserId].filter(Boolean)),
+  ) as string[];
+  const perScope: { id: string; calls: number }[] = [];
+  for (const id of scopeIds) {
+    const calls = await db.chatMessage.count({ where: { userId: id, messageType: 'call' } }).catch(() => 0);
+    perScope.push({ id, calls });
+  }
+  const totalInScope = await db.chatMessage
+    .count({ where: { userId: { in: scopeIds }, messageType: 'call' } })
+    .catch(() => 0);
+  const last = await db.chatMessage
+    .findFirst({
+      where: { userId: { in: scopeIds }, messageType: 'call' },
+      orderBy: { messageTimestamp: 'desc' },
+      select: { messageTimestamp: true, userId: true, content: true },
+    })
+    .catch(() => null);
+  const insts = await db.instancia
+    .findMany({ where: { userId: { in: scopeIds } }, select: { instanceName: true, instanceType: true } })
+    .catch(() => [] as { instanceName: string | null; instanceType: string | null }[]);
+  return {
+    scopeIds,
+    perScope,
+    totalInScope,
+    lastCall: last
+      ? { ts: new Date(last.messageTimestamp).getTime(), userId: last.userId, content: last.content ?? '' }
+      : null,
+    instances: insts.map((i) => ({ instanceName: i.instanceName ?? null, instanceType: i.instanceType ?? null })),
+  };
 }
 
 export const CALL_LEAD_STATUSES = ['FRIO', 'TIBIO', 'CALIENTE', 'FINALIZADO', 'DESCARTADO'] as const;
