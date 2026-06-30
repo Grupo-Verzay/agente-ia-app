@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Phone, Loader2, RefreshCw, Trash2, QrCode, CheckCircle2, Power, Bot, Settings2 } from 'lucide-react';
+import { Phone, Loader2, QrCode, CheckCircle2, Power, Bot, Settings2 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -122,35 +122,23 @@ export function CallLinkCard() {
             <Phone className="h-4 w-4 shrink-0 text-green-600" />
             <span className="truncate">Llamadas WhatsApp</span>
           </CardTitle>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => void refresh()} title="Actualizar">
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-            {linked && (
-              <Button variant="destructive" size="icon" onClick={unlink} title="Desvincular">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
+          {connected && <VoicebotControl />}
         </div>
       </CardHeader>
 
       <CardContent className="flex flex-1 flex-col p-4 pt-0">
         {connected ? (
           <div className="flex flex-1 flex-col gap-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-3">
-                <Avatar className="rounded-lg">
-                  <AvatarFallback className="rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
-                    <Phone className="h-4 w-4" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{name || 'WhatsApp'}</div>
-                  {jid && <div className="truncate text-xs text-muted-foreground">+{jid.split('@')[0].split(':')[0]}</div>}
-                </div>
+            <div className="flex items-center gap-3">
+              <Avatar className="rounded-lg">
+                <AvatarFallback className="rounded-lg bg-green-100 text-green-600 dark:bg-green-950/40">
+                  <Phone className="h-4 w-4" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium">{name || 'WhatsApp'}</div>
+                {jid && <div className="truncate text-xs text-muted-foreground">+{jid.split('@')[0].split(':')[0]}</div>}
               </div>
-              <VoicebotControl />
             </div>
 
             <div className="mt-auto grid grid-cols-2 gap-2">
