@@ -348,6 +348,15 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                             ))}
                             </TooltipProvider>
                         </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => scroll("right")}
+                            className="sm:hidden shrink-0"
+                            aria-label="Desplazar pestanas a la derecha"
+                        >
+                            <ArrowRight />
+                        </Button>
                         <div className="flex items-center gap-2 shrink-0">
                             <PromptToolbar
                                     promptId={promptMeta.id}
@@ -470,15 +479,6 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 </DropdownMenuContent>
                             </DropdownMenu>
                             </div>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => scroll("right")}
-                            className="sm:hidden"
-                            aria-label="Desplazar pestanas a la derecha"
-                        >
-                            <ArrowRight />
-                        </Button>
                     </div>
                     {/* Barra de progreso global */}
                     <div className="px-3 pb-1.5 flex items-center gap-2">
