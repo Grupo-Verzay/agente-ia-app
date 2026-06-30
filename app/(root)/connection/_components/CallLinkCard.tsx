@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Phone, Loader2, RefreshCw, Trash2, QrCode, CheckCircle2, Power, Bot } from 'lucide-react';
+import { Phone, Loader2, RefreshCw, Trash2, QrCode, CheckCircle2, Power, Bot, Settings2 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -231,6 +231,7 @@ function VoicebotControl() {
 
   const toggle = async (v: boolean) => {
     setEnabled(v);
+    setOpen(v); // al activar, abre el modal de opciones; al desactivar, lo cierra
     await save({ enabled: v });
   };
 
@@ -238,17 +239,25 @@ function VoicebotControl() {
 
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setOpen(true)}
-        className="h-8 shrink-0 gap-1.5"
-        title="Configurar asistente de voz IA"
-      >
-        <Bot className={`h-4 w-4 ${enabled ? 'text-violet-600' : 'text-muted-foreground'}`} />
-        <span className="hidden sm:inline">Asistente IA</span>
-        <span className={`h-2 w-2 rounded-full ${enabled ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
-      </Button>
+      <div className="flex shrink-0 items-center gap-1.5">
+        {enabled && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground"
+            onClick={() => setOpen(true)}
+            title="Opciones del asistente de voz IA"
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
+        )}
+        <Switch
+          checked={enabled}
+          disabled={saving}
+          onCheckedChange={(v) => void toggle(v)}
+          title="Activar asistente de voz IA"
+        />
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
@@ -257,42 +266,36 @@ function VoicebotControl() {
               <Bot className="h-4 w-4 text-violet-600" /> Asistente de voz IA
             </DialogTitle>
             <DialogDescription>
-              Habilita el asistente de voz IA para llamar a tus clientes (botón
-              “Llamar con IA” en CRM → Llamadas) y conversar con tu Agente IA.
+              Configura la voz y el número de transferencia. El asistente llama a
+              tus clientes (botón “Llamar con IA” en CRM → Llamadas) y conversa con
+              tu Agente IA.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-border p-3">
-            <span className="text-sm font-medium">Activar asistente de voz IA</span>
-            <Switch checked={enabled} onCheckedChange={(v) => void toggle(v)} disabled={saving} />
+          <div className="flex flex-col gap-3">
+            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+              Voz del asistente
+              <Select value={voice} onValueChange={(v) => { setVoice(v); void save({ voice: v }); }}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {VOICEBOT_VOICES.map((vn) => (
+                    <SelectItem key={vn} value={vn} className="capitalize">{vn}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+              Transferir a (número del asesor, opcional)
+              <Input
+                value={transferTo}
+                onChange={(e) => setTransferTo(e.target.value)}
+                onBlur={() => void save({ transferTo })}
+                placeholder="573001234567"
+                inputMode="tel"
+                className="h-9"
+              />
+            </label>
           </div>
-
-          {enabled && (
-            <div className="flex flex-col gap-3">
-              <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
-                Voz del asistente
-                <Select value={voice} onValueChange={(v) => { setVoice(v); void save({ voice: v }); }}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {VOICEBOT_VOICES.map((vn) => (
-                      <SelectItem key={vn} value={vn} className="capitalize">{vn}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </label>
-              <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
-                Transferir a (número del asesor, opcional)
-                <Input
-                  value={transferTo}
-                  onChange={(e) => setTransferTo(e.target.value)}
-                  onBlur={() => void save({ transferTo })}
-                  placeholder="573001234567"
-                  inputMode="tel"
-                  className="h-9"
-                />
-              </label>
-            </div>
-          )}
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cerrar</Button>
