@@ -271,6 +271,10 @@ export const KeywordRuleSchema = z.object({
     keywords: z.array(z.string()).default([]),
     response: z.string().default(""),
     action: z.enum(["responder", "escalar"]).default("responder"),
+    // Tipo de coincidencia (como en Crear Flujo): 'contains' = el mensaje
+    // contiene la palabra; 'exact' = el mensaje es exactamente la palabra/frase.
+    // Default 'contains' por retro-compatibilidad (era el único comportamiento).
+    matchType: z.enum(["exact", "contains"]).default("contains"),
 });
 
 export const KeywordsDraftSchema = z.object({

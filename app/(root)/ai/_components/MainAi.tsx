@@ -300,7 +300,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
         <>
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabKey)} className="w-full flex flex-col flex-1 min-h-0">
                 <div className="sticky w-full top-0 z-10 -mx-4 lg:mx-0 bg-slate-100 dark:bg-black">
-                    <div className="flex items-center justify-between gap-2 px-2 py-2">
+                    <div className="flex items-center justify-between gap-2 py-2 pl-2 pr-0.5">
                         <Button
                             variant="ghost"
                             size="icon"

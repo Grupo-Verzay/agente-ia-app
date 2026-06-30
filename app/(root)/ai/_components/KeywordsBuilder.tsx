@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Plus, Trash2, ArrowRightLeft, ArrowRight, MessageSquare, X, Pencil, GripVertical, MoreVertical } from "lucide-react";
+import { Plus, Trash2, ArrowRightLeft, ArrowRight, MessageSquare, X, Pencil, GripVertical, MoreVertical, Target, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +42,7 @@ interface Props {
     registerSaveHandler?: (fn: () => Promise<void>) => void;
 }
 
-const EMPTY_FORM = { keywords: [] as string[], response: "", action: "responder" as "responder" | "escalar" };
+const EMPTY_FORM = { keywords: [] as string[], response: "", action: "responder" as "responder" | "escalar", matchType: "contains" as "exact" | "contains" };
 
 function SortableRule({
     rule,
@@ -154,7 +154,7 @@ export function KeywordsBuilder({ promptId, version, onVersionChange, onConflict
     }, []);
 
     const openAdd = () => { setForm(EMPTY_FORM); setKwInput(""); setEditId(null); setFormOpen(true); };
-    const openEdit = (r: KeywordRule) => { setForm({ keywords: [...r.keywords], response: r.response, action: r.action }); setKwInput(""); setEditId(r.id); setFormOpen(true); };
+    const openEdit = (r: KeywordRule) => { setForm({ keywords: [...r.keywords], response: r.response, action: r.action, matchType: (r as any).matchType ?? "contains" }); setKwInput(""); setEditId(r.id); setFormOpen(true); };
     const closeForm = () => { setFormOpen(false); setEditId(null); };
 
     const addKw = () => {
@@ -174,7 +174,7 @@ export function KeywordsBuilder({ promptId, version, onVersionChange, onConflict
         if (allKeywords.length === 0) return;
         if (form.action === "responder" && !form.response.trim()) return;
         const id = editId ?? crypto.randomUUID();
-        const rule: KeywordRule = { id, keywords: allKeywords, response: form.response.trim(), action: form.action };
+        const rule: KeywordRule = { id, keywords: allKeywords, response: form.response.trim(), action: form.action, matchType: form.matchType };
         setRules((prev) => editId ? prev.map((r) => r.id === editId ? rule : r) : [...prev, rule]);
         setKwInput("");
         closeForm();
@@ -250,6 +250,44 @@ export function KeywordsBuilder({ promptId, version, onVersionChange, onConflict
                                         <Plus className="h-4 w-4" />
                                     </Button>
                                 </div>
+                            </div>
+
+                            {/* Tipo de coincidencia */}
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-semibold">Tipo de coincidencia</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setForm((f) => ({ ...f, matchType: "contains" }))}
+                                        className={cn(
+                                            "flex items-center justify-center gap-2 rounded-md border px-3 py-2.5 text-xs font-medium transition-all",
+                                            form.matchType === "contains"
+                                                ? "border-primary bg-primary/10 text-primary shadow-sm"
+                                                : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                                        )}
+                                    >
+                                        <Search className="h-3.5 w-3.5" />
+                                        Contiene
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setForm((f) => ({ ...f, matchType: "exact" }))}
+                                        className={cn(
+                                            "flex items-center justify-center gap-2 rounded-md border px-3 py-2.5 text-xs font-medium transition-all",
+                                            form.matchType === "exact"
+                                                ? "border-primary bg-primary/10 text-primary shadow-sm"
+                                                : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                                        )}
+                                    >
+                                        <Target className="h-3.5 w-3.5" />
+                                        Exacta
+                                    </button>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground">
+                                    {form.matchType === "contains"
+                                        ? "Coincide si el mensaje contiene la palabra clave."
+                                        : "Coincide solo si el mensaje es exactamente la palabra o frase."}
+                                </p>
                             </div>
 
                             {/* Acción */}
