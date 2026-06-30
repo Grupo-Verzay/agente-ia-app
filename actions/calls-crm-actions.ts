@@ -353,7 +353,8 @@ export async function diagnoseCallsAction(): Promise<{
   };
 }
 
-export const CALL_LEAD_STATUSES = ['FRIO', 'TIBIO', 'CALIENTE', 'FINALIZADO', 'DESCARTADO'] as const;
+// NO exportar (este archivo es 'use server': solo puede exportar funciones async).
+const CALL_LEAD_STATUSES = ['FRIO', 'TIBIO', 'CALIENTE', 'FINALIZADO', 'DESCARTADO'] as const;
 
 /**
  * Cambia el estado del lead asociado al número de la llamada, directamente desde
