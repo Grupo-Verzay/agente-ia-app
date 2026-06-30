@@ -618,7 +618,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                     <TabsContent value="conexion" className="absolute inset-0 mt-0 data-[state=inactive]:pointer-events-none">
                         <TabPanel>
                             <SectionTitle>Canal de comunicación</SectionTitle>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 auto-rows-fr">
                                 <ConnectionMain
                                     user={user}
                                     instance={instancesData["Whatsapp"].instance}
