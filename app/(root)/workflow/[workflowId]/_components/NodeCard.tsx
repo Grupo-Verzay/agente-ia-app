@@ -248,6 +248,53 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
   const fileInputId = `file-input-${nodes.id}`; //  ID único por nodo
 
   const renderContent = () => {
+    if (nodeType === 'guardar-ficha') {
+      return (
+        <div className="space-y-3 rounded-md border border-border bg-muted/40 p-3 nodrag">
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Guarda los datos del contacto en su ficha y los sincroniza a Google Sheets.
+            No envía nada al cliente.
+          </p>
+          <div className="flex items-center gap-2">
+            <Switch
+              id={`ia-ficha-${nodes.id}`}
+              checked={iaEnabled}
+              onCheckedChange={handleAiEnabled}
+              disabled={isSavingAiEnabled}
+              className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-gray-400"
+            />
+            <Label htmlFor={`ia-ficha-${nodes.id}`} className="text-sm font-semibold">
+              Capturar datos con IA
+            </Label>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            {iaEnabled
+              ? 'El bot extraerá de la conversación los campos de tu ficha de contacto (email, ciudad, etc.).'
+              : 'Solo se guardará lo ya conocido (teléfono y nombre).'}
+          </p>
+          {iaEnabled && (
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-muted-foreground">
+                Instrucción para la IA (opcional)
+              </Label>
+              <textarea
+                value={message}
+                onChange={handleChangeMessages}
+                onBlur={handleSave}
+                placeholder="Ej: el negocio vende seguros; captura el tipo de póliza y el presupuesto que menciona el cliente."
+                rows={3}
+                className="w-full resize-none rounded-md border border-border bg-background p-2 text-xs leading-relaxed outline-none focus:ring-1 focus:ring-ring"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Da contexto del negocio para una mejor extracción. Los campos que se guardan
+                son los de tu ficha de contacto.
+              </p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     if (isPauseNode) {
       return (
         <div className="space-y-3 rounded-md border border-border bg-muted/40 p-3 nodrag">
@@ -397,7 +444,7 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
         <CardContent className="p-4">
           {renderContent()}
 
-          {!isNotifyNode && !isPauseNode && baseType !== 'text' && baseType !== 'document' && baseType !== 'audio' && !isIntention && (
+          {!isNotifyNode && !isPauseNode && nodeType !== 'guardar-ficha' && baseType !== 'text' && baseType !== 'document' && baseType !== 'audio' && !isIntention && (
             <div className="flex w-full mt-2 nodrag">
               <GenericTextarea
                 fileType={baseType}
