@@ -2,6 +2,45 @@
 
 import { db } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
+import OpenAI from 'openai';
+
+// Embeddings (RAG semántico). Best-effort: si no hay clave OpenAI o falla, devuelve
+// [] y el bloque queda solo con búsqueda por keywords (no rompe nada).
+async function getUserOpenAiKey(userId: string): Promise<string | null> {
+  try {
+    const provider = await db.aiProvider.findFirst({ where: { name: 'openai' }, select: { id: true } });
+    if (!provider) return null;
+    const cfg = await db.userAiConfig.findFirst({
+      where: { userId, providerId: provider.id, isActive: true },
+      select: { apiKey: true },
+    });
+    const key = cfg?.apiKey?.trim();
+    return key && key.startsWith('sk-') ? key : null;
+  } catch {
+    return null;
+  }
+}
+
+async function generateEmbedding(userId: string, text: string): Promise<number[]> {
+  const clean = (text || '').trim();
+  if (!clean) return [];
+  const key = await getUserOpenAiKey(userId);
+  if (!key) return [];
+  try {
+    const openai = new OpenAI({ apiKey: key });
+    const r = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: clean.slice(0, 8000),
+    });
+    return r.data?.[0]?.embedding ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function embedSource(title: string, keywords: string[], content: string): string {
+  return `${title}\n${(keywords ?? []).join(' ')}\n${content}`;
+}
 
 export type KnowledgeBlockData = {
   title: string;
@@ -20,8 +59,12 @@ export async function listKnowledgeBlocks(userId: string) {
 }
 
 export async function createKnowledgeBlock(userId: string, data: KnowledgeBlockData) {
+  const embedding = await generateEmbedding(
+    userId,
+    embedSource(data.title, data.keywords, data.content),
+  );
   const block = await db.knowledgeBlock.create({
-    data: { userId, ...data },
+    data: { userId, ...data, embedding },
   });
   revalidatePath('/my-data');
   return block;
@@ -32,9 +75,27 @@ export async function updateKnowledgeBlock(
   userId: string,
   data: Partial<KnowledgeBlockData>,
 ) {
+  // Si cambió el texto, regenera el embedding (con el contenido fusionado).
+  let embedding: number[] | undefined;
+  if (data.title !== undefined || data.content !== undefined || data.keywords !== undefined) {
+    const current = await db.knowledgeBlock.findFirst({
+      where: { id, userId },
+      select: { title: true, content: true, keywords: true },
+    });
+    if (current) {
+      embedding = await generateEmbedding(
+        userId,
+        embedSource(
+          data.title ?? current.title,
+          data.keywords ?? current.keywords,
+          data.content ?? current.content,
+        ),
+      );
+    }
+  }
   const block = await db.knowledgeBlock.update({
     where: { id, userId },
-    data,
+    data: { ...data, ...(embedding ? { embedding } : {}) },
   });
   revalidatePath('/my-data');
   return block;
@@ -111,15 +172,17 @@ export async function autoSplitAndImport(
 
   if (sections.length === 0) return { created: 0, blocks: [] };
 
-  const blocks = await db.knowledgeBlock.createMany({
-    data: sections.map((s, i) => ({
+  const data = await Promise.all(
+    sections.map(async (s, i) => ({
       userId,
       title: s.title,
       keywords: s.keywords,
       content: s.content,
       sortOrder: i,
+      embedding: await generateEmbedding(userId, embedSource(s.title, s.keywords, s.content)),
     })),
-  });
+  );
+  const blocks = await db.knowledgeBlock.createMany({ data });
 
   revalidatePath('/my-data');
 
