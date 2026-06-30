@@ -127,6 +127,68 @@ export async function linkMyCallSession(): Promise<{ success: boolean; sid?: str
   return { success: true, sid };
 }
 
+/* ── Vincular por NÚMERO de teléfono (alternativa al QR) ─────────────────── */
+// Devuelve un código de 8 caracteres que el usuario escribe en WhatsApp
+// (Dispositivos vinculados → Vincular con número de teléfono). Evita el flujo de
+// QR + passkey nuevo de WhatsApp.
+export async function linkMyCallSessionByPhone(
+  phone: string,
+): Promise<{ success: boolean; code?: string; message?: string }> {
+  if (!configured()) return { success: false, message: 'Llamadas no configuradas.' };
+  const me = await currentUser();
+  if (!me?.id) return { success: false, message: 'No autorizado.' };
+  const digits = (phone || '').replace(/\D/g, '');
+  if (digits.length < 8) return { success: false, message: 'Número inválido (incluye el código de país).' };
+  const accountId = (await getCallAccountUserId()) ?? me.id;
+
+  // Asegurar que existe la sesión (crearla si no).
+  let sid = await getMySid();
+  if (sid) {
+    const exists = (await fetchSessions()).some((x) => x.id === sid);
+    if (!exists) sid = null;
+  }
+  if (!sid) {
+    const [inst, u] = await Promise.all([
+      db.instancia.findFirst({ where: { userId: accountId, instanceType: 'Whatsapp' }, select: { instanceName: true } }),
+      db.user.findUnique({ where: { id: accountId }, select: { company: true, name: true } }),
+    ]);
+    const sessionName = inst?.instanceName || u?.company || u?.name || me.email || accountId;
+    try {
+      const r = await fetch(`${BASE}/api/sessions`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ name: sessionName }),
+      });
+      if (!r.ok) return { success: false, message: `No se pudo crear la sesión (${r.status}).` };
+      const data = await r.json().catch(() => ({}));
+      sid = (data?.id as string | undefined) ?? null;
+      if (!sid) return { success: false, message: 'Respuesta inválida al crear sesión.' };
+      await db.user.update({ where: { id: accountId }, data: { astraCallsSid: sid } });
+    } catch (e: any) {
+      return { success: false, message: e?.message || 'Error creando la sesión.' };
+    }
+  }
+
+  // Solicitar el código de vinculación por teléfono.
+  try {
+    const r = await fetch(`${BASE}/api/sessions/${sid}/pair-phone`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ phone: digits }),
+    });
+    if (!r.ok) {
+      const t = await r.json().catch(() => ({} as { error?: string }));
+      return { success: false, message: t?.error || `No se pudo generar el código (${r.status}).` };
+    }
+    const data = await r.json().catch(() => ({}));
+    const code = data?.code as string | undefined;
+    if (!code) return { success: false, message: 'No se recibió el código de vinculación.' };
+    return { success: true, code };
+  } catch (e: any) {
+    return { success: false, message: e?.message || 'Error generando el código.' };
+  }
+}
+
 /* ── Capturar el QR (o estado) por el stream SSE, del lado del servidor ─── */
 export async function getMyCallQr(): Promise<{ qr?: string; state?: string; message?: string }> {
   if (!configured()) return { message: 'Llamadas no configuradas.' };
