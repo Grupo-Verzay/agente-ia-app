@@ -331,10 +331,10 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                             aria-pressed={activeTab === key}
                                             aria-label={`Cambiar a ${TYPE_AI_LABELS[key]}`}
                                         >
-                                            <span className="flex items-center gap-1.5">
+                                            <span className="flex items-center gap-1">
                                                 {TYPE_AI_LABELS[key]}
                                                 {tabCounts[key] > 0 && (
-                                                    <span className="text-[10px] font-semibold leading-none bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                                                    <span className="text-[10px] font-semibold leading-none bg-muted text-muted-foreground rounded-full px-1 py-0.5 min-w-[16px] text-center">
                                                         {tabCounts[key]}
                                                     </span>
                                                 )}

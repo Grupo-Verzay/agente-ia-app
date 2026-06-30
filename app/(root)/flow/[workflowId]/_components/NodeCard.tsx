@@ -323,6 +323,34 @@ export const NodeCard = ({ nodes, workflowId, user }: Props) => {
   };
 
   const renderContent = () => {
+    if (nodeType === 'guardar-ficha') {
+      return (
+        <div className="space-y-3 rounded-md border border-border bg-muted/40 p-3">
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Guarda los datos del contacto en su ficha y los sincroniza a Google Sheets.
+            No envía nada al cliente.
+          </p>
+          <div className="flex items-center gap-2">
+            <Switch
+              id={`ia-ficha-${nodes.id}`}
+              checked={iaEnabled}
+              onCheckedChange={handleAiEnabled}
+              disabled={isSavingAiEnabled}
+              className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-gray-400"
+            />
+            <Label htmlFor={`ia-ficha-${nodes.id}`} className="text-sm font-semibold">
+              Capturar datos con IA
+            </Label>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            {iaEnabled
+              ? 'El bot extraerá de la conversación los campos de tu ficha de contacto (email, ciudad, etc.).'
+              : 'Solo se guardará lo ya conocido (teléfono y nombre).'}
+          </p>
+        </div>
+      );
+    }
+
     if (isPauseNode) {
       return (
         <div className="space-y-3 rounded-md border border-border bg-muted/40 p-3">

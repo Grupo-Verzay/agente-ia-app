@@ -41,6 +41,7 @@ export const cardBaseActions: Action[] = [
     { type: "audio", label: "Audio", icon: <Music className={`text-white`} />, bg: "bg-green-500" },
     { type: "node_pause", label: "Pausar", icon: <OctagonPause className={`text-white`} />, bg: "bg-blue-500" },
     { type: "nodo-notify", label: "Notificar", icon: <MessageCircle className={`text-white`} />, bg: "bg-yellow-500" },
+    { type: "guardar-ficha", label: "Guardar ficha", icon: <FileSpreadsheet className={`text-white`} />, bg: "bg-teal-600" },
 ];
 
 export const cardSeguimientoActions: Action[] = [
