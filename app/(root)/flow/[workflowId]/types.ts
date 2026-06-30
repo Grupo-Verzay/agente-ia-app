@@ -1,5 +1,5 @@
 // Tipos base (acciones generales)
-export type BaseActionType = "text" | "image" | "video" | "document" | "audio" | "seguimiento" | "node_pause" | "nodo-notify";
+export type BaseActionType = "text" | "image" | "video" | "document" | "audio" | "seguimiento" | "node_pause" | "nodo-notify" | "guardar-ficha";
 
 // Tipos de seguimiento (prefijo "seguimiento-")
 export type SeguimientoActionType =

@@ -10,6 +10,7 @@ import {
   OctagonPause,
   MessageCircle,
   Brain,
+  FileSpreadsheet,
 } from "lucide-react";
 
 import { LucideIcon } from "lucide-react";
@@ -24,6 +25,7 @@ export type WorkflowNodeType =
   | "node_pause"
   | "nodo-notify"
   | "intention"
+  | "guardar-ficha"
   | `seguimiento-${"text" | "image" | "video" | "document" | "audio"}`;
 
 export type WorkflowNodeDB = WorkflowNode
@@ -79,7 +81,7 @@ export const PALETTE: PaletteItem[] = [
 ];
 
 // Tipos base (acciones generales)
-export type BaseActionType = "text" | "image" | "video" | "document" | "audio" | "seguimiento" | "node_pause" | "nodo-notify" | "intention";
+export type BaseActionType = "text" | "image" | "video" | "document" | "audio" | "seguimiento" | "node_pause" | "nodo-notify" | "intention" | "guardar-ficha";
 
 // Tipos de seguimiento (prefijo "seguimiento-")
 export type SeguimientoActionType =
@@ -117,6 +119,7 @@ export const baseActions: Action[] = [
   { type: "node_pause", label: "Pausar", icon: OctagonPause, iconClassName: `text-blue-500` },
   { type: "nodo-notify", label: "Notificar", icon: MessageCircle, iconClassName: `text-yellow-500` },
   { type: "intention", label: "Intención", icon: Brain, iconClassName: "text-cyan-500" },
+  { type: "guardar-ficha", label: "Guardar ficha", icon: FileSpreadsheet, iconClassName: "text-teal-600" },
 ];
 
 //  Acciones de seguimiento (sub-tipos)
@@ -137,6 +140,7 @@ export const cardBaseActions: Action[] = [
   { type: "node_pause", label: "Pausar", icon: OctagonPause, bg: "bg-blue-500", iconClassName: "h-4 w-4 text-white" },
   { type: "nodo-notify", label: "Notificar", icon: MessageCircle, bg: "bg-yellow-500", iconClassName: "h-4 w-4 text-white" },
   { type: "intention", label: "Intención", icon: Brain, bg: "bg-black", iconClassName: "h-4 w-4 text-white" },
+  { type: "guardar-ficha", label: "Guardar ficha", icon: FileSpreadsheet, bg: "bg-teal-600", iconClassName: "h-4 w-4 text-white" },
 ];
 
 export const cardSeguimientoActions: Action[] = [

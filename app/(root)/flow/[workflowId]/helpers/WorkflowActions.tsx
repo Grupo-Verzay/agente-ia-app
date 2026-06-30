@@ -6,6 +6,7 @@ import {
     Music,
     OctagonPause,
     MessageCircle,
+    FileSpreadsheet,
 } from "lucide-react";
 import { Action } from "../types";
 
@@ -19,6 +20,7 @@ export const baseActions: Action[] = [
     { type: "audio", label: "Audio", icon: <Music className={`${iconSize} text-green-500`} /> },
     { type: "node_pause", label: "Pausar", icon: <OctagonPause className={`${iconSize} text-blue-500`} /> },
     { type: "nodo-notify", label: "Notificar", icon: <MessageCircle className={`${iconSize} text-yellow-500`} /> },
+    { type: "guardar-ficha", label: "Guardar ficha", icon: <FileSpreadsheet className={`${iconSize} text-teal-600`} /> },
 ];
 
 const legacySeguimientoActions: Action[] = [

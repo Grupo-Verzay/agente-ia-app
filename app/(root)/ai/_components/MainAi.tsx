@@ -313,8 +313,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                         <div
                             ref={scrollRef}
                             className={cn(
-                                "flex items-center overflow-x-auto gap-0 pb-1 scrollbar-none",
-                                "sm:overflow-visible sm:justify-start sm:flex-wrap"
+                                "flex flex-1 min-w-0 items-center overflow-x-auto gap-0 pb-1 scrollbar-none"
                             )}
                         >
                             <TooltipProvider delayDuration={400}>
@@ -348,7 +347,8 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 </Tooltip>
                             ))}
                             </TooltipProvider>
-                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
                             <PromptToolbar
                                     promptId={promptMeta.id}
                                     version={promptVersion}
@@ -470,7 +470,6 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 </DropdownMenuContent>
                             </DropdownMenu>
                             </div>
-                        </div>
                         <Button
                             variant="ghost"
                             size="icon"
