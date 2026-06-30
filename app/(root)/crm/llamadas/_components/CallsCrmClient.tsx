@@ -715,25 +715,15 @@ function CallTableRow({
     <tr className="border-b last:border-0 align-top hover:bg-muted/40">
       {/* Contacto: número limpio (primario) + nombre si aporta */}
       <td className="py-2 pr-3">
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setDetailOpen(true)}
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-            title="Ver detalle de la llamada"
-          >
-            <FileText className={`h-4 w-4 ${hasDetail ? 'text-blue-600' : 'text-muted-foreground/60'}`} />
-          </button>
-          <button
-            type="button"
-            onClick={onOpenChat}
-            title="Abrir chat del contacto"
-            className="text-left font-medium tabular-nums hover:text-blue-600 hover:underline"
-          >
-            {formatPhone(call.phone)}
-          </button>
-        </div>
-        {name && <div className="pl-[22px] text-xs text-muted-foreground">{name}</div>}
+        <button
+          type="button"
+          onClick={onOpenChat}
+          title="Abrir chat del contacto"
+          className="text-left font-medium tabular-nums hover:text-blue-600 hover:underline"
+        >
+          {formatPhone(call.phone)}
+        </button>
+        {name && <div className="text-xs text-muted-foreground">{name}</div>}
       </td>
       {/* Tipo */}
       <td className="py-2 pr-3">
@@ -751,13 +741,25 @@ function CallTableRow({
       <td className="py-2 pr-3 tabular-nums text-muted-foreground">{fmtDuration(call.durationSecs)}</td>
       {/* Fecha */}
       <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">{DATE_FMT.format(new Date(call.ts))}</td>
-      {/* Síntesis (después de la fecha, como en Registros) */}
-      <td className="max-w-[260px] py-2 pr-3 text-muted-foreground">
-        {sintesis ? (
-          <span className="line-clamp-2" title={sintesis}>{sintesis}</span>
-        ) : (
-          <span className="text-muted-foreground/50">—</span>
-        )}
+      {/* Detalle: botón clicable que abre el detalle completo (como en Registros) */}
+      <td className="max-w-[260px] py-2 pr-3">
+        <button
+          type="button"
+          onClick={() => setDetailOpen(true)}
+          title="Ver detalle de la llamada"
+          className="block w-full text-left"
+        >
+          <span
+            className={cn(
+              'block truncate text-sm',
+              sintesis
+                ? 'text-muted-foreground hover:text-foreground'
+                : 'italic text-muted-foreground/60 hover:text-foreground',
+            )}
+          >
+            {sintesis || 'Ver detalle'}
+          </span>
+        </button>
       </td>
       {/* Resultado (disposición) */}
       <td className="py-2 pr-3">
