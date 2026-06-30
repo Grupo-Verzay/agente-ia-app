@@ -143,9 +143,12 @@ export async function getCallsCrmData(params?: {
         select: { id: true, remoteJid: true },
       });
       if (sessions.length > 0) {
+        const sessionIds = sessions.map((s) => s.id);
         const sessionIdToJid = new Map(sessions.map((s) => [s.id, s.remoteJid]));
+
+        // 1) Síntesis manual (summarySnapshot del último follow-up).
         const followUps = await db.crmFollowUp.findMany({
-          where: { sessionId: { in: sessions.map((s) => s.id) }, summarySnapshot: { not: null } },
+          where: { sessionId: { in: sessionIds }, summarySnapshot: { not: null } },
           orderBy: { createdAt: 'desc' },
           select: { sessionId: true, summarySnapshot: true },
         });
@@ -156,8 +159,25 @@ export async function getCallsCrmData(params?: {
             jidToSynthesis.set(jid, f.summarySnapshot.trim());
           }
         }
+
+        // 2) Respaldo: resumen automático del lead (último Registro), como en Registros.
+        const registros = await db.registro
+          .findMany({
+            where: { sessionId: { in: sessionIds } },
+            orderBy: { createdAt: 'desc' },
+            select: { sessionId: true, resumen: true, detalles: true },
+          })
+          .catch(() => [] as { sessionId: number; resumen: string | null; detalles: string | null }[]);
+        const jidToResumen = new Map<string, string>();
+        for (const r of registros) {
+          const jid = sessionIdToJid.get(r.sessionId);
+          const txt = (r.resumen || r.detalles || '').trim();
+          if (jid && !jidToResumen.has(jid) && txt) jidToResumen.set(jid, txt);
+        }
+
         for (const c of calls) {
-          c.leadSynthesis = jidToSynthesis.get(`${c.phone}@s.whatsapp.net`) ?? null;
+          const jid = `${c.phone}@s.whatsapp.net`;
+          c.leadSynthesis = jidToSynthesis.get(jid) ?? jidToResumen.get(jid) ?? null;
         }
       }
     }

@@ -757,7 +757,7 @@ function CallTableRow({
                 : 'italic text-muted-foreground/60 hover:text-foreground',
             )}
           >
-            {sintesis || 'Ver detalle'}
+            {sintesis || 'Sin detalle'}
           </span>
         </button>
       </td>
