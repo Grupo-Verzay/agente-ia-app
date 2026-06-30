@@ -37,10 +37,12 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 import {
   getCallsCrmData,
   setCallDisposition,
   scheduleCallbackAction,
+  clearMissedCallsAction,
   type CallsCrmData,
   type CallRow,
   type CallsKpis,
@@ -113,6 +115,25 @@ export function CallsCrmClient({
   }, [days, direction]);
 
   useEffect(() => { load(); }, [load]);
+
+  const router = useRouter();
+  const openChat = (phone: string) =>
+    router.push(`/chats?jid=${encodeURIComponent(`${phone}@s.whatsapp.net`)}`);
+
+  const [clearing, setClearing] = useState(false);
+  const clearMissed = async () => {
+    if (clearing) return;
+    if (!confirm('¿Eliminar todas las llamadas perdidas del historial?')) return;
+    setClearing(true);
+    const res = await clearMissedCallsAction();
+    setClearing(false);
+    if (res.success) {
+      toast.success(`${res.deleted ?? 0} llamada(s) perdida(s) eliminada(s).`);
+      load();
+    } else {
+      toast.error(res.message ?? 'No se pudo limpiar.');
+    }
+  };
 
   // Actualiza la disposición de una llamada (optimista en el estado local).
   const applyDisposition = useCallback(async (callId: string, value: string) => {
@@ -231,6 +252,17 @@ export function CallsCrmClient({
           >
             <Download className="h-4 w-4 shrink-0" />
             <span className="truncate">Exportar</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1.5 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30"
+            onClick={() => void clearMissed()}
+            disabled={clearing}
+            title="Eliminar llamadas perdidas del historial"
+          >
+            <PhoneMissed className="h-4 w-4 shrink-0" />
+            <span className="truncate">Limpiar perdidas</span>
           </Button>
           <Button variant="outline" size="icon" className="h-9 w-9" onClick={load} title="Actualizar">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
@@ -385,6 +417,7 @@ export function CallsCrmClient({
                       onCall={() => setCallTarget({ phone: c.phone, name: c.contactName ?? undefined })}
                       onDisposition={(value) => applyDisposition(c.id, value)}
                       onCallback={() => setCallbackTarget({ phone: c.phone, name: c.contactName ?? undefined })}
+                      onOpenChat={() => openChat(c.phone)}
                     />
                   ))}
                 </tbody>
@@ -511,11 +544,13 @@ function CallTableRow({
   onCall,
   onDisposition,
   onCallback,
+  onOpenChat,
 }: {
   call: CallRow;
   onCall: () => void;
   onDisposition: (value: string) => void;
   onCallback: () => void;
+  onOpenChat: () => void;
 }) {
   const isOut = call.direction === 'outgoing';
   const dispMeta = getDispositionMeta(call.disposition);
@@ -541,7 +576,14 @@ function CallTableRow({
               {expanded ? <ChevronUp className="h-4 w-4" /> : <FileText className="h-4 w-4 text-blue-600" />}
             </button>
           )}
-          <span className="font-medium">{call.contactName || `+${call.phone}`}</span>
+          <button
+            type="button"
+            onClick={onOpenChat}
+            title="Abrir chat del contacto"
+            className="font-medium text-left hover:text-blue-600 hover:underline"
+          >
+            {call.contactName || `+${call.phone}`}
+          </button>
         </div>
         {call.contactName && <div className="text-xs text-muted-foreground">+{call.phone}</div>}
       </td>

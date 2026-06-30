@@ -205,6 +205,22 @@ export async function setCallDisposition(
   }
 }
 
+/** Elimina las llamadas perdidas/entrantes del historial del usuario. */
+export async function clearMissedCallsAction(): Promise<{ success: boolean; deleted?: number; message?: string }> {
+  const me = await currentUser();
+  const userId = me?.effectiveId ?? me?.ownerId ?? me?.id;
+  if (!userId) return { success: false, message: 'No autorizado.' };
+  try {
+    const res = await db.chatMessage.deleteMany({
+      where: { userId, messageType: 'call', fromMe: false },
+    });
+    return { success: true, deleted: res.count };
+  } catch (err) {
+    console.error('[clearMissedCallsAction]', err);
+    return { success: false, message: 'No se pudieron limpiar las llamadas perdidas.' };
+  }
+}
+
 /**
  * Crea una tarea interna de "volver a llamar" (callback) para el asesor.
  * Usa la tabla `tasks` (sistema interno de tareas), NO el sistema de seguimientos
