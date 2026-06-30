@@ -179,31 +179,36 @@ export function ContactInfoPanel({
   const [savingUrl, setSavingUrl] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
+  // La ficha (config de campos + datos + Sheets) pertenece a la CUENTA DUEÑA del
+  // contacto (session.userId), no al usuario logueado. Así cualquier agente que
+  // entre a ese chat de la cuenta principal ve y edita lo mismo que el dueño.
+  const ownerId = session.userId;
+
   const adSource = session.adSource as { title?: string; body?: string; sourceUrl?: string } | null | undefined;
   const adLabel = adSource?.title || (adSource?.sourceUrl ? (() => { try { return new URL(adSource.sourceUrl!).hostname.replace(/^www\./, ''); } catch { return 'Anuncio'; } })() : null);
 
   /* Load contact field config (per user) — cacheado: no depende del chat */
   useEffect(() => {
-    if (fieldsConfigCache?.userId === userId) {
+    if (fieldsConfigCache?.userId === ownerId) {
       setFieldDefs(fieldsConfigCache.value);
       return;
     }
     let cancelled = false;
-    getContactFieldsConfig(userId).then((defs) => {
+    getContactFieldsConfig(ownerId).then((defs) => {
       if (cancelled) return;
       const value = Array.isArray(defs) && defs.length ? defs : DEFAULT_CONTACT_FIELDS;
-      fieldsConfigCache = { userId, value };
+      fieldsConfigCache = { userId: ownerId, value };
       setFieldDefs(value);
     });
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [ownerId]);
 
   /* Load external contact data */
   useEffect(() => {
     if (!remoteJid) { setLoadingData(false); return; }
     let cancelled = false;
     setLoadingData(true);
-    getExternalClientDataByRemoteJid(userId, remoteJid).then((rec) => {
+    getExternalClientDataByRemoteJid(ownerId, remoteJid).then((rec) => {
       if (!cancelled && rec?.data && typeof rec.data === 'object') {
         const d = rec.data as Record<string, unknown>;
         const loaded: ContactFields = {};
@@ -213,7 +218,7 @@ export function ContactInfoPanel({
       if (!cancelled) setLoadingData(false);
     });
     return () => { cancelled = true; };
-  }, [userId, remoteJid]);
+  }, [ownerId, remoteJid]);
 
   /* Sync name draft when contact changes */
   useEffect(() => { setNameDraft(displayedContactName); }, [displayedContactName]);
@@ -245,21 +250,21 @@ export function ContactInfoPanel({
 
   /* Load Google Sheets config (per user) — cacheado: no depende del chat */
   useEffect(() => {
-    if (sheetsUrlCache?.userId === userId) {
+    if (sheetsUrlCache?.userId === ownerId) {
       setSheetsUrl(sheetsUrlCache.value);
       setSheetsSaved(!!sheetsUrlCache.value);
       return;
     }
     let cancelled = false;
-    getGoogleSheetsWebhookUrl(userId).then((url) => {
+    getGoogleSheetsWebhookUrl(ownerId).then((url) => {
       if (cancelled) return;
       const value = url ?? '';
-      sheetsUrlCache = { userId, value };
+      sheetsUrlCache = { userId: ownerId, value };
       setSheetsUrl(value);
       setSheetsSaved(!!value);
     });
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [ownerId]);
 
   const handleFieldChange = useCallback((field: string, value: string) => {
     setFields((prev) => ({ ...prev, [field]: value }));
@@ -270,20 +275,20 @@ export function ContactInfoPanel({
     if (!remoteJid) return;
     if (pendingRef.current) clearTimeout(pendingRef.current);
     try {
-      await upsertExternalClientData(userId, remoteJid, fields, 'manual');
+      await upsertExternalClientData(ownerId, remoteJid, fields, 'manual');
     } catch {
       toast.error('No se pudo guardar');
     }
-  }, [userId, remoteJid, fields]);
+  }, [ownerId, remoteJid, fields]);
 
   const handleSaveWebhookUrl = async () => {
     if (!sheetsDraft.trim()) return;
     setSavingUrl(true);
-    const res = await saveGoogleSheetsWebhookUrl(userId, sheetsDraft);
+    const res = await saveGoogleSheetsWebhookUrl(ownerId, sheetsDraft);
     setSavingUrl(false);
     if (res.success) {
       setSheetsUrl(sheetsDraft);
-      sheetsUrlCache = { userId, value: sheetsDraft };
+      sheetsUrlCache = { userId: ownerId, value: sheetsDraft };
       setSheetsDraft('');
       toast.success('Hoja guardada');
       setSheetsSaved(true);
@@ -294,7 +299,7 @@ export function ContactInfoPanel({
   const handleSync = async () => {
     if (!displayedWhatsapp) return;
     setSyncing(true);
-    const res = await syncContactToGoogleSheets(userId, {
+    const res = await syncContactToGoogleSheets(ownerId, {
       phone: displayedWhatsapp,
       name: displayedContactName,
       ...fields,
@@ -338,11 +343,11 @@ export function ContactInfoPanel({
       </div>
 
       <ContactFieldsConfigDialog
-        userId={userId}
+        userId={ownerId}
         open={configOpen}
         onOpenChange={setConfigOpen}
         fields={fieldDefs}
-        onSaved={(defs) => { fieldsConfigCache = { userId, value: defs }; setFieldDefs(defs); }}
+        onSaved={(defs) => { fieldsConfigCache = { userId: ownerId, value: defs }; setFieldDefs(defs); }}
       />
 
       <div className="flex-1 overflow-y-auto [scrollbar-width:thin]">
