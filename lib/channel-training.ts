@@ -13,7 +13,7 @@ export interface TrainingChannel {
 // real; el detalle largo se ve en Conexión.
 export const TRAINING_CHANNELS: TrainingChannel[] = [
   { slug: 'whatsapp', label: 'WhatsApp', agentId: 'system-prompt-ai', kind: 'chat' },
-  { slug: 'llamadas', label: 'Llamadas', agentId: null, kind: 'voice' },
+  { slug: 'llamadas', label: 'Llamadas', agentId: 'system-prompt-ai-llamadas', kind: 'chat' },
   { slug: 'whatsapp-api', label: 'WhatsApp API', agentId: 'system-prompt-ai-whatsapp-cloud', kind: 'chat' },
   { slug: 'telegram', label: 'Telegram', agentId: 'system-prompt-ai-telegram', kind: 'chat' },
   { slug: 'facebook', label: 'Facebook', agentId: 'system-prompt-ai-facebook', kind: 'chat' },
