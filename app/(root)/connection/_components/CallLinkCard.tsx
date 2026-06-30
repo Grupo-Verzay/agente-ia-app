@@ -27,7 +27,6 @@ import {
 } from '@/actions/astracalls-actions';
 import { getVoicebotConfig, setVoicebotConfig } from '@/actions/voicebot-actions';
 import { VOICEBOT_VOICES } from '@/lib/voicebot-voices';
-import { Textarea } from '@/components/ui/textarea';
 
 export function CallLinkCard() {
   const [loading, setLoading] = useState(true);
@@ -192,7 +191,7 @@ export function CallLinkCard() {
 
 /**
  * Configuración del voicebot: botón compacto junto al nombre de la instancia que
- * abre un modal con voz + número de transferencia + prompt (Cancelar / Guardar).
+ * abre un modal con voz + número de transferencia (Cancelar / Guardar).
  */
 function VoicebotControl() {
   const [loaded, setLoaded] = useState(false);
@@ -200,8 +199,7 @@ function VoicebotControl() {
   const [enabled, setEnabled] = useState(false);
   const [voice, setVoice] = useState('alloy');
   const [transferTo, setTransferTo] = useState('');
-  const [prompt, setPrompt] = useState('');
-  const [saved, setSaved] = useState({ voice: 'alloy', transferTo: '', prompt: '' });
+  const [saved, setSaved] = useState({ voice: 'alloy', transferTo: '' });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -210,18 +208,16 @@ function VoicebotControl() {
         setEnabled(r.data.enabled);
         setVoice(r.data.voice ?? 'alloy');
         setTransferTo(r.data.transferTo ?? '');
-        setPrompt(r.data.prompt ?? '');
         setSaved({
           voice: r.data.voice ?? 'alloy',
           transferTo: r.data.transferTo ?? '',
-          prompt: r.data.prompt ?? '',
         });
       }
       setLoaded(true);
     });
   }, []);
 
-  const save = async (patch: { enabled?: boolean; voice?: string; transferTo?: string; prompt?: string }) => {
+  const save = async (patch: { enabled?: boolean; voice?: string; transferTo?: string }) => {
     setSaving(true);
     const res = await setVoicebotConfig(patch);
     setSaving(false);
@@ -234,16 +230,16 @@ function VoicebotControl() {
     await save({ enabled: v });
   };
 
-  // Guarda las opciones del modal (voz, transferencia, prompt) en un solo paso.
+  // Guarda las opciones del modal (voz, transferencia) en un solo paso.
   const handleSave = async () => {
     setSaving(true);
-    const res = await setVoicebotConfig({ voice, transferTo, prompt });
+    const res = await setVoicebotConfig({ voice, transferTo });
     setSaving(false);
     if (!res.success) {
       toast.error(res.message ?? 'No se pudo guardar.');
       return;
     }
-    setSaved({ voice, transferTo, prompt });
+    setSaved({ voice, transferTo });
     toast.success('Configuración guardada');
     setOpen(false);
   };
@@ -252,7 +248,6 @@ function VoicebotControl() {
   const handleCancel = () => {
     setVoice(saved.voice);
     setTransferTo(saved.transferTo);
-    setPrompt(saved.prompt);
     setOpen(false);
   };
 
@@ -314,21 +309,6 @@ function VoicebotControl() {
                 inputMode="tel"
                 className="h-9"
               />
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
-              Prompt del agente de llamadas
-              <Textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder={
-                  'Escribe aquí cómo debe comportarse el agente EN LLAMADAS (separado del de WhatsApp).\n\nEjemplo:\n— Eres el asistente telefónico de [empresa].\n— Objetivo de la llamada: confirmar interés y agendar una cita.\n— Sé breve y natural; haz una pregunta a la vez.\n— Si piden info por escrito, envíala por WhatsApp.\n— Datos clave: [horarios, precios, ubicación...]'
-                }
-                rows={7}
-                className="resize-none text-xs leading-relaxed"
-              />
-              <span className="text-[11px] font-normal text-muted-foreground/80">
-                Si lo dejas vacío, el bot usará el prompt del Agente de WhatsApp (puede sonar confuso en llamadas). Recomendado: escribe uno propio, claro y corto para teléfono.
-              </span>
             </label>
           </div>
 
