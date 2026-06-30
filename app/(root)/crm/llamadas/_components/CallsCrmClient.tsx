@@ -15,6 +15,9 @@ import {
   Tag,
   FileText,
   Bot,
+  MoreVertical,
+  Trash2,
+  MessageSquare,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,6 +27,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -43,6 +48,8 @@ import {
   clearMissedCallsAction,
   setCallLeadStatusAction,
   diagnoseCallsAction,
+  deleteCallAction,
+  deleteAllCallsAction,
   type CallsCrmData,
   type CallRow,
   type CallsKpis,
@@ -72,6 +79,30 @@ function fmtDuration(secs: number): string {
   const s = secs % 60;
   if (h > 0) return `${h}h ${m}m`;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+// Número limpio y legible: "+57 321 603 1493" (agrupa desde la derecha).
+function formatPhone(raw: string): string {
+  const d = (raw || '').replace(/\D/g, '');
+  if (!d) return '';
+  const parts: string[] = [];
+  let rest = d;
+  if (rest.length > 4) { parts.unshift(rest.slice(-4)); rest = rest.slice(0, -4); }
+  else { return `+${rest}`; }
+  if (rest.length > 3) { parts.unshift(rest.slice(-3)); rest = rest.slice(0, -3); }
+  else if (rest) { parts.unshift(rest); rest = ''; }
+  if (rest.length > 3) { parts.unshift(rest.slice(-3)); rest = rest.slice(0, -3); }
+  else if (rest) { parts.unshift(rest); rest = ''; }
+  if (rest) parts.unshift(rest);
+  return `+${parts.join(' ')}`;
+}
+
+// Nombres "basura" que no aportan (ej. el propio WhatsApp se nombra "Você"/"You").
+function cleanName(name?: string | null): string {
+  const n = (name || '').trim();
+  if (!n) return '';
+  if (/^(você|voce|you|tú|tu)$/i.test(n)) return '';
+  return n;
 }
 
 const DATE_FMT = new Intl.DateTimeFormat('es-CO', {
@@ -133,6 +164,17 @@ export function CallsCrmClient({
       load();
     } else {
       toast.error(res.message ?? 'No se pudo limpiar.');
+    }
+  };
+
+  const deleteAll = async () => {
+    if (!confirm('¿Eliminar TODAS las llamadas del historial? Esta acción no se puede deshacer.')) return;
+    const res = await deleteAllCallsAction();
+    if (res.success) {
+      toast.success(`${res.deleted ?? 0} llamada(s) eliminada(s).`);
+      load();
+    } else {
+      toast.error(res.message ?? 'No se pudieron eliminar.');
     }
   };
 
@@ -254,20 +296,26 @@ export function CallsCrmClient({
             <Download className="h-4 w-4 shrink-0" />
             <span className="truncate">Exportar</span>
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 gap-1.5 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30"
-            onClick={() => void clearMissed()}
-            disabled={clearing}
-            title="Eliminar llamadas perdidas del historial"
-          >
-            <PhoneMissed className="h-4 w-4 shrink-0" />
-            <span className="truncate">Limpiar perdidas</span>
-          </Button>
           <Button variant="outline" size="icon" className="h-9 w-9" onClick={load} title="Actualizar">
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="h-9 w-9" title="Acciones" disabled={clearing}>
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Acciones globales</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => void clearMissed()} className="text-red-600 focus:text-red-700">
+                <PhoneMissed className="mr-2 h-4 w-4" /> Limpiar perdidas
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void deleteAll()} className="text-destructive focus:text-destructive">
+                <Trash2 className="mr-2 h-4 w-4" /> Eliminar todas las llamadas
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -428,10 +476,12 @@ export function CallsCrmClient({
                   <tr className="border-b text-left text-xs text-muted-foreground">
                     <th className="py-2 pr-3 font-medium">Contacto</th>
                     <th className="py-2 pr-3 font-medium">Tipo</th>
-                    <th className="py-2 pr-3 font-medium">Resultado</th>
                     <th className="py-2 pr-3 font-medium">Duración</th>
                     <th className="py-2 pr-3 font-medium">Fecha</th>
-                    <th className="py-2 pr-3 font-medium text-right">Acción</th>
+                    <th className="py-2 pr-3 font-medium">Síntesis</th>
+                    <th className="py-2 pr-3 font-medium">Resultado</th>
+                    <th className="py-2 pr-3 font-medium">Estado</th>
+                    <th className="py-2 pr-3 font-medium text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -443,6 +493,12 @@ export function CallsCrmClient({
                       onDisposition={(value) => applyDisposition(c.id, value)}
                       onCallback={() => setCallbackTarget({ phone: c.phone, name: c.contactName ?? undefined })}
                       onOpenChat={() => openChat(c.phone)}
+                      onDelete={async () => {
+                        if (!confirm('¿Eliminar esta llamada del historial?')) return;
+                        const res = await deleteCallAction(c.id);
+                        if (res.success) { toast.success('Llamada eliminada.'); load(); }
+                        else toast.error(res.message ?? 'No se pudo eliminar.');
+                      }}
                     />
                   ))}
                 </tbody>
@@ -631,32 +687,37 @@ function CallTableRow({
   onDisposition,
   onCallback,
   onOpenChat,
+  onDelete,
 }: {
   call: CallRow;
   onCall: () => void;
   onDisposition: (value: string) => void;
   onCallback: () => void;
   onOpenChat: () => void;
+  onDelete: () => void;
 }) {
   const isOut = call.direction === 'outgoing';
   const dispMeta = getDispositionMeta(call.disposition);
   const callable = /\d{6,}/.test(call.phone);
   const [detailOpen, setDetailOpen] = useState(false);
   const hasDetail = call.hasRecording || !!call.transcript || !!call.summary;
+  const name = cleanName(call.contactName);
+  const sintesis = (call.summary || '').trim();
   const recordingUrl =
     call.astraSid && call.astraCallId
       ? `/api/calls/recording?sid=${encodeURIComponent(call.astraSid)}&callId=${encodeURIComponent(call.astraCallId)}`
       : null;
   return (
     <>
-    <tr className="border-b last:border-0 hover:bg-muted/40">
+    <tr className="border-b last:border-0 align-top hover:bg-muted/40">
+      {/* Contacto: número limpio (primario) + nombre si aporta */}
       <td className="py-2 pr-3">
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => setDetailOpen(true)}
-            className="text-muted-foreground hover:text-foreground"
-            title="Ver detalle de la llamada y del lead"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            title="Ver detalle de la llamada"
           >
             <FileText className={`h-4 w-4 ${hasDetail ? 'text-blue-600' : 'text-muted-foreground/60'}`} />
           </button>
@@ -664,13 +725,14 @@ function CallTableRow({
             type="button"
             onClick={onOpenChat}
             title="Abrir chat del contacto"
-            className="font-medium text-left hover:text-blue-600 hover:underline"
+            className="text-left font-medium tabular-nums hover:text-blue-600 hover:underline"
           >
-            {call.contactName || `+${call.phone}`}
+            {formatPhone(call.phone)}
           </button>
         </div>
-        {call.contactName && <div className="text-xs text-muted-foreground">+{call.phone}</div>}
+        {name && <div className="pl-[22px] text-xs text-muted-foreground">{name}</div>}
       </td>
+      {/* Tipo */}
       <td className="py-2 pr-3">
         {isOut ? (
           <Badge variant="outline" className="gap-1 border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-400">
@@ -682,6 +744,19 @@ function CallTableRow({
           </Badge>
         )}
       </td>
+      {/* Duración */}
+      <td className="py-2 pr-3 tabular-nums text-muted-foreground">{fmtDuration(call.durationSecs)}</td>
+      {/* Fecha */}
+      <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">{DATE_FMT.format(new Date(call.ts))}</td>
+      {/* Síntesis (después de la fecha, como en Registros) */}
+      <td className="max-w-[260px] py-2 pr-3 text-muted-foreground">
+        {sintesis ? (
+          <span className="line-clamp-2" title={sintesis}>{sintesis}</span>
+        ) : (
+          <span className="text-muted-foreground/50">—</span>
+        )}
+      </td>
+      {/* Resultado (disposición) */}
       <td className="py-2 pr-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -711,27 +786,45 @@ function CallTableRow({
           </DropdownMenuContent>
         </DropdownMenu>
       </td>
-      <td className="py-2 pr-3 tabular-nums text-muted-foreground">{fmtDuration(call.durationSecs)}</td>
-      <td className="py-2 pr-3 text-muted-foreground">{DATE_FMT.format(new Date(call.ts))}</td>
+      {/* Estado (junto al resultado) */}
       <td className="py-2 pr-3">
-        <div className="flex items-center justify-end gap-1.5">
-          <LeadStatusButton phone={call.phone} contactName={call.contactName} />
-          {callable && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 gap-1"
-              onClick={onCallback}
-              title="Agendar callback"
-            >
-              <CalendarClock className="h-3 w-3" /> Callback
-            </Button>
-          )}
-          {callable && (
-            <Button size="sm" className="h-7 gap-1 bg-green-600 text-white hover:bg-green-700" onClick={onCall}>
-              <Phone className="h-3 w-3" /> Llamar
-            </Button>
-          )}
+        <LeadStatusButton phone={call.phone} contactName={call.contactName} />
+      </td>
+      {/* Acciones */}
+      <td className="py-2 pr-3">
+        <div className="flex justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Acciones">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              {callable && (
+                <DropdownMenuItem onSelect={onCall}>
+                  <Phone className="mr-2 h-4 w-4" /> Llamar
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={onOpenChat}>
+                <MessageSquare className="mr-2 h-4 w-4" /> Abrir chat
+              </DropdownMenuItem>
+              {callable && (
+                <DropdownMenuItem onSelect={onCallback}>
+                  <CalendarClock className="mr-2 h-4 w-4" /> Agendar callback
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={() => setDetailOpen(true)}>
+                <FileText className="mr-2 h-4 w-4" /> Ver detalle
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={onDelete}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </td>
     </tr>

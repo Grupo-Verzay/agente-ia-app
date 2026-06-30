@@ -234,6 +234,44 @@ export async function clearMissedCallsAction(): Promise<{ success: boolean; dele
   }
 }
 
+/** Elimina una llamada concreta del historial. */
+export async function deleteCallAction(callId: string): Promise<{ success: boolean; message?: string }> {
+  const me = await currentUser();
+  const scopeIds = Array.from(
+    new Set([me?.effectiveId, me?.ownerId, me?.id, (me as any)?.sessionUserId].filter(Boolean)),
+  ) as string[];
+  if (scopeIds.length === 0) return { success: false, message: 'No autorizado.' };
+  let id: bigint;
+  try {
+    id = BigInt(callId);
+  } catch {
+    return { success: false, message: 'ID inválido.' };
+  }
+  try {
+    await db.chatMessage.deleteMany({ where: { id, userId: { in: scopeIds }, messageType: 'call' } });
+    return { success: true };
+  } catch (err) {
+    console.error('[deleteCallAction]', err);
+    return { success: false, message: 'No se pudo eliminar la llamada.' };
+  }
+}
+
+/** Elimina TODAS las llamadas del historial del usuario. */
+export async function deleteAllCallsAction(): Promise<{ success: boolean; deleted?: number; message?: string }> {
+  const me = await currentUser();
+  const scopeIds = Array.from(
+    new Set([me?.effectiveId, me?.ownerId, me?.id, (me as any)?.sessionUserId].filter(Boolean)),
+  ) as string[];
+  if (scopeIds.length === 0) return { success: false, message: 'No autorizado.' };
+  try {
+    const res = await db.chatMessage.deleteMany({ where: { userId: { in: scopeIds }, messageType: 'call' } });
+    return { success: true, deleted: res.count };
+  } catch (err) {
+    console.error('[deleteAllCallsAction]', err);
+    return { success: false, message: 'No se pudieron eliminar las llamadas.' };
+  }
+}
+
 /**
  * Resuelve el sessionId del lead asociado a un número de teléfono, para poder
  * abrir/editar la síntesis del lead desde el detalle de una llamada.
