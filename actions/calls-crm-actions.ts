@@ -65,8 +65,14 @@ export async function getCallsCrmData(params?: {
   direction?: 'all' | CallDirection;
 }): Promise<CallsCrmData> {
   const me = await currentUser();
-  const userId = me?.effectiveId ?? me?.ownerId ?? me?.id;
-  if (!userId) return EMPTY;
+  // Las llamadas pueden quedar guardadas bajo cualquiera de los ids ligados al
+  // usuario (cuenta activa, dueño del equipo o la propia). Leemos bajo TODOS para
+  // que el historial no desaparezca al cambiar de cuenta/equipo. Son ids de su
+  // propia identidad, no hay fuga entre clientes.
+  const scopeIds = Array.from(
+    new Set([me?.effectiveId, me?.ownerId, me?.id].filter(Boolean)),
+  ) as string[];
+  if (scopeIds.length === 0) return EMPTY;
 
   const days = Math.min(Math.max(params?.days ?? 30, 1), 365);
   const since = new Date(Date.now() - days * 86_400_000);
@@ -78,11 +84,12 @@ export async function getCallsCrmData(params?: {
       FROM "chat_messages" m
       LEFT JOIN "chat_conversations" c
         ON c."userId" = m."userId" AND c."instanceName" = m."instanceName" AND c."remoteJid" = m."remoteJid"
-      WHERE m."userId" = ${userId} AND m."messageType" = 'call' AND m."messageTimestamp" >= ${since}
+      WHERE m."userId" IN (${Prisma.join(scopeIds)}) AND m."messageType" = 'call' AND m."messageTimestamp" >= ${since}
       ORDER BY m."messageTimestamp" DESC
       LIMIT 1000
     `;
-  } catch {
+  } catch (err) {
+    console.error('[getCallsCrmData]', err);
     return EMPTY;
   }
 
@@ -167,8 +174,10 @@ export async function setCallDisposition(
   disposition: string,
 ): Promise<{ success: boolean; message?: string }> {
   const me = await currentUser();
-  const userId = me?.effectiveId ?? me?.ownerId ?? me?.id;
-  if (!userId) return { success: false, message: 'No autorizado.' };
+  const scopeIds = Array.from(
+    new Set([me?.effectiveId, me?.ownerId, me?.id].filter(Boolean)),
+  ) as string[];
+  if (scopeIds.length === 0) return { success: false, message: 'No autorizado.' };
   if (!isCallDisposition(disposition)) return { success: false, message: 'Resultado inválido.' };
 
   let id: bigint;
@@ -179,9 +188,9 @@ export async function setCallDisposition(
   }
 
   try {
-    // Sólo la fila del propio usuario y de tipo 'call'.
+    // Sólo la fila del propio usuario/equipo y de tipo 'call'.
     const row = await db.chatMessage.findFirst({
-      where: { id, userId, messageType: 'call' },
+      where: { id, userId: { in: scopeIds }, messageType: 'call' },
       select: { raw: true },
     });
     if (!row) return { success: false, message: 'Llamada no encontrada.' };
@@ -208,11 +217,13 @@ export async function setCallDisposition(
 /** Elimina las llamadas perdidas/entrantes del historial del usuario. */
 export async function clearMissedCallsAction(): Promise<{ success: boolean; deleted?: number; message?: string }> {
   const me = await currentUser();
-  const userId = me?.effectiveId ?? me?.ownerId ?? me?.id;
-  if (!userId) return { success: false, message: 'No autorizado.' };
+  const scopeIds = Array.from(
+    new Set([me?.effectiveId, me?.ownerId, me?.id].filter(Boolean)),
+  ) as string[];
+  if (scopeIds.length === 0) return { success: false, message: 'No autorizado.' };
   try {
     const res = await db.chatMessage.deleteMany({
-      where: { userId, messageType: 'call', fromMe: false },
+      where: { userId: { in: scopeIds }, messageType: 'call', fromMe: false },
     });
     return { success: true, deleted: res.count };
   } catch (err) {

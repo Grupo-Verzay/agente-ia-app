@@ -138,6 +138,7 @@ model Instancia {
   voicebotEnabled        Boolean @default(false) @map("voicebot_enabled")
   voicebotVoice          String? @map("voicebot_voice")
   voicebotTransferTo     String? @map("voicebot_transfer_to")
+  voicebotPrompt         String? @map("voicebot_prompt") @db.Text // prompt propio del agente de llamadas (separado del de chat)
   user                   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])

@@ -17,13 +17,14 @@ export interface VoicebotConfig {
   enabled: boolean;
   voice: string | null;
   transferTo: string | null;
+  prompt: string | null;
 }
 
 async function getWhatsappInstance(userId: string) {
   return db.instancia.findFirst({
     where: { userId, instanceType: { in: ['Whatsapp', 'whatsapp'] } },
     orderBy: { id: 'asc' },
-    select: { id: true, voicebotEnabled: true, voicebotVoice: true, voicebotTransferTo: true },
+    select: { id: true, voicebotEnabled: true, voicebotVoice: true, voicebotTransferTo: true, voicebotPrompt: true },
   });
 }
 
@@ -33,13 +34,14 @@ export async function getVoicebotConfig(): Promise<{ success: boolean; data?: Vo
   if (!userId) return { success: false, message: 'No autorizado.' };
   try {
     const inst = await getWhatsappInstance(userId);
-    if (!inst) return { success: true, data: { enabled: false, voice: null, transferTo: null } };
+    if (!inst) return { success: true, data: { enabled: false, voice: null, transferTo: null, prompt: null } };
     return {
       success: true,
       data: {
         enabled: Boolean(inst.voicebotEnabled),
         voice: inst.voicebotVoice ?? null,
         transferTo: inst.voicebotTransferTo ?? null,
+        prompt: inst.voicebotPrompt ?? null,
       },
     };
   } catch (err) {
@@ -52,6 +54,7 @@ export async function setVoicebotConfig(input: {
   enabled?: boolean;
   voice?: string | null;
   transferTo?: string | null;
+  prompt?: string | null;
 }): Promise<{ success: boolean; message?: string }> {
   const me = await currentUser();
   const userId = me?.ownerId ?? me?.id;
@@ -62,6 +65,9 @@ export async function setVoicebotConfig(input: {
     input.transferTo === undefined
       ? undefined
       : (input.transferTo || '').replace(/\D/g, '') || null;
+
+  const prompt =
+    input.prompt === undefined ? undefined : (input.prompt || '').trim() || null;
 
   if (input.voice && !VOICEBOT_VOICES.includes(input.voice as (typeof VOICEBOT_VOICES)[number])) {
     return { success: false, message: 'Voz no válida.' };
@@ -76,6 +82,7 @@ export async function setVoicebotConfig(input: {
         ...(input.enabled !== undefined ? { voicebotEnabled: input.enabled } : {}),
         ...(input.voice !== undefined ? { voicebotVoice: input.voice } : {}),
         ...(transferTo !== undefined ? { voicebotTransferTo: transferTo } : {}),
+        ...(prompt !== undefined ? { voicebotPrompt: prompt } : {}),
       },
     });
     return { success: true };

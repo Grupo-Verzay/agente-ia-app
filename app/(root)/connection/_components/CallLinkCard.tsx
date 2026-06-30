@@ -192,7 +192,7 @@ export function CallLinkCard() {
 
 /**
  * Configuración del voicebot: botón compacto junto al nombre de la instancia que
- * abre un modal con activar + voz + número de transferencia (auto-guardado).
+ * abre un modal con voz + número de transferencia + prompt (Cancelar / Guardar).
  */
 function VoicebotControl() {
   const [loaded, setLoaded] = useState(false);
@@ -201,6 +201,7 @@ function VoicebotControl() {
   const [voice, setVoice] = useState('alloy');
   const [transferTo, setTransferTo] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [saved, setSaved] = useState({ voice: 'alloy', transferTo: '', prompt: '' });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -210,6 +211,11 @@ function VoicebotControl() {
         setVoice(r.data.voice ?? 'alloy');
         setTransferTo(r.data.transferTo ?? '');
         setPrompt(r.data.prompt ?? '');
+        setSaved({
+          voice: r.data.voice ?? 'alloy',
+          transferTo: r.data.transferTo ?? '',
+          prompt: r.data.prompt ?? '',
+        });
       }
       setLoaded(true);
     });
@@ -226,6 +232,28 @@ function VoicebotControl() {
     setEnabled(v);
     setOpen(v); // al activar, abre el modal de opciones; al desactivar, lo cierra
     await save({ enabled: v });
+  };
+
+  // Guarda las opciones del modal (voz, transferencia, prompt) en un solo paso.
+  const handleSave = async () => {
+    setSaving(true);
+    const res = await setVoicebotConfig({ voice, transferTo, prompt });
+    setSaving(false);
+    if (!res.success) {
+      toast.error(res.message ?? 'No se pudo guardar.');
+      return;
+    }
+    setSaved({ voice, transferTo, prompt });
+    toast.success('Configuración guardada');
+    setOpen(false);
+  };
+
+  // Descarta los cambios no guardados y cierra el modal.
+  const handleCancel = () => {
+    setVoice(saved.voice);
+    setTransferTo(saved.transferTo);
+    setPrompt(saved.prompt);
+    setOpen(false);
   };
 
   if (!loaded) return null;
@@ -252,7 +280,7 @@ function VoicebotControl() {
         />
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) handleCancel(); else setOpen(true); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -268,7 +296,7 @@ function VoicebotControl() {
           <div className="flex flex-col gap-3">
             <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
               Voz del asistente
-              <Select value={voice} onValueChange={(v) => { setVoice(v); void save({ voice: v }); }}>
+              <Select value={voice} onValueChange={setVoice}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {VOICEBOT_VOICES.map((vn) => (
@@ -282,7 +310,6 @@ function VoicebotControl() {
               <Input
                 value={transferTo}
                 onChange={(e) => setTransferTo(e.target.value)}
-                onBlur={() => void save({ transferTo })}
                 placeholder="573001234567"
                 inputMode="tel"
                 className="h-9"
@@ -293,7 +320,6 @@ function VoicebotControl() {
               <Textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                onBlur={() => void save({ prompt })}
                 placeholder={
                   'Escribe aquí cómo debe comportarse el agente EN LLAMADAS (separado del de WhatsApp).\n\nEjemplo:\n— Eres el asistente telefónico de [empresa].\n— Objetivo de la llamada: confirmar interés y agendar una cita.\n— Sé breve y natural; haz una pregunta a la vez.\n— Si piden info por escrito, envíala por WhatsApp.\n— Datos clave: [horarios, precios, ubicación...]'
                 }
@@ -307,7 +333,11 @@ function VoicebotControl() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cerrar</Button>
+            <Button variant="outline" onClick={handleCancel} disabled={saving}>Cancelar</Button>
+            <Button variant="save" onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Guardar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
