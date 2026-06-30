@@ -478,7 +478,7 @@ export function CallsCrmClient({
                     <th className="py-2 pr-3 font-medium">Tipo</th>
                     <th className="py-2 pr-3 font-medium">Duración</th>
                     <th className="py-2 pr-3 font-medium">Fecha</th>
-                    <th className="py-2 pr-3 font-medium">Síntesis del lead</th>
+                    <th className="py-2 pr-3 font-medium">Detalle</th>
                     <th className="py-2 pr-3 font-medium">Resultado</th>
                     <th className="py-2 pr-3 font-medium">Estado</th>
                     <th className="py-2 pr-3 font-medium text-right">Acciones</th>
