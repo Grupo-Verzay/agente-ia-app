@@ -110,9 +110,15 @@ export async function startBotCallAction(
       body: JSON.stringify({ phone: digits }),
     });
     if (!r.ok) {
-      const t = await r.json().catch(() => ({} as { error?: string }));
+      const t = await r.json().catch(() => ({} as { error?: string; reason?: string }));
       if (r.status === 403) {
-        return { success: false, message: 'Activa "Asistente de voz IA" en Conexión → Llamadas primero.' };
+        const byReason: Record<string, string> = {
+          no_credits: 'Sin créditos disponibles para llamadas con IA. Recarga créditos.',
+          disabled: 'Activa "Asistente de voz IA" en Conexión → Llamadas primero.',
+          no_openai_key: 'Configura tu clave de OpenAI en Ajustes (el voicebot la necesita).',
+          no_account: 'No tienes un número de llamadas vinculado.',
+        };
+        return { success: false, message: byReason[t?.reason ?? ''] ?? 'Voicebot no habilitado para esta cuenta.' };
       }
       return { success: false, message: t?.error || `No se pudo iniciar la llamada del bot (${r.status}).` };
     }
