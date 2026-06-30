@@ -18,6 +18,7 @@ import {
   MoreVertical,
   Trash2,
   MessageSquare,
+  ArrowUpDown,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -105,6 +106,39 @@ function cleanName(name?: string | null): string {
   return n;
 }
 
+type SortKey = 'contacto' | 'tipo' | 'duracion' | 'fecha' | 'detalle' | 'resultado';
+type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
+
+// Encabezado centrado con flecha de ordenar (↕), estilo Registros.
+function Th({
+  label,
+  sortKey,
+  sort,
+  onSort,
+}: {
+  label: string;
+  sortKey?: SortKey;
+  sort: SortState;
+  onSort: (k: SortKey) => void;
+}) {
+  if (!sortKey) {
+    return <th className="px-2 py-2 text-center font-medium">{label}</th>;
+  }
+  const active = sort?.key === sortKey;
+  return (
+    <th className="px-2 py-2 text-center font-medium">
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={cn('inline-flex items-center gap-1 hover:text-foreground', active && 'text-foreground')}
+      >
+        {label}
+        <ArrowUpDown className={cn('h-3.5 w-3.5', active ? 'opacity-100' : 'opacity-50')} />
+      </button>
+    </th>
+  );
+}
+
 const DATE_FMT = new Intl.DateTimeFormat('es-CO', {
   day: '2-digit',
   month: '2-digit',
@@ -121,6 +155,7 @@ export function CallsCrmClient({
   const [days, setDays] = useState(30);
   const [direction, setDirection] = useState<'all' | 'outgoing' | 'incoming'>('all');
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
   const [callTarget, setCallTarget] = useState<{ phone: string; name?: string } | null>(null);
   const [callbackTarget, setCallbackTarget] = useState<{ phone: string; name?: string } | null>(null);
   const [dialNumber, setDialNumber] = useState('');
@@ -213,14 +248,40 @@ export function CallsCrmClient({
   const visibleCalls = useMemo(() => {
     const raw = query.trim().toLowerCase();
     const digits = raw.replace(/\D/g, '');
-    const calls = data?.calls ?? [];
-    if (!raw) return calls;
-    return calls.filter((c) => {
-      const nameHit = (c.contactName ?? '').toLowerCase().includes(raw);
-      const phoneHit = digits.length > 0 && c.phone.includes(digits);
-      return nameHit || phoneHit;
-    });
-  }, [data, query]);
+    let calls = data?.calls ?? [];
+    if (raw) {
+      calls = calls.filter((c) => {
+        const nameHit = (c.contactName ?? '').toLowerCase().includes(raw);
+        const phoneHit = digits.length > 0 && c.phone.includes(digits);
+        return nameHit || phoneHit;
+      });
+    }
+    if (sort) {
+      const dir = sort.dir === 'asc' ? 1 : -1;
+      calls = [...calls].sort((a, b) => {
+        let cmp = 0;
+        switch (sort.key) {
+          case 'contacto': cmp = a.phone.localeCompare(b.phone); break;
+          case 'tipo': cmp = a.direction.localeCompare(b.direction); break;
+          case 'duracion': cmp = a.durationSecs - b.durationSecs; break;
+          case 'fecha': cmp = a.ts - b.ts; break;
+          case 'detalle': cmp = (a.leadSynthesis ?? '').localeCompare(b.leadSynthesis ?? ''); break;
+          case 'resultado': cmp = (a.disposition ?? '').localeCompare(b.disposition ?? ''); break;
+        }
+        return cmp * dir;
+      });
+    }
+    return calls;
+  }, [data, query, sort]);
+
+  const toggleSort = (key: SortKey) =>
+    setSort((prev) =>
+      prev?.key === key
+        ? prev.dir === 'asc'
+          ? { key, dir: 'desc' }
+          : null
+        : { key, dir: 'asc' },
+    );
 
   const handleExport = () => {
     if (visibleCalls.length === 0) return;
@@ -473,15 +534,15 @@ export function CallsCrmClient({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="py-2 pr-3 font-medium">Contacto</th>
-                    <th className="py-2 pr-3 font-medium">Tipo</th>
-                    <th className="py-2 pr-3 font-medium">Duración</th>
-                    <th className="py-2 pr-3 font-medium">Fecha</th>
-                    <th className="py-2 pr-3 font-medium">Detalle</th>
-                    <th className="py-2 pr-3 font-medium">Resultado</th>
-                    <th className="py-2 pr-3 font-medium">Estado</th>
-                    <th className="py-2 pr-3 font-medium text-right">Acciones</th>
+                  <tr className="border-b text-xs text-muted-foreground">
+                    <Th label="Contacto" sortKey="contacto" sort={sort} onSort={toggleSort} />
+                    <Th label="Tipo" sortKey="tipo" sort={sort} onSort={toggleSort} />
+                    <Th label="Duración" sortKey="duracion" sort={sort} onSort={toggleSort} />
+                    <Th label="Fecha" sortKey="fecha" sort={sort} onSort={toggleSort} />
+                    <Th label="Detalle" sortKey="detalle" sort={sort} onSort={toggleSort} />
+                    <Th label="Resultado" sortKey="resultado" sort={sort} onSort={toggleSort} />
+                    <Th label="Estado" sort={sort} onSort={toggleSort} />
+                    <Th label="Acciones" sort={sort} onSort={toggleSort} />
                   </tr>
                 </thead>
                 <tbody>
@@ -714,19 +775,19 @@ function CallTableRow({
     <>
     <tr className="border-b last:border-0 align-top hover:bg-muted/40">
       {/* Contacto: número limpio (primario) + nombre si aporta */}
-      <td className="py-2 pr-3">
+      <td className="px-2 py-2 text-center">
         <button
           type="button"
           onClick={onOpenChat}
           title="Abrir chat del contacto"
-          className="text-left font-medium tabular-nums hover:text-blue-600 hover:underline"
+          className="font-medium tabular-nums hover:text-blue-600 hover:underline"
         >
           {formatPhone(call.phone)}
         </button>
         {name && <div className="text-xs text-muted-foreground">{name}</div>}
       </td>
       {/* Tipo */}
-      <td className="py-2 pr-3">
+      <td className="px-2 py-2 text-center">
         {isOut ? (
           <Badge variant="outline" className="gap-1 border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-400">
             <PhoneOutgoing className="h-3 w-3" /> Saliente
@@ -738,16 +799,16 @@ function CallTableRow({
         )}
       </td>
       {/* Duración */}
-      <td className="py-2 pr-3 tabular-nums text-muted-foreground">{fmtDuration(call.durationSecs)}</td>
+      <td className="px-2 py-2 text-center tabular-nums text-muted-foreground">{fmtDuration(call.durationSecs)}</td>
       {/* Fecha */}
-      <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">{DATE_FMT.format(new Date(call.ts))}</td>
+      <td className="px-2 py-2 text-center whitespace-nowrap text-muted-foreground">{DATE_FMT.format(new Date(call.ts))}</td>
       {/* Detalle: botón clicable que abre el detalle completo (como en Registros) */}
-      <td className="max-w-[260px] py-2 pr-3">
+      <td className="max-w-[260px] px-2 py-2 text-center">
         <button
           type="button"
           onClick={() => setDetailOpen(true)}
           title="Ver detalle de la llamada"
-          className="block w-full text-left"
+          className="block w-full text-center"
         >
           <span
             className={cn(
@@ -762,7 +823,7 @@ function CallTableRow({
         </button>
       </td>
       {/* Resultado (disposición) */}
-      <td className="py-2 pr-3">
+      <td className="px-2 py-2 text-center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -792,12 +853,12 @@ function CallTableRow({
         </DropdownMenu>
       </td>
       {/* Estado (junto al resultado) */}
-      <td className="py-2 pr-3">
+      <td className="px-2 py-2 text-center">
         <LeadStatusButton phone={call.phone} contactName={call.contactName} />
       </td>
       {/* Acciones */}
-      <td className="py-2 pr-3">
-        <div className="flex justify-end">
+      <td className="px-2 py-2 text-center">
+        <div className="flex justify-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Acciones">
