@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -219,75 +220,64 @@ export function KeywordsBuilder({ promptId, version, onVersionChange, onConflict
                 {formOpen && (
                     <div className="rounded-lg border bg-card overflow-hidden">
                         <div className="p-4 space-y-4">
-                            {/* Keywords input */}
-                            <div className="space-y-1.5">
-                                <label className="text-sm font-semibold">Palabras clave</label>
-                                <div className="flex gap-2">
-                                    <div className="flex flex-wrap gap-1 flex-1 min-h-9 rounded-md border bg-background px-2 py-1.5 focus-within:ring-1 focus-within:ring-primary">
-                                        {form.keywords.map((kw) => (
-                                            <Badge key={kw} variant="secondary" className="gap-1 text-xs pr-1">
-                                                {kw}
-                                                <button type="button" onClick={() => removeKw(kw)} className="rounded-full hover:bg-muted-foreground/20">
-                                                    <X className="h-2.5 w-2.5" />
-                                                </button>
-                                            </Badge>
-                                        ))}
-                                        <input
-                                            value={kwInput}
-                                            onChange={(e) => setKwInput(e.target.value)}
-                                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addKw(); } }}
-                                            placeholder={form.keywords.length === 0 ? "Ej.: precio, precios, cuánto cuesta..." : ""}
-                                            className="flex-1 min-w-24 bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
-                                        />
-                                    </div>
-                                    <Button
-                                        type="button"
-                                        size="icon"
-                                        className="h-9 w-9 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white"
-                                        onClick={addKw}
-                                        disabled={!kwInput.trim()}
+                            {/* Tipo de coincidencia + Palabras clave (una sola fila) */}
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[170px_1fr]">
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-semibold">Tipo de coincidencia</label>
+                                    <Select
+                                        value={form.matchType}
+                                        onValueChange={(v) => setForm((f) => ({ ...f, matchType: v as "exact" | "contains" }))}
                                     >
-                                        <Plus className="h-4 w-4" />
-                                    </Button>
+                                        <SelectTrigger className="h-9">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="contains">
+                                                <span className="flex items-center gap-2"><Search className="h-3.5 w-3.5" /> Contiene</span>
+                                            </SelectItem>
+                                            <SelectItem value="exact">
+                                                <span className="flex items-center gap-2"><Target className="h-3.5 w-3.5" /> Exacta</span>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-                            </div>
 
-                            {/* Tipo de coincidencia */}
-                            <div className="space-y-1.5">
-                                <label className="text-sm font-semibold">Tipo de coincidencia</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setForm((f) => ({ ...f, matchType: "contains" }))}
-                                        className={cn(
-                                            "flex items-center justify-center gap-2 rounded-md border px-3 py-2.5 text-xs font-medium transition-all",
-                                            form.matchType === "contains"
-                                                ? "border-primary bg-primary/10 text-primary shadow-sm"
-                                                : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                                        )}
-                                    >
-                                        <Search className="h-3.5 w-3.5" />
-                                        Contiene
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setForm((f) => ({ ...f, matchType: "exact" }))}
-                                        className={cn(
-                                            "flex items-center justify-center gap-2 rounded-md border px-3 py-2.5 text-xs font-medium transition-all",
-                                            form.matchType === "exact"
-                                                ? "border-primary bg-primary/10 text-primary shadow-sm"
-                                                : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                                        )}
-                                    >
-                                        <Target className="h-3.5 w-3.5" />
-                                        Exacta
-                                    </button>
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-semibold">Palabras clave</label>
+                                    <div className="flex gap-2">
+                                        <div className="flex flex-wrap gap-1 flex-1 min-h-9 rounded-md border bg-background px-2 py-1.5 focus-within:ring-1 focus-within:ring-primary">
+                                            {form.keywords.map((kw) => (
+                                                <Badge key={kw} variant="secondary" className="gap-1 text-xs pr-1">
+                                                    {kw}
+                                                    <button type="button" onClick={() => removeKw(kw)} className="rounded-full hover:bg-muted-foreground/20">
+                                                        <X className="h-2.5 w-2.5" />
+                                                    </button>
+                                                </Badge>
+                                            ))}
+                                            <input
+                                                value={kwInput}
+                                                onChange={(e) => setKwInput(e.target.value)}
+                                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addKw(); } }}
+                                                placeholder={form.keywords.length === 0 ? "Ej.: precio, precios, cuánto cuesta..." : ""}
+                                                className="flex-1 min-w-24 bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
+                                            />
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            size="icon"
+                                            className="h-9 w-9 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                            onClick={addKw}
+                                            disabled={!kwInput.trim()}
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        {form.matchType === "contains"
+                                            ? "Coincide si el mensaje contiene la palabra clave."
+                                            : "Coincide solo si el mensaje es exactamente la palabra o frase."}
+                                    </p>
                                 </div>
-                                <p className="text-[11px] text-muted-foreground">
-                                    {form.matchType === "contains"
-                                        ? "Coincide si el mensaje contiene la palabra clave."
-                                        : "Coincide solo si el mensaje es exactamente la palabra o frase."}
-                                </p>
                             </div>
 
                             {/* Acción */}
