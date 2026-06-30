@@ -9,14 +9,15 @@ export interface TrainingChannel {
   kind: 'chat' | 'voice';
 }
 
-// Los labels son IDÉNTICOS a los nombres de las tarjetas en Conexión.
+// Labels cortos (el icono de marca identifica el canal). El slug mapea al canal
+// real; el detalle largo se ve en Conexión.
 export const TRAINING_CHANNELS: TrainingChannel[] = [
-  { slug: 'whatsapp', label: 'Mensajería WhatsApp', agentId: 'system-prompt-ai', kind: 'chat' },
-  { slug: 'llamadas', label: 'Llamadas WhatsApp', agentId: null, kind: 'voice' },
-  { slug: 'whatsapp-api', label: 'WhatsApp Cloud API', agentId: 'system-prompt-ai-whatsapp-cloud', kind: 'chat' },
-  { slug: 'telegram', label: 'Mensajería Telegram', agentId: 'system-prompt-ai-telegram', kind: 'chat' },
-  { slug: 'facebook', label: 'Mensajería Facebook', agentId: 'system-prompt-ai-facebook', kind: 'chat' },
-  { slug: 'instagram', label: 'Mensajería Instagram', agentId: 'system-prompt-ai-instagram', kind: 'chat' },
+  { slug: 'whatsapp', label: 'WhatsApp', agentId: 'system-prompt-ai', kind: 'chat' },
+  { slug: 'llamadas', label: 'Llamadas', agentId: null, kind: 'voice' },
+  { slug: 'whatsapp-api', label: 'WhatsApp Cloud', agentId: 'system-prompt-ai-whatsapp-cloud', kind: 'chat' },
+  { slug: 'telegram', label: 'Telegram', agentId: 'system-prompt-ai-telegram', kind: 'chat' },
+  { slug: 'facebook', label: 'Facebook', agentId: 'system-prompt-ai-facebook', kind: 'chat' },
+  { slug: 'instagram', label: 'Instagram', agentId: 'system-prompt-ai-instagram', kind: 'chat' },
 ];
 
 export const DEFAULT_TRAINING_CHANNEL = 'whatsapp';
