@@ -35,11 +35,32 @@ async function fetchSessions(): Promise<SessionInfo[]> {
   }
 }
 
-// sid de llamadas del usuario actual (su número vinculado).
-async function getMySid(): Promise<string | null> {
+// La línea de llamadas es un recurso de CUENTA (una por cuenta, como la instancia
+// de WhatsApp). Se resuelve a la cuenta DUEÑA/principal (master vía linked_accounts,
+// o el dueño) para que TODOS los asesores del equipo llamen con el número de la
+// cuenta principal (heredan la "instancia padre", igual que en Mensajes).
+async function getCallAccountUserId(): Promise<string | null> {
   const me = await currentUser();
   if (!me?.id) return null;
-  const u = await db.user.findUnique({ where: { id: me.id }, select: { astraCallsSid: true } });
+  if (me.ownerId) return me.ownerId;
+  const realId = me.sessionUserId ?? me.id;
+  try {
+    const rows = await db.$queryRaw<{ id: string }[]>`
+      SELECT "master_user_id" as id FROM "linked_accounts"
+      WHERE "linked_user_id" = ${realId} LIMIT 1
+    `;
+    if (rows.length && rows[0]?.id) return rows[0].id;
+  } catch {
+    // tabla linked_accounts ausente: usar la cuenta propia
+  }
+  return me.effectiveId ?? me.id;
+}
+
+// sid de llamadas de la CUENTA (su número vinculado).
+async function getMySid(): Promise<string | null> {
+  const accountId = await getCallAccountUserId();
+  if (!accountId) return null;
+  const u = await db.user.findUnique({ where: { id: accountId }, select: { astraCallsSid: true } });
   return u?.astraCallsSid ?? null;
 }
 
@@ -64,6 +85,7 @@ export async function linkMyCallSession(): Promise<{ success: boolean; sid?: str
   if (!configured()) return { success: false, message: 'Llamadas no configuradas.' };
   const me = await currentUser();
   if (!me?.id) return { success: false, message: 'No autorizado.' };
+  const accountId = (await getCallAccountUserId()) ?? me.id;
 
   // ¿Ya tiene una sesión válida?
   let sid = await getMySid();
@@ -76,10 +98,10 @@ export async function linkMyCallSession(): Promise<{ success: boolean; sid?: str
   if (!sid) {
     // Nombre legible: instancia WhatsApp > empresa > nombre > email
     const [inst, u] = await Promise.all([
-      db.instancia.findFirst({ where: { userId: me.id, instanceType: 'Whatsapp' }, select: { instanceName: true } }),
-      db.user.findUnique({ where: { id: me.id }, select: { company: true, name: true } }),
+      db.instancia.findFirst({ where: { userId: accountId, instanceType: 'Whatsapp' }, select: { instanceName: true } }),
+      db.user.findUnique({ where: { id: accountId }, select: { company: true, name: true } }),
     ]);
-    const sessionName = inst?.instanceName || u?.company || u?.name || me.email || me.id;
+    const sessionName = inst?.instanceName || u?.company || u?.name || me.email || accountId;
     try {
       const r = await fetch(`${BASE}/api/sessions`, {
         method: 'POST',
@@ -90,7 +112,7 @@ export async function linkMyCallSession(): Promise<{ success: boolean; sid?: str
       const data = await r.json().catch(() => ({}));
       sid = data?.id as string | undefined ?? null;
       if (!sid) return { success: false, message: 'Respuesta inválida al crear sesión.' };
-      await db.user.update({ where: { id: me.id }, data: { astraCallsSid: sid } });
+      await db.user.update({ where: { id: accountId }, data: { astraCallsSid: sid } });
     } catch (e: any) {
       return { success: false, message: e?.message || 'Error creando la sesión.' };
     }
@@ -182,7 +204,8 @@ export async function unlinkMyCallSession(): Promise<{ success: boolean }> {
     try { await fetch(`${BASE}/api/sessions/${sid}/logout`, { method: 'POST', headers: headers(), body: '{}' }); } catch { /* */ }
     try { await fetch(`${BASE}/api/sessions/${sid}`, { method: 'DELETE', headers: headers() }); } catch { /* */ }
   }
-  await db.user.update({ where: { id: me.id }, data: { astraCallsSid: null } });
+  const accountId = (await getCallAccountUserId()) ?? me.id;
+  await db.user.update({ where: { id: accountId }, data: { astraCallsSid: null } });
   return { success: true };
 }
 
@@ -256,7 +279,7 @@ export async function logOutgoingCallAction(
 ): Promise<{ id: string | null }> {
   try {
     const me = await currentUser();
-    const userId = me?.ownerId ?? me?.id;
+    const userId = (await getCallAccountUserId()) ?? me?.ownerId ?? me?.id;
     if (!userId) return { id: null };
     const digits = (phone || '').replace(/\D/g, '');
     if (!digits) return { id: null };
