@@ -9,7 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { createMetaInstance } from '@/actions/instances-actions';
+import { MetaEmbeddedSignup } from './MetaEmbeddedSignup';
 import { sanitizeInstanceName } from '@/schema/connection';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 interface MetaInstanceCreatorProps {
@@ -18,6 +20,7 @@ interface MetaInstanceCreatorProps {
 }
 
 export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProps) => {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -66,11 +69,26 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
               <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Conecta tu número oficial en <span className="font-medium">coexistencia</span>: sigue
+            usando tu WhatsApp normal y además envía notificaciones automáticas por la API.
+          </p>
         </CardContent>
-        <CardFooter className="mt-auto px-6 pb-6 pt-0">
-          <Button onClick={() => setOpen(true)} className="w-full bg-[#1877F2] hover:bg-[#166FE5] text-white">
-            Crear instancia Meta API
-          </Button>
+        <CardFooter className="mt-auto flex-col gap-2 px-6 pb-6 pt-0">
+          {/* Opción principal: Embedded Signup (automático, sin pegar credenciales). */}
+          <MetaEmbeddedSignup
+            userId={userId}
+            instanceName={instanceName}
+            onConnected={() => router.refresh()}
+          />
+          {/* Alternativa: ingresar credenciales manualmente. */}
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+          >
+            o ingresar credenciales manualmente
+          </button>
         </CardFooter>
       </Card>
 
