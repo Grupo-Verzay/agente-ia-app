@@ -13,6 +13,51 @@ import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
    - Solo usa Evolution si instanceType es WhatsApp o nulo.
    - Mantiene TUS mensajes originales.
 ========================= */
+// Vincular Mensajería WhatsApp por NÚMERO de teléfono (código): Evolution devuelve
+// un pairingCode al pasar ?number=. Alternativa al QR (evita el flujo QR+passkey).
+export async function generateWhatsappPairingCode({
+  instanceName,
+  userId,
+  phone,
+}: {
+  instanceName: string;
+  userId: string;
+  phone: string;
+}): Promise<{ success: boolean; pairingCode?: string; message?: string }> {
+  try {
+    await assertUserCanUseApp(userId);
+  } catch (error: any) {
+    return { success: false, message: error?.message ?? 'No autorizado.' };
+  }
+  const digits = (phone || '').replace(/\D/g, '');
+  if (digits.length < 8) return { success: false, message: 'Número inválido (incluye el código de país).' };
+
+  const user = await db.user.findUnique({ where: { id: userId }, include: { apiKey: true } });
+  if (!user?.apiKey) return { success: false, message: 'El usuario no tiene una ApiKey de Evolution asignada.' };
+  const { key: apiKey, url: serverUrl } = user.apiKey;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), EVO_FETCH_TIMEOUT_MS);
+    const response = await fetch(
+      `https://${serverUrl}/instance/connect/${instanceName}?number=${encodeURIComponent(digits)}`,
+      { method: 'GET', headers: { apikey: apiKey }, signal: controller.signal },
+    ).finally(() => clearTimeout(timeout));
+    if (!response.ok) return { success: false, message: `Error de Evolution (HTTP ${response.status}).` };
+    const data = await response.json();
+    const pairingCode = data?.pairingCode as string | undefined;
+    if (!pairingCode) {
+      return { success: false, message: 'Evolution no devolvió código (¿la instancia ya está conectada o el número es inválido?).' };
+    }
+    return { success: true, pairingCode };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: error?.name === 'AbortError' ? 'Timeout al conectar con Evolution.' : (error?.message || 'Error generando el código.'),
+    };
+  }
+}
+
 export async function generateQRCode({ instanceName, userId }: GenerateQrInterface): Promise<QRCodeResponse> {
   try {
     await assertUserCanUseApp(userId);

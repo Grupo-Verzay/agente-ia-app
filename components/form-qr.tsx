@@ -1,13 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getInstances, generateQRCode } from '@/actions/api-action';
+import { getInstances, generateQRCode, generateWhatsappPairingCode } from '@/actions/api-action';
 import { Button } from "@/components/ui/button";
 import { QrScanDialog } from "@/components/shared/QrScanDialog";
-import { QrCode } from "lucide-react";
+import { QrCode, Phone, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from 'next/navigation';
 import { Skeleton } from './ui/skeleton';
+import { Input } from '@/components/ui/input';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from "sonner";
 
 interface QRCodeGeneratorProps {
@@ -36,6 +45,12 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorComponentProps> = ({ userId }) =>
 
     const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // Vinculación por número de teléfono (alternativa al QR).
+    const [phoneOpen, setPhoneOpen] = useState(false);
+    const [phoneInput, setPhoneInput] = useState('');
+    const [phoneCode, setPhoneCode] = useState<string | null>(null);
+    const [phoneLinking, setPhoneLinking] = useState(false);
 
     const isWhatsappConnected = connectionStatus === "open";
     const isApiDisconnected = evoStatus === "disconnected";
@@ -72,6 +87,39 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorComponentProps> = ({ userId }) =>
 
         setLoading(false);
     }, [router, userId]);
+
+    const closePhoneDialog = () => {
+        setPhoneOpen(false);
+        setPhoneLinking(false);
+        setPhoneCode(null);
+        // restaurar el poll normal (40s)
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        const name = instanceData?.instanceName;
+        if (name) intervalRef.current = setInterval(() => { void fetchQRCode(name); }, 40000);
+    };
+
+    const startPhonePairing = async () => {
+        const digits = phoneInput.replace(/\D/g, '');
+        if (digits.length < 8) { toast.error('Ingresa el número con código de país (ej. 573001234567).'); return; }
+        const name = instanceData?.instanceName;
+        if (!name) { toast.error('No hay instancia de WhatsApp.'); return; }
+        setPhoneLinking(true); setPhoneCode(null);
+        const res = await generateWhatsappPairingCode({ instanceName: name, userId, phone: digits });
+        setPhoneLinking(false);
+        if (!res.success || !res.pairingCode) { toast.error(res.message || 'No se pudo generar el código.'); return; }
+        setPhoneCode(res.pairingCode);
+        // poll rápido mientras esperamos la vinculación
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        intervalRef.current = setInterval(() => { void fetchQRCode(name); }, 5000);
+    };
+
+    // Al conectar (open) con el diálogo de número abierto → cerrar y avisar.
+    useEffect(() => {
+        if (phoneOpen && connectionStatus === 'open') {
+            toast.success('Número vinculado a WhatsApp. ✅');
+            setPhoneOpen(false); setPhoneCode(null); setPhoneLinking(false);
+        }
+    }, [phoneOpen, connectionStatus]);
 
     useEffect(() => {
         let mounted = true;
@@ -182,8 +230,77 @@ const QRCodeGenerator: React.FC<QRCodeGeneratorComponentProps> = ({ userId }) =>
                     <>Toca <span className="font-bold">Dispositivos vinculados</span>.</>,
                     <><span className="font-bold">Vincular un nuevo dispositivo</span>.</>,
                     <>Apunta la <span className="font-bold">cámara</span> y escanea el <span className="font-bold">QR</span>.</>,
+                    <>Si pide <span className="font-bold">llave de acceso</span> o <span className="font-bold">continuar en otro dispositivo</span>, sigue las indicaciones de tu teléfono.</>,
                 ]}
+                footer={
+                    !isWhatsappConnected && !isApiDisconnected ? (
+                        <button
+                            type="button"
+                            onClick={() => { setPhoneCode(null); setPhoneInput(''); setIsModalOpen(false); setPhoneOpen(true); }}
+                            className="text-xs font-medium text-green-700 hover:underline dark:text-green-400"
+                        >
+                            o vincular con número de teléfono
+                        </button>
+                    ) : undefined
+                }
             />
+
+            {/* Vincular Mensajería por número de teléfono (código) */}
+            <Dialog open={phoneOpen} onOpenChange={(o) => { if (!o) closePhoneDialog(); }}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-green-600" /> Vincular con número de teléfono
+                        </DialogTitle>
+                        <DialogDescription>
+                            Alternativa al QR. Te damos un código que escribes en WhatsApp.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {!phoneCode ? (
+                        <div className="flex flex-col gap-3">
+                            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+                                Número con código de país (sin +)
+                                <Input
+                                    value={phoneInput}
+                                    onChange={(e) => setPhoneInput(e.target.value)}
+                                    placeholder="573001234567"
+                                    inputMode="tel"
+                                    className="h-9"
+                                />
+                            </label>
+                            <Button
+                                className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
+                                onClick={() => void startPhonePairing()}
+                                disabled={phoneLinking}
+                            >
+                                {phoneLinking ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
+                                {phoneLinking ? 'Generando código…' : 'Obtener código'}
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-3">
+                            <div className="rounded-lg border bg-muted/40 px-4 py-3 text-center">
+                                <p className="mb-1 text-xs text-muted-foreground">Tu código de vinculación</p>
+                                <p className="select-all font-mono text-2xl font-bold tracking-[0.2em]">{phoneCode}</p>
+                            </div>
+                            <ol className="list-decimal space-y-1 pl-5 text-xs text-muted-foreground">
+                                <li>Abre <span className="font-semibold">WhatsApp</span> en tu teléfono.</li>
+                                <li><span className="font-semibold">Dispositivos vinculados</span> → <span className="font-semibold">Vincular un dispositivo</span>.</li>
+                                <li>Toca <span className="font-semibold">Vincular con número de teléfono</span>.</li>
+                                <li>Ingresa el código de arriba.</li>
+                            </ol>
+                            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Esperando la vinculación…
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={closePhoneDialog}>Cerrar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 };

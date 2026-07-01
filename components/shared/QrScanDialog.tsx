@@ -25,6 +25,8 @@ interface QrScanDialogProps {
   connectedText?: string;
   /** Muestra "Esperando escaneo…" bajo los pasos. */
   waiting?: boolean;
+  /** Contenido extra al pie (ej. "o vincular con número de teléfono"). */
+  footer?: ReactNode;
 }
 
 /**
@@ -43,6 +45,7 @@ export function QrScanDialog({
   connected = false,
   connectedText = 'Conectado correctamente',
   waiting = false,
+  footer,
 }: QrScanDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -90,6 +93,7 @@ export function QrScanDialog({
                 <Loader2 className="h-3 w-3 animate-spin" /> Esperando escaneo…
               </p>
             )}
+            {footer && <div className="mt-3 w-full text-center">{footer}</div>}
           </div>
         )}
       </DialogContent>
