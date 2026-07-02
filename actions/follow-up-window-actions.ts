@@ -41,10 +41,26 @@ async function resolveAccount() {
   return { userId: user.effectiveId, canEdit };
 }
 
-export async function getFollowUpWindow(): Promise<ActionResult<FollowUpWindow>> {
+export type FollowUpWindowWithTz = FollowUpWindow & {
+  timezone: string | null;
+  canEdit: boolean;
+};
+
+export async function getFollowUpWindow(): Promise<ActionResult<FollowUpWindowWithTz>> {
   noStore();
   const acc = await resolveAccount();
   if (!acc) return { success: false, message: 'no_autenticado' };
+
+  let timezone: string | null = null;
+  try {
+    const u = await db.user.findUnique({
+      where: { id: acc.userId },
+      select: { timezone: true },
+    });
+    timezone = u?.timezone ?? null;
+  } catch {
+    timezone = null;
+  }
 
   try {
     const rows = await db.$queryRaw<
@@ -62,7 +78,8 @@ export async function getFollowUpWindow(): Promise<ActionResult<FollowUpWindow>>
       FROM "User" WHERE id = ${acc.userId} LIMIT 1
     `;
     const r = rows?.[0];
-    if (!r) return { success: true, message: 'ok', data: DEFAULT_WINDOW };
+    if (!r)
+      return { success: true, message: 'ok', data: { ...DEFAULT_WINDOW, timezone, canEdit: acc.canEdit } };
     return {
       success: true,
       message: 'ok',
@@ -71,11 +88,13 @@ export async function getFollowUpWindow(): Promise<ActionResult<FollowUpWindow>>
         startHour: Number.isInteger(r.startHour as number) ? Number(r.startHour) : 8,
         endHour: Number.isInteger(r.endHour as number) ? Number(r.endHour) : 20,
         days: r.days ? parseDays(r.days) : DEFAULT_WINDOW.days,
+        timezone,
+        canEdit: acc.canEdit,
       },
     };
   } catch {
     // columnas aún no migradas → defaults
-    return { success: true, message: 'ok', data: DEFAULT_WINDOW };
+    return { success: true, message: 'ok', data: { ...DEFAULT_WINDOW, timezone, canEdit: acc.canEdit } };
   }
 }
 
@@ -106,7 +125,7 @@ export async function saveFollowUpWindow(
         "follow_up_send_days" = ${daysStr}
       WHERE id = ${acc.userId}
     `;
-    revalidatePath('/profile');
+    revalidatePath('/workflow');
     return {
       success: true,
       message: 'Horario de seguimientos actualizado.',

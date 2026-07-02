@@ -6,6 +6,7 @@ import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ModuleToolbar } from '@/components/shared/ModuleToolbar';
 import CreateWorflowDialog from './CreateWorflowDialog';
+import FollowUpWindowDialog from './FollowUpWindowDialog';
 import { SortableWorkflowList } from './SortableWorkflowList';
 
 interface WorkflowListContentProps {
@@ -38,7 +39,10 @@ export const WorkflowListContent = ({ workflows, userId, isPro, triggers = [] }:
                         onChange={(event) => setSearch(event.target.value)}
                     />
                 </div>
-                <CreateWorflowDialog triggerText="+ Crear" isPro={isPro} />
+                <div className="flex items-center gap-2">
+                    <FollowUpWindowDialog />
+                    <CreateWorflowDialog triggerText="+ Crear" isPro={isPro} />
+                </div>
             </ModuleToolbar>
 
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
