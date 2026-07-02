@@ -122,11 +122,14 @@ export const MetaInstanceCard = ({
       <Card className="border-border flex h-full flex-col">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>{instanceName}</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <span className={channelMeta.color.split(' ')[0]}>{channelMeta.icon}</span>
+              {channelMeta.label}
+            </CardTitle>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className={`${channelMeta.color} gap-1`}>
                 <CheckCircle2 className="w-3 h-3" />
-                {channelMeta.label}
+                {instanceName}
               </Badge>
               <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)}>
                 <Trash2 className="w-4 h-4" />
