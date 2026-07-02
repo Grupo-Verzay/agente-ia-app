@@ -124,9 +124,9 @@ export const MetaInstanceCard = ({
       <Card className="border-border flex h-full flex-col">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2">
-              <ChannelIcon className={`w-4 h-4 ${iconColor}`} />
-              {channelMeta.label}
+            <CardTitle className="flex items-center gap-2 min-w-0">
+              <ChannelIcon className={`w-5 h-5 shrink-0 ${iconColor}`} />
+              <span className="truncate">{channelMeta.label}</span>
             </CardTitle>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className={`${channelMeta.color} gap-1`}>
@@ -141,14 +141,9 @@ export const MetaInstanceCard = ({
         </CardHeader>
 
         <CardContent className="space-y-3">
-          <div className="flex items-center gap-3">
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted ${iconColor}`}>
-              <ChannelIcon className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{instanceName}</p>
-              <p className="truncate text-xs text-muted-foreground">{channelMeta.label}</p>
-            </div>
+          <div className="space-y-1">
+            <p className="text-muted-foreground text-xs font-medium">NOMBRE DE INSTANCIA</p>
+            <p className="font-medium text-sm break-all">{instanceName}</p>
           </div>
 
           <button
