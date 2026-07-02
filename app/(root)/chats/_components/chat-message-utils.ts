@@ -223,6 +223,9 @@ export function toUIMessages(
       kind,
       call,
       adPreview,
+      // Marca persistida por el backend (respuesta del agente / nodo de flujo).
+      // El emparejamiento por texto de chat-main puede sumar más, pero nunca la quita.
+      ...((m as any).sentByAi === true ? { sentByAi: true } : {}),
     };
   });
 

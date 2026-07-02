@@ -269,6 +269,10 @@ function getPersistedMessageUpdates(raw: Prisma.JsonValue | null) {
 
 export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): EvolutionMessage {
   const rawSnapshot = getRawEvolutionSnapshot(row.raw);
+  // Marca de "enviado por el Agente IA/bot" persistida por el backend en `raw`
+  // (respuestas del agente y nodos de flujo). Fiable, no depende de heurística.
+  const sentByAi =
+    !!row.raw && typeof row.raw === 'object' && (row.raw as any).sentByAi === true;
 
   return {
     id: String(row.id),
@@ -286,6 +290,7 @@ export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): Ev
     messageType: rawSnapshot?.messageType ?? row.messageType,
     message: buildMessageContent(row),
     contextInfo: rawSnapshot?.contextInfo ?? null,
+    ...(sentByAi ? { sentByAi: true } : {}),
     source: rawSnapshot?.source ?? row.instanceType ?? 'local',
     messageTimestamp: rawSnapshot?.messageTimestamp ?? dateToEpochSeconds(row.messageTimestamp),
     instanceId: rawSnapshot?.instanceId ?? row.instanceName,
