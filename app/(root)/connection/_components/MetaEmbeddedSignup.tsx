@@ -46,6 +46,23 @@ const FEATURE_TYPE =
 
 let sdkPromise: Promise<void> | null = null;
 
+/**
+ * Devuelve el redirect_uri REAL que usa el SDK de JS: la URL del iframe "xd_arbiter"
+ * que Facebook inyecta, SIN el fragmento (#...) porque el navegador no lo envía y
+ * Meta lo ignora al validar. Es el valor que debe usarse al intercambiar el code.
+ */
+function getFbChannelRedirect(): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  try {
+    const iframe = document.querySelector(
+      'iframe[src*="xd_arbiter"]',
+    ) as HTMLIFrameElement | null;
+    return iframe?.src ? iframe.src.split('#')[0] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Carga el SDK de Facebook una sola vez y resuelve cuando window.FB está listo. */
 function loadFacebookSdk(): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve();
@@ -185,9 +202,10 @@ export function MetaEmbeddedSignup({
               phoneNumberId: phoneNumberId ?? '',
               wabaId: wabaId ?? '',
               instanceName,
-              // URL de la página (sin query/hash): el servidor la usa como
-              // candidato de redirect_uri para el intercambio del token.
+              // URL de la página (sin query/hash): candidato de redirect_uri.
               redirectUri: window.location.origin + window.location.pathname,
+              // redirect_uri REAL del SDK (iframe xd_arbiter): candidato principal.
+              channelRedirectUri: getFbChannelRedirect(),
             });
             if (!res.success) {
               toast.error(res.message);

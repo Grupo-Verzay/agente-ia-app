@@ -64,6 +64,11 @@ interface ExchangeParams {
   instanceName: string;
   /** URL de la página donde se abrió FB.login (para el redirect_uri del token). */
   redirectUri?: string;
+  /**
+   * URL del "xd_arbiter" que el SDK de JS usa realmente como redirect_uri (leída
+   * del iframe del SDK, sin el fragmento #). Es el candidato principal.
+   */
+  channelRedirectUri?: string;
 }
 
 /**
@@ -211,9 +216,14 @@ export async function exchangeMetaSignup(params: ExchangeParams): Promise<MetaSi
   if (!code) return { success: false, message: 'Meta no devolvió un código de autorización.' };
   if (!userId) return { success: false, message: 'Sesión inválida.' };
 
-  // 1. code → token permanente. Candidatos de redirect_uri (el SDK usa uno de
-  //    estos): URL de la página, raíz del dominio, y vacío.
+  // 1. code → token permanente. El SDK de JS usa como redirect_uri el "xd_arbiter"
+  //    de Facebook (no nuestro dominio). Lo probamos primero (leído del iframe del
+  //    SDK por el cliente), luego fallbacks conocidos y por último URL de página,
+  //    raíz y vacío.
   const redirectCandidates: string[] = [];
+  if (params.channelRedirectUri) redirectCandidates.push(params.channelRedirectUri);
+  redirectCandidates.push('https://staticxx.facebook.com/x/connect/xd_arbiter/?version=46');
+  redirectCandidates.push('https://staticxx.facebook.com/x/connect/xd_arbiter/');
   if (params.redirectUri) {
     redirectCandidates.push(params.redirectUri);
     try {
