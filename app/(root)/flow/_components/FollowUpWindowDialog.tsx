@@ -35,8 +35,8 @@ export default function FollowUpWindowDialog() {
   const [timezone, setTimezone] = useState<string | null>(null);
 
   const [enabled, setEnabled] = useState(true);
-  const [startHour, setStartHour] = useState(8);
-  const [endHour, setEndHour] = useState(20);
+  const [startHour, setStartHour] = useState(9);
+  const [endHour, setEndHour] = useState(18);
   const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5, 6]);
 
   useEffect(() => {

@@ -19,8 +19,8 @@ export type ActionResult<T = undefined> = {
 
 const DEFAULT_WINDOW: FollowUpWindow = {
   enabled: true,
-  startHour: 8,
-  endHour: 20,
+  startHour: 9,
+  endHour: 18,
   days: [1, 2, 3, 4, 5, 6],
 };
 
@@ -85,8 +85,8 @@ export async function getFollowUpWindow(): Promise<ActionResult<FollowUpWindowWi
       message: 'ok',
       data: {
         enabled: r.enabled ?? true,
-        startHour: Number.isInteger(r.startHour as number) ? Number(r.startHour) : 8,
-        endHour: Number.isInteger(r.endHour as number) ? Number(r.endHour) : 20,
+        startHour: Number.isInteger(r.startHour as number) ? Number(r.startHour) : 9,
+        endHour: Number.isInteger(r.endHour as number) ? Number(r.endHour) : 18,
         days: r.days ? parseDays(r.days) : DEFAULT_WINDOW.days,
         timezone,
         canEdit: acc.canEdit,
