@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Loader2, Trash2, Pencil, Copy, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
 import { FaFacebook, FaInstagram, FaWhatsapp } from 'react-icons/fa';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -52,6 +52,7 @@ export const MetaInstanceCard = ({
   wabaId,
   pageId,
 }: MetaInstanceCardProps) => {
+  const router = useRouter();
   const channel = (metaChannel ?? 'whatsapp') as keyof typeof CHANNEL_META;
   const channelMeta = CHANNEL_META[channel] ?? CHANNEL_META.whatsapp;
   const ChannelIcon = channelMeta.Icon;
@@ -128,15 +129,9 @@ export const MetaInstanceCard = ({
               <ChannelIcon className={`w-5 h-5 shrink-0 ${iconColor}`} />
               <span className="truncate">{channelMeta.label}</span>
             </CardTitle>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className={`${channelMeta.color} gap-1`}>
-                <CheckCircle2 className="w-3 h-3" />
-                Conectado
-              </Badge>
-              <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
+            <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)}>
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </div>
         </CardHeader>
 
@@ -183,10 +178,17 @@ export const MetaInstanceCard = ({
           )}
         </CardContent>
 
-        <CardFooter className="mt-auto">
-          <Button size="sm" variant="outline" onClick={() => setShowEditDialog(true)} className="w-full gap-1.5">
+        <CardFooter className="mt-auto grid grid-cols-2 gap-2">
+          <Button
+            className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
+            onClick={() => router.refresh()}
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            Conectado
+          </Button>
+          <Button variant="outline" onClick={() => setShowEditDialog(true)} className="w-full gap-2">
             <Pencil className="w-4 h-4" />
-            Editar credenciales
+            Editar
           </Button>
         </CardFooter>
       </Card>
