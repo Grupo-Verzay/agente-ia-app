@@ -106,27 +106,89 @@ async function fetchDisplayPhone(phoneNumberId: string, token: string): Promise<
 }
 
 /**
+ * Descubre WABA + phone_number_id a partir del token, cuando el evento
+ * WA_EMBEDDED_SIGNUP del cliente no los entregó (p. ej. el usuario autorizó
+ * cuentas ya existentes en vez de registrar un número nuevo). Usa debug_token
+ * para saber a qué WABAs quedó autorizado el token y toma el primer número.
+ */
+async function discoverFromToken(
+  token: string,
+): Promise<{ phoneNumberId?: string; wabaId?: string; displayPhone?: string }> {
+  const appId = metaAppId();
+  const secret = process.env.META_APP_SECRET;
+  if (!appId || !secret) return {};
+  try {
+    // 1. debug_token → granular_scopes.target_ids = WABAs autorizadas.
+    const dbg = await fetch(
+      `${GRAPH}/debug_token?input_token=${encodeURIComponent(token)}` +
+        `&access_token=${encodeURIComponent(`${appId}|${secret}`)}`,
+      { cache: 'no-store' },
+    );
+    const dbgJson: any = await dbg.json();
+    const scopes: any[] = dbgJson?.data?.granular_scopes ?? [];
+    const waScope =
+      scopes.find((s) => s?.scope === 'whatsapp_business_management') ??
+      scopes.find((s) => s?.scope === 'whatsapp_business_messaging');
+    const wabaIds: string[] = waScope?.target_ids ?? [];
+
+    // 2. Por cada WABA, buscar su primer número registrado.
+    for (const id of wabaIds) {
+      const res = await fetch(
+        `${GRAPH}/${encodeURIComponent(id)}/phone_numbers?fields=id,display_phone_number`,
+        { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' },
+      );
+      const json: any = await res.json();
+      const first = json?.data?.[0];
+      if (first?.id) {
+        return { phoneNumberId: first.id, wabaId: id, displayPhone: first.display_phone_number };
+      }
+    }
+    // Hay WABA autorizada pero sin números registrados aún.
+    if (wabaIds[0]) return { wabaId: wabaIds[0] };
+  } catch {
+    // best-effort: si falla, devolvemos vacío y el caller decide.
+  }
+  return {};
+}
+
+/**
  * Punto de entrada del Embedded Signup. Intercambia el code, suscribe la app a la
  * WABA y guarda (o actualiza) la instancia Meta del usuario.
  */
 export async function exchangeMetaSignup(params: ExchangeParams): Promise<MetaSignupResult> {
-  const { code, userId, phoneNumberId, wabaId, instanceName } = params;
+  const { code, userId, instanceName } = params;
+  let phoneNumberId = params.phoneNumberId;
+  let wabaId = params.wabaId;
 
   if (!code) return { success: false, message: 'Meta no devolvió un código de autorización.' };
   if (!userId) return { success: false, message: 'Sesión inválida.' };
-  if (!phoneNumberId) {
-    return { success: false, message: 'Meta no entregó el número. Vuelve a intentar la conexión.' };
-  }
 
   // 1. code → token permanente
   const { token, error } = await exchangeCodeForToken(code);
   if (!token) return { success: false, message: error ?? 'No se pudo autenticar con Meta.' };
 
+  // 1b. Si el cliente no entregó el número (evento WA_EMBEDDED_SIGNUP ausente),
+  //     lo descubrimos con el token, que ya tiene acceso a las WABAs autorizadas.
+  let displayPhone: string | undefined;
+  if (!phoneNumberId) {
+    const disc = await discoverFromToken(token);
+    phoneNumberId = disc.phoneNumberId ?? '';
+    wabaId = wabaId || disc.wabaId || '';
+    displayPhone = disc.displayPhone;
+  }
+  if (!phoneNumberId) {
+    return {
+      success: false,
+      message:
+        'Conexión autorizada, pero la cuenta seleccionada no tiene un número de WhatsApp registrado. Agrega/registra un número en esa cuenta de WhatsApp Business y reintenta.',
+    };
+  }
+
   // 2. suscribir nuestra app a la WABA (webhooks entrantes) — no bloqueante
   await subscribeAppToWaba(wabaId, token);
 
-  // 3. número legible para mostrar (opcional)
-  const displayPhone = await fetchDisplayPhone(phoneNumberId, token);
+  // 3. número legible para mostrar (si no lo trajo el descubrimiento)
+  if (!displayPhone) displayPhone = await fetchDisplayPhone(phoneNumberId, token);
 
   // 4. upsert de la instancia Meta del usuario (por phoneNumberId)
   try {

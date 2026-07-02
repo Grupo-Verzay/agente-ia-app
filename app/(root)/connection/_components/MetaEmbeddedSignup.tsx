@@ -102,11 +102,16 @@ export function MetaEmbeddedSignup({
       }
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        if (data?.type === 'WA_EMBEDDED_SIGNUP' && data?.event === 'FINISH') {
-          sessionInfo.current = {
-            phoneNumberId: data.data?.phone_number_id,
-            wabaId: data.data?.waba_id,
-          };
+        // Capturamos los IDs de CUALQUIER evento WA_EMBEDDED_SIGNUP que los traiga
+        // (FINISH, FINISH_ONLY_WABA, onboarding de coexistencia, etc.), no solo FINISH.
+        if (data?.type === 'WA_EMBEDDED_SIGNUP') {
+          const d = data.data ?? {};
+          if (d.phone_number_id || d.waba_id) {
+            sessionInfo.current = {
+              phoneNumberId: d.phone_number_id ?? sessionInfo.current.phoneNumberId,
+              wabaId: d.waba_id ?? sessionInfo.current.wabaId,
+            };
+          }
         }
       } catch {
         // no era un mensaje del Embedded Signup; ignorar.
@@ -152,15 +157,13 @@ export function MetaEmbeddedSignup({
               toast.error('Conexión cancelada.');
               return;
             }
+            // phoneNumberId puede venir vacío si el evento WA_EMBEDDED_SIGNUP no
+            // llegó; en ese caso el servidor lo descubre con el token. No abortamos.
             const { phoneNumberId, wabaId } = sessionInfo.current;
-            if (!phoneNumberId) {
-              toast.error('Meta no entregó el número. Vuelve a intentarlo y completa todos los pasos.');
-              return;
-            }
             const res = await exchangeMetaSignup({
               code,
               userId,
-              phoneNumberId,
+              phoneNumberId: phoneNumberId ?? '',
               wabaId: wabaId ?? '',
               instanceName,
             });
