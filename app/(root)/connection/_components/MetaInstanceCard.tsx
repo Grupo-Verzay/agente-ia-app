@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Trash2, Pencil, Copy, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Loader2, Trash2, Pencil, Copy, CheckCircle2 } from 'lucide-react';
 import { FaFacebook, FaInstagram, FaWhatsapp } from 'react-icons/fa';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -60,7 +60,6 @@ export const MetaInstanceCard = ({
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -113,13 +112,6 @@ export const MetaInstanceCard = ({
     toast.success('URL del webhook copiada');
   };
 
-  const primaryId = channel === 'whatsapp' ? phoneNumberId : pageId;
-  const primaryLabel = channel === 'whatsapp'
-    ? 'PHONE NUMBER ID'
-    : channel === 'facebook'
-      ? 'PAGE ID'
-      : 'INSTAGRAM ACCOUNT ID';
-
   return (
     <>
       <Card className="border-border flex h-full flex-col">
@@ -135,49 +127,6 @@ export const MetaInstanceCard = ({
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-3">
-          <div className="space-y-1">
-            <p className="text-muted-foreground text-xs font-medium">NOMBRE DE INSTANCIA</p>
-            <p className="font-medium text-sm break-all">{instanceName}</p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowDetails((v) => !v)}
-            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-            aria-expanded={showDetails}
-          >
-            {showDetails ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-            {showDetails ? 'Ocultar credenciales' : 'Ver credenciales'}
-          </button>
-
-          {showDetails && (
-            <div className="space-y-3">
-              {primaryId && (
-                <div className="text-sm space-y-1">
-                  <p className="text-muted-foreground text-xs font-medium">{primaryLabel}</p>
-                  <p className="font-mono text-sm break-all">{primaryId}</p>
-                </div>
-              )}
-              {channel === 'whatsapp' && wabaId && (
-                <div className="text-sm space-y-1">
-                  <p className="text-muted-foreground text-xs font-medium">WABA ID</p>
-                  <p className="font-mono text-sm break-all">{wabaId}</p>
-                </div>
-              )}
-              <div className="space-y-1">
-                <p className="text-muted-foreground text-xs font-medium">URL WEBHOOK</p>
-                <div className="flex items-center gap-2">
-                  <p className="font-mono text-xs truncate flex-1 bg-muted rounded px-2 py-1">/webhook/meta</p>
-                  <Button size="sm" variant="ghost" onClick={copyWebhook} title="Copiar URL del webhook">
-                    <Copy className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-        </CardContent>
-
         <CardFooter className="mt-auto grid grid-cols-2 gap-2">
           <Button
             className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
@@ -186,7 +135,7 @@ export const MetaInstanceCard = ({
             <CheckCircle2 className="w-4 h-4" />
             Conectado
           </Button>
-          <Button variant="outline" onClick={() => setShowEditDialog(true)} className="w-full gap-2">
+          <Button onClick={() => setShowEditDialog(true)} className="w-full gap-2 bg-[#1877F2] text-white hover:bg-[#166FE5]">
             <Pencil className="w-4 h-4" />
             Editar
           </Button>
@@ -225,6 +174,15 @@ export const MetaInstanceCard = ({
             <div className="space-y-1">
               <Label>Verify Token <span className="text-xs text-muted-foreground">(opcional)</span></Label>
               <Input value={draft.verifyToken} onChange={(e) => setDraft(d => ({ ...d, verifyToken: e.target.value }))} placeholder="mi_token_secreto" />
+            </div>
+            <div className="space-y-1">
+              <Label>URL Webhook</Label>
+              <div className="flex items-center gap-2">
+                <p className="font-mono text-xs truncate flex-1 bg-muted rounded px-2 py-1">/webhook/meta</p>
+                <Button type="button" size="sm" variant="ghost" onClick={copyWebhook} title="Copiar URL del webhook">
+                  <Copy className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             </div>
           </div>
           <DialogFooter>
