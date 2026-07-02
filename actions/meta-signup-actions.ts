@@ -31,11 +31,25 @@ function metaAppId(): string | undefined {
   return process.env.META_APP_ID || process.env.NEXT_PUBLIC_META_APP_ID;
 }
 
+/** Un número disponible dentro de las WABAs que el usuario autorizó. */
+export interface MetaNumberOption {
+  phoneNumberId: string;
+  wabaId: string;
+  displayPhone?: string;
+  verifiedName?: string;
+}
+
 export interface MetaSignupResult {
   success: boolean;
   message: string;
   /** Número legible ya conectado (ej. +57 300 123 4567), si Meta lo devolvió. */
   displayPhone?: string;
+  /** Todos los números disponibles (para que el usuario elija cuál usar). */
+  numbers?: MetaNumberOption[];
+  /** ID en BD de la instancia creada/actualizada (para cambiar de número luego). */
+  instanceDbId?: string;
+  /** phone_number_id que quedó conectado por defecto. */
+  phoneNumberId?: string;
 }
 
 interface ExchangeParams {
@@ -106,17 +120,15 @@ async function fetchDisplayPhone(phoneNumberId: string, token: string): Promise<
 }
 
 /**
- * Descubre WABA + phone_number_id a partir del token, cuando el evento
- * WA_EMBEDDED_SIGNUP del cliente no los entregó (p. ej. el usuario autorizó
- * cuentas ya existentes en vez de registrar un número nuevo). Usa debug_token
- * para saber a qué WABAs quedó autorizado el token y toma el primer número.
+ * Descubre TODOS los números disponibles a partir del token. Usa debug_token
+ * para saber a qué WABAs quedó autorizado y lista los números de cada una.
+ * Sirve para que el usuario elija cuál conectar (puede tener varios).
  */
-async function discoverFromToken(
-  token: string,
-): Promise<{ phoneNumberId?: string; wabaId?: string; displayPhone?: string }> {
+async function discoverNumbers(token: string): Promise<MetaNumberOption[]> {
   const appId = metaAppId();
   const secret = process.env.META_APP_SECRET;
-  if (!appId || !secret) return {};
+  if (!appId || !secret) return [];
+  const out: MetaNumberOption[] = [];
   try {
     // 1. debug_token → granular_scopes.target_ids = WABAs autorizadas.
     const dbg = await fetch(
@@ -126,29 +138,39 @@ async function discoverFromToken(
     );
     const dbgJson: any = await dbg.json();
     const scopes: any[] = dbgJson?.data?.granular_scopes ?? [];
-    const waScope =
-      scopes.find((s) => s?.scope === 'whatsapp_business_management') ??
-      scopes.find((s) => s?.scope === 'whatsapp_business_messaging');
-    const wabaIds: string[] = waScope?.target_ids ?? [];
+    const wabaIds = new Set<string>();
+    for (const s of scopes) {
+      if (
+        (s?.scope === 'whatsapp_business_management' ||
+          s?.scope === 'whatsapp_business_messaging') &&
+        Array.isArray(s?.target_ids)
+      ) {
+        for (const id of s.target_ids) wabaIds.add(id);
+      }
+    }
 
-    // 2. Por cada WABA, buscar su primer número registrado.
+    // 2. Por cada WABA, listar sus números.
     for (const id of wabaIds) {
       const res = await fetch(
-        `${GRAPH}/${encodeURIComponent(id)}/phone_numbers?fields=id,display_phone_number`,
+        `${GRAPH}/${encodeURIComponent(id)}/phone_numbers?fields=id,display_phone_number,verified_name`,
         { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' },
       );
       const json: any = await res.json();
-      const first = json?.data?.[0];
-      if (first?.id) {
-        return { phoneNumberId: first.id, wabaId: id, displayPhone: first.display_phone_number };
+      for (const p of json?.data ?? []) {
+        if (p?.id) {
+          out.push({
+            phoneNumberId: p.id,
+            wabaId: id,
+            displayPhone: p.display_phone_number,
+            verifiedName: p.verified_name,
+          });
+        }
       }
     }
-    // Hay WABA autorizada pero sin números registrados aún.
-    if (wabaIds[0]) return { wabaId: wabaIds[0] };
   } catch {
-    // best-effort: si falla, devolvemos vacío y el caller decide.
+    // best-effort: si falla, devolvemos lo que haya.
   }
-  return {};
+  return out;
 }
 
 /**
@@ -167,30 +189,37 @@ export async function exchangeMetaSignup(params: ExchangeParams): Promise<MetaSi
   const { token, error } = await exchangeCodeForToken(code);
   if (!token) return { success: false, message: error ?? 'No se pudo autenticar con Meta.' };
 
-  // 1b. Si el cliente no entregó el número (evento WA_EMBEDDED_SIGNUP ausente),
-  //     lo descubrimos con el token, que ya tiene acceso a las WABAs autorizadas.
-  let displayPhone: string | undefined;
-  if (!phoneNumberId) {
-    const disc = await discoverFromToken(token);
-    phoneNumberId = disc.phoneNumberId ?? '';
-    wabaId = wabaId || disc.wabaId || '';
-    displayPhone = disc.displayPhone;
+  // 1b. Descubrimos TODOS los números disponibles (el usuario elegirá cuál usar).
+  const numbers = await discoverNumbers(token);
+
+  // Número que quedará conectado por defecto: el que trajo el evento del cliente,
+  // o el primero descubierto. Si no hay ninguno, no se puede continuar.
+  let chosen: MetaNumberOption | undefined;
+  if (phoneNumberId) {
+    chosen =
+      numbers.find((n) => n.phoneNumberId === phoneNumberId) ??
+      ({ phoneNumberId, wabaId } as MetaNumberOption);
+  } else {
+    chosen = numbers[0];
   }
-  if (!phoneNumberId) {
+  if (!chosen?.phoneNumberId) {
     return {
       success: false,
       message:
-        'Conexión autorizada, pero la cuenta seleccionada no tiene un número de WhatsApp registrado. Agrega/registra un número en esa cuenta de WhatsApp Business y reintenta.',
+        'Conexión autorizada, pero ninguna de las cuentas seleccionadas tiene un número de WhatsApp registrado. Agrega/registra un número y reintenta.',
     };
   }
+  phoneNumberId = chosen.phoneNumberId;
+  wabaId = wabaId || chosen.wabaId || '';
 
   // 2. suscribir nuestra app a la WABA (webhooks entrantes) — no bloqueante
   await subscribeAppToWaba(wabaId, token);
 
-  // 3. número legible para mostrar (si no lo trajo el descubrimiento)
-  if (!displayPhone) displayPhone = await fetchDisplayPhone(phoneNumberId, token);
+  // 3. número legible para mostrar
+  const displayPhone = chosen.displayPhone ?? (await fetchDisplayPhone(phoneNumberId, token));
 
   // 4. upsert de la instancia Meta del usuario (por phoneNumberId)
+  let instanceDbId: string;
   try {
     const existing = await db.instancia.findFirst({
       where: { userId, metaPhoneNumberId: phoneNumberId } as any,
@@ -198,7 +227,7 @@ export async function exchangeMetaSignup(params: ExchangeParams): Promise<MetaSi
     });
 
     if (existing) {
-      await db.instancia.update({
+      const updated = await db.instancia.update({
         where: { id: existing.id },
         data: {
           metaAccessToken: token,
@@ -206,9 +235,11 @@ export async function exchangeMetaSignup(params: ExchangeParams): Promise<MetaSi
           metaChannel: 'whatsapp',
           instanceType: 'meta',
         } as any,
+        select: { id: true },
       });
+      instanceDbId = updated.id;
     } else {
-      await db.instancia.create({
+      const created = await db.instancia.create({
         data: {
           instanceName,
           instanceType: 'meta',
@@ -219,11 +250,70 @@ export async function exchangeMetaSignup(params: ExchangeParams): Promise<MetaSi
           metaWabaId: wabaId || null,
           metaChannel: 'whatsapp',
         } as any,
+        select: { id: true },
       });
+      instanceDbId = created.id;
     }
   } catch (e: any) {
     console.error('[exchangeMetaSignup] db', e);
     return { success: false, message: 'Conexión con Meta OK, pero falló al guardar. Reintenta.' };
+  }
+
+  revalidatePath('/connection');
+  return {
+    success: true,
+    message: displayPhone
+      ? `WhatsApp conectado por API oficial (${displayPhone}). ✅`
+      : 'WhatsApp conectado por API oficial. ✅',
+    displayPhone,
+    numbers,
+    instanceDbId,
+    phoneNumberId,
+  };
+}
+
+/**
+ * Cambia el número conectado de una instancia Meta ya creada (reutiliza el token
+ * guardado). Se usa cuando el usuario elige, en el selector, un número distinto
+ * al que quedó por defecto.
+ */
+export async function selectMetaNumber(params: {
+  instanceDbId: string;
+  phoneNumberId: string;
+  wabaId: string;
+}): Promise<MetaSignupResult> {
+  const { instanceDbId, phoneNumberId, wabaId } = params;
+  if (!instanceDbId || !phoneNumberId) {
+    return { success: false, message: 'Faltan datos para seleccionar el número.' };
+  }
+
+  const inst: any = await db.instancia.findUnique({
+    where: { id: instanceDbId },
+    select: { metaAccessToken: true } as any,
+  });
+  const token: string | undefined = inst?.metaAccessToken;
+  if (!token) {
+    return {
+      success: false,
+      message: 'No se encontró la conexión. Vuelve a "Conectar con Facebook".',
+    };
+  }
+
+  await subscribeAppToWaba(wabaId, token);
+  const displayPhone = await fetchDisplayPhone(phoneNumberId, token);
+
+  try {
+    await db.instancia.update({
+      where: { id: instanceDbId },
+      data: {
+        metaPhoneNumberId: phoneNumberId,
+        metaWabaId: wabaId || null,
+        instanceId: `meta-${phoneNumberId}`,
+      } as any,
+    });
+  } catch (e: any) {
+    console.error('[selectMetaNumber] db', e);
+    return { success: false, message: 'No se pudo cambiar el número. Reintenta.' };
   }
 
   revalidatePath('/connection');

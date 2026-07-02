@@ -2,9 +2,20 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { FaFacebook } from 'react-icons/fa';
+import { FaFacebook, FaWhatsapp } from 'react-icons/fa';
 import { Button } from '@/components/ui/button';
-import { exchangeMetaSignup } from '@/actions/meta-signup-actions';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  exchangeMetaSignup,
+  selectMetaNumber,
+  type MetaNumberOption,
+} from '@/actions/meta-signup-actions';
 import { toast } from 'sonner';
 
 /**
@@ -87,6 +98,13 @@ export function MetaEmbeddedSignup({
   const [sdkReady, setSdkReady] = useState(false);
   // Datos que llegan por el evento `message` (antes que el callback del código).
   const sessionInfo = useRef<{ phoneNumberId?: string; wabaId?: string }>({});
+  // Selector de número (cuando el usuario autorizó varias cuentas/números).
+  const [picker, setPicker] = useState<{
+    numbers: MetaNumberOption[];
+    instanceDbId: string;
+    selectedId: string;
+  } | null>(null);
+  const [selecting, setSelecting] = useState(false);
 
   const configured = Boolean(APP_ID && CONFIG_ID);
 
@@ -160,6 +178,7 @@ export function MetaEmbeddedSignup({
             // phoneNumberId puede venir vacío si el evento WA_EMBEDDED_SIGNUP no
             // llegó; en ese caso el servidor lo descubre con el token. No abortamos.
             const { phoneNumberId, wabaId } = sessionInfo.current;
+            const hadEventNumber = Boolean(phoneNumberId);
             const res = await exchangeMetaSignup({
               code,
               userId,
@@ -167,11 +186,22 @@ export function MetaEmbeddedSignup({
               wabaId: wabaId ?? '',
               instanceName,
             });
-            if (res.success) {
+            if (!res.success) {
+              toast.error(res.message);
+              return;
+            }
+            // Si el usuario NO eligió número en el popup y hay varios disponibles,
+            // abrimos el selector para que escoja cuál conectar (evita tomar el
+            // equivocado). Si solo hay uno, o ya vino del evento, se conecta directo.
+            if (!hadEventNumber && (res.numbers?.length ?? 0) > 1 && res.instanceDbId) {
+              setPicker({
+                numbers: res.numbers!,
+                instanceDbId: res.instanceDbId,
+                selectedId: res.phoneNumberId ?? res.numbers![0].phoneNumberId,
+              });
+            } else {
               toast.success(res.message);
               onConnected?.();
-            } else {
-              toast.error(res.message);
             }
           } catch {
             toast.error('Error al conectar con Meta. Intenta de nuevo.');
@@ -193,6 +223,27 @@ export function MetaEmbeddedSignup({
     );
   }, [configured, userId, instanceName, onConnected]);
 
+  // Confirma el número elegido en el selector (cambia la instancia al número escogido).
+  const confirmNumber = useCallback(async () => {
+    if (!picker) return;
+    const chosen = picker.numbers.find((n) => n.phoneNumberId === picker.selectedId);
+    if (!chosen) return;
+    setSelecting(true);
+    const res = await selectMetaNumber({
+      instanceDbId: picker.instanceDbId,
+      phoneNumberId: chosen.phoneNumberId,
+      wabaId: chosen.wabaId,
+    });
+    setSelecting(false);
+    if (res.success) {
+      setPicker(null);
+      toast.success(res.message);
+      onConnected?.();
+    } else {
+      toast.error(res.message);
+    }
+  }, [picker, onConnected]);
+
   return (
     <div className="w-full">
       <Button
@@ -208,6 +259,64 @@ export function MetaEmbeddedSignup({
           Conexión oficial en preparación
         </p>
       )}
+
+      {/* Selector: aparece cuando el usuario autorizó varios números. */}
+      <Dialog open={Boolean(picker)} onOpenChange={(o) => !o && !selecting && setPicker(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Elige el número a conectar</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Autorizaste varias cuentas. Selecciona el número de WhatsApp que quieres usar por la
+            API oficial.
+          </p>
+          <div className="max-h-[320px] space-y-2 overflow-y-auto py-2">
+            {picker?.numbers.map((n) => {
+              const active = n.phoneNumberId === picker.selectedId;
+              return (
+                <button
+                  key={n.phoneNumberId}
+                  type="button"
+                  onClick={() =>
+                    setPicker((p) => (p ? { ...p, selectedId: n.phoneNumberId } : p))
+                  }
+                  className={`flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                    active ? 'border-[#1877F2] bg-[#1877F2]/5' : 'border-border hover:bg-muted/40'
+                  }`}
+                >
+                  <FaWhatsapp className="h-5 w-5 shrink-0 text-green-500" />
+                  <div className="flex-1">
+                    <div className="font-medium text-foreground">
+                      {n.displayPhone || n.phoneNumberId}
+                    </div>
+                    {n.verifiedName && (
+                      <div className="text-xs text-muted-foreground">{n.verifiedName}</div>
+                    )}
+                  </div>
+                  <span
+                    className={`h-3.5 w-3.5 shrink-0 rounded-full border ${
+                      active ? 'border-[#1877F2] bg-[#1877F2]' : 'border-muted-foreground/40'
+                    }`}
+                  />
+                </button>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPicker(null)} disabled={selecting}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmNumber}
+              disabled={selecting}
+              className="bg-[#1877F2] text-white hover:bg-[#166FE5]"
+            >
+              {selecting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+              Conectar este número
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
