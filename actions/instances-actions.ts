@@ -297,6 +297,34 @@ export async function setUserConnectionType(
 
 /* ─── Meta Cloud API instances ─────────────────────────────── */
 
+/**
+ * Suscribe NUESTRA app a la WABA (`POST /{waba}/subscribed_apps`) para que Meta
+ * entregue los mensajes entrantes de ese WABA a nuestro webhook. El Embedded
+ * Signup lo hacía automático; en la conexión manual hay que ejecutarlo aquí,
+ * si no, aunque la app esté en modo Activo NO llegan los mensajes reales.
+ */
+async function subscribeMetaAppToWaba(wabaId: string, token: string): Promise<boolean> {
+  if (!wabaId || !token) return false;
+  const version =
+    process.env.META_GRAPH_VERSION || process.env.NEXT_PUBLIC_META_GRAPH_VERSION || 'v21.0';
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${version}/${encodeURIComponent(wabaId)}/subscribed_apps`,
+      { method: 'POST', headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' },
+    );
+    const json: any = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error('[subscribeMetaAppToWaba] fallo', res.status, JSON.stringify(json));
+      return false;
+    }
+    console.log('[subscribeMetaAppToWaba] OK waba=', wabaId, JSON.stringify(json));
+    return true;
+  } catch (e: any) {
+    console.error('[subscribeMetaAppToWaba] error', e?.message ?? e);
+    return false;
+  }
+}
+
 export async function createMetaInstance(params: {
   instanceName: string;
   userId: string;
@@ -323,8 +351,15 @@ export async function createMetaInstance(params: {
         metaChannel: 'whatsapp',
       } as any,
     });
+    // Suscribe la app a la WABA para recibir mensajes entrantes (best-effort).
+    const subscribed = wabaId ? await subscribeMetaAppToWaba(wabaId, accessToken) : false;
     revalidatePath('/connection');
-    return { success: true, message: 'Instancia Meta creada. Configura el webhook en Meta Developer.' };
+    return {
+      success: true,
+      message: subscribed
+        ? 'Instancia Meta creada y suscrita. Configura el webhook en Meta Developer.'
+        : 'Instancia Meta creada. Configura el webhook en Meta Developer.',
+    };
   } catch (error: any) {
     console.error('[createMetaInstance]', error);
     return { success: false, message: error?.message ?? 'Error al crear la instancia Meta.' };
@@ -597,8 +632,25 @@ export async function updateMetaInstance(params: {
         ...(verifyToken !== undefined && { metaVerifyToken: verifyToken || null }),
       } as any,
     });
+
+    // Suscribe la app a la WABA (mensajes entrantes). Usa token/WABA del formulario
+    // o, si no vinieron, los que ya están guardados en la instancia.
+    const inst: any = await db.instancia.findFirst({
+      where: { instanceName },
+      select: { metaAccessToken: true, metaWabaId: true, metaChannel: true } as any,
+    });
+    const effToken = accessToken || inst?.metaAccessToken;
+    const effWaba = (wabaId ?? undefined) || inst?.metaWabaId;
+    let subscribed = false;
+    if ((inst?.metaChannel ?? 'whatsapp') === 'whatsapp' && effToken && effWaba) {
+      subscribed = await subscribeMetaAppToWaba(effWaba, effToken);
+    }
+
     revalidatePath('/connection');
-    return { success: true, message: 'Credenciales actualizadas.' };
+    return {
+      success: true,
+      message: subscribed ? 'Credenciales actualizadas y app suscrita a la WABA.' : 'Credenciales actualizadas.',
+    };
   } catch (error: any) {
     console.error('[updateMetaInstance]', error);
     return { success: false, message: 'Error al actualizar.' };
