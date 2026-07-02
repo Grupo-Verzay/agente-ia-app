@@ -112,8 +112,11 @@ async function exchangeCodeForToken(
         '→',
         lastMsg,
       );
-      // Si el error NO es por redirect_uri, no vale la pena seguir probando.
-      if (!/redirect_uri/i.test(lastMsg)) break;
+      // Seguir probando si el error es de redirect_uri o de dominio ("Can't load
+      // URL"). Otros errores (código usado/expirado) sí cortan el bucle.
+      if (!/redirect_uri|can't load url|app's domains|domain of this url/i.test(lastMsg)) {
+        break;
+      }
     } catch (e: any) {
       lastMsg = e?.message ?? 'Error de red al contactar a Meta.';
       break;
