@@ -636,11 +636,14 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                         instanceName={sanitizeInstanceName(user?.company ?? userId ?? '')}
                                     />
                                 )}
-                                {user?.onWhatsappCloud ? (
-                                    <>
-                                        {metaInstances
-                                            .filter((inst) => ((inst as any).metaChannel ?? 'whatsapp') === 'whatsapp')
-                                            .map((inst) => (
+                                {user?.onWhatsappCloud ? (() => {
+                                    // Instancias Meta de WhatsApp ya conectadas.
+                                    const waMetaInstances = metaInstances.filter(
+                                        (inst) => ((inst as any).metaChannel ?? 'whatsapp') === 'whatsapp'
+                                    );
+                                    return (
+                                        <>
+                                            {waMetaInstances.map((inst) => (
                                                 <MetaInstanceCard
                                                     key={inst.instanceName}
                                                     instanceName={inst.instanceName}
@@ -649,9 +652,14 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                     wabaId={(inst as any).metaWabaId}
                                                 />
                                             ))}
-                                        <MetaInstanceCreator userId={userId} company={user?.company as string} />
-                                    </>
-                                ) : (
+                                            {/* Solo mostrar el selector si NO hay ninguna conectada:
+                                                el cliente no puede tener las dos modalidades a la vez. */}
+                                            {waMetaInstances.length === 0 && (
+                                                <MetaInstanceCreator userId={userId} company={user?.company as string} />
+                                            )}
+                                        </>
+                                    );
+                                })() : (
                                     <LockedChannelCard
                                         icon={<FaWhatsapp className="w-6 h-6 text-green-500" />}
                                         title="WhatsApp Cloud API"
