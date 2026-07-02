@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Trash2, Pencil, Copy, CheckCircle2 } from 'lucide-react';
+import { Loader2, Trash2, Pencil, Copy, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
 import { FaFacebook, FaInstagram, FaWhatsapp } from 'react-icons/fa';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -57,6 +57,7 @@ export const MetaInstanceCard = ({
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -135,27 +136,41 @@ export const MetaInstanceCard = ({
         </CardHeader>
 
         <CardContent className="space-y-3">
-          {primaryId && (
-            <div className="text-sm space-y-1">
-              <p className="text-muted-foreground text-xs font-medium">{primaryLabel}</p>
-              <p className="font-mono text-sm">{primaryId}</p>
+          <button
+            type="button"
+            onClick={() => setShowDetails((v) => !v)}
+            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            aria-expanded={showDetails}
+          >
+            {showDetails ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            {showDetails ? 'Ocultar credenciales' : 'Ver credenciales'}
+          </button>
+
+          {showDetails && (
+            <div className="space-y-3">
+              {primaryId && (
+                <div className="text-sm space-y-1">
+                  <p className="text-muted-foreground text-xs font-medium">{primaryLabel}</p>
+                  <p className="font-mono text-sm break-all">{primaryId}</p>
+                </div>
+              )}
+              {channel === 'whatsapp' && wabaId && (
+                <div className="text-sm space-y-1">
+                  <p className="text-muted-foreground text-xs font-medium">WABA ID</p>
+                  <p className="font-mono text-sm break-all">{wabaId}</p>
+                </div>
+              )}
+              <div className="space-y-1">
+                <p className="text-muted-foreground text-xs font-medium">URL WEBHOOK</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-mono text-xs truncate flex-1 bg-muted rounded px-2 py-1">/webhook/meta</p>
+                  <Button size="sm" variant="ghost" onClick={copyWebhook} title="Copiar URL del webhook">
+                    <Copy className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
-          {channel === 'whatsapp' && wabaId && (
-            <div className="text-sm space-y-1">
-              <p className="text-muted-foreground text-xs font-medium">WABA ID</p>
-              <p className="font-mono text-sm">{wabaId}</p>
-            </div>
-          )}
-          <div className="space-y-1">
-            <p className="text-muted-foreground text-xs font-medium">URL WEBHOOK</p>
-            <div className="flex items-center gap-2">
-              <p className="font-mono text-xs truncate flex-1 bg-muted rounded px-2 py-1">/webhook/meta</p>
-              <Button size="sm" variant="ghost" onClick={copyWebhook} title="Copiar URL del webhook">
-                <Copy className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          </div>
         </CardContent>
 
         <CardFooter className="mt-auto">
