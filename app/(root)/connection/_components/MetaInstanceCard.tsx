@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Trash2, Pencil, Copy, CheckCircle2 } from 'lucide-react';
 import { FaFacebook, FaInstagram, FaWhatsapp } from 'react-icons/fa';
-import { Card, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -126,6 +126,15 @@ export const MetaInstanceCard = ({
             </Button>
           </div>
         </CardHeader>
+
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted ${iconColor}`}>
+              <ChannelIcon className="h-5 w-5" />
+            </div>
+            <p className="truncate text-sm font-medium">{instanceName}</p>
+          </div>
+        </CardContent>
 
         <CardFooter className="mt-auto grid grid-cols-2 gap-2">
           <Button
