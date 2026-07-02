@@ -103,6 +103,16 @@ interface MetaEmbeddedSignupProps {
   instanceName: string;
   className?: string;
   onConnected?: () => void;
+  /**
+   * 'coexistence' (por defecto) → onboarding en coexistencia (app + API en el
+   * mismo número). 'api' → onboarding estándar de Cloud API (número dedicado),
+   * omite el featureType de coexistencia.
+   */
+  mode?: 'coexistence' | 'api';
+  /** Texto del botón (por defecto "Conectar con Facebook"). */
+  label?: string;
+  /** Muestra la nota "Conexión oficial en preparación" cuando no hay App/Config ID. */
+  showUnconfiguredNote?: boolean;
 }
 
 export function MetaEmbeddedSignup({
@@ -110,6 +120,9 @@ export function MetaEmbeddedSignup({
   instanceName,
   className,
   onConnected,
+  mode = 'coexistence',
+  label,
+  showUnconfiguredNote = true,
 }: MetaEmbeddedSignupProps) {
   const [loading, setLoading] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
@@ -237,12 +250,13 @@ export function MetaEmbeddedSignup({
         override_default_response_type: true,
         extras: {
           setup: {},
-          featureType: FEATURE_TYPE,
+          // Solo en coexistencia se pasa el featureType de onboarding de la app.
+          ...(mode === 'coexistence' ? { featureType: FEATURE_TYPE } : {}),
           sessionInfoVersion: '3',
         },
       },
     );
-  }, [configured, userId, instanceName, onConnected]);
+  }, [configured, userId, instanceName, onConnected, mode]);
 
   // Confirma el número elegido en el selector (cambia la instancia al número escogido).
   const confirmNumber = useCallback(async () => {
@@ -273,9 +287,9 @@ export function MetaEmbeddedSignup({
         className={className ?? 'w-full gap-2 bg-[#1877F2] text-white hover:bg-[#166FE5]'}
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FaFacebook className="h-4 w-4" />}
-        {loading ? 'Conectando…' : 'Conectar con Facebook'}
+        {loading ? 'Conectando…' : (label ?? 'Conectar con Facebook')}
       </Button>
-      {!configured && (
+      {!configured && showUnconfiguredNote && (
         <p className="mt-1 text-center text-[11px] text-muted-foreground">
           Conexión oficial en preparación
         </p>

@@ -175,7 +175,9 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
                     botUsername={(inst as any).metaPhoneNumberId ?? null}
                 />
             ))}
-            <MetaInstanceCreator userId={effectiveId} company={user.company as string} />
+            {metaWhatsappInstances.length === 0 && (
+                <MetaInstanceCreator userId={effectiveId} company={user.company as string} />
+            )}
             <FacebookInstanceCreator userId={effectiveId} company={user.company as string} />
             <InstagramInstanceCreator userId={effectiveId} company={user.company as string} />
             {telegramInstances.length === 0 && (

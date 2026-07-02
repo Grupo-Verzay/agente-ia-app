@@ -58,7 +58,7 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
         <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
           <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
             <FaWhatsapp className="text-green-500 rounded-sm w-6 h-6" />
-            <span className="text-xl font-bold">Coexistencia Cloud API</span>
+            <span className="text-xl font-bold">WhatsApp Cloud API</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 px-6 pb-3 pt-0">
@@ -71,12 +71,27 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
           </div>
         </CardContent>
         <CardFooter className="mt-auto flex-col gap-2 px-6 pb-6 pt-0">
-          {/* Opción principal: Embedded Signup (automático, sin pegar credenciales). */}
-          <MetaEmbeddedSignup
-            userId={userId}
-            instanceName={instanceName}
-            onConnected={() => router.refresh()}
-          />
+          {/* El cliente elige UNA modalidad: cada botón inicia el Embedded Signup
+              de Meta en su modo. Al conectar por una, solo se muestra esa. */}
+          <div className="grid w-full grid-cols-2 gap-2">
+            <MetaEmbeddedSignup
+              userId={userId}
+              instanceName={instanceName}
+              mode="api"
+              label="WhatsApp API"
+              className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
+              showUnconfiguredNote={false}
+              onConnected={() => router.refresh()}
+            />
+            <MetaEmbeddedSignup
+              userId={userId}
+              instanceName={instanceName}
+              mode="coexistence"
+              label="Coexistencia API"
+              className="w-full gap-2 bg-[#1877F2] text-white hover:bg-[#166FE5]"
+              onConnected={() => router.refresh()}
+            />
+          </div>
           {/* Alternativa: ingresar credenciales manualmente. */}
           <button
             type="button"
