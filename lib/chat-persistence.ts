@@ -210,10 +210,25 @@ function buildMessageContent(row: Pick<PersistedChatMessageRow | InboxRow, 'mess
   const raw = row.raw as { message?: MessageContent } | MessageContent | null;
   const rawMessage = raw && 'message' in raw ? raw.message : raw;
   if (rawMessage && typeof rawMessage === 'object') {
-    return {
+    const base = {
       ...(rawMessage as MessageContent),
       ...(row.mediaUrl ? { mediaUrl: row.mediaUrl } : {}),
-    };
+    } as MessageContent;
+    // Si el snapshot `raw` NO trae texto pero la fila sí tiene `content`
+    // (mensajes de Meta/Cloud API: su `raw` no incluye `conversation`),
+    // usamos `content` como texto. Para Evolution no cambia nada, porque su
+    // `raw.message` ya trae el texto y esta rama no se activa.
+    const b = base as any;
+    const hasText =
+      b.conversation ||
+      b.extendedTextMessage?.text ||
+      b.imageMessage?.caption ||
+      b.videoMessage?.caption ||
+      b.documentMessage?.caption;
+    if (!hasText && row.content) {
+      b.conversation = row.content;
+    }
+    return base;
   }
 
   return {
