@@ -62,33 +62,59 @@ interface ExchangeParams {
   wabaId: string;
   /** Nombre lógico de la instancia (derivado de la empresa). */
   instanceName: string;
+  /** URL de la página donde se abrió FB.login (para el redirect_uri del token). */
+  redirectUri?: string;
 }
 
-/** Cambia el `code` del Embedded Signup por un access token permanente. */
-async function exchangeCodeForToken(code: string): Promise<{ token?: string; error?: string }> {
+/**
+ * Cambia el `code` del Embedded Signup por un access token permanente.
+ * Meta exige que el `redirect_uri` del intercambio sea IDÉNTICO al que usó el
+ * SDK en el diálogo de OAuth. Como el SDK de JS lo maneja internamente (puede ser
+ * la URL de la página, la raíz del dominio o vacío), probamos varios candidatos
+ * en orden: un mismatch devuelve error SIN consumir el código, así que es seguro.
+ */
+async function exchangeCodeForToken(
+  code: string,
+  redirectCandidates: string[],
+): Promise<{ token?: string; error?: string }> {
   const appId = metaAppId();
   const secret = process.env.META_APP_SECRET;
   if (!appId || !secret) {
     return { error: 'Falta META_APP_ID / META_APP_SECRET en el servidor.' };
   }
 
-  const url =
-    `${GRAPH}/oauth/access_token` +
-    `?client_id=${encodeURIComponent(appId)}` +
-    `&client_secret=${encodeURIComponent(secret)}` +
-    `&code=${encodeURIComponent(code)}`;
+  // De-duplicar conservando el orden.
+  const candidates = Array.from(new Set(redirectCandidates));
+  let lastMsg = 'Meta rechazó el código.';
 
-  try {
-    const res = await fetch(url, { cache: 'no-store' });
-    const json: any = await res.json();
-    if (!res.ok || !json?.access_token) {
-      const msg = json?.error?.message ?? `Meta devolvió ${res.status}`;
-      return { error: `No se pudo obtener el token: ${msg}` };
+  for (const redirectUri of candidates) {
+    const url =
+      `${GRAPH}/oauth/access_token` +
+      `?client_id=${encodeURIComponent(appId)}` +
+      `&client_secret=${encodeURIComponent(secret)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&code=${encodeURIComponent(code)}`;
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      const json: any = await res.json();
+      if (res.ok && json?.access_token) {
+        return { token: json.access_token as string };
+      }
+      lastMsg = json?.error?.message ?? `Meta devolvió ${res.status}`;
+      console.error(
+        '[exchangeCodeForToken] fallo con redirect_uri=',
+        JSON.stringify(redirectUri),
+        '→',
+        lastMsg,
+      );
+      // Si el error NO es por redirect_uri, no vale la pena seguir probando.
+      if (!/redirect_uri/i.test(lastMsg)) break;
+    } catch (e: any) {
+      lastMsg = e?.message ?? 'Error de red al contactar a Meta.';
+      break;
     }
-    return { token: json.access_token as string };
-  } catch (e: any) {
-    return { error: e?.message ?? 'Error de red al contactar a Meta.' };
   }
+  return { error: `No se pudo obtener el token: ${lastMsg}` };
 }
 
 /** Suscribe NUESTRA app a la WABA para recibir sus webhooks (mensajes entrantes). */
@@ -185,8 +211,19 @@ export async function exchangeMetaSignup(params: ExchangeParams): Promise<MetaSi
   if (!code) return { success: false, message: 'Meta no devolvió un código de autorización.' };
   if (!userId) return { success: false, message: 'Sesión inválida.' };
 
-  // 1. code → token permanente
-  const { token, error } = await exchangeCodeForToken(code);
+  // 1. code → token permanente. Candidatos de redirect_uri (el SDK usa uno de
+  //    estos): URL de la página, raíz del dominio, y vacío.
+  const redirectCandidates: string[] = [];
+  if (params.redirectUri) {
+    redirectCandidates.push(params.redirectUri);
+    try {
+      redirectCandidates.push(new URL(params.redirectUri).origin + '/');
+    } catch {
+      // redirectUri malformado; ignorar.
+    }
+  }
+  redirectCandidates.push('');
+  const { token, error } = await exchangeCodeForToken(code, redirectCandidates);
   if (!token) return { success: false, message: error ?? 'No se pudo autenticar con Meta.' };
 
   // 1b. Descubrimos TODOS los números disponibles (el usuario elegirá cuál usar).

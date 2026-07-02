@@ -185,6 +185,9 @@ export function MetaEmbeddedSignup({
               phoneNumberId: phoneNumberId ?? '',
               wabaId: wabaId ?? '',
               instanceName,
+              // URL de la página (sin query/hash): el servidor la usa como
+              // candidato de redirect_uri para el intercambio del token.
+              redirectUri: window.location.origin + window.location.pathname,
             });
             if (!res.success) {
               toast.error(res.message);
