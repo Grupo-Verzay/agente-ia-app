@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation';
 import { UserInformation } from '@/app/(root)/profile/_components/UserInformation';
+import { FollowUpWindowCard } from '@/app/(root)/profile/_components/FollowUpWindowCard';
 import { currentUser } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { getFollowUpWindow } from '@/actions/follow-up-window-actions';
 import { getCountryCodes } from '@/actions/get-country-action';
 import { ApiKey, Instancia, PromptInstance } from "@prisma/client";
 import { getInstancesByUserId } from "@/actions/instances-actions";
@@ -133,10 +136,20 @@ const ProfilePage = async ({ searchParams }: { searchParams?: { openApiKey?: str
 
   const countries = await getCountryCodes();
 
+  const readOnly = !!user.ownerId && user.advisorRole !== 'administrador';
+
+  const [followUpWindowRes, account] = await Promise.all([
+    getFollowUpWindow(),
+    db.user.findUnique({ where: { id: effectiveId }, select: { timezone: true } }),
+  ]);
+  const followUpWindow =
+    followUpWindowRes.data ?? { enabled: true, startHour: 8, endHour: 20, days: [1, 2, 3, 4, 5, 6] };
+
   return (
-    <>
-      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} metaInstances={metaInstances} telegramInstances={telegramInstances} autoOpenApiKey={searchParams?.openApiKey === 'true'} autoSetup={searchParams?.autoSetup === '1'} readOnly={!!user.ownerId && user.advisorRole !== 'administrador'} />
-    </>
+    <div className="space-y-4">
+      <UserInformation userId={effectiveId} countries={countries} instancesData={instancesData} metaInstances={metaInstances} telegramInstances={telegramInstances} autoOpenApiKey={searchParams?.openApiKey === 'true'} autoSetup={searchParams?.autoSetup === '1'} readOnly={readOnly} />
+      <FollowUpWindowCard initial={followUpWindow} timezone={account?.timezone} readOnly={readOnly} />
+    </div>
   );
 }
 
