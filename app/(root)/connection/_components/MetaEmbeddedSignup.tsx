@@ -111,8 +111,6 @@ interface MetaEmbeddedSignupProps {
   mode?: 'coexistence' | 'api';
   /** Texto del botón (por defecto "Conectar con Facebook"). */
   label?: string;
-  /** Muestra la nota "Conexión oficial en preparación" cuando no hay App/Config ID. */
-  showUnconfiguredNote?: boolean;
 }
 
 export function MetaEmbeddedSignup({
@@ -122,7 +120,6 @@ export function MetaEmbeddedSignup({
   onConnected,
   mode = 'coexistence',
   label,
-  showUnconfiguredNote = true,
 }: MetaEmbeddedSignupProps) {
   const [loading, setLoading] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
@@ -289,11 +286,6 @@ export function MetaEmbeddedSignup({
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FaFacebook className="h-4 w-4" />}
         {loading ? 'Conectando…' : (label ?? 'Conectar con Facebook')}
       </Button>
-      {!configured && showUnconfiguredNote && (
-        <p className="mt-1 text-center text-[11px] text-muted-foreground">
-          Conexión oficial en preparación
-        </p>
-      )}
 
       {/* Selector: aparece cuando el usuario autorizó varios números. */}
       <Dialog open={Boolean(picker)} onOpenChange={(o) => !o && !selecting && setPicker(null)}>
