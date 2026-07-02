@@ -43,6 +43,13 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Variables PÚBLICAS de Meta (Embedded Signup). Next.js las incrusta en el
+          # bundle del cliente en build time, por eso van aquí y no en el stack.
+          # No son secretos (viajan al navegador). El secreto (META_APP_SECRET) va
+          # como env de runtime en el stack de Portainer, nunca aquí.
+          build-args: |
+            NEXT_PUBLIC_META_APP_ID=1824198358554727
+            NEXT_PUBLIC_META_CONFIG_ID=3051611358381783
 
       - name: Deploy via Portainer webhook
         run: |

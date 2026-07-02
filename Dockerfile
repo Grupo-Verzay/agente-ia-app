@@ -11,6 +11,21 @@ FROM base AS builder
 ENV NODE_ENV=production
 # Evita OOM al compilar Next en CI/runners con poca RAM.
 ENV NODE_OPTIONS=--max-old-space-size=4096
+
+# --- Variables públicas de Meta (Embedded Signup) ---
+# Next.js (output: standalone) INCRUSTA las NEXT_PUBLIC_* en el bundle del cliente
+# durante `npm run build`. Por eso deben existir AQUÍ (build time), no solo en runtime.
+# Se pasan como build-args desde el workflow de CI. Son valores PÚBLICOS (viajan al
+# navegador de todos modos); el secreto (META_APP_SECRET) va SOLO en runtime.
+ARG NEXT_PUBLIC_META_APP_ID
+ARG NEXT_PUBLIC_META_CONFIG_ID
+ARG NEXT_PUBLIC_META_GRAPH_VERSION=v21.0
+ARG NEXT_PUBLIC_META_FEATURE_TYPE=whatsapp_business_app_onboarding
+ENV NEXT_PUBLIC_META_APP_ID=$NEXT_PUBLIC_META_APP_ID
+ENV NEXT_PUBLIC_META_CONFIG_ID=$NEXT_PUBLIC_META_CONFIG_ID
+ENV NEXT_PUBLIC_META_GRAPH_VERSION=$NEXT_PUBLIC_META_GRAPH_VERSION
+ENV NEXT_PUBLIC_META_FEATURE_TYPE=$NEXT_PUBLIC_META_FEATURE_TYPE
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate

@@ -41,6 +41,14 @@ services:
       # Secreto compartido con api-webhook para firmar/verificar el token del
       # WebSocket. DEBE ser el MISMO valor en ambos servicios.
       - REALTIME_JWT_SECRET=
+
+      # --- Meta Embedded Signup (WhatsApp Cloud API / Coexistencia) ---
+      # Runtime (servidor). El App ID lo usa el server action para intercambiar el
+      # code por el token; el App Secret es SECRETO y solo debe existir aquí.
+      # Nota: NEXT_PUBLIC_META_APP_ID y NEXT_PUBLIC_META_CONFIG_ID NO van aquí: se
+      # inyectan como build-args en el CI (se incrustan en el bundle en build time).
+      - META_APP_ID=1824198358554727
+      - META_APP_SECRET=CAMBIA_ESTE_VALOR
     deploy:
       mode: replicated
       replicas: 1
