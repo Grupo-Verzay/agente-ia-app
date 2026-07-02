@@ -58,7 +58,7 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
         <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
           <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
             <FaWhatsapp className="text-green-500 rounded-sm w-6 h-6" />
-            <span className="text-xl font-bold">WhatsApp Cloud API</span>
+            <span className="text-xl font-bold">Coexistencia Cloud API</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 px-6 pb-3 pt-0">
@@ -69,10 +69,6 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
               <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Conecta tu número oficial en <span className="font-medium">coexistencia</span>: sigue
-            usando tu WhatsApp normal y además envía notificaciones automáticas por la API.
-          </p>
         </CardContent>
         <CardFooter className="mt-auto flex-col gap-2 px-6 pb-6 pt-0">
           {/* Opción principal: Embedded Signup (automático, sin pegar credenciales). */}
