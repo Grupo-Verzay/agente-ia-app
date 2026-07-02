@@ -139,34 +139,43 @@ export function MetaEmbeddedSignup({
       return;
     }
 
+    // OJO: FB.login NO acepta un callback `async` (lanza
+    // "Expression is of type asyncfunction, not function"). Debe ser una función
+    // normal; el trabajo asíncrono va dentro de una IIFE con su propio try/finally
+    // para que `loading` siempre se resetee aunque el server action falle.
     window.FB.login(
-      async (response: any) => {
-        const code = response?.authResponse?.code;
-        if (!code) {
-          setLoading(false);
-          toast.error('Conexión cancelada.');
-          return;
-        }
-        const { phoneNumberId, wabaId } = sessionInfo.current;
-        if (!phoneNumberId) {
-          setLoading(false);
-          toast.error('Meta no entregó el número. Vuelve a intentarlo y completa todos los pasos.');
-          return;
-        }
-        const res = await exchangeMetaSignup({
-          code,
-          userId,
-          phoneNumberId,
-          wabaId: wabaId ?? '',
-          instanceName,
-        });
-        setLoading(false);
-        if (res.success) {
-          toast.success(res.message);
-          onConnected?.();
-        } else {
-          toast.error(res.message);
-        }
+      (response: any) => {
+        void (async () => {
+          try {
+            const code = response?.authResponse?.code;
+            if (!code) {
+              toast.error('Conexión cancelada.');
+              return;
+            }
+            const { phoneNumberId, wabaId } = sessionInfo.current;
+            if (!phoneNumberId) {
+              toast.error('Meta no entregó el número. Vuelve a intentarlo y completa todos los pasos.');
+              return;
+            }
+            const res = await exchangeMetaSignup({
+              code,
+              userId,
+              phoneNumberId,
+              wabaId: wabaId ?? '',
+              instanceName,
+            });
+            if (res.success) {
+              toast.success(res.message);
+              onConnected?.();
+            } else {
+              toast.error(res.message);
+            }
+          } catch {
+            toast.error('Error al conectar con Meta. Intenta de nuevo.');
+          } finally {
+            setLoading(false);
+          }
+        })();
       },
       {
         config_id: CONFIG_ID,
