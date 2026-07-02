@@ -30,17 +30,17 @@ interface MetaInstanceCardProps {
 const CHANNEL_META = {
   whatsapp: {
     label: 'WhatsApp Cloud API',
-    icon: <FaWhatsapp className="w-3 h-3" />,
+    Icon: FaWhatsapp,
     color: 'text-green-500 border-green-500',
   },
   facebook: {
     label: 'Facebook Messenger',
-    icon: <FaFacebook className="w-3 h-3" />,
+    Icon: FaFacebook,
     color: 'text-blue-600 border-blue-600',
   },
   instagram: {
     label: 'Instagram DMs',
-    icon: <FaInstagram className="w-3 h-3" />,
+    Icon: FaInstagram,
     color: 'text-pink-500 border-pink-500',
   },
 } as const;
@@ -54,6 +54,8 @@ export const MetaInstanceCard = ({
 }: MetaInstanceCardProps) => {
   const channel = (metaChannel ?? 'whatsapp') as keyof typeof CHANNEL_META;
   const channelMeta = CHANNEL_META[channel] ?? CHANNEL_META.whatsapp;
+  const ChannelIcon = channelMeta.Icon;
+  const iconColor = channelMeta.color.split(' ')[0];
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -123,13 +125,13 @@ export const MetaInstanceCard = ({
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="flex items-center gap-2">
-              <span className={channelMeta.color.split(' ')[0]}>{channelMeta.icon}</span>
+              <ChannelIcon className={`w-4 h-4 ${iconColor}`} />
               {channelMeta.label}
             </CardTitle>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className={`${channelMeta.color} gap-1`}>
                 <CheckCircle2 className="w-3 h-3" />
-                {instanceName}
+                Conectado
               </Badge>
               <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)}>
                 <Trash2 className="w-4 h-4" />
@@ -139,6 +141,16 @@ export const MetaInstanceCard = ({
         </CardHeader>
 
         <CardContent className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted ${iconColor}`}>
+              <ChannelIcon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{instanceName}</p>
+              <p className="truncate text-xs text-muted-foreground">{channelMeta.label}</p>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={() => setShowDetails((v) => !v)}
