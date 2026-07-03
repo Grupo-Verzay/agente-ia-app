@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, Loader2 } from "lucide-react";
+import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, Loader2, Table2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +51,7 @@ import {
 import type { AdvisorRow, ModuleOption, TeamMetrics } from "@/actions/team-actions";
 import { TeamKpiCards } from "./TeamMetrics";
 import { TeamCharts } from "./TeamCharts";
+import { AdvisorKanbanBoard } from "@/app/(root)/asesores/components/AdvisorKanbanBoard";
 import {
   createAdvisor,
   updateAdvisorPassword,
@@ -102,6 +102,7 @@ type ModulesForm = { advisorId: string; advisorName: string; enabledIds: string[
 type AutoAssignSettings = { autoAssignEnabled: boolean; autoAssignMaxChats: number };
 
 type Props = {
+  userId: string;
   initialAdvisors: AdvisorRow[];
   ownerModules: ModuleOption[];
   initialAutoAssign: AutoAssignSettings;
@@ -120,10 +121,11 @@ async function safeInvoke<T>(label: string, fn: () => Promise<T>): Promise<T | n
   }
 }
 
-export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, teamMetrics }: Props) {
+export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoAssign, teamMetrics }: Props) {
   const [advisors, setAdvisors] = useState<AdvisorRow[]>(initialAdvisors);
   const [availableModules, setAvailableModules] = useState<ModuleOption[]>(ownerModules);
   const [metrics, setMetrics] = useState<TeamMetrics | null>(teamMetrics);
+  const [view, setView] = useState<"tabla" | "pipeline">("tabla");
   const [isPending, startTransition] = useTransition();
 
   const [autoAssignEnabled, setAutoAssignEnabled] = useState(initialAutoAssign.autoAssignEnabled);
@@ -335,12 +337,31 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
         </div>
         {/* Lado derecho: botones — siempre en la misma línea */}
         <div className="flex items-center gap-2 shrink-0">
-          <Button size="sm" variant="outline" asChild>
-            <Link href="/asesores">
-              <LayoutGrid className="w-3.5 h-3.5 mr-1.5" />
+          {/* Toggle de vista: Tabla / Pipeline */}
+          <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
+            <button
+              type="button"
+              onClick={() => setView("tabla")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                view === "tabla" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Table2 className="h-3.5 w-3.5" />
+              Tabla
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("pipeline")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                view === "pipeline" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
               Pipeline
-            </Link>
-          </Button>
+            </button>
+          </div>
           <Button
             size="sm"
             variant="outline"
@@ -391,7 +412,8 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
       </div>
       </div>{/* /fixed-top */}
 
-      {/* Área scrollable: tabla + gráficas */}
+      {/* Contenido según vista: Tabla (lista + gráficas) o Pipeline (kanban de asesores) */}
+      {view === "tabla" ? (
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 pb-3">
 
       {/* Tabla unificada */}
@@ -554,7 +576,15 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
       {/* Gráficas */}
       {metrics && <TeamCharts metrics={metrics} maxChats={autoAssignMaxChats} />}
 
-      </div>{/* /scrollable */}
+      </div>
+      ) : (
+        <div className="flex-1 min-h-0 flex flex-col pb-3">
+          <AdvisorKanbanBoard
+            userId={userId}
+            advisors={advisors.map((a) => ({ id: a.id, name: a.name, email: a.email }))}
+          />
+        </div>
+      )}{/* /vista */}
 
       {/* Modules dialog */}
       <Dialog open={Boolean(modulesForm)} onOpenChange={(open) => !open && setModulesForm(null)}>

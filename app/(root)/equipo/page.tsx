@@ -32,6 +32,7 @@ export default async function EquipoPage() {
 
   return (
     <TeamClient
+      userId={user.effectiveId}
       initialAdvisors={advisors?.success && advisors.data ? advisors.data : []}
       ownerModules={ownerModules?.success && ownerModules.data ? ownerModules.data : []}
       initialAutoAssign={
