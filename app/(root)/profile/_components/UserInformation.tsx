@@ -685,11 +685,13 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                         instanceName={`${sanitizeInstanceName(user?.company ?? userId ?? '')}_tg`}
                                     />
                                 )}
-                                {user?.onFacebook ? (
-                                    <>
-                                        {metaInstances
-                                            .filter((inst) => (inst as any).metaChannel === 'facebook')
-                                            .map((inst) => (
+                                {user?.onFacebook ? (() => {
+                                    const fbInstances = metaInstances.filter(
+                                        (inst) => (inst as any).metaChannel === 'facebook'
+                                    );
+                                    return (
+                                        <>
+                                            {fbInstances.map((inst) => (
                                                 <MetaInstanceCard
                                                     key={inst.instanceName}
                                                     instanceName={inst.instanceName}
@@ -697,9 +699,12 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                     pageId={(inst as any).metaPageId ?? ''}
                                                 />
                                             ))}
-                                        <FacebookInstanceCreator userId={userId} company={user?.company as string} />
-                                    </>
-                                ) : (
+                                            {fbInstances.length === 0 && (
+                                                <FacebookInstanceCreator userId={userId} company={user?.company as string} />
+                                            )}
+                                        </>
+                                    );
+                                })() : (
                                     <ConnectionMain
                                         user={user}
                                         instance={instancesData["Facebook"].instance}
@@ -708,11 +713,13 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                         prompts={instancesData["Facebook"].prompts}
                                     />
                                 )}
-                                {user?.onInstagram ? (
-                                    <>
-                                        {metaInstances
-                                            .filter((inst) => (inst as any).metaChannel === 'instagram')
-                                            .map((inst) => (
+                                {user?.onInstagram ? (() => {
+                                    const igInstances = metaInstances.filter(
+                                        (inst) => (inst as any).metaChannel === 'instagram'
+                                    );
+                                    return (
+                                        <>
+                                            {igInstances.map((inst) => (
                                                 <MetaInstanceCard
                                                     key={inst.instanceName}
                                                     instanceName={inst.instanceName}
@@ -720,9 +727,12 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                     pageId={(inst as any).metaPageId ?? ''}
                                                 />
                                             ))}
-                                        <InstagramInstanceCreator userId={userId} company={user?.company as string} />
-                                    </>
-                                ) : (
+                                            {igInstances.length === 0 && (
+                                                <InstagramInstanceCreator userId={userId} company={user?.company as string} />
+                                            )}
+                                        </>
+                                    );
+                                })() : (
                                     <ConnectionMain
                                         user={user}
                                         instance={instancesData["Instagram"].instance}

@@ -178,8 +178,12 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
             {metaWhatsappInstances.length === 0 && (
                 <MetaInstanceCreator userId={effectiveId} company={user.company as string} />
             )}
-            <FacebookInstanceCreator userId={effectiveId} company={user.company as string} />
-            <InstagramInstanceCreator userId={effectiveId} company={user.company as string} />
+            {metaFacebookInstances.length === 0 && (
+                <FacebookInstanceCreator userId={effectiveId} company={user.company as string} />
+            )}
+            {metaInstagramInstances.length === 0 && (
+                <InstagramInstanceCreator userId={effectiveId} company={user.company as string} />
+            )}
             {telegramInstances.length === 0 && (
                 <TelegramInstanceCreator userId={effectiveId} company={user.company as string} />
             )}
