@@ -14,6 +14,25 @@ async function getAuth() {
   return user;
 }
 
+/**
+ * Dispara (fire-and-forget) las automatizaciones configuradas para un tipo de
+ * tarea cuando se crea una tarea de ese tipo. Espeja triggerStageAutomations.
+ */
+async function triggerTaskTypeAutomations(sessionId: number, taskType: string): Promise<void> {
+  const backendUrl = (process.env.BACKEND_URL ?? "").replace(/\/$/, "");
+  if (!backendUrl) return;
+  const key = process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? "";
+  try {
+    await fetch(`${backendUrl}/task-type-automations/execute`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-secret": key },
+      body: JSON.stringify({ sessionId, taskType }),
+    });
+  } catch (error) {
+    console.error("[triggerTaskTypeAutomations]", error);
+  }
+}
+
 function toTaskData(t: any, phoneMap: Record<string, string | null> = {}): TaskData {
   return {
     id: t.id,
@@ -74,6 +93,9 @@ export async function createTaskAction(
         createdById: user.id,
       },
     });
+
+    // Automatizaciones por tipo de tarea (requieren sesión para el contexto de envío)
+    if (parsed.sessionId) void triggerTaskTypeAutomations(parsed.sessionId, parsed.type);
 
     await writeAuditLog({
       userId: ownerId,

@@ -1043,6 +1043,13 @@ export async function addTagsToSessionAction(
       };
     }
 
+    // Tags previos (para disparar automatizaciones solo de los nuevos)
+    const prevTags = await db.sessionTag.findMany({
+      where: { sessionId },
+      select: { tagId: true },
+    });
+    const prevTagSet = new Set(prevTags.map((p: { tagId: number }) => p.tagId));
+
     // 3) Crear relaciones en SessionTag (sin duplicados)
     await db.sessionTag.createMany({
       data: tagIds.map((tagId) => ({
@@ -1051,6 +1058,11 @@ export async function addTagsToSessionAction(
       })),
       skipDuplicates: true,
     });
+
+    // Disparar automatizaciones de cada tag recién agregado
+    for (const tagId of tagIds) {
+      if (!prevTagSet.has(tagId)) void triggerTagAutomations(sessionId, tagId);
+    }
 
     return {
       success: true,
@@ -1364,5 +1376,20 @@ async function triggerStageAutomations(sessionId: number, newStage: string): Pro
     headers: { 'Content-Type': 'application/json', 'x-internal-secret': key },
     body: JSON.stringify({ sessionId, newStage }),
   });
+}
+
+async function triggerTagAutomations(sessionId: number, tagId: number): Promise<void> {
+  const backendUrl = (process.env.BACKEND_URL ?? '').replace(/\/$/, '');
+  if (!backendUrl) return;
+  const key = process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? '';
+  try {
+    await fetch(`${backendUrl}/tag-automations/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': key },
+      body: JSON.stringify({ sessionId, tagId }),
+    });
+  } catch (error) {
+    console.error('[triggerTagAutomations]', error);
+  }
 }
 

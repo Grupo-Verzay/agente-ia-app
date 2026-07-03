@@ -275,6 +275,26 @@ export async function sendAppointmentStatusNotification(
     } catch { /* silent */ }
 }
 
+/**
+ * Dispara (fire-and-forget) las automatizaciones configuradas para un estado
+ * de cita. Espeja triggerStageAutomations.
+ */
+async function triggerApptAutomations(sessionId: number | null | undefined, apptStatus: string): Promise<void> {
+    if (!sessionId) return;
+    const backendUrl = (process.env.BACKEND_URL ?? '').replace(/\/$/, '');
+    if (!backendUrl) return;
+    const key = process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? '';
+    try {
+        await fetch(`${backendUrl}/appt-automations/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-internal-secret': key },
+            body: JSON.stringify({ sessionId, apptStatus }),
+        });
+    } catch (error) {
+        console.error('[triggerApptAutomations]', error);
+    }
+}
+
 export async function updateAppointmentStatus(
     id: string,
     status: AppointmentStatus
@@ -285,6 +305,8 @@ export async function updateAppointmentStatus(
             data: { status },
             include: { session: true },
         });
+
+        void triggerApptAutomations(updated.sessionId, status);
 
         await writeAuditLog({
             userId: updated.userId,

@@ -321,6 +321,25 @@ export async function getSessionTagsAction(
 }
 
 // Asignar un tag a una sesión (si no existe la relación, la crea)
+/**
+ * Dispara (fire-and-forget) las automatizaciones configuradas para un tag
+ * cuando se asigna a una sesión. Espeja triggerStageAutomations/triggerAdvisorAutomations.
+ */
+async function triggerTagAutomations(sessionId: number, tagId: number): Promise<void> {
+    const backendUrl = (process.env.BACKEND_URL ?? '').replace(/\/$/, '');
+    if (!backendUrl) return;
+    const key = process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? '';
+    try {
+        await fetch(`${backendUrl}/tag-automations/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-internal-secret': key },
+            body: JSON.stringify({ sessionId, tagId }),
+        });
+    } catch (error) {
+        console.error('[triggerTagAutomations]', error);
+    }
+}
+
 export async function assignTagToSessionAction(
     input: z.infer<typeof sessionTagSchema>,
 ): Promise<ActionResponse<null>> {
@@ -349,6 +368,11 @@ export async function assignTagToSessionAction(
             };
         }
 
+        // ¿Ya estaba asignado? Para disparar automatizaciones solo cuando es nuevo.
+        const already = await db.sessionTag.findUnique({
+            where: { sessionId_tagId: { sessionId, tagId } },
+        });
+
         // Crear relación si no existe (gracias al @@id compuesto)
         await db.sessionTag.upsert({
             where: {
@@ -363,6 +387,8 @@ export async function assignTagToSessionAction(
                 tagId,
             },
         });
+
+        if (!already) void triggerTagAutomations(sessionId, tagId);
 
         return {
             success: true,
@@ -465,6 +491,13 @@ export async function replaceSessionTagsAction(
             }
         }
 
+        // Tags previos (para disparar automatizaciones solo de los nuevos)
+        const prev = await db.sessionTag.findMany({
+            where: { sessionId },
+            select: { tagId: true },
+        });
+        const prevSet = new Set(prev.map((p: { tagId: number }) => p.tagId));
+
         // Borrar relaciones actuales
         await db.sessionTag.deleteMany({
             where: { sessionId },
@@ -479,6 +512,11 @@ export async function replaceSessionTagsAction(
                 })),
                 skipDuplicates: true,
             });
+        }
+
+        // Disparar automatizaciones de cada tag recién agregado
+        for (const tagId of tagIds) {
+            if (!prevSet.has(tagId)) void triggerTagAutomations(sessionId, tagId);
         }
 
         return {
