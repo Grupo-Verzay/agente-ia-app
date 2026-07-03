@@ -191,21 +191,23 @@ export function CallLinkCard() {
             <p className="text-xs text-muted-foreground">
               Vincula tu número para hacer llamadas de voz por WhatsApp desde los chats.
             </p>
+            {/* Alternativa ARRIBA para que el botón quede como último elemento
+                y alineado con las demás tarjetas. */}
+            <button
+              type="button"
+              onClick={() => { setPhoneCode(null); setPhoneInput(''); setPhoneOpen(true); }}
+              className="mt-auto text-center text-xs font-medium text-green-700 hover:underline dark:text-green-400"
+            >
+              o vincular con número de teléfono
+            </button>
             <Button
-              className="mt-auto w-full gap-2 bg-green-600 text-white hover:bg-green-700"
+              className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
               onClick={startPairing}
               disabled={pairing}
             >
               {pairing ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
               {pairing ? 'Generando QR…' : 'Conectar con QR'}
             </Button>
-            <button
-              type="button"
-              onClick={() => { setPhoneCode(null); setPhoneInput(''); setPhoneOpen(true); }}
-              className="text-center text-xs font-medium text-green-700 hover:underline dark:text-green-400"
-            >
-              o vincular con número de teléfono
-            </button>
           </div>
         )}
       </CardContent>
