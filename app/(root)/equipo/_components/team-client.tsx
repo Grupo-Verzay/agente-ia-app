@@ -295,7 +295,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
 
       {/* Auto-assign + acciones en una sola barra */}
       <div className={cn(
-        "rounded-xl border bg-card px-4 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 transition-colors",
+        "rounded-xl border bg-card px-4 py-3 flex items-center justify-between gap-4 transition-colors",
         autoAssignEnabled ? "border-l-4 border-l-emerald-500" : "border-l-4 border-l-border"
       )}>
         {/* Lado izquierdo: icono + toggle + max chats */}
