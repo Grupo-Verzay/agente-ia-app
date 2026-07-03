@@ -39,9 +39,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import {
+  getMissedCallReplyConfig,
+  saveMissedCallReplyConfig,
+} from '@/actions/missed-call-reply-actions';
 import {
   getCallsCrmData,
   setCallDisposition,
@@ -213,6 +220,37 @@ export function CallsCrmClient({
     }
   };
 
+  // ── Config: mensaje automático al no contestar una llamada saliente ──
+  const [cfgOpen, setCfgOpen] = useState(false);
+  const [cfgLoading, setCfgLoading] = useState(false);
+  const [cfgSaving, setCfgSaving] = useState(false);
+  const [cfgEnabled, setCfgEnabled] = useState(false);
+  const [cfgText, setCfgText] = useState('');
+
+  const openMissedCfg = async () => {
+    setCfgOpen(true);
+    setCfgLoading(true);
+    try {
+      const cfg = await getMissedCallReplyConfig();
+      setCfgEnabled(cfg.enabled);
+      setCfgText(cfg.text);
+    } finally {
+      setCfgLoading(false);
+    }
+  };
+
+  const saveMissedCfg = async () => {
+    setCfgSaving(true);
+    const res = await saveMissedCallReplyConfig({ enabled: cfgEnabled, text: cfgText });
+    setCfgSaving(false);
+    if (res.success) {
+      toast.success('Configuración guardada.');
+      setCfgOpen(false);
+    } else {
+      toast.error(res.message ?? 'No se pudo guardar.');
+    }
+  };
+
   // Actualiza la disposición de una llamada (optimista en el estado local).
   const applyDisposition = useCallback(async (callId: string, value: string) => {
     setData((prev) =>
@@ -368,6 +406,10 @@ export function CallsCrmClient({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Acciones globales</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => void openMissedCfg()}>
+                <MessageSquare className="mr-2 h-4 w-4" /> Mensaje al no contestar
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => void clearMissed()} className="text-red-600 focus:text-red-700">
                 <PhoneMissed className="mr-2 h-4 w-4" /> Limpiar perdidas
@@ -587,6 +629,55 @@ export function CallsCrmClient({
           contactName={callbackTarget.name}
         />
       )}
+
+      {/* Config: mensaje automático al no contestar una llamada saliente */}
+      <Dialog open={cfgOpen} onOpenChange={setCfgOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              Mensaje al no contestar
+            </DialogTitle>
+          </DialogHeader>
+          {cfgLoading ? (
+            <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <p className="text-xs text-muted-foreground">
+                Cuando hagas una llamada saliente y el cliente no conteste, se le enviará
+                automáticamente este mensaje por WhatsApp (queda registrado en el chat).
+              </p>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <Label htmlFor="missed-call-enabled" className="text-sm font-medium">
+                  Enviar mensaje al no contestar
+                </Label>
+                <Switch id="missed-call-enabled" checked={cfgEnabled} onCheckedChange={setCfgEnabled} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Mensaje</Label>
+                <Textarea
+                  value={cfgText}
+                  onChange={(e) => setCfgText(e.target.value)}
+                  rows={4}
+                  placeholder="Escribe el mensaje que se enviará al contacto..."
+                  disabled={!cfgEnabled}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCfgOpen(false)} disabled={cfgSaving}>
+              Cancelar
+            </Button>
+            <Button onClick={() => void saveMissedCfg()} disabled={cfgSaving || cfgLoading}>
+              {cfgSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

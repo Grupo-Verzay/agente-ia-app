@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { startAstraCall, astraCallWebrtc, endAstraCall, logOutgoingCallAction } from '@/actions/astracalls-actions';
 import { setCallDisposition } from '@/actions/calls-crm-actions';
+import { sendMissedOutgoingCallReply } from '@/actions/missed-call-reply-actions';
 import { processCallRecordingAction } from '@/actions/calls-recording-actions';
 import { CALL_DISPOSITIONS } from '@/lib/call-dispositions';
 
@@ -39,6 +40,8 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
   const secondsRef = useRef(0);
   const loggedRef = useRef(false);
   const loggedIdRef = useRef<string | null>(null);
+  // Evita enviar el auto-mensaje de "no contestó" más de una vez por llamada.
+  const replySentRef = useRef(false);
   // sid/callId de AstraCalls (persisten tras colgar, para bajar la grabación)
   const astraMetaRef = useRef<{ sid: string; callId: string } | null>(null);
 
@@ -77,18 +80,29 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
     setTimeout(() => { void tryProcess(); }, 1500);
   };
 
+  // Envía (una sola vez) el auto-mensaje al contacto cuando la llamada saliente
+  // no fue contestada. La propia acción respeta el on/off configurado por cuenta.
+  const maybeSendMissedReply = () => {
+    if (replySentRef.current) return;
+    replySentRef.current = true;
+    void sendMissedOutgoingCallReply(phone);
+  };
+
   const handleClose = () => {
     cancelledRef.current = true;
-    // Registrar la llamada saliente en los Chats (solo si llegó a conectar y no
-    // se registró ya al elegir un resultado).
-    if (!loggedRef.current && secondsRef.current > 0) {
+    // Registrar la llamada saliente en los Chats si de verdad se colocó (astraMeta).
+    // Contestada (>0s) → "realizada"; colocada pero sin contestar (0s) → "No contesta",
+    // y se dispara el auto-mensaje (si está habilitado).
+    if (!loggedRef.current && astraMetaRef.current) {
       loggedRef.current = true;
       const m = astraMetaRef.current;
-      const meta = m ? { astraSid: m.sid, astraCallId: m.callId } : undefined;
-      void logOutgoingCallAction(phone, secondsRef.current, false, undefined, meta).then((res) => {
+      const meta = { astraSid: m.sid, astraCallId: m.callId };
+      const answered = secondsRef.current > 0;
+      void logOutgoingCallAction(phone, secondsRef.current, false, answered ? undefined : 'no_contesta', meta).then((res) => {
         loggedIdRef.current = res.id;
         processRecording(res.id);
       });
+      if (!answered && state !== 'error') maybeSendMissedReply();
     }
     hangup();
     onClose();
@@ -112,6 +126,8 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
       } else if (loggedIdRef.current) {
         await setCallDisposition(loggedIdRef.current, value);
       }
+      // Auto-mensaje al contacto si la llamada no se contestó (No contesta / Buzón).
+      if (value === 'no_contesta' || value === 'buzon') maybeSendMissedReply();
     } catch {
       /* best-effort */
     } finally {
@@ -127,6 +143,7 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
     secondsRef.current = 0;
     loggedRef.current = false;
     loggedIdRef.current = null;
+    replySentRef.current = false;
     astraMetaRef.current = null;
     setDisposition(null);
     setErrorMsg('');

@@ -630,6 +630,8 @@ model User {
   brandName                          String?                      @map("brand_name")
   contactFieldsConfig                Json?                        @map("contact_fields_config")
   astraCallsSid                      String?                      @map("astra_calls_sid")
+  missedCallReplyEnabled             Boolean                      @default(false) @map("missed_call_reply_enabled")
+  missedCallReplyText                String?                      @map("missed_call_reply_text")
   muteAgentResponses                 Boolean                      @default(false)
   timezone                           String?
   meetingDuration                    Int?
