@@ -295,7 +295,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
 
       {/* Auto-assign + acciones en una sola barra */}
       <div className={cn(
-        "rounded-xl border bg-card px-4 py-3 flex items-center justify-between gap-4 overflow-x-auto transition-colors",
+        "rounded-xl border bg-card px-4 py-3 flex items-center gap-3 transition-colors",
         autoAssignEnabled ? "border-l-4 border-l-emerald-500" : "border-l-4 border-l-border"
       )}>
         {/* Lado izquierdo: icono + toggle + max chats */}
@@ -335,10 +335,10 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
             </div>
           )}
         </div>
-        {/* Lado derecho: botones — siempre en la misma línea */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Zona central: SCROLLEA cuando no cabe (toggle + acciones de asignación) */}
+        <div className="flex-1 min-w-0 overflow-x-auto flex items-center gap-2">
           {/* Toggle de vista: Tabla / Pipeline */}
-          <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
+          <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 shrink-0">
             <button
               type="button"
               onClick={() => setView("tabla")}
@@ -365,6 +365,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
           <Button
             size="sm"
             variant="outline"
+            className="shrink-0"
             disabled={isPending}
             onClick={() => {
               startTransition(async () => {
@@ -378,10 +379,13 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
             <Users className="w-3.5 h-3.5" />
             Asignar sin atender
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setLinkOpen(true)}>
+          <Button size="sm" variant="outline" className="shrink-0" onClick={() => setLinkOpen(true)}>
             <UserCheck className="w-3.5 h-3.5" />
             Vincular existente
           </Button>
+        </div>
+        {/* Lado derecho FIJO: Agregar asesor + menú de acciones */}
+        <div className="flex items-center gap-2 shrink-0">
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="w-3.5 h-3.5" />
             Agregar asesor
