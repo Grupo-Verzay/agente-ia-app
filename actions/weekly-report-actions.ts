@@ -241,33 +241,53 @@ function formatWhatsAppReport(metrics: WeeklyMetrics, summary: string): string {
     return lines.join("\n");
 }
 
-async function getUserDispatchConfig(userId: string) {
-    const user = await db.user.findUnique({
-        where: { id: userId },
+// Cuenta cuya línea de WhatsApp es la "línea de notificaciones de la App".
+const ADMIN_USER_ID = process.env.ADMIN_USER_ID ?? "cm842kthc0000qd2l66nbnytv";
+
+/** Línea EMISORA (serverUrl/apikey/instancia WhatsApp) de una cuenta dada. */
+async function getSenderLine(senderUserId: string) {
+    const s = await db.user.findUnique({
+        where: { id: senderUserId },
         select: {
-            notificationNumber: true,
             apiKey: { select: { url: true, key: true } },
             instancias: {
-                select: { instanceName: true, instanceType: true },
+                where: { instanceType: "Whatsapp" },
+                select: { instanceName: true },
                 take: 1,
             },
         },
     });
-    console.log("[weeklyReport] dispatch config:", JSON.stringify({
-        notificationNumber: user?.notificationNumber,
-        hasApiKey: !!user?.apiKey?.url,
-        apiKeyUrl: user?.apiKey?.url,
-        hasInstance: !!user?.instancias[0],
-        instanceName: user?.instancias[0]?.instanceName,
-    }));
-    if (!user?.notificationNumber || !user.apiKey?.url || !user.instancias[0]) return null;
-    const rawUrl = user.apiKey.url;
+    if (!s?.apiKey?.url || !s.instancias[0]) return null;
+    const rawUrl = s.apiKey.url;
     const serverUrl = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
+    return { serverUrl, apikey: s.apiKey.key ?? "", instanceName: s.instancias[0].instanceName };
+}
+
+async function getUserDispatchConfig(userId: string) {
+    const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { notificationNumber: true, ownerId: true, demoResellerId: true },
+    });
+    if (!user?.notificationNumber) return null;
+
+    // El reporte es una notificación del SISTEMA → sale por la "línea de la App":
+    // la del reseller/dueño si el cliente pertenece a uno (respeta white-label), o la
+    // de VERZAY (admin) para clientes directos. Así llega aunque la línea del cliente
+    // esté desconectada, y no gasta su línea/créditos.
+    const senderUserId = user.ownerId ?? user.demoResellerId ?? ADMIN_USER_ID;
+    let sender = await getSenderLine(senderUserId);
+    if (!sender && senderUserId !== ADMIN_USER_ID) sender = await getSenderLine(ADMIN_USER_ID);
+    console.log("[weeklyReport] dispatch config:", JSON.stringify({
+        notificationNumber: user.notificationNumber,
+        senderUserId,
+        senderInstance: sender?.instanceName ?? null,
+    }));
+    if (!sender) return null;
     return {
         notificationNumber: user.notificationNumber,
-        serverUrl,
-        apikey: user.apiKey.key ?? "",
-        instanceName: user.instancias[0].instanceName,
+        serverUrl: sender.serverUrl,
+        apikey: sender.apikey,
+        instanceName: sender.instanceName,
     };
 }
 
