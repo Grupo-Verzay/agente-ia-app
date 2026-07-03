@@ -28,6 +28,27 @@ async function requireOwnerOrAdmin(): Promise<{ userId: string; ownerId: string 
   return null;
 }
 
+/**
+ * Pipeline de asesores: dispara (fire-and-forget) las automatizaciones
+ * configuradas para el asesor recién asignado. Sólo cuando hay un asesor
+ * (no en liberaciones). Espeja triggerStageAutomations de session-action.
+ */
+async function triggerAdvisorAutomations(sessionId: number, advisorId: string | null): Promise<void> {
+  if (!advisorId) return;
+  const backendUrl = (process.env.BACKEND_URL ?? "").replace(/\/$/, "");
+  if (!backendUrl) return;
+  const key = process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? "";
+  try {
+    await fetch(`${backendUrl}/advisor-automations/execute`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-secret": key },
+      body: JSON.stringify({ sessionId, advisorId }),
+    });
+  } catch (error) {
+    console.error("[triggerAdvisorAutomations]", error);
+  }
+}
+
 async function logAssignment(
   sessionId: number,
   advisorId: string | null,
@@ -114,6 +135,7 @@ export async function autoAssignUnassignedSessionsForOwner(
 
     if (Number(updated) > 0) {
       await logAssignment(session.id, advisorId, options.assignedBy, "auto_assigned");
+      void triggerAdvisorAutomations(session.id, advisorId);
       assigned++;
     }
   }
@@ -151,6 +173,7 @@ export async function assignSessionToAdvisor(
   `;
 
   await logAssignment(sessionId, advisorId, auth.userId, advisorId ? "assigned" : "released");
+  void triggerAdvisorAutomations(sessionId, advisorId);
 
   return { success: true, ...(warning ? { warning } : {}) };
 }
@@ -174,6 +197,7 @@ export async function takeSession(sessionId: number): Promise<Result> {
   `;
 
   await logAssignment(sessionId, user.id, user.id, "taken");
+  void triggerAdvisorAutomations(sessionId, user.id);
 
   return { success: true };
 }
@@ -233,6 +257,7 @@ export async function transferSession(
   `;
 
   await logAssignment(sessionId, targetAdvisorId, user.id, "transferred");
+  void triggerAdvisorAutomations(sessionId, targetAdvisorId);
 
   return { success: true };
 }

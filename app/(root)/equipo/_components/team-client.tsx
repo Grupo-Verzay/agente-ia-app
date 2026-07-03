@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, Loader2 } from "lucide-react";
 
@@ -334,6 +335,12 @@ export function TeamClient({ initialAdvisors, ownerModules, initialAutoAssign, t
         </div>
         {/* Lado derecho: botones — siempre en la misma línea */}
         <div className="flex items-center gap-2 shrink-0">
+          <Button size="sm" variant="outline" asChild>
+            <Link href="/asesores">
+              <LayoutGrid className="w-3.5 h-3.5 mr-1.5" />
+              Pipeline
+            </Link>
+          </Button>
           <Button
             size="sm"
             variant="outline"

@@ -16,6 +16,7 @@ export type KanbanCard = {
     leadScore: number | null;
     leadScoreReason: string | null;
     leadScoredAt: string | null;
+    assignedAdvisorId: string | null;
 };
 
 export async function getKanbanSessionsAction(): Promise<{
@@ -58,6 +59,7 @@ export async function getKanbanSessionsAction(): Promise<{
             leadScore: s.leadScore ?? null,
             leadScoreReason: s.leadScoreReason ?? null,
             leadScoredAt: s.leadScoredAt?.toISOString() ?? null,
+            assignedAdvisorId: s.assignedAdvisorId ?? null,
         }));
 
         return { success: true, data: cards };

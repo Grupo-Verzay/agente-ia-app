@@ -6,6 +6,7 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: '/canva' },
     { route: '/multiagente' },
     { route: '/equipo' },
+    { route: '/asesores' },
     // Panel (admin section)
     { route: '/panel' },
     { route: '/panel/module' },
