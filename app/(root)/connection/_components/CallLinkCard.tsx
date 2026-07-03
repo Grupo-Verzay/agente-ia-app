@@ -151,7 +151,7 @@ export function CallLinkCard() {
     <>
     <Card className="border-border flex h-full flex-col">
       <CardHeader className="p-4 pb-2">
-        <div className="flex items-center justify-between gap-2">
+        <div className={`flex items-center gap-2 ${connected ? 'justify-between' : 'justify-center'}`}>
           <CardTitle className="flex min-w-0 items-center gap-2">
             <Phone className="h-4 w-4 shrink-0 text-green-600" />
             <span className="truncate">Llamadas WhatsApp</span>
