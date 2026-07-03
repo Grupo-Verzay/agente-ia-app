@@ -70,7 +70,7 @@ export const TelegramInstanceCreator = ({ userId, company }: TelegramInstanceCre
             href="https://t.me/BotFather"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+            className="text-center text-sm font-medium text-muted-foreground hover:text-foreground hover:underline"
           >
             Ver cómo crear tu bot (@BotFather)
           </a>

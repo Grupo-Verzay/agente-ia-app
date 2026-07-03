@@ -77,7 +77,7 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+            className="text-center text-sm font-medium text-muted-foreground hover:text-foreground hover:underline"
           >
             Ingresar credenciales manualmente
           </button>

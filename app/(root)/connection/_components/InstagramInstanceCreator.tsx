@@ -71,7 +71,7 @@ export const InstagramInstanceCreator = ({ userId, company }: InstagramInstanceC
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+            className="text-center text-sm font-medium text-muted-foreground hover:text-foreground hover:underline"
           >
             Ver cómo conectar tu cuenta
           </button>
