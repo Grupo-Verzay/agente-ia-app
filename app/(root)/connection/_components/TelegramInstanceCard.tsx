@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Loader2, Trash2, Pencil, CheckCircle2 } from 'lucide-react';
 import { FaTelegramPlane } from 'react-icons/fa';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -27,6 +27,7 @@ interface TelegramInstanceCardProps {
 const TELEGRAM_BLUE = '#229ED9';
 
 export const TelegramInstanceCard = ({ instanceName, botUsername }: TelegramInstanceCardProps) => {
+  const router = useRouter();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -58,37 +59,45 @@ export const TelegramInstanceCard = ({ instanceName, botUsername }: TelegramInst
       <Card className="border-border flex h-full flex-col">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>{instanceName}</CardTitle>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="gap-1" style={{ color: TELEGRAM_BLUE, borderColor: TELEGRAM_BLUE }}>
-                <CheckCircle2 className="w-3 h-3" />
-                Telegram
-              </Badge>
-              <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
+            <CardTitle className="flex items-center gap-2 min-w-0">
+              <FaTelegramPlane className="w-5 h-5 shrink-0" style={{ color: TELEGRAM_BLUE }} />
+              <span className="truncate">Mensajería Telegram</span>
+            </CardTitle>
+            <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)}>
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-2">
-            <FaTelegramPlane className="w-5 h-5" style={{ color: TELEGRAM_BLUE }} />
-            <div className="text-sm space-y-0.5">
-              <p className="text-muted-foreground text-xs font-medium">BOT</p>
-              <p className="font-mono text-sm">{botUsername ? `@${botUsername}` : 'Conectado'}</p>
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+              <FaTelegramPlane className="h-5 w-5" style={{ color: TELEGRAM_BLUE }} />
             </div>
-          </div>
-          <div className="space-y-1">
-            <p className="text-muted-foreground text-xs font-medium">WEBHOOK</p>
-            <p className="font-mono text-xs bg-muted rounded px-2 py-1 inline-block">Configurado automáticamente</p>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{instanceName}</p>
+              {botUsername && (
+                <p className="truncate text-xs text-muted-foreground">@{botUsername}</p>
+              )}
+            </div>
           </div>
         </CardContent>
 
-        <CardFooter className="mt-auto">
-          <Button size="sm" variant="outline" onClick={() => setShowEditDialog(true)} className="w-full gap-1.5">
+        <CardFooter className="mt-auto grid grid-cols-2 gap-2">
+          <Button
+            className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
+            onClick={() => router.refresh()}
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            Conectado
+          </Button>
+          <Button
+            onClick={() => setShowEditDialog(true)}
+            className="w-full gap-2 text-white"
+            style={{ backgroundColor: TELEGRAM_BLUE }}
+          >
             <Pencil className="w-4 h-4" />
-            Actualizar token
+            Editar
           </Button>
         </CardFooter>
       </Card>

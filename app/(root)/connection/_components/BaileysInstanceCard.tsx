@@ -5,7 +5,6 @@ import { FaWhatsapp } from 'react-icons/fa';
 import { Loader2, QrCode, RefreshCw, ArrowLeftRight, Power, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -142,21 +141,18 @@ export const BaileysInstanceCard = ({ instanceName }: BaileysInstanceCardProps) 
       <Card className="border-border flex-1">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>{instanceName}</CardTitle>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-green-500 border-green-500 gap-1">
-                <FaWhatsapp className="w-3 h-3" />
-                Baileys
-              </Badge>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => setShowDeleteDialog(true)}
-                title="Eliminar instancia"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
+            <CardTitle className="flex items-center gap-2 min-w-0">
+              <FaWhatsapp className="w-5 h-5 shrink-0 text-green-500" />
+              <span className="truncate">WhatsApp (Baileys)</span>
+            </CardTitle>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => setShowDeleteDialog(true)}
+              title="Eliminar instancia"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </div>
         </CardHeader>
 
