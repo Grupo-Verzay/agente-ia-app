@@ -337,8 +337,8 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
         </div>
         {/* Zona central: SCROLLEA cuando no cabe (toggle + acciones de asignación) */}
         <div className="flex-1 min-w-0 overflow-x-auto flex items-center gap-2">
-          {/* Toggle de vista: Tabla / Pipeline */}
-          <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 shrink-0">
+          {/* Toggle de vista: Tabla / Pipeline (ml-auto: empuja el grupo a la derecha) */}
+          <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 shrink-0 ml-auto">
             <button
               type="button"
               onClick={() => setView("tabla")}
