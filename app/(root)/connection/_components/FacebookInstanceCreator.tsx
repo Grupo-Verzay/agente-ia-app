@@ -73,7 +73,7 @@ export const FacebookInstanceCreator = ({ userId, company }: FacebookInstanceCre
             onClick={() => setOpen(true)}
             className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
           >
-            ¿Cómo obtener el Page ID y token?
+            o ver cómo conectar tu página
           </button>
           <Button
             onClick={() => setOpen(true)}

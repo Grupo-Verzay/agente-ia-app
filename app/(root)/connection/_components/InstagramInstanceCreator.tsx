@@ -73,7 +73,7 @@ export const InstagramInstanceCreator = ({ userId, company }: InstagramInstanceC
             onClick={() => setOpen(true)}
             className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
           >
-            ¿Cómo obtener la cuenta y el token?
+            o ver cómo conectar tu cuenta
           </button>
           <Button
             onClick={() => setOpen(true)}

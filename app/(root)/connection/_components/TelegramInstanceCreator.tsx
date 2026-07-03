@@ -72,7 +72,7 @@ export const TelegramInstanceCreator = ({ userId, company }: TelegramInstanceCre
             rel="noopener noreferrer"
             className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
           >
-            ¿Cómo obtener el token? (@BotFather)
+            o ver cómo crear tu bot (@BotFather)
           </a>
           <Button
             onClick={() => setOpen(true)}
