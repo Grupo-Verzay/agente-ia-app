@@ -295,7 +295,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
 
       {/* Auto-assign + acciones en una sola barra */}
       <div className={cn(
-        "rounded-xl border bg-card px-4 py-3 flex items-center justify-between gap-4 transition-colors",
+        "rounded-xl border bg-card px-4 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 transition-colors",
         autoAssignEnabled ? "border-l-4 border-l-emerald-500" : "border-l-4 border-l-border"
       )}>
         {/* Lado izquierdo: icono + toggle + max chats */}
@@ -343,7 +343,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
               type="button"
               onClick={() => setView("tabla")}
               className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
                 view === "tabla" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -354,7 +354,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
               type="button"
               onClick={() => setView("pipeline")}
               className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
                 view === "pipeline" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -375,15 +375,15 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
               });
             }}
           >
-            <Users className="w-3.5 h-3.5 mr-1.5" />
+            <Users className="w-3.5 h-3.5" />
             Asignar sin atender
           </Button>
           <Button size="sm" variant="outline" onClick={() => setLinkOpen(true)}>
-            <UserCheck className="w-3.5 h-3.5 mr-1.5" />
+            <UserCheck className="w-3.5 h-3.5" />
             Vincular existente
           </Button>
           <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            <Plus className="w-3.5 h-3.5" />
             Agregar asesor
           </Button>
           <DropdownMenu>
