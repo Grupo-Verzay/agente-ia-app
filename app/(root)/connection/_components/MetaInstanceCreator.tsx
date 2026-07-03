@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Loader2, Info } from 'lucide-react';
+import { Loader2, Info, BookOpen } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
+import Link from 'next/link';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -109,6 +110,14 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
           <DialogHeader>
             <DialogTitle>Nueva instancia WhatsApp Cloud API</DialogTitle>
           </DialogHeader>
+          <Link
+            href="/documentation/meta"
+            target="_blank"
+            className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            ¿No sabes de dónde sacar estos datos? Ver guía paso a paso
+          </Link>
           <div className="space-y-3 py-2">
             {/* Nombre de instancia — solo lectura, derivado de la empresa */}
             <div className="space-y-1">

@@ -4,7 +4,7 @@ import { currentUser } from "@/lib/auth";
 import { MainDocumentation } from "./_components";
 import AccessDenied from "@/app/AccessDenied";
 
-import { BookOpen, FileCog, Play } from 'lucide-react'
+import { BookOpen, FileCog, Play, Plug } from 'lucide-react'
 
 interface Props {
     searchParams: { [key: string]: string | undefined }
@@ -38,6 +38,14 @@ const DocumentationPage = async ({ searchParams }: Props) => {
             icon: <FileCog className="text-teal-600" />,
             href: "/templates",
             buttonLabel: "Ir a Plantillas",
+        },
+        {
+            title: "Conexión API de Meta",
+            description: "Paso a paso para obtener tus credenciales y conectar WhatsApp, Facebook e Instagram.",
+            icon: <Plug className="text-[#0866FF]" />,
+            href: "/documentation/meta",
+            buttonLabel: "Ver guía",
+            accent: "#0866FF",
         },
     ];
 

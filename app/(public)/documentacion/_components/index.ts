@@ -1,0 +1,1 @@
+export { DocumentacionClient } from './DocumentacionClient';

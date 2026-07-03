@@ -948,6 +948,7 @@ export function ResellerLandingClient({
             <a href="#pricing" className="transition-colors hover:text-slate-300">Precios</a>
             <a href="#faq" className="transition-colors hover:text-slate-300">FAQ</a>
             <Link href="/inicio" className="transition-colors hover:text-slate-300">Ver producto</Link>
+            <Link href="/documentacion" className="transition-colors hover:text-slate-300">Documentación</Link>
             <Link href="/login" className="transition-colors hover:text-slate-300">Acceso</Link>
             {instagram && <a href={instagram} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-pink-400">Instagram</a>}
             {facebook && <a href={facebook} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-blue-400">Facebook</a>}

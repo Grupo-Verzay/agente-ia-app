@@ -808,6 +808,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
             <a href="#features" className="transition-colors hover:text-slate-300">Funciones</a>
             <a href="#pricing" className="transition-colors hover:text-slate-300">Precios</a>
             <a href="#faq" className="transition-colors hover:text-slate-300">FAQ</a>
+            <Link href="/documentacion" className="transition-colors hover:text-slate-300">Documentación</Link>
             {instagram && <a href={instagram} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-pink-400">Instagram</a>}
             {facebook && <a href={facebook} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-blue-400">Facebook</a>}
             <Link href="/login" className="transition-colors hover:text-slate-300">Acceso</Link>
