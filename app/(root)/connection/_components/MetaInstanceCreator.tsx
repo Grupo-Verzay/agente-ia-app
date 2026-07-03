@@ -72,6 +72,15 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
           </div>
         </CardContent>
         <CardFooter className="mt-auto flex-col gap-2 px-6 pb-6 pt-0">
+          {/* Alternativa manual ARRIBA para que los botones queden como último
+              elemento y alineados con las demás tarjetas. */}
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+          >
+            o ingresar credenciales manualmente
+          </button>
           {/* El cliente elige UNA modalidad: cada botón inicia el Embedded Signup
               de Meta en su modo. Al conectar por una, solo se muestra esa. */}
           <div className="grid w-full grid-cols-2 gap-2">
@@ -92,14 +101,6 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
               onConnected={() => router.refresh()}
             />
           </div>
-          {/* Alternativa: ingresar credenciales manualmente. */}
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
-          >
-            o ingresar credenciales manualmente
-          </button>
         </CardFooter>
       </Card>
 
