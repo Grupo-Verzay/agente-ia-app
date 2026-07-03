@@ -66,7 +66,15 @@ export const InstagramInstanceCreator = ({ userId, company }: InstagramInstanceC
             </div>
           </div>
         </CardContent>
-        <CardFooter className="mt-auto px-6 pb-6 pt-0">
+        <CardFooter className="mt-auto flex-col gap-2 px-6 pb-6 pt-0">
+          {/* Enlace de ayuda (mismo slot que las demás tarjetas → botón alineado). */}
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+          >
+            ¿Cómo obtener la cuenta y el token?
+          </button>
           <Button
             onClick={() => setOpen(true)}
             className="w-full text-white border-0" style={{ background: 'linear-gradient(to right, #E1306C, #833AB4)' }}

@@ -64,7 +64,16 @@ export const TelegramInstanceCreator = ({ userId, company }: TelegramInstanceCre
             </div>
           </div>
         </CardContent>
-        <CardFooter className="mt-auto px-6 pb-6 pt-0">
+        <CardFooter className="mt-auto flex-col gap-2 px-6 pb-6 pt-0">
+          {/* Enlace de ayuda (mismo slot que las demás tarjetas → botón alineado). */}
+          <a
+            href="https://t.me/BotFather"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+          >
+            ¿Cómo obtener el token? (@BotFather)
+          </a>
           <Button
             onClick={() => setOpen(true)}
             className="w-full text-white border-0" style={{ backgroundColor: TELEGRAM_BLUE }}
