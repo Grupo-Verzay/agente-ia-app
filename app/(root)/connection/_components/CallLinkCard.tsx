@@ -198,7 +198,7 @@ export function CallLinkCard() {
               onClick={() => { setPhoneCode(null); setPhoneInput(''); setPhoneOpen(true); }}
               className="mt-auto text-center text-xs font-medium text-green-700 hover:underline dark:text-green-400"
             >
-              o vincular con número de teléfono
+              Vincular con número de teléfono
             </button>
             <Button
               className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"

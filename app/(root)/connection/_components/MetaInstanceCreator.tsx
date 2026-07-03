@@ -79,7 +79,7 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
             onClick={() => setOpen(true)}
             className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
           >
-            o ingresar credenciales manualmente
+            Ingresar credenciales manualmente
           </button>
           {/* El cliente elige UNA modalidad: cada botón inicia el Embedded Signup
               de Meta en su modo. Al conectar por una, solo se muestra esa. */}
