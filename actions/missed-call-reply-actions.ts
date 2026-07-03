@@ -3,6 +3,7 @@
 import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import { sendMessageWithHistoryAction } from '@/actions/chat-history/send-message-with-history-action';
+import { sendChannelTextAction } from '@/actions/channel-chat-actions';
 
 /**
  * Resuelve la cuenta (dueño) a la que pertenecen las llamadas del usuario actual.
@@ -95,27 +96,37 @@ export async function sendMissedOutgoingCallReply(
     const text = (user.missedCallReplyText ?? '').trim();
     if (!text) return { sent: false };
 
-    const baseUrl = user.apiKey?.url?.trim();
-    const apikey = user.apiKey?.key?.trim();
-    if (!baseUrl || !apikey) return { sent: false, message: 'Sin credenciales de WhatsApp.' };
-
-    // Instancia de WhatsApp de la cuenta.
+    // Instancia de la cuenta (cualquier canal de WhatsApp).
     const inst =
       (await db.instancia.findFirst({
-        where: { userId, instanceType: { in: ['Whatsapp', 'whatsapp', 'evolution', 'baileys'] } },
-        select: { instanceName: true },
+        where: { userId, instanceType: { in: ['Whatsapp', 'whatsapp', 'evolution', 'baileys', 'meta'] } },
+        select: { instanceName: true, instanceType: true },
       })) ??
-      (await db.instancia.findFirst({ where: { userId }, select: { instanceName: true } }));
+      (await db.instancia.findFirst({ where: { userId }, select: { instanceName: true, instanceType: true } }));
     const instanceName = inst?.instanceName;
     if (!instanceName) return { sent: false, message: 'Sin instancia de WhatsApp.' };
 
+    const remoteJid = `${digits}@s.whatsapp.net`;
+    const channel = (inst?.instanceType ?? '').toLowerCase();
+
+    // Canales oficiales/unificados (Meta Cloud API, Baileys): se envía por el
+    // backend, que respeta la ventana de 24h de Meta y persiste en el panel.
+    if (channel === 'meta' || channel === 'baileys') {
+      const res = await sendChannelTextAction(instanceName, remoteJid, { kind: 'text', text });
+      return { sent: !!res?.success, message: res?.success ? undefined : res?.message };
+    }
+
+    // Evolution (WhatsApp no oficial): envío directo con las credenciales de la cuenta.
+    const baseUrl = user.apiKey?.url?.trim();
+    const apikey = user.apiKey?.key?.trim();
+    if (!baseUrl || !apikey) return { sent: false, message: 'Sin credenciales de WhatsApp.' };
     const normalizedBase = /^https?:\/\//i.test(baseUrl)
       ? baseUrl.replace(/\/+$/, '')
       : `https://${baseUrl.replace(/\/+$/, '')}`;
 
     const res = await sendMessageWithHistoryAction({
       instanceName,
-      remoteJid: `${digits}@s.whatsapp.net`,
+      remoteJid,
       message: text,
       url: `${normalizedBase}/message/sendText/${instanceName}`,
       apikey,
