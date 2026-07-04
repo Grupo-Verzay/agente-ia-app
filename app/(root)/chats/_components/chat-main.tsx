@@ -1036,6 +1036,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
           userId={userId}
           remoteJid={info?.remoteJid}
           notesCount={notes.length}
+          advisors={advisors}
           onClose={toggleInfoPanel}
           onSessionMutate={mutateSessionStatus}
           onSessionRefresh={refreshSessionStatus}

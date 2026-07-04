@@ -33,6 +33,8 @@ import { updateLeadPushNameAction } from '@/actions/registro-action';
 import { toggleAgentDisabled } from '@/actions/session-action';
 import * as SwitchPrimitive from '@radix-ui/react-switch';
 import { initialFromName } from './chat-message-utils';
+import { ConversationParticipants } from './ConversationParticipants';
+import type { AdvisorInfo } from '@/actions/team-actions';
 import type { Session } from '@/types/session';
 
 /* ── Contact data fields (dinámicos por usuario) ───────────── */
@@ -142,6 +144,7 @@ interface ContactInfoPanelProps {
   userId: string;
   remoteJid?: string;
   notesCount?: number;
+  advisors?: AdvisorInfo[];
   onClose: () => void;
   onSessionMutate: () => void;
   onSessionRefresh: () => Promise<void>;
@@ -156,6 +159,7 @@ export function ContactInfoPanel({
   userId,
   remoteJid,
   notesCount,
+  advisors = [],
   onClose,
   onSessionMutate,
   onSessionRefresh,
@@ -427,6 +431,15 @@ export function ContactInfoPanel({
               </SwitchPrimitive.Thumb>
             </SwitchPrimitive.Root>
           </div>
+        </div>
+
+        {/* Participantes de la conversación (colaboración estilo Chatwoot) */}
+        <div className="px-3 pt-3">
+          <ConversationParticipants
+            sessionId={session.id}
+            advisors={advisors}
+            currentUserId={userId}
+          />
         </div>
 
         {/* Datos del cliente — secciones agrupadas */}
