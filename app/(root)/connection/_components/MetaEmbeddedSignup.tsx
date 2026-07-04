@@ -122,7 +122,6 @@ export function MetaEmbeddedSignup({
   label,
 }: MetaEmbeddedSignupProps) {
   const [loading, setLoading] = useState(false);
-  const [sdkReady, setSdkReady] = useState(false);
   // Datos que llegan por el evento `message` (antes que el callback del código).
   const sessionInfo = useRef<{ phoneNumberId?: string; wabaId?: string }>({});
   // Selector de número (cuando el usuario autorizó varias cuentas/números).
@@ -164,14 +163,6 @@ export function MetaEmbeddedSignup({
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [configured]);
-
-  // Precarga el SDK cuando el componente monta (si está configurado).
-  useEffect(() => {
-    if (!configured) return;
-    loadFacebookSdk()
-      .then(() => setSdkReady(true))
-      .catch(() => setSdkReady(false));
   }, [configured]);
 
   const handleClick = useCallback(async () => {
@@ -280,7 +271,7 @@ export function MetaEmbeddedSignup({
     <div className="w-full">
       <Button
         onClick={handleClick}
-        disabled={loading || !configured || !sdkReady}
+        disabled={loading || !configured}
         className={className ?? 'w-full gap-2 bg-[#1877F2] text-white hover:bg-[#166FE5]'}
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FaFacebook className="h-4 w-4" />}
