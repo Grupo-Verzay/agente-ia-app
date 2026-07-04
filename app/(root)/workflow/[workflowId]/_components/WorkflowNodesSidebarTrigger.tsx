@@ -13,8 +13,9 @@ export function WorkflowNodesSidebarTrigger() {
             size="icon"
             onClick={toggleSidebar}
             title="Agregar nodo"
+            className="h-10 w-10 rounded-lg [&_svg]:size-6"
         >
-            {isOpen ? <X className="h-6 w-6" strokeWidth={2.75} /> : <Plus className="h-6 w-6" strokeWidth={2.75} />}
+            {isOpen ? <X strokeWidth={3} /> : <Plus strokeWidth={3} />}
         </Button>
     );
 }
