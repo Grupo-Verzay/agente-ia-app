@@ -41,7 +41,7 @@ function clamp(n: number, min: number, max: number) {
 }
 
 // ── Cuadrícula con carriles (layout horizontal) ─────────────────────────────
-const COL_W = 400; // ancho de cada carril / paso
+const COL_W = 350; // ancho de cada carril / paso
 const ROW_H = 200; // alto de cada fila (ramas apiladas)
 const NODE_W = 320; // ancho aprox. de la tarjeta (para centrarla en el carril)
 const LANE_PAD = (COL_W - NODE_W) / 2; // margen lateral dentro del carril
@@ -77,41 +77,22 @@ export function WorkflowCanvas({
   const initialNodes: Node<CustomNodeData>[] = useMemo(() => {
     const sorted = [...nodesDB].sort((a, b) => a.order - b.order);
 
-    // Auto-orden horizontal para los nodos sin posición:
-    // pasos de izquierda a derecha; seguimientos en el carril de la derecha.
-    const nonSeg = sorted.filter((n) => !isSeguim(n.tipo));
-    const seg = sorted.filter((n) => isSeguim(n.tipo));
-    const segCol = nonSeg.length;
-
-    const autoPos = new Map<string, { x: number; y: number }>();
-    nonSeg.forEach((n, i) => autoPos.set(n.id, { x: i * COL_W, y: 0 }));
-    seg.forEach((n, j) => autoPos.set(n.id, { x: segCol * COL_W, y: j * ROW_H }));
-
-    return sorted.map((n) => {
-      const rawX = n.posX ?? 0;
-      const rawY = n.posY ?? 0;
-      const needsAuto = rawX === 0 && rawY === 0 && sorted.length > 1;
-
-      // Si ya tiene posición, la ajustamos a la cuadrícula para que quede alineada.
-      const position = needsAuto
-        ? autoPos.get(n.id) ?? { x: 0, y: 0 }
-        : { x: snapMultiple(rawX, COL_W), y: Math.max(0, snapMultiple(rawY, ROW_H)) };
-
-      return {
-        id: n.id,
-        type: 'customNode',
-        position,
-        sourcePosition: Position.Right,
-        targetPosition: Position.Left,
-        data: {
-          nodeDB: n,
-          workflowId,
-          user,
-          totalNodes,
-          seguimientoNodes,
-        },
-      };
-    });
+    // Todos los nodos en una sola fila horizontal, cada uno en su columna,
+    // en el orden del flujo. Así siempre queda uniforme y ninguno se monta.
+    return sorted.map((n, i) => ({
+      id: n.id,
+      type: 'customNode',
+      position: { x: i * COL_W, y: 0 },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+      data: {
+        nodeDB: n,
+        workflowId,
+        user,
+        totalNodes,
+        seguimientoNodes,
+      },
+    }));
   }, [nodesDB, workflowId, user, totalNodes, seguimientoNodes]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -145,11 +126,12 @@ export function WorkflowCanvas({
     setEdges(initialEdges);
   }, [initialEdges, setEdges]);
 
-  // inicializa “último target” al cargar (si ya hay edges en DB)
+  // El "último nodo" para encadenar es el final del flujo (mayor order),
+  // así un nodo nuevo siempre se conecta al anterior aunque aún no haya edges.
   useEffect(() => {
-    const last = initialEdges[initialEdges.length - 1];
-    lastEdgeTargetRef.current = last?.target ?? null;
-  }, [initialEdges]);
+    const sorted = [...nodesDB].sort((a, b) => a.order - b.order);
+    lastEdgeTargetRef.current = sorted.length ? sorted[sorted.length - 1].id : null;
+  }, [nodesDB]);
 
   const edgesRef = useRef<Edge[]>(initialEdges);
   useEffect(() => {
@@ -175,7 +157,7 @@ export function WorkflowCanvas({
     }
 
     const maxCol = cols.size ? Math.max(...Array.from(cols.keys())) : 0;
-    const bandBottom = Math.max((maxRow + 1) * ROW_H + LANE_PAD, ROW_H * 2);
+    const bandBottom = Math.max((maxRow + 1) * ROW_H + LANE_PAD, 900);
 
     let step = 0;
     const list: { col: number; label: string; hasSeg: boolean }[] = [];
@@ -197,19 +179,12 @@ export function WorkflowCanvas({
   // Botón "Ordenar": realinea todo el flujo en horizontal y guarda posiciones.
   const handleAutoLayout = useCallback(async () => {
     const current = nodesRef.current;
-    const items = current.map((n) => ({
-      id: n.id,
-      order: n.data?.nodeDB?.order ?? 0,
-      seg: isSeguim(n.data?.nodeDB?.tipo),
-    }));
-
-    const nonSeg = items.filter((w) => !w.seg).sort((a, b) => a.order - b.order);
-    const seg = items.filter((w) => w.seg).sort((a, b) => a.order - b.order);
-    const segCol = nonSeg.length;
+    const ordered = current
+      .map((n) => ({ id: n.id, order: n.data?.nodeDB?.order ?? 0 }))
+      .sort((a, b) => a.order - b.order);
 
     const next = new Map<string, { x: number; y: number }>();
-    nonSeg.forEach((w, i) => next.set(w.id, { x: i * COL_W, y: 0 }));
-    seg.forEach((w, j) => next.set(w.id, { x: segCol * COL_W, y: j * ROW_H }));
+    ordered.forEach((w, i) => next.set(w.id, { x: i * COL_W, y: 0 }));
 
     setNodes((nds) =>
       nds.map((n) => (next.has(n.id) ? { ...n, position: next.get(n.id)! } : n))
@@ -352,6 +327,10 @@ export function WorkflowCanvas({
             }
           }
         }
+
+        // El nodo recién creado pasa a ser el final del flujo, para que el
+        // siguiente que se cree se encadene automáticamente a este.
+        lastEdgeTargetRef.current = nodeDB.id;
 
         toast.success(connected ? 'Nodo creado y conectado' : 'Nodo creado', { id: toastId });
       } catch (e) {
@@ -524,20 +503,10 @@ export function WorkflowCanvas({
                   width: COL_W,
                   height: HEADER_H + lanes.bandBottom,
                 }}
-                className={`border-r border-dashed ${
-                  l.hasSeg
-                    ? 'border-teal-400/40 bg-teal-400/[0.05]'
-                    : 'border-border/40'
-                }`}
+                className="border-r border-dashed border-border/40"
               >
                 <div className="flex justify-center pt-2">
-                  <span
-                    className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${
-                      l.hasSeg
-                        ? 'bg-teal-500/15 text-teal-600 dark:text-teal-300'
-                        : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
+                  <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     {l.label}
                   </span>
                 </div>
@@ -546,12 +515,12 @@ export function WorkflowCanvas({
           </div>
         </ViewportPortal>
 
-        <Panel position="top-right">
+        <Panel position="top-center">
           <Button
             onClick={handleAutoLayout}
             variant="outline"
             size="sm"
-            className="h-8 gap-2 bg-background/80 backdrop-blur"
+            className="h-8 gap-2 bg-background/80 shadow-sm backdrop-blur"
             title="Ordenar el flujo en carriles horizontales"
           >
             <LayoutGrid className="h-4 w-4" />
