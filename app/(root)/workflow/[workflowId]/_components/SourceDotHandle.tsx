@@ -2,25 +2,31 @@ import { Handle, Position } from "@xyflow/react";
 
 export const SourceDotHandle = (props: {
     id: string;
-    leftPct: number;
+    topPct: number;
     label: string;
     active: boolean;
     connectableStart: boolean;
 }) => {
-    const { id, leftPct, label, active, connectableStart } = props;
+    const { id, topPct, label, active, connectableStart } = props;
 
     return (
         <div
-            className="absolute z-20"
-            style={{ left: `${leftPct}%`, transform: "translateX(-50%)" }}
+            className="absolute right-0 z-20"
+            style={{ top: `${topPct}%`, transform: "translate(50%, -50%)" }}
         >
             <Handle
                 id={id}
                 type="source"
-                position={Position.Bottom}
+                position={Position.Right}
                 isConnectable={connectableStart}
                 isConnectableStart={connectableStart}
                 style={{
+                    position: "relative",
+                    top: "auto",
+                    left: "auto",
+                    right: "auto",
+                    bottom: "auto",
+                    transform: "none",
                     width: 16,
                     height: 16,
                     border: "2px solid",
@@ -36,7 +42,7 @@ export const SourceDotHandle = (props: {
             />
 
             {label ? (
-                <div className="pointer-events-none mb-1 mt-1 text-center">
+                <div className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 whitespace-nowrap">
                     <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">
                         {label}
                     </span>

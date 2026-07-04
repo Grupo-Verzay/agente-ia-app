@@ -16,7 +16,7 @@ export function CustomNode({ data }: { data: CustomNodeData }) {
     const isIntention = nodeType === "intention";
 
     return (
-        <div className="relative min-w-[320px] pb-8">
+        <div className="relative min-w-[320px]">
             <NodeCard
                 nodes={data.nodeDB}
                 workflowId={data.workflowId}
@@ -25,7 +25,7 @@ export function CustomNode({ data }: { data: CustomNodeData }) {
                     <Handle
                         id="in"
                         type="target"
-                        position={Position.Top}
+                        position={Position.Left}
                         isConnectable={!connection.inProgress || isTarget}
                         isConnectableStart={false}
                         style={{ width: 16, height: 16, borderRadius: 9999 }}
@@ -38,14 +38,14 @@ export function CustomNode({ data }: { data: CustomNodeData }) {
                     <SourceDotHandle
                         id="yes"
                         label="Sí"
-                        leftPct={30}
+                        topPct={38}
                         active={!connection.inProgress || isSourceActive}
                         connectableStart={!connection.inProgress}
                     />
                     <SourceDotHandle
                         id="no"
                         label="No"
-                        leftPct={70}
+                        topPct={62}
                         active={!connection.inProgress || isSourceActive}
                         connectableStart={!connection.inProgress}
                     />
@@ -54,7 +54,7 @@ export function CustomNode({ data }: { data: CustomNodeData }) {
                 <SourceDotHandle
                     id="out"
                     label=""
-                    leftPct={50}
+                    topPct={50}
                     active={!connection.inProgress || isSourceActive}
                     connectableStart={!connection.inProgress}
                 />

@@ -14,6 +14,9 @@ import {
   Background,
   Controls,
   MiniMap,
+  Panel,
+  Position,
+  ViewportPortal,
   OnNodeDrag,
   useEdgesState,
   useNodesState,
@@ -21,6 +24,8 @@ import {
 } from '@xyflow/react';
 
 import { toast } from 'sonner';
+import { LayoutGrid } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
   createNodeFromCanvas,
   updateWorkflowNodePosition,
@@ -33,6 +38,19 @@ import { CustomEdge, CustomNode } from '.';
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
+}
+
+// ── Cuadrícula con carriles (layout horizontal) ─────────────────────────────
+const COL_W = 400; // ancho de cada carril / paso
+const ROW_H = 200; // alto de cada fila (ramas apiladas)
+const NODE_W = 320; // ancho aprox. de la tarjeta (para centrarla en el carril)
+const LANE_PAD = (COL_W - NODE_W) / 2; // margen lateral dentro del carril
+const HEADER_H = 52; // alto de la banda de encabezado (arriba de los nodos)
+
+const isSeguim = (tipo?: string | null) => (tipo ?? '').toLowerCase().includes('seguimiento');
+
+function snapMultiple(v: number, step: number) {
+  return Math.round(v / step) * step;
 }
 
 export function WorkflowCanvas({
@@ -59,15 +77,32 @@ export function WorkflowCanvas({
   const initialNodes: Node<CustomNodeData>[] = useMemo(() => {
     const sorted = [...nodesDB].sort((a, b) => a.order - b.order);
 
-    return sorted.map((n, idx) => {
-      const x = n.posX ?? 0;
-      const y = n.posY ?? 0;
-      const needsAuto = x === 0 && y === 0 && sorted.length > 1;
+    // Auto-orden horizontal para los nodos sin posición:
+    // pasos de izquierda a derecha; seguimientos en el carril de la derecha.
+    const nonSeg = sorted.filter((n) => !isSeguim(n.tipo));
+    const seg = sorted.filter((n) => isSeguim(n.tipo));
+    const segCol = nonSeg.length;
+
+    const autoPos = new Map<string, { x: number; y: number }>();
+    nonSeg.forEach((n, i) => autoPos.set(n.id, { x: i * COL_W, y: 0 }));
+    seg.forEach((n, j) => autoPos.set(n.id, { x: segCol * COL_W, y: j * ROW_H }));
+
+    return sorted.map((n) => {
+      const rawX = n.posX ?? 0;
+      const rawY = n.posY ?? 0;
+      const needsAuto = rawX === 0 && rawY === 0 && sorted.length > 1;
+
+      // Si ya tiene posición, la ajustamos a la cuadrícula para que quede alineada.
+      const position = needsAuto
+        ? autoPos.get(n.id) ?? { x: 0, y: 0 }
+        : { x: snapMultiple(rawX, COL_W), y: Math.max(0, snapMultiple(rawY, ROW_H)) };
 
       return {
         id: n.id,
         type: 'customNode',
-        position: needsAuto ? { x: 80, y: 80 + idx * 140 } : { x, y },
+        position,
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
         data: {
           nodeDB: n,
           workflowId,
@@ -125,6 +160,74 @@ export function WorkflowCanvas({
   const nodeTypes: NodeTypes = useMemo(() => ({ customNode: CustomNode }), []);
   const edgeTypes = useMemo(() => ({ customEdge: CustomEdge }), []);
 
+  // Carriles (columnas) calculados a partir de la posición de los nodos.
+  const lanes = useMemo(() => {
+    const cols = new Map<number, { hasSeg: boolean }>();
+    let maxRow = 0;
+
+    for (const n of nodes) {
+      const c = Math.max(0, Math.round(n.position.x / COL_W));
+      const r = Math.max(0, Math.round(n.position.y / ROW_H));
+      maxRow = Math.max(maxRow, r);
+      const cur = cols.get(c) ?? { hasSeg: false };
+      cur.hasSeg = cur.hasSeg || isSeguim(n.data?.nodeDB?.tipo);
+      cols.set(c, cur);
+    }
+
+    const maxCol = cols.size ? Math.max(...Array.from(cols.keys())) : 0;
+    const bandBottom = Math.max((maxRow + 1) * ROW_H + LANE_PAD, ROW_H * 2);
+
+    let step = 0;
+    const list: { col: number; label: string; hasSeg: boolean }[] = [];
+    for (let c = 0; c <= maxCol; c++) {
+      const hasSeg = cols.get(c)?.hasSeg ?? false;
+      let label: string;
+      if (hasSeg) {
+        label = 'SEGUIMIENTOS';
+      } else {
+        step += 1;
+        label = `PASO ${step}`;
+      }
+      list.push({ col: c, label, hasSeg });
+    }
+
+    return { list, bandBottom };
+  }, [nodes]);
+
+  // Botón "Ordenar": realinea todo el flujo en horizontal y guarda posiciones.
+  const handleAutoLayout = useCallback(async () => {
+    const current = nodesRef.current;
+    const items = current.map((n) => ({
+      id: n.id,
+      order: n.data?.nodeDB?.order ?? 0,
+      seg: isSeguim(n.data?.nodeDB?.tipo),
+    }));
+
+    const nonSeg = items.filter((w) => !w.seg).sort((a, b) => a.order - b.order);
+    const seg = items.filter((w) => w.seg).sort((a, b) => a.order - b.order);
+    const segCol = nonSeg.length;
+
+    const next = new Map<string, { x: number; y: number }>();
+    nonSeg.forEach((w, i) => next.set(w.id, { x: i * COL_W, y: 0 }));
+    seg.forEach((w, j) => next.set(w.id, { x: segCol * COL_W, y: j * ROW_H }));
+
+    setNodes((nds) =>
+      nds.map((n) => (next.has(n.id) ? { ...n, position: next.get(n.id)! } : n))
+    );
+
+    const toastId = toast.loading('Ordenando flujo...');
+    try {
+      await Promise.all(
+        Array.from(next.entries()).map(([nodeId, p]) =>
+          updateWorkflowNodePosition({ nodeId, posX: p.x, posY: p.y })
+        )
+      );
+      toast.success('Flujo ordenado', { id: toastId });
+    } catch (e) {
+      toast.error(e?.message ?? 'No se pudo guardar el orden', { id: toastId });
+    }
+  }, [setNodes]);
+
   const pending = useRef<Record<string, number>>({});
 
   const onNodeDragStop: OnNodeDrag = useCallback(async (_, node) => {
@@ -135,7 +238,7 @@ export function WorkflowCanvas({
     const t = window.setTimeout(async () => {
       try {
         const posX = clamp(Number(position.x.toFixed(2)), -100000, 100000);
-        const posY = clamp(Number(position.y.toFixed(2)), -100000, 100000);
+        const posY = clamp(Number(position.y.toFixed(2)), 0, 100000);
 
         await updateWorkflowNodePosition({ nodeId: id, posX, posY });
       } catch (e) {
@@ -166,8 +269,14 @@ export function WorkflowCanvas({
 
   // FUNCIÓN ÚNICA DE CREACIÓN (la misma que usa drop y click)
   const createFromItem = useCallback(
-    async (item: PaletteItem, pos: { x: number; y: number }) => {
+    async (item: PaletteItem, rawPos: { x: number; y: number }) => {
       const toastId = toast.loading('Creando nodo...');
+
+      // Ajustamos la posición de creación a la cuadrícula de carriles.
+      const pos = {
+        x: snapMultiple(rawPos.x, COL_W),
+        y: Math.max(0, snapMultiple(rawPos.y, ROW_H)),
+      };
 
       try {
         const res = await createNodeFromCanvas({
@@ -194,6 +303,8 @@ export function WorkflowCanvas({
             id: nodeDB.id,
             type: 'customNode',
             position: { x: nodeDB.posX ?? pos.x, y: nodeDB.posY ?? pos.y },
+            sourcePosition: Position.Right,
+            targetPosition: Position.Left,
             data: {
               nodeDB,
               workflowId,
@@ -390,6 +501,8 @@ export function WorkflowCanvas({
         onNodeDragStop={onNodeDragStop}
         onDragOver={onDragOver}
         onDrop={onDrop}
+        snapToGrid
+        snapGrid={[COL_W, ROW_H]}
         fitView
         colorMode={isDark ? 'dark' : 'light'}
         minZoom={0.05}
@@ -397,6 +510,54 @@ export function WorkflowCanvas({
         <Background />
         <Controls />
         {/* <MiniMap /> */}
+
+        {/* Carriles / columnas (PASO 1, PASO 2… y SEGUIMIENTOS) */}
+        <ViewportPortal>
+          <div style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
+            {lanes.list.map((l) => (
+              <div
+                key={l.col}
+                style={{
+                  position: 'absolute',
+                  left: l.col * COL_W - LANE_PAD,
+                  top: -HEADER_H,
+                  width: COL_W,
+                  height: HEADER_H + lanes.bandBottom,
+                }}
+                className={`border-r border-dashed ${
+                  l.hasSeg
+                    ? 'border-teal-400/40 bg-teal-400/[0.05]'
+                    : 'border-border/40'
+                }`}
+              >
+                <div className="flex justify-center pt-2">
+                  <span
+                    className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${
+                      l.hasSeg
+                        ? 'bg-teal-500/15 text-teal-600 dark:text-teal-300'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {l.label}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </ViewportPortal>
+
+        <Panel position="top-right">
+          <Button
+            onClick={handleAutoLayout}
+            variant="outline"
+            size="sm"
+            className="h-8 gap-2 bg-background/80 backdrop-blur"
+            title="Ordenar el flujo en carriles horizontales"
+          >
+            <LayoutGrid className="h-4 w-4" />
+            <span className="text-xs font-medium">Ordenar</span>
+          </Button>
+        </Panel>
       </ReactFlow>
     </div>
   );
