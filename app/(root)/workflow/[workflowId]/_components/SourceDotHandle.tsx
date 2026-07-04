@@ -1,4 +1,5 @@
-import { Handle, Position } from "@xyflow/react";
+import { Handle, Position, useNodeConnections, useNodeId } from "@xyflow/react";
+import { InlineAddNode } from "./InlineAddNode";
 
 export const SourceDotHandle = (props: {
     id: string;
@@ -8,6 +9,10 @@ export const SourceDotHandle = (props: {
     connectableStart: boolean;
 }) => {
     const { id, topPct, label, active, connectableStart } = props;
+
+    const nodeId = useNodeId();
+    const connections = useNodeConnections({ handleType: "source", handleId: id });
+    const isFree = connections.length === 0;
 
     return (
         <div
@@ -42,10 +47,16 @@ export const SourceDotHandle = (props: {
             />
 
             {label ? (
-                <div className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 whitespace-nowrap">
+                <div className="pointer-events-none absolute right-6 top-1/2 -translate-y-1/2 whitespace-nowrap">
                     <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-300">
                         {label}
                     </span>
+                </div>
+            ) : null}
+
+            {isFree && nodeId ? (
+                <div className="absolute left-6 top-1/2 -translate-y-1/2">
+                    <InlineAddNode sourceId={nodeId} sourceHandle={id} />
                 </div>
             ) : null}
         </div>

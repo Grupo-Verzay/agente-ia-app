@@ -35,6 +35,7 @@ import {
 
 import { CustomNodeData, PaletteItem, PropsWorkflowCanvas, Action } from '@/types/workflow-node';
 import { CustomEdge, CustomNode } from '.';
+import { WorkflowAddNodeProvider, AddNodeFn } from './WorkflowAddNodeContext';
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -340,6 +341,82 @@ export function WorkflowCanvas({
     [workflowId, user, setNodes, setEdges, totalNodes, seguimientoNodes, pickAvailableSourceHandle]
   );
 
+  // Crear un nodo desde el "+" de una salida concreta y conectarlo a ella.
+  const addNodeFromSource: AddNodeFn = useCallback(
+    async ({ sourceId, sourceHandle, action }) => {
+      const toastId = toast.loading('Creando nodo...');
+
+      try {
+        const src = nodesRef.current.find((n) => n.id === sourceId);
+        const basePos = src
+          ? { x: src.position.x + COL_W, y: src.position.y }
+          : { x: 0, y: 0 };
+
+        const res = await createNodeFromCanvas({
+          workflowId,
+          tipo: action.type,
+          message: '',
+          posX: basePos.x,
+          posY: basePos.y,
+        });
+
+        if (!res?.success || !res.data) {
+          toast.error(res?.message ?? 'No se pudo crear el nodo', { id: toastId });
+          return;
+        }
+
+        const nodeDB = res.data;
+
+        setNodes((nds) =>
+          nds.concat({
+            id: nodeDB.id,
+            type: 'customNode',
+            position: { x: nodeDB.posX ?? basePos.x, y: nodeDB.posY ?? basePos.y },
+            sourcePosition: Position.Right,
+            targetPosition: Position.Left,
+            data: {
+              nodeDB,
+              workflowId,
+              user,
+              totalNodes: totalNodes + 1,
+              seguimientoNodes,
+            },
+          } satisfies Node<CustomNodeData>)
+        );
+
+        const edgeRes = await createWorkflowEdge({
+          workflowId,
+          sourceId,
+          targetId: nodeDB.id,
+          sourceHandle,
+          targetHandle: 'in',
+        });
+
+        if (edgeRes.success && edgeRes.edge) {
+          setEdges((eds) =>
+            eds.concat({
+              id: edgeRes.edge.id,
+              source: edgeRes.edge.sourceId,
+              target: edgeRes.edge.targetId,
+              sourceHandle: edgeRes.edge.sourceHandle ?? 'out',
+              targetHandle: edgeRes.edge.targetHandle ?? 'in',
+              type: 'customEdge',
+            })
+          );
+          lastEdgeTargetRef.current = nodeDB.id;
+          toast.success('Nodo creado y conectado', { id: toastId });
+        } else {
+          toast.info(edgeRes.message || 'Nodo creado, pero no se pudo conectar', {
+            id: toastId,
+          });
+        }
+      } catch (e) {
+        toast.error(e?.message ?? 'Error creando nodo', { id: toastId });
+      }
+    },
+    [workflowId, user, setNodes, setEdges, totalNodes, seguimientoNodes]
+  );
+
   // Drag over
   const onDragOver = useCallback((evt: React.DragEvent) => {
     evt.preventDefault();
@@ -461,6 +538,7 @@ export function WorkflowCanvas({
   );
 
   return (
+    <WorkflowAddNodeProvider value={addNodeFromSource}>
     <div ref={wrapperRef} className="w-full h-full max-h-[93vh]">
       <ReactFlow
         nodes={nodes}
@@ -529,5 +607,6 @@ export function WorkflowCanvas({
         </Panel>
       </ReactFlow>
     </div>
+    </WorkflowAddNodeProvider>
   );
 }
