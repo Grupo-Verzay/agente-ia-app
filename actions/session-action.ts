@@ -226,18 +226,22 @@ async function buildCrmFollowUpSummaryForSession(
 
 export async function getSessionsCountByUserId(userId: string) {
   try {
+    // Excluir sesiones fantasma por LID (@lid): son IDs de privacidad de WhatsApp,
+    // no teléfonos → aparecían como "Você" sin número. No cuentan como leads.
+    const baseWhere = { userId, NOT: { remoteJid: { endsWith: "@lid" } } };
+
     const total = await db.session.count({
-      where: { userId },
+      where: baseWhere,
     });
 
     const activeSession = await db.session.count({
-      where: { userId, status: true },
+      where: { ...baseWhere, status: true },
     });
 
     const inactiveSession = total - activeSession;
 
     const activeAgent = await db.session.count({
-      where: { userId, agentDisabled: false },
+      where: { ...baseWhere, agentDisabled: false },
     });
 
     const inactiveAgent = total - activeAgent;
@@ -280,6 +284,9 @@ export async function getSessionsByUserId(
     const sessions = await db.session.findMany({
       where: {
         userId,
+        // Ocultar sesiones fantasma por LID (@lid): ID de privacidad de WhatsApp
+        // sin teléfono real, se mostraban como "Você" sin número.
+        NOT: { remoteJid: { endsWith: "@lid" } },
         ...(status !== undefined && { status }),
         ...(agentDisabled !== undefined && { agentDisabled }),
       },
@@ -666,6 +673,8 @@ export async function searchSessionsByUserId(
     const sessions = await db.session.findMany({
       where: {
         userId,
+        // No mostrar sesiones fantasma por LID (@lid) tampoco en la búsqueda.
+        NOT: { remoteJid: { endsWith: "@lid" } },
         OR: [
           { pushName: { contains: query, mode: "insensitive" } },
           { remoteJid: { contains: query, mode: "insensitive" } },
@@ -774,9 +783,10 @@ export async function deleteAllSessions(userId: string): Promise<SessionsListRes
 
 /**
  * Limpia "leads basura" de la cuenta indicada: sesiones que no son un contacto
- * 1:1 real (grupos @g.us, difusiones/estados, newsletters o JIDs sin número
- * válido, que se mostraban como "+0" o "Você"). Acotado a la cuenta activa del
- * usuario. Las filas hijas se borran en cascada (FK onDelete: Cascade).
+ * 1:1 real (grupos @g.us, difusiones/estados, newsletters, JIDs @lid —IDs de
+ * privacidad de WhatsApp sin teléfono— o JIDs sin número válido, que se mostraban
+ * como "+0" o "Você"). Acotado a la cuenta activa del usuario. Las filas hijas se
+ * borran en cascada (FK onDelete: Cascade).
  */
 export async function cleanupJunkSessions(
   userId: string,
@@ -799,6 +809,7 @@ export async function cleanupJunkSessions(
           OR lower("remoteJid") LIKE '%@g.us'
           OR lower("remoteJid") LIKE '%broadcast%'
           OR lower("remoteJid") LIKE '%@newsletter'
+          OR lower("remoteJid") LIKE '%@lid'
           OR length(regexp_replace("remoteJid", '[^0-9]', '', 'g')) < 6
         )
     `;
