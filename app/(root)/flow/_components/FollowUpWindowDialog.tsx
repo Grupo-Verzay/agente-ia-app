@@ -193,7 +193,7 @@ export default function FollowUpWindowDialog() {
               </div>
 
               {canEdit && (
-                <div className="flex justify-end gap-2 pt-1">
+                <div className="flex justify-between gap-2 pt-1">
                   <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
                     Cancelar
                   </Button>
