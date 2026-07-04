@@ -131,6 +131,14 @@ export const seguimientoActions: Action[] = [
   { type: "seguimiento-audio", label: "Audio", icon: Music, iconClassName: `text-green-500` },
 ];
 
+// División visual de baseActions: NODOS (contenido/media) vs ACCIONES (lógica)
+export const nodeActions: Action[] = baseActions.filter((a) =>
+  ['text', 'image', 'video', 'document', 'audio'].includes(a.type)
+);
+export const accionActions: Action[] = baseActions.filter((a) =>
+  ['node_pause', 'nodo-notify', 'intention', 'guardar-ficha'].includes(a.type)
+);
+
 export const cardBaseActions: Action[] = [
   { type: "text", label: "Texto", icon: FileText, bg: "bg-gray-500", iconClassName: "h-4 w-4 text-white" },
   { type: "image", label: "Imagen", icon: ImageIcon, bg: "bg-blue-500", iconClassName: "h-4 w-4 text-white" },

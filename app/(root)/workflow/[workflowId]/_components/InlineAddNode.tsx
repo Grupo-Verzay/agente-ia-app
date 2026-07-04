@@ -10,9 +10,20 @@ import {
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Action, baseActions, seguimientoActions } from '@/types/workflow-node';
+import { Action, nodeActions, accionActions, seguimientoActions } from '@/types/workflow-node';
 import { MAX_NODES_PER_WORKFLOW, MAX_SEGUIMIENTOS_PER_WORKFLOW } from '@/types/workflow';
 import { useAddNode } from './WorkflowAddNodeContext';
+
+function SectionDivider({ label }: { label: string }) {
+    return (
+        <div className="flex items-center gap-2 px-1 pt-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {label}
+            </span>
+            <span className="h-px flex-1 bg-border/60" />
+        </div>
+    );
+}
 
 function ActionRow({
     action,
@@ -95,17 +106,17 @@ export function InlineAddNode({
                     {/* Cuerpo con scroll */}
                     <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pr-2">
                         <div className="flex flex-col gap-2">
-                            {baseActions.map((action) => (
+                            <SectionDivider label="Nodos" />
+                            {nodeActions.map((action) => (
                                 <ActionRow key={action.type} action={action} onPick={pick} />
                             ))}
 
-                            <div className="flex items-center gap-2 px-1 pt-2">
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                    Seguimientos
-                                </span>
-                                <span className="h-px flex-1 bg-border/60" />
-                            </div>
+                            <SectionDivider label="Acciones" />
+                            {accionActions.map((action) => (
+                                <ActionRow key={action.type} action={action} onPick={pick} />
+                            ))}
 
+                            <SectionDivider label="Seguimientos" />
                             {seguimientoActions.map((action) => (
                                 <ActionRow key={action.type} action={action} onPick={pick} seguimiento />
                             ))}

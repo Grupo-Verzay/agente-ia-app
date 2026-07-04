@@ -20,7 +20,7 @@ import {
 
 import { MAX_NODES_PER_WORKFLOW, MAX_SEGUIMIENTOS_PER_WORKFLOW } from '@/types/workflow';
 import type { Action, PropsWorkflowSidebar } from '@/types/workflow-node';
-import { baseActions, seguimientoActions } from '@/types/workflow-node';
+import { baseActions, nodeActions, accionActions, seguimientoActions } from '@/types/workflow-node';
 
 export function WorkflowSidebarTrigger() {
     const { toggleSidebar, open, openMobile, isMobile } = useSidebar();
@@ -35,6 +35,17 @@ export function WorkflowSidebarTrigger() {
         >
             {isOpen ? <X className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
         </Button>
+    );
+}
+
+function SidebarSectionLabel({ label }: { label: string }) {
+    return (
+        <div className="flex items-center gap-2 px-1 py-3">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {label}
+            </span>
+            <span className="h-px flex-1 bg-border/60" />
+        </div>
     );
 }
 
@@ -146,20 +157,23 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode }: 
 
             <SidebarContent className="px-2 pb-2 pt-0 gap-0">
                 <SidebarGroup className="p-0">
+                    <SidebarSectionLabel label="Nodos" />
                     <SidebarGroupContent className="flex flex-col gap-1">
-                        {filteredBase.map((action) => renderTile(action, reachedTotalLimit))}
+                        {nodeActions.map((action) => renderTile(action, reachedTotalLimit))}
                     </SidebarGroupContent>
                 </SidebarGroup>
 
                 <SidebarGroup className="p-0">
-                    <div className="flex items-center gap-2 px-1 py-3">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            Seguimientos
-                        </span>
-                        <span className="h-px flex-1 bg-border/60" />
-                    </div>
+                    <SidebarSectionLabel label="Acciones" />
                     <SidebarGroupContent className="flex flex-col gap-1">
-                        {filteredSeguimientos.map((action) =>
+                        {accionActions.map((action) => renderTile(action, reachedTotalLimit))}
+                    </SidebarGroupContent>
+                </SidebarGroup>
+
+                <SidebarGroup className="p-0">
+                    <SidebarSectionLabel label="Seguimientos" />
+                    <SidebarGroupContent className="flex flex-col gap-1">
+                        {seguimientoActions.map((action) =>
                             renderTile(action, reachedTotalLimit || reachedSeguimientoLimit, true)
                         )}
                     </SidebarGroupContent>
