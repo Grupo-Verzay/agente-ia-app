@@ -104,7 +104,7 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode }: 
         closeSidebar(); // se esconde al seleccionar para no ocupar espacio
     };
 
-    const renderTile = (action: Action, disabled: boolean) => {
+    const renderTile = (action: Action, disabled: boolean, seguimiento = false) => {
         const Icon = action.icon;
 
         return (
@@ -117,7 +117,11 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode }: 
                 onDragStart={(evt) => onDragStart(evt, action)}
                 onDragEnd={() => closeSidebar()}
                 onClick={() => onClickCreate(action)}
-                className="flex justify-start w-full"
+                className={`flex justify-start w-full ${
+                    seguimiento
+                        ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-950/50'
+                        : ''
+                }`}
             >
                 <Icon className={`h-4 w-4 ${action.iconClassName ?? ''}`} />
                 <span className="truncate">{action.label}</span>
@@ -138,29 +142,25 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode }: 
                     <span>{`Nodos: ${totalNodes}/${MAX_NODES_PER_WORKFLOW}`}</span>
                     <span>{`Seguimientos: ${seguimientoNodes}/${MAX_SEGUIMIENTOS_PER_WORKFLOW}`}</span>
                 </div>
-                <Input
-                    className="mt-3"
-                    placeholder="Buscar..."
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                />
             </SidebarHeader>
 
-            <SidebarSeparator />
-
-            <SidebarContent className="p-2 gap-2">
-                <SidebarGroup>
-                    <SidebarGroupLabel>Base</SidebarGroupLabel>
+            <SidebarContent className="px-2 pb-2 pt-0 gap-0">
+                <SidebarGroup className="p-0">
                     <SidebarGroupContent className="flex flex-col gap-1">
                         {filteredBase.map((action) => renderTile(action, reachedTotalLimit))}
                     </SidebarGroupContent>
                 </SidebarGroup>
 
-                <SidebarGroup>
-                    <SidebarGroupLabel>Seguimientos</SidebarGroupLabel>
+                <SidebarGroup className="p-0">
+                    <div className="flex items-center gap-2 px-1 py-3">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Seguimientos
+                        </span>
+                        <span className="h-px flex-1 bg-border/60" />
+                    </div>
                     <SidebarGroupContent className="flex flex-col gap-1">
                         {filteredSeguimientos.map((action) =>
-                            renderTile(action, reachedTotalLimit || reachedSeguimientoLimit)
+                            renderTile(action, reachedTotalLimit || reachedSeguimientoLimit, true)
                         )}
                     </SidebarGroupContent>
                 </SidebarGroup>
