@@ -591,9 +591,7 @@ export function WorkflowCanvas({
         <Controls fitViewOptions={{ padding: 0.28 }} />
         {/* <MiniMap /> */}
 
-        {/* Botón "Ordenar" oculto: ya no es necesario (el auto-ajuste al
-            soltar alinea los nodos). Se deja el código por si se retoma. */}
-        {/* <Panel position="top-center">
+        <Panel position="top-center">
           <Button
             onClick={handleAutoLayout}
             variant="outline"
@@ -604,7 +602,7 @@ export function WorkflowCanvas({
             <LayoutGrid className="h-4 w-4" />
             <span className="text-xs font-medium">Ordenar</span>
           </Button>
-        </Panel> */}
+        </Panel>
       </ReactFlow>
     </div>
     </WorkflowAddNodeProvider>
