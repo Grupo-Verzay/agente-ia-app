@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Trash2, Pencil, Copy, CheckCircle2, PhoneCall } from 'lucide-react';
+import { Loader2, Trash2, Pencil, Copy, CheckCircle2, PhoneCall, ShieldCheck } from 'lucide-react';
 import { FaFacebook, FaInstagram, FaWhatsapp } from 'react-icons/fa';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { deleteMetaInstance, enableMetaCalling, getMetaCallingStatus, getMetaDisplayPhone, updateMetaInstance } from '@/actions/instances-actions';
+import { deleteMetaInstance, enableMetaCalling, getMetaCallingStatus, getMetaDisplayPhone, registerMetaPhoneNumber, updateMetaInstance } from '@/actions/instances-actions';
 import { toast } from 'sonner';
 
 interface MetaInstanceCardProps {
@@ -64,8 +64,10 @@ export const MetaInstanceCard = ({
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [enablingCalls, setEnablingCalls] = useState(false);
+  const [registeringPhone, setRegisteringPhone] = useState(false);
   const [callsEnabled, setCallsEnabled] = useState(false);
   const [displayPhone, setDisplayPhone] = useState<string | null>(null);
+  const [pin, setPin] = useState('');
 
   const [draft, setDraft] = useState({
     phoneNumberId: phoneNumberId ?? '',
@@ -141,6 +143,14 @@ export const MetaInstanceCard = ({
     else toast.error(res.message);
   };
 
+  const handleRegisterPhone = async () => {
+    setRegisteringPhone(true);
+    const res = await registerMetaPhoneNumber({ instanceName, pin });
+    setRegisteringPhone(false);
+    if (res.success) toast.success(res.message);
+    else toast.error(res.message);
+  };
+
   return (
     <>
       <Card className="border-border flex h-full flex-col">
@@ -187,6 +197,33 @@ export const MetaInstanceCard = ({
               )}
             </div>
           </div>
+
+          {channel === 'whatsapp' && (
+            <div className="mt-4 space-y-2">
+              <Label className="text-xs text-muted-foreground">PIN de verificacion en dos pasos</Label>
+              <div className="flex gap-2">
+                <Input
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="Opcional"
+                  className="h-9"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 shrink-0 gap-2"
+                  onClick={handleRegisterPhone}
+                  disabled={registeringPhone}
+                  title="Registrar numero en Cloud API"
+                >
+                  {registeringPhone ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                  Registrar API
+                </Button>
+              </div>
+            </div>
+          )}
 
         </CardContent>
 
