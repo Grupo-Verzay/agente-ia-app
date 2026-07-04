@@ -39,6 +39,9 @@ export function WorkflowSidebarTrigger() {
 }
 
 export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode }: PropsWorkflowSidebar) {
+    const { setOpen, setOpenMobile, isMobile } = useSidebar();
+    const closeSidebar = () => (isMobile ? setOpenMobile(false) : setOpen(false));
+
     const [q, setQ] = useState('');
     const qLower = q.trim().toLowerCase();
 
@@ -98,6 +101,7 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode }: 
     const onClickCreate = (action: Action) => {
         if (!validateCanCreate(action)) return;
         onCreateNode(action);
+        closeSidebar(); // se esconde al seleccionar para no ocupar espacio
     };
 
     const renderTile = (action: Action, disabled: boolean) => {
@@ -111,6 +115,7 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode }: 
                 disabled={disabled}
                 draggable={!disabled}
                 onDragStart={(evt) => onDragStart(evt, action)}
+                onDragEnd={() => closeSidebar()}
                 onClick={() => onClickCreate(action)}
                 className="flex justify-start w-full"
             >

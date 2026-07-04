@@ -78,22 +78,34 @@ export function WorkflowCanvas({
   const initialNodes: Node<CustomNodeData>[] = useMemo(() => {
     const sorted = [...nodesDB].sort((a, b) => a.order - b.order);
 
-    // Todos los nodos en una sola fila horizontal, cada uno en su columna,
-    // en el orden del flujo. Así siempre queda uniforme y ninguno se monta.
-    return sorted.map((n, i) => ({
-      id: n.id,
-      type: 'customNode',
-      position: { x: i * COL_W, y: 0 },
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
-      data: {
-        nodeDB: n,
-        workflowId,
-        user,
-        totalNodes,
-        seguimientoNodes,
-      },
-    }));
+    // RESPETAMOS EL ARREGLO QUE YA TIENE cada nodo: usamos su posición
+    // guardada (ajustada a la cuadrícula para que quede alineada). NO se
+    // reordena el flujo. Solo los nodos nuevos sin posición se colocan en
+    // secuencia para que no nazcan encimados.
+    return sorted.map((n, i) => {
+      const rawX = n.posX ?? 0;
+      const rawY = n.posY ?? 0;
+      const hasPos = rawX !== 0 || rawY !== 0;
+
+      const position = hasPos
+        ? { x: snapMultiple(rawX, COL_W), y: Math.max(0, snapMultiple(rawY, ROW_H)) }
+        : { x: i * COL_W, y: 0 };
+
+      return {
+        id: n.id,
+        type: 'customNode',
+        position,
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+        data: {
+          nodeDB: n,
+          workflowId,
+          user,
+          totalNodes,
+          seguimientoNodes,
+        },
+      };
+    });
   }, [nodesDB, workflowId, user, totalNodes, seguimientoNodes]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -143,46 +155,43 @@ export function WorkflowCanvas({
   const nodeTypes: NodeTypes = useMemo(() => ({ customNode: CustomNode }), []);
   const edgeTypes = useMemo(() => ({ customEdge: CustomEdge }), []);
 
-  // Carriles (columnas) calculados a partir de la posición de los nodos.
+  // Encabezados por nodo: se dibujan ENCIMA de cada nodo siguiendo su
+  // posición real (no en columnas fijas), y separadores en los huecos.
   const lanes = useMemo(() => {
-    const cols = new Map<number, { hasSeg: boolean }>();
-    let maxRow = 0;
-
-    for (const n of nodes) {
-      const c = Math.max(0, Math.round(n.position.x / COL_W));
-      const r = Math.max(0, Math.round(n.position.y / ROW_H));
-      maxRow = Math.max(maxRow, r);
-      const cur = cols.get(c) ?? { hasSeg: false };
-      cur.hasSeg = cur.hasSeg || isSeguim(n.data?.nodeDB?.tipo);
-      cols.set(c, cur);
-    }
-
-    const maxCol = cols.size ? Math.max(...Array.from(cols.keys())) : 0;
-    const bandBottom = Math.max((maxRow + 1) * ROW_H + LANE_PAD, 900);
+    const sorted = [...nodes].sort((a, b) => a.position.x - b.position.x);
 
     let step = 0;
-    const list: { col: number; label: string; hasSeg: boolean }[] = [];
-    for (let c = 0; c <= maxCol; c++) {
-      const hasSeg = cols.get(c)?.hasSeg ?? false;
-      let label: string;
-      if (hasSeg) {
-        label = 'SEGUIMIENTOS';
-      } else {
-        step += 1;
-        label = `PASO ${step}`;
-      }
-      list.push({ col: c, label, hasSeg });
+    const headers = sorted.map((n) => {
+      const seg = isSeguim(n.data?.nodeDB?.tipo);
+      return {
+        id: n.id,
+        x: n.position.x,
+        y: n.position.y,
+        label: seg ? 'SEGUIMIENTOS' : `PASO ${++step}`,
+      };
+    });
+
+    // separador vertical en el hueco entre nodos consecutivos
+    const seps: number[] = [];
+    for (let i = 1; i < sorted.length; i++) {
+      const prevRight = sorted[i - 1].position.x + NODE_W;
+      const curLeft = sorted[i].position.x;
+      seps.push((prevRight + curLeft) / 2);
     }
 
-    return { list, bandBottom };
+    const topY = headers.length ? Math.min(...headers.map((h) => h.y)) - HEADER_H : -HEADER_H;
+
+    return { headers, seps, topY, height: 1000 };
   }, [nodes]);
 
   // Botón "Ordenar": realinea todo el flujo en horizontal y guarda posiciones.
   const handleAutoLayout = useCallback(async () => {
     const current = nodesRef.current;
+    // Respetamos el orden visual actual (por posición X); solo emparejamos
+    // el espaciado. No se reordena el flujo.
     const ordered = current
-      .map((n) => ({ id: n.id, order: n.data?.nodeDB?.order ?? 0 }))
-      .sort((a, b) => a.order - b.order);
+      .map((n) => ({ id: n.id, x: n.position.x, order: n.data?.nodeDB?.order ?? 0 }))
+      .sort((a, b) => (a.x !== b.x ? a.x - b.x : a.order - b.order));
 
     const next = new Map<string, { x: number; y: number }>();
     ordered.forEach((w, i) => next.set(w.id, { x: i * COL_W, y: 0 }));
@@ -243,16 +252,19 @@ export function WorkflowCanvas({
     return null;
   }, []);
 
+  // Siguiente posición libre a la DERECHA de todos los nodos (nunca encima).
+  const nextFreeX = useCallback(() => {
+    const xs = nodesRef.current.map((n) => n.position.x);
+    return xs.length ? Math.max(...xs) + COL_W : 0;
+  }, []);
+
   // FUNCIÓN ÚNICA DE CREACIÓN (la misma que usa drop y click)
   const createFromItem = useCallback(
-    async (item: PaletteItem, rawPos: { x: number; y: number }) => {
+    async (item: PaletteItem, _rawPos: { x: number; y: number }) => {
       const toastId = toast.loading('Creando nodo...');
 
-      // Ajustamos la posición de creación a la cuadrícula de carriles.
-      const pos = {
-        x: snapMultiple(rawPos.x, COL_W),
-        y: Math.max(0, snapMultiple(rawPos.y, ROW_H)),
-      };
+      // Siempre se crea a la derecha del flujo para que no se monte con otro.
+      const pos = { x: nextFreeX(), y: 0 };
 
       try {
         const res = await createNodeFromCanvas({
@@ -338,7 +350,7 @@ export function WorkflowCanvas({
         toast.error(e?.message ?? 'Error creando nodo', { id: toastId });
       }
     },
-    [workflowId, user, setNodes, setEdges, totalNodes, seguimientoNodes, pickAvailableSourceHandle]
+    [workflowId, user, setNodes, setEdges, totalNodes, seguimientoNodes, pickAvailableSourceHandle, nextFreeX]
   );
 
   // Crear un nodo desde el "+" de una salida concreta y conectarlo a ella.
@@ -347,10 +359,8 @@ export function WorkflowCanvas({
       const toastId = toast.loading('Creando nodo...');
 
       try {
-        const src = nodesRef.current.find((n) => n.id === sourceId);
-        const basePos = src
-          ? { x: src.position.x + COL_W, y: src.position.y }
-          : { x: 0, y: 0 };
+        // Siempre a la derecha del flujo, nunca encima de otro nodo.
+        const basePos = { x: nextFreeX(), y: 0 };
 
         const res = await createNodeFromCanvas({
           workflowId,
@@ -414,7 +424,7 @@ export function WorkflowCanvas({
         toast.error(e?.message ?? 'Error creando nodo', { id: toastId });
       }
     },
-    [workflowId, user, setNodes, setEdges, totalNodes, seguimientoNodes]
+    [workflowId, user, setNodes, setEdges, totalNodes, seguimientoNodes, nextFreeX]
   );
 
   // Drag over
@@ -568,26 +578,38 @@ export function WorkflowCanvas({
         <Controls />
         {/* <MiniMap /> */}
 
-        {/* Carriles / columnas (PASO 1, PASO 2… y SEGUIMIENTOS) */}
+        {/* Encabezados (PASO 1, PASO 2… / SEGUIMIENTOS) encima de cada nodo,
+            y separadores verticales en los huecos entre nodos. */}
         <ViewportPortal>
           <div style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
-            {lanes.list.map((l) => (
+            {/* separadores en los huecos */}
+            {lanes.seps.map((x, i) => (
               <div
-                key={l.col}
+                key={`sep-${i}`}
                 style={{
                   position: 'absolute',
-                  left: l.col * COL_W - LANE_PAD,
-                  top: -HEADER_H,
-                  width: COL_W,
-                  height: HEADER_H + lanes.bandBottom,
+                  left: x,
+                  top: lanes.topY,
+                  height: lanes.height,
                 }}
-                className="border-r border-dashed border-border/40"
+                className="border-l border-dashed border-border/40"
+              />
+            ))}
+
+            {/* encabezado encima de cada nodo */}
+            {lanes.headers.map((h) => (
+              <div
+                key={h.id}
+                style={{
+                  position: 'absolute',
+                  left: h.x + NODE_W / 2,
+                  top: h.y - HEADER_H,
+                  transform: 'translateX(-50%)',
+                }}
               >
-                <div className="flex justify-center pt-2">
-                  <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {l.label}
-                  </span>
-                </div>
+                <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground shadow-sm">
+                  {h.label}
+                </span>
               </div>
             ))}
           </div>
