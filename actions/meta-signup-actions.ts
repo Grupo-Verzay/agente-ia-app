@@ -97,7 +97,7 @@ async function exchangeCodeForToken(
       `${GRAPH}/oauth/access_token` +
       `?client_id=${encodeURIComponent(appId)}` +
       `&client_secret=${encodeURIComponent(secret)}` +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      (redirectUri ? `&redirect_uri=${encodeURIComponent(redirectUri)}` : '') +
       `&code=${encodeURIComponent(code)}`;
     try {
       const res = await fetch(url, { cache: 'no-store' });
