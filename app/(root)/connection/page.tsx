@@ -7,6 +7,7 @@ import { getApiKeyById } from "@/actions/api-action";
 import { fetchInstanceAction } from "@/actions/fetch-intance-action";
 import { getPromptsByUserId } from "@/actions/prompt-actions";
 import { ConnectionMain } from "./_components";
+import { CallLinkCard } from "./_components/CallLinkCard";
 import { BaileysInstanceCard } from "./_components/BaileysInstanceCard";
 import { MetaInstanceCard } from "./_components/MetaInstanceCard";
 import { MetaInstanceCreator } from "./_components/MetaInstanceCreator";
@@ -133,6 +134,7 @@ const Connection = async () => {
                 instanceType={"Whatsapp"}
                 prompts={instancesData["Whatsapp"].prompts}
             />
+            {(user as any).onCalls && <CallLinkCard />}
             {baileysInstances.map((inst) => (
                 <BaileysInstanceCard key={inst.instanceName} instanceName={inst.instanceName} />
             ))}
