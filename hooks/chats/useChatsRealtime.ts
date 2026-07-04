@@ -24,6 +24,12 @@ type UseChatsRealtimeOptions = {
   onChatChanged: (payload: ChatChangedPayload) => void;
   /** Permite desactivar la conexión (p. ej. mientras no hay chats cargados). */
   enabled?: boolean;
+  /**
+   * Se llama cuando el socket se conecta/desconecta. Permite al consumidor
+   * ajustar el polling de respaldo: relajado si el tiempo real está activo,
+   * más ágil si el socket está caído o no configurado.
+   */
+  onConnectedChange?: (connected: boolean) => void;
 };
 
 /**
@@ -34,17 +40,23 @@ type UseChatsRealtimeOptions = {
  * Se autoconfigura: pide token a /api/realtime/token. Si el realtime no está
  * habilitado por entorno, no hace nada y todo sigue funcionando con polling.
  */
-export function useChatsRealtime({ onChatChanged, enabled = true }: UseChatsRealtimeOptions) {
+export function useChatsRealtime({ onChatChanged, enabled = true, onConnectedChange }: UseChatsRealtimeOptions) {
   const handlerRef = useRef(onChatChanged);
   useEffect(() => {
     handlerRef.current = onChatChanged;
   }, [onChatChanged]);
+
+  const connectedRef = useRef(onConnectedChange);
+  useEffect(() => {
+    connectedRef.current = onConnectedChange;
+  }, [onConnectedChange]);
 
   useEffect(() => {
     if (!enabled) return;
 
     let socket: Socket | null = null;
     let cancelled = false;
+    const notifyConnected = (v: boolean) => connectedRef.current?.(v);
 
     const fetchToken = async (): Promise<{ url: string; token: string } | null> => {
       try {
@@ -71,6 +83,9 @@ export function useChatsRealtime({ onChatChanged, enabled = true }: UseChatsReal
         reconnectionDelayMax: 8000,
       });
 
+      socket.on("connect", () => notifyConnected(true));
+      socket.on("disconnect", () => notifyConnected(false));
+
       socket.on("chat:changed", (payload: ChatChangedPayload) => {
         if (payload?.remoteJid) handlerRef.current?.(payload);
       });
@@ -86,6 +101,9 @@ export function useChatsRealtime({ onChatChanged, enabled = true }: UseChatsReal
 
     return () => {
       cancelled = true;
+      notifyConnected(false);
+      socket?.off("connect");
+      socket?.off("disconnect");
       socket?.off("chat:changed");
       socket?.disconnect();
       socket = null;

@@ -74,6 +74,11 @@ const SELECTED_CHAT_POLLING_DELAY_MS = 2500;
 // socket mantiene la frescura; el polling queda como FALLBACK a 60s (antes 20s)
 // para reconciliar si el WebSocket se cae. Reduce mucho la carga a Evolution+BD.
 const LIST_SYNC_INTERVAL_MS = 60000;
+// Polling ADAPTATIVO: si el WebSocket de tiempo real está caído o no
+// configurado, usamos intervalos más ágiles para que igual se sienta en vivo.
+// Con el socket conectado se mantienen los intervalos relajados de arriba.
+const REALTIME_OFF_MSG_INTERVAL_MS = 6000;
+const REALTIME_OFF_LIST_INTERVAL_MS = 15000;
 
 type ChatMessageInfo = {
   total?: number;
@@ -331,6 +336,8 @@ export function ChatsClient({
   const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef(false);
   const backoffRef = useRef(0);
+  // ¿El WebSocket de tiempo real está conectado? Ajusta el polling de respaldo.
+  const realtimeConnectedRef = useRef(false);
   const messagesRef = useRef<EvolutionMessage[]>(initialMessages || []);
   const activeActionSetRef = useRef<InstanceActionSet | null>(null);
   const selectionRequestRef = useRef(0);
@@ -1342,10 +1349,14 @@ export function ChatsClient({
     const loop = async () => {
       if (stopped) return;
 
+      const listInterval = realtimeConnectedRef.current
+        ? LIST_SYNC_INTERVAL_MS
+        : REALTIME_OFF_LIST_INTERVAL_MS;
+
       // No refrescar la lista cuando la pestaña está en segundo plano:
       // evita golpear Evolution + BD + recálculo de UI sin que nadie lo vea.
       if (typeof document !== "undefined" && document.hidden) {
-        timer = setTimeout(loop, LIST_SYNC_INTERVAL_MS);
+        timer = setTimeout(loop, listInterval);
         return;
       }
 
@@ -1358,7 +1369,7 @@ export function ChatsClient({
         }
       }
 
-      timer = setTimeout(loop, LIST_SYNC_INTERVAL_MS);
+      timer = setTimeout(loop, listInterval);
     };
 
     if (normalizedInitialChatsResult.success) {
@@ -1392,7 +1403,8 @@ export function ChatsClient({
         }
       }
 
-      const wait = backoffRef.current > 0 ? backoffRef.current : BASE_INTERVAL;
+      const base = realtimeConnectedRef.current ? BASE_INTERVAL : REALTIME_OFF_MSG_INTERVAL_MS;
+      const wait = backoffRef.current > 0 ? backoffRef.current : base;
       pollingRef.current = setTimeout(() => void tick(), wait);
     };
 
@@ -1517,6 +1529,11 @@ export function ChatsClient({
 
   useChatsRealtime({
     enabled: normalizedInitialChatsResult.success,
+    onConnectedChange: (connected) => {
+      realtimeConnectedRef.current = connected;
+      // Al reconectar, reactiva el poll de inmediato para reconciliar rápido.
+      if (connected) backoffRef.current = 0;
+    },
     onChatChanged: (payload) => {
       const jid = payload.remoteJid;
       const isOpenChat =
