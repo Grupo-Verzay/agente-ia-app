@@ -16,7 +16,6 @@ import {
   MiniMap,
   Panel,
   Position,
-  ViewportPortal,
   OnNodeDrag,
   useEdgesState,
   useNodesState,
@@ -43,7 +42,7 @@ function clamp(n: number, min: number, max: number) {
 
 // ── Cuadrícula con carriles (layout horizontal) ─────────────────────────────
 const COL_W = 350; // ancho de cada carril / paso
-const ROW_H = 20; // paso fino de snap vertical (para apilar nodos con poco hueco)
+const ROW_H = 160; // paso estándar de snap vertical (hueco uniforme al apilar)
 const NODE_W = 320; // ancho aprox. de la tarjeta (para centrarla en el carril)
 const LANE_PAD = (COL_W - NODE_W) / 2; // margen lateral dentro del carril
 const HEADER_H = 52; // alto de la banda de encabezado (arriba de los nodos)
@@ -154,35 +153,6 @@ export function WorkflowCanvas({
   const isDark = mounted && resolvedTheme === 'dark';
   const nodeTypes: NodeTypes = useMemo(() => ({ customNode: CustomNode }), []);
   const edgeTypes = useMemo(() => ({ customEdge: CustomEdge }), []);
-
-  // Encabezados por nodo: se dibujan ENCIMA de cada nodo siguiendo su
-  // posición real (no en columnas fijas), y separadores en los huecos.
-  const lanes = useMemo(() => {
-    const sorted = [...nodes].sort((a, b) => a.position.x - b.position.x);
-
-    let step = 0;
-    const headers = sorted.map((n) => {
-      const seg = isSeguim(n.data?.nodeDB?.tipo);
-      return {
-        id: n.id,
-        x: n.position.x,
-        y: n.position.y,
-        label: seg ? 'SEGUIMIENTOS' : `PASO ${++step}`,
-      };
-    });
-
-    // separador vertical en el hueco entre nodos consecutivos
-    const seps: number[] = [];
-    for (let i = 1; i < sorted.length; i++) {
-      const prevRight = sorted[i - 1].position.x + NODE_W;
-      const curLeft = sorted[i].position.x;
-      seps.push((prevRight + curLeft) / 2);
-    }
-
-    const topY = headers.length ? Math.min(...headers.map((h) => h.y)) - HEADER_H : -HEADER_H;
-
-    return { headers, seps, topY, height: 1000 };
-  }, [nodes]);
 
   // Botón "Ordenar": realinea todo el flujo en horizontal y guarda posiciones.
   const handleAutoLayout = useCallback(async () => {
@@ -577,43 +547,6 @@ export function WorkflowCanvas({
         <Background />
         <Controls />
         {/* <MiniMap /> */}
-
-        {/* Encabezados (PASO 1, PASO 2… / SEGUIMIENTOS) encima de cada nodo,
-            y separadores verticales en los huecos entre nodos. */}
-        <ViewportPortal>
-          <div style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
-            {/* separadores en los huecos */}
-            {lanes.seps.map((x, i) => (
-              <div
-                key={`sep-${i}`}
-                style={{
-                  position: 'absolute',
-                  left: x,
-                  top: lanes.topY,
-                  height: lanes.height,
-                }}
-                className="border-l border-dashed border-border/40"
-              />
-            ))}
-
-            {/* encabezado encima de cada nodo */}
-            {lanes.headers.map((h) => (
-              <div
-                key={h.id}
-                style={{
-                  position: 'absolute',
-                  left: h.x + NODE_W / 2,
-                  top: h.y - HEADER_H,
-                  transform: 'translateX(-50%)',
-                }}
-              >
-                <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground shadow-sm">
-                  {h.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </ViewportPortal>
 
         <Panel position="top-center">
           <Button
