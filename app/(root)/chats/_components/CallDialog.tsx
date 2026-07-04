@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { startAstraCall, astraCallWebrtc, endAstraCall, logOutgoingCallAction } from '@/actions/astracalls-actions';
+import { endMetaWhatsAppCall, getMetaWhatsAppCallAnswer, startMetaWhatsAppCall } from '@/actions/meta-calls-actions';
 import { setCallDisposition } from '@/actions/calls-crm-actions';
 import { sendMissedOutgoingCallReply } from '@/actions/missed-call-reply-actions';
 import { processCallRecordingAction } from '@/actions/calls-recording-actions';
@@ -17,11 +18,13 @@ interface Props {
   /** Solo dígitos del número, ej. "573001234567" */
   phone: string;
   contactName?: string;
+  instanceType?: string;
+  instanceName?: string;
 }
 
 type CallState = 'connecting' | 'ringing' | 'in-call' | 'ended' | 'error';
 
-export function CallDialog({ open, onClose, phone, contactName }: Props) {
+export function CallDialog({ open, onClose, phone, contactName, instanceType, instanceName }: Props) {
   const [state, setState] = useState<CallState>('connecting');
   const [seconds, setSeconds] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
@@ -33,7 +36,7 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const micRef = useRef<MediaStream | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const callRef = useRef<{ sid: string; callId: string } | null>(null);
+  const callRef = useRef<{ provider: 'astra'; sid: string; callId: string } | { provider: 'meta'; callId: string } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const answerPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cancelledRef = useRef(false);
@@ -56,9 +59,11 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
 
   const hangup = useCallback(() => {
     const c = callRef.current;
-    if (c) { void endAstraCall(c.sid, c.callId); callRef.current = null; }
+    if (c?.provider === 'astra') void endAstraCall(c.sid, c.callId);
+    if (c?.provider === 'meta') void endMetaWhatsAppCall({ instanceName, callId: c.callId });
+    callRef.current = null;
     cleanup();
-  }, [cleanup]);
+  }, [cleanup, instanceName]);
 
   // Dispara la transcripción+resumen de la grabación. La grabación se finaliza
   // en el servidor al colgar, así que reintenta un par de veces con espera.
@@ -150,6 +155,111 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
     setMuted(false);
 
     // 1) Crear la llamada en AstraCalls
+    if (instanceType === 'meta') {
+      try {
+        const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (cancelledRef.current) { mic.getTracks().forEach((t) => t.stop()); return; }
+        micRef.current = mic;
+
+        const pc = new RTCPeerConnection({
+          iceServers: [
+            { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+          ],
+        });
+        pcRef.current = pc;
+        mic.getAudioTracks().forEach((t) => pc.addTrack(t, mic));
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+        pc.ontrack = (ev) => {
+          if (audioRef.current && ev.streams[0]) audioRef.current.srcObject = ev.streams[0];
+        };
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await new Promise<void>((resolve) => {
+          if (pc.iceGatheringState === 'complete') return resolve();
+          const to = setTimeout(resolve, 1200);
+          pc.addEventListener('icegatheringstatechange', () => {
+            if (pc.iceGatheringState === 'complete') {
+              clearTimeout(to);
+              resolve();
+            }
+          }, { once: true });
+        });
+
+        const started = await startMetaWhatsAppCall({
+          instanceName,
+          phone,
+          sdpOffer: pc.localDescription!.sdp,
+        });
+        if (cancelledRef.current) return;
+        if (!started.success || !started.callId) {
+          setErrorMsg(started.message || 'No se pudo iniciar la llamada por Meta.');
+          setState('error');
+          cleanup();
+          return;
+        }
+
+        callRef.current = { provider: 'meta', callId: started.callId };
+        setErrorMsg('Meta aceptó la solicitud. Falta conectar la respuesta del webhook para el audio.');
+        let sdpAnswer = '';
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+          if (cancelledRef.current) return;
+          const answer = await getMetaWhatsAppCallAnswer({
+            instanceName,
+            callId: started.callId,
+          });
+          if (answer.success && answer.sdpAnswer) {
+            sdpAnswer = answer.sdpAnswer;
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+
+        if (!sdpAnswer) {
+          setErrorMsg('Meta aceptó la llamada, pero no llegó la respuesta de audio.');
+          setState('error');
+          cleanup();
+          return;
+        }
+
+        await pc.setRemoteDescription({ type: 'answer', sdp: sdpAnswer });
+        setState('ringing');
+
+        answerPollRef.current = setInterval(() => {
+          const cur = pcRef.current;
+          if (!cur) return;
+          void cur.getStats().then((stats) => {
+            let answered = false;
+            stats.forEach((r: any) => {
+              if (r.type === 'inbound-rtp' && (r.kind === 'audio' || r.mediaType === 'audio') && (r.bytesReceived ?? 0) > 0) {
+                answered = true;
+              }
+            });
+            if (answered) {
+              if (answerPollRef.current) { clearInterval(answerPollRef.current); answerPollRef.current = null; }
+              setState('in-call');
+              secondsRef.current = 0;
+              setSeconds(0);
+              timerRef.current = setInterval(() => {
+                secondsRef.current += 1;
+                setSeconds(secondsRef.current);
+              }, 1000);
+            }
+          }).catch(() => { /* ignore */ });
+        }, 1000);
+      } catch (e: any) {
+        if (cancelledRef.current) return;
+        setErrorMsg(
+          e?.name === 'NotAllowedError'
+            ? 'Permiso de micrófono denegado. Actívalo para llamar.'
+            : (e?.message || 'Error iniciando llamada por Meta.'),
+        );
+        setState('error');
+        cleanup();
+      }
+      return;
+    }
+
     const started = await startAstraCall(`+${phone}`);
     if (cancelledRef.current) return;
     if (!started.success || !started.sid || !started.callId) {
@@ -157,7 +267,7 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
       setState('error');
       return;
     }
-    callRef.current = { sid: started.sid, callId: started.callId };
+    callRef.current = { provider: 'astra', sid: started.sid, callId: started.callId };
     astraMetaRef.current = { sid: started.sid, callId: started.callId };
 
     // 2) WebRTC: micrófono + oferta + intercambio SDP
@@ -243,7 +353,7 @@ export function CallDialog({ open, onClose, phone, contactName }: Props) {
       setState('error');
       cleanup();
     }
-  }, [phone, hangup, cleanup]);
+  }, [phone, instanceType, instanceName, hangup, cleanup]);
 
   useEffect(() => {
     if (!open) return;

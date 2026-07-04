@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Trash2, Pencil, Copy, CheckCircle2 } from 'lucide-react';
+import { Loader2, Trash2, Pencil, Copy, CheckCircle2, PhoneCall } from 'lucide-react';
 import { FaFacebook, FaInstagram, FaWhatsapp } from 'react-icons/fa';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -16,7 +17,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { deleteMetaInstance, updateMetaInstance } from '@/actions/instances-actions';
+import { deleteMetaInstance, enableMetaCalling, getMetaDisplayPhone, updateMetaInstance } from '@/actions/instances-actions';
 import { toast } from 'sonner';
 
 interface MetaInstanceCardProps {
@@ -62,6 +63,9 @@ export const MetaInstanceCard = ({
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [enablingCalls, setEnablingCalls] = useState(false);
+  const [callsEnabled, setCallsEnabled] = useState(false);
+  const [displayPhone, setDisplayPhone] = useState<string | null>(null);
 
   const [draft, setDraft] = useState({
     phoneNumberId: phoneNumberId ?? '',
@@ -74,6 +78,15 @@ export const MetaInstanceCard = ({
   const webhookUrl = typeof window !== 'undefined'
     ? `${window.location.origin.replace('3000', process.env.NEXT_PUBLIC_BACKEND_PORT ?? '3001')}/webhook/meta`
     : '/webhook/meta';
+
+  useEffect(() => {
+    if (channel !== 'whatsapp') return;
+    let mounted = true;
+    getMetaDisplayPhone(instanceName).then((res) => {
+      if (mounted && res.success && res.displayPhone) setDisplayPhone(res.displayPhone);
+    });
+    return () => { mounted = false; };
+  }, [channel, instanceName]);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -112,6 +125,17 @@ export const MetaInstanceCard = ({
     toast.success('URL del webhook copiada');
   };
 
+  const handleEnableCalls = async () => {
+    setEnablingCalls(true);
+    const res = await enableMetaCalling(instanceName);
+    setEnablingCalls(false);
+    if (res.success) {
+      setCallsEnabled(true);
+      toast.success(res.message);
+    }
+    else toast.error(res.message);
+  };
+
   return (
     <>
       <Card className="border-border flex h-full flex-col">
@@ -121,9 +145,26 @@ export const MetaInstanceCard = ({
               <ChannelIcon className={`w-5 h-5 shrink-0 ${iconColor}`} />
               <span className="truncate">{channelMeta.label}</span>
             </CardTitle>
-            <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)}>
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              {channel === 'whatsapp' && (
+                <Switch
+                  checked={callsEnabled}
+                  disabled={enablingCalls}
+                  onCheckedChange={(checked) => {
+                    if (checked) void handleEnableCalls();
+                  }}
+                />
+              )}
+              <Button
+                size="icon"
+                variant="destructive"
+                className="h-8 w-8"
+                onClick={() => setShowDeleteDialog(true)}
+                title="Eliminar instancia"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </CardHeader>
 
@@ -132,11 +173,30 @@ export const MetaInstanceCard = ({
             <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted ${iconColor}`}>
               <ChannelIcon className="h-5 w-5" />
             </div>
-            <p className="truncate text-sm font-medium">{instanceName}</p>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{instanceName}</p>
+              {channel === 'whatsapp' && (
+                <p className="truncate text-xs text-muted-foreground">
+                  {displayPhone || phoneNumberId || 'Consultando número...'}
+                </p>
+              )}
+            </div>
           </div>
+
         </CardContent>
 
         <CardFooter className="mt-auto grid grid-cols-2 gap-2">
+          {channel === 'whatsapp' && (
+            <button
+              type="button"
+              className="col-span-2 flex w-full items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+              onClick={handleEnableCalls}
+              disabled={enablingCalls}
+            >
+              {enablingCalls ? <Loader2 className="w-4 h-4 animate-spin" /> : <PhoneCall className="w-4 h-4" />}
+              {callsEnabled ? 'Llamadas activadas' : 'Activar llamadas'}
+            </button>
+          )}
           <Button
             className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
             onClick={() => router.refresh()}

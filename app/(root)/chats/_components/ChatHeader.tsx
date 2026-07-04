@@ -50,6 +50,8 @@ interface ChatHeaderProps {
   allTags: SimpleTag[];
   displayedContactName: string;
   displayedWhatsapp: string;
+  instanceType?: string;
+  instanceName?: string;
   remoteJid?: string;
   onBackToList: () => void;
   onOpenContactEditor: () => void;
@@ -78,6 +80,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   allTags,
   displayedContactName,
   displayedWhatsapp,
+  instanceType,
+  instanceName,
   remoteJid,
   onBackToList,
   onOpenContactEditor,
@@ -646,6 +650,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           onClose={() => setCallOpen(false)}
           phone={callDigits}
           contactName={displayedContactName}
+          instanceType={instanceType}
+          instanceName={instanceName}
         />
       )}
     </div>

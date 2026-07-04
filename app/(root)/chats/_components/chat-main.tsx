@@ -770,6 +770,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         allTags={allTags}
         displayedContactName={displayedContactName}
         displayedWhatsapp={displayedWhatsapp}
+        instanceType={instanceType}
+        instanceName={info?.instanceName}
         remoteJid={info?.remoteJid}
         onBackToList={onBackToList}
         onOpenContactEditor={() => setIsContactEditorOpen(true)}

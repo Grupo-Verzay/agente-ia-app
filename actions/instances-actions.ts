@@ -656,3 +656,80 @@ export async function updateMetaInstance(params: {
     return { success: false, message: 'Error al actualizar.' };
   }
 }
+
+export async function enableMetaCalling(instanceName: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const version = process.env.META_GRAPH_VERSION || process.env.NEXT_PUBLIC_META_GRAPH_VERSION || 'v25.0';
+    const inst: any = await db.instancia.findFirst({
+      where: { instanceName, instanceType: 'meta', metaChannel: 'whatsapp' } as any,
+      select: { metaPhoneNumberId: true, metaAccessToken: true } as any,
+    });
+
+    if (!inst?.metaPhoneNumberId || !inst?.metaAccessToken) {
+      return { success: false, message: 'Faltan credenciales de WhatsApp Cloud API.' };
+    }
+
+    const res = await fetch(
+      `https://graph.facebook.com/${version}/${encodeURIComponent(inst.metaPhoneNumberId)}/settings`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${inst.metaAccessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          calling: {
+            status: 'ENABLED',
+            call_icon_visibility: 'DEFAULT',
+            callback_permission_status: 'ENABLED',
+          },
+        }),
+        cache: 'no-store',
+      },
+    );
+
+    const json: any = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        success: false,
+        message: json?.error?.message || `Meta respondió ${res.status}.`,
+      };
+    }
+
+    return { success: true, message: 'Llamadas activadas en WhatsApp Cloud API.' };
+  } catch (error: any) {
+    console.error('[enableMetaCalling]', error);
+    return { success: false, message: error?.message || 'No se pudieron activar las llamadas.' };
+  }
+}
+
+export async function getMetaDisplayPhone(instanceName: string): Promise<{ success: boolean; displayPhone?: string; message?: string }> {
+  try {
+    const version = process.env.META_GRAPH_VERSION || process.env.NEXT_PUBLIC_META_GRAPH_VERSION || 'v25.0';
+    const inst: any = await db.instancia.findFirst({
+      where: { instanceName, instanceType: 'meta', metaChannel: 'whatsapp' } as any,
+      select: { metaPhoneNumberId: true, metaAccessToken: true } as any,
+    });
+
+    if (!inst?.metaPhoneNumberId || !inst?.metaAccessToken) {
+      return { success: false, message: 'Faltan credenciales de WhatsApp Cloud API.' };
+    }
+
+    const res = await fetch(
+      `https://graph.facebook.com/${version}/${encodeURIComponent(inst.metaPhoneNumberId)}?fields=display_phone_number`,
+      {
+        headers: { Authorization: `Bearer ${inst.metaAccessToken}` },
+        cache: 'no-store',
+      },
+    );
+    const json: any = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { success: false, message: json?.error?.message || `Meta respondió ${res.status}.` };
+    }
+
+    return { success: true, displayPhone: json?.display_phone_number };
+  } catch (error: any) {
+    console.error('[getMetaDisplayPhone]', error);
+    return { success: false, message: error?.message || 'No se pudo consultar el número.' };
+  }
+}
