@@ -14,7 +14,7 @@ export function WorkflowNodesSidebarTrigger() {
             onClick={toggleSidebar}
             title="Agregar nodo"
         >
-            {isOpen ? <X /> : <Plus />}
+            {isOpen ? <X className="h-6 w-6" strokeWidth={2.75} /> : <Plus className="h-6 w-6" strokeWidth={2.75} />}
         </Button>
     );
 }
