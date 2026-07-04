@@ -29,7 +29,10 @@ import {
   type NotificationCenterData,
   type NotificationKind,
 } from "@/actions/notification-center-actions";
-import { markCollabNotificationReadAction } from "@/actions/collab-actions";
+import {
+  getCollabNotificationsAction,
+  markCollabNotificationReadAction,
+} from "@/actions/collab-actions";
 import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
 import { cn } from "@/lib/utils";
 
@@ -135,6 +138,51 @@ export function NotificationCenter() {
   useEffect(() => {
     if (open) load();
   }, [load, open]);
+
+  // Poll LIGERO (solo BD, sin Evolution) de menciones/participantes cada 20s,
+  // para que la campanita se actualice casi al instante sin cargar el backend.
+  useEffect(() => {
+    let stop = false;
+    const poll = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      const res = await getCollabNotificationsAction();
+      if (stop || !res.success) return;
+      const dismissed = loadDismissed();
+      const fresh = res.data
+        .filter((n) => !n.read)
+        .map((n) => ({
+          id: `collab:${n.id}`,
+          kind: "mention" as const,
+          title:
+            n.type === "mention"
+              ? `${n.actorName || "Un asesor"} te mencionó en una nota`
+              : `${n.actorName || "Un asesor"} te agregó a una conversación`,
+          description: n.content,
+          href: n.remoteJid ? `/chats?jid=${encodeURIComponent(n.remoteJid)}` : "/chats",
+          date: n.createdAt,
+        }))
+        .filter((i) => !dismissed.has(i.id));
+
+      setData((prev) => {
+        const others = prev.items.filter((i) => i.kind !== "mention");
+        const items = [...fresh, ...others];
+        return {
+          items,
+          counts: { ...prev.counts, mention: fresh.length },
+          total: items.length,
+        };
+      });
+    };
+    void poll();
+    const id = window.setInterval(poll, 20000);
+    const onVis = () => { if (!document.hidden) void poll(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      stop = true;
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
 
   const dismiss = useCallback((id: string, kind: NotificationKind, href: string) => {
     saveDismissed(id);
