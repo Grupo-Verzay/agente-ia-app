@@ -15,13 +15,6 @@ import { InstagramInstanceCreator } from "./_components/InstagramInstanceCreator
 import { TelegramInstanceCreator } from "./_components/TelegramInstanceCreator";
 import { TelegramInstanceCard } from "./_components/TelegramInstanceCard";
 
-// Tipo de la respuesta esperada
-interface ActionResponse<T> {
-    success: boolean;
-    message: string;
-    data?: T;
-}
-
 // Adapta las funciones de tipo para manejar arrays
 function hasInstancias(result: { data?: Instancia[] | null }): result is { data: Instancia[] } {
     return !!result.data && result.data.length > 0;
@@ -41,7 +34,7 @@ const normalizeType = (t?: string | null): string => {
     return valid.includes(normalized) ? normalized : "Desconocido";
 };
 
-const Connection = async ({ searchParams }: SearchParamProps) => {
+const Connection = async () => {
     const user = await currentUser();
     if (!user) {
         redirect("/login");
@@ -132,7 +125,7 @@ const Connection = async ({ searchParams }: SearchParamProps) => {
 
     // Render principal
     return (
-        <div className="flex flex-1 flex-wrap gap-4 items-center justify-center">
+        <div className="grid w-full grid-cols-1 gap-2 p-4 lg:grid-cols-2 auto-rows-fr">
             <ConnectionMain
                 user={user}
                 instance={instancesData["Whatsapp"].instance}
