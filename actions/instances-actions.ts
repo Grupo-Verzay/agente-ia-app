@@ -733,3 +733,35 @@ export async function getMetaDisplayPhone(instanceName: string): Promise<{ succe
     return { success: false, message: error?.message || 'No se pudo consultar el número.' };
   }
 }
+
+export async function getMetaCallingStatus(instanceName: string): Promise<{ success: boolean; enabled?: boolean; message?: string }> {
+  try {
+    const version = process.env.META_GRAPH_VERSION || process.env.NEXT_PUBLIC_META_GRAPH_VERSION || 'v25.0';
+    const inst: any = await db.instancia.findFirst({
+      where: { instanceName, instanceType: 'meta', metaChannel: 'whatsapp' } as any,
+      select: { metaPhoneNumberId: true, metaAccessToken: true } as any,
+    });
+
+    if (!inst?.metaPhoneNumberId || !inst?.metaAccessToken) {
+      return { success: false, message: 'Faltan credenciales de WhatsApp Cloud API.' };
+    }
+
+    const res = await fetch(
+      `https://graph.facebook.com/${version}/${encodeURIComponent(inst.metaPhoneNumberId)}/settings`,
+      {
+        headers: { Authorization: `Bearer ${inst.metaAccessToken}` },
+        cache: 'no-store',
+      },
+    );
+    const json: any = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { success: false, message: json?.error?.message || `Meta respondió ${res.status}.` };
+    }
+
+    const calling = Array.isArray(json?.data) ? json.data[0]?.calling : json?.calling;
+    return { success: true, enabled: calling?.status === 'ENABLED' };
+  } catch (error: any) {
+    console.error('[getMetaCallingStatus]', error);
+    return { success: false, message: error?.message || 'No se pudo consultar el estado de llamadas.' };
+  }
+}

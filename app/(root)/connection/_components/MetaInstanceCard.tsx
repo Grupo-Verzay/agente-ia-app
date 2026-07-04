@@ -17,7 +17,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { deleteMetaInstance, enableMetaCalling, getMetaDisplayPhone, updateMetaInstance } from '@/actions/instances-actions';
+import { deleteMetaInstance, enableMetaCalling, getMetaCallingStatus, getMetaDisplayPhone, updateMetaInstance } from '@/actions/instances-actions';
 import { toast } from 'sonner';
 
 interface MetaInstanceCardProps {
@@ -82,8 +82,13 @@ export const MetaInstanceCard = ({
   useEffect(() => {
     if (channel !== 'whatsapp') return;
     let mounted = true;
-    getMetaDisplayPhone(instanceName).then((res) => {
-      if (mounted && res.success && res.displayPhone) setDisplayPhone(res.displayPhone);
+    Promise.all([
+      getMetaDisplayPhone(instanceName),
+      getMetaCallingStatus(instanceName),
+    ]).then(([phoneRes, callingRes]) => {
+      if (!mounted) return;
+      if (phoneRes.success && phoneRes.displayPhone) setDisplayPhone(phoneRes.displayPhone);
+      if (callingRes.success) setCallsEnabled(Boolean(callingRes.enabled));
     });
     return () => { mounted = false; };
   }, [channel, instanceName]);
