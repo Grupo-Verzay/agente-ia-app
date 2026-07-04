@@ -67,7 +67,7 @@ export function InlineAddNode({
                 <button
                     type="button"
                     onClick={(e) => e.stopPropagation()}
-                    className="nodrag nopan flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-all hover:scale-110 hover:bg-primary/90"
+                    className="nodrag nopan flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-md transition-all hover:scale-110 hover:bg-primary/90"
                     title="Agregar acción"
                 >
                     <Plus className="h-5 w-5" />
