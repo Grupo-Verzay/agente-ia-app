@@ -100,6 +100,143 @@ const SendingMessageSkeleton: React.FC<{ tempMessage: UIBubble }> = ({ tempMessa
   );
 };
 
+/* ─── Fila memoizada ───
+ * Cada mensaje se aísla en su propia fila memoizada para que, al llegar un
+ * mensaje nuevo (o en cada poll), NO se re-dibujen todas las burbujas visibles
+ * —solo la que realmente cambió—. Antes se re-renderizaba toda la lista y eso
+ * generaba lag al llegar mensajes y al pintar sus íconos.
+ */
+interface MessageRowProps {
+  message: UIBubble;
+  advisorName?: string;
+  callPhone?: string;
+  callContactName?: string;
+  isSearchMatch: boolean;
+  isActiveSearchMatch: boolean;
+  onSetReplyTo?: (bubble: UIBubble) => void;
+  onCopyMessage?: (bubble: UIBubble) => void;
+  onReactMessage?: (bubble: UIBubble, emoji: string) => void;
+  onDeleteMessage?: (bubble: UIBubble) => void;
+  onDeleteNote?: (noteId: number) => Promise<void>;
+}
+
+const MessageRowBase: React.FC<MessageRowProps> = ({
+  message,
+  advisorName,
+  callPhone,
+  callContactName,
+  isSearchMatch,
+  isActiveSearchMatch,
+  onSetReplyTo,
+  onCopyMessage,
+  onReactMessage,
+  onDeleteMessage,
+  onDeleteNote,
+}) => {
+  const wrapperClass = cn(
+    'rounded-xl transition-all duration-200',
+    isSearchMatch && 'bg-amber-200/20',
+    isActiveSearchMatch && 'ring-2 ring-amber-400 ring-offset-2 ring-offset-transparent',
+  );
+
+  return (
+    <div
+      data-message-id={message.id}
+      data-search-active={isActiveSearchMatch ? 'true' : undefined}
+      className={wrapperClass}
+    >
+      {message.status === 'sending' ? (
+        <SendingMessageSkeleton tempMessage={message} />
+      ) : message.isNote ? (
+        <InternalNoteBubble
+          content={message.content}
+          authorName={message.noteAuthorName ?? null}
+          authorEmail={message.noteAuthorEmail ?? ''}
+          timestamp={message.ts ? new Date(message.ts).toISOString() : new Date().toISOString()}
+          isOwn={message.sender === 'user'}
+          onDelete={
+            message.noteId !== undefined && onDeleteNote
+              ? () => void onDeleteNote(message.noteId!)
+              : undefined
+          }
+        />
+      ) : (
+        <MessageBubble
+          message={message.content}
+          isUserMessage={message.sender === 'user'}
+          sentByAi={message.sentByAi}
+          senderName={message.sender === 'user' ? (message.sentByAi ? 'Agente IA' : advisorName) : undefined}
+          avatarSrc={message.avatarSrc}
+          timestamp={message.ts}
+          media={message.media}
+          status={message.status}
+          kind={message.kind}
+          call={message.call}
+          reaction={message.reaction}
+          callPhone={callPhone}
+          callContactName={callContactName}
+          quotedMessage={message.quotedMessage}
+          adPreview={message.adPreview}
+          onReply={onSetReplyTo ? () => onSetReplyTo(message) : undefined}
+          onCopy={onCopyMessage ? () => onCopyMessage(message) : undefined}
+          onReact={onReactMessage ? (emoji) => onReactMessage(message, emoji) : undefined}
+          onDelete={onDeleteMessage ? () => onDeleteMessage(message) : undefined}
+        />
+      )}
+    </div>
+  );
+};
+
+function areMessageRowsEqual(prev: MessageRowProps, next: MessageRowProps) {
+  if (
+    prev.onSetReplyTo !== next.onSetReplyTo ||
+    prev.onCopyMessage !== next.onCopyMessage ||
+    prev.onReactMessage !== next.onReactMessage ||
+    prev.onDeleteMessage !== next.onDeleteMessage ||
+    prev.onDeleteNote !== next.onDeleteNote ||
+    prev.advisorName !== next.advisorName ||
+    prev.callPhone !== next.callPhone ||
+    prev.callContactName !== next.callContactName ||
+    prev.isSearchMatch !== next.isSearchMatch ||
+    prev.isActiveSearchMatch !== next.isActiveSearchMatch
+  ) {
+    return false;
+  }
+
+  const a = prev.message;
+  const b = next.message;
+  if (a === b) return true;
+
+  // Conservador: si la burbuja tiene contenido complejo (media, llamada, cita
+  // o anuncio), re-renderizamos por seguridad para nunca mostrar algo viejo.
+  if (
+    a.media || b.media ||
+    a.call || b.call ||
+    a.quotedMessage || b.quotedMessage ||
+    a.adPreview || b.adPreview
+  ) {
+    return false;
+  }
+
+  return (
+    a.id === b.id &&
+    a.content === b.content &&
+    a.ts === b.ts &&
+    a.status === b.status &&
+    a.sender === b.sender &&
+    a.kind === b.kind &&
+    a.reaction === b.reaction &&
+    a.sentByAi === b.sentByAi &&
+    a.avatarSrc === b.avatarSrc &&
+    a.isNote === b.isNote &&
+    a.noteId === b.noteId &&
+    a.noteAuthorName === b.noteAuthorName &&
+    a.noteAuthorEmail === b.noteAuthorEmail
+  );
+}
+
+const MessageRow = React.memo(MessageRowBase, areMessageRowsEqual);
+
 /* Lista principal */
 interface ChatMessageListProps {
   uiMessages: UIBubble[];
@@ -278,60 +415,21 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
             return <ConversationDateBadge key={item.id} label={item.label} />;
           }
 
-          const isSearchMatch = searchMatchIds?.has(item.message.id) ?? false;
-          const isActiveSearchMatch = activeSearchMessageId === item.message.id;
-          const wrapperClass = cn(
-            'rounded-xl transition-all duration-200',
-            isSearchMatch && 'bg-amber-200/20',
-            isActiveSearchMatch && 'ring-2 ring-amber-400 ring-offset-2 ring-offset-transparent',
-          );
-
           return (
-            <div
+            <MessageRow
               key={item.id}
-              data-message-id={item.message.id}
-              data-search-active={isActiveSearchMatch ? 'true' : undefined}
-              className={wrapperClass}
-            >
-              {item.message.status === 'sending' ? (
-                <SendingMessageSkeleton tempMessage={item.message} />
-              ) : item.message.isNote ? (
-                <InternalNoteBubble
-                  content={item.message.content}
-                  authorName={item.message.noteAuthorName ?? null}
-                  authorEmail={item.message.noteAuthorEmail ?? ''}
-                  timestamp={item.message.ts ? new Date(item.message.ts).toISOString() : new Date().toISOString()}
-                  isOwn={item.message.sender === 'user'}
-                  onDelete={
-                    item.message.noteId !== undefined && onDeleteNote
-                      ? () => void onDeleteNote(item.message.noteId!)
-                      : undefined
-                  }
-                />
-              ) : (
-                <MessageBubble
-                  message={item.message.content}
-                  isUserMessage={item.message.sender === 'user'}
-                  sentByAi={item.message.sentByAi}
-                  senderName={item.message.sender === 'user' ? (item.message.sentByAi ? 'Agente IA' : advisorName) : undefined}
-                  avatarSrc={item.message.avatarSrc}
-                  timestamp={item.message.ts}
-                  media={item.message.media}
-                  status={item.message.status}
-                  kind={item.message.kind}
-                  call={item.message.call}
-                  reaction={item.message.reaction}
-                  callPhone={callPhone}
-                  callContactName={callContactName}
-                  quotedMessage={item.message.quotedMessage}
-                  adPreview={item.message.adPreview}
-                  onReply={onSetReplyTo ? () => onSetReplyTo(item.message) : undefined}
-                  onCopy={onCopyMessage ? () => onCopyMessage(item.message) : undefined}
-                  onReact={onReactMessage ? (emoji) => onReactMessage(item.message, emoji) : undefined}
-                  onDelete={onDeleteMessage ? () => onDeleteMessage(item.message) : undefined}
-                />
-              )}
-            </div>
+              message={item.message}
+              advisorName={advisorName}
+              callPhone={callPhone}
+              callContactName={callContactName}
+              isSearchMatch={searchMatchIds?.has(item.message.id) ?? false}
+              isActiveSearchMatch={activeSearchMessageId === item.message.id}
+              onSetReplyTo={onSetReplyTo}
+              onCopyMessage={onCopyMessage}
+              onReactMessage={onReactMessage}
+              onDeleteMessage={onDeleteMessage}
+              onDeleteNote={onDeleteNote}
+            />
           );
         })}
         {virtualMetrics.afterHeight > 0 && (
