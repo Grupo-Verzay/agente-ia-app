@@ -18,84 +18,61 @@ import {
 } from '@/actions/meta-signup-actions';
 import { toast } from 'sonner';
 
-/**
- * Botón "Conectar con Facebook" que ejecuta el Embedded Signup oficial de Meta
- * (WhatsApp Cloud API en COEXISTENCIA). Automatiza lo que antes se pegaba a mano:
- * el usuario aprueba en el popup de Meta y nosotros recibimos el número + WABA +
- * un `code` que el servidor cambia por un token permanente.
- *
- * Requiere en el entorno:
- *   - NEXT_PUBLIC_META_APP_ID     (App ID de tu app de Meta)
- *   - NEXT_PUBLIC_META_CONFIG_ID  (ID de la configuración de Embedded Signup)
- * Mientras no existan, el botón se muestra deshabilitado con una nota.
- */
-
-declare global {
-  interface Window {
-    FB?: any;
-    fbAsyncInit?: () => void;
-  }
-}
-
 const APP_ID = process.env.NEXT_PUBLIC_META_APP_ID;
 const CONFIG_ID = process.env.NEXT_PUBLIC_META_CONFIG_ID;
 const GRAPH_VERSION = process.env.NEXT_PUBLIC_META_GRAPH_VERSION || 'v21.0';
-// 'whatsapp_business_app_onboarding' = coexistencia (app + API en el mismo número).
 const FEATURE_TYPE =
   process.env.NEXT_PUBLIC_META_FEATURE_TYPE || 'whatsapp_business_app_onboarding';
 
-let sdkPromise: Promise<void> | null = null;
-
-/**
- * Devuelve el redirect_uri REAL que usa el SDK de JS: la URL del iframe "xd_arbiter"
- * que Facebook inyecta, SIN el fragmento (#...) porque el navegador no lo envía y
- * Meta lo ignora al validar. Es el valor que debe usarse al intercambiar el code.
- */
-function getFbChannelRedirect(): string | undefined {
-  if (typeof document === 'undefined') return undefined;
-  try {
-    const iframe = document.querySelector(
-      'iframe[src*="xd_arbiter"]',
-    ) as HTMLIFrameElement | null;
-    return iframe?.src ? iframe.src.split('#')[0] : undefined;
-  } catch {
-    return undefined;
-  }
+function openCenteredPopup(url: string, name: string) {
+  const width = 760;
+  const height = 760;
+  const left = Math.max(0, window.screenX + (window.outerWidth - width) / 2);
+  const top = Math.max(0, window.screenY + (window.outerHeight - height) / 2);
+  return window.open(
+    url,
+    name,
+    `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`,
+  );
 }
 
-/** Carga el SDK de Facebook una sola vez y resuelve cuando window.FB está listo. */
-function loadFacebookSdk(): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve();
-  if (window.FB) return Promise.resolve();
-  if (sdkPromise) return sdkPromise;
-
-  sdkPromise = new Promise<void>((resolve, reject) => {
-    if (!APP_ID) {
-      reject(new Error('APP_ID no configurado'));
-      return;
-    }
-    window.fbAsyncInit = () => {
-      window.FB.init({
-        appId: APP_ID,
-        cookie: true,
-        xfbml: false,
-        version: GRAPH_VERSION,
-      });
-      resolve();
-    };
-    const id = 'facebook-jssdk';
-    if (document.getElementById(id)) return; // ya se está cargando
-    const js = document.createElement('script');
-    js.id = id;
-    js.src = 'https://connect.facebook.net/en_US/sdk.js';
-    js.async = true;
-    js.defer = true;
-    js.crossOrigin = 'anonymous';
-    js.onerror = () => reject(new Error('No se pudo cargar el SDK de Facebook'));
-    document.body.appendChild(js);
+function waitForOAuthCode(popup: Window, expectedState: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      if (popup.closed) {
+        window.clearInterval(timer);
+        reject(new Error('Conexion cancelada.'));
+        return;
+      }
+      if (Date.now() - startedAt > 5 * 60 * 1000) {
+        window.clearInterval(timer);
+        popup.close();
+        reject(new Error('La conexion tardo demasiado. Intenta de nuevo.'));
+        return;
+      }
+      try {
+        const url = new URL(popup.location.href);
+        if (url.origin !== window.location.origin) return;
+        const error = url.searchParams.get('error_description') || url.searchParams.get('error');
+        if (error) {
+          window.clearInterval(timer);
+          popup.close();
+          reject(new Error(error));
+          return;
+        }
+        const state = url.searchParams.get('state');
+        const code = url.searchParams.get('code');
+        if (state === expectedState && code) {
+          window.clearInterval(timer);
+          popup.close();
+          resolve(code);
+        }
+      } catch {
+        // Mientras el popup esta en facebook.com no se puede leer su URL.
+      }
+    }, 500);
   });
-
-  return sdkPromise;
 }
 
 interface MetaEmbeddedSignupProps {
@@ -103,13 +80,7 @@ interface MetaEmbeddedSignupProps {
   instanceName: string;
   className?: string;
   onConnected?: () => void;
-  /**
-   * 'coexistence' (por defecto) → onboarding en coexistencia (app + API en el
-   * mismo número). 'api' → onboarding estándar de Cloud API (número dedicado),
-   * omite el featureType de coexistencia.
-   */
   mode?: 'coexistence' | 'api';
-  /** Texto del botón (por defecto "Conectar con Facebook"). */
   label?: string;
 }
 
@@ -122,9 +93,7 @@ export function MetaEmbeddedSignup({
   label,
 }: MetaEmbeddedSignupProps) {
   const [loading, setLoading] = useState(false);
-  // Datos que llegan por el evento `message` (antes que el callback del código).
   const sessionInfo = useRef<{ phoneNumberId?: string; wabaId?: string }>({});
-  // Selector de número (cuando el usuario autorizó varias cuentas/números).
   const [picker, setPicker] = useState<{
     numbers: MetaNumberOption[];
     instanceDbId: string;
@@ -134,7 +103,6 @@ export function MetaEmbeddedSignup({
 
   const configured = Boolean(APP_ID && CONFIG_ID);
 
-  // Escucha el evento WA_EMBEDDED_SIGNUP que trae phone_number_id + waba_id.
   useEffect(() => {
     if (!configured) return;
     const onMessage = (event: MessageEvent) => {
@@ -146,8 +114,6 @@ export function MetaEmbeddedSignup({
       }
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        // Capturamos los IDs de CUALQUIER evento WA_EMBEDDED_SIGNUP que los traiga
-        // (FINISH, FINISH_ONLY_WABA, onboarding de coexistencia, etc.), no solo FINISH.
         if (data?.type === 'WA_EMBEDDED_SIGNUP') {
           const d = data.data ?? {};
           if (d.phone_number_id || d.waba_id) {
@@ -158,95 +124,93 @@ export function MetaEmbeddedSignup({
           }
         }
       } catch {
-        // no era un mensaje del Embedded Signup; ignorar.
+        // Ignorar mensajes que no sean del Embedded Signup.
       }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, [configured]);
 
+  const handleConnected = useCallback(
+    (res: Awaited<ReturnType<typeof exchangeMetaSignup>>, hadEventNumber: boolean) => {
+      if (!res.success) {
+        toast.error(res.message);
+        return;
+      }
+      if (!hadEventNumber && (res.numbers?.length ?? 0) > 1 && res.instanceDbId) {
+        setPicker({
+          numbers: res.numbers!,
+          instanceDbId: res.instanceDbId,
+          selectedId: res.phoneNumberId ?? res.numbers![0].phoneNumberId,
+        });
+        return;
+      }
+      toast.success(res.message);
+      onConnected?.();
+    },
+    [onConnected],
+  );
+
   const handleClick = useCallback(async () => {
-    if (!configured) {
-      toast.error('La conexión oficial aún no está configurada (falta App ID / Config ID).');
+    if (!configured || !APP_ID || !CONFIG_ID) {
+      toast.error('La conexion oficial aun no esta configurada (falta App ID / Config ID).');
       return;
     }
+
     setLoading(true);
     sessionInfo.current = {};
-    try {
-      await loadFacebookSdk();
-    } catch {
+
+    const redirectUri = window.location.origin + window.location.pathname;
+    const state =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const extras = {
+      setup: {},
+      ...(mode === 'coexistence' ? { featureType: FEATURE_TYPE } : {}),
+      sessionInfoVersion: '3',
+    };
+    const params = new URLSearchParams({
+      client_id: APP_ID,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      config_id: CONFIG_ID,
+      state,
+      override_default_response_type: 'true',
+      extras: JSON.stringify(extras),
+    });
+    const popup = openCenteredPopup(
+      `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${params.toString()}`,
+      'meta-embedded-signup',
+    );
+
+    if (!popup) {
       setLoading(false);
-      toast.error('No se pudo cargar el SDK de Meta. Revisa tu conexión.');
+      toast.error('El navegador bloqueo la ventana de Meta. Permite popups e intenta de nuevo.');
       return;
     }
 
-    // OJO: FB.login NO acepta un callback `async` (lanza
-    // "Expression is of type asyncfunction, not function"). Debe ser una función
-    // normal; el trabajo asíncrono va dentro de una IIFE con su propio try/finally
-    // para que `loading` siempre se resetee aunque el server action falle.
-    window.FB.login(
-      (response: any) => {
-        void (async () => {
-          try {
-            const code = response?.authResponse?.code;
-            if (!code) {
-              toast.error('Conexión cancelada.');
-              return;
-            }
-            // phoneNumberId puede venir vacío si el evento WA_EMBEDDED_SIGNUP no
-            // llegó; en ese caso el servidor lo descubre con el token. No abortamos.
-            const { phoneNumberId, wabaId } = sessionInfo.current;
-            const hadEventNumber = Boolean(phoneNumberId);
-            const res = await exchangeMetaSignup({
-              code,
-              userId,
-              phoneNumberId: phoneNumberId ?? '',
-              wabaId: wabaId ?? '',
-              instanceName,
-              // URL de la página (sin query/hash): candidato de redirect_uri.
-              redirectUri: window.location.origin + window.location.pathname,
-              // redirect_uri REAL del SDK (iframe xd_arbiter): candidato principal.
-              channelRedirectUri: getFbChannelRedirect(),
-            });
-            if (!res.success) {
-              toast.error(res.message);
-              return;
-            }
-            // Si el usuario NO eligió número en el popup y hay varios disponibles,
-            // abrimos el selector para que escoja cuál conectar (evita tomar el
-            // equivocado). Si solo hay uno, o ya vino del evento, se conecta directo.
-            if (!hadEventNumber && (res.numbers?.length ?? 0) > 1 && res.instanceDbId) {
-              setPicker({
-                numbers: res.numbers!,
-                instanceDbId: res.instanceDbId,
-                selectedId: res.phoneNumberId ?? res.numbers![0].phoneNumberId,
-              });
-            } else {
-              toast.success(res.message);
-              onConnected?.();
-            }
-          } catch {
-            toast.error('Error al conectar con Meta. Intenta de nuevo.');
-          } finally {
-            setLoading(false);
-          }
-        })();
-      },
-      {
-        config_id: CONFIG_ID,
-        response_type: 'code',
-        override_default_response_type: true,
-        extras: {
-          setup: {},
-          // Solo en coexistencia se pasa el featureType de onboarding de la app.
-          ...(mode === 'coexistence' ? { featureType: FEATURE_TYPE } : {}),
-          sessionInfoVersion: '3',
-        },
-      },
-    );
-  }, [configured, userId, instanceName, onConnected, mode]);
+    try {
+      const code = await waitForOAuthCode(popup, state);
+      const { phoneNumberId, wabaId } = sessionInfo.current;
+      const hadEventNumber = Boolean(phoneNumberId);
+      const res = await exchangeMetaSignup({
+        code,
+        userId,
+        phoneNumberId: phoneNumberId ?? '',
+        wabaId: wabaId ?? '',
+        instanceName,
+        redirectUri,
+      });
+      handleConnected(res, hadEventNumber);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error al conectar con Meta.';
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [configured, handleConnected, instanceName, mode, userId]);
 
-  // Confirma el número elegido en el selector (cambia la instancia al número escogido).
   const confirmNumber = useCallback(async () => {
     if (!picker) return;
     const chosen = picker.numbers.find((n) => n.phoneNumberId === picker.selectedId);
@@ -275,17 +239,16 @@ export function MetaEmbeddedSignup({
         className={className ?? 'w-full gap-2 bg-[#1877F2] text-white hover:bg-[#166FE5]'}
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FaFacebook className="h-4 w-4" />}
-        {loading ? 'Conectando…' : (label ?? 'Conectar con Facebook')}
+        {loading ? 'Conectando...' : (label ?? 'Conectar con Facebook')}
       </Button>
 
-      {/* Selector: aparece cuando el usuario autorizó varios números. */}
       <Dialog open={Boolean(picker)} onOpenChange={(o) => !o && !selecting && setPicker(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Elige el número a conectar</DialogTitle>
+            <DialogTitle>Elige el numero a conectar</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Autorizaste varias cuentas. Selecciona el número de WhatsApp que quieres usar por la
+            Autorizaste varias cuentas. Selecciona el numero de WhatsApp que quieres usar por la
             API oficial.
           </p>
           <div className="max-h-[320px] space-y-2 overflow-y-auto py-2">
@@ -330,7 +293,7 @@ export function MetaEmbeddedSignup({
               className="bg-[#1877F2] text-white hover:bg-[#166FE5]"
             >
               {selecting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-              Conectar este número
+              Conectar este numero
             </Button>
           </DialogFooter>
         </DialogContent>
