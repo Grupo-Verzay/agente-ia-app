@@ -7,8 +7,10 @@ export const SourceDotHandle = (props: {
     label: string;
     active: boolean;
     connectableStart: boolean;
+    totalNodes: number;
+    seguimientoNodes: number;
 }) => {
-    const { id, topPct, label, active, connectableStart } = props;
+    const { id, topPct, label, active, connectableStart, totalNodes, seguimientoNodes } = props;
 
     const nodeId = useNodeId();
     const connections = useNodeConnections({ handleType: "source", handleId: id });
@@ -55,8 +57,13 @@ export const SourceDotHandle = (props: {
             ) : null}
 
             {isFree && nodeId ? (
-                <div className="absolute left-6 top-1/2 -translate-y-1/2">
-                    <InlineAddNode sourceId={nodeId} sourceHandle={id} />
+                <div className="absolute left-10 top-1/2 -translate-y-1/2">
+                    <InlineAddNode
+                        sourceId={nodeId}
+                        sourceHandle={id}
+                        totalNodes={totalNodes}
+                        seguimientoNodes={seguimientoNodes}
+                    />
                 </div>
             ) : null}
         </div>

@@ -133,9 +133,9 @@ export const CreateNodeComponent = ({ workflowId, plan, totalNodes, seguimientoN
                 {/*  flexbox interno */}
                 <div className="h-full flex flex-col">
                     {/* Header fijo */}
-                    <div className="p-4 pb-3 text-sm text-muted-foreground shrink-0">
-                        Selecciona una acción
-                        <div className="mt-1 flex flex-wrap gap-3 text-xs">
+                    <div className="p-4 pb-3 shrink-0">
+                        <p className="text-sm font-bold text-foreground">Selecciona una acción</p>
+                        <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
                             <span>{`Nodos: ${totalNodes}/${MAX_NODES_PER_WORKFLOW}`}</span>
                             <span>{`Seguimientos: ${seguimientoNodes}/${MAX_SEGUIMIENTOS_PER_WORKFLOW}`}</span>
                         </div>

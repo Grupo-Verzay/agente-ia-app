@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { currentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
@@ -32,7 +33,10 @@ const CustomWorkflow = async ({ params }: { params: { workflowId: string } }) =>
   return (
     <div className="flex w-full h-full overflow-hidden">
       <WorkflowEditorShellProvider>
-        <SidebarProvider defaultOpen={defaultOpen}>
+        <SidebarProvider
+          defaultOpen={defaultOpen}
+          style={{ '--sidebar-width': '20rem' } as CSSProperties}
+        >
           <div className="relative w-full h-full overflow-hidden">
             <div className="absolute right-0 top-0 z-50">
               <WorkflowNodesSidebarTrigger />

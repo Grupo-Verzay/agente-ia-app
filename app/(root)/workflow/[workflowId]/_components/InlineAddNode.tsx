@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Action, baseActions, seguimientoActions } from '@/types/workflow-node';
+import { MAX_NODES_PER_WORKFLOW, MAX_SEGUIMIENTOS_PER_WORKFLOW } from '@/types/workflow';
 import { useAddNode } from './WorkflowAddNodeContext';
 
 function ActionRow({
@@ -42,9 +43,13 @@ function ActionRow({
 export function InlineAddNode({
     sourceId,
     sourceHandle,
+    totalNodes,
+    seguimientoNodes,
 }: {
     sourceId: string;
     sourceHandle: string;
+    totalNodes: number;
+    seguimientoNodes: number;
 }) {
     const addNode = useAddNode();
     const [open, setOpen] = useState(false);
@@ -62,10 +67,11 @@ export function InlineAddNode({
                 <button
                     type="button"
                     onClick={(e) => e.stopPropagation()}
-                    className="nodrag nopan flex h-7 w-7 items-center justify-center rounded-full border-2 border-primary/50 bg-background text-primary shadow-md transition-all hover:scale-110 hover:bg-primary hover:text-primary-foreground"
-                    title="Agregar siguiente paso"
+                    className="nodrag nopan flex items-center gap-1.5 rounded-full border border-primary/40 bg-background px-3 py-1.5 text-xs font-semibold text-primary shadow-md transition-all hover:bg-primary hover:text-primary-foreground"
+                    title="Agregar acción"
                 >
                     <Plus className="h-4 w-4" />
+                    Agregar acción
                 </button>
             </PopoverTrigger>
 
@@ -75,12 +81,16 @@ export function InlineAddNode({
                 sideOffset={12}
                 collisionPadding={12}
                 onClick={(e) => e.stopPropagation()}
-                className="nodrag nopan h-[360px] w-[320px] overflow-hidden p-0"
+                className="nodrag nopan h-[410px] w-[320px] overflow-hidden p-0"
             >
                 <div className="flex h-full flex-col">
                     {/* Encabezado fijo */}
-                    <div className="shrink-0 p-4 pb-3 text-sm text-muted-foreground">
-                        Selecciona una acción
+                    <div className="shrink-0 p-4 pb-3">
+                        <p className="text-sm font-bold text-foreground">Selecciona una acción</p>
+                        <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                            <span>{`Nodos: ${totalNodes}/${MAX_NODES_PER_WORKFLOW}`}</span>
+                            <span>{`Seguimientos: ${seguimientoNodes}/${MAX_SEGUIMIENTOS_PER_WORKFLOW}`}</span>
+                        </div>
                     </div>
 
                     {/* Cuerpo con scroll */}

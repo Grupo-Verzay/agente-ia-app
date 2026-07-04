@@ -41,6 +41,8 @@ export function CustomNode({ data }: { data: CustomNodeData }) {
                         topPct={38}
                         active={!connection.inProgress || isSourceActive}
                         connectableStart={!connection.inProgress}
+                        totalNodes={data.totalNodes}
+                        seguimientoNodes={data.seguimientoNodes}
                     />
                     <SourceDotHandle
                         id="no"
@@ -48,6 +50,8 @@ export function CustomNode({ data }: { data: CustomNodeData }) {
                         topPct={62}
                         active={!connection.inProgress || isSourceActive}
                         connectableStart={!connection.inProgress}
+                        totalNodes={data.totalNodes}
+                        seguimientoNodes={data.seguimientoNodes}
                     />
                 </>
             ) : (
@@ -57,6 +61,8 @@ export function CustomNode({ data }: { data: CustomNodeData }) {
                     topPct={50}
                     active={!connection.inProgress || isSourceActive}
                     connectableStart={!connection.inProgress}
+                    totalNodes={data.totalNodes}
+                    seguimientoNodes={data.seguimientoNodes}
                 />
             )}
         </div>
