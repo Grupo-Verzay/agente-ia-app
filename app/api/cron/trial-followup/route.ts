@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { ADMIN_USER_ID } from '@/types/generic'
+import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from '@/actions/whatsapp-dispatcher'
 
 const CRON_HEADER = 'x-cron-secret'
 
@@ -77,12 +77,6 @@ function daysSince(createdAt: Date, now: Date, timezone: string | null | undefin
 
 // La URL de Evolution puede estar guardada sin protocolo (ej. "evoapi.ia-app.com").
 // fetch() exige URL absoluta, así que anteponemos https:// si falta.
-function normalizeBaseUrl(url: string | null | undefined): string {
-  const trimmed = (url ?? '').trim().replace(/\/+$/, '')
-  if (!trimmed) return ''
-  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-}
-
 // Hora local (0-23) del usuario según su zona horaria.
 function localHour(now: Date, timezone: string | null | undefined): number {
   try {
@@ -109,23 +103,8 @@ function resolveMessage(template: string | null | undefined, fallback: string, n
   return (template || fallback).replace(/\{nombre\}/gi, name || 'amigo')
 }
 
-async function sendWhatsApp(url: string, apikey: string, phone: string, text: string) {
-  const remoteJid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey },
-    body: JSON.stringify({ number: remoteJid, delay: 1200, text }),
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`)
-}
-
 async function runTrialFollowUps() {
   const now = new Date()
-
-  // Instancia fallback de la plataforma (Verzay central)
-  const fallbackInstanceName = process.env.FOLLOWUP_INSTANCE_NAME ?? ''
-  const fallbackApiUrl = process.env.FOLLOWUP_API_URL ?? ''
-  const fallbackApiKey = process.env.FOLLOWUP_API_KEY ?? ''
 
   // Usuarios con trial activo que aún NO han contratado un plan pagado.
   // Si ya tienen una suscripción ACTIVE convirtieron, así que dejan de recibir seguimientos.
@@ -147,11 +126,28 @@ async function runTrialFollowUps() {
   const results = { sent: 0, skipped: 0, failed: 0, deferred: 0 }
   if (trialUsers.length === 0) return results
 
-  // Carga en lote para evitar N+1: configs por reseller + config central (admin) y logs.
+  const superAdmins = await db.user.findMany({
+    where: { role: 'super_admin' },
+    select: { id: true, name: true, company: true },
+  })
+  const superAdminIds = superAdmins
+    .sort((a, b) => {
+      const aLabel = `${a.company ?? ''} ${a.name ?? ''}`.toLowerCase()
+      const bLabel = `${b.company ?? ''} ${b.name ?? ''}`.toLowerCase()
+      const aIsGrupo = aLabel.includes('grupo')
+      const bIsGrupo = bLabel.includes('grupo')
+      if (aIsGrupo !== bIsGrupo) return aIsGrupo ? -1 : 1
+      return aLabel.localeCompare(bLabel)
+    })
+    .map((admin) => admin.id)
+
+  // Carga en lote para evitar N+1: configs por reseller + config central de Verzay y logs.
   const resellerIds = Array.from(new Set(trialUsers.map(u => u.demoResellerId).filter((id): id is string => !!id)))
   const [configs, adminConfig, logs] = await Promise.all([
     db.trialFollowUpConfig.findMany({ where: { resellerId: { in: resellerIds } } }),
-    db.trialFollowUpConfig.findUnique({ where: { resellerId: ADMIN_USER_ID } }),
+    superAdminIds.length
+      ? db.trialFollowUpConfig.findFirst({ where: { resellerId: { in: superAdminIds } } })
+      : Promise.resolve(null),
     db.trialFollowUpLog.findMany({ where: { userId: { in: trialUsers.map(u => u.id) } } }),
   ])
   const configByReseller = new Map(configs.map(c => [c.resellerId, c]))
@@ -165,30 +161,6 @@ async function runTrialFollowUps() {
   // Resolver el servidor Evolution (url + key) de cada instancia seleccionada de
   // forma dinámica: instancia -> usuario dueño -> su apiKey (servidor evoapiN).
   // Así la URL sale de la instancia elegida en el panel, no de un env fijo.
-  const neededInstances = Array.from(new Set(
-    [adminConfig?.instanceName, ...configs.map(c => c.instanceName)]
-      .filter((n): n is string => !!n && n.trim() !== ''),
-  ))
-  const instanceCredByName = new Map<string, { url: string; key: string }>()
-  if (neededInstances.length > 0) {
-    const instRows = await db.instancia.findMany({
-      where: { instanceName: { in: neededInstances } },
-      select: { instanceName: true, userId: true },
-    })
-    const ownerIds = Array.from(new Set(instRows.map(r => r.userId)))
-    const owners = await db.user.findMany({
-      where: { id: { in: ownerIds } },
-      select: { id: true, apiKey: { select: { url: true, key: true } } },
-    })
-    const apiKeyByUser = new Map(owners.map(o => [o.id, o.apiKey]))
-    for (const row of instRows) {
-      const ak = apiKeyByUser.get(row.userId)
-      if (ak?.url && ak.key && !instanceCredByName.has(row.instanceName)) {
-        instanceCredByName.set(row.instanceName, { url: ak.url, key: ak.key })
-      }
-    }
-  }
-
   for (const user of trialUsers) {
     const days = daysSince(user.createdAt, now, user.timezone)
     const userLogs = logsByUser.get(user.id) ?? []
@@ -236,32 +208,37 @@ async function runTrialFollowUps() {
     // "Probar a mi número"). Si no hay instancia, se usa el número central de
     // respaldo (FOLLOWUP_* env).
     const selectedInstance = (config?.instanceName ?? '').trim()
-    let instanceName = selectedInstance || fallbackInstanceName
-    let apiUrl = fallbackApiUrl
-    let apiKey = fallbackApiKey
-    if (selectedInstance) {
-      const creds = instanceCredByName.get(selectedInstance)
-      if (!creds) {
-        await recordLog('FAILED', `Instancia "${selectedInstance}" sin servidor/credenciales`)
-        results.failed++
-        continue
-      }
-      apiUrl = creds.url
-      apiKey = creds.key
-    }
+    const dispatcher = await resolveWhatsAppDispatcherLine({
+      ownerUserId: user.demoResellerId ?? null,
+      preferredInstanceName: selectedInstance || null,
+      includeAdminFallback: !user.demoResellerId,
+    })
 
-    if (!instanceName || !apiUrl || !apiKey) {
-      await recordLog('FAILED', 'Sin credenciales Evolution configuradas')
+    if (!dispatcher) {
+      await recordLog('FAILED', 'Sin linea de WhatsApp conectada para enviar el seguimiento')
       results.failed++
       continue
     }
 
     const messageKey = `message${targetDay}` as 'message1' | 'message3' | 'message6'
     const text = resolveMessage(config?.[messageKey], DEFAULT_MESSAGES[targetDay], user.name ?? '')
-    const sendUrl = `${normalizeBaseUrl(apiUrl)}/message/sendText/${instanceName}`
 
     try {
-      await sendWhatsApp(sendUrl, apiKey, user.notificationNumber, text)
+      const sendResult = await sendViaWhatsAppDispatcher({
+        dispatcher,
+        remoteJid: user.notificationNumber,
+        text,
+        history: {
+          instanceName: dispatcher.instanceName,
+          type: 'notification',
+          additionalKwargs: {
+            kind: 'trial-followup',
+            userId: user.id,
+            day: targetDay,
+          },
+        },
+      })
+      if (!sendResult.success) throw new Error(sendResult.message)
       await recordLog('SENT')
       results.sent++
     } catch (err) {

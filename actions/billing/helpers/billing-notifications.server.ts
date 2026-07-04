@@ -1,8 +1,8 @@
 ﻿import { Prisma } from "@prisma/client";
 
 import { sendingMessages } from "@/actions/sending-messages-actions";
+import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from "@/actions/whatsapp-dispatcher";
 import { db } from "@/lib/db";
-import { ADMIN_USER_ID } from "@/types/generic";
 import type { BillingStatus, BillingTemplateType, AccessStatus } from "@/types/billing";
 
 import { buildBillingMessage, buildBillingMessageForRecord } from "../billing-message-templates";
@@ -49,6 +49,7 @@ export type BillingDispatcherConfig = {
     instanceId: string;
     instanceName: string;
     serverUrl: string;
+    provider?: "evolution" | "baileys";
 };
 
 export type BillingSendResult = {
@@ -165,39 +166,16 @@ export async function getBillingUserRecord(
 }
 
 export async function loadBillingDispatcherConfig(): Promise<BillingDispatcherConfig | null> {
-    const dispatcherUser = await db.user.findUnique({
-        where: { id: ADMIN_USER_ID },
-        select: {
-            id: true,
-            notificationNumber: true,
-            apiKey: { select: { url: true } },
-            instancias: {
-                select: {
-                    instanceId: true,
-                    instanceName: true,
-                    instanceType: true,
-                },
-            },
-        },
-    });
-
-    if (!dispatcherUser) return null;
-
-    const serverUrl = dispatcherUser.apiKey?.url?.trim();
-    const instance =
-        dispatcherUser.instancias.find((item) => item.instanceType === "Whatsapp") ??
-        dispatcherUser.instancias[0];
-
-    if (!serverUrl || !instance?.instanceId || !instance.instanceName) {
-        return null;
-    }
+    const line = await resolveWhatsAppDispatcherLine();
+    if (!line) return null;
 
     return {
-        id: dispatcherUser.id,
-        notificationNumber: dispatcherUser.notificationNumber ?? null,
-        instanceId: instance.instanceId,
-        instanceName: instance.instanceName,
-        serverUrl,
+        id: line.id,
+        notificationNumber: line.notificationNumber,
+        instanceId: line.instanceId,
+        instanceName: line.instanceName,
+        serverUrl: line.serverUrl ?? "",
+        provider: line.provider,
     };
 }
 
@@ -264,27 +242,44 @@ export async function sendBillingTemplateMessage(args: {
     const text = override
         ? buildBillingMessageForRecord(args.billing, args.template, now, override)
         : buildBillingMessage(buildBillingMessageInput(args.billing, args.template, now));
-    const result = await sendingMessages({
-        url: buildSendTextUrl(dispatcher.instanceName, dispatcher.serverUrl),
-        apikey: dispatcher.instanceId,
-        remoteJid,
-        text,
-        history: {
-            instanceName: dispatcher.instanceName,
-            type: "notification",
-            additionalKwargs: {
-                kind: "billing",
-                source: args.source ?? "billing",
-                template: args.template,
-                userBillingId: args.billing.id,
-                userId: args.billing.userId,
-            },
-            responseMetadata: {
-                dispatcherUserId: dispatcher.id,
-                template: args.template,
-            },
+    const history = {
+        instanceName: dispatcher.instanceName,
+        type: "notification" as const,
+        additionalKwargs: {
+            kind: "billing",
+            source: args.source ?? "billing",
+            template: args.template,
+            userBillingId: args.billing.id,
+            userId: args.billing.userId,
         },
-    });
+        responseMetadata: {
+            dispatcherUserId: dispatcher.id,
+            template: args.template,
+        },
+    };
+    const result = dispatcher.provider === "baileys"
+        ? await sendViaWhatsAppDispatcher({
+            dispatcher: {
+                id: dispatcher.id,
+                notificationNumber: dispatcher.notificationNumber,
+                instanceId: dispatcher.instanceId,
+                instanceName: dispatcher.instanceName,
+                instanceType: "baileys",
+                serverUrl: null,
+                apiKey: null,
+                provider: "baileys",
+            },
+            remoteJid,
+            text,
+            history,
+        })
+        : await sendingMessages({
+            url: buildSendTextUrl(dispatcher.instanceName, dispatcher.serverUrl),
+            apikey: dispatcher.instanceId,
+            remoteJid,
+            text,
+            history,
+        });
 
     return {
         success: result.success,
@@ -385,11 +380,12 @@ export async function setUserBillingWebhookEnabled(args: {
             message: `Agente ${args.enable ? "activado" : "desactivado"} correctamente.`,
         };
     } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
         return {
             success: false,
             enabled: args.enable,
             message: `Error al ${args.enable ? "activar" : "desactivar"} el agente.`,
-            error: error?.message ?? String(error),
+            error: message,
         };
     }
 }

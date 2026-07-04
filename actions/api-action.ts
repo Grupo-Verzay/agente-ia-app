@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { ApiKey } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { sendingMessages } from "./sending-messages-actions";
+import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from "./whatsapp-dispatcher";
 import { ClientResponse, DISCONNECT_COOLDOWN_MS, DISCONNECTION_MSG, EVO_FETCH_TIMEOUT_MS, GenerateQrInterface, getDayKeyBogota, getEvoCache, isApiConnected, isWhatsappLike, QRCodeResponse } from "@/types/evo-api";
 import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
 
@@ -174,17 +174,15 @@ export async function generateQRCode({ instanceName, userId }: GenerateQrInterfa
 
     if (remoteJid) {
       try {
-        const serverUrlAdmin = "evoapi.ia-app.com";
-        const instanceNameAdmin = "Verzay Pro Atc";
-        const sendTextUrl = `https://${serverUrlAdmin}/message/sendText/${instanceNameAdmin}`;
+        const dispatcher = await resolveWhatsAppDispatcherLine();
+        if (!dispatcher) throw new Error("No hay linea de notificaciones conectada.");
 
-        await sendingMessages({
-          url: sendTextUrl,
-          apikey: apiKey,
+        await sendViaWhatsAppDispatcher({
+          dispatcher,
           remoteJid,
           text: DISCONNECTION_MSG,
           history: {
-            instanceName: instanceNameAdmin,
+            instanceName: dispatcher.instanceName,
             type: 'notification',
             additionalKwargs: {
               source: 'generateQRCode',

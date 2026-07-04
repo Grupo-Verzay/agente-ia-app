@@ -5,6 +5,7 @@ import { currentUser } from '@/lib/auth';
 import { isAdminOrReseller, isAdminLike } from '@/lib/rbac';
 import { BillingTemplateType, DELETE_DAYS_BILLING } from '@/types/billing';
 import { deleteInstanceEvolutionAware } from '@/actions/api-action';
+import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from '@/actions/whatsapp-dispatcher';
 import { setUserBillingWebhookEnabled } from './helpers/billing-notifications.server';
 import {
   getBillingDaysRemaining,
@@ -28,20 +29,23 @@ export type ResellerBillingConfigData = {
   msgDeleted: string;
 };
 
-function normalizeBaseUrl(url: string | null | undefined): string {
-  const t = (url ?? '').trim().replace(/\/+$/, '');
-  if (!t) return '';
-  return /^https?:\/\//i.test(t) ? t : `https://${t}`;
-}
-
-async function sendReseller(sendUrl: string, apikey: string, phone: string, text: string) {
+async function sendReseller(dispatcher: Awaited<ReturnType<typeof resolveWhatsAppDispatcherLine>>, phone: string, text: string) {
+  if (!dispatcher) throw new Error('No hay linea de WhatsApp conectada para el reseller.');
   const remoteJid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
-  const res = await fetch(sendUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey },
-    body: JSON.stringify({ number: remoteJid, delay: 1200, text }),
+  const res = await sendViaWhatsAppDispatcher({
+    dispatcher,
+    remoteJid,
+    text,
+    history: {
+      instanceName: dispatcher.instanceName,
+      type: 'notification',
+      additionalKwargs: {
+        kind: 'reseller-billing',
+        resellerId: dispatcher.id,
+      },
+    },
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`);
+  if (!res.success) throw new Error(res.message);
 }
 
 /* ── Config: get/save (reseller dueño o admin) ─────────────────────────── */
@@ -118,14 +122,12 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
   });
 
   for (const cfg of configs) {
-    const reseller = await db.user.findUnique({
-      where: { id: cfg.resellerId },
-      select: { apiKey: { select: { url: true, key: true } } },
+    const dispatcher = await resolveWhatsAppDispatcherLine({
+      ownerUserId: cfg.resellerId,
+      preferredInstanceName: cfg.instanceName,
+      includeAdminFallback: false,
     });
-    const serverUrl = normalizeBaseUrl(reseller?.apiKey?.url);
-    const apikey = reseller?.apiKey?.key ?? '';
-    if (!serverUrl || !apikey || !cfg.instanceName) continue;
-    const sendUrl = `${serverUrl}/message/sendText/${cfg.instanceName}`;
+    if (!dispatcher) continue;
     result.resellers++;
 
     // Clientes de pago del reseller con fecha de cobro definida.
@@ -157,7 +159,7 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
         // 1) Eliminación a los 30 días vencido
         if (shouldDelete) {
           try {
-            await sendReseller(sendUrl, apikey, phone, buildMsg(cli, 'ACCOUNT_DELETED', cfg.msgDeleted));
+            await sendReseller(dispatcher, phone, buildMsg(cli, 'ACCOUNT_DELETED', cfg.msgDeleted));
           } catch { /* avisar es best-effort */ }
           await deleteInstanceEvolutionAware(cli.user.id).catch(() => null);
           await db.user.delete({ where: { id: cli.user.id } }).catch(() => null);
@@ -175,7 +177,7 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
           await setUserBillingWebhookEnabled({ userId: cli.user.id, enable: false }).catch(() => null);
           await deleteInstanceEvolutionAware(cli.user.id).catch(() => null);
           try {
-            await sendReseller(sendUrl, apikey, phone, buildMsg(cli, 'STATUS_SUSPENDED', cfg.msgSuspended));
+            await sendReseller(dispatcher, phone, buildMsg(cli, 'STATUS_SUSPENDED', cfg.msgSuspended));
             result.sent++;
           } catch { result.errors++; }
           result.suspended++;
@@ -197,7 +199,7 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
 
         if (!text) continue;
         try {
-          await sendReseller(sendUrl, apikey, phone, text);
+          await sendReseller(dispatcher, phone, text);
           await db.userBilling.update({
             where: { id: cli.id },
             data: { lastReminderAt: now, lastReminderDueDate: dueDate },

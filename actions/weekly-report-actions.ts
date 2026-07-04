@@ -3,7 +3,7 @@
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import { sendingMessages } from "@/actions/sending-messages-actions";
+import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from "@/actions/whatsapp-dispatcher";
 import { normalizeChatHistoryRemoteJid } from "@/lib/chat-history/build-session-id";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -241,28 +241,6 @@ function formatWhatsAppReport(metrics: WeeklyMetrics, summary: string): string {
     return lines.join("\n");
 }
 
-// Cuenta cuya línea de WhatsApp es la "línea de notificaciones de la App".
-const ADMIN_USER_ID = process.env.ADMIN_USER_ID ?? "cm842kthc0000qd2l66nbnytv";
-
-/** Línea EMISORA (serverUrl/apikey/instancia WhatsApp) de una cuenta dada. */
-async function getSenderLine(senderUserId: string) {
-    const s = await db.user.findUnique({
-        where: { id: senderUserId },
-        select: {
-            apiKey: { select: { url: true, key: true } },
-            instancias: {
-                where: { instanceType: "Whatsapp" },
-                select: { instanceName: true },
-                take: 1,
-            },
-        },
-    });
-    if (!s?.apiKey?.url || !s.instancias[0]) return null;
-    const rawUrl = s.apiKey.url;
-    const serverUrl = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
-    return { serverUrl, apikey: s.apiKey.key ?? "", instanceName: s.instancias[0].instanceName };
-}
-
 async function getUserDispatchConfig(userId: string) {
     const user = await db.user.findUnique({
         where: { id: userId },
@@ -274,9 +252,8 @@ async function getUserDispatchConfig(userId: string) {
     // la del reseller/dueño si el cliente pertenece a uno (respeta white-label), o la
     // de VERZAY (admin) para clientes directos. Así llega aunque la línea del cliente
     // esté desconectada, y no gasta su línea/créditos.
-    const senderUserId = user.ownerId ?? user.demoResellerId ?? ADMIN_USER_ID;
-    let sender = await getSenderLine(senderUserId);
-    if (!sender && senderUserId !== ADMIN_USER_ID) sender = await getSenderLine(ADMIN_USER_ID);
+    const senderUserId = user.ownerId ?? user.demoResellerId ?? null;
+    const sender = await resolveWhatsAppDispatcherLine({ ownerUserId: senderUserId });
     console.log("[weeklyReport] dispatch config:", JSON.stringify({
         notificationNumber: user.notificationNumber,
         senderUserId,
@@ -285,9 +262,7 @@ async function getUserDispatchConfig(userId: string) {
     if (!sender) return null;
     return {
         notificationNumber: user.notificationNumber,
-        serverUrl: sender.serverUrl,
-        apikey: sender.apikey,
-        instanceName: sender.instanceName,
+        dispatcher: sender,
     };
 }
 
@@ -322,9 +297,20 @@ export async function generateWeeklyReportForUser(userId: string): Promise<{
         whatsappError = "Falta configuración: número de notificación, API Key o instancia de WhatsApp";
     } else {
         const text = formatWhatsAppReport(metrics, summary);
-        const url  = `${dispatch.serverUrl}/message/sendText/${dispatch.instanceName}`;
         const jid  = normalizeChatHistoryRemoteJid(dispatch.notificationNumber);
-        const res  = await sendingMessages({ url, apikey: dispatch.apikey, remoteJid: jid, text });
+        const res  = await sendViaWhatsAppDispatcher({
+            dispatcher: dispatch.dispatcher,
+            remoteJid: jid,
+            text,
+            history: {
+                instanceName: dispatch.dispatcher.instanceName,
+                type: "notification",
+                additionalKwargs: {
+                    kind: "weekly-report",
+                    userId,
+                },
+            },
+        });
         if (res.success) {
             await db.$executeRaw`UPDATE weekly_reports SET sent_at = NOW() WHERE id = ${reportId}`;
             sent = true;
