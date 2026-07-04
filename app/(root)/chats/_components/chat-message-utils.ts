@@ -1,21 +1,23 @@
-import { cn, SERVER_TIME_ZONE } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { MediaType } from './attachment-menu';
 import type { MediaData, MessageDeliveryState, UIBubble } from './chat-message-types';
 
-/* ─── Formatters ─── */
+/* ─── Formatters ───
+ * Sin timeZone fijo: usan la zona horaria LOCAL del navegador de cada usuario,
+ * para que cada quien vea la hora de su país (México, R. Dominicana, etc.),
+ * no la de Colombia.
+ */
 export const CHAT_TIME_FORMATTER = new Intl.DateTimeFormat('es-CO', {
   hour: '2-digit',
   minute: '2-digit',
   hour12: true,
-  timeZone: SERVER_TIME_ZONE,
 });
 
 const CHAT_DAY_KEY_FORMATTER = new Intl.DateTimeFormat('en-US', {
   year: 'numeric',
   month: '2-digit',
   day: '2-digit',
-  timeZone: SERVER_TIME_ZONE,
 });
 
 const CHAT_DATE_BADGE_FORMATTER = new Intl.DateTimeFormat('es-CO', {
@@ -23,7 +25,6 @@ const CHAT_DATE_BADGE_FORMATTER = new Intl.DateTimeFormat('es-CO', {
   day: 'numeric',
   month: 'long',
   year: 'numeric',
-  timeZone: SERVER_TIME_ZONE,
 });
 
 /* ─── Helpers ─── */

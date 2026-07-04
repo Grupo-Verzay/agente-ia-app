@@ -9,11 +9,12 @@ import { extractWhatsAppDigits } from "@/lib/whatsapp-jid";
 import { avatarSrcFor } from "@/lib/avatar";
 import type { ChatData } from "@/actions/chat-actions";
 
+// Sin timeZone fijo: usa la zona horaria LOCAL del navegador de cada usuario
+// (México, R. Dominicana, etc.), no la de Colombia.
 export const CHAT_TIME_FORMATTER = new Intl.DateTimeFormat("es-CO", {
   hour: "2-digit",
   minute: "2-digit",
   hour12: true,
-  timeZone: "America/Bogota",
 });
 
 export function epochToMs(epoch?: number): number {
