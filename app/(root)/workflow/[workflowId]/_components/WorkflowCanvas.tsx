@@ -190,12 +190,13 @@ export function WorkflowCanvas({
     let x = node.position.x;
     let y = node.position.y;
 
-    // AUTO-APILADO: si el nodo cae en la misma columna que otro, se pega
+    const others = nodesRef.current.filter((o) => o.id !== id);
+
+    // AUTO-APILADO VERTICAL: si cae en la misma columna que otro, se pega
     // justo debajo del vecino de arriba con el MISMO hueco que hay en
-    // horizontal (COL_W − ancho de la tarjeta). Así el espacio vertical
-    // queda igual al horizontal, midiendo la altura real de la tarjeta.
-    const sameColAbove = nodesRef.current.filter(
-      (o) => o.id !== id && Math.abs(o.position.x - x) < COL_W / 2 && o.position.y < y
+    // horizontal (COL_W − ancho de la tarjeta), midiendo su altura real.
+    const sameColAbove = others.filter(
+      (o) => Math.abs(o.position.x - x) < COL_W / 2 && o.position.y < y
     );
 
     if (sameColAbove.length) {
@@ -204,6 +205,17 @@ export function WorkflowCanvas({
       const w = nearest.measured?.width ?? NODE_W;
       x = nearest.position.x; // alinear en la misma columna
       y = nearest.position.y + h + (COL_W - w); // mismo hueco que en horizontal
+    } else {
+      // AUTO-AJUSTE HORIZONTAL: si cae en la misma fila que otro a su
+      // izquierda, se pega a su derecha con el espacio estándar entre nodos.
+      const sameRowLeft = others.filter(
+        (o) => Math.abs(o.position.y - y) < ROW_H / 2 && o.position.x < x
+      );
+      if (sameRowLeft.length) {
+        const nearest = sameRowLeft.reduce((a, b) => (a.position.x > b.position.x ? a : b));
+        y = nearest.position.y; // alinear en la misma fila
+        x = nearest.position.x + COL_W; // espacio estándar horizontal
+      }
     }
 
     // refleja la posición ajustada en el lienzo
