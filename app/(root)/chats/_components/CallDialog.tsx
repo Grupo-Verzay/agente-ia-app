@@ -168,7 +168,6 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
         });
         pcRef.current = pc;
         mic.getAudioTracks().forEach((t) => pc.addTrack(t, mic));
-        pc.addTransceiver('audio', { direction: 'recvonly' });
         pc.ontrack = (ev) => {
           if (audioRef.current && ev.streams[0]) audioRef.current.srcObject = ev.streams[0];
         };

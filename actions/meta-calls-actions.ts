@@ -143,9 +143,19 @@ export async function getMetaWhatsAppCallAnswer(params: {
   const metaCall = rows[0]?.raw?.metaCall;
   const sdp = metaCall?.session?.sdp;
   const sdpType = metaCall?.session?.sdp_type;
+  const errorMessage = Array.isArray(metaCall?.errors)
+    ? metaCall.errors.map((error: any) => error?.message || error?.title).filter(Boolean).join(' ')
+    : '';
 
   if (typeof sdp === 'string' && sdp.trim()) {
     return { success: true, sdpAnswer: sdp };
+  }
+
+  if (metaCall?.event === 'terminate' && metaCall?.status === 'FAILED') {
+    return {
+      success: false,
+      message: errorMessage || 'Meta rechazó la conexión de audio.',
+    };
   }
 
   return {
