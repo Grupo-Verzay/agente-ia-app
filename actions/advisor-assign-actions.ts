@@ -150,20 +150,21 @@ export async function assignSessionToAdvisor(
   const auth = await requireOwnerOrAdmin();
   if (!auth) return { success: false, message: "No autorizado." };
 
-  // Check limit if assigning (not releasing)
+  // Check limit if assigning (not releasing). El límite (max_chats) se configura
+  // en el DUEÑO (auto_assign_max_chats), no en cada asesor; el conteo es de los
+  // chats activos del asesor. Antes se leía max_chats del asesor (siempre el
+  // default 5) → avisaba "límite 5" aunque el dueño tuviera 100.
   let warning: string | undefined;
   if (advisorId) {
     const settings = await db.$queryRaw<{ max_chats: number; current_count: number }[]>`
       SELECT
-        u.auto_assign_max_chats AS max_chats,
-        COUNT(s.id)::int        AS current_count
-      FROM "User" u
-      LEFT JOIN "Session" s ON s.assigned_advisor_id = u.id AND s.status = true
-      WHERE u.id = ${advisorId}
-      GROUP BY u.id
+        (SELECT auto_assign_max_chats FROM "User" WHERE id = ${auth.ownerId}) AS max_chats,
+        COUNT(s.id)::int AS current_count
+      FROM "Session" s
+      WHERE s.assigned_advisor_id = ${advisorId} AND s.status = true
     `;
     const row = settings[0];
-    if (row && row.current_count >= row.max_chats) {
+    if (row && row.max_chats != null && row.current_count >= row.max_chats) {
       warning = `Este asesor ya tiene ${row.current_count} chats activos (límite: ${row.max_chats}).`;
     }
   }
