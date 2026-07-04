@@ -134,7 +134,7 @@ const Connection = async () => {
                 instanceType={"Whatsapp"}
                 prompts={instancesData["Whatsapp"].prompts}
             />
-            {(user as any).onCalls && <CallLinkCard />}
+            <CallLinkCard />
             {baileysInstances.map((inst) => (
                 <BaileysInstanceCard key={inst.instanceName} instanceName={inst.instanceName} />
             ))}
