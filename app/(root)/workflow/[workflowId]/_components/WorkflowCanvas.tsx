@@ -583,11 +583,12 @@ export function WorkflowCanvas({
         snapToGrid
         snapGrid={[COL_W, ROW_H]}
         fitView
+        fitViewOptions={{ padding: 0.28 }}
         colorMode={isDark ? 'dark' : 'light'}
         minZoom={0.05}
       >
         <Background />
-        <Controls />
+        <Controls fitViewOptions={{ padding: 0.28 }} />
         {/* <MiniMap /> */}
 
         <Panel position="top-center">
