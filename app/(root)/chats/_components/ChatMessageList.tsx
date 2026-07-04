@@ -152,6 +152,7 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
           content={message.content}
           authorName={message.noteAuthorName ?? null}
           authorEmail={message.noteAuthorEmail ?? ''}
+          mentionNames={message.noteMentionNames}
           timestamp={message.ts ? new Date(message.ts).toISOString() : new Date().toISOString()}
           isOwn={message.sender === 'user'}
           onDelete={
@@ -231,7 +232,8 @@ function areMessageRowsEqual(prev: MessageRowProps, next: MessageRowProps) {
     a.isNote === b.isNote &&
     a.noteId === b.noteId &&
     a.noteAuthorName === b.noteAuthorName &&
-    a.noteAuthorEmail === b.noteAuthorEmail
+    a.noteAuthorEmail === b.noteAuthorEmail &&
+    (a.noteMentionNames ?? []).join('|') === (b.noteMentionNames ?? []).join('|')
   );
 }
 

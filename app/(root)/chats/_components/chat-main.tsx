@@ -148,6 +148,10 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [input, setInput] = useState('');
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState('');
+  // @menciones (solo en modo nota): estado del autocompletado y asesores elegidos
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionIds, setMentionIds] = useState<Set<string>>(new Set());
   const [composeMediaList, setComposeMediaList] = useState<ComposeMedia[]>([]);
   const [replyTo, setReplyTo] = useState<UIBubble | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
@@ -288,6 +292,12 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   }, [session?.id]);
 
   /* ─── Convert notes to UIBubbles and merge with messages ─── */
+  const advisorNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of advisors ?? []) if (a.name) map.set(a.id, a.name);
+    return map;
+  }, [advisors]);
+
   const noteBubbles = useMemo<UIBubble[]>(
     () =>
       notes.map((n) => ({
@@ -299,8 +309,11 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         noteAuthorName: n.authorName,
         noteAuthorEmail: n.authorEmail,
         noteId: n.id,
+        noteMentionNames: (n.mentionedUserIds ?? [])
+          .map((id) => advisorNameById.get(id))
+          .filter((x): x is string => Boolean(x)),
       })),
-    [notes, userId],
+    [notes, userId, advisorNameById],
   );
 
   const allMessages = useMemo<UIBubble[]>(() => {
@@ -535,15 +548,25 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const handleSendNote = useCallback(
     async (content: string) => {
       if (!session?.id) return;
-      const res = await createInternalNoteAction({ sessionId: session.id, content });
+      // Solo cuentan los asesores elegidos cuyo "@Nombre" siga en el texto.
+      const mentionedUserIds = (advisors ?? [])
+        .filter((a) => mentionIds.has(a.id) && a.name && content.includes(`@${a.name}`))
+        .map((a) => a.id);
+      const res = await createInternalNoteAction({
+        sessionId: session.id,
+        content,
+        mentionedUserIds,
+      });
       if (res.success && res.data) {
         setNotes((prev) => [...prev, res.data!]);
         setInput('');
+        setMentionIds(new Set());
+        setMentionOpen(false);
       } else {
         toast.error(res.message);
       }
     },
-    [session?.id],
+    [session?.id, advisors, mentionIds],
   );
 
   const handleDeleteNote = useCallback(async (noteId: number) => {
@@ -574,7 +597,19 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     } else {
       setSlashOpen(false);
     }
-  }, []);
+    // @menciones: solo en modo nota. Detecta un "@token" al final del texto.
+    if (noteMode) {
+      const m = value.match(/(?:^|\s)@([^\s@]*)$/);
+      if (m) {
+        setMentionQuery(m[1].toLowerCase());
+        setMentionOpen(true);
+      } else {
+        setMentionOpen(false);
+      }
+    } else if (mentionOpen) {
+      setMentionOpen(false);
+    }
+  }, [noteMode, mentionOpen]);
 
   const applySlashSuggestion = useCallback((message: string) => {
     setInput(message);
@@ -586,6 +621,27 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     if (!slashOpen) return [];
     return quickReplies.filter((qr) => qr.name && qr.name.toLowerCase().startsWith(slashQuery));
   }, [slashOpen, slashQuery, quickReplies]);
+
+  const mentionSuggestions = useMemo(() => {
+    if (!mentionOpen || !advisors?.length) return [];
+    const q = mentionQuery;
+    return advisors
+      .filter(
+        (a) =>
+          a.name &&
+          (a.name.toLowerCase().includes(q) || (a.email ?? '').toLowerCase().includes(q)),
+      )
+      .slice(0, 6);
+  }, [mentionOpen, mentionQuery, advisors]);
+
+  const applyMentionSuggestion = useCallback((advisor: { id: string; name: string | null }) => {
+    setInput((prev) =>
+      prev.replace(/(^|\s)@([^\s@]*)$/, (_m, pre) => `${pre}@${advisor.name} `),
+    );
+    setMentionIds((prev) => new Set(prev).add(advisor.id));
+    setMentionOpen(false);
+    textareaRef.current?.focus();
+  }, []);
 
   /* ─── Message actions ─── */
   const handleCopyMessage = useCallback((bubble: UIBubble) => {
@@ -943,6 +999,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         textareaRef={textareaRef}
         slashOpen={slashOpen}
         slashSuggestions={slashSuggestions}
+        mentionOpen={mentionOpen}
+        mentionSuggestions={mentionSuggestions}
+        onApplyMention={applyMentionSuggestion}
         onInputChange={handleInputChange}
         onKeyPress={handleKeyPress}
         onAddComposeMedia={handleAddComposeMedia}

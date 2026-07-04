@@ -1,7 +1,7 @@
 "use client";
 
+import { type ReactNode } from "react";
 import { Lock, Trash2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 type InternalNoteBubbleProps = {
   content: string;
@@ -9,6 +9,7 @@ type InternalNoteBubbleProps = {
   authorEmail: string;
   timestamp: string;
   isOwn: boolean;
+  mentionNames?: string[];
   onDelete?: () => void;
 };
 
@@ -17,12 +18,40 @@ function formatTime(iso: string) {
   return d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
+/** Resalta las @menciones (los nombres de asesores) dentro del texto de la nota. */
+function renderWithMentions(content: string, mentionNames?: string[]): ReactNode {
+  const names = (mentionNames ?? []).filter(Boolean);
+  if (names.length === 0) return content;
+
+  const escaped = names
+    .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .sort((a, b) => b.length - a.length); // nombres largos primero para no cortar
+  const re = new RegExp(`@(?:${escaped.join("|")})`, "g");
+
+  const parts: ReactNode[] = [];
+  let last = 0;
+  let key = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content)) !== null) {
+    if (m.index > last) parts.push(content.slice(last, m.index));
+    parts.push(
+      <span key={key++} className="font-semibold text-blue-600 dark:text-blue-400">
+        {m[0]}
+      </span>,
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < content.length) parts.push(content.slice(last));
+  return parts;
+}
+
 export function InternalNoteBubble({
   content,
   authorName,
   authorEmail,
   timestamp,
   isOwn,
+  mentionNames,
   onDelete,
 }: InternalNoteBubbleProps) {
   const displayName = authorName?.trim() || authorEmail;
@@ -59,7 +88,7 @@ export function InternalNoteBubble({
         </div>
         {/* Content */}
         <p className="text-sm text-amber-900 dark:text-amber-100 whitespace-pre-wrap break-words leading-snug">
-          {content}
+          {renderWithMentions(content, mentionNames)}
         </p>
       </div>
     </div>

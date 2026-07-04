@@ -84,6 +84,7 @@ export type UIBubble = {
   noteAuthorName?: string | null;
   noteAuthorEmail?: string;
   noteId?: number;
+  noteMentionNames?: string[];
 };
 
 export type RecordedAudioData = {

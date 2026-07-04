@@ -28,7 +28,7 @@ async function assertAuthorized() {
 }
 
 export async function createInternalNoteAction(
-  input: z.infer<typeof createSchema>,
+  input: z.input<typeof createSchema>,
 ): Promise<{ success: boolean; message: string; data?: InternalNoteData }> {
   try {
     const parsed = createSchema.parse(input);

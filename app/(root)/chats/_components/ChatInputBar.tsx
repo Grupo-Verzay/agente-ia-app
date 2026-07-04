@@ -42,6 +42,9 @@ interface ChatInputBarProps {
   textareaRef: React.RefObject<HTMLTextAreaElement>;
   slashOpen: boolean;
   slashSuggestions: ChatQuickReplyOption[];
+  mentionOpen?: boolean;
+  mentionSuggestions?: { id: string; name: string | null; email?: string | null }[];
+  onApplyMention?: (advisor: { id: string; name: string | null; email?: string | null }) => void;
   onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onKeyPress: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onAddComposeMedia: (media: ComposeMedia) => void;
@@ -81,6 +84,9 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   textareaRef,
   slashOpen,
   slashSuggestions,
+  mentionOpen = false,
+  mentionSuggestions = [],
+  onApplyMention,
   onInputChange,
   onKeyPress,
   onAddComposeMedia,
@@ -524,6 +530,34 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             )}
           </div>
         </div>
+
+        {/* Sugerencias de @menciones (modo nota) */}
+        {mentionOpen && mentionSuggestions.length > 0 && (
+          <div className="absolute bottom-full left-0 right-0 mb-1 z-20 bg-popover border border-border rounded-lg shadow-lg overflow-hidden">
+            <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60">
+              Mencionar a un asesor
+            </div>
+            {mentionSuggestions.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent transition-colors"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onApplyMention?.(a);
+                }}
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/15 text-[11px] font-bold text-amber-700 dark:text-amber-300 shrink-0">
+                  {(a.name || a.email || '?').slice(0, 1).toUpperCase()}
+                </span>
+                <span className="font-medium text-foreground truncate">{a.name || a.email}</span>
+                {a.email && a.name && (
+                  <span className="ml-auto text-xs text-muted-foreground truncate">{a.email}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Sugerencias slash */}
         {slashOpen && slashSuggestions.length > 0 && (
