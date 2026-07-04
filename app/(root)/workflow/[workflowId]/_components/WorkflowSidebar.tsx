@@ -132,8 +132,18 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode }: 
             collapsible="offcanvas"
             className="bg-white dark:bg-gray-900 text-gray-800 dark:text-zinc-100 border-l border-zinc-200 dark:border-gray-800"
         >
-            <SidebarHeader className="p-2">
-                <Input placeholder="Buscar..." value={q} onChange={(e) => setQ(e.target.value)} />
+            <SidebarHeader className="p-4 pb-3">
+                <p className="text-sm font-bold text-foreground">Selecciona una acción</p>
+                <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                    <span>{`Nodos: ${totalNodes}/${MAX_NODES_PER_WORKFLOW}`}</span>
+                    <span>{`Seguimientos: ${seguimientoNodes}/${MAX_SEGUIMIENTOS_PER_WORKFLOW}`}</span>
+                </div>
+                <Input
+                    className="mt-3"
+                    placeholder="Buscar..."
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                />
             </SidebarHeader>
 
             <SidebarSeparator />

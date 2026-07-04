@@ -186,14 +186,35 @@ export function WorkflowCanvas({
   const pending = useRef<Record<string, number>>({});
 
   const onNodeDragStop: OnNodeDrag = useCallback(async (_, node) => {
-    const { id, position } = node;
+    const { id } = node;
+    let x = node.position.x;
+    let y = node.position.y;
+
+    // AUTO-APILADO: si el nodo cae en la misma columna que otro, se pega
+    // justo debajo del vecino de arriba con el MISMO hueco que hay en
+    // horizontal (COL_W − ancho de la tarjeta). Así el espacio vertical
+    // queda igual al horizontal, midiendo la altura real de la tarjeta.
+    const sameColAbove = nodesRef.current.filter(
+      (o) => o.id !== id && Math.abs(o.position.x - x) < COL_W / 2 && o.position.y < y
+    );
+
+    if (sameColAbove.length) {
+      const nearest = sameColAbove.reduce((a, b) => (a.position.y > b.position.y ? a : b));
+      const h = nearest.measured?.height ?? 200;
+      const w = nearest.measured?.width ?? NODE_W;
+      x = nearest.position.x; // alinear en la misma columna
+      y = nearest.position.y + h + (COL_W - w); // mismo hueco que en horizontal
+    }
+
+    // refleja la posición ajustada en el lienzo
+    setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { x, y } } : n)));
 
     if (pending.current[id]) window.clearTimeout(pending.current[id]);
 
     const t = window.setTimeout(async () => {
       try {
-        const posX = clamp(Number(position.x.toFixed(2)), -100000, 100000);
-        const posY = clamp(Number(position.y.toFixed(2)), 0, 100000);
+        const posX = clamp(Number(x.toFixed(2)), -100000, 100000);
+        const posY = clamp(Math.max(0, Number(y.toFixed(2))), 0, 100000);
 
         await updateWorkflowNodePosition({ nodeId: id, posX, posY });
       } catch (e) {
@@ -203,7 +224,7 @@ export function WorkflowCanvas({
     }, 350);
 
     pending.current[id] = t;
-  }, []);
+  }, [setNodes]);
 
   // elige un sourceHandle libre (intention: yes/no, otros: out)
   const pickAvailableSourceHandle = useCallback((sourceId: string) => {

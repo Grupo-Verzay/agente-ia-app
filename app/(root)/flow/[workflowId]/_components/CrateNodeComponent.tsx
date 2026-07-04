@@ -113,9 +113,9 @@ export const CreateNodeComponent = ({ workflowId, plan, totalNodes, seguimientoN
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <Button type="button">
+                <Button type="button" variant="outline" className="gap-2 shadow-sm">
                     Agregar acción
-                    <FilePlus2 />
+                    <FilePlus2 className="h-4 w-4" />
                 </Button>
             </PopoverTrigger>
 
