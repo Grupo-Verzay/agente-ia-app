@@ -412,18 +412,54 @@ model Session {
 }
 
 model InternalNote {
-  id        Int      @id @default(autoincrement())
-  sessionId Int
-  authorId  String
-  content   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  id               Int      @id @default(autoincrement())
+  sessionId        Int
+  authorId         String
+  content          String
+  mentionedUserIds String[] @default([])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  session          Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  author           User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@index([authorId])
   @@map("internal_notes")
+}
+
+// Colaboradores/participantes de una conversación (además del asignado).
+// Sin relaciones Prisma para no tocar los modelos User/Session; se consulta
+// por columnas planas.
+model SessionParticipant {
+  id        String   @id @default(uuid())
+  sessionId Int
+  userId    String
+  addedById String?
+  createdAt DateTime @default(now())
+
+  @@unique([sessionId, userId])
+  @@index([userId])
+  @@index([sessionId])
+  @@map("session_participants")
+}
+
+// Notificaciones de colaboración (menciones y "te agregaron como participante").
+// Alimenta la campanita in-app. Sin relaciones Prisma a propósito.
+model CollabNotification {
+  id          String    @id @default(uuid())
+  recipientId String
+  actorId     String?
+  type        String // "mention" | "participant_added"
+  sessionId   Int?
+  noteId      Int?
+  remoteJid   String?
+  content     String?
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([recipientId, readAt])
+  @@index([sessionId])
+  @@map("collab_notifications")
 }
 
 model UserTaskType {

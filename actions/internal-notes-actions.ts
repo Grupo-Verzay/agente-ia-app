@@ -11,12 +11,14 @@ export type InternalNoteData = {
   authorName: string | null;
   authorEmail: string;
   content: string;
+  mentionedUserIds: string[];
   createdAt: string;
 };
 
 const createSchema = z.object({
   sessionId: z.number().int().positive(),
   content: z.string().trim().min(1),
+  mentionedUserIds: z.array(z.string()).optional().default([]),
 });
 
 async function assertAuthorized() {
@@ -32,17 +34,46 @@ export async function createInternalNoteAction(
     const parsed = createSchema.parse(input);
     const user = await assertAuthorized();
 
-    const session = await db.session.findUnique({ where: { id: parsed.sessionId }, select: { userId: true } });
+    const session = await db.session.findUnique({
+      where: { id: parsed.sessionId },
+      select: { userId: true, remoteJid: true },
+    });
     if (!session) return { success: false, message: "Sesión no encontrada." };
+
+    // No mencionarse a sí mismo; sin duplicados.
+    const mentioned = Array.from(new Set(parsed.mentionedUserIds)).filter(
+      (id) => id && id !== user.id,
+    );
 
     const note = await (db as any).internalNote.create({
       data: {
         sessionId: parsed.sessionId,
         authorId: user.id,
         content: parsed.content,
+        mentionedUserIds: mentioned,
       },
       include: { author: { select: { name: true, email: true } } },
     });
+
+    // Notificación por mención (campanita) para cada asesor mencionado.
+    if (mentioned.length > 0) {
+      try {
+        const preview = parsed.content.slice(0, 140);
+        await (db as any).collabNotification.createMany({
+          data: mentioned.map((recipientId) => ({
+            recipientId,
+            actorId: user.id,
+            type: "mention",
+            sessionId: parsed.sessionId,
+            noteId: note.id,
+            remoteJid: session.remoteJid,
+            content: preview,
+          })),
+        });
+      } catch (notifErr) {
+        console.error("[createInternalNoteAction] notif menciones falló", notifErr);
+      }
+    }
 
     return {
       success: true,
@@ -54,6 +85,7 @@ export async function createInternalNoteAction(
         authorName: note.author.name,
         authorEmail: note.author.email,
         content: note.content,
+        mentionedUserIds: note.mentionedUserIds ?? [],
         createdAt: note.createdAt.toISOString(),
       },
     };
@@ -84,6 +116,7 @@ export async function getInternalNotesBySessionAction(
         authorName: n.author.name,
         authorEmail: n.author.email,
         content: n.content,
+        mentionedUserIds: n.mentionedUserIds ?? [],
         createdAt: n.createdAt.toISOString(),
       })),
     };
