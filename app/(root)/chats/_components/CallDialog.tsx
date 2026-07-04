@@ -47,6 +47,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
   const replySentRef = useRef(false);
   // sid/callId de AstraCalls (persisten tras colgar, para bajar la grabación)
   const astraMetaRef = useRef<{ sid: string; callId: string } | null>(null);
+  const callLogMetaRef = useRef<{ astraSid?: string; astraCallId?: string; metaCallId?: string; provider?: string } | null>(null);
 
   const cleanup = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -98,10 +99,9 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     // Registrar la llamada saliente en los Chats si de verdad se colocó (astraMeta).
     // Contestada (>0s) → "realizada"; colocada pero sin contestar (0s) → "No contesta",
     // y se dispara el auto-mensaje (si está habilitado).
-    if (!loggedRef.current && astraMetaRef.current) {
+    if (!loggedRef.current && callLogMetaRef.current) {
       loggedRef.current = true;
-      const m = astraMetaRef.current;
-      const meta = { astraSid: m.sid, astraCallId: m.callId };
+      const meta = callLogMetaRef.current;
       const answered = secondsRef.current > 0;
       void logOutgoingCallAction(phone, secondsRef.current, false, answered ? undefined : 'no_contesta', meta).then((res) => {
         loggedIdRef.current = res.id;
@@ -123,8 +123,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     try {
       if (!loggedRef.current) {
         loggedRef.current = true;
-        const m = astraMetaRef.current;
-        const meta = m ? { astraSid: m.sid, astraCallId: m.callId } : undefined;
+        const meta = callLogMetaRef.current ?? undefined;
         const res = await logOutgoingCallAction(phone, secondsRef.current, false, value, meta);
         loggedIdRef.current = res.id;
         processRecording(res.id);
@@ -150,6 +149,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     loggedIdRef.current = null;
     replySentRef.current = false;
     astraMetaRef.current = null;
+    callLogMetaRef.current = null;
     setDisposition(null);
     setErrorMsg('');
     setMuted(false);
@@ -199,6 +199,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
         }
 
         callRef.current = { provider: 'meta', callId: started.callId };
+        callLogMetaRef.current = { provider: 'meta', metaCallId: started.callId };
         setErrorMsg('Meta aceptó la solicitud. Falta conectar la respuesta del webhook para el audio.');
         let sdpAnswer = '';
         for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -268,6 +269,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     }
     callRef.current = { provider: 'astra', sid: started.sid, callId: started.callId };
     astraMetaRef.current = { sid: started.sid, callId: started.callId };
+    callLogMetaRef.current = { provider: 'astra', astraSid: started.sid, astraCallId: started.callId };
 
     // 2) WebRTC: micrófono + oferta + intercambio SDP
     try {
