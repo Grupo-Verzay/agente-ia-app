@@ -10,7 +10,8 @@ export type NotificationKind =
   | "task"
   | "appointment"
   | "connection"
-  | "chat";
+  | "chat"
+  | "mention";
 
 export type NotificationCenterItem = {
   id: string;
@@ -32,6 +33,7 @@ const EMPTY_COUNTS: Record<NotificationKind, number> = {
   appointment: 0,
   connection: 0,
   chat: 0,
+  mention: 0,
 };
 
 const ITEMS_PER_KIND_LIMIT = 50;
@@ -127,6 +129,40 @@ export async function getNotificationCenterData(): Promise<{
     }
     const chatCount = unreadChats.length;
 
+    // Notificaciones de colaboración (menciones / agregado como participante).
+    let collabItems: NotificationCenterItem[] = [];
+    try {
+      const collabRows = await (db as any).collabNotification.findMany({
+        where: { recipientId: user.id, readAt: null },
+        orderBy: { createdAt: "desc" },
+        take: ITEMS_PER_KIND_LIMIT,
+      });
+      const actorIds = Array.from(
+        new Set(collabRows.map((r: any) => r.actorId).filter(Boolean)),
+      ) as string[];
+      const actors = actorIds.length
+        ? await db.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } })
+        : [];
+      const actorName = new Map(actors.map((a) => [a.id, a.name]));
+      collabItems = collabRows.map((r: any) => {
+        const who = r.actorId ? actorName.get(r.actorId) || "Un asesor" : "Un asesor";
+        const title =
+          r.type === "mention"
+            ? `${who} te mencionó en una nota`
+            : `${who} te agregó a una conversación`;
+        return {
+          id: `collab:${r.id}`,
+          kind: "mention" as const,
+          title,
+          description: r.content ?? null,
+          href: r.remoteJid ? `/chats?jid=${encodeURIComponent(r.remoteJid)}` : "/chats",
+          date: r.createdAt.toISOString(),
+        };
+      });
+    } catch (e) {
+      console.error("[notification-center] collab", e);
+    }
+
     const connectionItems: NotificationCenterItem[] = [];
     if (instances.length === 0) {
       connectionItems.push({
@@ -147,6 +183,7 @@ export async function getNotificationCenterData(): Promise<{
       });
     }
     const items: NotificationCenterItem[] = [
+      ...collabItems,
       ...connectionItems,
       ...unreadChats.map((chat) => ({
         id: `chat-${chat.remoteJid}`,
@@ -179,6 +216,7 @@ export async function getNotificationCenterData(): Promise<{
       appointment: appointmentCount,
       connection: connectionItems.length,
       chat: chatCount,
+      mention: collabItems.length,
     };
 
     return {

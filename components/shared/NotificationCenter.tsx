@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
   AlertTriangle,
+  AtSign,
   Bell,
   CalendarClock,
   CalendarDays,
@@ -28,6 +29,7 @@ import {
   type NotificationCenterData,
   type NotificationKind,
 } from "@/actions/notification-center-actions";
+import { markCollabNotificationReadAction } from "@/actions/collab-actions";
 import { useChatUnreadStore } from "@/stores/useChatUnreadStore";
 import { cn } from "@/lib/utils";
 
@@ -76,13 +78,20 @@ const KIND_META: Record<
     filterClass: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
     activeClass: "border-emerald-400 bg-emerald-100 text-emerald-800",
   },
+  mention: {
+    label: "Menciones",
+    Icon: AtSign,
+    color: "text-blue-600",
+    filterClass: "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
+    activeClass: "border-blue-400 bg-blue-100 text-blue-800",
+  },
 };
 
-const FILTER_ORDER: NotificationKind[] = ["chat", "appointment", "task", "connection"];
+const FILTER_ORDER: NotificationKind[] = ["mention", "chat", "appointment", "task", "connection"];
 
 const EMPTY_DATA: NotificationCenterData = {
   total: 0,
-  counts: { task: 0, appointment: 0, connection: 0, chat: 0 },
+  counts: { task: 0, appointment: 0, connection: 0, chat: 0, mention: 0 },
   items: [],
 };
 
@@ -112,7 +121,7 @@ export function NotificationCenter() {
       if (res.success) {
         const dismissed = loadDismissed();
         const items = res.data.items.filter((i) => !dismissed.has(i.id));
-        const counts = { task: 0, appointment: 0, connection: 0, chat: 0 } as Record<NotificationKind, number>;
+        const counts = { task: 0, appointment: 0, connection: 0, chat: 0, mention: 0 } as Record<NotificationKind, number>;
         for (const item of items) counts[item.kind] = (counts[item.kind] ?? 0) + 1;
         setData({ items, counts, total: items.length });
       }
@@ -129,6 +138,11 @@ export function NotificationCenter() {
 
   const dismiss = useCallback((id: string, kind: NotificationKind, href: string) => {
     saveDismissed(id);
+    // Las notificaciones de colaboración se marcan como leídas en el servidor
+    // (id con prefijo "collab:") para que no reaparezcan.
+    if (id.startsWith("collab:")) {
+      void markCollabNotificationReadAction(id.slice("collab:".length));
+    }
     setData((prev) => ({
       items: prev.items.filter((i) => i.id !== id),
       counts: { ...prev.counts, [kind]: Math.max(0, (prev.counts[kind] ?? 0) - 1) },
