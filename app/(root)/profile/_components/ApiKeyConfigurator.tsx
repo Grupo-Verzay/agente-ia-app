@@ -31,7 +31,7 @@ import {
     CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { ChevronsUpDown, Check, Eye, EyeOff, Building2, User as UserIcon } from "lucide-react";
+import { ChevronsUpDown, Check, Eye, EyeOff, Building2, User as UserIcon, Copy } from "lucide-react";
 
 // Server actions del CRUD (usa la ruta donde lo pegaste)
 import { upsertUserAiConfig, setUserDefaults, getUserAiSettings, getAiKeyOriginInfo, type AiKeyOriginDTO } from "@/actions/userAiconfig-actions";
@@ -85,7 +85,22 @@ export function ApiKeyConfigurator({
     const [open, setOpen] = useState(false);
     // Solo admin/reseller: revelar la key completa + origen (Verzay vs propia).
     const [revealed, setRevealed] = useState(false);
+    const [copied, setCopied] = useState(false);
     const [origin, setOrigin] = useState<AiKeyOriginDTO | null>(null);
+
+    const handleCopyKey = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!previewApiKey) return;
+        try {
+            await navigator.clipboard.writeText(previewApiKey);
+            setCopied(true);
+            toast.success("API key copiada");
+            setTimeout(() => setCopied(false), 1500);
+        } catch {
+            toast.error("No se pudo copiar la key");
+        }
+    };
 
     useEffect(() => {
         if (defaultOpen) setOpen(true);
@@ -286,26 +301,38 @@ export function ApiKeyConfigurator({
                             placeholder="No configurada"
                             className={cn(
                                 "cursor-pointer bg-muted/40 border-border",
-                                showOrigin && previewApiKey ? "pr-40" : "pr-28",
+                                showOrigin && previewApiKey ? "pr-52" : "pr-28",
                                 (disabled || loading) && "cursor-not-allowed opacity-60"
                             )}
                         />
                         <div className="absolute right-1 top-1 flex items-center gap-1">
                             {showOrigin && previewApiKey && (
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground"
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setRevealed((v) => !v);
-                                    }}
-                                    title={revealed ? "Ocultar key" : "Ver key completa"}
-                                >
-                                    {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                </Button>
+                                <>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-muted-foreground"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setRevealed((v) => !v);
+                                        }}
+                                        title={revealed ? "Ocultar key" : "Ver key completa"}
+                                    >
+                                        {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-muted-foreground"
+                                        onClick={handleCopyKey}
+                                        title="Copiar API key"
+                                    >
+                                        {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                                    </Button>
+                                </>
                             )}
                             <Button
                                 type="button"
