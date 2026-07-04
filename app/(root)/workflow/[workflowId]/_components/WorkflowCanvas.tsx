@@ -43,7 +43,7 @@ function clamp(n: number, min: number, max: number) {
 
 // ── Cuadrícula con carriles (layout horizontal) ─────────────────────────────
 const COL_W = 350; // ancho de cada carril / paso
-const ROW_H = 200; // alto de cada fila (ramas apiladas)
+const ROW_H = 20; // paso fino de snap vertical (para apilar nodos con poco hueco)
 const NODE_W = 320; // ancho aprox. de la tarjeta (para centrarla en el carril)
 const LANE_PAD = (COL_W - NODE_W) / 2; // margen lateral dentro del carril
 const HEADER_H = 52; // alto de la banda de encabezado (arriba de los nodos)
