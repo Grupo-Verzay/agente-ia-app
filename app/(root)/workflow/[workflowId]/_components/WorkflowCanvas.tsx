@@ -193,46 +193,37 @@ export function WorkflowCanvas({
     const others = nodesRef.current.filter((o) => o.id !== id);
     const myH = node.measured?.height ?? 200;
 
-    // AUTO-APILADO VERTICAL: si cae en la misma columna que otro, se pega al
-    // vecino más cercano (arriba O abajo) con el MISMO hueco que hay en
-    // horizontal (COL_W − ancho de la tarjeta), midiendo su tamaño real.
-    const sameCol = others.filter((o) => Math.abs(o.position.x - x) < COL_W / 2);
-    // AUTO-AJUSTE HORIZONTAL: si cae en la misma fila que otro (izq O der),
-    // se pega con el espacio estándar entre columnas.
-    const sameRow = others.filter((o) => Math.abs(o.position.y - y) < ROW_H / 2);
-
-    if (sameCol.length) {
-      const above = sameCol.filter((o) => o.position.y < y);
-      const below = sameCol.filter((o) => o.position.y > y);
-      const nAbove = above.length ? above.reduce((a, b) => (a.position.y > b.position.y ? a : b)) : null;
-      const nBelow = below.length ? below.reduce((a, b) => (a.position.y < b.position.y ? a : b)) : null;
-      const dAbove = nAbove ? y - nAbove.position.y : Infinity;
-      const dBelow = nBelow ? nBelow.position.y - y : Infinity;
-
-      if (nAbove && dAbove <= dBelow) {
-        const h = nAbove.measured?.height ?? 200;
-        const w = nAbove.measured?.width ?? NODE_W;
-        x = nAbove.position.x;
-        y = nAbove.position.y + h + (COL_W - w); // pegado DEBAJO
-      } else if (nBelow) {
-        const w = nBelow.measured?.width ?? NODE_W;
-        x = nBelow.position.x;
-        y = nBelow.position.y - myH - (COL_W - w); // pegado ENCIMA
+    // AUTO-AJUSTE SIEMPRE: el nodo se alinea al vecino MÁS CERCANO (nunca
+    // queda en diagonal). Según el sentido dominante del arrastre se pega a
+    // su lado (misma fila) o arriba/abajo (misma columna), con el MISMO hueco
+    // que hay en horizontal (COL_W − ancho real de la tarjeta).
+    if (others.length) {
+      let nearest = others[0];
+      let bestD = Infinity;
+      for (const o of others) {
+        const d = Math.hypot(o.position.x - x, o.position.y - y);
+        if (d < bestD) {
+          bestD = d;
+          nearest = o;
+        }
       }
-    } else if (sameRow.length) {
-      const left = sameRow.filter((o) => o.position.x < x);
-      const right = sameRow.filter((o) => o.position.x > x);
-      const nLeft = left.length ? left.reduce((a, b) => (a.position.x > b.position.x ? a : b)) : null;
-      const nRight = right.length ? right.reduce((a, b) => (a.position.x < b.position.x ? a : b)) : null;
-      const dLeft = nLeft ? x - nLeft.position.x : Infinity;
-      const dRight = nRight ? nRight.position.x - x : Infinity;
 
-      if (nLeft && dLeft <= dRight) {
-        y = nLeft.position.y;
-        x = nLeft.position.x + COL_W; // pegado a la DERECHA
-      } else if (nRight) {
-        y = nRight.position.y;
-        x = nRight.position.x - COL_W; // pegado a la IZQUIERDA
+      const dx = x - nearest.position.x;
+      const dy = y - nearest.position.y;
+      const h = nearest.measured?.height ?? 200;
+      const w = nearest.measured?.width ?? NODE_W;
+      const gap = COL_W - w; // mismo hueco que en horizontal
+
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        // HORIZONTAL: misma fila, a un lado
+        y = nearest.position.y;
+        x = nearest.position.x + (dx >= 0 ? COL_W : -COL_W);
+      } else {
+        // VERTICAL: misma columna, arriba o abajo
+        x = nearest.position.x;
+        y = dy >= 0
+          ? nearest.position.y + h + gap // debajo
+          : nearest.position.y - myH - gap; // encima
       }
     }
 
