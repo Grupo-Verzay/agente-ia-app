@@ -31,10 +31,10 @@ import {
     CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { ChevronsUpDown, Check } from "lucide-react";
+import { ChevronsUpDown, Check, Eye, EyeOff, Building2, User as UserIcon } from "lucide-react";
 
 // Server actions del CRUD (usa la ruta donde lo pegaste)
-import { upsertUserAiConfig, setUserDefaults, getUserAiSettings } from "@/actions/userAiconfig-actions";
+import { upsertUserAiConfig, setUserDefaults, getUserAiSettings, getAiKeyOriginInfo, type AiKeyOriginDTO } from "@/actions/userAiconfig-actions";
 import { useEffect, useState } from "react";
 import { keepSupportedProviders } from "../helpers/keepOnlyOpenAIProvider";
 
@@ -45,6 +45,11 @@ type ApiKeyConfiguratorProps = {
     defaultOpen?: boolean;
     /** callback opcional luego de guardar por si quieres refrescar datos del padre */
     onSaved?: () => void;
+    /**
+     * Solo admin/reseller: muestra el ojito para revelar la key completa y el
+     * badge de origen (Verzay compartida vs propia del cliente).
+     */
+    showOrigin?: boolean;
 };
 
 type SettingsData = NonNullable<
@@ -75,8 +80,12 @@ export function ApiKeyConfigurator({
     label = "API key (por proveedor)",
     defaultOpen = false,
     onSaved,
+    showOrigin = false,
 }: ApiKeyConfiguratorProps) {
     const [open, setOpen] = useState(false);
+    // Solo admin/reseller: revelar la key completa + origen (Verzay vs propia).
+    const [revealed, setRevealed] = useState(false);
+    const [origin, setOrigin] = useState<AiKeyOriginDTO | null>(null);
 
     useEffect(() => {
         if (defaultOpen) setOpen(true);
@@ -170,6 +179,24 @@ export function ApiKeyConfigurator({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentProviderId, settings]);
 
+    // Origen de la key (solo admin/reseller): cuántas cuentas la comparten.
+    useEffect(() => {
+        if (!showOrigin || !previewProviderId) {
+            setOrigin(null);
+            return;
+        }
+        setRevealed(false);
+        let cancelled = false;
+        (async () => {
+            const res = await getAiKeyOriginInfo(userId, previewProviderId);
+            if (!cancelled) setOrigin(res?.success ? res.data ?? null : null);
+        })();
+        return () => {
+            cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showOrigin, userId, previewProviderId, previewApiKey]);
+
     const submit = async (data: FormValues) => {
         setLoading(true);
         try {
@@ -253,23 +280,42 @@ export function ApiKeyConfigurator({
                             disabled={disabled || loading}
                             value={
                                 previewApiKey
-                                    ? `${previewProviderLabel}: ${maskKey(previewApiKey)}`
+                                    ? `${previewProviderLabel}: ${showOrigin && revealed ? previewApiKey : maskKey(previewApiKey)}`
                                     : `${previewProviderLabel}: No configurada`
                             }
                             placeholder="No configurada"
                             className={cn(
-                                "pr-28 cursor-pointer bg-muted/40 border-border",
+                                "cursor-pointer bg-muted/40 border-border",
+                                showOrigin && previewApiKey ? "pr-40" : "pr-28",
                                 (disabled || loading) && "cursor-not-allowed opacity-60"
                             )}
                         />
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            className="absolute right-1 top-1 h-8"
-                            disabled={disabled || loading}
-                        >
-                            Configurar
-                        </Button>
+                        <div className="absolute right-1 top-1 flex items-center gap-1">
+                            {showOrigin && previewApiKey && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setRevealed((v) => !v);
+                                    }}
+                                    title={revealed ? "Ocultar key" : "Ver key completa"}
+                                >
+                                    {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </Button>
+                            )}
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                className="h-8"
+                                disabled={disabled || loading}
+                            >
+                                Configurar
+                            </Button>
+                        </div>
                     </div>
                 </DialogTrigger>
 
@@ -481,6 +527,29 @@ export function ApiKeyConfigurator({
                     </form>
                 </DialogContent>
             </Dialog>
+
+            {/* Origen de la key (solo admin/reseller): Verzay compartida vs propia. */}
+            {showOrigin && origin?.configured && (
+                origin.accounts > 1 ? (
+                    <div
+                        className="flex items-center gap-1.5 text-xs font-medium text-blue-600"
+                        title={`${origin.accounts} cuentas usan esta misma key (final …${origin.keyTail}). Las keys de Verzay las comparten muchas cuentas; una propia la usa 1 sola.`}
+                    >
+                        <Building2 className="h-3.5 w-3.5" />
+                        Verzay · compartida por {origin.accounts} cuentas
+                        {origin.keyTail && <span className="text-muted-foreground">(…{origin.keyTail})</span>}
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600" title="Solo esta cuenta usa esta key.">
+                        <UserIcon className="h-3.5 w-3.5" />
+                        Propia del cliente
+                        {origin.keyTail && <span className="text-muted-foreground">(…{origin.keyTail})</span>}
+                    </div>
+                )
+            )}
+            {showOrigin && origin && !origin.configured && (
+                <div className="text-xs text-muted-foreground">Sin API key configurada.</div>
+            )}
         </div>
     );
 }

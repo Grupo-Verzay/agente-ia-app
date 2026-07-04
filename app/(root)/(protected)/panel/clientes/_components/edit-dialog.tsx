@@ -362,7 +362,7 @@ export const EditDialog = ({
       case 'apiKeyIa':
         return (
           <div>
-            <ApiKeyConfigurator userId={user.id} label="" />
+            <ApiKeyConfigurator userId={user.id} label="" showOrigin />
           </div>
         );
 

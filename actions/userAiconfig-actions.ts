@@ -3,6 +3,8 @@
 import { unstable_noStore as noStore } from 'next/cache';
 import { db } from '@/lib/db';
 import { Prisma, AiModel, AiProvider, UserAiConfig, User } from '@prisma/client';
+import { currentUser } from '@/lib/auth';
+import { isAdminOrReseller } from '@/lib/rbac';
 
 /* ============================
    Tipos de respuesta y DTOs
@@ -175,6 +177,51 @@ export async function getUserAiSettings(userId: string): Promise<ActionResult<Us
       defaults: defaultsRes.data!,
     },
   };
+}
+
+/**
+ * Origen de la Api Key IA de un cliente: indica si la comparten VARIAS cuentas
+ * (típico de una key compartida de Verzay) o si es exclusiva de ese cliente
+ * (key propia). Solo admin/reseller. No expone la key completa, solo su final.
+ */
+export type AiKeyOriginDTO = {
+  configured: boolean;
+  accounts: number; // cuántas cuentas usan EXACTAMENTE esta misma key
+  keyTail: string | null; // últimos 4 chars (para identificar cuál key de Verzay es)
+};
+
+export async function getAiKeyOriginInfo(
+  userId: string,
+  providerId: string,
+): Promise<ActionResult<AiKeyOriginDTO>> {
+  noStore();
+  const me = await currentUser();
+  if (!me || !isAdminOrReseller(me.role)) {
+    return { success: false, message: 'No autorizado.' };
+  }
+  try {
+    const cfg = await db.userAiConfig.findUnique({
+      where: { userId_providerId: { userId, providerId } },
+      select: { apiKey: true },
+    });
+    const key = cfg?.apiKey?.trim();
+    if (!key) {
+      return { success: true, message: 'ok', data: { configured: false, accounts: 0, keyTail: null } };
+    }
+    const users = await db.userAiConfig.findMany({
+      where: { apiKey: key },
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    const keyTail = key.length > 4 ? key.slice(-4) : key;
+    return {
+      success: true,
+      message: 'ok',
+      data: { configured: true, accounts: users.length, keyTail },
+    };
+  } catch (e: any) {
+    return { success: false, message: e?.message || 'Error obteniendo origen de la key' };
+  }
 }
 
 /* ============================
