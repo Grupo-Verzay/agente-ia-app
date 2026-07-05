@@ -12,6 +12,12 @@ export default async function SessionsPage() {
     redirect('/login');
   };
 
+  // Solo la cuenta principal administra los leads/registros. Los asesores
+  // (con ownerId) no ven /sessions; trabajan sus conversaciones desde /chats.
+  if (user.ownerId) {
+    redirect('/');
+  }
+
   const tagsRes = await listTagsAction(user.effectiveId);
 
   const allTags =
