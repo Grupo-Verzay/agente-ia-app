@@ -112,7 +112,35 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [inputMenuOpen, setInputMenuOpen] = useState(false);
+  const [isCompactToolbar, setIsCompactToolbar] = useState(false);
+  const inputBarRef = useRef<HTMLDivElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = inputBarRef.current;
+    if (!element) return;
+
+    const updateCompactState = () => {
+      setIsCompactToolbar(element.getBoundingClientRect().width < 640);
+    };
+
+    updateCompactState();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateCompactState);
+      return () => window.removeEventListener('resize', updateCompactState);
+    }
+
+    const observer = new ResizeObserver(updateCompactState);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isCompactToolbar) {
+      setInputMenuOpen(false);
+    }
+  }, [isCompactToolbar]);
 
   useEffect(() => {
     if (!emojiOpen) return;
@@ -289,7 +317,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   ) : null;
 
   return (
-    <div className={cn(
+    <div ref={inputBarRef} className={cn(
       "px-2 py-1.5 sm:px-3 sm:py-2 border-t dark:border-gray-700 transition-colors",
       noteMode
         ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
@@ -422,7 +450,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         <div className="relative flex flex-nowrap z-10 items-center justify-center">
           {/* Estado de sesión (Activa/Pausada) + Firma — inline solo en desktop.
               En móvil el toggle de sesión vive en el header y la firma en el menú "+". */}
-          <div className="hidden sm:flex pr-2 items-center gap-1">
+          <div className={cn('hidden pr-2 items-center gap-1', !isCompactToolbar && 'sm:flex')}>
             {session && (
               <span className="hidden md:flex items-center">
                 <SwitchStatus
@@ -442,7 +470,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             size="icon"
             variant="ghost"
             className={cn(
-              'sm:hidden h-8 w-8 rounded-full shrink-0 transition-colors',
+              'h-8 w-8 rounded-full shrink-0 transition-colors',
+              isCompactToolbar ? 'flex' : 'sm:hidden',
               inputMenuOpen
                 ? 'bg-muted text-foreground'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted',
@@ -461,11 +490,13 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               'items-center gap-1',
               inputMenuOpen
                 ? 'absolute bottom-full left-0 mb-2 z-50 flex flex-col rounded-xl border border-border bg-popover p-2 shadow-lg'
-                : 'hidden sm:flex',
+                : isCompactToolbar
+                  ? 'hidden'
+                  : 'hidden sm:flex',
             )}
           >
             {/* Firma — solo dentro del menú en móvil (en desktop va inline arriba) */}
-            <div className="sm:hidden">{signatureControl}</div>
+            <div className={cn(isCompactToolbar ? 'block' : 'sm:hidden')}>{signatureControl}</div>
             <ChatAutomationPicker
               quickReplies={quickReplies}
               workflows={workflows}
