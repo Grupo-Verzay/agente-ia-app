@@ -703,55 +703,6 @@ export async function enableMetaCalling(instanceName: string): Promise<{ success
   }
 }
 
-export async function registerMetaPhoneNumber(params: {
-  instanceName: string;
-  pin?: string;
-}): Promise<{ success: boolean; message: string }> {
-  const { instanceName, pin } = params;
-  try {
-    const version = process.env.META_GRAPH_VERSION || process.env.NEXT_PUBLIC_META_GRAPH_VERSION || 'v25.0';
-    const inst: any = await db.instancia.findFirst({
-      where: { instanceName, instanceType: 'meta', metaChannel: 'whatsapp' } as any,
-      select: { metaPhoneNumberId: true, metaAccessToken: true } as any,
-    });
-
-    if (!inst?.metaPhoneNumberId || !inst?.metaAccessToken) {
-      return { success: false, message: 'Faltan credenciales de WhatsApp Cloud API.' };
-    }
-
-    const body: Record<string, string> = { messaging_product: 'whatsapp' };
-    const cleanPin = (pin ?? '').replace(/\D/g, '');
-    if (cleanPin) body.pin = cleanPin;
-
-    const res = await fetch(
-      `https://graph.facebook.com/${version}/${encodeURIComponent(inst.metaPhoneNumberId)}/register`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${inst.metaAccessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-        cache: 'no-store',
-      },
-    );
-
-    const json: any = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return {
-        success: false,
-        message: json?.error?.message || `Meta respondio ${res.status}.`,
-      };
-    }
-
-    revalidatePath('/connection');
-    return { success: true, message: 'Numero registrado en WhatsApp Cloud API.' };
-  } catch (error: any) {
-    console.error('[registerMetaPhoneNumber]', error);
-    return { success: false, message: error?.message || 'No se pudo registrar el numero.' };
-  }
-}
-
 export async function getMetaDisplayPhone(instanceName: string): Promise<{ success: boolean; displayPhone?: string; message?: string }> {
   try {
     const version = process.env.META_GRAPH_VERSION || process.env.NEXT_PUBLIC_META_GRAPH_VERSION || 'v25.0';
