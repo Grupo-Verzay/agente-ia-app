@@ -184,6 +184,39 @@ function getChatIdentityCandidates(chat: ChatData) {
   ]);
 }
 
+function getPreferenceForChat(chat: ChatData, preferences: ChatConversationPreferenceMap) {
+  return getChatIdentityCandidates(chat)
+    .map((candidate) => preferences[candidate])
+    .find(Boolean);
+}
+
+function getPreferenceForJid(remoteJid: string, preferences: ChatConversationPreferenceMap) {
+  return buildWhatsAppJidCandidates(remoteJid)
+    .map((candidate) => preferences[candidate])
+    .find(Boolean);
+}
+
+function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
+  return getChatIdentityCandidates(chat)
+    .map((candidate) => sessions[candidate])
+    .find(Boolean);
+}
+
+function isChatDeletedByPreference(chat: ChatData, preference?: ChatConversationPreference) {
+  if (!preference?.deletedAt) return false;
+
+  const deletedAtMs = new Date(preference.deletedAt).getTime();
+  const lastMessageMs = (chat.lastMessage?.messageTimestamp ?? 0) * 1000;
+  const revivedByIncomingMessage =
+    lastMessageMs > deletedAtMs && chat.lastMessage?.key?.fromMe === false;
+
+  return !revivedByIncomingMessage;
+}
+
+function chatMatchesAnyJid(chat: ChatData, jids: Set<string>) {
+  return getChatIdentityCandidates(chat).some((candidate) => jids.has(candidate));
+}
+
 function getChatMessageDuplicateKey(chat: ChatData) {
   const messageId = chat.lastMessage?.key?.id || chat.lastMessage?.id;
   if (!messageId) return "";
@@ -414,7 +447,7 @@ export function ChatsClient({
     );
     if (advisorRole !== "agente" || !currentAdvisorId) return all;
     return all.filter((chat) => {
-      const session = chatSessions[chat.remoteJid];
+      const session = getSessionForChat(chat, chatSessions);
       return !session?.assignedAdvisorId || session.assignedAdvisorId === currentAdvisorId;
     });
   }, [currentChatsResult, advisorRole, currentAdvisorId, chatSessions]);
@@ -448,8 +481,8 @@ export function ChatsClient({
   const visibleContacts = useMemo(
     () =>
       contacts.filter((contact) => {
-        const preference = chatPreferences[contact.remoteJid];
-        return !preference?.isDeleted && !preference?.isArchived;
+        const preference = getPreferenceForChat(contact, chatPreferences);
+        return !isChatDeletedByPreference(contact, preference) && !preference?.isArchived;
       }),
     [chatPreferences, contacts],
   );
@@ -462,13 +495,21 @@ export function ChatsClient({
   }, [contacts, selectedJid]);
 
   const currentContactSession = useMemo(() => {
+    if (currentContact) return getSessionForChat(currentContact, chatSessions);
     if (!selectedJid) return undefined;
-    return chatSessions[selectedJid];
-  }, [chatSessions, selectedJid]);
+    return buildWhatsAppJidCandidates(selectedJid)
+      .map((candidate) => chatSessions[candidate])
+      .find(Boolean);
+  }, [chatSessions, currentContact, selectedJid]);
 
   const currentPreference = useMemo(
-    () => (selectedJid ? chatPreferences[selectedJid] : undefined),
-    [chatPreferences, selectedJid],
+    () =>
+      currentContact
+        ? getPreferenceForChat(currentContact, chatPreferences)
+        : selectedJid
+          ? getPreferenceForJid(selectedJid, chatPreferences)
+          : undefined,
+    [chatPreferences, currentContact, selectedJid],
   );
 
   const header = useMemo(() => {
@@ -510,12 +551,13 @@ export function ChatsClient({
 
   useEffect(() => {
     if (!selectedJid) return;
-    if (!chatPreferences[selectedJid]?.isDeleted) return;
+    if (!currentContact) return;
+    if (!isChatDeletedByPreference(currentContact, currentPreference)) return;
 
     setSelectedJid("");
     setMessages([]);
     setInfo(undefined);
-  }, [chatPreferences, selectedJid]);
+  }, [currentContact, currentPreference, selectedJid]);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -1204,27 +1246,21 @@ export function ChatsClient({
         return;
       }
 
+      const deletedCandidates = new Set(buildWhatsAppJidCandidates(remoteJid));
       setCurrentChatsResult((prev) =>
         prev.success
           ? {
               ...prev,
-              data: prev.data.filter(
-                (chat) => chat.remoteJid !== remoteJid && !chat.aliases?.includes(remoteJid),
-              ),
+              data: prev.data.filter((chat) => !chatMatchesAnyJid(chat, deletedCandidates)),
             }
           : prev,
       );
       setChatSessions((prev) => {
-        if (!(remoteJid in prev)) return prev;
         const next = { ...prev };
-        delete next[remoteJid];
+        for (const candidate of deletedCandidates) delete next[candidate];
         return next;
       });
-      setChatPreferences((prev) => {
-        const next = { ...prev };
-        delete next[remoteJid];
-        return next;
-      });
+      applyChatPreference(result.data);
       toast.success(result.message);
 
       if (selectedJid === remoteJid) {
@@ -1233,7 +1269,7 @@ export function ChatsClient({
         setInfo(undefined);
       }
     },
-    [selectedJid, userId],
+    [applyChatPreference, selectedJid, userId],
   );
 
   const handleRestoreChat = useCallback(
@@ -1283,14 +1319,12 @@ export function ChatsClient({
         toast.error(result.message || "No se pudieron eliminar los chats.");
         return;
       }
-      const deletedJids = new Set(remoteJids);
+      const deletedJids = new Set(remoteJids.flatMap((jid) => buildWhatsAppJidCandidates(jid)));
       setCurrentChatsResult((prev) =>
         prev.success
           ? {
               ...prev,
-              data: prev.data.filter(
-                (chat) => !deletedJids.has(chat.remoteJid) && !chat.aliases?.some((alias) => deletedJids.has(alias)),
-              ),
+              data: prev.data.filter((chat) => !chatMatchesAnyJid(chat, deletedJids)),
             }
           : prev,
       );
@@ -1301,10 +1335,10 @@ export function ChatsClient({
       });
       setChatPreferences((prev) => {
         const next = { ...prev };
-        for (const jid of deletedJids) delete next[jid];
+        for (const pref of result.data!) next[pref.remoteJid] = pref;
         return next;
       });
-      if (remoteJids.includes(selectedJid)) {
+      if (buildWhatsAppJidCandidates(selectedJid).some((candidate) => deletedJids.has(candidate))) {
         setSelectedJid("");
         setMessages([]);
         setInfo(undefined);

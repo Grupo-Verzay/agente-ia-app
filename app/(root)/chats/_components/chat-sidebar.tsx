@@ -65,6 +65,7 @@ import { DeletedContactItem } from "./DeletedContactItem";
 import { ChatEmptyState } from "./ChatEmptyState";
 import { DeleteChatDialog } from "./DeleteChatDialog";
 import { BulkActionBar } from "./BulkActionBar";
+import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import {
   epochToMs,
   formatTimeFromEpoch,
@@ -75,6 +76,7 @@ import {
   isBadContactName,
 } from "./chat-sidebar.utils";
 import type { SidebarContact, TabKey, TabCounts } from "./chat-sidebar.types";
+import type { ChatData } from "@/actions/chat-actions";
 
 // --- Virtualización de la lista lateral ---
 // A partir de este número de contactos visibles, solo se renderizan los items
@@ -92,6 +94,44 @@ function estimateSidebarItemHeight(contact: SidebarContact) {
   return contact.chatSession
     ? SIDEBAR_ITEM_HEIGHT_WITH_BADGES
     : SIDEBAR_ITEM_HEIGHT_PLAIN;
+}
+
+function getChatIdentityCandidates(chat: ChatData) {
+  return buildWhatsAppJidCandidates(chat.remoteJid, [
+    chat.remoteJidAlt,
+    chat.senderPn,
+    ...(chat.aliases ?? []),
+    chat.lastMessage?.key?.remoteJid,
+    chat.lastMessage?.key?.remoteJidAlt,
+    chat.lastMessage?.key?.senderPn,
+    chat.lastMessage?.senderPn,
+  ]);
+}
+
+function getPreferenceForChat(chat: ChatData, preferences: ChatConversationPreferenceMap) {
+  return getChatIdentityCandidates(chat)
+    .map((candidate) => preferences[candidate])
+    .find(Boolean);
+}
+
+function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
+  return getChatIdentityCandidates(chat)
+    .map((candidate) => sessions[candidate])
+    .find(Boolean);
+}
+
+function isChatDeletedByPreference(
+  chat: ChatData,
+  preference?: ChatConversationPreferenceMap[string],
+) {
+  if (!preference?.deletedAt) return false;
+
+  const deletedAtMs = new Date(preference.deletedAt).getTime();
+  const lastMessageMs = (chat.lastMessage?.messageTimestamp ?? 0) * 1000;
+  const revivedByIncomingMessage =
+    lastMessageMs > deletedAtMs && chat.lastMessage?.key?.fromMe === false;
+
+  return !revivedByIncomingMessage;
 }
 
 type ChatSidebarProps = {
@@ -276,13 +316,14 @@ export function ChatSidebar({
         const isRead =
           !isForcedUnread &&
           (wasSeenPreviously || lastMsgData.fromMe || isSelected || (!hasUnreadFromServer && !hasLocalPending));
-        const preference = chatPreferences[chat.remoteJid];
+        const preference = getPreferenceForChat(chat, chatPreferences);
+        const chatSession = getSessionForChat(chat, chatSessions) ?? null;
 
         return {
           id: chat.remoteJid,
-          chatSession: chatSessions[chat.remoteJid] ?? null,
+          chatSession,
           name: (() => {
-            const s = chatSessions[chat.remoteJid];
+            const s = chatSession;
             const custom = s?.customName?.trim();
             if (custom && !isBadContactName(custom)) return custom;
             const push = s?.pushName?.trim();
@@ -300,9 +341,9 @@ export function ChatSidebar({
           isPinned: Boolean(preference?.isPinned),
           pinnedAtMs: preference?.pinnedAt ? new Date(preference.pinnedAt).getTime() : 0,
           isArchived: Boolean(preference?.isArchived),
-          isDeleted: Boolean(preference?.isDeleted),
+          isDeleted: isChatDeletedByPreference(chat, preference),
           instanceName: chat.instanceName,
-          hasNotes: notedSessionIds.has(chatSessions[chat.remoteJid]?.id ?? -1),
+          hasNotes: notedSessionIds.has(chatSession?.id ?? -1),
         } satisfies SidebarContact;
       })
       .sort((a, b) => {

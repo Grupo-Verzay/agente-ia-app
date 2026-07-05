@@ -20,6 +20,7 @@ import {
   sendManualWorkflowAction,
   warmChatMessagesAction,
 } from "@/actions/chat-manual-actions";
+import { getChatConversationPreferencesByUserId } from "@/actions/chat-conversation-actions";
 import {
   fetchChatsFromBaileys,
   findMessagesFromBaileys,
@@ -277,6 +278,10 @@ export default async function ChatsPage({
     userIds: allSessionUserIds,
     instanceNames: instancias.map((inst) => inst.instanceName),
   });
+  const initialPreferencesResult = await getChatConversationPreferencesByUserId(effectiveOwnerId);
+  const initialChatPreferences = initialPreferencesResult.success
+    ? initialPreferencesResult.data ?? {}
+    : {};
 
   if (fetchPlans.length === 0) {
     chatsResult = persistedInitialChats.length
@@ -476,7 +481,7 @@ export default async function ChatsPage({
       sessionUserIds={allSessionUserIds}
       instancias={instanciasMeta}
       chatsResult={chatsResult}
-      initialChatPreferences={{}}
+      initialChatPreferences={initialChatPreferences}
       initialChatSessions={{}}
       initialSelectedJid={initialSelectedJid}
       initialMessages={initialMessages}

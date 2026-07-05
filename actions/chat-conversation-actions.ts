@@ -152,12 +152,14 @@ function deletedPreference(remoteJid: string): ChatConversationPreference {
 async function hardDeleteLocalChat(userId: string, remoteJid: string) {
   const normalizedRemoteJid = normalizePreferenceRemoteJid(remoteJid);
   const candidates = buildWhatsAppJidCandidates(normalizedRemoteJid);
+  const deletedAt = new Date();
+  let deletedPreferenceRow: ChatConversationPreference | null = null;
 
   await db.$transaction(async (tx) => {
     await tx.chatConversationPreference.deleteMany({
       where: {
         userId,
-        remoteJid: { in: candidates },
+        remoteJid: { in: candidates.filter((candidate) => candidate !== normalizedRemoteJid) },
       },
     });
 
@@ -206,9 +208,32 @@ async function hardDeleteLocalChat(userId: string, remoteJid: string) {
           OR "senderPn" IN (${Prisma.join(candidates)})
         )
     `;
+
+    const preference = await tx.chatConversationPreference.upsert({
+      where: {
+        userId_remoteJid: {
+          userId,
+          remoteJid: normalizedRemoteJid,
+        },
+      },
+      update: {
+        pinnedAt: null,
+        archivedAt: null,
+        deletedAt,
+      },
+      create: {
+        userId,
+        remoteJid: normalizedRemoteJid,
+        pinnedAt: null,
+        archivedAt: null,
+        deletedAt,
+      },
+    });
+    deletedPreferenceRow = mapPreference(preference);
   });
 
   revalidatePath("/chats");
+  return deletedPreferenceRow ?? deletedPreference(normalizedRemoteJid);
 }
 
 export async function getChatConversationPreferencesByUserId(
@@ -218,19 +243,16 @@ export async function getChatConversationPreferencesByUserId(
     const user = await currentUser();
     if (!user?.id) throw new Error("No autorizado.");
 
-    const preferences = await chatConversationPreferenceTable.findMany({
-      where: { userId: user.id },
-    });
-
-    const deletedPreferences = preferences.filter((item) => item.deletedAt);
-    if (deletedPreferences.length > 0) {
-      await Promise.all(
-        deletedPreferences.map((item) => hardDeleteLocalChat(user.id, item.remoteJid)),
-      );
+    const targetUserId = _userId?.trim() || user.ownerId || user.id;
+    if (targetUserId !== user.id && targetUserId !== user.ownerId) {
+      await assertCanDeleteChats(targetUserId);
     }
 
+    const preferences = await chatConversationPreferenceTable.findMany({
+      where: { userId: targetUserId },
+    });
+
     const data = preferences
-      .filter((item) => !item.deletedAt)
       .reduce<ChatConversationPreferenceMap>((acc, item) => {
         acc[item.remoteJid] = mapPreference(item);
         return acc;
@@ -307,12 +329,12 @@ export async function deleteChatConversationAction(
   try {
     const parsed = baseSchema.parse(input);
     await assertCanDeleteChats(parsed.userId);
-    await hardDeleteLocalChat(parsed.userId, parsed.remoteJid);
+    const data = await hardDeleteLocalChat(parsed.userId, parsed.remoteJid);
 
     return {
       success: true,
       message: "Chat eliminado correctamente.",
-      data: deletedPreference(parsed.remoteJid),
+      data,
     };
   } catch (error) {
     console.error("[deleteChatConversationAction]", error);
@@ -391,8 +413,9 @@ export async function bulkDeleteChatsAction(
   try {
     const parsed = bulkBaseSchema.parse(input);
     await assertCanDeleteChats(parsed.userId);
-    await Promise.all(parsed.remoteJids.map((remoteJid) => hardDeleteLocalChat(parsed.userId, remoteJid)));
-    const results = parsed.remoteJids.map(deletedPreference);
+    const results = await Promise.all(
+      parsed.remoteJids.map((remoteJid) => hardDeleteLocalChat(parsed.userId, remoteJid)),
+    );
 
     return {
       success: true,
