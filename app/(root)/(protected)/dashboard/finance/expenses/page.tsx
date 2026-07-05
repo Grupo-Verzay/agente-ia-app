@@ -7,7 +7,11 @@ import { getAllExpenses, getExpensesMeta } from "@/actions/finance-expenses-acti
 import MainExpenses from "./_components/MainExpenses";
 import { serializePrisma } from "@/lib/serialize-prisma";
 
-export default async function ExpensesPage() {
+export default async function ExpensesPage({
+  searchParams,
+}: {
+  searchParams?: { month?: string | string[] };
+}) {
   const user = await currentUser();
   if (!user?.id) return <AccessDenied />;
 
@@ -36,6 +40,7 @@ export default async function ExpensesPage() {
       currencies={meta.currencies}
       expenses={expenses}
       primaryCurrencyCode={preferredCurrencyCode}
+      initialMonth={Array.isArray(searchParams?.month) ? searchParams?.month[0] : searchParams?.month}
     />
   );
 }

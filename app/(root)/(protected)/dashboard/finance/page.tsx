@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { db } from '@/lib/db';
 import { auth } from '@/auth';
 
-import { CalendarDays, TrendingUp, TrendingDown, Wallet, Settings, ReceiptText } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Wallet, Settings, ReceiptText } from 'lucide-react';
 import { FinanceMonthChart } from './_components/FinanceMonthChart';
 
 export const dynamic = 'force-dynamic';
@@ -56,7 +56,33 @@ function moneyFormat(meta: { code: string; symbol: string; decimals: number } | 
   }
 }
 
-export default async function FinanceHomePage() {
+function parseMonthParam(value?: string | string[]) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const match = raw?.match(/^(\d{4})-(\d{2})$/);
+  if (!match) return startOfMonth(new Date());
+
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+    return startOfMonth(new Date());
+  }
+
+  return new Date(year, monthIndex, 1, 0, 0, 0, 0);
+}
+
+function monthInputValue(date: Date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
+}
+
+function addMonths(date: Date, amount: number) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1, 0, 0, 0, 0);
+}
+
+export default async function FinanceHomePage({
+  searchParams,
+}: {
+  searchParams?: { month?: string | string[] };
+}) {
   const session = await auth();
   const email = session?.user?.email;
   if (!email) return null;
@@ -67,9 +93,9 @@ export default async function FinanceHomePage() {
   });
   if (!me?.id) return null;
 
-  const now = new Date();
-  const from = startOfMonth(now);
-  const to = startOfNextMonth(now);
+  const selectedMonth = parseMonthParam(searchParams?.month);
+  const from = startOfMonth(selectedMonth);
+  const to = startOfNextMonth(selectedMonth);
 
   const currencies = await db.financeCurrency.findMany({
     orderBy: { code: 'asc' },
@@ -108,9 +134,9 @@ export default async function FinanceHomePage() {
 
   const netCombined = salesCombined - expensesCombined;
 
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysInMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate();
   const dayRows = Array.from({ length: daysInMonth }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth(), i + 1);
+    const d = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), i + 1);
     return { day: i + 1, key: keyYMD(d), sales: 0, expenses: 0 };
   });
 
@@ -127,24 +153,60 @@ export default async function FinanceHomePage() {
     if (r.type === 'EXPENSE') dayRows[idx].expenses += total;
   }
 
-  const monthLabel = now.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+  const monthLabel = selectedMonth.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+  const selectedMonthValue = monthInputValue(selectedMonth);
+  const previousMonth = monthInputValue(addMonths(selectedMonth, -1));
+  const nextMonth = monthInputValue(addMonths(selectedMonth, 1));
+  const currentMonth = monthInputValue(new Date());
+  const netMargin = salesCombined > 0 ? (netCombined / salesCombined) * 100 : 0;
 
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-0.5">
-          <h1 className="text-xl font-semibold leading-none tracking-tight">Finanzas</h1>
-          <p className="text-sm text-muted-foreground">Resumen del mes actual.</p>
+          <h1 className="text-xl font-semibold leading-none tracking-tight">Contabilidad Verzay</h1>
+          <p className="text-sm text-muted-foreground">Ingresos, gastos, recibos y resultado mensual.</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline" size="icon" className="h-9 w-9" title="Mes anterior">
+            <Link href={`/dashboard/finance?month=${previousMonth}`}>
+              <ChevronLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+
+          <form action="/dashboard/finance" className="flex items-center gap-2">
+            <input
+              type="month"
+              name="month"
+              defaultValue={selectedMonthValue}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Mes contable"
+            />
+            <Button type="submit" variant="outline" className="h-9 px-3">
+              Filtrar
+            </Button>
+          </form>
+
+          <Button asChild variant="outline" size="icon" className="h-9 w-9" title="Mes siguiente">
+            <Link href={`/dashboard/finance?month=${nextMonth}`}>
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          </Button>
+
           <Badge variant="secondary" className="h-8 px-3 text-xs">
             <span className="inline-flex items-center gap-1">
               <CalendarDays className="h-4 w-4" />
               {monthLabel}
             </span>
           </Badge>
+
+          {selectedMonthValue !== currentMonth && (
+            <Button asChild variant="ghost" className="h-9 px-3 text-sm">
+              <Link href="/dashboard/finance">Mes actual</Link>
+            </Button>
+          )}
 
           <Button asChild variant="outline" className="h-9">
             <Link href="/dashboard/finance/settings" className="inline-flex items-center gap-2">
@@ -158,7 +220,7 @@ export default async function FinanceHomePage() {
       {/* Totales clickeables */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {/* Ventas */}
-        <Link href="/dashboard/finance/sales" className="block">
+        <Link href={`/dashboard/finance/sales?month=${selectedMonthValue}`} className="block">
           <Card className="border-border transition hover:bg-muted/40">
             <CardContent className="flex items-center gap-3 px-3 py-3">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 bg-muted/40">
@@ -174,7 +236,7 @@ export default async function FinanceHomePage() {
         </Link>
 
         {/* Gastos */}
-        <Link href="/dashboard/finance/expenses" className="block">
+        <Link href={`/dashboard/finance/expenses?month=${selectedMonthValue}`} className="block">
           <Card className="border-border transition hover:bg-muted/40">
             <CardContent className="flex items-center gap-3 px-3 py-3">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 bg-muted/40">
@@ -217,6 +279,31 @@ export default async function FinanceHomePage() {
         </Card>
       </div>
 
+      <div className="grid gap-3 md:grid-cols-3">
+        <Card className="border-border">
+          <CardContent className="px-3 py-3">
+            <p className="text-xs font-medium text-muted-foreground">Resultado neto</p>
+            <p className="mt-1 text-2xl font-semibold tracking-tight">{formatPreferred(netCombined)}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardContent className="px-3 py-3">
+            <p className="text-xs font-medium text-muted-foreground">Margen del mes</p>
+            <p className="mt-1 text-2xl font-semibold tracking-tight">
+              {salesCombined > 0 ? `${netMargin.toFixed(1)}%` : '-'}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardContent className="px-3 py-3">
+            <p className="text-xs font-medium text-muted-foreground">Soportes</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Carga recibos desde ingresos y gastos para respaldar cada movimiento.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Chart */}
       <Card className="border-border">
         <CardHeader className="pb-2">
@@ -232,7 +319,10 @@ export default async function FinanceHomePage() {
         </CardHeader>
 
         <CardContent className="pt-0">
-          <FinanceMonthChart data={dayRows.map((r) => ({ day: r.day, sales: r.sales, expenses: r.expenses }))} />
+          <FinanceMonthChart
+            currencyCode={preferredCode}
+            data={dayRows.map((r) => ({ day: r.day, sales: r.sales, expenses: r.expenses }))}
+          />
         </CardContent>
       </Card>
     </div>

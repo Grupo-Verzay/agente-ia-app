@@ -51,6 +51,7 @@ type Props = {
   currencies: FinCurrency[];
   expenses: ExpenseRow[];
   primaryCurrencyCode: string;
+  initialMonth?: string;
 };
 
 type FormState = {
@@ -82,6 +83,19 @@ const toISODate = (d: Date | string) => {
 
 function isSameMonth(date: Date, base: Date) {
   return date.getFullYear() === base.getFullYear() && date.getMonth() === base.getMonth();
+}
+
+function parseMonthValue(value?: string) {
+  const match = value?.match(/^(\d{4})-(\d{2})$/);
+  if (!match) return new Date();
+
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+    return new Date();
+  }
+
+  return new Date(year, monthIndex, 1);
 }
 
 function guessIsImage(mimeType?: string | null, url?: string) {
@@ -162,6 +176,7 @@ export default function MainExpenses({
   currencies,
   expenses,
   primaryCurrencyCode,
+  initialMonth,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -182,6 +197,11 @@ export default function MainExpenses({
   };
 
   const [tab, setTab] = useState<'month' | 'total'>('month');
+  const selectedMonthDate = useMemo(() => parseMonthValue(initialMonth), [initialMonth]);
+  const selectedMonthLabel = useMemo(
+    () => selectedMonthDate.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }),
+    [selectedMonthDate],
+  );
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ExpenseRow | null>(null);
 
@@ -222,7 +242,7 @@ export default function MainExpenses({
 
   const resetForm = () => {
     setForm({
-      occurredAt: toISODate(new Date()),
+      occurredAt: toISODate(selectedMonthDate),
       amount: '',
       currencyCode: defaultCurrency,
       accountId: defaultAccountId,
@@ -377,9 +397,8 @@ export default function MainExpenses({
   );
 
   const monthRows = useMemo(() => {
-    const now = new Date();
-    return rows.filter((r) => isSameMonth(new Date(r.occurredAt), now));
-  }, [rows]);
+    return rows.filter((r) => isSameMonth(new Date(r.occurredAt), selectedMonthDate));
+  }, [rows, selectedMonthDate]);
 
   const totalsMonth = useMemo(() => sumByCurrency(monthRows), [monthRows]);
   const totalsAll = useMemo(() => sumByCurrency(rows), [rows]);
@@ -449,7 +468,7 @@ export default function MainExpenses({
                   </div>
                   <div className="leading-tight">
                     <p className="text-[11px] text-muted-foreground">Total mes</p>
-                    <p className="text-sm font-medium">Resumen</p>
+                    <p className="text-sm font-medium capitalize">{selectedMonthLabel}</p>
                   </div>
                 </div>
                 <div className="text-right leading-tight">
@@ -483,7 +502,7 @@ export default function MainExpenses({
                 >
                   <span className="inline-flex items-center gap-2">
                     <CalendarDays className="h-4 w-4" />
-                    Mes
+                    <span className="capitalize">{selectedMonthLabel}</span>
                   </span>
                 </TabsTrigger>
 

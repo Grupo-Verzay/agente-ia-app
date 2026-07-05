@@ -9,7 +9,11 @@ import { listProducts } from "@/actions/products-actions";
 import { getSessionsByUserId } from "@/actions/session-action";
 import { serializePrisma } from "@/lib/serialize-prisma";
 
-export default async function SalesPage() {
+export default async function SalesPage({
+  searchParams,
+}: {
+  searchParams?: { month?: string | string[] };
+}) {
   const user = await currentUser();
   if (!user?.id) return <AccessDenied />;
 
@@ -41,6 +45,7 @@ export default async function SalesPage() {
         sales={sales}
         products={products}
         primaryCurrencyCode={preferredCurrencyCode}
+        initialMonth={Array.isArray(searchParams?.month) ? searchParams?.month[0] : searchParams?.month}
         // sessions={sessions} // si luego lo necesitas
       />
     </div>
