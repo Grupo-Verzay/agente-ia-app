@@ -159,7 +159,12 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
   return (
     <div className="rounded-xl border border-border bg-gradient-to-b from-muted/30 to-transparent p-3 shadow-sm">
       {/* Encabezado */}
-      <div className="mb-2.5 flex items-center gap-2">
+      <div
+        className={cn(
+          'mb-2.5 flex items-center gap-2',
+          !hasParticipants && 'justify-center',
+        )}
+      >
         <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
           <Users className="h-3.5 w-3.5" />
         </span>
