@@ -2,12 +2,13 @@
 
 import type { MediaType, FetchChatsResult, FindMessagesResult, SendMessageResult } from "./chat-actions";
 import type { ChatToolActionResult } from "@/types/chat";
-import type { WorkflowNode } from "@prisma/client";
+import { Prisma, type WorkflowNode } from "@prisma/client";
 
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { buildChatHistorySessionId } from "@/lib/chat-history/build-session-id";
 import { saveChatHistoryMessage } from "@/lib/chat-history/chat-history.helper";
+import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import {
   getPersistedInboxChats,
   getPersistedMessages,
@@ -240,6 +241,7 @@ async function persistOutgoingHistory(params: {
 async function sendOutgoingPayload(params: {
   context: Exclude<ChatActionContext, null>;
   remoteJid: string;
+  persistRemoteJid?: string;
   payload: OutgoingMessagePayload;
   source: string;
   userId?: string;
@@ -247,7 +249,7 @@ async function sendOutgoingPayload(params: {
   historyType?: "notification" | "workflow";
   metadata?: Record<string, unknown>;
 }): Promise<SendMessageResult> {
-  const { context, remoteJid, payload, source, userId, instanceType, historyType, metadata } = params;
+  const { context, remoteJid, persistRemoteJid, payload, source, userId, instanceType, historyType, metadata } = params;
 
   const result =
     payload.kind === "text"
@@ -275,7 +277,7 @@ async function sendOutgoingPayload(params: {
   if (result.success) {
     await persistOutgoingHistory({
       instanceName: context.instanceName,
-      remoteJid,
+      remoteJid: persistRemoteJid ?? remoteJid,
       payload,
       source,
       userId,
@@ -312,6 +314,34 @@ async function resolveChatStorageUserId(
   }
 
   return fallbackUserId ?? null;
+}
+
+async function resolveTransportRemoteJid(params: {
+  userId?: string | null;
+  instanceName: string;
+  remoteJid: string;
+}) {
+  const candidates = buildWhatsAppJidCandidates(params.remoteJid);
+  if (!params.userId || !params.instanceName || candidates.length === 0) {
+    return params.remoteJid;
+  }
+
+  const rows = await db.$queryRaw<{ remoteJid: string }[]>`
+    SELECT ("raw"->'key'->>'remoteJid') AS "remoteJid"
+    FROM "chat_messages"
+    WHERE "userId" = ${params.userId}
+      AND "instanceName" = ${params.instanceName}
+      AND (
+        "remoteJid" IN (${Prisma.join(candidates)})
+        OR "remoteJidAlt" IN (${Prisma.join(candidates)})
+        OR "senderPn" IN (${Prisma.join(candidates)})
+      )
+      AND ("raw"->'key'->>'remoteJid') LIKE '%@lid'
+    ORDER BY "messageTimestamp" DESC, "id" DESC
+    LIMIT 1
+  `;
+
+  return rows[0]?.remoteJid || params.remoteJid;
 }
 
 async function buildPersistedMessagesResult(params: {
@@ -492,6 +522,11 @@ export async function sendManualChatPayloadAction(
 
   const user = await currentUser();
   const storageUserId = await resolveChatStorageUserId(context, user?.ownerId ?? user?.id);
+  const transportRemoteJid = await resolveTransportRemoteJid({
+    userId: storageUserId,
+    instanceName: context.instanceName,
+    remoteJid,
+  });
 
   // Guardamos el texto original antes de appendear firma
   const originalText = payload.kind === "text" ? payload.text.trim() : null;
@@ -513,7 +548,8 @@ export async function sendManualChatPayloadAction(
 
   const result = await sendOutgoingPayload({
     context,
-    remoteJid,
+    remoteJid: transportRemoteJid,
+    persistRemoteJid: remoteJid,
     payload,
     source: "manual_chat_ui",
     userId: storageUserId ?? undefined,
@@ -650,6 +686,11 @@ export async function sendManualWorkflowAction(
 
   const user = await requireCurrentUser();
   const storageUserId = await resolveChatStorageUserId(context, user.ownerId ?? user.id);
+  const transportRemoteJid = await resolveTransportRemoteJid({
+    userId: storageUserId,
+    instanceName: context.instanceName,
+    remoteJid,
+  });
   const authorizedUserIds = await getAuthorizedAccountUserIds(user);
   const workflow = await db.workflow.findFirst({
     where: {
@@ -684,7 +725,8 @@ export async function sendManualWorkflowAction(
 
     const result = await sendOutgoingPayload({
       context,
-      remoteJid,
+      remoteJid: transportRemoteJid,
+      persistRemoteJid: remoteJid,
       payload,
       source: "manual_chat_workflow",
       userId: storageUserId ?? workflow.userId,
@@ -745,6 +787,11 @@ export async function sendManualQuickReplyAction(
 
   const user = await requireCurrentUser();
   const storageUserId = await resolveChatStorageUserId(context, user.ownerId ?? user.id);
+  const transportRemoteJid = await resolveTransportRemoteJid({
+    userId: storageUserId,
+    instanceName: context.instanceName,
+    remoteJid,
+  });
   const authorizedUserIds = await getAuthorizedAccountUserIds(user);
   const quickReply = await db.quickReply.findFirst({
     where: {
@@ -781,7 +828,8 @@ export async function sendManualQuickReplyAction(
   if (hasText) {
     const textResult = await sendOutgoingPayload({
       context,
-      remoteJid,
+      remoteJid: transportRemoteJid,
+      persistRemoteJid: remoteJid,
       payload: { kind: "text", text: message },
       source: "manual_chat_quick_reply",
       userId: storageUserId ?? quickReply.userId,
