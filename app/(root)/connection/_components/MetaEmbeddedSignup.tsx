@@ -160,7 +160,7 @@ export function MetaEmbeddedSignup({
     setLoading(true);
     sessionInfo.current = {};
 
-    const redirectUri = window.location.origin + window.location.pathname;
+    const redirectUri = `${window.location.origin}/api/meta/oauth/callback`;
     const state =
       typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
