@@ -5,6 +5,7 @@ import { PencilLine } from "lucide-react";
 import { toast } from "sonner";
 
 import { updateLeadPushNameAction } from "@/actions/registro-action";
+import { formatContactDisplayName } from "@/lib/contact-display-name";
 import { fmtPhone } from "@/lib/whatsapp-jid";
 import { ContactEditDialog } from "@/app/(root)/chats/_components/ContactEditDialog";
 import type { Session } from "@/types/session";
@@ -20,7 +21,7 @@ export function EditableNameCell({
     const [draft, setDraft] = useState("");
     const [isPending, setIsPending] = useState(false);
 
-    const name = session.pushName || "Sin nombre";
+    const name = formatContactDisplayName(session.pushName, "Lead");
     const phone = fmtPhone(session.remoteJid);
 
     const handleOpen = () => {

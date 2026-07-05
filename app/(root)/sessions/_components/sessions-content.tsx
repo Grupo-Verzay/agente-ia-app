@@ -22,6 +22,7 @@ import { CreateContactDialog } from "./CreateContactDialog";
 import { getSessionsForExport } from "@/actions/export-actions";
 import { toast } from "sonner";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
+import { formatContactDisplayName } from "@/lib/contact-display-name";
 
 const PAGE_SIZE = 20;
 
@@ -188,7 +189,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
                   if (!res.success) { toast.error(res.message); return; }
                   const headers = ["ID", "Nombre", "Teléfono", "Lead Status", "Conversación", "Agente IA", "Asesor", "Etiquetas", "Fecha creación"];
                   const rows = res.rows.map((r) => [
-                    String(r.id), r.nombre, r.telefono, r.leadStatus,
+                    String(r.id), formatContactDisplayName(r.nombre, "Lead"), r.telefono, r.leadStatus,
                     r.estadoConversacion, r.agenteIA, r.asesor, r.etiquetas, r.fechaCreacion,
                   ]);
                   downloadCsv(`contactos_${new Date().toISOString().split("T")[0]}.csv`, headers, rows);
