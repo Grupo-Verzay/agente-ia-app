@@ -113,13 +113,10 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
         <button
           type="button"
           disabled={busy || addable.length === 0}
-          className={cn(
-            'flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40',
-            'bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground',
-          )}
+          title="Agregar usuario"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary transition hover:bg-primary hover:text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
         >
           <UserPlus className="h-4 w-4" />
-          {hasParticipants ? 'Agregar usuario' : 'Agregar usuarios'}
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 p-1">
@@ -158,13 +155,8 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
 
   return (
     <div className="rounded-xl border border-border bg-gradient-to-b from-muted/30 to-transparent p-3 shadow-sm">
-      {/* Encabezado */}
-      <div
-        className={cn(
-          'mb-2.5 flex items-center gap-2',
-          !hasParticipants && 'justify-center',
-        )}
-      >
+      {/* Encabezado: título a la izquierda, botón agregar a la derecha */}
+      <div className="mb-2.5 flex items-center gap-2">
         <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
           <Users className="h-3.5 w-3.5" />
         </span>
@@ -172,10 +164,11 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
           {hasParticipants ? 'Usuarios del chat' : 'Participantes'}
         </span>
         {hasParticipants && (
-          <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-bold text-primary">
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-bold text-primary">
             {participants.length}
           </span>
         )}
+        <div className="ml-auto">{addButton}</div>
       </div>
 
       {loading ? (
@@ -185,7 +178,7 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
       ) : (
         <>
           {hasParticipants && (
-            <ul className="mb-2.5 flex flex-col gap-0.5">
+            <ul className="flex flex-col gap-0.5">
               {participants.map((p) => (
                 <li
                   key={p.userId}
@@ -218,8 +211,6 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
               ))}
             </ul>
           )}
-
-          {addButton}
         </>
       )}
     </div>
