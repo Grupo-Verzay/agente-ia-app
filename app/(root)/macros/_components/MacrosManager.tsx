@@ -57,6 +57,7 @@ type TagOpt = { id: number; name: string; color: string | null };
 type RROpt = { id: number; name: string | null; mensaje: string | null };
 type AdvisorOpt = { id: string; name: string | null };
 type WorkflowOpt = { id: string; name: string };
+type LineOpt = { instanceName: string; label: string; type: string };
 
 interface Props {
   initialMacros: MacroData[];
@@ -64,15 +65,18 @@ interface Props {
   quickReplies: RROpt[];
   advisors: AdvisorOpt[];
   workflows: WorkflowOpt[];
+  lines: LineOpt[];
 }
 
 const ACTION_LABEL: Record<MacroActionType, string> = {
   SEND_TEXT: 'Enviar mensaje',
+  SEND_TEXT_VIA: 'Enviar por otra línea',
   SEND_QUICK_REPLY: 'Enviar respuesta rápida',
   EXECUTE_FLOW: 'Ejecutar flujo',
   ADD_TAG: 'Agregar etiqueta',
   CHANGE_STAGE: 'Cambiar etapa',
   ASSIGN_ADVISOR: 'Asignar asesor',
+  TRANSFER_ADVISOR: 'Transferir asesor',
   INTERNAL_NOTE: 'Agregar nota interna',
   TOGGLE_AI: 'Agente IA',
   RESOLVE: 'Resolver conversación',
@@ -80,11 +84,13 @@ const ACTION_LABEL: Record<MacroActionType, string> = {
 
 const ACTION_ORDER: MacroActionType[] = [
   'SEND_TEXT',
+  'SEND_TEXT_VIA',
   'SEND_QUICK_REPLY',
   'EXECUTE_FLOW',
   'ADD_TAG',
   'CHANGE_STAGE',
   'ASSIGN_ADVISOR',
+  'TRANSFER_ADVISOR',
   'INTERNAL_NOTE',
   'TOGGLE_AI',
   'RESOLVE',
@@ -222,7 +228,7 @@ function SortableMacroRow({ macro, h }: { macro: MacroData; h: RowHandlers }) {
   );
 }
 
-export function MacrosManager({ initialMacros, tags, quickReplies, advisors, workflows }: Props) {
+export function MacrosManager({ initialMacros, tags, quickReplies, advisors, workflows, lines }: Props) {
   const [macros, setMacros] = useState<MacroData[]>(initialMacros);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
@@ -616,6 +622,34 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
                           className="text-sm"
                         />
                       )}
+                      {a.type === 'SEND_TEXT_VIA' && (
+                        <div className="space-y-1.5">
+                          <select
+                            value={a.config?.instanceName ?? ''}
+                            onChange={(e) => setActionConfig(i, { instanceName: e.target.value })}
+                            className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm"
+                          >
+                            <option value="">Elige la línea…</option>
+                            {lines.map((l) => (
+                              <option key={l.instanceName} value={l.instanceName}>
+                                {l.label}
+                              </option>
+                            ))}
+                          </select>
+                          <Textarea
+                            value={a.config?.text ?? ''}
+                            onChange={(e) => setActionConfig(i, { text: e.target.value })}
+                            placeholder="Mensaje a enviar por esa línea…"
+                            rows={2}
+                            className="text-sm"
+                          />
+                          {lines.length === 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              No hay líneas conectadas disponibles.
+                            </p>
+                          )}
+                        </div>
+                      )}
                       {a.type === 'INTERNAL_NOTE' && (
                         <Textarea
                           value={a.config?.content ?? ''}
@@ -681,7 +715,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
                           ))}
                         </select>
                       )}
-                      {a.type === 'ASSIGN_ADVISOR' && (
+                      {(a.type === 'ASSIGN_ADVISOR' || a.type === 'TRANSFER_ADVISOR') && (
                         <select
                           value={a.config?.advisorId ?? ''}
                           onChange={(e) => setActionConfig(i, { advisorId: e.target.value })}

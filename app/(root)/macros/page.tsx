@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { currentUser } from '@/lib/auth';
-import { getMacrosAction } from '@/actions/macro-actions';
+import { getMacrosAction, getAccountLinesAction } from '@/actions/macro-actions';
 import { listTagsAction } from '@/actions/tag-actions';
 import { getAllRRs } from '@/actions/rr-actions';
 import { getTeamAdvisors } from '@/actions/team-actions';
@@ -14,12 +14,13 @@ export default async function MacrosPage() {
   if (!user?.id) redirect('/');
   const ownerId = (user as any).ownerId ?? user.id;
 
-  const [macrosRes, tagsRes, rrsRes, advisorsRes, workflowsRes] = await Promise.all([
+  const [macrosRes, tagsRes, rrsRes, advisorsRes, workflowsRes, linesRes] = await Promise.all([
     getMacrosAction(),
     listTagsAction(ownerId),
     getAllRRs(ownerId),
     getTeamAdvisors(),
     getWorkFlowByUserIds([ownerId]),
+    getAccountLinesAction(),
   ]);
 
   const tags = (tagsRes.success && tagsRes.data ? tagsRes.data : []).map((t: any) => ({
@@ -40,6 +41,7 @@ export default async function MacrosPage() {
     id: w.id as string,
     name: (w.name ?? '') as string,
   }));
+  const lines = linesRes.success ? linesRes.data : [];
 
   return (
     <MacrosManager
@@ -48,6 +50,7 @@ export default async function MacrosPage() {
       quickReplies={quickReplies}
       advisors={advisors}
       workflows={workflows}
+      lines={lines}
     />
   );
 }

@@ -8,6 +8,9 @@ import {
   sendManualQuickReplyAction,
   sendManualWorkflowAction,
 } from "@/actions/chat-manual-actions";
+import { sendBaileysTextAction } from "@/actions/baileys-chat-actions";
+import { sendChannelTextAction } from "@/actions/channel-chat-actions";
+import { getApiKeyById } from "@/actions/api-action";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
 import { updateSessionLeadStatus, toggleAgentDisabled } from "@/actions/session-action";
 import { assignSessionToAdvisor, resolveSession } from "@/actions/advisor-assign-actions";
@@ -15,11 +18,13 @@ import { createInternalNoteAction } from "@/actions/internal-notes-actions";
 
 export type MacroActionType =
   | "SEND_TEXT"
+  | "SEND_TEXT_VIA"
   | "SEND_QUICK_REPLY"
   | "EXECUTE_FLOW"
   | "ADD_TAG"
   | "CHANGE_STAGE"
   | "ASSIGN_ADVISOR"
+  | "TRANSFER_ADVISOR"
   | "INTERNAL_NOTE"
   | "TOGGLE_AI"
   | "RESOLVE";
@@ -28,6 +33,7 @@ export type MacroActionItem = {
   type: MacroActionType;
   config?: {
     text?: string;
+    instanceName?: string; // línea/instancia por la que se envía (SEND_TEXT_VIA)
     quickReplyId?: number;
     tagId?: number;
     stage?: string | null; // LeadStatus (FRIO | TIBIO | CALIENTE | FINALIZADO | DESCARTADO)
@@ -37,6 +43,9 @@ export type MacroActionItem = {
     workflowId?: string;
   };
 };
+
+/** Línea/instancia disponible para enviar mensajes (para el selector "por otra línea"). */
+export type MacroLine = { instanceName: string; label: string; type: string };
 
 export type MacroData = {
   id: string;
@@ -60,6 +69,75 @@ async function requireUser() {
 
 function ownerOf(user: { id: string; ownerId?: string | null }) {
   return user.ownerId ?? user.id;
+}
+
+/* ─────────────── LÍNEAS / ENVÍO POR OTRA LÍNEA ─────────────── */
+
+/**
+ * Lista las líneas (instancias de WhatsApp) del dueño para el selector
+ * "Enviar por otra línea". Solo canales de WhatsApp (baileys / Evolution / Meta),
+ * igual que el diálogo "Nuevo mensaje".
+ */
+export async function getAccountLinesAction(): Promise<{ success: boolean; data: MacroLine[] }> {
+  try {
+    const user = await requireUser();
+    const rows = await db.instancia.findMany({
+      where: { userId: ownerOf(user) },
+      orderBy: { id: "desc" },
+    });
+    const data: MacroLine[] = rows
+      .filter(
+        (i) =>
+          i.instanceType === "Whatsapp" ||
+          i.instanceType === "baileys" ||
+          i.instanceType === "meta" ||
+          i.instanceType == null,
+      )
+      .map((i) => ({
+        instanceName: i.instanceName,
+        label: (i as any).company || i.instanceName,
+        type: i.instanceType ?? "Whatsapp",
+      }));
+    return { success: true, data };
+  } catch (e) {
+    console.error("[getAccountLinesAction]", e);
+    return { success: false, data: [] };
+  }
+}
+
+/**
+ * Envía un texto al contacto de la conversación pero por una línea/instancia
+ * distinta a la actual. Resuelve el adaptador correcto (baileys / canal Meta /
+ * Evolution) según el tipo de la instancia.
+ */
+async function sendTextViaLine(
+  ownerId: string,
+  instanceName: string,
+  remoteJid: string,
+  text: string,
+): Promise<void> {
+  const inst = await db.instancia.findFirst({ where: { instanceName, userId: ownerId } });
+  if (!inst) throw new Error(`Línea "${instanceName}" no encontrada.`);
+
+  if (inst.instanceType === "baileys") {
+    await sendBaileysTextAction(instanceName, remoteJid, { kind: "text", text });
+    return;
+  }
+  if (inst.instanceType === "meta" || inst.instanceType === "telegram") {
+    await sendChannelTextAction(instanceName, remoteJid, { kind: "text", text });
+    return;
+  }
+
+  // Evolution API: usa la API key del dueño.
+  const owner = await db.user.findUnique({ where: { id: ownerId }, select: { apiKeyId: true } });
+  const res = owner?.apiKeyId ? await getApiKeyById(owner.apiKeyId) : null;
+  const apiKey = res && res.success ? res.data : null;
+  if (!apiKey?.url || !apiKey?.key) throw new Error("No hay API key para enviar por esta línea.");
+  await sendManualChatPayloadAction(
+    { apiKeyData: { url: apiKey.url, key: apiKey.key }, instanceName },
+    remoteJid,
+    { kind: "text", text },
+  );
 }
 
 /* ─────────────── CRUD ─────────────── */
@@ -261,6 +339,11 @@ export async function executeMacroAction(input: {
               await sendManualChatPayloadAction(context, remoteJid, { kind: "text", text: cfg.text });
             }
             break;
+          case "SEND_TEXT_VIA":
+            if (remoteJid && cfg.instanceName && cfg.text) {
+              await sendTextViaLine(ownerId, cfg.instanceName, remoteJid, cfg.text);
+            }
+            break;
           case "SEND_QUICK_REPLY":
             if (context && remoteJid && cfg.quickReplyId) {
               await sendManualQuickReplyAction(context, remoteJid, cfg.quickReplyId);
@@ -280,6 +363,11 @@ export async function executeMacroAction(input: {
             await updateSessionLeadStatus(sessionId, (cfg.stage ?? null) as any);
             break;
           case "ASSIGN_ADVISOR":
+          case "TRANSFER_ADVISOR":
+            // Ambas reasignan la conversación al asesor elegido. Se usa
+            // assignSessionToAdvisor (valida dueño/admin, registra y dispara
+            // automatizaciones); transferSession exige ser el asesor actual y
+            // rompería en una macro corrida por el dueño.
             if (cfg.advisorId) await assignSessionToAdvisor(sessionId, cfg.advisorId);
             break;
           case "INTERNAL_NOTE":
