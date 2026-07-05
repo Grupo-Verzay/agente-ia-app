@@ -1,9 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, Zap, Pencil, Trash2, ArrowUp, ArrowDown, X, Loader2, GripVertical } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import {
+  Plus, Zap, Pencil, Trash2, ArrowUp, ArrowDown, X, Loader2, GripVertical,
+  Search, CheckCircle2, List,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MetricCard } from '@/components/custom/MetricCard';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
@@ -86,6 +90,14 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(
+    () => macros.filter((m) => m.name.toLowerCase().includes(search.trim().toLowerCase())),
+    [macros, search],
+  );
+  const activeCount = macros.filter((m) => m.enabled).length;
+  const totalActions = macros.reduce((n, m) => n + m.actions.length, 0);
 
   const openCreate = () => {
     setDraft(EMPTY_DRAFT);
@@ -194,57 +206,81 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
   };
 
   return (
-    <div className="mx-auto w-full max-w-3xl p-4 sm:p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-xl font-bold">
-            <Zap className="h-5 w-5 text-primary" /> Macros
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Secuencias de acciones que aplicas a una conversación en 1 clic.
-          </p>
+    <div className="flex h-full flex-col p-3 sm:p-4">
+      {/* Título */}
+      <div className="mb-3">
+        <h1 className="flex items-center gap-2 text-lg font-bold sm:text-xl">
+          <Zap className="h-5 w-5 text-primary" /> Macros
+        </h1>
+        <p className="text-xs text-muted-foreground sm:text-sm">
+          Secuencias de acciones que aplicas a una conversación en 1 clic.
+        </p>
+      </div>
+
+      {/* Métricas */}
+      <div className="mb-3 grid grid-cols-3 gap-2 sm:gap-3">
+        <MetricCard icon={<Zap className="h-4 w-4" />} label="Total" value={macros.length} helper="Macros creadas" color="#6366F1" />
+        <MetricCard icon={<CheckCircle2 className="h-4 w-4" />} label="Activas" value={activeCount} helper="Macros habilitadas" color="#10B981" />
+        <MetricCard icon={<List className="h-4 w-4" />} label="Acciones" value={totalActions} helper="Acciones en total" color="#3B82F6" />
+      </div>
+
+      {/* Toolbar */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar macro..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-8"
+          />
         </div>
-        <Button onClick={openCreate} className="gap-1.5">
-          <Plus className="h-4 w-4" /> Crear macro
+        <Button size="sm" onClick={openCreate} className="ml-auto bg-blue-600 text-white hover:bg-blue-700">
+          + Crear
         </Button>
       </div>
 
-      {macros.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border p-10 text-center text-muted-foreground">
-          <Zap className="mx-auto mb-2 h-8 w-8 opacity-40" />
-          <p className="text-sm">Aún no tienes macros. Crea la primera.</p>
-        </div>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {macros.map((m) => (
-            <li
-              key={m.id}
-              className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
-            >
-              <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: m.color || '#6366f1' }} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold">{m.name}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {m.actions.length} acción{m.actions.length === 1 ? '' : 'es'}
-                  {m.description ? ` · ${m.description}` : ''}
-                </p>
-              </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(m)} title="Editar">
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-red-500"
-                onClick={() => void remove(m)}
-                title="Eliminar"
+      {/* Lista */}
+      <div className="flex-1 overflow-y-auto">
+        {filtered.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-10 text-center text-muted-foreground">
+            <Zap className="mx-auto mb-2 h-8 w-8 opacity-40" />
+            <p className="text-sm">
+              {macros.length === 0 ? 'Aún no tienes macros. Crea la primera.' : 'Sin resultados para tu búsqueda.'}
+            </p>
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {filtered.map((m) => (
+              <li
+                key={m.id}
+                className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
               >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
+                <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: m.color || '#6366f1' }} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold">{m.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {m.actions.length} acción{m.actions.length === 1 ? '' : 'es'}
+                    {m.description ? ` · ${m.description}` : ''}
+                  </p>
+                </div>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(m)} title="Editar">
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-red-500"
+                  onClick={() => void remove(m)}
+                  title="Eliminar"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {/* Editor */}
       <Dialog open={open} onOpenChange={setOpen}>
