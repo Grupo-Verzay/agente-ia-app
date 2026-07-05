@@ -442,7 +442,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
               variant="destructive"
               onClick={() => setConfirm({ open: true, ids: [], all: true })}
             >
-              Eliminar todos
+              Eliminar todas
             </Button>
           )}
           <Button size="sm" onClick={openCreate} className="bg-blue-600 text-white hover:bg-blue-700">
