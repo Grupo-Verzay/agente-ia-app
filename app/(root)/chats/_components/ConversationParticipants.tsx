@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { UserPlus, X, Loader2, Users } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import {
   getSessionParticipantsAction,
@@ -16,6 +17,22 @@ function initials(name?: string | null, email?: string | null) {
   const s = (name || email || '?').trim();
   const parts = s.split(/\s+/);
   return (parts.length >= 2 ? parts[0][0] + parts[1][0] : s.slice(0, 2)).toUpperCase();
+}
+
+const AVATAR_COLORS = [
+  'bg-blue-500',
+  'bg-emerald-500',
+  'bg-violet-500',
+  'bg-amber-500',
+  'bg-rose-500',
+  'bg-cyan-500',
+  'bg-indigo-500',
+  'bg-teal-500',
+];
+function colorFor(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
 interface Props {
@@ -53,7 +70,6 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
     [participants],
   );
 
-  // Asesores del equipo que aún no participan (excluye a uno mismo).
   const addable = useMemo(
     () => advisors.filter((a) => !participantIds.has(a.id) && a.id !== currentUserId),
     [advisors, participantIds, currentUserId],
@@ -91,15 +107,71 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
 
   const hasParticipants = participants.length > 0;
 
-  return (
-    <div className="rounded-xl border border-border bg-card p-3">
-      {/* Título solo cuando ya hay usuarios */}
-      {hasParticipants && (
-        <div className="mb-2 flex items-center gap-2">
-          <Users className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-semibold text-foreground">Usuarios del chat</span>
+  const addButton = (
+    <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={busy || addable.length === 0}
+          className={cn(
+            'flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40',
+            'bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground',
+          )}
+        >
+          <UserPlus className="h-4 w-4" />
+          {hasParticipants ? 'Agregar usuario' : 'Agregar usuarios'}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-1">
+        <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Agregar asesor
+        </p>
+        <div className="max-h-56 overflow-y-auto">
+          {addable.length === 0 ? (
+            <p className="px-2 py-2 text-xs text-muted-foreground">
+              No hay más asesores para agregar.
+            </p>
+          ) : (
+            addable.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => void handleAdd(a)}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+              >
+                <span
+                  className={cn(
+                    'flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white',
+                    colorFor(a.id),
+                  )}
+                >
+                  {initials(a.name, a.email)}
+                </span>
+                <span className="truncate text-foreground">{a.name || a.email}</span>
+              </button>
+            ))
+          )}
         </div>
-      )}
+      </PopoverContent>
+    </Popover>
+  );
+
+  return (
+    <div className="rounded-xl border border-border bg-gradient-to-b from-muted/30 to-transparent p-3 shadow-sm">
+      {/* Encabezado */}
+      <div className="mb-2.5 flex items-center gap-2">
+        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Users className="h-3.5 w-3.5" />
+        </span>
+        <span className="text-sm font-semibold text-foreground">
+          {hasParticipants ? 'Usuarios del chat' : 'Participantes'}
+        </span>
+        {hasParticipants && (
+          <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-bold text-primary">
+            {participants.length}
+          </span>
+        )}
+      </div>
 
       {loading ? (
         <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
@@ -108,10 +180,18 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
       ) : (
         <>
           {hasParticipants && (
-            <ul className="mb-2 flex flex-col gap-1.5">
+            <ul className="mb-2.5 flex flex-col gap-0.5">
               {participants.map((p) => (
-                <li key={p.userId} className="flex items-center gap-2">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">
+                <li
+                  key={p.userId}
+                  className="group flex items-center gap-2.5 rounded-lg px-1.5 py-1 transition hover:bg-muted/60"
+                >
+                  <span
+                    className={cn(
+                      'flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold text-white ring-2 ring-background',
+                      colorFor(p.userId),
+                    )}
+                  >
                     {initials(p.name, p.email)}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm text-foreground">
@@ -124,7 +204,7 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
                     type="button"
                     onClick={() => void handleRemove(p)}
                     disabled={busy}
-                    className="text-muted-foreground/60 transition hover:text-red-500 disabled:opacity-40"
+                    className="text-muted-foreground/50 opacity-0 transition group-hover:opacity-100 hover:text-red-500 disabled:opacity-40"
                     title="Quitar usuario"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -134,45 +214,7 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
             </ul>
           )}
 
-          {/* Botón de agregar: ancho completo (no choca con el copiloto) */}
-          <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                disabled={busy || addable.length === 0}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-primary/40 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/5 disabled:opacity-40"
-              >
-                <UserPlus className="h-4 w-4" />
-                {hasParticipants ? 'Agregar usuario' : 'Agregar usuarios'}
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-64 p-1">
-              <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Agregar asesor
-              </p>
-              <div className="max-h-56 overflow-y-auto">
-                {addable.length === 0 ? (
-                  <p className="px-2 py-2 text-xs text-muted-foreground">
-                    No hay más asesores para agregar.
-                  </p>
-                ) : (
-                  addable.map((a) => (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={() => void handleAdd(a)}
-                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
-                    >
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary">
-                        {initials(a.name, a.email)}
-                      </span>
-                      <span className="truncate text-foreground">{a.name || a.email}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
+          {addButton}
         </>
       )}
     </div>
