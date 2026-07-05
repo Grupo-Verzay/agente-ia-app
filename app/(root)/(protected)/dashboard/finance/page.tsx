@@ -162,7 +162,6 @@ export default async function FinanceHomePage({
   const previousMonth = monthInputValue(addMonths(selectedMonth, -1));
   const nextMonth = monthInputValue(addMonths(selectedMonth, 1));
   const currentMonth = monthInputValue(new Date());
-  const netMargin = salesCombined > 0 ? (netCombined / salesCombined) * 100 : 0;
   const annualRows = Array.from({ length: 12 }, (_, index) => {
     const monthDate = new Date(selectedMonth.getFullYear(), index, 1);
     return {
@@ -294,40 +293,17 @@ export default async function FinanceHomePage({
         </Link>
 
         {/* Transacciones */}
-        <Card className="border-border">
-          <CardContent className="flex items-center gap-3 px-3 py-3">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 bg-muted/40">
-              <ReceiptText className="h-3.5 w-3.5 text-muted-foreground" />
-            </div>
-            <span className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">Transacciones</span>
-            <span className="text-lg font-semibold tracking-tight">{monthTx.length}</span>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-3">
-        <Card className="border-border">
-          <CardContent className="px-3 py-3">
-            <p className="text-xs font-medium text-muted-foreground">Resultado neto</p>
-            <p className="mt-1 text-2xl font-semibold tracking-tight">{formatPreferred(netCombined)}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border">
-          <CardContent className="px-3 py-3">
-            <p className="text-xs font-medium text-muted-foreground">Margen del mes</p>
-            <p className="mt-1 text-2xl font-semibold tracking-tight">
-              {salesCombined > 0 ? `${netMargin.toFixed(1)}%` : '-'}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-border">
-          <CardContent className="px-3 py-3">
-            <p className="text-xs font-medium text-muted-foreground">Soportes</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Carga recibos desde ingresos y gastos para respaldar cada movimiento.
-            </p>
-          </CardContent>
-        </Card>
+        <Link href={`/dashboard/finance/accounts?month=${selectedMonthValue}`} className="block">
+          <Card className="border-border transition hover:bg-muted/40">
+            <CardContent className="flex items-center gap-3 px-3 py-3">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 bg-muted/40">
+                <ReceiptText className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+              <span className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">Transacciones</span>
+              <span className="text-lg font-semibold tracking-tight">{monthTx.length}</span>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       <Card className="border-border">
@@ -343,24 +319,23 @@ export default async function FinanceHomePage({
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {annualRows.map((row) => (
               <Link
                 key={row.key}
                 href={`/dashboard/finance?month=${row.key}`}
-                className={`rounded-md border px-3 py-2 transition hover:bg-muted/40 ${
+                title={`Ingresos: ${formatPreferred(row.sales)} | Gastos: ${formatPreferred(row.expenses)}`}
+                className={`overflow-hidden rounded-md border transition hover:bg-muted/40 ${
                   row.active ? 'border-primary bg-primary/5' : 'border-border'
                 }`}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-semibold uppercase text-muted-foreground">{row.label}</span>
+                <div className="bg-foreground px-3 py-1.5 text-center text-xs font-semibold uppercase text-background">
+                  {row.label}
+                </div>
+                <div className="px-3 py-2 text-center">
                   <span className={`text-sm font-semibold ${row.balance < 0 ? 'text-destructive' : ''}`}>
                     {formatPreferred(row.balance)}
                   </span>
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
-                  <span>Ing. {formatPreferred(row.sales)}</span>
-                  <span>Gas. {formatPreferred(row.expenses)}</span>
                 </div>
               </Link>
             ))}
