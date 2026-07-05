@@ -96,6 +96,8 @@ export default async function FinanceHomePage({
   const selectedMonth = parseMonthParam(searchParams?.month);
   const from = startOfMonth(selectedMonth);
   const to = startOfNextMonth(selectedMonth);
+  const yearFrom = new Date(selectedMonth.getFullYear(), 0, 1, 0, 0, 0, 0);
+  const yearTo = new Date(selectedMonth.getFullYear() + 1, 0, 1, 0, 0, 0, 0);
 
   const currencies = await db.financeCurrency.findMany({
     orderBy: { code: 'asc' },
@@ -106,11 +108,11 @@ export default async function FinanceHomePage({
   const preferredMeta = currencies.find((c) => c.code === preferredCode);
   const formatPreferred = (n: number) => moneyFormat(preferredMeta, n);
 
-  const monthTx = await db.financeTransaction.findMany({
+  const yearTx = await db.financeTransaction.findMany({
     where: {
       userId: me.id,
       status: { not: 'DELETED' as const },
-      occurredAt: { gte: from, lt: to },
+      occurredAt: { gte: yearFrom, lt: yearTo },
       type: { in: ['SALE', 'EXPENSE'] as const },
     },
     select: {
@@ -122,6 +124,8 @@ export default async function FinanceHomePage({
     },
     orderBy: { occurredAt: 'asc' },
   });
+
+  const monthTx = yearTx.filter((tx) => tx.occurredAt >= from && tx.occurredAt < to);
 
   let salesCombined = 0;
   let expensesCombined = 0;
@@ -159,6 +163,28 @@ export default async function FinanceHomePage({
   const nextMonth = monthInputValue(addMonths(selectedMonth, 1));
   const currentMonth = monthInputValue(new Date());
   const netMargin = salesCombined > 0 ? (netCombined / salesCombined) * 100 : 0;
+  const annualRows = Array.from({ length: 12 }, (_, index) => {
+    const monthDate = new Date(selectedMonth.getFullYear(), index, 1);
+    return {
+      key: monthInputValue(monthDate),
+      label: monthDate.toLocaleDateString('es-CO', { month: 'short' }).replace('.', ''),
+      sales: 0,
+      expenses: 0,
+      balance: 0,
+      active: index === selectedMonth.getMonth(),
+    };
+  });
+
+  for (const tx of yearTx) {
+    const monthIndex = new Date(tx.occurredAt).getMonth();
+    const total = calcTotal(tx);
+    if (tx.type === 'SALE') annualRows[monthIndex].sales += total;
+    if (tx.type === 'EXPENSE') annualRows[monthIndex].expenses += total;
+  }
+
+  for (const row of annualRows) {
+    row.balance = row.sales - row.expenses;
+  }
 
   return (
     <div className="space-y-4">
@@ -303,6 +329,44 @@ export default async function FinanceHomePage({
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-border">
+        <CardHeader className="pb-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-0.5">
+              <CardTitle className="text-sm">Resumen anual por mes</CardTitle>
+              <p className="text-xs text-muted-foreground">{selectedMonth.getFullYear()}</p>
+            </div>
+            <Badge variant="outline" className="h-7 px-2 text-[11px]">
+              Ingresos - gastos = balance
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {annualRows.map((row) => (
+              <Link
+                key={row.key}
+                href={`/dashboard/finance?month=${row.key}`}
+                className={`rounded-md border px-3 py-2 transition hover:bg-muted/40 ${
+                  row.active ? 'border-primary bg-primary/5' : 'border-border'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-semibold uppercase text-muted-foreground">{row.label}</span>
+                  <span className={`text-sm font-semibold ${row.balance < 0 ? 'text-destructive' : ''}`}>
+                    {formatPreferred(row.balance)}
+                  </span>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+                  <span>Ing. {formatPreferred(row.sales)}</span>
+                  <span>Gas. {formatPreferred(row.expenses)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Chart */}
       <Card className="border-border">
