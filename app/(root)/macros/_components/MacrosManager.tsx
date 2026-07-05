@@ -145,13 +145,19 @@ function MacroRowInner({ macro, h }: { macro: MacroData; h: RowHandlers }) {
         </p>
       </div>
       {/* Íconos directos (rápidos) */}
-      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => h.onEdit(macro)} title="Editar">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-amber-500 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/30"
+        onClick={() => h.onEdit(macro)}
+        title="Editar"
+      >
         <Pencil className="h-4 w-4" />
       </Button>
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-muted-foreground hover:text-red-500"
+        className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
         onClick={() => h.onDelete(macro)}
         title="Eliminar"
       >
