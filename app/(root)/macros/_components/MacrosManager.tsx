@@ -26,17 +26,20 @@ import {
 type TagOpt = { id: number; name: string; color: string | null };
 type RROpt = { id: number; name: string | null; mensaje: string | null };
 type AdvisorOpt = { id: string; name: string | null };
+type WorkflowOpt = { id: string; name: string };
 
 interface Props {
   initialMacros: MacroData[];
   tags: TagOpt[];
   quickReplies: RROpt[];
   advisors: AdvisorOpt[];
+  workflows: WorkflowOpt[];
 }
 
 const ACTION_LABEL: Record<MacroActionType, string> = {
   SEND_TEXT: 'Enviar mensaje',
   SEND_QUICK_REPLY: 'Enviar respuesta rápida',
+  EXECUTE_FLOW: 'Ejecutar flujo',
   ADD_TAG: 'Agregar etiqueta',
   CHANGE_STAGE: 'Cambiar etapa',
   ASSIGN_ADVISOR: 'Asignar asesor',
@@ -48,6 +51,7 @@ const ACTION_LABEL: Record<MacroActionType, string> = {
 const ACTION_ORDER: MacroActionType[] = [
   'SEND_TEXT',
   'SEND_QUICK_REPLY',
+  'EXECUTE_FLOW',
   'ADD_TAG',
   'CHANGE_STAGE',
   'ASSIGN_ADVISOR',
@@ -77,7 +81,7 @@ type Draft = {
 
 const EMPTY_DRAFT: Draft = { name: '', description: '', color: COLORS[0], actions: [] };
 
-export function MacrosManager({ initialMacros, tags, quickReplies, advisors }: Props) {
+export function MacrosManager({ initialMacros, tags, quickReplies, advisors, workflows }: Props) {
   const [macros, setMacros] = useState<MacroData[]>(initialMacros);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
@@ -259,35 +263,48 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors }: P
                 placeholder="Ej: Cierre Ganado"
               />
             </div>
-            <div className="mb-4">
-              <label className="mb-1 block text-xs font-semibold text-muted-foreground">Color</label>
-              <div className="flex flex-wrap gap-1.5">
+            <div className="mb-4 flex items-center gap-3">
+              <label className="shrink-0 text-xs font-semibold text-muted-foreground">Color</label>
+              <div className="flex flex-wrap items-center gap-1.5">
                 {COLORS.map((c) => (
                   <button
                     key={c}
                     type="button"
                     onClick={() => setDraft((d) => ({ ...d, color: c }))}
                     className={cn(
-                      'h-6 w-6 rounded-full ring-offset-2 transition',
+                      'h-6 w-6 rounded-full ring-offset-2 ring-offset-background transition hover:scale-110',
                       draft.color === c && 'ring-2 ring-foreground',
                     )}
                     style={{ background: c }}
                   />
                 ))}
+                {/* Color personalizado */}
+                <label
+                  className="relative h-6 w-6 cursor-pointer overflow-hidden rounded-full border border-border"
+                  title="Color personalizado"
+                  style={{ background: COLORS.includes(draft.color) ? undefined : draft.color }}
+                >
+                  <input
+                    type="color"
+                    value={draft.color}
+                    onChange={(e) => setDraft((d) => ({ ...d, color: e.target.value }))}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  />
+                  {COLORS.includes(draft.color) && (
+                    <span className="pointer-events-none absolute inset-0 bg-[conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)] opacity-70" />
+                  )}
+                </label>
               </div>
             </div>
 
             {/* Acciones */}
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2">
               <label className="text-xs font-semibold text-muted-foreground">Acciones (en orden)</label>
-              <Button size="sm" variant="outline" className="h-7 gap-1" onClick={addAction}>
-                <Plus className="h-3.5 w-3.5" /> Acción
-              </Button>
             </div>
 
             {draft.actions.length === 0 ? (
               <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                Sin acciones. Agrega la primera.
+                Aún no hay acciones. Usa “Agregar acción”.
               </p>
             ) : (
               <ol className="flex flex-col gap-2">
@@ -368,6 +385,20 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors }: P
                           ))}
                         </select>
                       )}
+                      {a.type === 'EXECUTE_FLOW' && (
+                        <select
+                          value={a.config?.workflowId ?? ''}
+                          onChange={(e) => setActionConfig(i, { workflowId: e.target.value })}
+                          className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm"
+                        >
+                          <option value="">Elige un flujo…</option>
+                          {workflows.map((w) => (
+                            <option key={w.id} value={w.id}>
+                              {w.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                       {a.type === 'ADD_TAG' && (
                         <select
                           value={a.config?.tagId ?? ''}
@@ -428,6 +459,15 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors }: P
                 ))}
               </ol>
             )}
+
+            {/* Agregar acción (abajo, para ir sumando) */}
+            <Button
+              variant="outline"
+              className="mt-2 w-full gap-1.5 border-dashed"
+              onClick={addAction}
+            >
+              <Plus className="h-4 w-4" /> Agregar acción
+            </Button>
           </div>
 
           <DialogFooter className="flex-row justify-between border-t px-5 py-3">

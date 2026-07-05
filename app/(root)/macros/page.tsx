@@ -4,6 +4,7 @@ import { getMacrosAction } from '@/actions/macro-actions';
 import { listTagsAction } from '@/actions/tag-actions';
 import { getAllRRs } from '@/actions/rr-actions';
 import { getTeamAdvisors } from '@/actions/team-actions';
+import { getWorkFlowByUserIds } from '@/actions/workflow-actions';
 import { MacrosManager } from './_components/MacrosManager';
 
 export const dynamic = 'force-dynamic';
@@ -13,11 +14,12 @@ export default async function MacrosPage() {
   if (!user?.id) redirect('/');
   const ownerId = (user as any).ownerId ?? user.id;
 
-  const [macrosRes, tagsRes, rrsRes, advisorsRes] = await Promise.all([
+  const [macrosRes, tagsRes, rrsRes, advisorsRes, workflowsRes] = await Promise.all([
     getMacrosAction(),
     listTagsAction(ownerId),
     getAllRRs(ownerId),
     getTeamAdvisors(),
+    getWorkFlowByUserIds([ownerId]),
   ]);
 
   const tags = (tagsRes.success && tagsRes.data ? tagsRes.data : []).map((t: any) => ({
@@ -34,6 +36,10 @@ export default async function MacrosPage() {
     id: a.id as string,
     name: (a.name ?? null) as string | null,
   }));
+  const workflows = (workflowsRes.success && workflowsRes.data ? workflowsRes.data : []).map((w: any) => ({
+    id: w.id as string,
+    name: (w.name ?? '') as string,
+  }));
 
   return (
     <MacrosManager
@@ -41,6 +47,7 @@ export default async function MacrosPage() {
       tags={tags}
       quickReplies={quickReplies}
       advisors={advisors}
+      workflows={workflows}
     />
   );
 }

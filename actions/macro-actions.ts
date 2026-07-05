@@ -3,7 +3,11 @@
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 
-import { sendManualChatPayloadAction, sendManualQuickReplyAction } from "@/actions/chat-manual-actions";
+import {
+  sendManualChatPayloadAction,
+  sendManualQuickReplyAction,
+  sendManualWorkflowAction,
+} from "@/actions/chat-manual-actions";
 import { assignTagToSessionAction } from "@/actions/tag-actions";
 import { updateSessionLeadStatus, toggleAgentDisabled } from "@/actions/session-action";
 import { assignSessionToAdvisor, resolveSession } from "@/actions/advisor-assign-actions";
@@ -12,6 +16,7 @@ import { createInternalNoteAction } from "@/actions/internal-notes-actions";
 export type MacroActionType =
   | "SEND_TEXT"
   | "SEND_QUICK_REPLY"
+  | "EXECUTE_FLOW"
   | "ADD_TAG"
   | "CHANGE_STAGE"
   | "ASSIGN_ADVISOR"
@@ -29,6 +34,7 @@ export type MacroActionItem = {
     advisorId?: string;
     content?: string;
     disabled?: boolean;
+    workflowId?: string;
   };
 };
 
@@ -189,6 +195,11 @@ export async function executeMacroAction(input: {
           case "SEND_QUICK_REPLY":
             if (context && remoteJid && cfg.quickReplyId) {
               await sendManualQuickReplyAction(context, remoteJid, cfg.quickReplyId);
+            }
+            break;
+          case "EXECUTE_FLOW":
+            if (context && remoteJid && cfg.workflowId) {
+              await sendManualWorkflowAction(context, remoteJid, cfg.workflowId);
             }
             break;
           case "ADD_TAG":
