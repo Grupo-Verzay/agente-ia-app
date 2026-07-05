@@ -242,7 +242,7 @@ export default async function ChatsPage({
           ? "No se encontro una instancia WhatsApp valida."
           : "No hay API Key configurada.",
     };
-  } else if (persistedInitialChats.length >= 0) {
+  } else if (persistedInitialChats.length > 0) {
     chatsResult = {
       success: true,
       message: "Chats cargados desde historial local.",

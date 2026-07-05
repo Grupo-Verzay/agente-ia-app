@@ -13,6 +13,7 @@ import {
   getPersistedMessages,
   persistChatMessage,
   persistEvolutionMessages,
+  resolveInstanceOwner,
 } from "@/lib/chat-persistence";
 import {
   fetchChatsFromEvolution,
@@ -301,6 +302,18 @@ async function requireCurrentUser() {
   return user;
 }
 
+async function resolveChatStorageUserId(
+  context: ChatActionContext,
+  fallbackUserId?: string | null,
+) {
+  if (hasReadyContext(context)) {
+    const owner = await resolveInstanceOwner(context.instanceName);
+    if (owner?.userId) return owner.userId;
+  }
+
+  return fallbackUserId ?? null;
+}
+
 async function buildPersistedMessagesResult(params: {
   userId: string;
   instanceName?: string;
@@ -339,7 +352,7 @@ export async function warmChatMessagesAction(
   options?: { page?: number; pageSize?: number; remoteJidAliases?: string[]; localOnly?: boolean },
 ): Promise<FindMessagesResult> {
   const user = await currentUser();
-  const effectiveOwnerId = user?.ownerId ?? user?.id;
+  const effectiveOwnerId = await resolveChatStorageUserId(context, user?.ownerId ?? user?.id);
   const pageSize = options?.pageSize ?? DEFAULT_CHAT_MESSAGE_PAGE_SIZE;
   const page = Math.max(options?.page ?? 1, 1);
 
@@ -426,7 +439,7 @@ export async function refetchChatsManualAction(
   context: ChatActionContext,
 ): Promise<FetchChatsResult> {
   const user = await currentUser();
-  const effectiveOwnerId = user?.ownerId ?? user?.id;
+  const effectiveOwnerId = await resolveChatStorageUserId(context, user?.ownerId ?? user?.id);
 
   if (!hasReadyContext(context)) {
     if (effectiveOwnerId) {
@@ -478,6 +491,7 @@ export async function sendManualChatPayloadAction(
   }
 
   const user = await currentUser();
+  const storageUserId = await resolveChatStorageUserId(context, user?.ownerId ?? user?.id);
 
   // Guardamos el texto original antes de appendear firma
   const originalText = payload.kind === "text" ? payload.text.trim() : null;
@@ -502,14 +516,14 @@ export async function sendManualChatPayloadAction(
     remoteJid,
     payload,
     source: "manual_chat_ui",
-    userId: user?.ownerId ?? user?.id,
+    userId: storageUserId ?? undefined,
     instanceType: "evolution",
     historyType: "notification",
   });
 
   if (result.success && user?.id) {
     // Si el usuario es asesor, actualiza las sesiones del dueño
-    const effectiveOwnerId = user.ownerId ?? user.id;
+    const effectiveOwnerId = storageUserId ?? user.ownerId ?? user.id;
 
     const delPhrase = (user?.delSeguimiento as string | null | undefined)?.trim();
     const isClosing = Boolean(originalText !== null && delPhrase && originalText === delPhrase);
@@ -635,6 +649,7 @@ export async function sendManualWorkflowAction(
   }
 
   const user = await requireCurrentUser();
+  const storageUserId = await resolveChatStorageUserId(context, user.ownerId ?? user.id);
   const authorizedUserIds = await getAuthorizedAccountUserIds(user);
   const workflow = await db.workflow.findFirst({
     where: {
@@ -672,7 +687,7 @@ export async function sendManualWorkflowAction(
       remoteJid,
       payload,
       source: "manual_chat_workflow",
-      userId: workflow.userId,
+      userId: storageUserId ?? workflow.userId,
       instanceType: "evolution",
       historyType: "workflow",
       metadata: {
@@ -729,6 +744,7 @@ export async function sendManualQuickReplyAction(
   }
 
   const user = await requireCurrentUser();
+  const storageUserId = await resolveChatStorageUserId(context, user.ownerId ?? user.id);
   const authorizedUserIds = await getAuthorizedAccountUserIds(user);
   const quickReply = await db.quickReply.findFirst({
     where: {
@@ -768,7 +784,7 @@ export async function sendManualQuickReplyAction(
       remoteJid,
       payload: { kind: "text", text: message },
       source: "manual_chat_quick_reply",
-      userId: quickReply.userId,
+      userId: storageUserId ?? quickReply.userId,
       instanceType: "evolution",
       historyType: "notification",
       metadata: { quickReplyId: quickReply.id, workflowId: quickReply.workflowId },

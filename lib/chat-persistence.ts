@@ -573,6 +573,13 @@ export async function getPersistedMessages(params: {
   return rows.map(persistedRowToEvolutionMessage);
 }
 
+function getChatTimestamp(chat: ChatData) {
+  return (
+    chat.lastMessage?.messageTimestamp ??
+    (chat.updatedAt ? Math.floor(new Date(chat.updatedAt).getTime() / 1000) : 0)
+  );
+}
+
 export async function getPersistedInboxChats(params: {
   userIds: string[];
   instanceNames?: string[];
@@ -583,46 +590,69 @@ export async function getPersistedInboxChats(params: {
   await ensureChatMessagesTable();
 
   const rows = await db.$queryRaw<InboxRow[]>`
-    SELECT
-      s."id" AS "sessionId",
-      s."userId",
-      s."remoteJid",
-      s."remoteJidAlt",
-      s."pushName",
-      COALESCE(i."instanceName", s."instanceId") AS "instanceName",
-      COALESCE(i."instanceType", c."instanceType") AS "instanceType",
-      c."lastMessageId" AS "messageId",
-      c."lastMessageFromMe" AS "fromMe",
-      c."lastMessageType" AS "messageType",
-      c."lastMessageContent" AS "content",
-      c."lastMessageMediaUrl" AS "mediaUrl",
-      c."lastMessageRaw" AS "raw",
-      c."lastMessageTimestamp" AS "messageTimestamp",
-      s."updatedAt" AS "sessionUpdatedAt"
-    FROM "Session" s
-    LEFT JOIN "Instancias" i
-      ON i."userId" = s."userId"
-      AND (i."instanceName" = s."instanceId" OR i."instanceId" = s."instanceId")
-    LEFT JOIN LATERAL (
-      SELECT *
-      FROM "chat_conversations" cc
-      WHERE cc."userId" = s."userId"
+    WITH inbox_rows AS (
+      SELECT DISTINCT ON (
+        COALESCE(c."userId", s."userId"),
+        COALESCE(c."instanceName", i."instanceName", s."instanceId"),
+        COALESCE(c."remoteJid", s."remoteJid")
+      )
+        COALESCE(s."id", c."id") AS "sessionId",
+        COALESCE(c."userId", s."userId") AS "userId",
+        COALESCE(c."remoteJid", s."remoteJid") AS "remoteJid",
+        COALESCE(c."remoteJidAlt", s."remoteJidAlt") AS "remoteJidAlt",
+        COALESCE(c."pushName", s."pushName") AS "pushName",
+        COALESCE(c."instanceName", i."instanceName", s."instanceId") AS "instanceName",
+        COALESCE(c."instanceType", i."instanceType") AS "instanceType",
+        c."lastMessageId" AS "messageId",
+        c."lastMessageFromMe" AS "fromMe",
+        c."lastMessageType" AS "messageType",
+        c."lastMessageContent" AS "content",
+        c."lastMessageMediaUrl" AS "mediaUrl",
+        c."lastMessageRaw" AS "raw",
+        c."lastMessageTimestamp" AS "messageTimestamp",
+        COALESCE(s."updatedAt", c."updatedAt") AS "sessionUpdatedAt"
+      FROM "chat_conversations" c
+      FULL OUTER JOIN "Session" s
+        ON s."userId" = c."userId"
         AND (
-          cc."remoteJid" = s."remoteJid"
-          OR cc."remoteJidAlt" = s."remoteJid"
-          OR cc."senderPn" = s."remoteJid"
-          OR (s."remoteJidAlt" IS NOT NULL AND cc."remoteJid" = s."remoteJidAlt")
-          OR (s."remoteJidAlt" IS NOT NULL AND cc."remoteJidAlt" = s."remoteJidAlt")
-          OR (s."remoteJidAlt" IS NOT NULL AND cc."senderPn" = s."remoteJidAlt")
+          s."instanceId" = c."instanceName"
+          OR EXISTS (
+            SELECT 1
+            FROM "Instancias" si
+            WHERE si."userId" = s."userId"
+              AND si."instanceId" = s."instanceId"
+              AND si."instanceName" = c."instanceName"
+          )
         )
-      ORDER BY cc."lastMessageTimestamp" DESC, cc."id" DESC
-      LIMIT 1
-    ) c ON TRUE
-    WHERE s."userId" IN (${Prisma.join(userIds)})
-      ${params.instanceNames?.length ? Prisma.sql`AND s."instanceId" IN (${Prisma.join(params.instanceNames)})` : Prisma.empty}
-    ORDER BY COALESCE(c."lastMessageTimestamp", s."updatedAt") DESC
+        AND (
+          s."remoteJid" = c."remoteJid"
+          OR s."remoteJid" = c."remoteJidAlt"
+          OR s."remoteJid" = c."senderPn"
+          OR (s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" = c."remoteJid")
+          OR (s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" = c."remoteJidAlt")
+          OR (s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" = c."senderPn")
+        )
+      LEFT JOIN "Instancias" i
+        ON i."userId" = COALESCE(s."userId", c."userId")
+        AND (
+          i."instanceName" = COALESCE(c."instanceName", s."instanceId")
+          OR i."instanceId" = COALESCE(c."instanceName", s."instanceId")
+        )
+      WHERE COALESCE(c."userId", s."userId") IN (${Prisma.join(userIds)})
+        ${params.instanceNames?.length ? Prisma.sql`AND COALESCE(c."instanceName", i."instanceName", s."instanceId") IN (${Prisma.join(params.instanceNames)})` : Prisma.empty}
+      ORDER BY
+        COALESCE(c."userId", s."userId"),
+        COALESCE(c."instanceName", i."instanceName", s."instanceId"),
+        COALESCE(c."remoteJid", s."remoteJid"),
+        COALESCE(c."lastMessageTimestamp", s."updatedAt") DESC
+    )
+    SELECT *
+    FROM inbox_rows
+    ORDER BY COALESCE("messageTimestamp", "sessionUpdatedAt") DESC
     LIMIT ${params.take ?? 300}
   `;
 
-  return rows.map(inboxRowToChat);
+  return rows
+    .map(inboxRowToChat)
+    .sort((a, b) => getChatTimestamp(b) - getChatTimestamp(a));
 }
