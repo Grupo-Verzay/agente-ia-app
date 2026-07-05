@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 import {
-  X, Loader2, Phone, Megaphone, Mail, Building2, MapPin,
+  X, Loader2, Phone, Megaphone, Mail, Building2, MapPin, Users,
   Briefcase, FileText, Check, ChevronDown, Home, CreditCard, Calendar, Flag,
   Sheet, Send, Info, BotIcon, Pencil, CheckCircle2,
   Globe, AtSign, Share2, Linkedin, Tag, SlidersHorizontal,
@@ -357,10 +357,10 @@ export function ContactInfoPanel({
       <div className="flex-1 overflow-y-auto [scrollbar-width:thin]">
 
         {/* Contact card */}
-        <div className="flex flex-col items-center gap-1 pt-4 pb-2 px-4 border-b">
-          <Avatar className="h-16 w-16 ring-2 ring-border">
+        <div className="flex flex-col items-center gap-1 pt-3 pb-2 px-4 border-b">
+          <Avatar className="h-12 w-12 ring-2 ring-border">
             <AvatarImage src={avatarSrc || '/default-avatar.png'} />
-            <AvatarFallback className="text-lg font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
+            <AvatarFallback className="text-base font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
           </Avatar>
           <div className="flex items-center gap-1 mt-1">
             {editingName ? (
@@ -434,13 +434,13 @@ export function ContactInfoPanel({
         </div>
 
         {/* Participantes de la conversación (colaboración estilo Chatwoot) */}
-        <div className="px-3 pt-1.5">
+        <Section title="Participantes" icon={Users} defaultOpen>
           <ConversationParticipants
             sessionId={session.id}
             advisors={advisors}
             currentUserId={userId}
           />
-        </div>
+        </Section>
 
         {/* Datos del cliente — secciones agrupadas */}
         {loadingData ? (

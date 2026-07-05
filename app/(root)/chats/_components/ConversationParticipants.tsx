@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { UserPlus, X, Loader2, Users } from 'lucide-react';
+import { UserPlus, X, Loader2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -113,10 +113,10 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
         <button
           type="button"
           disabled={busy || addable.length === 0}
-          title="Agregar usuario"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary transition hover:bg-primary hover:text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary/25 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <UserPlus className="h-4 w-4" />
+          {hasParticipants ? 'Agregar usuario' : 'Agregar usuarios'}
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 p-1">
@@ -153,32 +153,18 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
     </Popover>
   );
 
+  // Contenido "sin tarjeta": va dentro de <Section> en el panel, para verse
+  // coherente con "Datos de negocio", "Contacto", etc.
   return (
-    <div className="rounded-xl border border-border bg-gradient-to-b from-muted/30 to-transparent px-3 py-2.5 shadow-sm">
-      {/* Encabezado: título a la izquierda, botón agregar a la derecha */}
-      <div className={cn('flex items-center gap-2', hasParticipants && 'mb-2.5')}>
-        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
-          <Users className="h-3.5 w-3.5" />
-        </span>
-        <span className="text-sm font-semibold text-foreground">
-          {hasParticipants ? 'Usuarios del chat' : 'Participantes'}
-        </span>
-        {hasParticipants && (
-          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-bold text-primary">
-            {participants.length}
-          </span>
-        )}
-        <div className="ml-auto">{addButton}</div>
-      </div>
-
+    <div className="px-2">
       {loading ? (
-        <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 py-1.5 text-xs text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…
         </div>
       ) : (
         <>
           {hasParticipants && (
-            <ul className="flex flex-col gap-0.5">
+            <ul className="mb-2 flex flex-col gap-0.5">
               {participants.map((p) => (
                 <li
                   key={p.userId}
@@ -211,6 +197,7 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
               ))}
             </ul>
           )}
+          {addButton}
         </>
       )}
     </div>
