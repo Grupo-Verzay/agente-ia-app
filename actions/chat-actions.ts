@@ -125,11 +125,14 @@ const chatActivityTimestamp = (chat: ChatData) =>
   epochToMs(chat.lastMessage?.messageTimestamp) ||
   (chat.updatedAt ? new Date(chat.updatedAt).getTime() : 0) ||
   (chat.windowStart ? new Date(chat.windowStart).getTime() : 0);
+const isReactionEvolutionMessage = (message?: Partial<EvolutionMessage | LastMessage> | null) =>
+  message?.messageType === 'reactionMessage' || Boolean(message?.message?.reactionMessage);
 const normalizeLastMessage = (
   lastMessage: LastMessage | null,
   fallbackRemoteJid: string,
 ): LastMessage | null => {
   if (!lastMessage) return null;
+  if (isReactionEvolutionMessage(lastMessage)) return null;
 
   const normalizedRemoteJid =
     pickPreferredWhatsAppRemoteJid([
@@ -172,8 +175,13 @@ const mergeChatEntries = (current: ChatData, next: ChatData) => {
     secondary.remoteJid;
   const primaryLastMessageTs = epochToMs(primary.lastMessage?.messageTimestamp);
   const secondaryLastMessageTs = epochToMs(secondary.lastMessage?.messageTimestamp);
-  const latestLastMessage =
+  const preferredLastMessage =
     primaryLastMessageTs >= secondaryLastMessageTs ? primary.lastMessage : secondary.lastMessage;
+  const fallbackLastMessage =
+    preferredLastMessage === primary.lastMessage ? secondary.lastMessage : primary.lastMessage;
+  const latestLastMessage = isReactionEvolutionMessage(preferredLastMessage)
+    ? fallbackLastMessage
+    : preferredLastMessage;
 
   return {
     ...secondary,
@@ -764,6 +772,8 @@ export async function findMessagesByRemoteJid(
   const uniqueMessages = new Map<string, EvolutionMessage>();
   for (const response of successfulResponses) {
     for (const item of response.items) {
+      if (isReactionEvolutionMessage(item)) continue;
+
       const fingerprint = buildEvolutionMessageFingerprint(item);
       if (!uniqueMessages.has(fingerprint)) {
         uniqueMessages.set(fingerprint, item);

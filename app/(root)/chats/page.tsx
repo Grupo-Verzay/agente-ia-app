@@ -38,7 +38,7 @@ import { getInstancesByUserId } from "@/actions/instances-actions";
 import { getLinkedAccountsInstances, getMasterAccountInstances } from "@/actions/linked-account-actions";
 import { assignSessionToAdvisor, takeSession, releaseSession, transferSession } from "@/actions/advisor-assign-actions";
 import { ChatsClient, type InstanceActionSet } from "./_components/chats-client";
-import { normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
+import { buildWhatsAppJidCandidates, normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
 
 type InstanceHealth = {
   instanceName: string;
@@ -82,6 +82,61 @@ async function settle<T>(promise: Promise<T>): Promise<T | null> {
 
 function settleValue<T>(value: T | null | undefined): T | null {
   return value ?? null;
+}
+
+function getChatSortTimestamp(chat: ChatData) {
+  return (
+    chat.lastMessage?.messageTimestamp ??
+    (chat.updatedAt ? Math.floor(new Date(chat.updatedAt).getTime() / 1000) : 0)
+  );
+}
+
+function getChatIdentityCandidates(chat: ChatData) {
+  return buildWhatsAppJidCandidates(chat.remoteJid, [
+    chat.remoteJidAlt,
+    chat.senderPn,
+    ...(chat.aliases ?? []),
+    chat.lastMessage?.key?.remoteJid,
+    chat.lastMessage?.key?.remoteJidAlt,
+    chat.lastMessage?.key?.senderPn,
+    chat.lastMessage?.senderPn,
+  ]);
+}
+
+function getChatMessageDuplicateKey(chat: ChatData) {
+  const messageId = chat.lastMessage?.key?.id || chat.lastMessage?.id;
+  if (!messageId) return "";
+
+  return [
+    chat.instanceName ?? "",
+    messageId,
+    chat.lastMessage?.key?.fromMe ? "1" : "0",
+    chat.lastMessage?.messageType ?? "",
+  ].join(":");
+}
+
+function dedupeChatsByIdentity(chats: ChatData[]) {
+  const seenIdentities = new Set<string>();
+  const seenMessages = new Set<string>();
+
+  return [...chats]
+    .sort((a, b) => getChatSortTimestamp(b) - getChatSortTimestamp(a))
+    .filter((chat) => {
+      if (!chat.remoteJid) return false;
+
+      const identityCandidates = getChatIdentityCandidates(chat);
+      const messageKey = getChatMessageDuplicateKey(chat);
+      if (
+        identityCandidates.some((candidate) => seenIdentities.has(candidate)) ||
+        (messageKey && seenMessages.has(messageKey))
+      ) {
+        return false;
+      }
+
+      for (const candidate of identityCandidates) seenIdentities.add(candidate);
+      if (messageKey) seenMessages.add(messageKey);
+      return true;
+    });
 }
 
 export default async function ChatsPage({
@@ -270,34 +325,10 @@ export default async function ChatsPage({
     // - Groups (@g.us): by remoteJid only - same group appears in multiple instances, show once
     // - 1-on-1 chats: by (instanceName, remoteJid) - keep separate per instance
     // Sort by most recent message first so we keep the freshest entry when deduplicating
-    allChats.sort((a, b) => {
-      const ta = (a.lastMessage?.messageTimestamp ?? 0);
-      const tb = (b.lastMessage?.messageTimestamp ?? 0);
-      return tb - ta;
-    });
-    // Deduplicate all chats by remoteJid - same contact appearing in multiple instances
-    // shows only once (the entry with the most recent message, already sorted above).
-    const seenJids = new Set<string>();
-    const dedupedChats = allChats.filter((chat) => {
-      if (seenJids.has(chat.remoteJid)) return false;
-      seenJids.add(chat.remoteJid);
-      return true;
-    });
+    const dedupedChats = dedupeChatsByIdentity(allChats);
 
     if (hasAnySuccess) {
-      const mergedSeen = new Set(dedupedChats.map((chat) => chat.remoteJid));
-      const mergedChats = [
-        ...dedupedChats,
-        ...persistedInitialChats.filter((chat) => {
-          if (mergedSeen.has(chat.remoteJid)) return false;
-          mergedSeen.add(chat.remoteJid);
-          return true;
-        }),
-      ].sort((a, b) => {
-        const aTs = a.lastMessage?.messageTimestamp ?? (a.updatedAt ? Math.floor(new Date(a.updatedAt).getTime() / 1000) : 0);
-        const bTs = b.lastMessage?.messageTimestamp ?? (b.updatedAt ? Math.floor(new Date(b.updatedAt).getTime() / 1000) : 0);
-        return bTs - aTs;
-      });
+      const mergedChats = dedupeChatsByIdentity([...dedupedChats, ...persistedInitialChats]);
 
       chatsResult = { success: true, message: "OK", data: mergedChats };
     } else {

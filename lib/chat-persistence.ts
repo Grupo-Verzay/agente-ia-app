@@ -141,6 +141,16 @@ function ensureChatMessagesTable() {
       ON "chat_conversations" ("userId", "lastMessageTimestamp" DESC)
     `;
     await db.$executeRaw`
+      DELETE FROM "chat_messages"
+      WHERE "messageType" = 'reactionMessage'
+         OR "raw"->'message' ? 'reactionMessage'
+    `;
+    await db.$executeRaw`
+      DELETE FROM "chat_conversations"
+      WHERE "lastMessageType" = 'reactionMessage'
+         OR "lastMessageRaw"->'message' ? 'reactionMessage'
+    `;
+    await db.$executeRaw`
       INSERT INTO "chat_conversations" (
         "userId", "instanceName", "instanceType", "remoteJid", "remoteJidAlt", "senderPn",
         "pushName", "lastMessageId", "lastMessageFromMe", "lastMessageType",
@@ -204,7 +214,13 @@ function randomMessageId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function isReactionMessageSnapshot(message?: Partial<EvolutionMessage> | null) {
+  return message?.messageType === 'reactionMessage' || Boolean(message?.message?.reactionMessage);
+}
+
 export function extractMessageText(message: EvolutionMessage) {
+  if (isReactionMessageSnapshot(message)) return '';
+
   const body = message.message ?? {};
   return (
     body.conversation ||
@@ -213,7 +229,6 @@ export function extractMessageText(message: EvolutionMessage) {
     body.videoMessage?.caption ||
     body.documentMessage?.caption ||
     body.audioMessage?.caption ||
-    body.reactionMessage?.text ||
     ''
   );
 }
@@ -315,6 +330,13 @@ export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): Ev
 function inboxRowToChat(row: InboxRow): ChatData {
   const timestamp = row.messageTimestamp ?? row.sessionUpdatedAt;
   const rawSnapshot = getRawEvolutionSnapshot(row.raw);
+  const aliases = buildWhatsAppJidCandidates(row.remoteJid, [
+    row.remoteJidAlt,
+    rawSnapshot?.key?.remoteJid,
+    rawSnapshot?.key?.remoteJidAlt,
+    rawSnapshot?.key?.senderPn,
+    rawSnapshot?.senderPn,
+  ]);
   const lastMessage: LastMessage | null = row.messageId
     ? {
         id: String(row.messageId),
@@ -356,6 +378,7 @@ function inboxRowToChat(row: InboxRow): ChatData {
     lastMessage,
     instanceName: row.instanceName,
     instanceType: row.instanceType ?? undefined,
+    aliases,
   };
 }
 
@@ -454,9 +477,24 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
 
 export async function persistChatMessage(input: PersistChatMessageInput) {
   if (!input.userId || !input.instanceName || !input.remoteJid) return;
+  if (
+    input.messageType === 'reactionMessage' ||
+    (input.raw &&
+      typeof input.raw === 'object' &&
+      !Array.isArray(input.raw) &&
+      Boolean((input.raw as any).message?.reactionMessage))
+  ) {
+    return;
+  }
+
   await ensureChatMessagesTable();
 
   const normalizedRemoteJid = normalizeStoredRemoteJid(input.remoteJid, [
+    input.remoteJidAlt,
+    input.senderPn,
+  ]);
+  const remoteJidAlt = pickObservedAlternateRemoteJid(normalizedRemoteJid, [
+    input.remoteJid,
     input.remoteJidAlt,
     input.senderPn,
   ]);
@@ -468,6 +506,7 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
   await upsertSessionFromChatMessage({
     ...input,
     remoteJid: normalizedRemoteJid,
+    remoteJidAlt,
     messageId,
     messageTimestamp,
   });
@@ -480,7 +519,7 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
     )
     VALUES (
       ${input.userId}, ${input.instanceName}, ${input.instanceType ?? null}, ${normalizedRemoteJid},
-      ${input.remoteJidAlt ?? null}, ${input.senderPn ?? null}, ${messageId}, ${input.fromMe},
+      ${remoteJidAlt}, ${input.senderPn ?? null}, ${messageId}, ${input.fromMe},
       ${input.pushName ?? null}, ${input.messageType ?? 'conversation'}, ${input.content ?? null},
       ${input.mediaUrl ?? null}, ${input.raw ?? Prisma.JsonNull}, ${messageTimestamp}, NOW(), NOW()
     )
@@ -506,7 +545,7 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
     )
     VALUES (
       ${input.userId}, ${input.instanceName}, ${input.instanceType ?? null}, ${normalizedRemoteJid},
-      ${input.remoteJidAlt ?? null}, ${input.senderPn ?? null}, ${input.pushName ?? null},
+      ${remoteJidAlt}, ${input.senderPn ?? null}, ${input.pushName ?? null},
       ${messageId}, ${input.fromMe}, ${input.messageType ?? 'conversation'},
       ${input.content ?? null}, ${input.mediaUrl ?? null}, ${input.raw ?? Prisma.JsonNull},
       ${messageTimestamp}, NOW(), NOW()
@@ -538,6 +577,8 @@ export async function persistEvolutionMessages(params: {
   messages: EvolutionMessage[];
 }) {
   for (const message of params.messages) {
+    if (isReactionMessageSnapshot(message)) continue;
+
     await persistChatMessage({
       userId: params.userId,
       instanceName: params.instanceName,
@@ -573,24 +614,27 @@ export async function getPersistedMessages(params: {
       FROM "chat_messages"
       WHERE "userId" = ${params.userId}
         ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
+        AND "messageType" <> 'reactionMessage'
         AND "remoteJid" IN (${Prisma.join(candidates)})
       UNION ALL
       SELECT *
       FROM "chat_messages"
       WHERE "userId" = ${params.userId}
         ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
+        AND "messageType" <> 'reactionMessage'
         AND "remoteJidAlt" IN (${Prisma.join(candidates)})
       UNION ALL
       SELECT *
       FROM "chat_messages"
       WHERE "userId" = ${params.userId}
         ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
+        AND "messageType" <> 'reactionMessage'
         AND "senderPn" IN (${Prisma.join(candidates)})
     ),
     deduped AS (
-      SELECT DISTINCT ON ("id") *
+      SELECT DISTINCT ON ("messageId", "fromMe") *
       FROM matched
-      ORDER BY "id"
+      ORDER BY "messageId", "fromMe", ("raw"->'key' IS NOT NULL) DESC, "messageTimestamp" DESC, "id" DESC
       )
     SELECT *
     FROM deduped
@@ -669,6 +713,7 @@ export async function getPersistedInboxChats(params: {
         )
       WHERE COALESCE(c."userId", s."userId") IN (${Prisma.join(userIds)})
         ${params.instanceNames?.length ? Prisma.sql`AND COALESCE(c."instanceName", i."instanceName", s."instanceId") IN (${Prisma.join(params.instanceNames)})` : Prisma.empty}
+        AND COALESCE(c."lastMessageType", '') <> 'reactionMessage'
       ORDER BY
         COALESCE(c."userId", s."userId"),
         COALESCE(c."instanceName", i."instanceName", s."instanceId"),

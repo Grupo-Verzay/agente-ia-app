@@ -33,7 +33,7 @@ import { isBadContactName } from "./chat-sidebar.utils";
 import { useSidebar } from "@/components/ui/sidebar";
 import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
-import { fmtPhone, extractWhatsAppDigits } from "@/lib/whatsapp-jid";
+import { buildWhatsAppJidCandidates, fmtPhone, extractWhatsAppDigits } from "@/lib/whatsapp-jid";
 import { avatarSrcFor } from "@/lib/avatar";
 import type { OutgoingMessagePayload } from "./chat-main";
 import type {
@@ -172,13 +172,49 @@ function getChatSortTimestamp(chat: ChatData) {
   );
 }
 
+function getChatIdentityCandidates(chat: ChatData) {
+  return buildWhatsAppJidCandidates(chat.remoteJid, [
+    chat.remoteJidAlt,
+    chat.senderPn,
+    ...(chat.aliases ?? []),
+    chat.lastMessage?.key?.remoteJid,
+    chat.lastMessage?.key?.remoteJidAlt,
+    chat.lastMessage?.key?.senderPn,
+    chat.lastMessage?.senderPn,
+  ]);
+}
+
+function getChatMessageDuplicateKey(chat: ChatData) {
+  const messageId = chat.lastMessage?.key?.id || chat.lastMessage?.id;
+  if (!messageId) return "";
+
+  return [
+    chat.instanceName ?? "",
+    messageId,
+    chat.lastMessage?.key?.fromMe ? "1" : "0",
+    chat.lastMessage?.messageType ?? "",
+  ].join(":");
+}
+
 function dedupeAndSortChats(chats: ChatData[]) {
-  const seen = new Set<string>();
+  const seenIdentities = new Set<string>();
+  const seenMessages = new Set<string>();
   return [...chats]
     .sort((a, b) => getChatSortTimestamp(b) - getChatSortTimestamp(a))
     .filter((chat) => {
-      if (!chat.remoteJid || seen.has(chat.remoteJid)) return false;
-      seen.add(chat.remoteJid);
+      if (!chat.remoteJid) return false;
+
+      const identityCandidates = getChatIdentityCandidates(chat);
+      const messageKey = getChatMessageDuplicateKey(chat);
+      if (
+        identityCandidates.some((candidate) => seenIdentities.has(candidate)) ||
+        (messageKey && seenMessages.has(messageKey))
+      ) {
+        return false;
+      }
+
+      for (const candidate of identityCandidates) seenIdentities.add(candidate);
+      if (messageKey) seenMessages.add(messageKey);
       return true;
     });
 }
