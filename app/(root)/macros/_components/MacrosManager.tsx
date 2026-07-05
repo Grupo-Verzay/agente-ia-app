@@ -582,13 +582,13 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
             )}
 
             {/* Agregar acción (abajo, para ir sumando) */}
-            <Button
-              variant="outline"
-              className="mt-2 w-full gap-1.5 border-dashed"
+            <button
+              type="button"
               onClick={addAction}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-sm font-semibold text-primary transition hover:border-primary/60 hover:bg-primary/10"
             >
               <Plus className="h-4 w-4" /> Agregar acción
-            </Button>
+            </button>
           </div>
 
           <DialogFooter className="flex-row justify-between border-t px-5 py-3">
