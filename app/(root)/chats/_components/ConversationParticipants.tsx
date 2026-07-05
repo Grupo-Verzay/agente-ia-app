@@ -154,7 +154,7 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
   );
 
   return (
-    <div className="rounded-xl border border-border bg-gradient-to-b from-muted/30 to-transparent p-3 shadow-sm">
+    <div className="rounded-xl border border-border bg-gradient-to-b from-muted/30 to-transparent px-3 py-2.5 shadow-sm">
       {/* Encabezado: título a la izquierda, botón agregar a la derecha */}
       <div className={cn('flex items-center gap-2', hasParticipants && 'mb-2.5')}>
         <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">

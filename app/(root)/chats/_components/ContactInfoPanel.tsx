@@ -434,7 +434,7 @@ export function ContactInfoPanel({
         </div>
 
         {/* Participantes de la conversación (colaboración estilo Chatwoot) */}
-        <div className="px-3 pt-3">
+        <div className="px-3 pt-1.5">
           <ConversationParticipants
             sessionId={session.id}
             advisors={advisors}
