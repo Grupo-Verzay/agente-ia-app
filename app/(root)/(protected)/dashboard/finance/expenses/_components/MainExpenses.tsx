@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -52,6 +52,7 @@ type Props = {
   expenses: ExpenseRow[];
   primaryCurrencyCode: string;
   initialMonth?: string;
+  autoOpenCreate?: boolean;
 };
 
 type FormState = {
@@ -177,6 +178,7 @@ export default function MainExpenses({
   expenses,
   primaryCurrencyCode,
   initialMonth,
+  autoOpenCreate = false,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -204,6 +206,7 @@ export default function MainExpenses({
   );
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ExpenseRow | null>(null);
+  const didAutoOpenCreate = useRef(false);
 
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -258,6 +261,23 @@ export default function MainExpenses({
     setAttachments([]);
     setOpen(true);
   };
+
+  useEffect(() => {
+    if (!autoOpenCreate || didAutoOpenCreate.current) return;
+    didAutoOpenCreate.current = true;
+    setEditing(null);
+    setForm({
+      occurredAt: toISODate(selectedMonthDate),
+      amount: '',
+      currencyCode: defaultCurrency,
+      accountId: defaultAccountId,
+      categoryId: null,
+      title: '',
+      description: '',
+    });
+    setAttachments([]);
+    setOpen(true);
+  }, [autoOpenCreate, defaultAccountId, defaultCurrency, selectedMonthDate]);
 
   const openEdit = (row: ExpenseRow) => {
     setEditing(row);

@@ -12,7 +12,7 @@ import { serializePrisma } from "@/lib/serialize-prisma";
 export default async function SalesPage({
   searchParams,
 }: {
-  searchParams?: { month?: string | string[] };
+  searchParams?: { month?: string | string[]; create?: string | string[] };
 }) {
   const user = await currentUser();
   if (!user?.id) return <AccessDenied />;
@@ -46,6 +46,7 @@ export default async function SalesPage({
         products={products}
         primaryCurrencyCode={preferredCurrencyCode}
         initialMonth={Array.isArray(searchParams?.month) ? searchParams?.month[0] : searchParams?.month}
+        autoOpenCreate={(Array.isArray(searchParams?.create) ? searchParams?.create[0] : searchParams?.create) === "1"}
         // sessions={sessions} // si luego lo necesitas
       />
     </div>

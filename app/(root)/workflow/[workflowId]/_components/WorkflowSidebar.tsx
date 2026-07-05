@@ -29,7 +29,7 @@ export function WorkflowSidebarTrigger() {
     return (
         <Button
             size="icon"
-            className="h-10 w-10 rounded-full shadow"
+            className="h-9 w-9 rounded-md shadow"
             onClick={toggleSidebar}
             title={isOpen ? 'Cerrar menú' : 'Agregar nodo'}
         >

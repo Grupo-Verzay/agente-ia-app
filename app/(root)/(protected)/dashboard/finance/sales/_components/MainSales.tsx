@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -66,6 +66,7 @@ type Props = {
   products: FinProduct[];
   primaryCurrencyCode: string;
   initialMonth?: string;
+  autoOpenCreate?: boolean;
 };
 
 type FormState = {
@@ -203,6 +204,7 @@ export default function MainSales({
   products,
   primaryCurrencyCode,
   initialMonth,
+  autoOpenCreate = false,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -230,6 +232,7 @@ export default function MainSales({
   );
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<SaleTxRow | null>(null);
+  const didAutoOpenCreate = useRef(false);
 
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -361,6 +364,32 @@ export default function MainSales({
     setContactOptions([]);
     setOpen(true);
   };
+
+  useEffect(() => {
+    if (!autoOpenCreate || didAutoOpenCreate.current) return;
+    didAutoOpenCreate.current = true;
+    setEditing(null);
+    setForm({
+      occurredAt: toISODate(selectedMonthDate),
+      amount: '',
+      extra: '',
+      discount: '',
+      currencyCode: defaultCurrency,
+      accountId: defaultAccountId,
+      categoryId: null,
+      title: '',
+      description: '',
+      productId: null,
+      sessionId: null,
+      contactName: '',
+      contactJid: '',
+    });
+    setAttachments([]);
+    setProductQuery('');
+    setContactQuery('');
+    setContactOptions([]);
+    setOpen(true);
+  }, [autoOpenCreate, defaultAccountId, defaultCurrency, selectedMonthDate]);
 
   const openEdit = (row: SaleTxRow) => {
     setEditing(row);
