@@ -44,6 +44,7 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/tools" },
     { route: "/reminders" },
     { route: "/auto-replies" },
+    { route: "/macros" },
     { route: "/profile" },
     { route: "/templates" },
     { route: "/evo" },
