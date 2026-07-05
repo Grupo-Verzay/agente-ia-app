@@ -96,6 +96,18 @@ function ensureChatMessagesTable() {
       ON "chat_messages" ("userId", "remoteJid", "messageTimestamp" DESC)
     `;
     await db.$executeRaw`
+      CREATE INDEX IF NOT EXISTS "chat_messages_user_instance_jid_ts_idx"
+      ON "chat_messages" ("userId", "instanceName", "remoteJid", "messageTimestamp" DESC)
+    `;
+    await db.$executeRaw`
+      CREATE INDEX IF NOT EXISTS "chat_messages_user_instance_alt_ts_idx"
+      ON "chat_messages" ("userId", "instanceName", "remoteJidAlt", "messageTimestamp" DESC)
+    `;
+    await db.$executeRaw`
+      CREATE INDEX IF NOT EXISTS "chat_messages_user_instance_sender_ts_idx"
+      ON "chat_messages" ("userId", "instanceName", "senderPn", "messageTimestamp" DESC)
+    `;
+    await db.$executeRaw`
       CREATE INDEX IF NOT EXISTS "chat_messages_user_instance_ts_idx"
       ON "chat_messages" ("userId", "instanceName", "messageTimestamp" DESC)
     `;
@@ -556,15 +568,32 @@ export async function getPersistedMessages(params: {
   await ensureChatMessagesTable();
   const candidates = buildWhatsAppJidCandidates(params.remoteJid, params.aliases ?? []);
   const rows = await db.$queryRaw<PersistedChatMessageRow[]>`
-    SELECT *
-    FROM "chat_messages"
-    WHERE "userId" = ${params.userId}
-      ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
-      AND (
-        "remoteJid" IN (${Prisma.join(candidates)})
-        OR "remoteJidAlt" IN (${Prisma.join(candidates)})
-        OR "senderPn" IN (${Prisma.join(candidates)})
+    WITH matched AS (
+      SELECT *
+      FROM "chat_messages"
+      WHERE "userId" = ${params.userId}
+        ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
+        AND "remoteJid" IN (${Prisma.join(candidates)})
+      UNION ALL
+      SELECT *
+      FROM "chat_messages"
+      WHERE "userId" = ${params.userId}
+        ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
+        AND "remoteJidAlt" IN (${Prisma.join(candidates)})
+      UNION ALL
+      SELECT *
+      FROM "chat_messages"
+      WHERE "userId" = ${params.userId}
+        ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
+        AND "senderPn" IN (${Prisma.join(candidates)})
+    ),
+    deduped AS (
+      SELECT DISTINCT ON ("id") *
+      FROM matched
+      ORDER BY "id"
       )
+    SELECT *
+    FROM deduped
     ORDER BY "messageTimestamp" DESC, "id" DESC
     OFFSET ${params.skip ?? 0}
     LIMIT ${params.take ?? 50}

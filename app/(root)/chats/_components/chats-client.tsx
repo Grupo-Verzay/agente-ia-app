@@ -68,8 +68,8 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
 type ApiKeyData = { url: string; key: string };
 const INITIAL_MESSAGE_PAGE_SIZE = 5;
 const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
-const SELECTED_CHAT_SYNC_DELAY_MS = 1600;
-const SELECTED_CHAT_POLLING_DELAY_MS = 2500;
+const SELECTED_CHAT_SYNC_DELAY_MS = 3500;
+const SELECTED_CHAT_POLLING_DELAY_MS = 10000;
 // Intervalo de refresco de la lista de chats. Con el tiempo real activo, el
 // socket mantiene la frescura; el polling queda como FALLBACK a 60s (antes 20s)
 // para reconciliar si el WebSocket se cae. Reduce mucho la carga a Evolution+BD.

@@ -66,7 +66,7 @@ const DEFAULT_CHAT_MESSAGE_PAGE_SIZE = 10;
 // (página 1). Se desacopla del tamaño de página de la UI: Evolution solo se
 // consulta en la apertura, así que pedir una ventana amplia llena la BD local con
 // suficiente historial para que el scroll-back funcione sin quedarse corto.
-const EVOLUTION_SYNC_WINDOW_SIZE = 100;
+const EVOLUTION_SYNC_WINDOW_SIZE = 25;
 
 function buildOutgoingHistoryEntry(payload: OutgoingMessagePayload) {
   if (payload.kind === "text") {
