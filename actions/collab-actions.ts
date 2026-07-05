@@ -99,10 +99,14 @@ export async function addSessionParticipantAction(
       return { success: false, message: "Ese asesor no pertenece a tu equipo." };
     }
 
-    await (db as any).sessionParticipant.upsert({
+    // Si ya es participante, no duplicamos ni re-notificamos.
+    const existing = await (db as any).sessionParticipant.findUnique({
       where: { sessionId_userId: { sessionId, userId } },
-      update: {},
-      create: { sessionId, userId, addedById: user.id },
+    });
+    if (existing) return { success: true, message: "Ya es participante." };
+
+    await (db as any).sessionParticipant.create({
+      data: { sessionId, userId, addedById: user.id },
     });
 
     // Notificar al agregado (si no es uno mismo).

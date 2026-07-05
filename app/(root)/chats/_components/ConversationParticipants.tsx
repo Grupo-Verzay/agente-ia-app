@@ -41,6 +41,13 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
     void load();
   }, [load]);
 
+  // Sincroniza cuando se agrega un participante desde otro lugar (menú Acciones).
+  useEffect(() => {
+    const onChanged = () => void load();
+    window.addEventListener('verzay:participants-changed', onChanged);
+    return () => window.removeEventListener('verzay:participants-changed', onChanged);
+  }, [load]);
+
   const participantIds = useMemo(
     () => new Set(participants.map((p) => p.userId)),
     [participants],
@@ -82,88 +89,91 @@ export function ConversationParticipants({ sessionId, advisors, currentUserId }:
     [sessionId],
   );
 
+  const hasParticipants = participants.length > 0;
+
   return (
     <div className="rounded-xl border border-border bg-card p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      {/* Título solo cuando ya hay usuarios */}
+      {hasParticipants && (
+        <div className="mb-2 flex items-center gap-2">
           <Users className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-semibold text-foreground">
-            Participantes de la conversación
-          </span>
+          <span className="text-sm font-semibold text-foreground">Usuarios del chat</span>
         </div>
-        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              disabled={busy || addable.length === 0}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-primary/40 text-primary transition hover:bg-primary hover:text-primary-foreground disabled:opacity-40"
-              title="Agregar participante"
-            >
-              <UserPlus className="h-4 w-4" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-64 p-1">
-            <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Agregar asesor
-            </p>
-            <div className="max-h-56 overflow-y-auto">
-              {addable.length === 0 ? (
-                <p className="px-2 py-2 text-xs text-muted-foreground">
-                  No hay más asesores para agregar.
-                </p>
-              ) : (
-                addable.map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => void handleAdd(a)}
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
-                  >
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary">
-                      {initials(a.name, a.email)}
-                    </span>
-                    <span className="truncate text-foreground">{a.name || a.email}</span>
-                  </button>
-                ))
-              )}
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
+      )}
 
       {loading ? (
         <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…
         </div>
-      ) : participants.length === 0 ? (
-        <p className="py-1 text-xs text-muted-foreground">
-          Nadie más participa aún. Agrega asesores para colaborar.
-        </p>
       ) : (
-        <ul className="flex flex-col gap-1.5">
-          {participants.map((p) => (
-            <li key={p.userId} className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">
-                {initials(p.name, p.email)}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                {p.name || p.email}
-                {p.userId === currentUserId && (
-                  <span className="ml-1 text-[10px] text-muted-foreground">(tú)</span>
-                )}
-              </span>
+        <>
+          {hasParticipants && (
+            <ul className="mb-2 flex flex-col gap-1.5">
+              {participants.map((p) => (
+                <li key={p.userId} className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">
+                    {initials(p.name, p.email)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                    {p.name || p.email}
+                    {p.userId === currentUserId && (
+                      <span className="ml-1 text-[10px] text-muted-foreground">(tú)</span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void handleRemove(p)}
+                    disabled={busy}
+                    className="text-muted-foreground/60 transition hover:text-red-500 disabled:opacity-40"
+                    title="Quitar usuario"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Botón de agregar: ancho completo (no choca con el copiloto) */}
+          <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+            <PopoverTrigger asChild>
               <button
                 type="button"
-                onClick={() => void handleRemove(p)}
-                disabled={busy}
-                className="text-muted-foreground/60 transition hover:text-red-500 disabled:opacity-40"
-                title="Quitar participante"
+                disabled={busy || addable.length === 0}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-primary/40 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/5 disabled:opacity-40"
               >
-                <X className="h-3.5 w-3.5" />
+                <UserPlus className="h-4 w-4" />
+                {hasParticipants ? 'Agregar usuario' : 'Agregar usuarios'}
               </button>
-            </li>
-          ))}
-        </ul>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64 p-1">
+              <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Agregar asesor
+              </p>
+              <div className="max-h-56 overflow-y-auto">
+                {addable.length === 0 ? (
+                  <p className="px-2 py-2 text-xs text-muted-foreground">
+                    No hay más asesores para agregar.
+                  </p>
+                ) : (
+                  addable.map((a) => (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => void handleAdd(a)}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+                    >
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary">
+                        {initials(a.name, a.email)}
+                      </span>
+                      <span className="truncate text-foreground">{a.name || a.email}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </>
       )}
     </div>
   );

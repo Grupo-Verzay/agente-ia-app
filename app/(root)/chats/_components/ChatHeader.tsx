@@ -21,6 +21,7 @@ import { AdvisorAssignBadge } from './AdvisorAssignBadge';
 import { SessionTagsCombobox } from '../../tags/components';
 import { LeadStatusSelect } from './LeadStatusSelect';
 import { resolveSession } from '@/actions/advisor-assign-actions';
+import { addSessionParticipantAction } from '@/actions/collab-actions';
 import { SintesisEditDialog } from './SintesisEditDialog';
 import { ChatRegistrosBadge } from './ChatRegistrosBadge';
 import { LeadContextSheet } from './LeadContextSheet';
@@ -139,6 +140,24 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     await onAssignAdvisor?.(targetId);
   };
 
+  const handleAddParticipant = async (advisorId: string) => {
+    if (!session?.id) return;
+    const res = await addSessionParticipantAction(session.id, advisorId);
+    if (res.success) {
+      toast.success(
+        res.message === 'Ya es participante.'
+          ? 'Ese asesor ya participa en la conversación.'
+          : 'Participante agregado a la conversación.',
+      );
+      // Avisa al panel lateral para que actualice la lista.
+      window.dispatchEvent(new Event('verzay:participants-changed'));
+    } else {
+      toast.error(res.message);
+    }
+  };
+
+  const participantCandidates = (advisors ?? []).filter((a) => a.id !== userId);
+
   const handleLiberate = async () => {
     await onAssignAdvisor?.(null);
   };
@@ -253,6 +272,29 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </DropdownMenuItem>
               ))
             )}
+            <div className="my-1 border-t border-border/50" />
+          </>
+        )}
+
+        {/* Agregar participante (colaboración) */}
+        {session && participantCandidates.length > 0 && (
+          <>
+            <div className="my-1 border-t border-border/50" />
+            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Agregar participante a...
+            </p>
+            {participantCandidates.map((a) => (
+              <DropdownMenuItem
+                key={`part-${a.id}`}
+                onSelect={() => void handleAddParticipant(a.id)}
+                className="flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer"
+              >
+                <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white shrink-0', colorFor(a.id))}>
+                  {initials(a)}
+                </span>
+                <span className="truncate">{a.name ?? a.email}</span>
+              </DropdownMenuItem>
+            ))}
             <div className="my-1 border-t border-border/50" />
           </>
         )}
