@@ -51,6 +51,7 @@ export default async function MacrosPage() {
       advisors={advisors}
       workflows={workflows}
       lines={lines}
+      userId={ownerId}
     />
   );
 }

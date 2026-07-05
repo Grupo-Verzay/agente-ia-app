@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import {
   Plus, Zap, Pencil, Trash2, ArrowUp, ArrowDown, X, Loader2, GripVertical,
-  Search, CheckCircle2, List, Play, MoreVertical, Copy, Power, PowerOff,
+  Search, CheckCircle2, List, Play, MoreVertical, Copy, Power, PowerOff, Paperclip,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,35 +66,51 @@ interface Props {
   advisors: AdvisorOpt[];
   workflows: WorkflowOpt[];
   lines: LineOpt[];
+  userId: string;
 }
 
 const ACTION_LABEL: Record<MacroActionType, string> = {
   SEND_TEXT: 'Enviar mensaje',
-  SEND_TEXT_VIA: 'Enviar por otra línea',
   SEND_QUICK_REPLY: 'Enviar respuesta rápida',
+  SEND_TEXT_VIA: 'Enviar por otra línea',
+  SEND_FILE: 'Enviar archivo/adjunto',
   EXECUTE_FLOW: 'Ejecutar flujo',
   ADD_TAG: 'Agregar etiqueta',
+  REMOVE_TAG: 'Quitar etiqueta',
   CHANGE_STAGE: 'Cambiar etapa',
   ASSIGN_ADVISOR: 'Asignar asesor',
   TRANSFER_ADVISOR: 'Transferir asesor',
+  CREATE_TASK: 'Crear tarea',
   INTERNAL_NOTE: 'Agregar nota interna',
   TOGGLE_AI: 'Agente IA',
+  WAIT: 'Esperar (pausa)',
   RESOLVE: 'Resolver conversación',
 };
 
 const ACTION_ORDER: MacroActionType[] = [
+  // Responder
   'SEND_TEXT',
-  'SEND_TEXT_VIA',
   'SEND_QUICK_REPLY',
+  'SEND_TEXT_VIA',
+  'SEND_FILE',
   'EXECUTE_FLOW',
+  // Clasificar
   'ADD_TAG',
+  'REMOVE_TAG',
   'CHANGE_STAGE',
+  // Enrutar
   'ASSIGN_ADVISOR',
   'TRANSFER_ADVISOR',
+  // Interno
+  'CREATE_TASK',
   'INTERNAL_NOTE',
   'TOGGLE_AI',
+  // Control / cierre
+  'WAIT',
   'RESOLVE',
 ];
+
+const TASK_TYPES = ['Seguimiento', 'Llamada', 'Reunión', 'Email', 'Tarea'] as const;
 
 const STAGES = ['FRIO', 'TIBIO', 'CALIENTE', 'FINALIZADO', 'DESCARTADO'] as const;
 const STAGE_LABEL: Record<string, string> = {
@@ -228,11 +244,12 @@ function SortableMacroRow({ macro, h }: { macro: MacroData; h: RowHandlers }) {
   );
 }
 
-export function MacrosManager({ initialMacros, tags, quickReplies, advisors, workflows, lines }: Props) {
+export function MacrosManager({ initialMacros, tags, quickReplies, advisors, workflows, lines, userId }: Props) {
   const [macros, setMacros] = useState<MacroData[]>(initialMacros);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<{ open: boolean; ids: string[]; all: boolean }>({
@@ -306,6 +323,40 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
       next[i] = { ...next[i], config: { ...next[i].config, ...config } };
       return { ...d, actions: next };
     });
+  };
+  const uploadFileForAction = async (i: number, file: File) => {
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error('El archivo no puede superar 25 MB.');
+      return;
+    }
+    setUploadingIdx(i);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('userID', userId);
+      form.append('workflowID', 'macros');
+      const res = await fetch('/api/upload', { method: 'POST', body: form });
+      const json = await res.json();
+      if (!res.ok || !json?.url) throw new Error(json?.error || 'No se pudo subir');
+      const mime = file.type || 'application/octet-stream';
+      const mt = mime.startsWith('image/')
+        ? 'image'
+        : mime.startsWith('video/')
+          ? 'video'
+          : mime.startsWith('audio/')
+            ? 'audio'
+            : 'document';
+      setActionConfig(i, {
+        mediaUrl: json.url,
+        mediatype: mt,
+        mimetype: mime,
+        fileName: file.name,
+      });
+    } catch (e: any) {
+      toast.error(e?.message || 'Error al subir el archivo.');
+    } finally {
+      setUploadingIdx(null);
+    }
   };
 
   const save = async () => {
@@ -650,6 +701,92 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
                           )}
                         </div>
                       )}
+                      {a.type === 'SEND_FILE' && (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm hover:bg-accent">
+                              <Paperclip className="h-4 w-4" />
+                              {uploadingIdx === i ? 'Subiendo…' : a.config?.fileName ? 'Cambiar archivo' : 'Elegir archivo'}
+                              <input
+                                type="file"
+                                className="hidden"
+                                disabled={uploadingIdx === i}
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) void uploadFileForAction(i, f);
+                                  e.target.value = '';
+                                }}
+                              />
+                            </label>
+                            {a.config?.fileName && (
+                              <span className="truncate text-xs text-muted-foreground">{a.config.fileName}</span>
+                            )}
+                          </div>
+                          <Textarea
+                            value={a.config?.caption ?? ''}
+                            onChange={(e) => setActionConfig(i, { caption: e.target.value })}
+                            placeholder="Texto que acompaña el archivo (opcional)…"
+                            rows={2}
+                            className="text-sm"
+                          />
+                        </div>
+                      )}
+                      {a.type === 'CREATE_TASK' && (
+                        <div className="space-y-1.5">
+                          <Input
+                            value={a.config?.taskTitle ?? ''}
+                            onChange={(e) => setActionConfig(i, { taskTitle: e.target.value })}
+                            placeholder="Título de la tarea…"
+                            className="h-8 text-sm"
+                          />
+                          <div className="flex gap-1.5">
+                            <select
+                              value={a.config?.taskType ?? 'Seguimiento'}
+                              onChange={(e) => setActionConfig(i, { taskType: e.target.value })}
+                              className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-sm"
+                            >
+                              {TASK_TYPES.map((t) => (
+                                <option key={t} value={t}>{t}</option>
+                              ))}
+                            </select>
+                            <div className="flex items-center gap-1 rounded-md border border-border bg-background px-2 text-sm">
+                              <span className="text-muted-foreground">en</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={a.config?.taskDays ?? 0}
+                                onChange={(e) => setActionConfig(i, { taskDays: Number(e.target.value) })}
+                                className="w-12 bg-transparent text-center outline-none"
+                              />
+                              <span className="text-muted-foreground">días</span>
+                            </div>
+                          </div>
+                          <select
+                            value={a.config?.advisorId ?? ''}
+                            onChange={(e) => setActionConfig(i, { advisorId: e.target.value })}
+                            className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm"
+                          >
+                            <option value="">Responsable…</option>
+                            {advisors.map((ad) => (
+                              <option key={ad.id} value={ad.id}>{ad.name || ad.id}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      {a.type === 'WAIT' && (
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <span className="text-muted-foreground">Esperar</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={20}
+                            value={a.config?.seconds ?? 2}
+                            onChange={(e) => setActionConfig(i, { seconds: Number(e.target.value) })}
+                            className="h-8 w-16 rounded-md border border-border bg-background px-2 text-center outline-none"
+                          />
+                          <span className="text-muted-foreground">segundos (máx. 20)</span>
+                        </div>
+                      )}
                       {a.type === 'INTERNAL_NOTE' && (
                         <Textarea
                           value={a.config?.content ?? ''}
@@ -687,7 +824,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
                           ))}
                         </select>
                       )}
-                      {a.type === 'ADD_TAG' && (
+                      {(a.type === 'ADD_TAG' || a.type === 'REMOVE_TAG') && (
                         <select
                           value={a.config?.tagId ?? ''}
                           onChange={(e) => setActionConfig(i, { tagId: Number(e.target.value) })}

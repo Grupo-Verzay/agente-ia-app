@@ -11,22 +11,27 @@ import {
 import { sendBaileysTextAction } from "@/actions/baileys-chat-actions";
 import { sendChannelTextAction } from "@/actions/channel-chat-actions";
 import { getApiKeyById } from "@/actions/api-action";
-import { assignTagToSessionAction } from "@/actions/tag-actions";
+import { assignTagToSessionAction, removeTagFromSessionAction } from "@/actions/tag-actions";
 import { updateSessionLeadStatus, toggleAgentDisabled } from "@/actions/session-action";
 import { assignSessionToAdvisor, resolveSession } from "@/actions/advisor-assign-actions";
 import { createInternalNoteAction } from "@/actions/internal-notes-actions";
+import { createTaskAction } from "@/actions/task-actions";
 
 export type MacroActionType =
   | "SEND_TEXT"
-  | "SEND_TEXT_VIA"
   | "SEND_QUICK_REPLY"
+  | "SEND_TEXT_VIA"
+  | "SEND_FILE"
   | "EXECUTE_FLOW"
   | "ADD_TAG"
+  | "REMOVE_TAG"
   | "CHANGE_STAGE"
   | "ASSIGN_ADVISOR"
   | "TRANSFER_ADVISOR"
+  | "CREATE_TASK"
   | "INTERNAL_NOTE"
   | "TOGGLE_AI"
+  | "WAIT"
   | "RESOLVE";
 
 export type MacroActionItem = {
@@ -41,6 +46,18 @@ export type MacroActionItem = {
     content?: string;
     disabled?: boolean;
     workflowId?: string;
+    // SEND_FILE (adjunto fijo, subido a S3)
+    mediaUrl?: string;
+    mediatype?: string; // image | video | audio | document
+    mimetype?: string;
+    fileName?: string;
+    caption?: string;
+    // CREATE_TASK
+    taskTitle?: string;
+    taskType?: string;
+    taskDays?: number; // vencimiento relativo: hoy + N días
+    // WAIT
+    seconds?: number;
   };
 };
 
@@ -344,6 +361,18 @@ export async function executeMacroAction(input: {
               await sendTextViaLine(ownerId, cfg.instanceName, remoteJid, cfg.text);
             }
             break;
+          case "SEND_FILE":
+            if (context && remoteJid && cfg.mediaUrl) {
+              await sendManualChatPayloadAction(context, remoteJid, {
+                kind: "media",
+                mediatype: (cfg.mediatype ?? "document") as any,
+                mediaUrl: cfg.mediaUrl,
+                mimetype: cfg.mimetype,
+                fileName: cfg.fileName,
+                caption: cfg.caption || undefined,
+              });
+            }
+            break;
           case "SEND_QUICK_REPLY":
             if (context && remoteJid && cfg.quickReplyId) {
               await sendManualQuickReplyAction(context, remoteJid, cfg.quickReplyId);
@@ -359,6 +388,11 @@ export async function executeMacroAction(input: {
               await assignTagToSessionAction({ userId: ownerId, sessionId, tagId: cfg.tagId });
             }
             break;
+          case "REMOVE_TAG":
+            if (cfg.tagId) {
+              await removeTagFromSessionAction({ userId: ownerId, sessionId, tagId: cfg.tagId });
+            }
+            break;
           case "CHANGE_STAGE":
             await updateSessionLeadStatus(sessionId, (cfg.stage ?? null) as any);
             break;
@@ -370,12 +404,31 @@ export async function executeMacroAction(input: {
             // rompería en una macro corrida por el dueño.
             if (cfg.advisorId) await assignSessionToAdvisor(sessionId, cfg.advisorId);
             break;
+          case "CREATE_TASK":
+            if (cfg.advisorId && cfg.taskTitle) {
+              const days = Number.isFinite(cfg.taskDays) ? Number(cfg.taskDays) : 0;
+              const due = new Date(Date.now() + Math.max(0, days) * 86400000);
+              await createTaskAction({
+                assignedToId: cfg.advisorId,
+                sessionId,
+                title: cfg.taskTitle,
+                type: cfg.taskType || "Seguimiento",
+                dueDate: due.toISOString(),
+              });
+            }
+            break;
           case "INTERNAL_NOTE":
             if (cfg.content) await createInternalNoteAction({ sessionId, content: cfg.content });
             break;
           case "TOGGLE_AI":
             await toggleAgentDisabled(user.id, sessionId, Boolean(cfg.disabled));
             break;
+          case "WAIT": {
+            // Pausa entre acciones (cap 20s para no colgar la request).
+            const secs = Math.min(20, Math.max(0, Number(cfg.seconds) || 0));
+            if (secs > 0) await new Promise((r) => setTimeout(r, secs * 1000));
+            break;
+          }
           case "RESOLVE":
             await resolveSession(sessionId);
             break;
