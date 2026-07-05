@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import {
   Plus, Zap, Pencil, Trash2, ArrowUp, ArrowDown, X, Loader2, GripVertical,
-  Search, CheckCircle2, List,
+  Search, CheckCircle2, List, Workflow,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -98,6 +98,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
   );
   const activeCount = macros.filter((m) => m.enabled).length;
   const totalActions = macros.reduce((n, m) => n + m.actions.length, 0);
+  const withFlow = macros.filter((m) => m.actions.some((a) => a.type === 'EXECUTE_FLOW')).length;
 
   const openCreate = () => {
     setDraft(EMPTY_DRAFT);
@@ -207,21 +208,12 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
 
   return (
     <div className="flex h-full flex-col p-3 sm:p-4">
-      {/* Título */}
-      <div className="mb-3">
-        <h1 className="flex items-center gap-2 text-lg font-bold sm:text-xl">
-          <Zap className="h-5 w-5 text-primary" /> Macros
-        </h1>
-        <p className="text-xs text-muted-foreground sm:text-sm">
-          Secuencias de acciones que aplicas a una conversación en 1 clic.
-        </p>
-      </div>
-
       {/* Métricas */}
-      <div className="mb-3 grid grid-cols-3 gap-2 sm:gap-3">
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <MetricCard icon={<Zap className="h-4 w-4" />} label="Total" value={macros.length} helper="Macros creadas" color="#6366F1" />
         <MetricCard icon={<CheckCircle2 className="h-4 w-4" />} label="Activas" value={activeCount} helper="Macros habilitadas" color="#10B981" />
         <MetricCard icon={<List className="h-4 w-4" />} label="Acciones" value={totalActions} helper="Acciones en total" color="#3B82F6" />
+        <MetricCard icon={<Workflow className="h-4 w-4" />} label="Con flujo" value={withFlow} helper="Macros que ejecutan un flujo" color="#F59E0B" />
       </div>
 
       {/* Toolbar */}
