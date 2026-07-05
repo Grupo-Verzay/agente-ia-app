@@ -25,6 +25,7 @@ import {
   getInternalNotesBySessionAction,
   type InternalNoteData,
 } from '@/actions/internal-notes-actions';
+import { executeMacroAction } from '@/actions/macro-actions';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatInputBar } from './ChatInputBar';
@@ -578,6 +579,27 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     }
   }, []);
 
+  const handleRunMacro = useCallback(async (macroId: string) => {
+    if (!session?.id) return;
+    const toastId = toast.loading('Aplicando macro…');
+    const res = await executeMacroAction({
+      macroId,
+      sessionId: session.id,
+      remoteJid: info?.remoteJid,
+      context:
+        info?.apiKeyData && info?.instanceName
+          ? { apiKeyData: info.apiKeyData, instanceName: info.instanceName }
+          : null,
+    });
+    if (res.success) {
+      toast.success(res.message, { id: toastId });
+      mutateSessionStatus();
+      void onRefresh?.();
+    } else {
+      toast.error(res.message, { id: toastId });
+    }
+  }, [session?.id, info, mutateSessionStatus, onRefresh]);
+
   /* ─── Compose handlers ─── */
   const handleAddComposeMedia = useCallback((m: ComposeMedia) => {
     setComposeMediaList((prev) => prev.length >= 4 ? prev : [...prev, m]);
@@ -840,6 +862,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         assignedAdvisorId={assignedAdvisorId}
         onAssignAdvisor={onAssignAdvisor}
         onNewMessage={onNewMessage}
+        onRunMacro={handleRunMacro}
         infoPanelOpen={infoPanelOpen}
         onToggleInfoPanel={toggleInfoPanel}
         searchOpen={searchOpen}

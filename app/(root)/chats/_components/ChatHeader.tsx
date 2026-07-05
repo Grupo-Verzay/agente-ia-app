@@ -18,6 +18,7 @@ import type { ChatHeader as ChatHeaderData } from './chat-message-types';
 import type { Session, SimpleTag } from '@/types/session';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import { AdvisorAssignBadge } from './AdvisorAssignBadge';
+import { MacrosMenu } from './MacrosMenu';
 import { SessionTagsCombobox } from '../../tags/components';
 import { LeadStatusSelect } from './LeadStatusSelect';
 import { resolveSession } from '@/actions/advisor-assign-actions';
@@ -65,6 +66,7 @@ interface ChatHeaderProps {
   assignedAdvisorId?: string | null;
   onAssignAdvisor?: (advisorId: string | null) => Promise<void>;
   onNewMessage?: () => void;
+  onRunMacro?: (macroId: string) => Promise<void>;
   infoPanelOpen?: boolean;
   onToggleInfoPanel?: () => void;
   searchOpen?: boolean;
@@ -95,6 +97,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   assignedAdvisorId,
   onAssignAdvisor,
   onNewMessage,
+  onRunMacro,
   infoPanelOpen,
   onToggleInfoPanel,
   searchOpen,
@@ -322,6 +325,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     </DropdownMenu>
   );
 
+  const macrosMenu = session && onRunMacro ? <MacrosMenu onRunMacro={onRunMacro} /> : null;
+
   return (
     <div className="sticky top-0 z-10 border-b border-border/40 bg-gradient-to-r from-background to-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/50">
       {/* ── Mobile ── */}
@@ -376,6 +381,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   )}
                 />
               </button>
+              {macrosMenu}
               {lifecycleButton}
             </div>
           ) : (
@@ -667,6 +673,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <Search className="h-3.5 w-3.5" />
               </Button>
             )}
+            {macrosMenu}
             {lifecycleButton}
           </div>
         </div>
