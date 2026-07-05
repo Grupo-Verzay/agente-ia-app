@@ -144,20 +144,32 @@ function MacroRowInner({ macro, h }: { macro: MacroData; h: RowHandlers }) {
           {!macro.enabled ? ' · Inactiva' : macro.description ? ` · ${macro.description}` : ''}
         </p>
       </div>
+      {/* Íconos directos (rápidos) */}
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => h.onEdit(macro)} title="Editar">
+        <Pencil className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-muted-foreground hover:text-red-500"
+        onClick={() => h.onDelete(macro)}
+        title="Eliminar"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+
+      {/* Menú con acciones extra */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
             className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted"
-            title="Acciones"
+            title="Más acciones"
           >
             <MoreVertical className="h-4 w-4" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem onSelect={() => h.onEdit(macro)} className="gap-2 cursor-pointer">
-            <Pencil className="h-3.5 w-3.5" /> Editar
-          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => h.onDuplicate(macro)} className="gap-2 cursor-pointer">
             <Copy className="h-3.5 w-3.5" /> Duplicar
           </DropdownMenuItem>
@@ -167,13 +179,6 @@ function MacroRowInner({ macro, h }: { macro: MacroData; h: RowHandlers }) {
             ) : (
               <><Power className="h-3.5 w-3.5" /> Activar</>
             )}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => h.onDelete(macro)}
-            className="gap-2 cursor-pointer text-red-600 focus:text-red-600"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Eliminar
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
