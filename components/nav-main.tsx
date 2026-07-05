@@ -40,6 +40,11 @@ export function NavMain({ user }: { user: User }) {
     const chatUnreadCount = useChatUnreadStore((s) => s.unreadCount);
 
     const isAdvisor = !!user.ownerId;
+    // Agente = cuenta vinculada SIN rol administrador. Los administradores de una
+    // cuenta vinculada tienen los mismos accesos que el dueño de esa cuenta.
+    const isAgente = isAdvisor && user.advisorRole !== 'administrador';
+    // Rutas de gestión (leads en masa / equipo / pipeline) ocultas para agentes.
+    const AGENT_HIDDEN_ROUTES = ['/equipo', '/sessions', '/crm', '/asesores'];
 
     const [openModuleId, setOpenModuleId] = useState<string | null>(null);
     useEffect(() => { setOpenModuleId(null); }, [pathname]);
@@ -48,8 +53,9 @@ export function NavMain({ user }: { user: User }) {
     const navItems = modules
         .filter(link => link.showInSidebar)
         .filter(link => {
-            // /equipo solo visible para dueños, nunca para asesores
-            if (link.route === '/equipo' && isAdvisor) return false;
+            // Gestión (equipo, leads, pipeline): oculta para agentes; visible para
+            // la cuenta principal y los administradores de cuenta vinculada.
+            if (isAgente && AGENT_HIDDEN_ROUTES.includes(link.route)) return false;
             // /profile (Perfil/Conexión/Ajustes) sí es visible para asesores.
             // /panel/mis-planes solo para resellers
             if (link.route === '/panel/mis-planes' && user.role !== 'reseller') return false;

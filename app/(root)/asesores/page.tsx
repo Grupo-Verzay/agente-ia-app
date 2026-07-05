@@ -2,11 +2,16 @@ import { currentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { UserCheck } from "lucide-react";
 import { getAdvisorsForTaskAction } from "@/actions/task-actions";
+import { isAdvisorAccount, isAdvisorAdmin } from "@/lib/permissions";
 import { AdvisorKanbanBoard } from "./components/AdvisorKanbanBoard";
 
 export default async function AsesoresPage() {
     const user = await currentUser();
     if (!user) redirect("/login");
+
+    // Pipeline/gestión de asesores: cuenta principal y administradores. Los
+    // agentes no (solo operan desde /chats).
+    if (isAdvisorAccount(user) && !isAdvisorAdmin(user)) redirect("/");
 
     const res = await getAdvisorsForTaskAction();
     const advisors = res.data ?? [];

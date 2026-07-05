@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
+import { isAdvisorAccount, isAdvisorAdmin } from "@/lib/permissions";
 import { TeamClient } from "./_components/team-client";
 import {
   getAutoAssignSettings,
@@ -21,7 +22,9 @@ export default async function EquipoPage() {
   const user = await settle(currentUser());
   if (!user) redirect("/login");
 
-  if (user.ownerId) redirect("/");
+  // Gestión de equipo: la cuenta principal y los administradores de una cuenta
+  // vinculada. Los agentes no (solo operan desde /chats).
+  if (isAdvisorAccount(user) && !isAdvisorAdmin(user)) redirect("/");
 
   const [advisors, ownerModules, autoAssignSettings, teamMetrics] = await Promise.all([
     settle(getTeamAdvisors()),
