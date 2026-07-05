@@ -360,6 +360,25 @@ export async function resolveInstanceOwner(instanceName: string) {
   });
 }
 
+// Cache corto instanceName -> userId dueño. El mapeo línea→dueño es prácticamente
+// inmutable; evita una consulta por cada mensaje al persistir en lote.
+const instanceOwnerIdCache = new Map<string, { userId: string | null; at: number }>();
+const INSTANCE_OWNER_TTL_MS = 5 * 60 * 1000;
+
+async function resolveInstanceOwnerId(instanceName?: string | null): Promise<string | null> {
+  const key = instanceName?.trim();
+  if (!key) return null;
+  const cached = instanceOwnerIdCache.get(key);
+  if (cached && Date.now() - cached.at < INSTANCE_OWNER_TTL_MS) return cached.userId;
+  const row = await db.instancia.findFirst({
+    where: { instanceName: key },
+    select: { userId: true },
+  });
+  const userId = row?.userId ?? null;
+  instanceOwnerIdCache.set(key, { userId, at: Date.now() });
+  return userId;
+}
+
 export async function upsertSessionFromChatMessage(input: PersistChatMessageInput) {
   const remoteJid = normalizeStoredRemoteJid(input.remoteJid, [
     input.remoteJidAlt,
@@ -377,9 +396,15 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
     input.senderPn,
   ]);
 
+  // La Session (lead/CRM) SIEMPRE pertenece al dueño real de la línea, nunca a
+  // quien la está viendo. En la bandeja unificada un administrador ve chats de
+  // otras cuentas; persistir la conversación bajo su userId es correcto para el
+  // caché (chat_messages), pero NO debe crear un lead bajo su cuenta.
+  const sessionUserId = (await resolveInstanceOwnerId(input.instanceName)) ?? input.userId;
+
   const existing = await db.session.findFirst({
     where: {
-      userId: input.userId,
+      userId: sessionUserId,
       OR: [
         { remoteJid: { in: candidates } },
         { remoteJidAlt: { in: candidates } },
@@ -405,7 +430,7 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
 
   await db.session.create({
     data: {
-      userId: input.userId,
+      userId: sessionUserId,
       remoteJid,
       remoteJidAlt,
       pushName: input.pushName?.trim() || remoteJid,
