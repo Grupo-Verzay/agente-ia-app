@@ -172,6 +172,55 @@ export async function deleteMacroAction(id: string): Promise<{ success: boolean;
   }
 }
 
+export async function duplicateMacroAction(
+  id: string,
+): Promise<{ success: boolean; message: string; id?: string }> {
+  try {
+    const user = await requireUser();
+    const ownerId = ownerOf(user);
+    const src = await (db as any).macro.findFirst({ where: { id, userId: ownerId } });
+    if (!src) return { success: false, message: "Macro no encontrada." };
+    const count = await (db as any).macro.count({ where: { userId: ownerId } });
+    const copy = await (db as any).macro.create({
+      data: {
+        userId: ownerId,
+        name: `${src.name} (copia)`,
+        description: src.description,
+        color: src.color,
+        actions: src.actions,
+        order: count,
+        enabled: src.enabled,
+      },
+    });
+    return { success: true, message: "Macro duplicada.", id: copy.id };
+  } catch (e) {
+    console.error("[duplicateMacroAction]", e);
+    return { success: false, message: "Error al duplicar la macro." };
+  }
+}
+
+export async function deleteMacrosAction(ids: string[]): Promise<{ success: boolean; message: string }> {
+  try {
+    const user = await requireUser();
+    await (db as any).macro.deleteMany({ where: { id: { in: ids }, userId: ownerOf(user) } });
+    return { success: true, message: "Macros eliminadas." };
+  } catch (e) {
+    console.error("[deleteMacrosAction]", e);
+    return { success: false, message: "Error al eliminar las macros." };
+  }
+}
+
+export async function deleteAllMacrosAction(): Promise<{ success: boolean; message: string }> {
+  try {
+    const user = await requireUser();
+    await (db as any).macro.deleteMany({ where: { userId: ownerOf(user) } });
+    return { success: true, message: "Todas las macros fueron eliminadas." };
+  } catch (e) {
+    console.error("[deleteAllMacrosAction]", e);
+    return { success: false, message: "Error al eliminar las macros." };
+  }
+}
+
 /* ─────────────── EJECUCIÓN ─────────────── */
 
 /**

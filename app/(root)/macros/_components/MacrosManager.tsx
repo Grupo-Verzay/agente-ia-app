@@ -3,11 +3,18 @@
 import { useMemo, useState } from 'react';
 import {
   Plus, Zap, Pencil, Trash2, ArrowUp, ArrowDown, X, Loader2, GripVertical,
-  Search, CheckCircle2, List, Workflow,
+  Search, CheckCircle2, List, Workflow, MoreVertical, Copy, Power, PowerOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MetricCard } from '@/components/custom/MetricCard';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
@@ -37,6 +44,9 @@ import {
   createMacroAction,
   updateMacroAction,
   deleteMacroAction,
+  duplicateMacroAction,
+  deleteMacrosAction,
+  deleteAllMacrosAction,
   reorderMacrosAction,
   type MacroData,
   type MacroActionItem,
@@ -104,50 +114,74 @@ type Draft = {
 
 const EMPTY_DRAFT: Draft = { name: '', description: '', color: COLORS[0], actions: [] };
 
-function MacroRowInner({
-  macro,
-  onEdit,
-  onDelete,
-}: {
-  macro: MacroData;
+type RowHandlers = {
+  isSelected: (id: string) => boolean;
+  onToggleSelect: (id: string) => void;
   onEdit: (m: MacroData) => void;
+  onDuplicate: (m: MacroData) => void;
+  onToggleEnabled: (m: MacroData) => void;
   onDelete: (m: MacroData) => void;
-}) {
+};
+
+function MacroRowInner({ macro, h }: { macro: MacroData; h: RowHandlers }) {
   return (
     <>
+      <input
+        type="checkbox"
+        checked={h.isSelected(macro.id)}
+        onChange={() => h.onToggleSelect(macro.id)}
+        onClick={(e) => e.stopPropagation()}
+        className="h-4 w-4 shrink-0 cursor-pointer accent-primary"
+        title="Seleccionar"
+      />
       <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: macro.color || '#6366f1' }} />
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold">{macro.name}</p>
+        <p className={cn('truncate font-semibold', !macro.enabled && 'text-muted-foreground line-through')}>
+          {macro.name}
+        </p>
         <p className="truncate text-xs text-muted-foreground">
           {macro.actions.length} acción{macro.actions.length === 1 ? '' : 'es'}
-          {macro.description ? ` · ${macro.description}` : ''}
+          {!macro.enabled ? ' · Inactiva' : macro.description ? ` · ${macro.description}` : ''}
         </p>
       </div>
-      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(macro)} title="Editar">
-        <Pencil className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 text-muted-foreground hover:text-red-500"
-        onClick={() => onDelete(macro)}
-        title="Eliminar"
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted"
+            title="Acciones"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuItem onSelect={() => h.onEdit(macro)} className="gap-2 cursor-pointer">
+            <Pencil className="h-3.5 w-3.5" /> Editar
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => h.onDuplicate(macro)} className="gap-2 cursor-pointer">
+            <Copy className="h-3.5 w-3.5" /> Duplicar
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => h.onToggleEnabled(macro)} className="gap-2 cursor-pointer">
+            {macro.enabled ? (
+              <><PowerOff className="h-3.5 w-3.5" /> Desactivar</>
+            ) : (
+              <><Power className="h-3.5 w-3.5" /> Activar</>
+            )}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => h.onDelete(macro)}
+            className="gap-2 cursor-pointer text-red-600 focus:text-red-600"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Eliminar
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </>
   );
 }
 
-function SortableMacroRow({
-  macro,
-  onEdit,
-  onDelete,
-}: {
-  macro: MacroData;
-  onEdit: (m: MacroData) => void;
-  onDelete: (m: MacroData) => void;
-}) {
+function SortableMacroRow({ macro, h }: { macro: MacroData; h: RowHandlers }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: macro.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -158,7 +192,7 @@ function SortableMacroRow({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 rounded-xl border border-border bg-card p-3"
+      className="flex items-center gap-2.5 rounded-xl border border-border bg-card p-3"
     >
       <button
         type="button"
@@ -169,7 +203,7 @@ function SortableMacroRow({
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <MacroRowInner macro={macro} onEdit={onEdit} onDelete={onDelete} />
+      <MacroRowInner macro={macro} h={h} />
     </div>
   );
 }
@@ -180,6 +214,13 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirm, setConfirm] = useState<{ open: boolean; ids: string[]; all: boolean }>({
+    open: false,
+    ids: [],
+    all: false,
+  });
+  const [deleting, setDeleting] = useState(false);
 
   const filtered = useMemo(
     () => macros.filter((m) => m.name.toLowerCase().includes(search.trim().toLowerCase())),
@@ -302,10 +343,66 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
     setSaving(false);
   };
 
-  const remove = async (m: MacroData) => {
-    const res = await deleteMacroAction(m.id);
-    if (res.success) setMacros((prev) => prev.filter((x) => x.id !== m.id));
-    else toast.error(res.message);
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+
+  const duplicate = async (m: MacroData) => {
+    const res = await duplicateMacroAction(m.id);
+    if (res.success && res.id) {
+      setMacros((prev) => [
+        ...prev,
+        { ...m, id: res.id!, name: `${m.name} (copia)`, order: prev.length },
+      ]);
+      toast.success('Macro duplicada.');
+    } else toast.error(res.message);
+  };
+
+  const toggleEnabled = async (m: MacroData) => {
+    const next = !m.enabled;
+    setMacros((prev) => prev.map((x) => (x.id === m.id ? { ...x, enabled: next } : x)));
+    const res = await updateMacroAction(m.id, { enabled: next });
+    if (!res.success) {
+      setMacros((prev) => prev.map((x) => (x.id === m.id ? { ...x, enabled: m.enabled } : x)));
+      toast.error(res.message);
+    }
+  };
+
+  const doConfirmDelete = async () => {
+    setDeleting(true);
+    if (confirm.all) {
+      const res = await deleteAllMacrosAction();
+      if (res.success) {
+        setMacros([]);
+        setSelected(new Set());
+      } else toast.error(res.message);
+    } else {
+      const ids = confirm.ids;
+      const res = ids.length === 1 ? await deleteMacroAction(ids[0]) : await deleteMacrosAction(ids);
+      if (res.success) {
+        setMacros((prev) => prev.filter((m) => !ids.includes(m.id)));
+        setSelected((prev) => {
+          const n = new Set(prev);
+          ids.forEach((i) => n.delete(i));
+          return n;
+        });
+      } else toast.error(res.message);
+    }
+    setDeleting(false);
+    setConfirm({ open: false, ids: [], all: false });
+  };
+
+  const h: RowHandlers = {
+    isSelected: (id) => selected.has(id),
+    onToggleSelect: toggleSelect,
+    onEdit: openEdit,
+    onDuplicate: (m) => void duplicate(m),
+    onToggleEnabled: (m) => void toggleEnabled(m),
+    onDelete: (m) => setConfirm({ open: true, ids: [m.id], all: false }),
   };
 
   return (
@@ -329,9 +426,29 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
             className="w-full pl-8"
           />
         </div>
-        <Button size="sm" onClick={openCreate} className="ml-auto bg-blue-600 text-white hover:bg-blue-700">
-          + Crear
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          {selected.size > 0 && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => setConfirm({ open: true, ids: Array.from(selected), all: false })}
+            >
+              Eliminar ({selected.size})
+            </Button>
+          )}
+          {macros.length > 0 && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => setConfirm({ open: true, ids: [], all: true })}
+            >
+              Eliminar todos
+            </Button>
+          )}
+          <Button size="sm" onClick={openCreate} className="bg-blue-600 text-white hover:bg-blue-700">
+            + Crear
+          </Button>
+        </div>
       </div>
 
       {/* Lista */}
@@ -348,9 +465,9 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
             {filtered.map((m) => (
               <div
                 key={m.id}
-                className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
+                className="flex items-center gap-2.5 rounded-xl border border-border bg-card p-3"
               >
-                <MacroRowInner macro={m} onEdit={openEdit} onDelete={(x) => void remove(x)} />
+                <MacroRowInner macro={m} h={h} />
               </div>
             ))}
           </div>
@@ -359,7 +476,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
             <SortableContext items={macros.map((m) => m.id)} strategy={verticalListSortingStrategy}>
               <div className="flex flex-col gap-2">
                 {macros.map((m) => (
-                  <SortableMacroRow key={m.id} macro={m} onEdit={openEdit} onDelete={(x) => void remove(x)} />
+                  <SortableMacroRow key={m.id} macro={m} h={h} />
                 ))}
               </div>
             </SortableContext>
@@ -597,6 +714,35 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
             </Button>
             <Button onClick={() => void save()} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Guardar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmación de borrado (lote / todos) */}
+      <Dialog
+        open={confirm.open}
+        onOpenChange={(o) => !o && setConfirm({ open: false, ids: [], all: false })}
+      >
+        <DialogContent className="w-[min(94vw,420px)]">
+          <DialogHeader>
+            <DialogTitle>{confirm.all ? 'Eliminar todas las macros' : 'Eliminar macros'}</DialogTitle>
+          </DialogHeader>
+          <p className="px-1 text-sm text-muted-foreground">
+            {confirm.all
+              ? 'Se eliminarán TODAS tus macros. Esta acción no se puede deshacer.'
+              : `Se eliminará${confirm.ids.length === 1 ? '' : 'n'} ${confirm.ids.length} macro${confirm.ids.length === 1 ? '' : 's'}. Esta acción no se puede deshacer.`}
+          </p>
+          <DialogFooter className="flex-row justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setConfirm({ open: false, ids: [], all: false })}
+              disabled={deleting}
+            >
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={() => void doConfirmDelete()} disabled={deleting}>
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Eliminar'}
             </Button>
           </DialogFooter>
         </DialogContent>
