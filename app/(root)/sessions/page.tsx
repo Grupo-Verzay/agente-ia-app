@@ -4,6 +4,7 @@ import { currentUser } from "@/lib/auth"; // Ahora SÍ aquí
 import { redirect } from 'next/navigation';
 import { SessionsContent } from "./_components/sessions-content";
 import { listTagsAction } from "@/actions/tag-actions";
+import { isAdvisorAccount, isAdvisorAdmin } from "@/lib/permissions";
 
 export default async function SessionsPage() {
   const user = await currentUser();
@@ -12,9 +13,12 @@ export default async function SessionsPage() {
     redirect('/login');
   };
 
-  // Solo la cuenta principal administra los leads/registros. Los asesores
-  // (con ownerId) no ven /sessions; trabajan sus conversaciones desde /chats.
-  if (user.ownerId) {
+  // Los leads/registros los administra la cuenta principal y los administradores
+  // de una cuenta vinculada. Los AGENTES (asesores normales) no ven /sessions;
+  // trabajan sus conversaciones desde /chats. Nota: cuando el dueño de una cuenta
+  // entra a administrar OTRA cuenta como administrador, isAdvisorAdmin=true, así
+  // que sigue viendo /sessions de esa cuenta.
+  if (isAdvisorAccount(user) && !isAdvisorAdmin(user)) {
     redirect('/');
   }
 
