@@ -1,7 +1,10 @@
 ﻿import { Prisma } from "@prisma/client";
 
-import { sendingMessages } from "@/actions/sending-messages-actions";
-import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from "@/actions/whatsapp-dispatcher";
+import {
+    resolveWhatsAppDispatcherLine,
+    sendViaWhatsAppDispatcher,
+    type WhatsAppDispatcherLine,
+} from "@/actions/whatsapp-dispatcher";
 import { db } from "@/lib/db";
 import type { BillingStatus, BillingTemplateType, AccessStatus } from "@/types/billing";
 
@@ -43,14 +46,7 @@ const billingUserRecordArgs = Prisma.validator<Prisma.UserBillingDefaultArgs>()(
 
 export type BillingUserRecord = Prisma.UserBillingGetPayload<typeof billingUserRecordArgs>;
 
-export type BillingDispatcherConfig = {
-    id: string;
-    notificationNumber: string | null;
-    instanceId: string;
-    instanceName: string;
-    serverUrl: string;
-    provider?: "evolution" | "baileys";
-};
+export type BillingDispatcherConfig = WhatsAppDispatcherLine;
 
 export type BillingSendResult = {
     success: boolean;
@@ -77,14 +73,6 @@ export type BillingLifecycleSyncResult = {
     webhookResult?: BillingWebhookToggleResult | null;
     notificationResult?: BillingSendResult | null;
 };
-
-function buildSendTextUrl(instanceName: string, serverUrl: string): string {
-    const normalizedBaseUrl = /^https?:\/\//i.test(serverUrl)
-        ? serverUrl.replace(/\/+$/, "")
-        : `https://${serverUrl.replace(/\/+$/, "")}`;
-
-    return `${normalizedBaseUrl}/message/sendText/${encodeURIComponent(instanceName)}`;
-}
 
 function pickBillingStateTemplate(args: {
     billingStatus?: BillingStatus | null;
@@ -167,16 +155,7 @@ export async function getBillingUserRecord(
 
 export async function loadBillingDispatcherConfig(): Promise<BillingDispatcherConfig | null> {
     const line = await resolveWhatsAppDispatcherLine();
-    if (!line) return null;
-
-    return {
-        id: line.id,
-        notificationNumber: line.notificationNumber,
-        instanceId: line.instanceId,
-        instanceName: line.instanceName,
-        serverUrl: line.serverUrl ?? "",
-        provider: line.provider,
-    };
+    return line;
 }
 
 // Override editable por Verzay (SiteConfig). Solo aplica a las 5 plantillas que
@@ -257,29 +236,12 @@ export async function sendBillingTemplateMessage(args: {
             template: args.template,
         },
     };
-    const result = dispatcher.provider === "baileys"
-        ? await sendViaWhatsAppDispatcher({
-            dispatcher: {
-                id: dispatcher.id,
-                notificationNumber: dispatcher.notificationNumber,
-                instanceId: dispatcher.instanceId,
-                instanceName: dispatcher.instanceName,
-                instanceType: "baileys",
-                serverUrl: null,
-                apiKey: null,
-                provider: "baileys",
-            },
-            remoteJid,
-            text,
-            history,
-        })
-        : await sendingMessages({
-            url: buildSendTextUrl(dispatcher.instanceName, dispatcher.serverUrl),
-            apikey: dispatcher.instanceId,
-            remoteJid,
-            text,
-            history,
-        });
+    const result = await sendViaWhatsAppDispatcher({
+        dispatcher,
+        remoteJid,
+        text,
+        history,
+    });
 
     return {
         success: result.success,

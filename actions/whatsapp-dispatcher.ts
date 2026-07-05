@@ -1,6 +1,7 @@
 'use server';
 
 import { sendBaileysTextAction } from '@/actions/baileys-chat-actions';
+import { sendChannelTextAction } from '@/actions/channel-chat-actions';
 import { sendingMessages } from '@/actions/sending-messages-actions';
 import { db } from '@/lib/db';
 
@@ -8,6 +9,9 @@ type DispatcherInstance = {
   instanceId: string | null;
   instanceName: string | null;
   instanceType: string | null;
+  metaAccessToken?: string | null;
+  metaPhoneNumberId?: string | null;
+  metaChannel?: string | null;
 };
 
 export type WhatsAppDispatcherLine = {
@@ -18,7 +22,7 @@ export type WhatsAppDispatcherLine = {
   instanceType: string | null;
   serverUrl: string | null;
   apiKey: string | null;
-  provider: 'evolution' | 'baileys';
+  provider: 'evolution' | 'baileys' | 'meta';
 };
 
 function normalizeBaseUrl(url: string | null | undefined): string {
@@ -31,23 +35,38 @@ function isBaileys(instanceType: string | null | undefined) {
   return instanceType?.trim().toLowerCase() === 'baileys';
 }
 
+function isMetaWhatsApp(instance: Pick<DispatcherInstance, 'instanceType' | 'metaChannel'>) {
+  return (
+    instance.instanceType?.trim().toLowerCase() === 'meta' &&
+    (!instance.metaChannel || instance.metaChannel.trim().toLowerCase() === 'whatsapp')
+  );
+}
+
 function isWhatsappLike(instanceType: string | null | undefined) {
   const type = instanceType?.trim().toLowerCase();
-  return !type || type === 'whatsapp' || type === 'baileys';
+  return !type || type === 'whatsapp' || type === 'baileys' || type === 'meta';
+}
+
+function canDispatchWhatsApp(instance: DispatcherInstance) {
+  if (instance.instanceType?.trim().toLowerCase() === 'meta') {
+    return isMetaWhatsApp(instance);
+  }
+  return isWhatsappLike(instance.instanceType);
 }
 
 function preferConfiguredInstance(
   instances: DispatcherInstance[],
   preferredInstanceName?: string | null,
 ) {
-  const candidates = instances.filter((instance) => isWhatsappLike(instance.instanceType));
+  const candidates = instances.filter((instance) => canDispatchWhatsApp(instance));
   if (preferredInstanceName) {
     const preferred = candidates.find((instance) => instance.instanceName === preferredInstanceName);
     if (preferred) return [preferred, ...candidates.filter((instance) => instance !== preferred)];
   }
   return [
+    ...candidates.filter((instance) => isMetaWhatsApp(instance)),
     ...candidates.filter((instance) => isBaileys(instance.instanceType)),
-    ...candidates.filter((instance) => !isBaileys(instance.instanceType)),
+    ...candidates.filter((instance) => !isMetaWhatsApp(instance) && !isBaileys(instance.instanceType)),
   ];
 }
 
@@ -98,6 +117,10 @@ async function isBaileysOpen(instanceName: string) {
   }
 }
 
+function isMetaOpen(instance: DispatcherInstance) {
+  return Boolean(instance.instanceName && instance.metaPhoneNumberId && instance.metaAccessToken);
+}
+
 async function findLineForUser(
   userId: string,
   preferredInstanceName?: string | null,
@@ -114,6 +137,9 @@ async function findLineForUser(
           instanceId: true,
           instanceName: true,
           instanceType: true,
+          metaAccessToken: true,
+          metaPhoneNumberId: true,
+          metaChannel: true,
         },
       },
     },
@@ -128,7 +154,11 @@ async function findLineForUser(
   for (const instance of candidates) {
     if (!instance.instanceName || !instance.instanceId) continue;
 
-    const provider = isBaileys(instance.instanceType) ? 'baileys' : 'evolution';
+    const provider = isMetaWhatsApp(instance)
+      ? 'meta'
+      : isBaileys(instance.instanceType)
+        ? 'baileys'
+        : 'evolution';
     const line: WhatsAppDispatcherLine = {
       id: user.id,
       notificationNumber: user.notificationNumber ?? null,
@@ -142,9 +172,11 @@ async function findLineForUser(
 
     fallback ??= line;
 
-    const connected = provider === 'baileys'
-      ? await isBaileysOpen(instance.instanceName)
-      : await isEvolutionOpen({
+    const connected = provider === 'meta'
+      ? isMetaOpen(instance)
+      : provider === 'baileys'
+        ? await isBaileysOpen(instance.instanceName)
+        : await isEvolutionOpen({
           serverUrl,
           apiKey: user.apiKey?.key ?? null,
           instanceName: instance.instanceName,
@@ -218,6 +250,13 @@ export async function sendViaWhatsAppDispatcher(args: {
       message: result.message,
       error: result.success ? undefined : result.message,
     };
+  }
+
+  if (args.dispatcher.provider === 'meta') {
+    return sendChannelTextAction(args.dispatcher.instanceName, args.remoteJid, {
+      kind: 'text',
+      text: args.text,
+    });
   }
 
   if (!args.dispatcher.serverUrl || !args.dispatcher.instanceId) {
