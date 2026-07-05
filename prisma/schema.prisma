@@ -471,11 +471,13 @@ model Macro {
   name        String
   description String?
   color       String?
-  actions     Json     @default("[]") // [{ type, config }, ...] en orden
-  order       Int      @default(0)
-  enabled     Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  actions     Json      @default("[]") // [{ type, config }, ...] en orden
+  order       Int       @default(0)
+  enabled     Boolean   @default(true)
+  runCount    Int       @default(0)
+  lastRunAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([userId])
   @@map("macros")

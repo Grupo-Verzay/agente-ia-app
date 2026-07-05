@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import {
   Plus, Zap, Pencil, Trash2, ArrowUp, ArrowDown, X, Loader2, GripVertical,
-  Search, CheckCircle2, List, Workflow, MoreVertical, Copy, Power, PowerOff,
+  Search, CheckCircle2, List, Play, MoreVertical, Copy, Power, PowerOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -141,7 +141,10 @@ function MacroRowInner({ macro, h }: { macro: MacroData; h: RowHandlers }) {
         </p>
         <p className="truncate text-xs text-muted-foreground">
           {macro.actions.length} acción{macro.actions.length === 1 ? '' : 'es'}
-          {!macro.enabled ? ' · Inactiva' : macro.description ? ` · ${macro.description}` : ''}
+          {macro.runCount > 0
+            ? ` · ${macro.runCount} ejecución${macro.runCount === 1 ? '' : 'es'}`
+            : ''}
+          {!macro.enabled ? ' · Inactiva' : ''}
         </p>
       </div>
       {/* Íconos directos (rápidos) */}
@@ -239,7 +242,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
   );
   const activeCount = macros.filter((m) => m.enabled).length;
   const totalActions = macros.reduce((n, m) => n + m.actions.length, 0);
-  const withFlow = macros.filter((m) => m.actions.some((a) => a.type === 'EXECUTE_FLOW')).length;
+  const totalRuns = macros.reduce((n, m) => n + m.runCount, 0);
 
   const sensors = useSensors(useSensor(PointerSensor));
   const handleDragEnd = async (e: DragEndEvent) => {
@@ -345,6 +348,8 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
             actions: draft.actions,
             order: prev.length,
             enabled: true,
+            runCount: 0,
+            lastRunAt: null,
           },
         ]);
         toast.success('Macro creada.');
@@ -367,7 +372,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
     if (res.success && res.id) {
       setMacros((prev) => [
         ...prev,
-        { ...m, id: res.id!, name: `${m.name} (copia)`, order: prev.length },
+        { ...m, id: res.id!, name: `${m.name} (copia)`, order: prev.length, runCount: 0, lastRunAt: null },
       ]);
       toast.success('Macro duplicada.');
     } else toast.error(res.message);
@@ -423,7 +428,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
         <MetricCard icon={<Zap className="h-4 w-4" />} label="Total" value={macros.length} helper="Macros creadas" color="#6366F1" />
         <MetricCard icon={<CheckCircle2 className="h-4 w-4" />} label="Activas" value={activeCount} helper="Macros habilitadas" color="#10B981" />
         <MetricCard icon={<List className="h-4 w-4" />} label="Acciones" value={totalActions} helper="Acciones en total" color="#3B82F6" />
-        <MetricCard icon={<Workflow className="h-4 w-4" />} label="Con flujo" value={withFlow} helper="Macros que ejecutan un flujo" color="#F59E0B" />
+        <MetricCard icon={<Play className="h-4 w-4" />} label="Ejecuciones" value={totalRuns} helper="Veces que se han aplicado las macros" color="#F59E0B" />
       </div>
 
       {/* Toolbar */}

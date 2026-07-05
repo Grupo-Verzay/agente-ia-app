@@ -46,6 +46,8 @@ export type MacroData = {
   actions: MacroActionItem[];
   order: number;
   enabled: boolean;
+  runCount: number;
+  lastRunAt: string | null;
 };
 
 type ChatCtx = { apiKeyData: { url: string; key: string }; instanceName: string };
@@ -79,6 +81,8 @@ export async function getMacrosAction(): Promise<{ success: boolean; data: Macro
         actions: Array.isArray(m.actions) ? (m.actions as MacroActionItem[]) : [],
         order: m.order,
         enabled: m.enabled,
+        runCount: m.runCount ?? 0,
+        lastRunAt: m.lastRunAt ? m.lastRunAt.toISOString() : null,
       })),
     };
   } catch (e) {
@@ -295,6 +299,16 @@ export async function executeMacroAction(input: {
         failed++;
         console.error(`[executeMacroAction] acción ${a.type} falló`, err);
       }
+    }
+
+    // Contador de ejecuciones (barato: un UPDATE por corrida).
+    try {
+      await (db as any).macro.update({
+        where: { id: input.macroId },
+        data: { runCount: { increment: 1 }, lastRunAt: new Date() },
+      });
+    } catch {
+      /* no bloquear por el contador */
     }
 
     return {
