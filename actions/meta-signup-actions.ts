@@ -31,6 +31,28 @@ function metaAppId(): string | undefined {
   return process.env.META_APP_ID || process.env.NEXT_PUBLIC_META_APP_ID;
 }
 
+export interface MetaSignupRuntimeConfig {
+  appId: string;
+  configId: string;
+  graphVersion: string;
+  featureType: string;
+}
+
+export async function getMetaSignupRuntimeConfig(): Promise<MetaSignupRuntimeConfig> {
+  return {
+    appId: metaAppId() ?? '',
+    configId: process.env.META_CONFIG_ID || process.env.NEXT_PUBLIC_META_CONFIG_ID || '',
+    graphVersion:
+      process.env.META_GRAPH_VERSION ||
+      process.env.NEXT_PUBLIC_META_GRAPH_VERSION ||
+      'v25.0',
+    featureType:
+      process.env.META_FEATURE_TYPE ||
+      process.env.NEXT_PUBLIC_META_FEATURE_TYPE ||
+      'whatsapp_business_app_onboarding',
+  };
+}
+
 /** Un número disponible dentro de las WABAs que el usuario autorizó. */
 export interface MetaNumberOption {
   phoneNumberId: string;

@@ -13,16 +13,12 @@ import {
 } from '@/components/ui/dialog';
 import {
   exchangeMetaSignup,
+  getMetaSignupRuntimeConfig,
   selectMetaNumber,
+  type MetaSignupRuntimeConfig,
   type MetaNumberOption,
 } from '@/actions/meta-signup-actions';
 import { toast } from 'sonner';
-
-const APP_ID = process.env.NEXT_PUBLIC_META_APP_ID;
-const CONFIG_ID = process.env.NEXT_PUBLIC_META_CONFIG_ID;
-const GRAPH_VERSION = process.env.NEXT_PUBLIC_META_GRAPH_VERSION || 'v21.0';
-const FEATURE_TYPE =
-  process.env.NEXT_PUBLIC_META_FEATURE_TYPE || 'whatsapp_business_app_onboarding';
 
 function openCenteredPopup(url: string, name: string) {
   const width = 760;
@@ -93,6 +89,7 @@ export function MetaEmbeddedSignup({
   label,
 }: MetaEmbeddedSignupProps) {
   const [loading, setLoading] = useState(false);
+  const [runtimeConfig, setRuntimeConfig] = useState<MetaSignupRuntimeConfig | null>(null);
   const sessionInfo = useRef<{ phoneNumberId?: string; wabaId?: string }>({});
   const [picker, setPicker] = useState<{
     numbers: MetaNumberOption[];
@@ -101,7 +98,28 @@ export function MetaEmbeddedSignup({
   } | null>(null);
   const [selecting, setSelecting] = useState(false);
 
-  const configured = Boolean(APP_ID && CONFIG_ID);
+  const configured = Boolean(runtimeConfig?.appId && runtimeConfig?.configId);
+
+  useEffect(() => {
+    let mounted = true;
+    getMetaSignupRuntimeConfig()
+      .then((config) => {
+        if (mounted) setRuntimeConfig(config);
+      })
+      .catch(() => {
+        if (mounted) {
+          setRuntimeConfig({
+            appId: '',
+            configId: '',
+            graphVersion: 'v25.0',
+            featureType: 'whatsapp_business_app_onboarding',
+          });
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!configured) return;
@@ -152,7 +170,7 @@ export function MetaEmbeddedSignup({
   );
 
   const handleClick = useCallback(async () => {
-    if (!configured || !APP_ID || !CONFIG_ID) {
+    if (!configured || !runtimeConfig?.appId || !runtimeConfig?.configId) {
       toast.error('La conexion oficial aun no esta configurada (falta App ID / Config ID).');
       return;
     }
@@ -167,20 +185,20 @@ export function MetaEmbeddedSignup({
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const extras = {
       setup: {},
-      ...(mode === 'coexistence' ? { featureType: FEATURE_TYPE } : {}),
+      ...(mode === 'coexistence' ? { featureType: runtimeConfig.featureType } : {}),
       sessionInfoVersion: '3',
     };
     const params = new URLSearchParams({
-      client_id: APP_ID,
+      client_id: runtimeConfig.appId,
       redirect_uri: redirectUri,
       response_type: 'code',
-      config_id: CONFIG_ID,
+      config_id: runtimeConfig.configId,
       state,
       override_default_response_type: 'true',
       extras: JSON.stringify(extras),
     });
     const popup = openCenteredPopup(
-      `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${params.toString()}`,
+      `https://www.facebook.com/${runtimeConfig.graphVersion}/dialog/oauth?${params.toString()}`,
       'meta-embedded-signup',
     );
 
@@ -209,7 +227,7 @@ export function MetaEmbeddedSignup({
     } finally {
       setLoading(false);
     }
-  }, [configured, handleConnected, instanceName, mode, userId]);
+  }, [configured, handleConnected, instanceName, mode, runtimeConfig, userId]);
 
   const confirmNumber = useCallback(async () => {
     if (!picker) return;
