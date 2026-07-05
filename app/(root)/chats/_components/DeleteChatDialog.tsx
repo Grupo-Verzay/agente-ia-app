@@ -23,11 +23,11 @@ export function DeleteChatDialog({ onCancel, onConfirm, target }: DeleteChatDial
     <AlertDialog open={Boolean(target)} onOpenChange={(open) => !open && onCancel()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Eliminar chat de tu bandeja</AlertDialogTitle>
+          <AlertDialogTitle>Eliminar chat</AlertDialogTitle>
           <AlertDialogDescription>
             {target
-              ? `El chat con ${target.name} se ocultara de tu bandeja principal. Esta accion no elimina mensajes del proveedor.`
-              : "Esta accion ocultara el chat de tu bandeja principal."}
+              ? `El chat con ${target.name} se quitara de esta vista y se eliminara su sesion en la app. Si el cliente vuelve a escribir, aparecera como una conversacion entrante nueva.`
+              : "Esta accion quitara el chat de esta vista y eliminara su sesion en la app."}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

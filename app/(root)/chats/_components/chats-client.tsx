@@ -1168,7 +1168,27 @@ export function ChatsClient({
         return;
       }
 
-      applyChatPreference(result.data);
+      setCurrentChatsResult((prev) =>
+        prev.success
+          ? {
+              ...prev,
+              data: prev.data.filter(
+                (chat) => chat.remoteJid !== remoteJid && !chat.aliases?.includes(remoteJid),
+              ),
+            }
+          : prev,
+      );
+      setChatSessions((prev) => {
+        if (!(remoteJid in prev)) return prev;
+        const next = { ...prev };
+        delete next[remoteJid];
+        return next;
+      });
+      setChatPreferences((prev) => {
+        const next = { ...prev };
+        delete next[remoteJid];
+        return next;
+      });
       toast.success(result.message);
 
       if (selectedJid === remoteJid) {
@@ -1177,7 +1197,7 @@ export function ChatsClient({
         setInfo(undefined);
       }
     },
-    [applyChatPreference, selectedJid, userId],
+    [selectedJid, userId],
   );
 
   const handleRestoreChat = useCallback(
@@ -1227,9 +1247,25 @@ export function ChatsClient({
         toast.error(result.message || "No se pudieron eliminar los chats.");
         return;
       }
+      const deletedJids = new Set(remoteJids);
+      setCurrentChatsResult((prev) =>
+        prev.success
+          ? {
+              ...prev,
+              data: prev.data.filter(
+                (chat) => !deletedJids.has(chat.remoteJid) && !chat.aliases?.some((alias) => deletedJids.has(alias)),
+              ),
+            }
+          : prev,
+      );
+      setChatSessions((prev) => {
+        const next = { ...prev };
+        for (const jid of deletedJids) delete next[jid];
+        return next;
+      });
       setChatPreferences((prev) => {
         const next = { ...prev };
-        for (const pref of result.data!) next[pref.remoteJid] = pref;
+        for (const jid of deletedJids) delete next[jid];
         return next;
       });
       if (remoteJids.includes(selectedJid)) {

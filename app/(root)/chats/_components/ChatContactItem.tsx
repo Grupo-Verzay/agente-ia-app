@@ -72,6 +72,7 @@ type ChatContactItemProps = {
   contact: SidebarContact;
   onArchive: (id: string, isArchived: boolean) => void;
   onDeleteRequest: (contact: SidebarContact) => void;
+  canDelete?: boolean;
   onSelect: (id: string, lastMessageId: string, instanceName?: string) => void;
   onTogglePin: (id: string, isPinned: boolean) => void;
   onLeadStatusChange?: (remoteJid: string, status: LeadStatus | null) => void;
@@ -100,6 +101,7 @@ type ChatContactItemProps = {
 function ChatContactItemBase({
   contact,
   onArchive,
+  canDelete = true,
   onDeleteRequest,
   onSelect,
   onTogglePin,
@@ -532,15 +534,19 @@ function ChatContactItemBase({
                 <Archive className="h-4 w-4" />
                 {contact.isArchived ? "Restaurar chat" : "Archivar chat"}
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {/* 9. Eliminar */}
-              <DropdownMenuItem
-                className="text-red-600 focus:text-red-600"
-                onSelect={() => onDeleteRequest(contact)}
-              >
-                <Trash2 className="h-4 w-4" />
-                Eliminar chat
-              </DropdownMenuItem>
+              {canDelete && (
+                <>
+                  <DropdownMenuSeparator />
+                  {/* 9. Eliminar */}
+                  <DropdownMenuItem
+                    className="text-red-600 focus:text-red-600"
+                    onSelect={() => onDeleteRequest(contact)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Eliminar chat
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}

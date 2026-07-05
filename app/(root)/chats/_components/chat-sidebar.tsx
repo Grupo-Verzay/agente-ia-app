@@ -209,6 +209,7 @@ export function ChatSidebar({
   const [renameDraft, setRenameDraft] = useState("");
   const [renameLoading, setRenameLoading] = useState(false);
   const [notedSessionIds, setNotedSessionIds] = useState<Set<number>>(new Set());
+  const canDeleteChats = advisorRole !== "agente";
   const [notesOnly, setNotesOnly] = useState(false);
   const [clientStatusFilter, setClientStatusFilter] = useState<ClientStatus | null>(null);
   const [serviceTypeFilter, setServiceTypeFilter] = useState<ServiceType | null>(null);
@@ -846,7 +847,7 @@ export function ChatSidebar({
               onClear={clearSelection}
               onSelectAll={selectAll}
               onArchive={handleBulkArchive}
-              onDelete={() => setBulkDeleteOpen(true)}
+              onDelete={canDeleteChats ? () => setBulkDeleteOpen(true) : undefined}
               onMarkRead={handleBulkMarkRead}
               onPin={onBulkPin ? handleBulkPin : undefined}
               onAssignAdvisor={onBulkAssignAdvisor ? handleBulkAssignAdvisor : undefined}
@@ -895,6 +896,7 @@ export function ChatSidebar({
                 onSelect={handleSelectJid}
                 onTogglePin={handleItemTogglePin}
                 onArchive={handleItemArchive}
+                canDelete={canDeleteChats}
                 onDeleteRequest={setDeleteTarget}
                 onLeadStatusChange={onLeadStatusChange}
                 onServiceTypeChange={onServiceTypeChange}
@@ -961,9 +963,9 @@ export function ChatSidebar({
       <AlertDialog open={bulkDeleteOpen} onOpenChange={(open) => !open && setBulkDeleteOpen(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar chats de tu bandeja</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar chats</AlertDialogTitle>
             <AlertDialogDescription>
-              {`Se ocultarán ${selectedJids.size} chat${selectedJids.size !== 1 ? "s" : ""} de tu bandeja principal. Esta acción no elimina mensajes del proveedor.`}
+              {`Se quitaran ${selectedJids.size} chat${selectedJids.size !== 1 ? "s" : ""} de esta vista y se eliminaran sus sesiones en la app. Si los clientes vuelven a escribir, apareceran como conversaciones entrantes nuevas.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
