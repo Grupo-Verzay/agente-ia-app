@@ -145,6 +145,22 @@ export async function updateMacroAction(
   }
 }
 
+export async function reorderMacrosAction(ids: string[]): Promise<{ success: boolean }> {
+  try {
+    const user = await requireUser();
+    const ownerId = ownerOf(user);
+    await db.$transaction(
+      ids.map((id, i) =>
+        (db as any).macro.updateMany({ where: { id, userId: ownerId }, data: { order: i } }),
+      ),
+    );
+    return { success: true };
+  } catch (e) {
+    console.error("[reorderMacrosAction]", e);
+    return { success: false };
+  }
+}
+
 export async function deleteMacroAction(id: string): Promise<{ success: boolean; message: string }> {
   try {
     const user = await requireUser();

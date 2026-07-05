@@ -19,9 +19,25 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   createMacroAction,
   updateMacroAction,
   deleteMacroAction,
+  reorderMacrosAction,
   type MacroData,
   type MacroActionItem,
   type MacroActionType,
@@ -85,6 +101,76 @@ type Draft = {
 
 const EMPTY_DRAFT: Draft = { name: '', description: '', color: COLORS[0], actions: [] };
 
+function MacroRowInner({
+  macro,
+  onEdit,
+  onDelete,
+}: {
+  macro: MacroData;
+  onEdit: (m: MacroData) => void;
+  onDelete: (m: MacroData) => void;
+}) {
+  return (
+    <>
+      <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: macro.color || '#6366f1' }} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-semibold">{macro.name}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {macro.actions.length} acción{macro.actions.length === 1 ? '' : 'es'}
+          {macro.description ? ` · ${macro.description}` : ''}
+        </p>
+      </div>
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(macro)} title="Editar">
+        <Pencil className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-muted-foreground hover:text-red-500"
+        onClick={() => onDelete(macro)}
+        title="Eliminar"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </>
+  );
+}
+
+function SortableMacroRow({
+  macro,
+  onEdit,
+  onDelete,
+}: {
+  macro: MacroData;
+  onEdit: (m: MacroData) => void;
+  onDelete: (m: MacroData) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: macro.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 rounded-xl border border-border bg-card p-3"
+    >
+      <button
+        type="button"
+        className="cursor-grab touch-none p-1 text-muted-foreground/50 hover:text-foreground"
+        title="Arrastrar para reordenar"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <MacroRowInner macro={macro} onEdit={onEdit} onDelete={onDelete} />
+    </div>
+  );
+}
+
 export function MacrosManager({ initialMacros, tags, quickReplies, advisors, workflows }: Props) {
   const [macros, setMacros] = useState<MacroData[]>(initialMacros);
   const [open, setOpen] = useState(false);
@@ -99,6 +185,19 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
   const activeCount = macros.filter((m) => m.enabled).length;
   const totalActions = macros.reduce((n, m) => n + m.actions.length, 0);
   const withFlow = macros.filter((m) => m.actions.some((a) => a.type === 'EXECUTE_FLOW')).length;
+
+  const sensors = useSensors(useSensor(PointerSensor));
+  const handleDragEnd = async (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const oldIndex = macros.findIndex((m) => m.id === active.id);
+    const newIndex = macros.findIndex((m) => m.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const reordered = arrayMove(macros, oldIndex, newIndex);
+    setMacros(reordered);
+    await reorderMacrosAction(reordered.map((m) => m.id));
+  };
+  const isSearching = search.trim().length > 0;
 
   const openCreate = () => {
     setDraft(EMPTY_DRAFT);
@@ -241,36 +340,27 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
               {macros.length === 0 ? 'Aún no tienes macros. Crea la primera.' : 'Sin resultados para tu búsqueda.'}
             </p>
           </div>
-        ) : (
-          <ul className="flex flex-col gap-2">
+        ) : isSearching ? (
+          <div className="flex flex-col gap-2">
             {filtered.map((m) => (
-              <li
+              <div
                 key={m.id}
                 className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
               >
-                <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: m.color || '#6366f1' }} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{m.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {m.actions.length} acción{m.actions.length === 1 ? '' : 'es'}
-                    {m.description ? ` · ${m.description}` : ''}
-                  </p>
-                </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(m)} title="Editar">
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-red-500"
-                  onClick={() => void remove(m)}
-                  title="Eliminar"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </li>
+                <MacroRowInner macro={m} onEdit={openEdit} onDelete={(x) => void remove(x)} />
+              </div>
             ))}
-          </ul>
+          </div>
+        ) : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={macros.map((m) => m.id)} strategy={verticalListSortingStrategy}>
+              <div className="flex flex-col gap-2">
+                {macros.map((m) => (
+                  <SortableMacroRow key={m.id} macro={m} onEdit={openEdit} onDelete={(x) => void remove(x)} />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 
