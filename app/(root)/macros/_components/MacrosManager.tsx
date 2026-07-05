@@ -207,7 +207,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
   };
 
   return (
-    <div className="flex h-full flex-col p-3 sm:p-4">
+    <div className="flex h-full flex-col">
       {/* Métricas */}
       <div className="mb-3 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <MetricCard icon={<Zap className="h-4 w-4" />} label="Total" value={macros.length} helper="Macros creadas" color="#6366F1" />
