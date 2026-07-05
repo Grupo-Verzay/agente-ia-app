@@ -462,6 +462,25 @@ model CollabNotification {
   @@map("collab_notifications")
 }
 
+// Macros: secuencia de acciones con nombre que se aplica a una conversación en
+// 1 clic (estilo Chatwoot). Las acciones se guardan como JSON ordenado.
+// Sin relaciones Prisma a propósito (columna userId plana).
+model Macro {
+  id          String   @id @default(uuid())
+  userId      String // dueño (owner) de la macro
+  name        String
+  description String?
+  color       String?
+  actions     Json     @default("[]") // [{ type, config }, ...] en orden
+  order       Int      @default(0)
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@map("macros")
+}
+
 model UserTaskType {
   id      Int    @id @default(autoincrement())
   ownerId String
