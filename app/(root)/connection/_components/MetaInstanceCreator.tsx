@@ -32,7 +32,7 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
   });
 
   const instanceName = useMemo(
-    () => `${sanitizeInstanceName(company ?? userId ?? 'instancia')}_api`,
+    () => `${sanitizeInstanceName(company ?? userId ?? 'instancia')}_wh`,
     [company, userId]
   );
 
