@@ -128,7 +128,7 @@ export function FinanceModuleShortcuts({
       clients: {
         id: 'clients',
         label: 'Clientes',
-        href: '/panel/clientes',
+        href: `/dashboard/finance/clients?month=${monthValue}`,
         icon: <Users className="h-4 w-4" />,
       },
       products: {
@@ -140,7 +140,7 @@ export function FinanceModuleShortcuts({
       providers: {
         id: 'providers',
         label: 'Proveedores',
-        href: `/dashboard/finance/expenses?month=${monthValue}`,
+        href: `/dashboard/finance/providers?month=${monthValue}`,
         icon: <Truck className="h-4 w-4" />,
       },
       proposals: {
