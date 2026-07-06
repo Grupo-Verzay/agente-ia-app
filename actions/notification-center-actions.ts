@@ -38,6 +38,12 @@ const EMPTY_COUNTS: Record<NotificationKind, number> = {
 
 const ITEMS_PER_KIND_LIMIT = 50;
 
+/** Número limpio de un JID (sin @s.whatsapp.net ni sufijo :dispositivo). */
+const cleanJidNumber = (jid?: string | null) => {
+  const raw = (jid ?? "").replace(/@.*/, "").split(":")[0];
+  return raw || (jid ?? "");
+};
+
 export async function getNotificationCenterData(): Promise<{
   success: boolean;
   data: NotificationCenterData;
@@ -188,7 +194,7 @@ export async function getNotificationCenterData(): Promise<{
       ...unreadChats.map((chat) => ({
         id: `chat-${chat.remoteJid}`,
         kind: "chat" as const,
-        title: chat.pushName || chat.remoteJid,
+        title: chat.pushName || cleanJidNumber(chat.remoteJid),
         description: "Mensaje sin leer",
         href: `/chats?jid=${encodeURIComponent(chat.remoteJid)}`,
         date: chat.updatedAt ?? null,
@@ -196,7 +202,7 @@ export async function getNotificationCenterData(): Promise<{
       ...pendingAppointments.map((appointment) => ({
         id: `appointment-${appointment.id}`,
         kind: "appointment" as const,
-        title: appointment.clientName || appointment.session.pushName || appointment.session.remoteJid,
+        title: appointment.clientName || appointment.session.pushName || cleanJidNumber(appointment.session.remoteJid),
         description: appointment.service?.name ? `Cita pendiente: ${appointment.service.name}` : "Cita pendiente",
         href: "/schedule",
         date: appointment.startTime.toISOString(),
