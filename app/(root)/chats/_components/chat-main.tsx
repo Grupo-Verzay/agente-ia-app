@@ -254,7 +254,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const contactJid = info?.remoteJid || session?.remoteJid || '';
   const rawContactName = header.name || session?.pushName?.trim() || '';
   const displayedContactName =
-    rawContactName && rawContactName === extractWhatsAppDigits(contactJid)
+    rawContactName.toLowerCase().endsWith('@s.whatsapp.net')
+      ? fmtPhone(rawContactName) || rawContactName.split('@')[0]
+      : rawContactName && rawContactName === extractWhatsAppDigits(contactJid)
       ? fmtPhone(contactJid) || rawContactName
       : rawContactName;
   const assignedAdvisorName = useMemo(() => {

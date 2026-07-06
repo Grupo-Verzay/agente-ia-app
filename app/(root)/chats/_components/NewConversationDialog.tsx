@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { normalizeWhatsAppConversationJid, fmtPhone } from '@/lib/whatsapp-jid';
+import { normalizeWhatsAppConversationJid, fmtPhone, pickExplicitWhatsAppPhoneJid } from '@/lib/whatsapp-jid';
 import type { InstanceActionSet } from './chats-client';
 import type { ChatData } from '@/actions/chat-actions';
 import type { ChatQuickReplyOption, ChatWorkflowOption } from '@/types/chat';
@@ -92,8 +92,19 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
 
   const selectedActionSet = instanceActionSets.find((s) => s.instanceName === selectedInstanceName);
   const effectiveJid = selectedJid || normalizeWhatsAppConversationJid(phone.trim());
+  const selectedContact = contacts.find(
+    (contact) => contact.remoteJid === selectedJid || contact.aliases?.includes(selectedJid),
+  );
+  const metaDestinationJid = pickExplicitWhatsAppPhoneJid([
+    selectedContact?.remoteJid,
+    selectedContact?.remoteJidAlt,
+    selectedContact?.senderPn,
+    ...(selectedContact?.aliases ?? []),
+    phone,
+    selectedJid,
+  ]);
   const selectedInstanceType = selectedInstance?.instanceType?.trim().toLowerCase();
-  const canSendTemplate = selectedInstanceType === 'meta' && !!effectiveJid && !!selectedInstanceName;
+  const canSendTemplate = selectedInstanceType === 'meta' && !!metaDestinationJid && !!selectedInstanceName;
   const canSend = sendMode === 'message' && !!effectiveJid && message.trim().length > 0 && !!selectedActionSet && !isSending;
 
   const handleSend = async () => {
@@ -174,11 +185,17 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
     template: MetaTemplateOption,
     params: string[],
   ): Promise<{ success: boolean; message?: string }> => {
-    if (!effectiveJid || !selectedInstanceName) {
-      return { success: false, message: 'Selecciona un contacto y una bandeja.' };
+    if (!selectedInstanceName) {
+      return { success: false, message: 'Selecciona una bandeja.' };
+    }
+    if (!metaDestinationJid) {
+      return {
+        success: false,
+        message: 'Meta necesita el número real del cliente. Este contacto está como @lid y no tiene alias telefónico.',
+      };
     }
 
-    const result = await sendMetaTemplate(selectedInstanceName, effectiveJid, template, params);
+    const result = await sendMetaTemplate(selectedInstanceName, metaDestinationJid, template, params);
     if (result.success) handleClose();
     return result;
   };
@@ -198,9 +215,15 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
   };
 
   const handleSelectContact = (contact: ChatData) => {
-    const name = contact.pushName?.trim() || fmtPhone(contact.remoteJid) || contact.remoteJid;
+    const phoneLabel =
+      fmtPhone(contact.remoteJid) ||
+      fmtPhone(contact.remoteJidAlt) ||
+      fmtPhone(contact.senderPn) ||
+      (contact.aliases ?? []).map((alias) => fmtPhone(alias)).find(Boolean) ||
+      '';
+    const name = contact.pushName?.trim() || phoneLabel || contact.remoteJid;
     setSelectedJid(contact.remoteJid);
-    setPhone(fmtPhone(contact.remoteJid) || contact.remoteJid);
+    setPhone(phoneLabel || contact.remoteJid);
     setSelectedContactName(name);
     setContactOpen(false);
   };
@@ -219,7 +242,10 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
         (c) =>
           c.pushName?.toLowerCase().includes(term) ||
           c.remoteJid.toLowerCase().includes(term) ||
-          fmtPhone(c.remoteJid).toLowerCase().includes(term),
+          fmtPhone(c.remoteJid).toLowerCase().includes(term) ||
+          fmtPhone(c.remoteJidAlt).toLowerCase().includes(term) ||
+          fmtPhone(c.senderPn).toLowerCase().includes(term) ||
+          (c.aliases ?? []).some((alias) => alias.toLowerCase().includes(term) || fmtPhone(alias).toLowerCase().includes(term)),
       )
       .slice(0, 12);
   }, [contacts, phone]);
@@ -294,8 +320,13 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
                       {filteredContacts.length > 0 && (
                         <CommandGroup heading="Contactos recientes">
                           {filteredContacts.map((contact) => {
-                            const name = contact.pushName?.trim() || fmtPhone(contact.remoteJid);
-                            const phoneStr = fmtPhone(contact.remoteJid);
+                            const phoneStr =
+                              fmtPhone(contact.remoteJid) ||
+                              fmtPhone(contact.remoteJidAlt) ||
+                              fmtPhone(contact.senderPn) ||
+                              (contact.aliases ?? []).map((alias) => fmtPhone(alias)).find(Boolean) ||
+                              '';
+                            const name = contact.pushName?.trim() || phoneStr || contact.remoteJid;
                             return (
                               <CommandItem
                                 key={contact.remoteJid}
