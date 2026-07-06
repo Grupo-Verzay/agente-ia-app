@@ -1,16 +1,20 @@
 'use client';
 
 import * as React from 'react';
-import { Loader2, Send, Phone, ChevronDown, Check } from 'lucide-react';
+import { FileText, Loader2, Send, Phone, ChevronDown, Check, MessageCircleMore } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { normalizeWhatsAppConversationJid, fmtPhone } from '@/lib/whatsapp-jid';
 import type { InstanceActionSet } from './chats-client';
 import type { ChatData } from '@/actions/chat-actions';
+import type { ChatQuickReplyOption } from '@/types/chat';
+import { TemplatePickerDialog } from './TemplatePickerDialog';
+import { sendMetaTemplate, type MetaTemplateOption } from '@/actions/channel-chat-actions';
 
 type Instancia = {
   instanceName: string;
@@ -26,9 +30,10 @@ interface Props {
   instanceActionSets: InstanceActionSet[];
   contacts?: ChatData[];
   initialContact?: { jid: string; name: string; phone: string };
+  quickReplies?: ChatQuickReplyOption[];
 }
 
-export function NewConversationDialog({ open, onClose, instancias, instanceActionSets, contacts = [], initialContact }: Props) {
+export function NewConversationDialog({ open, onClose, instancias, instanceActionSets, contacts = [], initialContact, quickReplies = [] }: Props) {
   const [phone, setPhone] = React.useState('');
   const [selectedJid, setSelectedJid] = React.useState('');
   const [selectedContactName, setSelectedContactName] = React.useState('');
@@ -45,6 +50,7 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
   );
   const [message, setMessage] = React.useState('');
   const [isSending, setIsSending] = React.useState(false);
+  const [sendingQuickReplyId, setSendingQuickReplyId] = React.useState<number | null>(null);
   const [contactOpen, setContactOpen] = React.useState(false);
   const [instanceOpen, setInstanceOpen] = React.useState(false);
 
@@ -78,8 +84,9 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
     : 'Seleccionar bandeja';
 
   const selectedActionSet = instanceActionSets.find((s) => s.instanceName === selectedInstanceName);
-
   const effectiveJid = selectedJid || normalizeWhatsAppConversationJid(phone.trim());
+  const selectedInstanceType = selectedInstance?.instanceType?.trim().toLowerCase();
+  const canSendTemplate = selectedInstanceType === 'meta' && !!effectiveJid && !!selectedInstanceName;
   const canSend = !!effectiveJid && message.trim().length > 0 && !!selectedActionSet && !isSending;
 
   const handleSend = async () => {
@@ -112,12 +119,48 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
     }
   };
 
+  const handleSendQuickReply = async (quickReplyId: number) => {
+    if (!effectiveJid || !selectedActionSet) {
+      toast.error('Selecciona un contacto y una bandeja.');
+      return;
+    }
+
+    setSendingQuickReplyId(quickReplyId);
+    try {
+      const result = await selectedActionSet.sendQuickReply(effectiveJid, quickReplyId);
+      if (result.success) {
+        toast.success(result.message || 'Respuesta rápida enviada');
+        handleClose();
+      } else {
+        toast.error(result.message || 'No se pudo enviar la respuesta rápida');
+      }
+    } catch {
+      toast.error('Error al enviar la respuesta rápida');
+    } finally {
+      setSendingQuickReplyId(null);
+    }
+  };
+
+  const handleSendTemplate = async (
+    template: MetaTemplateOption,
+    params: string[],
+  ): Promise<{ success: boolean; message?: string }> => {
+    if (!effectiveJid || !selectedInstanceName) {
+      return { success: false, message: 'Selecciona un contacto y una bandeja.' };
+    }
+
+    const result = await sendMetaTemplate(selectedInstanceName, effectiveJid, template, params);
+    if (result.success) handleClose();
+    return result;
+  };
+
   const handleClose = () => {
     setPhone('');
     setSelectedJid('');
     setSelectedContactName('');
     setMessage('');
     setIsSending(false);
+    setSendingQuickReplyId(null);
     setContactOpen(false);
     setInstanceOpen(false);
     onClose();
@@ -299,20 +342,76 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
             </div>
           )}
 
-          {/* Mensaje */}
           <div className="px-5 py-3">
-            <Textarea
-              placeholder="Escribe un mensaje..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                  void handleSend();
-                }
-              }}
-              className="min-h-[120px] resize-none border-0 p-0 text-sm shadow-none focus-visible:ring-0"
-              autoFocus={false}
-            />
+            <Tabs defaultValue="message">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="message" className="text-xs">Mensaje</TabsTrigger>
+                <TabsTrigger value="template" className="text-xs" disabled={!canSendTemplate}>
+                  Plantilla
+                </TabsTrigger>
+                <TabsTrigger value="quick" className="text-xs" disabled={quickReplies.length === 0}>
+                  Rápida
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="message" className="mt-3">
+                <Textarea
+                  placeholder="Escribe un mensaje..."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                      void handleSend();
+                    }
+                  }}
+                  className="min-h-[120px] resize-none border-0 p-0 text-sm shadow-none focus-visible:ring-0"
+                  autoFocus={false}
+                />
+              </TabsContent>
+
+              <TabsContent value="template" className="mt-3">
+                {canSendTemplate ? (
+                  <div className="flex min-h-[120px] flex-col items-center justify-center gap-3 rounded-md border bg-muted/30 p-4 text-center">
+                    <FileText className="h-5 w-5 text-muted-foreground" />
+                    <TemplatePickerDialog instanceName={selectedInstanceName} onSendTemplate={handleSendTemplate} />
+                  </div>
+                ) : (
+                  <p className="min-h-[120px] py-8 text-center text-sm text-muted-foreground">
+                    Selecciona una línea WhatsApp Cloud API.
+                  </p>
+                )}
+              </TabsContent>
+
+              <TabsContent value="quick" className="mt-3">
+                <Command className="rounded-lg border">
+                  <CommandInput placeholder="Buscar respuesta rápida..." className="h-9 text-xs" />
+                  <CommandList>
+                    <CommandEmpty className="text-xs">No hay respuestas rápidas disponibles.</CommandEmpty>
+                    <CommandGroup className="max-h-[120px] overflow-auto">
+                      {quickReplies.map((reply) => (
+                        <CommandItem
+                          key={reply.id}
+                          value={`${reply.name ?? ''} ${reply.message}`}
+                          className="items-start gap-2 py-2"
+                          disabled={sendingQuickReplyId !== null}
+                          onSelect={() => void handleSendQuickReply(reply.id)}
+                        >
+                          {sendingQuickReplyId === reply.id ? (
+                            <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
+                          ) : (
+                            <MessageCircleMore className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                          )}
+                          <div className="min-w-0">
+                            {reply.name && <p className="text-xs font-mono text-primary">/{reply.name}</p>}
+                            <p className="line-clamp-2 text-sm">{reply.message}</p>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
 

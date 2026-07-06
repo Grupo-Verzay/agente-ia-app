@@ -1845,6 +1845,7 @@ export function ChatsClient({
         instanceActionSets={instanceActionSets}
         contacts={currentChatsResult.success ? currentChatsResult.data : []}
         initialContact={composeInitialContact}
+        quickReplies={quickReplies}
       />
     )}
     </>
