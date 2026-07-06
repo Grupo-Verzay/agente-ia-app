@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import type { ApiKey, Instancia } from "@prisma/client";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isAdminLike } from "@/lib/rbac";
 import { getPersistedInboxChats } from "@/lib/chat-persistence";
 import { getApiKeyById } from "@/actions/api-action";
 import {
@@ -160,11 +161,19 @@ export default async function ChatsPage({
           )?.apiKeyId,
         )
       : user.apiKeyId;
+  const realUserRole = await settle(
+    db.user.findUnique({
+      where: { id: user.sessionUserId ?? user.id },
+      select: { role: true },
+    }),
+  );
+  const canUseGlobalAdminMetaLines = isAdminLike(realUserRole?.role ?? user.role);
 
   // Fase 1: todo lo que no depende de los chats corre en paralelo
   const [
     resInstancias,
     resSessionUserInstancias,
+    globalAdminMetaInstancias,
     resApikey,
     linkedAccountsResponse,
     masterAccountsResponse,
@@ -173,6 +182,17 @@ export default async function ChatsPage({
     user.sessionUserId && user.sessionUserId !== effectiveOwnerId
       ? settle(getInstancesByUserId(user.sessionUserId))
       : Promise.resolve(null),
+    canUseGlobalAdminMetaLines
+      ? settle(
+          db.instancia.findMany({
+            where: {
+              instanceType: "meta",
+              metaChannel: "whatsapp",
+              user: { role: "super_admin" },
+            },
+          }),
+        )
+      : Promise.resolve([]),
     settle(getApiKeyById(ownerApiKeyId ?? "")),
     settle(getLinkedAccountsInstances(effectiveOwnerId)),
     settle(getMasterAccountInstances(user.sessionUserId ?? user.id)),
@@ -199,6 +219,7 @@ export default async function ChatsPage({
     ...linkedAccountsData.flatMap((la) => la.instances),
     ...masterAccountsData.flatMap((ma) => ma.instances),
     ...sessionUserInstancias,
+    ...(globalAdminMetaInstancias ?? []),
   ].filter((li) => !ownInstancias.some((oi) => oi.instanceName === li.instanceName));
 
   const instancias = [...ownInstancias, ...linkedInstancias];
@@ -207,6 +228,7 @@ export default async function ChatsPage({
   const allSessionUserIds = [
     effectiveOwnerId,
     user.sessionUserId,
+    ...(globalAdminMetaInstancias ?? []).map((inst) => inst.userId),
     ...linkedAccountsData.map((la) => la.linkedUserId),
     ...masterAccountsData.map((ma) => ma.masterUserId),
   ].filter((id, idx, arr) => Boolean(id) && arr.indexOf(id) === idx);
@@ -251,6 +273,16 @@ export default async function ChatsPage({
         instanceType: li.instanceType,
         metaChannel: li.metaChannel,
         linkedUserId: user.sessionUserId,
+        company: li.instanceName,
+      })),
+    ...(globalAdminMetaInstancias ?? [])
+      .filter((li) => !ownInstancias.some((oi) => oi.instanceName === li.instanceName))
+      .map((li) => ({
+        instanceName: li.instanceName,
+        instanceId: li.instanceId,
+        instanceType: li.instanceType,
+        metaChannel: li.metaChannel,
+        linkedUserId: li.userId,
         company: li.instanceName,
       })),
   ].filter((item, idx, arr) => arr.findIndex((x) => x.instanceName === item.instanceName) === idx);
