@@ -15,6 +15,7 @@ import {
 import { arrayMove, rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
+  DollarSign,
   FileText,
   GripVertical,
   Package,
@@ -45,6 +46,7 @@ type ShortcutId =
   | 'products'
   | 'providers'
   | 'proposals'
+  | 'sales'
   | 'purchases'
   | 'cash-receipts'
   | 'notes'
@@ -65,6 +67,7 @@ const DEFAULT_ORDER: ShortcutId[] = [
   'products',
   'providers',
   'proposals',
+  'sales',
   'purchases',
   'cash-receipts',
   'notes',
@@ -148,6 +151,12 @@ export function FinanceModuleShortcuts({
         label: 'Propuestas',
         href: '/cotizaciones',
         icon: <FileText className="h-4 w-4" />,
+      },
+      sales: {
+        id: 'sales',
+        label: 'Ventas',
+        href: `/dashboard/finance/sales?month=${monthValue}`,
+        icon: <DollarSign className="h-4 w-4" />,
       },
       purchases: {
         id: 'purchases',

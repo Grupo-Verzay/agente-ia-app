@@ -2,9 +2,11 @@ import { FinanceOverviewHeader } from './_components/FinanceOverviewHeader';
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="space-y-1">
+    <div className="flex min-h-0 flex-1 flex-col">
       <FinanceOverviewHeader />
-      {children}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        {children}
+      </div>
     </div>
   );
 }
