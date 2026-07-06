@@ -1318,7 +1318,9 @@ export async function deleteMessage(
 ): Promise<{ success: boolean; message: string }> {
   const { url: baseUrlRaw, key } = apiKeyData;
   if (!baseUrlRaw || !key || !instanceName) return { success: false, message: 'Parámetros faltantes.' };
-  const endpoint = `${normalizeBaseUrl(baseUrlRaw)}/message/delete/${encodeURIComponent(instanceName)}`;
+  // Evolution API borra mensajes bajo /chat/deleteMessageForEveryone (no /message/delete,
+  // que no existe → 404). El body es la key plana del mensaje.
+  const endpoint = `${normalizeBaseUrl(baseUrlRaw)}/chat/deleteMessageForEveryone/${encodeURIComponent(instanceName)}`;
   const body = { id: messageId, remoteJid, fromMe };
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 10000);
