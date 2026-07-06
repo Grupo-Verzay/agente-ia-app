@@ -412,6 +412,8 @@ model Session {
   leadStatusWorkflowHistory LeadStatusWorkflowExecution[]
 
   @@index([userId, remoteJid])
+  @@index([userId, remoteJidAlt])
+  @@index([userId, status, agentDisabled])
 }
 
 model InternalNote {
@@ -520,6 +522,7 @@ model Task {
   @@index([sessionId])
   @@index([dueDate])
   @@index([status])
+  @@index([ownerId, status, dueDate])
   @@map("tasks")
 }
 
@@ -888,6 +891,7 @@ model CrmFollowUp {
   @@index([status, scheduledFor])
   @@index([userId, status])
   @@index([remoteJid, instanceId, status])
+  @@index([sessionId, updatedAt])
   @@map("crm_follow_ups")
 }
 
@@ -1232,6 +1236,7 @@ model FinanceTransaction {
   @@index([userId, occurredAt])
   @@index([userId, type, status])
   @@index([userId, sessionId, occurredAt])
+  @@index([userId, type, status, occurredAt])
   @@index([paymentSource])
   @@map("finance_transactions")
 }
