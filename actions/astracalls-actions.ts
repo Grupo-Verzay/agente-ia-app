@@ -35,24 +35,17 @@ async function fetchSessions(): Promise<SessionInfo[]> {
   }
 }
 
-// La línea de llamadas es un recurso de CUENTA (una por cuenta, como la instancia
-// de WhatsApp). Se resuelve a la cuenta DUEÑA/principal (master vía linked_accounts,
-// o el dueño) para que TODOS los asesores del equipo llamen con el número de la
-// cuenta principal (heredan la "instancia padre", igual que en Mensajes).
+// La línea de llamadas es un recurso de la CUENTA que se está administrando
+// ACTIVAMENTE (effectiveId): tu propia cuenta si entras directo, la del dueño si
+// eres asesor (effectiveId ya resuelve al owner), o la cuenta a la que cambiaste.
+//
+// IMPORTANTE: NO se redirige por linked_accounts a un "master". Eso cruzaba las
+// líneas de llamadas de cuentas principales CO-ADMINISTRADAS (enlazadas entre sí):
+// al entrar directo a una, se la mandaba a la sesión de la otra y se pisaban los
+// números. Cada cuenta principal debe conservar SU propio número de llamadas.
 async function getCallAccountUserId(): Promise<string | null> {
   const me = await currentUser();
   if (!me?.id) return null;
-  if (me.ownerId) return me.ownerId;
-  const realId = me.sessionUserId ?? me.id;
-  try {
-    const rows = await db.$queryRaw<{ id: string }[]>`
-      SELECT "master_user_id" as id FROM "linked_accounts"
-      WHERE "linked_user_id" = ${realId} LIMIT 1
-    `;
-    if (rows.length && rows[0]?.id) return rows[0].id;
-  } catch {
-    // tabla linked_accounts ausente: usar la cuenta propia
-  }
   return me.effectiveId ?? me.id;
 }
 
