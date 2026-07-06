@@ -62,7 +62,7 @@ export async function warmChannelMessages(
     const page = opts?.page && opts.page > 0 ? opts.page : 1;
 
     const data = await getPersistedMessages({
-      userId: owner.userId,
+      userIds: [owner.userId],
       instanceName,
       remoteJid,
       aliases: opts?.remoteJidAliases,

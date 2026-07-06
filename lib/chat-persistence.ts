@@ -599,7 +599,10 @@ export async function persistEvolutionMessages(params: {
 }
 
 export async function getPersistedMessages(params: {
-  userId: string;
+  /** Conjunto de cuentas autorizadas (dueño de la línea + cuentas del equipo/quien
+   *  ve). Se consulta con IN (...) para no perder historial guardado bajo un userId
+   *  distinto tras cambios de propiedad de la línea. */
+  userIds: string[];
   remoteJid: string;
   instanceName?: string | null;
   aliases?: string[];
@@ -607,26 +610,28 @@ export async function getPersistedMessages(params: {
   skip?: number;
 }) {
   await ensureChatMessagesTable();
+  const userIds = Array.from(new Set((params.userIds ?? []).filter(Boolean)));
+  if (!userIds.length) return [];
   const candidates = buildWhatsAppJidCandidates(params.remoteJid, params.aliases ?? []);
   const rows = await db.$queryRaw<PersistedChatMessageRow[]>`
     WITH matched AS (
       SELECT *
       FROM "chat_messages"
-      WHERE "userId" = ${params.userId}
+      WHERE "userId" IN (${Prisma.join(userIds)})
         ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
         AND "messageType" <> 'reactionMessage'
         AND "remoteJid" IN (${Prisma.join(candidates)})
       UNION ALL
       SELECT *
       FROM "chat_messages"
-      WHERE "userId" = ${params.userId}
+      WHERE "userId" IN (${Prisma.join(userIds)})
         ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
         AND "messageType" <> 'reactionMessage'
         AND "remoteJidAlt" IN (${Prisma.join(candidates)})
       UNION ALL
       SELECT *
       FROM "chat_messages"
-      WHERE "userId" = ${params.userId}
+      WHERE "userId" IN (${Prisma.join(userIds)})
         ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
         AND "messageType" <> 'reactionMessage'
         AND "senderPn" IN (${Prisma.join(candidates)})

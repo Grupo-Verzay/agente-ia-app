@@ -345,7 +345,7 @@ async function resolveTransportRemoteJid(params: {
 }
 
 async function buildPersistedMessagesResult(params: {
-  userId: string;
+  userIds: string[];
   instanceName?: string;
   remoteJid: string;
   aliases?: string[];
@@ -354,7 +354,7 @@ async function buildPersistedMessagesResult(params: {
   message: string;
 }): Promise<SuccessfulFindMessagesResult> {
   const persisted = await getPersistedMessages({
-    userId: params.userId,
+    userIds: params.userIds,
     instanceName: params.instanceName,
     remoteJid: params.remoteJid,
     aliases: params.aliases,
@@ -383,6 +383,13 @@ export async function warmChatMessagesAction(
 ): Promise<FindMessagesResult> {
   const user = await currentUser();
   const effectiveOwnerId = await resolveChatStorageUserId(context, user?.ownerId ?? user?.id);
+  // Conjunto de cuentas bajo las que puede vivir el historial: el dueño resuelto
+  // de la línea (donde se guarda ahora) + el owner/id del que ve (donde pudo
+  // guardarse antes de que cambiara la propiedad de la línea). Así no se pierde
+  // el historial viejo tras el cambio de dueño.
+  const readUserIds = Array.from(
+    new Set([effectiveOwnerId, user?.ownerId, user?.id].filter(Boolean) as string[]),
+  );
   const pageSize = options?.pageSize ?? DEFAULT_CHAT_MESSAGE_PAGE_SIZE;
   const page = Math.max(options?.page ?? 1, 1);
 
@@ -391,7 +398,7 @@ export async function warmChatMessagesAction(
 
     if (shouldUseLocalOnly) {
       const localResult = await buildPersistedMessagesResult({
-        userId: effectiveOwnerId,
+        userIds: readUserIds,
         instanceName: hasReadyContext(context) ? context.instanceName : undefined,
         remoteJid,
         aliases: options?.remoteJidAliases,
@@ -437,7 +444,7 @@ export async function warmChatMessagesAction(
       messages: result.data,
     });
     return buildPersistedMessagesResult({
-      userId: effectiveOwnerId,
+      userIds: readUserIds,
       instanceName: context.instanceName,
       remoteJid,
       aliases: options?.remoteJidAliases,
@@ -449,7 +456,7 @@ export async function warmChatMessagesAction(
 
   if (!result.success && effectiveOwnerId) {
     const localResult = await buildPersistedMessagesResult({
-      userId: effectiveOwnerId,
+      userIds: readUserIds,
       instanceName: context.instanceName,
       remoteJid,
       aliases: options?.remoteJidAliases,
@@ -470,10 +477,15 @@ export async function refetchChatsManualAction(
 ): Promise<FetchChatsResult> {
   const user = await currentUser();
   const effectiveOwnerId = await resolveChatStorageUserId(context, user?.ownerId ?? user?.id);
+  // Mismo conjunto que la lectura de mensajes: no perder conversaciones viejas
+  // guardadas bajo el userId anterior al cambio de dueño de la línea.
+  const readUserIds = Array.from(
+    new Set([effectiveOwnerId, user?.ownerId, user?.id].filter(Boolean) as string[]),
+  );
 
   if (!hasReadyContext(context)) {
-    if (effectiveOwnerId) {
-      const persisted = await getPersistedInboxChats({ userIds: [effectiveOwnerId] });
+    if (readUserIds.length) {
+      const persisted = await getPersistedInboxChats({ userIds: readUserIds });
       if (persisted.length) {
         return {
           success: true,
@@ -490,9 +502,9 @@ export async function refetchChatsManualAction(
   }
 
   const result = await fetchChatsFromEvolution(context.apiKeyData, context.instanceName);
-  if (!result.success && effectiveOwnerId) {
+  if (!result.success && readUserIds.length) {
     const persisted = await getPersistedInboxChats({
-      userIds: [effectiveOwnerId],
+      userIds: readUserIds,
       instanceNames: [context.instanceName],
     });
     if (persisted.length) {
