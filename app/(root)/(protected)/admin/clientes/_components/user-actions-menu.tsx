@@ -170,7 +170,7 @@ export const UserActionsMenu = ({ user, openDialogGetUserId, currentUserRol }: p
                                 </p>
                             )}
                         </div>
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-between gap-2">
                             <Button variant="outline" onClick={() => setShowCanal(false)}>
                                 Cancelar
                             </Button>

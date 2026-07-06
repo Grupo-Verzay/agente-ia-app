@@ -802,7 +802,7 @@ export default function MainExpenses({
                       </div>
                     </div>
 
-                    <div className="flex justify-end gap-2 pt-1">
+                    <div className="flex justify-between gap-2 pt-1">
                       <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={isPending} className="h-9">
                         Cancelar
                       </Button>
