@@ -380,7 +380,10 @@ export async function getLinkedAccountsInstances(
     const instances = await db.instancia.findMany({
       where: {
         userId: { in: linkedIds },
-        instanceType: { in: ["Whatsapp", "baileys"] },
+        OR: [
+          { instanceType: { in: ["Whatsapp", "baileys"] } },
+          { instanceType: "meta", metaChannel: "whatsapp" },
+        ],
       },
     });
 
@@ -426,7 +429,10 @@ export async function getMasterAccountInstances(
     const instances = await db.instancia.findMany({
       where: {
         userId: { in: masterIds },
-        instanceType: { in: ["Whatsapp", "baileys"] },
+        OR: [
+          { instanceType: { in: ["Whatsapp", "baileys"] } },
+          { instanceType: "meta", metaChannel: "whatsapp" },
+        ],
       },
     });
 

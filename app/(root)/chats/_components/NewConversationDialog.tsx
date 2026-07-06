@@ -15,6 +15,7 @@ import type { ChatData } from '@/actions/chat-actions';
 type Instancia = {
   instanceName: string;
   instanceType?: string | null;
+  metaChannel?: string | null;
   company?: string;
 };
 
@@ -47,9 +48,29 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
   const [contactOpen, setContactOpen] = React.useState(false);
   const [instanceOpen, setInstanceOpen] = React.useState(false);
 
-  const whatsappInstancias = instancias.filter(
-    (i) => i.instanceType === 'Whatsapp' || i.instanceType === 'baileys' || i.instanceType == null,
+  const sendableInstanceNames = React.useMemo(
+    () => new Set(instanceActionSets.map((s) => s.instanceName)),
+    [instanceActionSets],
   );
+
+  const whatsappInstancias = instancias.filter((i) => {
+    const type = i.instanceType?.trim().toLowerCase();
+    const metaChannel = i.metaChannel?.trim().toLowerCase();
+    const isWhatsAppLine =
+      !type ||
+      type === 'whatsapp' ||
+      type === 'baileys' ||
+      (type === 'meta' && (!metaChannel || metaChannel === 'whatsapp'));
+
+    return isWhatsAppLine && sendableInstanceNames.has(i.instanceName);
+  });
+
+  React.useEffect(() => {
+    if (!open || whatsappInstancias.length === 0) return;
+    if (!whatsappInstancias.some((i) => i.instanceName === selectedInstanceName)) {
+      setSelectedInstanceName(whatsappInstancias[0].instanceName);
+    }
+  }, [open, selectedInstanceName, whatsappInstancias]);
 
   const selectedInstance = whatsappInstancias.find((i) => i.instanceName === selectedInstanceName);
   const instanceLabel = selectedInstance

@@ -58,6 +58,7 @@ function pickWhatsappOrNull(arr: Instancia[]) {
     arr.find((instance) => instance.instanceType === "Whatsapp") ??
     arr.find((instance) => instance.instanceType == null) ??
     arr.find((instance) => instance.instanceType === "baileys") ??
+    arr.find((instance) => instance.instanceType === "meta" && (instance.metaChannel ?? "whatsapp") === "whatsapp") ??
     null
   );
 }
@@ -204,6 +205,7 @@ export default async function ChatsPage({
       instanceName: i.instanceName,
       instanceId: i.instanceId,
       instanceType: i.instanceType,
+      metaChannel: i.metaChannel,
     })),
     ...linkedAccountsData.flatMap((la) =>
       la.instances
@@ -212,6 +214,7 @@ export default async function ChatsPage({
           instanceName: li.instanceName,
           instanceId: li.instanceId,
           instanceType: li.instanceType,
+          metaChannel: li.metaChannel,
           linkedUserId: la.linkedUserId,
           company: la.company || li.instanceName,
         })),
@@ -223,6 +226,7 @@ export default async function ChatsPage({
           instanceName: li.instanceName,
           instanceId: li.instanceId,
           instanceType: li.instanceType,
+          metaChannel: li.metaChannel,
           linkedUserId: ma.masterUserId,
           company: ma.company || li.instanceName,
         })),
