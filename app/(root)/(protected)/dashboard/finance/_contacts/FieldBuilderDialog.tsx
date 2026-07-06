@@ -232,11 +232,11 @@ export function FieldBuilderDialog({
           </Button>
         </div>
 
-        <div className="flex shrink-0 items-center justify-between gap-2 border-t pt-3">
-          <Label className="text-xs text-muted-foreground">
+        <div className="shrink-0 border-t pt-3">
+          <p className="mb-2 text-xs text-muted-foreground">
             Los campos con candado son del sistema: no se eliminan, pero puedes ocultarlos.
-          </Label>
-          <div className="flex gap-2">
+          </p>
+          <div className="flex items-center justify-between gap-2">
             <Button variant="outline" size="sm" className="h-9" onClick={() => onOpenChange(false)} disabled={isPending}>
               Cancelar
             </Button>

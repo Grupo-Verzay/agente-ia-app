@@ -48,6 +48,19 @@ type Props = {
   autoOpenCreate?: boolean;
 };
 
+// Auto-nombres que WhatsApp asigna a mensajes propios/salientes (no son el
+// nombre real del contacto): "Você"=tú (pt), "You", "Tú"...
+const SELF_PUSHNAMES = new Set(['você', 'voce', 'tú', 'tu', 'you', 'yo']);
+/** Solo el número, sin el sufijo @s.whatsapp.net ni el :device. */
+const cleanPhone = (jid?: string | null) => (jid ?? '').replace(/@.*/, '').split(':')[0];
+/** Nombre visible del contacto: su nombre real, o el número si no tiene nombre
+ *  o es un auto-nombre de WhatsApp ("Você"...). Nunca muestra el @jid crudo. */
+const contactDisplayName = (name?: string | null, jid?: string | null) => {
+  const n = (name ?? '').trim();
+  if (n && !SELF_PUSHNAMES.has(n.toLowerCase())) return n;
+  return cleanPhone(jid);
+};
+
 function FieldWrap({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
     <div className="space-y-1.5">
@@ -112,8 +125,8 @@ export default function MainFinanceContacts({ userId, kind, contacts, fields, au
     for (const f of config) if (f.key !== CONTACT_LINK_KEY) v[f.key] = readContactValue(row as Record<string, unknown>, f.key);
     setValues(v);
     setSessionId(row.sessionId ?? null);
-    setContactName(row.session?.customName || row.session?.pushName || '');
-    setContactJid(row.session?.remoteJid || '');
+    setContactName(contactDisplayName(row.session?.customName || row.session?.pushName, row.session?.remoteJid));
+    setContactJid(cleanPhone(row.session?.remoteJid));
     setContactQuery('');
     setContactOptions([]);
     setOpen(true);
@@ -208,9 +221,9 @@ export default function MainFinanceContacts({ userId, kind, contacts, fields, au
               <span className="inline-flex min-w-0 items-center gap-2 truncate">
                 <UserRound className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="truncate">
-                  {contactName || contactJid
-                    ? `${contactName || 'Contacto'}${contactJid ? ` · ${contactJid}` : ''}`
-                    : 'Buscar contacto...'}
+                  {contactName
+                    ? (contactJid && contactJid !== contactName ? `${contactName} · ${contactJid}` : contactName)
+                    : (contactJid || 'Buscar contacto...')}
                 </span>
               </span>
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -230,31 +243,37 @@ export default function MainFinanceContacts({ userId, kind, contacts, fields, au
                     setContactOpen(false);
                   }}
                 >
-                  <span className="text-xs text-muted-foreground">Quitar vínculo</span>
+                  <span className="text-sm text-muted-foreground">Quitar vínculo</span>
                 </CommandItem>
-                {contactOptions.map((s) => (
-                  <CommandItem
-                    key={s.id}
-                    value={`${s.pushName ?? ''} ${s.remoteJid ?? ''}`}
-                    onSelect={() => {
-                      setSessionId(s.id);
-                      setContactName(s.customName || s.pushName || '');
-                      setContactJid(s.remoteJid ?? '');
-                      setValues((prev) => ({
-                        ...prev,
-                        name: (prev.name ?? '').trim() || s.customName || s.pushName || prev.name || '',
-                        phone: (prev.phone ?? '').trim() || (s.remoteJid ? s.remoteJid.replace(/@.*/, '') : prev.phone || ''),
-                      }));
-                      setContactOpen(false);
-                    }}
-                  >
-                    <Check className={cn('mr-2 h-4 w-4', sessionId === s.id ? 'opacity-100' : 'opacity-0')} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm">{s.customName || s.pushName || 'Sin nombre'}</p>
-                      <p className="truncate text-[11px] text-muted-foreground">{s.remoteJid}</p>
-                    </div>
-                  </CommandItem>
-                ))}
+                {contactOptions.map((s) => {
+                  const label = contactDisplayName(s.customName || s.pushName, s.remoteJid);
+                  const phone = cleanPhone(s.remoteJid);
+                  return (
+                    <CommandItem
+                      key={s.id}
+                      value={`${s.pushName ?? ''} ${phone}`}
+                      onSelect={() => {
+                        setSessionId(s.id);
+                        setContactName(label);
+                        setContactJid(phone);
+                        setValues((prev) => ({
+                          ...prev,
+                          name: (prev.name ?? '').trim() || label,
+                          phone: (prev.phone ?? '').trim() || phone,
+                        }));
+                        setContactOpen(false);
+                      }}
+                    >
+                      <Check className={cn('mr-2 h-4 w-4', sessionId === s.id ? 'opacity-100' : 'opacity-0')} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm">{label}</p>
+                        {label !== phone && (
+                          <p className="truncate text-xs text-muted-foreground">{phone}</p>
+                        )}
+                      </div>
+                    </CommandItem>
+                  );
+                })}
               </CommandGroup>
             </Command>
           </PopoverContent>
@@ -380,7 +399,7 @@ export default function MainFinanceContacts({ userId, kind, contacts, fields, au
             </div>
           </div>
 
-          <div className="flex shrink-0 justify-end gap-2 border-t pt-3">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-t pt-3">
             <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={isPending} className="h-9">
               Cancelar
             </Button>
