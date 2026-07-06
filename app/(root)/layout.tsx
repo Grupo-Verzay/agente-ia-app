@@ -114,41 +114,18 @@ export default async function RootGroupLayout({
     const resellerImage = onReseller?.data?.image ?? siteConfig.logoUrl ?? null;
     const resellerCompany = onReseller?.data?.company ?? null;
 
-    // Datos del layout en paralelo (queries independientes) para reducir la
-    // latencia de render en TODAS las rutas. Antes se hacían secuenciales.
-    const needsUserModules = !isAdmin(user.role) && user.role !== 'reseller';
-    const [freshUser, allModulesRes, navPrefsRows, userIntegrationsResult, panelModule, userModuleRecords] =
-        await Promise.all([
-            onReseller?.data?.theme
-                ? Promise.resolve<{ theme: ThemeApp | null } | null>(null)
-                : db.user.findUnique({ where: { id: user.id }, select: { theme: true } }),
-            getAllModules(),
-            db.$queryRaw<UserNavPref[]>`
-                SELECT "moduleId", "displayLabel", "isHidden", "sortOrder"
-                FROM "UserNavPreference"
-                WHERE "userId" = ${user!.id}
-                ORDER BY "sortOrder" ASC
-            `.catch(() => [] as UserNavPref[]),
-            getUserIntegrations(),
-            db.module.findFirst({
-                where: { route: { in: ["/panel", "/admin"] } },
-                include: { moduleItems: { orderBy: { createdAt: "asc" } } },
-            }),
-            needsUserModules
-                ? db.userModule.findMany({ where: { B: user.id }, select: { A: true } })
-                : Promise.resolve([] as { A: string }[]),
-        ]);
-
     // Tema fresco de DB: del reseller/super_admin, o del propio user
-    const initialTheme: ThemeApp = onReseller?.data?.theme
-        ? (onReseller.data.theme as ThemeApp)
-        : ((freshUser?.theme as ThemeApp) ?? 'Default');
+    let initialTheme: ThemeApp = 'Default';
+    if (onReseller?.data?.theme) {
+        initialTheme = onReseller.data.theme as ThemeApp;
+    } else {
+        const freshUser = await db.user.findUnique({ where: { id: user.id }, select: { theme: true } });
+        initialTheme = (freshUser?.theme as ThemeApp) ?? 'Default';
+    }
 
-    const allModules = allModulesRes.data ?? [];
+    const allModules = (await getAllModules()).data ?? [];
+
     if (allModules.length === 0) return <AppSkeleton />;
-
-    const navPrefs: UserNavPref[] = navPrefsRows ?? [];
-    const userIntegrations = userIntegrationsResult.data;
 
     let modules = allModules;
     if (!isAdmin(user?.role)) {
@@ -161,6 +138,10 @@ export default async function RootGroupLayout({
                 return true;
             });
         } else {
+            const userModuleRecords = await db.userModule.findMany({
+                where: { B: user.id },
+                select: { A: true },
+            });
             if (userModuleRecords.length > 0) {
                 const allowedIds = new Set(userModuleRecords.map(r => r.A));
                 modules = allModules.filter(m => allowedIds.has(m.id));
@@ -193,6 +174,26 @@ export default async function RootGroupLayout({
             ),
         ]
         : [];
+
+    let navPrefs: UserNavPref[] = [];
+    try {
+        navPrefs = await db.$queryRaw<UserNavPref[]>`
+            SELECT "moduleId", "displayLabel", "isHidden", "sortOrder"
+            FROM "UserNavPreference"
+            WHERE "userId" = ${user!.id}
+            ORDER BY "sortOrder" ASC
+        `;
+    } catch {
+        // tabla aún no existe — primera vez
+    }
+
+    const userIntegrationsResult = await getUserIntegrations();
+    const userIntegrations = userIntegrationsResult.data;
+
+    const panelModule = await db.module.findFirst({
+        where: { route: { in: ["/panel", "/admin"] } },
+        include: { moduleItems: { orderBy: { createdAt: "asc" } } },
+    });
     const panelTabs = isAdminOrReseller(user.role)
         ? (panelModule?.moduleItems ?? []).map((item) => ({
             url: resolveModuleItemDest(item.url, item.customUrl),
