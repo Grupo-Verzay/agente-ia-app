@@ -968,8 +968,8 @@ export default function MainSales({
 
         {/* Modal Create/Edit */}
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="sm:max-w-[1000px] rounded-2xl">
-            <DialogHeader className="space-y-1">
+          <DialogContent className="flex max-h-[585px] flex-col overflow-hidden rounded-2xl sm:max-w-[1000px]">
+            <DialogHeader className="shrink-0 space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <DialogTitle className="text-base">{editing ? 'Editar venta' : 'Nueva venta'}</DialogTitle>
                 <Badge variant="secondary" className="h-6 text-[11px]">
@@ -978,6 +978,7 @@ export default function MainSales({
               </div>
             </DialogHeader>
 
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             {(() => {
               const previewAccountName = accounts.find((a) => a.id === form.accountId)?.name || '—';
               const previewCategoryName = form.categoryId
@@ -1278,6 +1279,7 @@ export default function MainSales({
                 </div>
               );
             })()}
+            </div>
           </DialogContent>
         </Dialog>
       </div>

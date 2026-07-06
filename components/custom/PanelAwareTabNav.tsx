@@ -13,8 +13,9 @@ interface TabItem {
 
 interface Props {
     tabs: TabItem[];
-    /** Cuando es true, no muestra en rutas /panel/* (el panel layout ya lo maneja). */
+    /** Cuando es true, no muestra dentro de la raiz del panel porque su layout ya lo maneja. */
     excludePanelRoutes?: boolean;
+    panelRoutes?: string[];
 }
 
 function splitUrl(url: string): { path: string; search: string } {
@@ -23,13 +24,13 @@ function splitUrl(url: string): { path: string; search: string } {
     return { path: url.slice(0, idx), search: url.slice(idx) };
 }
 
-function TabNavInner({ tabs, excludePanelRoutes }: Props) {
+function TabNavInner({ tabs, excludePanelRoutes, panelRoutes = ["/panel"] }: Props) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const currentSearch = searchParams.toString() ? `?${searchParams.toString()}` : "";
     const currentFullUrl = pathname + currentSearch;
 
-    const isPanelRoute = pathname === "/panel" || pathname.startsWith("/panel/");
+    const isPanelRoute = panelRoutes.some((route) => pathname === route || pathname.startsWith(route + "/"));
 
     const isSubmoduleRoute = tabs.some((tab) => {
         const { path } = splitUrl(tab.url);

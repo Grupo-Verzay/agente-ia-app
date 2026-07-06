@@ -16,6 +16,7 @@ import { arrayMove, rectSortingStrategy, SortableContext, useSortable } from '@d
 import { CSS } from '@dnd-kit/utilities';
 import {
   FileText,
+  GripVertical,
   Package,
   Plus,
   PlusCircle,
@@ -81,19 +82,27 @@ function SortableShortcut({ item }: { item: Shortcut }) {
 
   return (
     <div ref={setNodeRef} style={style} className={cn('shrink-0 touch-none', isDragging && 'z-10 opacity-70')}>
-      <Link
-        href={item.href}
-        title="Arrastra para ordenar"
+      <div
         className={cn(
-          'inline-flex h-9 select-none items-center gap-2 whitespace-nowrap rounded-md border px-3 text-sm font-medium shadow-sm transition hover:opacity-90',
+          'inline-flex h-9 select-none items-center overflow-hidden whitespace-nowrap rounded-md border text-sm font-medium shadow-sm transition hover:opacity-90',
           'border-input bg-background text-foreground hover:bg-muted/40',
         )}
-        {...attributes}
-        {...listeners}
       >
-        {item.icon}
-        {item.label}
-      </Link>
+        <button
+          type="button"
+          aria-label={`Mover ${item.label}`}
+          title="Arrastra para ordenar"
+          className="flex h-full cursor-grab items-center px-1.5 text-muted-foreground active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+        <Link href={item.href} className="inline-flex h-full items-center gap-2 px-2.5 pl-1">
+          {item.icon}
+          {item.label}
+        </Link>
+      </div>
     </div>
   );
 }
@@ -119,7 +128,7 @@ export function FinanceModuleShortcuts({
       clients: {
         id: 'clients',
         label: 'Clientes',
-        href: '/clientes',
+        href: '/panel/clientes',
         icon: <Users className="h-4 w-4" />,
       },
       products: {

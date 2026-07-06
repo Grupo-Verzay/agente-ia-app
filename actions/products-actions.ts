@@ -39,7 +39,7 @@ export async function listProducts(raw: z.input<typeof listParams>) {
     const [items, total] = await Promise.all([
         db.product.findMany({
             where,
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ order: "asc" }, { createdAt: "desc" }],
             skip: (page - 1) * perPage,
             take: perPage,
         }),
@@ -59,6 +59,32 @@ export async function listProducts(raw: z.input<typeof listParams>) {
         perPage,
         pages: Math.ceil(total / perPage),
     };
+}
+
+export async function reorderProducts(userId: string, orderedIds: string[]) {
+    if (!userId || !Array.isArray(orderedIds) || orderedIds.length === 0) {
+        return { ok: true };
+    }
+
+    const products = await db.product.findMany({
+        where: { userId, id: { in: orderedIds } },
+        select: { id: true },
+    });
+    const allowed = new Set(products.map((p) => p.id));
+    const cleanIds = orderedIds.filter((id) => allowed.has(id));
+
+    await db.$transaction(
+        cleanIds.map((id, index) =>
+            db.product.updateMany({
+                where: { id, userId },
+                data: { order: index },
+            }),
+        ),
+    );
+
+    revalidatePath("/products");
+    revalidatePath("/catalogo", "layout");
+    return { ok: true };
 }
 
 export async function createProduct(raw: unknown) {
@@ -92,12 +118,19 @@ export async function createProduct(raw: unknown) {
 
     try {
         // 3️⃣ Crear el producto
+        const lastProduct = await db.product.findFirst({
+            where: { userId: input.userId },
+            orderBy: { order: "desc" },
+            select: { order: true },
+        });
+
         const product = await db.product.create({
             data: {
                 ...input,
                 sku: normalizedSku,
                 tags: input.tags || [],
                 category: input.category || "",
+                order: (lastProduct?.order ?? -1) + 1,
             },
         });
 

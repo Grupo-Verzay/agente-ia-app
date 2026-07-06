@@ -13,11 +13,11 @@ export default async function ProductsPage({
         redirect('/login');
     };
 
-    const effectiveId = user.effectiveId;
+    const effectiveId = user.effectiveId ?? user.id;
     const q = searchParams?.q ?? "";
     const page = Number(searchParams?.page ?? 1);
     const [data, limitInfo, stats] = await Promise.all([
-        listProducts({ userId: effectiveId, q, page, perPage: 20 }),
+        listProducts({ userId: effectiveId, q, page, perPage: 100 }),
         getProductLimitInfo(effectiveId),
         getProductStats(effectiveId),
     ]);

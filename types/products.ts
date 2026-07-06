@@ -7,8 +7,9 @@ export type ProductType = {
     stock: number;
     isActive: boolean;
     images: string[];
-    category: string;  // Nueva propiedad para la categoría
-    tags: string[];    // Nueva propiedad para las etiquetas
+    order: number;
+    category: string;
+    tags: string[];
     userId: string;
     createdAt: Date;
     updatedAt: Date;
@@ -29,7 +30,7 @@ export interface ProductStats {
     total: number;
     active: number;
     outOfStock: number;
-    availableSlots: number | null; // null = sin límite (plan personalizado)
+    availableSlots: number | null;
 }
 
 export interface MainProductsProps extends ProductTableInterface {

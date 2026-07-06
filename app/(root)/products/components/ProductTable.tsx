@@ -1,6 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { CSSProperties, useEffect, useMemo, useState, useTransition } from "react";
+import {
+    closestCenter,
+    DndContext,
+    type DragEndEvent,
+    PointerSensor,
+    useSensor,
+    useSensors,
+} from "@dnd-kit/core";
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
     ColumnDef,
     flexRender,
@@ -12,12 +22,48 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ProductForm } from "./ProductForm";
-import { deleteProduct } from "@/actions/products-actions";
-import { Trash2, Loader2 } from "lucide-react";
+import { deleteProduct, reorderProducts } from "@/actions/products-actions";
+import { Trash2, Loader2, GripVertical } from "lucide-react";
 import { ProductTableInterface, ProductType } from "@/types/products";
 import { SafeImage } from "@/components/custom/SafeImage";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 
+function SortableProductRow({
+    product,
+    children,
+}: {
+    product: ProductType;
+    children: React.ReactNode;
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: product.id });
+    const style: CSSProperties = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+    };
+
+    return (
+        <tr
+            ref={setNodeRef}
+            style={style}
+            className={cn("border-t transition-colors hover:bg-muted/40", isDragging && "relative z-10 bg-background opacity-80 shadow-sm")}
+        >
+            <td className="w-10 px-2 py-3 align-middle">
+                <button
+                    type="button"
+                    aria-label={`Mover ${product.title}`}
+                    title="Arrastra para ordenar"
+                    className="flex h-8 w-7 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-muted active:cursor-grabbing"
+                    {...attributes}
+                    {...listeners}
+                >
+                    <GripVertical className="h-4 w-4" />
+                </button>
+            </td>
+            {children}
+        </tr>
+    );
+}
 
 export const ProductTable = ({
     data,
@@ -26,6 +72,12 @@ export const ProductTable = ({
     const router = useRouter();
     const [deleteTarget, setDeleteTarget] = useState<ProductType | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isReordering, startReorderTransition] = useTransition();
+    const [items, setItems] = useState<ProductType[]>(data.items);
+
+    useEffect(() => {
+        setItems(data.items);
+    }, [data.items]);
 
     const handleDelete = async () => {
         if (!deleteTarget) return;
@@ -123,10 +175,27 @@ export const ProductTable = ({
     ], [userId]);
 
     const table = useReactTable({
-        data: data.items,
+        data: items,
         columns,
         getCoreRowModel: getCoreRowModel(),
     });
+
+    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        if (oldIndex < 0 || newIndex < 0) return;
+
+        const next = arrayMove(items, oldIndex, newIndex);
+        setItems(next);
+        startReorderTransition(() => {
+            void reorderProducts(userId, next.map((item) => item.id)).then(() => router.refresh());
+        });
+    };
 
     return (
         <>
@@ -157,6 +226,7 @@ export const ProductTable = ({
                         <thead>
                             {table.getHeaderGroups().map((hg) => (
                                 <tr key={hg.id} className="border-b">
+                                    <th className="w-10 px-2 py-3" title={isReordering ? "Guardando orden..." : "Ordenar"} />
                                     {hg.headers.map((h) => (
                                         <th
                                             key={h.id}
@@ -175,39 +245,43 @@ export const ProductTable = ({
                                 </tr>
                             ))}
                         </thead>
-                        <tbody>
-                            {table.getRowModel().rows.map((r) => (
-                                <tr key={r.id} className="border-t hover:bg-muted/40 transition-colors">
-                                    {r.getVisibleCells().map((c) => (
-                                        <td
-                                            key={c.id}
-                                            className="py-3 px-3 align-middle"
-                                            style={
-                                                c.column.id === "imagen" ? { width: 160, minWidth: 160 } :
-                                                c.column.id === "actions" ? { width: 88, minWidth: 88 } :
-                                                undefined
-                                            }
-                                        >
-                                            {flexRender(
-                                                c.column.columnDef.cell,
-                                                c.getContext(),
-                                            )}
-                                        </td>
+                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                            <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
+                                <tbody>
+                                    {table.getRowModel().rows.map((r) => (
+                                        <SortableProductRow key={r.original.id} product={r.original}>
+                                            {r.getVisibleCells().map((c) => (
+                                                <td
+                                                    key={c.id}
+                                                    className="py-3 px-3 align-middle"
+                                                    style={
+                                                        c.column.id === "imagen" ? { width: 160, minWidth: 160 } :
+                                                        c.column.id === "actions" ? { width: 88, minWidth: 88 } :
+                                                        undefined
+                                                    }
+                                                >
+                                                    {flexRender(
+                                                        c.column.columnDef.cell,
+                                                        c.getContext(),
+                                                    )}
+                                                </td>
+                                            ))}
+                                        </SortableProductRow>
                                     ))}
-                                </tr>
-                            ))}
 
-                            {data.items.length === 0 && (
-                                <tr>
-                                    <td
-                                        colSpan={columns.length}
-                                        className="py-8 px-3 text-center text-sm text-muted-foreground"
-                                    >
-                                        No hay productos para mostrar.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
+                                    {items.length === 0 && (
+                                        <tr>
+                                            <td
+                                                colSpan={columns.length + 1}
+                                                className="py-8 px-3 text-center text-sm text-muted-foreground"
+                                            >
+                                                No hay productos para mostrar.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </SortableContext>
+                        </DndContext>
                     </table>
                 </div>
 
