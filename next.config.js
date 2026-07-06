@@ -14,6 +14,17 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "50mb",
     },
+    // Tree-shaking de librerías con barrel-imports grandes → bundle más liviano
+    // y carga más rápida en el cliente. (lucide-react/react-icons ya los optimiza
+    // Next por defecto; aquí se agregan las que no están en esa lista.)
+    optimizePackageImports: [
+      "lucide-react",
+      "recharts",
+      "date-fns",
+      "@tanstack/react-table",
+      "@dnd-kit/core",
+      "@dnd-kit/sortable",
+    ],
   },
   images: {
     remotePatterns: [

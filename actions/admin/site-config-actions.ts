@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import type { TestimonialData, StatData } from "@/actions/reseller-plan-actions";
 import { DEFAULT_BILLING_TEMPLATES } from "@/actions/billing/billing-message-templates";
 
@@ -46,7 +46,12 @@ const EMPTY: SiteConfigData = {
   showAssistanceHUMANO: true,
 };
 
-export async function getSiteConfig(): Promise<SiteConfigData> {
+const SITE_CONFIG_TAG = "site-config";
+
+// getSiteConfig se lee en el layout raíz, en todas las páginas públicas y en
+// generateMetadata → se cachea (datos casi estáticos) y se invalida al guardar.
+const getSiteConfigCached = unstable_cache(
+  async (): Promise<SiteConfigData> => {
   try {
     const c = await db.siteConfig.findUnique({ where: { id: 1 } });
     if (!c) return EMPTY;
@@ -77,6 +82,13 @@ export async function getSiteConfig(): Promise<SiteConfigData> {
   } catch {
     return EMPTY;
   }
+  },
+  ["site-config"],
+  { revalidate: 300, tags: [SITE_CONFIG_TAG] },
+);
+
+export async function getSiteConfig(): Promise<SiteConfigData> {
+  return getSiteConfigCached();
 }
 
 export async function updatePlatformLogoUrl(logoUrl: string): Promise<{ success: boolean; message: string }> {
@@ -90,6 +102,7 @@ export async function updatePlatformLogoUrl(logoUrl: string): Promise<{ success:
       update: { logoUrl },
       create: { id: 1, logoUrl },
     });
+    revalidateTag(SITE_CONFIG_TAG);
     revalidatePath("/inicio");
     revalidatePath("/resellers");
     return { success: true, message: "Logo actualizado" };
@@ -109,6 +122,7 @@ export async function updatePlatformFaviconUrl(faviconUrl: string): Promise<{ su
       update: { faviconUrl },
       create: { id: 1, faviconUrl },
     });
+    revalidateTag(SITE_CONFIG_TAG);
     revalidatePath("/inicio");
     revalidatePath("/resellers");
     return { success: true, message: "Favicon actualizado" };
@@ -128,6 +142,7 @@ export async function updatePlatformBrandName(brandName: string): Promise<{ succ
       update: { brandName },
       create: { id: 1, brandName },
     });
+    revalidateTag(SITE_CONFIG_TAG);
     revalidatePath("/inicio");
     revalidatePath("/resellers");
     return { success: true, message: "Nombre de marca actualizado" };
@@ -238,6 +253,7 @@ export async function updateSiteConfig(data: SiteConfigData): Promise<{ success:
       update: payload,
       create: { id: 1, ...payload },
     });
+    revalidateTag(SITE_CONFIG_TAG);
     revalidatePath("/inicio");
     revalidatePath("/resellers");
     return { success: true, message: "Configuración guardada" };

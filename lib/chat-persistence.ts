@@ -613,6 +613,7 @@ export async function getPersistedMessages(params: {
   const userIds = Array.from(new Set((params.userIds ?? []).filter(Boolean)));
   if (!userIds.length) return [];
   const candidates = buildWhatsAppJidCandidates(params.remoteJid, params.aliases ?? []);
+  const __t0 = performance.now();
   const rows = await db.$queryRaw<PersistedChatMessageRow[]>`
     WITH matched AS (
       SELECT *
@@ -647,6 +648,8 @@ export async function getPersistedMessages(params: {
     OFFSET ${params.skip ?? 0}
     LIMIT ${params.take ?? 50}
   `;
+  const __ms = performance.now() - __t0;
+  if (__ms > 500) console.error(`[PERF] getPersistedMessages ${Math.round(__ms)}ms accounts=${userIds.length} rows=${rows.length}`);
 
   return rows.map(persistedRowToEvolutionMessage);
 }
@@ -667,6 +670,7 @@ export async function getPersistedInboxChats(params: {
   if (!userIds.length) return [];
   await ensureChatMessagesTable();
 
+  const __t0 = performance.now();
   const rows = await db.$queryRaw<InboxRow[]>`
     WITH inbox_rows AS (
       SELECT DISTINCT ON (
@@ -730,6 +734,8 @@ export async function getPersistedInboxChats(params: {
     ORDER BY COALESCE("messageTimestamp", "sessionUpdatedAt") DESC
     LIMIT ${params.take ?? 300}
   `;
+  const __ms = performance.now() - __t0;
+  if (__ms > 500) console.error(`[PERF] getPersistedInboxChats ${Math.round(__ms)}ms accounts=${userIds.length} rows=${rows.length}`);
 
   return rows
     .map(inboxRowToChat)
