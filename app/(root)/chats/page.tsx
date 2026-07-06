@@ -164,17 +164,27 @@ export default async function ChatsPage({
   // Fase 1: todo lo que no depende de los chats corre en paralelo
   const [
     resInstancias,
+    resSessionUserInstancias,
     resApikey,
     linkedAccountsResponse,
     masterAccountsResponse,
   ] = await Promise.all([
     settle(getInstancesByUserId(effectiveOwnerId)),
+    user.sessionUserId && user.sessionUserId !== effectiveOwnerId
+      ? settle(getInstancesByUserId(user.sessionUserId))
+      : Promise.resolve(null),
     settle(getApiKeyById(ownerApiKeyId ?? "")),
     settle(getLinkedAccountsInstances(effectiveOwnerId)),
     settle(getMasterAccountInstances(user.sessionUserId ?? user.id)),
   ]);
 
   const ownInstancias = resInstancias && hasInstancias(resInstancias) ? resInstancias.data : [];
+  const sessionUserInstancias =
+    resSessionUserInstancias && hasInstancias(resSessionUserInstancias)
+      ? resSessionUserInstancias.data.filter(
+          (inst) => inst.instanceType === "meta" && (inst.metaChannel ?? "whatsapp") === "whatsapp",
+        )
+      : [];
   const linkedAccountsData =
     linkedAccountsResponse?.success && Array.isArray(linkedAccountsResponse.data)
       ? linkedAccountsResponse.data
@@ -188,6 +198,7 @@ export default async function ChatsPage({
   const linkedInstancias = [
     ...linkedAccountsData.flatMap((la) => la.instances),
     ...masterAccountsData.flatMap((ma) => ma.instances),
+    ...sessionUserInstancias,
   ].filter((li) => !ownInstancias.some((oi) => oi.instanceName === li.instanceName));
 
   const instancias = [...ownInstancias, ...linkedInstancias];
@@ -195,6 +206,7 @@ export default async function ChatsPage({
   // UserIds de todas las cuentas cuyas sesiones debe ver el usuario actual
   const allSessionUserIds = [
     effectiveOwnerId,
+    user.sessionUserId,
     ...linkedAccountsData.map((la) => la.linkedUserId),
     ...masterAccountsData.map((ma) => ma.masterUserId),
   ].filter((id, idx, arr) => Boolean(id) && arr.indexOf(id) === idx);
@@ -231,6 +243,16 @@ export default async function ChatsPage({
           company: ma.company || li.instanceName,
         })),
     ),
+    ...sessionUserInstancias
+      .filter((li) => !ownInstancias.some((oi) => oi.instanceName === li.instanceName))
+      .map((li) => ({
+        instanceName: li.instanceName,
+        instanceId: li.instanceId,
+        instanceType: li.instanceType,
+        metaChannel: li.metaChannel,
+        linkedUserId: user.sessionUserId,
+        company: li.instanceName,
+      })),
   ].filter((item, idx, arr) => arr.findIndex((x) => x.instanceName === item.instanceName) === idx);
 
   const requestedInstance = searchParams?.instance;
