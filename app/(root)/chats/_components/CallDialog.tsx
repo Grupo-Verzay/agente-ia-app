@@ -90,6 +90,10 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
   // no fue contestada. La propia acción respeta el on/off configurado por cuenta.
   const maybeSendMissedReply = () => {
     if (replySentRef.current) return;
+    // Solo si la llamada REALMENTE se colocó (el proveedor devolvió un callId).
+    // Si nunca salió (error al iniciar, número de llamadas no vinculado/conectado),
+    // NO enviamos el "te llamamos y no pudimos comunicarnos" — no hubo llamada.
+    if (!callLogMetaRef.current) return;
     replySentRef.current = true;
     void sendMissedOutgoingCallReply(phone);
   };
