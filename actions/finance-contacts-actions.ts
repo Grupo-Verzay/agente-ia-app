@@ -2,35 +2,43 @@
 
 import { db } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
+import { isSystemColumnKey, CONTACT_LINK_KEY } from '@/lib/finance-contact-fields';
 
 /**
  * Directorio de contactos de finanzas (proveedores y clientes).
- * Scope por `userId` (mismo patrón que el resto de finanzas). Soft-delete con
- * status ACTIVE/DELETED. Vínculo opcional a una Session (contacto de WhatsApp),
- * autodetectable por teléfono.
+ * Scope por `userId`. Soft-delete con status ACTIVE/DELETED. Los valores llegan
+ * en un mapa por clave de campo: las claves de sistema van a columnas reales y
+ * el resto a `customFields` (JSON), de acuerdo con la config del constructor.
+ * Vínculo opcional a una Session (contacto de WhatsApp), autodetectable por tel.
  */
 
 type Kind = 'SUPPLIER' | 'CLIENT';
 
-export type CustomField = { label: string; value: string };
-
 export type FinanceContactInput = {
   userId: string;
-  name: string;
-  code?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  department?: string | null;
-  city?: string | null;
-  address?: string | null;
-  notes?: string | null;
-  customFields?: CustomField[] | null;
+  values: Record<string, string>;
   sessionId?: number | null;
 };
 
 type Resp<T = unknown> = { success: boolean; message: string; data?: T };
 
 const onlyDigits = (s?: string | null) => (s ?? '').replace(/\D/g, '');
+
+/** Separa el mapa de valores en columnas de sistema vs campos personalizados. */
+function splitValues(values: Record<string, string>) {
+  const columns: Record<string, string | null> = {};
+  const custom: Record<string, string> = {};
+  for (const [k, raw] of Object.entries(values ?? {})) {
+    if (k === CONTACT_LINK_KEY) continue; // el vínculo viaja en sessionId
+    const v = (raw ?? '').trim();
+    if (isSystemColumnKey(k)) {
+      columns[k] = v || null;
+    } else if (v) {
+      custom[k] = v;
+    }
+  }
+  return { columns, custom };
+}
 
 /** Busca una Session del usuario cuyo número coincida con el teléfono dado. */
 async function findSessionIdByPhone(userId: string, phone?: string | null): Promise<number | null> {
@@ -46,14 +54,6 @@ async function findSessionIdByPhone(userId: string, phone?: string | null): Prom
     select: { id: true },
   });
   return session?.id ?? null;
-}
-
-function sanitizeCustomFields(fields?: CustomField[] | null): Prisma.InputJsonValue | undefined {
-  if (!Array.isArray(fields)) return undefined;
-  const clean = fields
-    .map((f) => ({ label: String(f?.label ?? '').trim(), value: String(f?.value ?? '').trim() }))
-    .filter((f) => f.label || f.value);
-  return clean.length ? clean : [];
 }
 
 /** Genera un código incremental por tipo: P-1, P-2… (proveedor) o C-1… (cliente). */
@@ -81,27 +81,27 @@ export async function getFinanceContacts(userId: string, kind: Kind): Promise<Re
 export async function createFinanceContact(kind: Kind, input: FinanceContactInput): Promise<Resp> {
   try {
     if (!input.userId) return { success: false, message: 'No existe el userId' };
-    if (!input.name?.trim()) return { success: false, message: 'El nombre es obligatorio' };
+    const { columns, custom } = splitValues(input.values);
+    const name = (columns.name ?? '').toString().trim();
+    if (!name) return { success: false, message: 'El nombre es obligatorio' };
 
-    // Autodetección de session por teléfono si no se vinculó una manualmente.
-    const sessionId =
-      input.sessionId ?? (await findSessionIdByPhone(input.userId, input.phone));
-
-    const code = input.code?.trim() || (await nextCode(input.userId, kind));
+    const phone = columns.phone ?? null;
+    const sessionId = input.sessionId ?? (await findSessionIdByPhone(input.userId, phone));
+    const code = (columns.code || '').toString().trim() || (await nextCode(input.userId, kind));
 
     const created = await db.financeContact.create({
       data: {
         userId: input.userId,
         kind,
         code,
-        name: input.name.trim(),
-        phone: input.phone?.trim() || null,
-        email: input.email?.trim() || null,
-        department: input.department?.trim() || null,
-        city: input.city?.trim() || null,
-        address: input.address?.trim() || null,
-        notes: input.notes?.trim() || null,
-        customFields: sanitizeCustomFields(input.customFields),
+        name,
+        phone,
+        email: columns.email ?? null,
+        department: columns.department ?? null,
+        city: columns.city ?? null,
+        address: columns.address ?? null,
+        notes: columns.notes ?? null,
+        customFields: custom as Prisma.InputJsonValue,
         sessionId,
       },
     });
@@ -120,23 +120,25 @@ export async function updateFinanceContact(
 ): Promise<Resp> {
   try {
     if (!input.userId) return { success: false, message: 'No existe el userId' };
-    if (!input.name?.trim()) return { success: false, message: 'El nombre es obligatorio' };
+    const { columns, custom } = splitValues(input.values);
+    const name = (columns.name ?? '').toString().trim();
+    if (!name) return { success: false, message: 'El nombre es obligatorio' };
 
-    const sessionId =
-      input.sessionId ?? (await findSessionIdByPhone(input.userId, input.phone));
+    const phone = columns.phone ?? null;
+    const sessionId = input.sessionId ?? (await findSessionIdByPhone(input.userId, phone));
 
     const res = await db.financeContact.updateMany({
       where: { id, userId: input.userId, kind, status: { not: 'DELETED' } },
       data: {
-        code: input.code?.trim() || null,
-        name: input.name.trim(),
-        phone: input.phone?.trim() || null,
-        email: input.email?.trim() || null,
-        department: input.department?.trim() || null,
-        city: input.city?.trim() || null,
-        address: input.address?.trim() || null,
-        notes: input.notes?.trim() || null,
-        customFields: sanitizeCustomFields(input.customFields),
+        code: (columns.code || '').toString().trim() || null,
+        name,
+        phone,
+        email: columns.email ?? null,
+        department: columns.department ?? null,
+        city: columns.city ?? null,
+        address: columns.address ?? null,
+        notes: columns.notes ?? null,
+        customFields: custom as Prisma.InputJsonValue,
         sessionId,
       },
     });

@@ -779,6 +779,7 @@ model User {
   financeCategories                  FinanceCategory[]
   financeTransactions                FinanceTransaction[]
   financeContacts                    FinanceContact[]
+  financeContactFieldConfigs         FinanceContactFieldConfig[]
   iaCredits                          IaCredit?
   reseller_reseller_reselleridToUser Reseller[]                   @relation("reseller_reselleridToUser")
   reseller_reseller_userIdToUser     Reseller[]                   @relation("reseller_userIdToUser")
@@ -1272,6 +1273,23 @@ enum FinanceContactKind {
 enum FinanceContactStatus {
   ACTIVE
   DELETED
+}
+
+/// Configuración del formulario/tabla de contactos de finanzas por negocio y
+/// por tipo (proveedor/cliente). `fields` es un arreglo JSON de definiciones de
+/// campo (key, label, type, order, required, hidden, options) que permite armar
+/// la card desde cero: reordenar, renombrar, ocultar y agregar campos propios.
+model FinanceContactFieldConfig {
+  id        String             @id @default(uuid())
+  userId    String
+  kind      FinanceContactKind
+  fields    Json
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind])
+  @@map("finance_contact_field_configs")
 }
 
 model IaCredit {
