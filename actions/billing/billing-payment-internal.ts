@@ -213,6 +213,58 @@ async function createPaymentTransaction(args: {
 }
 
 // ---------------------------------------------------------------------------
+// Validación de monto contra el precio configurado del cliente
+// ---------------------------------------------------------------------------
+
+/**
+ * Tolerancia de redondeo permitida al comparar el monto del comprobante contra
+ * el precio configurado (2%). El sobrepago siempre se acepta.
+ */
+const RECEIPT_AMOUNT_TOLERANCE = 0.02;
+
+/**
+ * Verifica que el monto del comprobante coincida con el precio configurado del
+ * cliente en /panel/client-billing. Se acepta un pago igual o mayor (con
+ * tolerancia de redondeo); un pago menor o en otra moneda no renueva y se
+ * envía a revisión manual.
+ */
+function checkReceiptAmountMatches(args: {
+    paidAmount: number;
+    paidCurrency: string;
+    expectedAmount: number;
+    expectedCurrency: string;
+}): { ok: true } | { ok: false; reason: string } {
+    const paidCurrency = args.paidCurrency.toUpperCase();
+    const expectedCurrency = args.expectedCurrency.toUpperCase();
+
+    // Sin precio válido configurado no hay contra qué comparar.
+    if (!Number.isFinite(args.expectedAmount) || args.expectedAmount <= 0) {
+        return { ok: true };
+    }
+
+    // La moneda del comprobante debe coincidir con la configurada; no
+    // convertimos divisas automáticamente.
+    if (paidCurrency !== expectedCurrency) {
+        return {
+            ok: false,
+            reason: `Moneda del comprobante (${paidCurrency}) no coincide con la configurada (${expectedCurrency}). Requiere revisión manual.`,
+        };
+    }
+
+    // Se acepta pago igual o mayor (con tolerancia). El pago insuficiente no
+    // renueva.
+    const minAcceptable = args.expectedAmount * (1 - RECEIPT_AMOUNT_TOLERANCE);
+    if (args.paidAmount < minAcceptable) {
+        return {
+            ok: false,
+            reason: `Monto del comprobante (${args.paidAmount} ${paidCurrency}) es menor al precio configurado (${args.expectedAmount} ${expectedCurrency}). Requiere revisión manual.`,
+        };
+    }
+
+    return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // confirmPaymentInternal — orquesta el flujo completo
 // ---------------------------------------------------------------------------
 
@@ -238,6 +290,8 @@ export async function confirmPaymentInternal(
     const billing = await db.userBilling.findUnique({
         where: { userId: clientUserId },
         select: {
+            price: true,
+            currencyCode: true,
             dueDate: true,
             licenseDays: true,
             billingStatus: true,
@@ -252,6 +306,22 @@ export async function confirmPaymentInternal(
         });
         if (!userExists) {
             return { success: false, message: "Cliente no encontrado." };
+        }
+    }
+
+    // 2.b. Validación de monto para comprobantes automáticos (WhatsApp).
+    // Solo renovamos automáticamente si el monto coincide con el precio
+    // configurado del cliente. Los pagos por pasarela traen el monto exacto y
+    // los MANUAL los decide el admin, así que solo se valida el comprobante.
+    if (source === "WHATSAPP_RECEIPT" && billing?.price != null) {
+        const amountCheck = checkReceiptAmountMatches({
+            paidAmount: amount,
+            paidCurrency: currencyCode,
+            expectedAmount: Number(billing.price),
+            expectedCurrency: billing.currencyCode ?? "COP",
+        });
+        if (!amountCheck.ok) {
+            return { success: false, message: amountCheck.reason };
         }
     }
 
