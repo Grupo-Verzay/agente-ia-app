@@ -1,7 +1,7 @@
 'use server'
 
 import { FormModuleSchema, FormModuleValues, ModuleWithItems } from '@/schema/module';
-import { PrismaClient } from '@prisma/client';
+import { db } from '@/lib/db';
 
 export interface ModuleResponse {
     success: boolean;
@@ -9,7 +9,9 @@ export interface ModuleResponse {
     data?: ModuleWithItems[];
 }
 
-const prisma = new PrismaClient();
+// Usa el singleton compartido (antes creaba su propio PrismaClient, fragmentando
+// el pool de conexiones — y getAllModules corre en cada request del layout).
+const prisma = db;
 
 /**
  * Obtiene todos los módulos, incluyendo sus items.

@@ -274,11 +274,15 @@ export default async function ChatsPage({
 
   let chatsResult: FetchChatsResult;
   let instanceActionSets: InstanceActionSet[] = [];
-  const persistedInitialChats = await getPersistedInboxChats({
-    userIds: allSessionUserIds,
-    instanceNames: instancias.map((inst) => inst.instanceName),
-  });
-  const initialPreferencesResult = await getChatConversationPreferencesByUserId(effectiveOwnerId);
+  // Bandeja local + preferencias en paralelo (independientes) para acelerar la
+  // carga inicial de Chats.
+  const [persistedInitialChats, initialPreferencesResult] = await Promise.all([
+    getPersistedInboxChats({
+      userIds: allSessionUserIds,
+      instanceNames: instancias.map((inst) => inst.instanceName),
+    }),
+    getChatConversationPreferencesByUserId(effectiveOwnerId),
+  ]);
   const initialChatPreferences = initialPreferencesResult.success
     ? initialPreferencesResult.data ?? {}
     : {};
