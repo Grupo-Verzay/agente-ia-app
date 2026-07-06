@@ -3,6 +3,7 @@ import { isAdminOrReseller } from "@/lib/rbac";
 import AccessDenied from "@/app/AccessDenied";
 import { db } from "@/lib/db";
 import { PanelAwareTabNav } from "@/components/custom/PanelAwareTabNav";
+import { resolveModuleItemDest } from "@/lib/canva-embed";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
     const user = await currentUser();
@@ -25,12 +26,12 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     const allTabs = (panelModule?.moduleItems ?? [])
         .filter((item) => !RESELLER_ONLY_URLS.includes(item.url.replace("/admin/", "/panel/")))
         .map((item) => ({
-            url: item.url.replace("/admin/", "/panel/"),
+            url: resolveModuleItemDest(item.url, item.customUrl),
             title: item.title,
         }));
 
     const resellerExtraTabs = (resellerModule?.moduleItems ?? []).map((item) => ({
-        url: item.url.replace("/admin/", "/panel/"),
+        url: resolveModuleItemDest(item.url, item.customUrl),
         title: item.title,
     }));
 

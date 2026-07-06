@@ -3,6 +3,7 @@ import { currentUser } from "@/lib/auth";
 import { isAdminLike } from "@/lib/rbac";
 import AccessDenied from "@/app/AccessDenied";
 import { PanelHome } from "./_components/PanelHome";
+import { resolveModuleItemDest } from "@/lib/canva-embed";
 
 export default async function PanelPage() {
     const user = await currentUser();
@@ -14,7 +15,7 @@ export default async function PanelPage() {
     });
 
     const sections = (panelModule?.moduleItems ?? []).map((item) => ({
-        url: item.url.replace("/admin/", "/panel/"),
+        url: resolveModuleItemDest(item.url, item.customUrl),
         title: item.title,
     }));
 

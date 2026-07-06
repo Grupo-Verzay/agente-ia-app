@@ -27,6 +27,7 @@ import { User } from '@prisma/client';
 import clsx from 'clsx';
 import { iconMap } from '@/schema/module';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
+import { resolveModuleItemDest } from '@/lib/canva-embed';
 import { Settings2 } from 'lucide-react';
 
 const PANEL_ROUTES = ['/panel', '/admin'];
@@ -103,9 +104,12 @@ export function NavMain({ user }: { user: User }) {
     const handleRoute = (label: string, targetRoute: string, customUrl?: string | null, isLocked?: boolean) => {
         if (isLocked) { router.push('/planes'); if (isMobile) setOpenMobile(false); return; }
         setLabelModule(label)
+        // Mantener el store por compatibilidad, pero la URL a embeber viaja en el
+        // query param (?u=) para que /canva sea stateless (sobrevive recargas y
+        // navegación por pestañas).
         if (targetRoute === '/canva' && customUrl) setCanvaUrl(customUrl)
         if (isMobile) setOpenMobile(false)
-        router.push(targetRoute)
+        router.push(resolveModuleItemDest(targetRoute, customUrl))
     }
     const itemTextClass = isMobile ? 'text-base' : 'text-sm';
     const itemIconClass = isMobile ? 'h-6' : 'h-5';
@@ -211,8 +215,7 @@ export function NavMain({ user }: { user: User }) {
                                 <SidebarMenuSubItem key={sub.id}>
                                     <button
                                         onClick={() => {
-                                            if (sub.url) setCanvaUrl(sub.url);
-                                            handleRoute(label, sub.dest);
+                                            handleRoute(label, sub.dest, sub.url);
                                         }}
                                         className={clsx(
                                             `flex w-full items-center gap-2 rounded-md px-2 py-1.5 ${itemTextClass} transition-colors`,
@@ -251,8 +254,7 @@ export function NavMain({ user }: { user: User }) {
                                                 <button
                                                     key={sub.id}
                                                     onClick={() => {
-                                                        if (sub.url) setCanvaUrl(sub.url);
-                                                        handleRoute(label, sub.dest);
+                                                        handleRoute(label, sub.dest, sub.url);
                                                         setOpenModuleId(null);
                                                     }}
                                                     className={clsx(

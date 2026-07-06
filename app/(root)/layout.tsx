@@ -28,6 +28,7 @@ import { TaskNotificationProvider } from "@/components/providers/TaskNotificatio
 import { ChatUnreadProvider } from "@/components/providers/ChatUnreadProvider";
 import type { UserNavPref } from "@/types/nav-preference";
 import { getUserIntegrations } from "@/actions/user-integration-actions";
+import { resolveModuleItemDest } from "@/lib/canva-embed";
 import { getClientPanelTabs } from "@/lib/client-panel-tabs";
 
 // Branding por reseller: favicon y título de pestaña según el reseller del
@@ -195,7 +196,7 @@ export default async function RootGroupLayout({
     });
     const panelTabs = isAdminOrReseller(user.role)
         ? (panelModule?.moduleItems ?? []).map((item) => ({
-            url: item.url.replace("/admin/", "/panel/"),
+            url: resolveModuleItemDest(item.url, item.customUrl),
             title: item.title,
         }))
         : [];
