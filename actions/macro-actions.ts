@@ -91,30 +91,80 @@ function ownerOf(user: { id: string; ownerId?: string | null }) {
 /* ─────────────── LÍNEAS / ENVÍO POR OTRA LÍNEA ─────────────── */
 
 /**
- * Lista las líneas (instancias de WhatsApp) del dueño para el selector
- * "Enviar por otra línea". Solo canales de WhatsApp (baileys / Evolution / Meta),
- * igual que el diálogo "Nuevo mensaje".
+ * Conjunto de cuentas autorizadas del usuario = cuenta activa + su login + dueño
+ * + cuentas vinculadas (maestras donde es miembro y miembros de la cuenta activa).
+ * Mismo scope que usa el panel de Chats para el equipo/multi-cuenta.
+ */
+async function authorizedAccountIds(user: {
+  id: string;
+  effectiveId: string;
+  ownerId?: string | null;
+  sessionUserId?: string | null;
+}): Promise<string[]> {
+  const ids = new Set<string>(
+    [user.effectiveId, user.id, user.ownerId, user.sessionUserId].filter(
+      (v): v is string => Boolean(v),
+    ),
+  );
+  const realId = user.sessionUserId ?? user.id;
+  try {
+    const [masters, linked] = await Promise.all([
+      db.$queryRaw<{ id: string }[]>`
+        SELECT "master_user_id" AS id FROM "linked_accounts" WHERE "linked_user_id" = ${realId}
+      `,
+      db.$queryRaw<{ id: string }[]>`
+        SELECT "linked_user_id" AS id FROM "linked_accounts" WHERE "master_user_id" = ${user.effectiveId}
+      `,
+    ]);
+    masters.forEach((r) => r.id && ids.add(r.id));
+    linked.forEach((r) => r.id && ids.add(r.id));
+  } catch {
+    // Tabla linked_accounts ausente: degradar a las cuentas base.
+  }
+  return Array.from(ids);
+}
+
+/**
+ * Lista las líneas (instancias de WhatsApp) de TODAS las cuentas asociadas que el
+ * usuario administra, para el selector "Enviar por otra línea". Las líneas de
+ * otras cuentas se etiquetan con el nombre de la cuenta para distinguirlas.
  */
 export async function getAccountLinesAction(): Promise<{ success: boolean; data: MacroLine[] }> {
   try {
     const user = await requireUser();
+    const accountIds = await authorizedAccountIds(user);
     const rows = await db.instancia.findMany({
-      where: { userId: ownerOf(user) },
+      where: { userId: { in: accountIds } },
       orderBy: { id: "desc" },
     });
-    const data: MacroLine[] = rows
-      .filter(
-        (i) =>
-          i.instanceType === "Whatsapp" ||
-          i.instanceType === "baileys" ||
-          i.instanceType === "meta" ||
-          i.instanceType == null,
-      )
-      .map((i) => ({
+    const whatsappRows = rows.filter(
+      (i) =>
+        i.instanceType === "Whatsapp" ||
+        i.instanceType === "baileys" ||
+        i.instanceType === "meta" ||
+        i.instanceType == null,
+    );
+    // Nombre de la cuenta dueña de cada línea (para distinguir cuando administras varias).
+    const ownerIds = Array.from(new Set(whatsappRows.map((i) => i.userId)));
+    const owners = ownerIds.length
+      ? await db.user.findMany({ where: { id: { in: ownerIds } }, select: { id: true, company: true } })
+      : [];
+    const companyById = new Map(owners.map((u) => [u.id, u.company]));
+    const activeId = user.effectiveId;
+
+    const seen = new Set<string>();
+    const data: MacroLine[] = [];
+    for (const i of whatsappRows) {
+      if (seen.has(i.instanceName)) continue;
+      seen.add(i.instanceName);
+      // Solo prefijamos el nombre de la cuenta cuando la línea es de OTRA cuenta.
+      const company = i.userId !== activeId ? companyById.get(i.userId) : null;
+      data.push({
         instanceName: i.instanceName,
-        label: (i as any).company || i.instanceName,
+        label: company ? `${company} · ${i.instanceName}` : i.instanceName,
         type: i.instanceType ?? "Whatsapp",
-      }));
+      });
+    }
     return { success: true, data };
   } catch (e) {
     console.error("[getAccountLinesAction]", e);
@@ -124,17 +174,20 @@ export async function getAccountLinesAction(): Promise<{ success: boolean; data:
 
 /**
  * Envía un texto al contacto de la conversación pero por una línea/instancia
- * distinta a la actual. Resuelve el adaptador correcto (baileys / canal Meta /
- * Evolution) según el tipo de la instancia.
+ * distinta a la actual (puede ser de otra cuenta asociada). Resuelve el adaptador
+ * correcto (baileys / canal Meta / Evolution) y, para Evolution, la API key de la
+ * CUENTA dueña de esa línea (no la actual).
  */
 async function sendTextViaLine(
-  ownerId: string,
+  accountIds: string[],
   instanceName: string,
   remoteJid: string,
   text: string,
 ): Promise<void> {
-  const inst = await db.instancia.findFirst({ where: { instanceName, userId: ownerId } });
-  if (!inst) throw new Error(`Línea "${instanceName}" no encontrada.`);
+  const inst = await db.instancia.findFirst({
+    where: { instanceName, userId: { in: accountIds } },
+  });
+  if (!inst) throw new Error(`Línea "${instanceName}" no encontrada o no autorizada.`);
 
   if (inst.instanceType === "baileys") {
     await sendBaileysTextAction(instanceName, remoteJid, { kind: "text", text });
@@ -145,8 +198,8 @@ async function sendTextViaLine(
     return;
   }
 
-  // Evolution API: usa la API key del dueño.
-  const owner = await db.user.findUnique({ where: { id: ownerId }, select: { apiKeyId: true } });
+  // Evolution API: usa la API key de la cuenta dueña de ESA línea.
+  const owner = await db.user.findUnique({ where: { id: inst.userId }, select: { apiKeyId: true } });
   const res = owner?.apiKeyId ? await getApiKeyById(owner.apiKeyId) : null;
   const apiKey = res && res.success ? res.data : null;
   if (!apiKey?.url || !apiKey?.key) throw new Error("No hay API key para enviar por esta línea.");
@@ -344,6 +397,11 @@ export async function executeMacroAction(input: {
     const actions: MacroActionItem[] = Array.isArray(macro.actions) ? macro.actions : [];
     const { sessionId, remoteJid, context } = input;
 
+    // Cuentas autorizadas (equipo/multi-cuenta) solo si hay envío por otra línea.
+    const lineAccountIds = actions.some((a) => a.type === "SEND_TEXT_VIA")
+      ? await authorizedAccountIds(user)
+      : [];
+
     let applied = 0;
     let failed = 0;
 
@@ -358,7 +416,7 @@ export async function executeMacroAction(input: {
             break;
           case "SEND_TEXT_VIA":
             if (remoteJid && cfg.instanceName && cfg.text) {
-              await sendTextViaLine(ownerId, cfg.instanceName, remoteJid, cfg.text);
+              await sendTextViaLine(lineAccountIds, cfg.instanceName, remoteJid, cfg.text);
             }
             break;
           case "SEND_FILE":
