@@ -196,9 +196,11 @@ interface LandingClientProps {
   stats?: StatData[] | null;
   showAssistanceIA?: boolean;
   showAssistanceHUMANO?: boolean;
+  /** Modo embebido (dentro de la app): oculta navbar, footer y botón de WhatsApp. */
+  embed?: boolean;
 }
 
-export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats, showAssistanceIA = true, showAssistanceHUMANO = true }: LandingClientProps = {}) {
+export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats, showAssistanceIA = true, showAssistanceHUMANO = true, embed = false }: LandingClientProps = {}) {
   const [plans, setPlans]                   = useState<SubscriptionPlanItem[]>([]);
   const [plansLoading, setPlansLoading]     = useState(true);
   const [assistanceType, setAssistanceType] = useState<AssistanceType>(showAssistanceIA ? "IA" : "HUMANO");
@@ -244,6 +246,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       )}
 
       {/* ══ NAVBAR ══════════════════════════════════════════════════════════ */}
+      {!embed && (
       <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-900/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-3 sm:px-12 lg:px-16">
           <div className="flex items-center gap-2">
@@ -291,6 +294,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
           </div>
         )}
       </header>
+      )}
 
       {/* ══ HERO ════════════════════════════════════════════════════════════ */}
       <section className="relative pb-6 pt-8">
@@ -789,6 +793,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       </section>
 
       {/* ══ FOOTER ═════════════════════════════════════════════════════════ */}
+      {!embed && (
       <footer className="border-t border-white/10 py-6">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-8 sm:flex-row sm:justify-between sm:px-12 lg:px-16">
           <div className="flex items-center gap-2">
@@ -815,9 +820,10 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
           </div>
         </div>
       </footer>
+      )}
 
       {/* ══ WHATSAPP FLOTANTE ══════════════════════════════════════════════ */}
-      <WhatsAppButton number={whatsappNumber ?? "573233612620"} />
+      {!embed && <WhatsAppButton number={whatsappNumber ?? "573233612620"} />}
 
       {/* ══ MODAL DETALLE DE PLAN ══════════════════════════════════════════ */}
       {modalPlan && (

@@ -35,10 +35,16 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function InicioPage() {
+export default async function InicioPage({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | string[] | undefined };
+}) {
   const config = await getSiteConfig();
+  const embed = searchParams?.embed === "1" || searchParams?.embed === "true";
   return (
     <LandingClient
+      embed={embed}
       whatsappNumber={config.whatsappNumber}
       meetingUrl={config.meetingUrl}
       primaryColor={config.primaryColor}
