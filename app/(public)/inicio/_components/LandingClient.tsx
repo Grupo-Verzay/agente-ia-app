@@ -757,6 +757,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
       </section>
 
       {/* ══ CTA FINAL ══════════════════════════════════════════════════════ */}
+      {!embed && (
       <section className="py-6">
         <div className="mx-auto max-w-6xl px-8 sm:px-12 lg:px-16">
           <FadeIn>
@@ -791,6 +792,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
           </FadeIn>
         </div>
       </section>
+      )}
 
       {/* ══ FOOTER ═════════════════════════════════════════════════════════ */}
       {!embed && (
