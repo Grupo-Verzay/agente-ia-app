@@ -193,10 +193,12 @@ export default async function RootGroupLayout({
         where: { route: { in: ["/panel", "/admin"] } },
         include: { moduleItems: { orderBy: { createdAt: "asc" } } },
     });
-    const panelTabs = (panelModule?.moduleItems ?? []).map((item) => ({
-        url: item.url.replace("/admin/", "/panel/"),
-        title: item.title,
-    }));
+    const panelTabs = isAdminOrReseller(user.role)
+        ? (panelModule?.moduleItems ?? []).map((item) => ({
+            url: item.url.replace("/admin/", "/panel/"),
+            title: item.title,
+        }))
+        : [];
     const clientPanelTabs = !isAdminOrReseller(user.role) ? getClientPanelTabs(modules) : [];
 
     return (
