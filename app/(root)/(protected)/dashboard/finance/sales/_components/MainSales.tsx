@@ -11,6 +11,8 @@ import {
   createSale,
   updateSale,
   deleteSale,
+  deleteManySales,
+  deleteAllSales,
   addSaleAttachments,
   deleteSaleAttachment,
 } from '@/actions/finance-sales-actions';
@@ -538,6 +540,31 @@ export default function MainSales({
     });
   };
 
+  const onDeleteMany = (ids: string[]) => {
+    if (!ids.length) return;
+    startTransition(() => {
+      void (async () => {
+        const res = await deleteManySales(ids, userId);
+        if (!res.success) return toast.error(res.message);
+        setRows((prev) => prev.filter((r) => !ids.includes(r.id)));
+        toast.success(res.message);
+        router.refresh();
+      })();
+    });
+  };
+
+  const onDeleteAll = () => {
+    startTransition(() => {
+      void (async () => {
+        const res = await deleteAllSales(userId);
+        if (!res.success) return toast.error(res.message);
+        setRows([]);
+        toast.success(res.message);
+        router.refresh();
+      })();
+    });
+  };
+
   const columns = useMemo(
     () =>
       buildSalesColumns({
@@ -682,6 +709,12 @@ export default function MainSales({
                   searchKey="title"
                   searchPlaceholder="Buscar..."
                   onRowClick={openDetail}
+                  enableSelection
+                  getRowId={(r) => r.id}
+                  onDeleteSelected={onDeleteMany}
+                  onDeleteAll={onDeleteAll}
+                  deleteBusy={isPending}
+                  entityLabel="venta"
                 />
               </TabsContent>
 
@@ -692,6 +725,12 @@ export default function MainSales({
                   searchKey="title"
                   searchPlaceholder="Buscar..."
                   onRowClick={openDetail}
+                  enableSelection
+                  getRowId={(r) => r.id}
+                  onDeleteSelected={onDeleteMany}
+                  onDeleteAll={onDeleteAll}
+                  deleteBusy={isPending}
+                  entityLabel="venta"
                 />
               </TabsContent>
             </Tabs>

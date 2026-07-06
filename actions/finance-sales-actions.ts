@@ -293,6 +293,37 @@ export async function deleteSale(id: string, userId: string): Promise<OperationR
   }
 }
 
+/** Elimina (soft-delete) varias ventas por id. */
+export async function deleteManySales(ids: string[], userId: string): Promise<OperationResponse> {
+  try {
+    if (!userId) return { success: false, message: 'No existe el userId.' };
+    if (!ids?.length) return { success: false, message: 'No hay ventas seleccionadas.' };
+    const deleted = await db.financeTransaction.updateMany({
+      where: { id: { in: ids }, userId, type: SALES_TYPE, status: { not: FinanceTxStatus.DELETED } },
+      data: { status: FinanceTxStatus.DELETED, deletedAt: new Date() },
+    });
+    return { success: true, message: `${deleted.count} venta(s) eliminada(s).` };
+  } catch (error) {
+    console.error('deleteManySales error:', error);
+    return { success: false, message: 'Error al eliminar ventas.' };
+  }
+}
+
+/** Elimina (soft-delete) TODAS las ventas del usuario. */
+export async function deleteAllSales(userId: string): Promise<OperationResponse> {
+  try {
+    if (!userId) return { success: false, message: 'No existe el userId.' };
+    const deleted = await db.financeTransaction.updateMany({
+      where: { userId, type: SALES_TYPE, status: { not: FinanceTxStatus.DELETED } },
+      data: { status: FinanceTxStatus.DELETED, deletedAt: new Date() },
+    });
+    return { success: true, message: `${deleted.count} venta(s) eliminada(s).` };
+  } catch (error) {
+    console.error('deleteAllSales error:', error);
+    return { success: false, message: 'Error al eliminar ventas.' };
+  }
+}
+
 export async function addSaleAttachments(params: {
   userId: string;
   transactionId: string;
