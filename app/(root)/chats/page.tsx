@@ -188,7 +188,6 @@ export default async function ChatsPage({
             where: {
               instanceType: "meta",
               metaChannel: "whatsapp",
-              user: { role: "super_admin" },
             },
           }),
         )
