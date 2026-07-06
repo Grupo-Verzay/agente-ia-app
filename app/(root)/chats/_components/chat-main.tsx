@@ -49,6 +49,7 @@ import type {
   UIBubble,
 } from './chat-message-types';
 import { getDisplayWhatsappFromSession } from '../../crm/dashboard/helpers';
+import { extractWhatsAppDigits, fmtPhone } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import IframeRenderer from '@/components/custom/IframeRenderer';
 
@@ -248,7 +249,14 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   });
 
   /* ─── Derived display values ─── */
-  const displayedContactName = header.name || session?.pushName?.trim();
+  // Sin nombre real, `header.name` cae en los dígitos crudos del JID: en ese
+  // caso mostramos el número limpio (+57 300 123 4567) en vez del JID.
+  const contactJid = info?.remoteJid || session?.remoteJid || '';
+  const rawContactName = header.name || session?.pushName?.trim() || '';
+  const displayedContactName =
+    rawContactName && rawContactName === extractWhatsAppDigits(contactJid)
+      ? fmtPhone(contactJid) || rawContactName
+      : rawContactName;
   const assignedAdvisorName = useMemo(() => {
     if (!advisors?.length) return 'Asesor';
     return advisors.find((a) => a.id === assignedAdvisorId)?.name ?? 'Asesor';

@@ -5,7 +5,7 @@ import {
   FileText,
   type LucideIcon,
 } from "lucide-react";
-import { extractWhatsAppDigits } from "@/lib/whatsapp-jid";
+import { extractWhatsAppDigits, fmtPhone } from "@/lib/whatsapp-jid";
 import { avatarSrcFor } from "@/lib/avatar";
 import type { ChatData } from "@/actions/chat-actions";
 
@@ -39,6 +39,10 @@ export function nameFrom(chat: ChatData): string {
   if (name && !isBadContactName(name)) return name;
 
   const jid = chat.remoteJid || "";
+  // Sin nombre real: mostrar el número limpio (+57 300 123 4567) en vez del JID.
+  const phone = fmtPhone(jid);
+  if (phone) return phone;
+
   const digits = extractWhatsAppDigits(jid);
   if (digits) return digits;
 
