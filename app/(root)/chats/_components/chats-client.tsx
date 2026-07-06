@@ -1846,6 +1846,7 @@ export function ChatsClient({
         contacts={currentChatsResult.success ? currentChatsResult.data : []}
         initialContact={composeInitialContact}
         quickReplies={quickReplies}
+        workflows={workflows}
       />
     )}
     </>

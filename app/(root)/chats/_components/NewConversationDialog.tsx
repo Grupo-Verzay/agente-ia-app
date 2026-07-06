@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { FileText, Loader2, Send, Phone, ChevronDown, Check, MessageCircleMore } from 'lucide-react';
+import { FileText, Loader2, Send, Phone, ChevronDown, Check, MessageCircleMore, Workflow } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { normalizeWhatsAppConversationJid, fmtPhone } from '@/lib/whatsapp-jid';
 import type { InstanceActionSet } from './chats-client';
 import type { ChatData } from '@/actions/chat-actions';
-import type { ChatQuickReplyOption } from '@/types/chat';
+import type { ChatQuickReplyOption, ChatWorkflowOption } from '@/types/chat';
 import { TemplatePickerDialog } from './TemplatePickerDialog';
 import { sendMetaTemplate, type MetaTemplateOption } from '@/actions/channel-chat-actions';
 
@@ -31,9 +31,10 @@ interface Props {
   contacts?: ChatData[];
   initialContact?: { jid: string; name: string; phone: string };
   quickReplies?: ChatQuickReplyOption[];
+  workflows?: ChatWorkflowOption[];
 }
 
-export function NewConversationDialog({ open, onClose, instancias, instanceActionSets, contacts = [], initialContact, quickReplies = [] }: Props) {
+export function NewConversationDialog({ open, onClose, instancias, instanceActionSets, contacts = [], initialContact, quickReplies = [], workflows = [] }: Props) {
   const [phone, setPhone] = React.useState('');
   const [selectedJid, setSelectedJid] = React.useState('');
   const [selectedContactName, setSelectedContactName] = React.useState('');
@@ -49,8 +50,10 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
     instancias[0]?.instanceName ?? '',
   );
   const [message, setMessage] = React.useState('');
+  const [sendMode, setSendMode] = React.useState<'message' | 'template' | 'quick' | 'workflow'>('message');
   const [isSending, setIsSending] = React.useState(false);
   const [sendingQuickReplyId, setSendingQuickReplyId] = React.useState<number | null>(null);
+  const [sendingWorkflowId, setSendingWorkflowId] = React.useState<string | null>(null);
   const [contactOpen, setContactOpen] = React.useState(false);
   const [instanceOpen, setInstanceOpen] = React.useState(false);
 
@@ -87,7 +90,7 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
   const effectiveJid = selectedJid || normalizeWhatsAppConversationJid(phone.trim());
   const selectedInstanceType = selectedInstance?.instanceType?.trim().toLowerCase();
   const canSendTemplate = selectedInstanceType === 'meta' && !!effectiveJid && !!selectedInstanceName;
-  const canSend = !!effectiveJid && message.trim().length > 0 && !!selectedActionSet && !isSending;
+  const canSend = sendMode === 'message' && !!effectiveJid && message.trim().length > 0 && !!selectedActionSet && !isSending;
 
   const handleSend = async () => {
     if (!canSend) return;
@@ -141,6 +144,28 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
     }
   };
 
+  const handleSendWorkflow = async (workflowId: string) => {
+    if (!effectiveJid || !selectedActionSet) {
+      toast.error('Selecciona un contacto y una bandeja.');
+      return;
+    }
+
+    setSendingWorkflowId(workflowId);
+    try {
+      const result = await selectedActionSet.sendWorkflow(effectiveJid, workflowId);
+      if (result.success) {
+        toast.success(result.message || 'Flujo enviado');
+        handleClose();
+      } else {
+        toast.error(result.message || 'No se pudo enviar el flujo');
+      }
+    } catch {
+      toast.error('Error al enviar el flujo');
+    } finally {
+      setSendingWorkflowId(null);
+    }
+  };
+
   const handleSendTemplate = async (
     template: MetaTemplateOption,
     params: string[],
@@ -159,8 +184,10 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
     setSelectedJid('');
     setSelectedContactName('');
     setMessage('');
+    setSendMode('message');
     setIsSending(false);
     setSendingQuickReplyId(null);
+    setSendingWorkflowId(null);
     setContactOpen(false);
     setInstanceOpen(false);
     onClose();
@@ -343,14 +370,17 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
           )}
 
           <div className="px-5 py-3">
-            <Tabs defaultValue="message">
-              <TabsList className="grid w-full grid-cols-3">
+            <Tabs value={sendMode} onValueChange={(value) => setSendMode(value as typeof sendMode)}>
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="message" className="text-xs">Mensaje</TabsTrigger>
                 <TabsTrigger value="template" className="text-xs" disabled={!canSendTemplate}>
                   Plantilla
                 </TabsTrigger>
                 <TabsTrigger value="quick" className="text-xs" disabled={quickReplies.length === 0}>
                   Rápida
+                </TabsTrigger>
+                <TabsTrigger value="workflow" className="text-xs" disabled={workflows.length === 0}>
+                  Flujo
                 </TabsTrigger>
               </TabsList>
 
@@ -404,6 +434,38 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
                           <div className="min-w-0">
                             {reply.name && <p className="text-xs font-mono text-primary">/{reply.name}</p>}
                             <p className="line-clamp-2 text-sm">{reply.message}</p>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </TabsContent>
+
+              <TabsContent value="workflow" className="mt-3">
+                <Command className="rounded-lg border">
+                  <CommandInput placeholder="Buscar flujo..." className="h-9 text-xs" />
+                  <CommandList>
+                    <CommandEmpty className="text-xs">No hay flujos disponibles.</CommandEmpty>
+                    <CommandGroup className="max-h-[120px] overflow-auto">
+                      {workflows.map((workflow) => (
+                        <CommandItem
+                          key={workflow.id}
+                          value={`${workflow.name} ${workflow.isPro ? 'pro' : 'basic'}`}
+                          className="items-start gap-2 py-2"
+                          disabled={sendingWorkflowId !== null}
+                          onSelect={() => void handleSendWorkflow(workflow.id)}
+                        >
+                          {sendingWorkflowId === workflow.id ? (
+                            <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
+                          ) : (
+                            <Workflow className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                          )}
+                          <div className="min-w-0">
+                            <p className="line-clamp-1 text-sm font-medium">{workflow.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {workflow.isPro ? 'Workflow Pro' : 'Workflow estándar'}
+                            </p>
                           </div>
                         </CommandItem>
                       ))}
