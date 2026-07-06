@@ -82,8 +82,12 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
   }, [open, selectedInstanceName, whatsappInstancias]);
 
   const selectedInstance = whatsappInstancias.find((i) => i.instanceName === selectedInstanceName);
+  const getInstanceLabel = (inst: Instancia) => {
+    const isMetaWhatsApp = inst.instanceType?.trim().toLowerCase() === 'meta';
+    return isMetaWhatsApp ? `${inst.instanceName} (API)` : (inst.company || inst.instanceName);
+  };
   const instanceLabel = selectedInstance
-    ? selectedInstance.company || selectedInstance.instanceName
+    ? getInstanceLabel(selectedInstance)
     : 'Seleccionar bandeja';
 
   const selectedActionSet = instanceActionSets.find((s) => s.instanceName === selectedInstanceName);
@@ -335,7 +339,7 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
                     >
                       <span>
                         {selectedInstance
-                          ? (selectedInstance.company || selectedInstance.instanceName)
+                          ? getInstanceLabel(selectedInstance)
                           : 'Seleccionar bandeja'}
                       </span>
                       <ChevronDown className="h-3.5 w-3.5 shrink-0" />
@@ -343,7 +347,7 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
                   </PopoverTrigger>
                   <PopoverContent className="w-64 p-1" align="start">
                     {whatsappInstancias.map((inst, idx) => {
-                      const label = inst.company || inst.instanceName;
+                      const label = getInstanceLabel(inst);
                       const isActive = inst.instanceName === selectedInstanceName;
                       return (
                         <button
