@@ -238,7 +238,7 @@ async function sendMetaBillingTemplate(args: {
         template: args.template,
         remoteJid: args.remoteJid,
         message: result.message,
-        error: result.error,
+        error: result.success ? undefined : ("error" in result ? String(result.error) : result.message),
     };
 }
 
@@ -276,6 +276,7 @@ export async function sendBillingTemplateMessage(args: {
     dispatcher?: BillingDispatcherConfig | null;
     now?: Date;
     source?: string;
+    textOverride?: string | null;
 }): Promise<BillingSendResult> {
     const dispatcher = args.dispatcher ?? (await loadBillingDispatcherConfig());
 
@@ -310,7 +311,7 @@ export async function sendBillingTemplateMessage(args: {
 
     // Verzay puede editar sus mensajes de cobro desde /admin/notificaciones.
     // Si hay override para esta plantilla, se usa; si no, el texto estándar.
-    const override = await loadPlatformBillingOverride(args.template);
+    const override = args.textOverride?.trim() || await loadPlatformBillingOverride(args.template);
     const text = override
         ? buildBillingMessageForRecord(args.billing, args.template, now, override)
         : buildBillingMessage(buildBillingMessageInput(args.billing, args.template, now));
@@ -341,7 +342,7 @@ export async function sendBillingTemplateMessage(args: {
         template: args.template,
         remoteJid,
         message: result.message,
-        error: result.error,
+        error: result.success ? undefined : ("error" in result ? String(result.error) : result.message),
     };
 }
 

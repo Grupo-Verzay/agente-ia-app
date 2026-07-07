@@ -5,13 +5,20 @@ import { currentUser } from '@/lib/auth';
 import { isAdminOrReseller, isAdminLike } from '@/lib/rbac';
 import { BillingTemplateType, DELETE_DAYS_BILLING } from '@/types/billing';
 import { deleteInstanceEvolutionAware } from '@/actions/api-action';
-import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from '@/actions/whatsapp-dispatcher';
-import { setUserBillingWebhookEnabled } from './helpers/billing-notifications.server';
+import {
+  resolveWhatsAppDispatcherLineByInstanceName,
+  type WhatsAppDispatcherLine,
+} from '@/actions/whatsapp-dispatcher';
+import {
+  sendBillingTemplateMessage,
+  setUserBillingWebhookEnabled,
+  type BillingUserRecord,
+} from './helpers/billing-notifications.server';
 import {
   getBillingDaysRemaining,
   shouldSkipBillingReminderToday,
 } from './helpers/billing-lifecycle';
-import { buildBillingMessageForRecord, DEFAULT_BILLING_TEMPLATES } from './billing-message-templates';
+import { DEFAULT_BILLING_TEMPLATES } from './billing-message-templates';
 
 // Los mensajes del reseller son, POR DEFECTO, idénticos a los de Verzay: el cron
 // usa el mismo `buildBillingMessageForRecord`. Cada campo `msgX` es un OVERRIDE
@@ -29,21 +36,19 @@ export type ResellerBillingConfigData = {
   msgDeleted: string;
 };
 
-async function sendReseller(dispatcher: Awaited<ReturnType<typeof resolveWhatsAppDispatcherLine>>, phone: string, text: string) {
+async function sendReseller(
+  dispatcher: WhatsAppDispatcherLine | null,
+  billing: BillingUserRecord,
+  template: BillingTemplateType,
+  textOverride?: string | null,
+) {
   if (!dispatcher) throw new Error('No hay linea de WhatsApp conectada para el reseller.');
-  const remoteJid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
-  const res = await sendViaWhatsAppDispatcher({
+  const res = await sendBillingTemplateMessage({
     dispatcher,
-    remoteJid,
-    text,
-    history: {
-      instanceName: dispatcher.instanceName,
-      type: 'notification',
-      additionalKwargs: {
-        kind: 'reseller-billing',
-        resellerId: dispatcher.id,
-      },
-    },
+    billing,
+    template,
+    textOverride,
+    source: 'reseller-billing',
   });
   if (!res.success) throw new Error(res.message);
 }
@@ -122,11 +127,9 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
   });
 
   for (const cfg of configs) {
-    const dispatcher = await resolveWhatsAppDispatcherLine({
-      ownerUserId: cfg.resellerId,
-      preferredInstanceName: cfg.instanceName,
-      includeAdminFallback: false,
-    });
+    const dispatcher = cfg.instanceName
+      ? await resolveWhatsAppDispatcherLineByInstanceName(cfg.instanceName)
+      : null;
     if (!dispatcher) continue;
     result.resellers++;
 
@@ -140,17 +143,13 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
     });
 
     // Mensaje por defecto idéntico a Verzay; `override` solo si el reseller editó.
-    const buildMsg = (cli: (typeof clients)[number], type: BillingTemplateType, override?: string | null) =>
-      buildBillingMessageForRecord(cli, type, now, override);
-
     for (const cli of clients) {
       try {
         const dueDate = cli.dueDate ? new Date(cli.dueDate) : null;
         const days = getBillingDaysRemaining(dueDate, now);
         if (dueDate == null || days == null) continue;
 
-        const phone = (cli.notifyRemoteJid?.trim() || cli.user.notificationNumber?.trim() || '');
-        if (!phone) continue;
+        if (!cli.notifyRemoteJid?.trim() && !cli.user.notificationNumber?.trim()) continue;
 
         const effectiveGrace = cfg.graceDays;
         const shouldSuspend = days <= -effectiveGrace && cli.accessStatus !== 'SUSPENDED';
@@ -159,7 +158,7 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
         // 1) Eliminación a los 30 días vencido
         if (shouldDelete) {
           try {
-            await sendReseller(dispatcher, phone, buildMsg(cli, 'ACCOUNT_DELETED', cfg.msgDeleted));
+            await sendReseller(dispatcher, cli as BillingUserRecord, 'ACCOUNT_DELETED', cfg.msgDeleted);
           } catch { /* avisar es best-effort */ }
           await deleteInstanceEvolutionAware(cli.user.id).catch(() => null);
           await db.user.delete({ where: { id: cli.user.id } }).catch(() => null);
@@ -177,7 +176,7 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
           await setUserBillingWebhookEnabled({ userId: cli.user.id, enable: false }).catch(() => null);
           await deleteInstanceEvolutionAware(cli.user.id).catch(() => null);
           try {
-            await sendReseller(dispatcher, phone, buildMsg(cli, 'STATUS_SUSPENDED', cfg.msgSuspended));
+            await sendReseller(dispatcher, cli as BillingUserRecord, 'STATUS_SUSPENDED', cfg.msgSuspended);
             result.sent++;
           } catch { result.errors++; }
           result.suspended++;
@@ -192,14 +191,22 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
         });
         if (skipToday) continue;
 
-        let text: string | null = null;
-        if (days === 3) text = buildMsg(cli, 'REMINDER_3D', cfg.msgReminder);
-        else if (days === 0) text = buildMsg(cli, 'DUE_TODAY', cfg.msgDueToday);
-        else if (days < 0) text = buildMsg(cli, 'EXPIRED', cfg.msgOverdue);
+        let template: BillingTemplateType | null = null;
+        let textOverride: string | null = null;
+        if (days === 3) {
+          template = 'REMINDER_3D';
+          textOverride = cfg.msgReminder;
+        } else if (days === 0) {
+          template = 'DUE_TODAY';
+          textOverride = cfg.msgDueToday;
+        } else if (days < 0) {
+          template = 'EXPIRED';
+          textOverride = cfg.msgOverdue;
+        }
 
-        if (!text) continue;
+        if (!template) continue;
         try {
-          await sendReseller(dispatcher, phone, text);
+          await sendReseller(dispatcher, cli as BillingUserRecord, template, textOverride);
           await db.userBilling.update({
             where: { id: cli.id },
             data: { lastReminderAt: now, lastReminderDueDate: dueDate },
