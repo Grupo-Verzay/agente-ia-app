@@ -22,12 +22,27 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   interactiveWidget: 'resizes-content',
+  themeColor: '#ffffff',
 };
 
 export const metadata: Metadata = {
-  title: "Agente IA",
+  title: "Verzay",
   description: "La plataforma de inteligencia artificial que potencia y automatiza tu negocio.",
-  icons: { icon: "/favicon.ico" },
+  icons: {
+    icon: [
+      { url: "/favicon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+  // iOS necesita esto para tratar el acceso directo como app real (pantalla completa +
+  // almacenamiento persistente), no como un bookmark efímero de Safari que pierde la sesión.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Verzay",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
