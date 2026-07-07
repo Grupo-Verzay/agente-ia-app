@@ -19,11 +19,16 @@ export const sanitizeInstanceNameInput = (val: string): string =>
  * - Elimina caracteres especiales (solo A-Z, 0-9, _ y -)
  * - Colapsa separadores consecutivos en uno solo
  * - Elimina separadores al inicio y al final
+ * - Recorta a 30 caracteres (límite de validación/Evolution). Sin esto, un
+ *   nombre derivado de `company` largo (ej. "CONSULTORIO_DR_ROBERTO_DA_COSTA",
+ *   31 chars) supera el máximo y bloquea la creación, sin opción de editarlo.
  */
 export const sanitizeInstanceName = (val: string): string =>
     sanitizeInstanceNameInput(val)
         .replace(/[-_]{2,}/g, '_')     // colapsa separadores consecutivos
         .replace(/^[-_]+|[-_]+$/g, '') // elimina separadores al inicio/fin
+        .slice(0, 30)                  // tope de 30 caracteres
+        .replace(/[-_]+$/g, '')        // limpia separador si el corte lo dejó al final
 
 export const FormInstanceConnectionSchema = z.object({
     instanceName: z
