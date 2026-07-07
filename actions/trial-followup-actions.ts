@@ -143,6 +143,8 @@ export async function getAvailableInstances(): Promise<{
       }))
       .filter((i: { name: string }) => !!i.name)
 
+    let ownerIds: Set<string> | null = null
+
     // Evolution devuelve TODAS las instancias del servidor. Los admins ven
     // todas; un reseller solo debe ver SUS instancias (su cuenta principal +
     // las de sus clientes), no las de toda la plataforma.
@@ -151,7 +153,7 @@ export async function getAvailableInstances(): Promise<{
         db.user.findMany({ where: { demoResellerId: user.id }, select: { id: true } }),
         db.reseller.findMany({ where: { resellerid: user.id }, select: { userId: true } }),
       ])
-      const ownerIds = new Set<string>([user.id])
+      ownerIds = new Set<string>([user.id])
       demoClients.forEach((c) => ownerIds.add(c.id))
       assignments.forEach((a) => { if (a.userId) ownerIds.add(a.userId) })
 
@@ -161,6 +163,34 @@ export async function getAvailableInstances(): Promise<{
       })
       const allowed = new Set(myInstancias.map((i) => i.instanceName))
       data = data.filter((i: { name: string }) => allowed.has(i.name))
+    }
+
+    const metaInstances = await db.instancia.findMany({
+      where: {
+        ...(ownerIds ? { userId: { in: Array.from(ownerIds) } } : {}),
+        instanceName: { not: null },
+        instanceType: { equals: 'Meta', mode: 'insensitive' },
+        OR: [
+          { metaChannel: null },
+          { metaChannel: { equals: 'whatsapp', mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        instanceName: true,
+        metaAccessToken: true,
+        metaPhoneNumberId: true,
+      },
+    })
+
+    const existingNames = new Set(data.map((item) => item.name))
+    for (const instance of metaInstances) {
+      const name = instance.instanceName?.trim()
+      if (!name || existingNames.has(name)) continue
+      existingNames.add(name)
+      data.push({
+        name,
+        status: instance.metaAccessToken && instance.metaPhoneNumberId ? 'open' : 'unknown',
+      })
     }
 
     return { success: true, message: 'Instancias obtenidas', data }
