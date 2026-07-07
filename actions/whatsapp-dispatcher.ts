@@ -121,6 +121,24 @@ function isMetaOpen(instance: DispatcherInstance) {
   return Boolean(instance.instanceName && instance.metaPhoneNumberId && instance.metaAccessToken);
 }
 
+async function isDispatcherLineConnected(args: {
+  instance: DispatcherInstance;
+  provider: WhatsAppDispatcherLine['provider'];
+  serverUrl: string;
+  apiKey: string | null;
+}) {
+  if (!args.instance.instanceName) return false;
+
+  if (args.provider === 'meta') return isMetaOpen(args.instance);
+  if (args.provider === 'baileys') return isBaileysOpen(args.instance.instanceName);
+
+  return isEvolutionOpen({
+    serverUrl: args.serverUrl,
+    apiKey: args.apiKey,
+    instanceName: args.instance.instanceName,
+  });
+}
+
 async function findLineForUser(
   userId: string,
   preferredInstanceName?: string | null,
@@ -232,6 +250,70 @@ export async function resolveWhatsAppDispatcherLine(args?: {
   if (!includeAdminFallback) return null;
 
   return findOfficialVerzayLine(args?.preferredInstanceName);
+}
+
+export async function resolveWhatsAppDispatcherLineByInstanceName(
+  instanceName: string,
+): Promise<WhatsAppDispatcherLine | null> {
+  const exactName = instanceName.trim();
+  if (!exactName) return null;
+
+  const user = await db.user.findFirst({
+    where: {
+      instancias: {
+        some: { instanceName: exactName },
+      },
+    },
+    select: {
+      id: true,
+      notificationNumber: true,
+      apiKey: { select: { url: true, key: true } },
+      instancias: {
+        where: { instanceName: exactName },
+        take: 1,
+        select: {
+          instanceId: true,
+          instanceName: true,
+          instanceType: true,
+          metaAccessToken: true,
+          metaPhoneNumberId: true,
+          metaChannel: true,
+        },
+      },
+    },
+  });
+
+  const instance = user?.instancias[0];
+  if (!user || !instance?.instanceName || !instance.instanceId || !canDispatchWhatsApp(instance)) {
+    return null;
+  }
+
+  const provider = isMetaWhatsApp(instance)
+    ? 'meta'
+    : isBaileys(instance.instanceType)
+      ? 'baileys'
+      : 'evolution';
+  const serverUrl = normalizeBaseUrl(user.apiKey?.url);
+  const apiKey = provider === 'evolution' ? user.apiKey?.key ?? null : null;
+
+  const connected = await isDispatcherLineConnected({
+    instance,
+    provider,
+    serverUrl,
+    apiKey,
+  });
+  if (!connected) return null;
+
+  return {
+    id: user.id,
+    notificationNumber: user.notificationNumber ?? null,
+    instanceId: instance.instanceId,
+    instanceName: instance.instanceName,
+    instanceType: instance.instanceType,
+    serverUrl: provider === 'evolution' ? serverUrl : null,
+    apiKey,
+    provider,
+  };
 }
 
 export async function sendViaWhatsAppDispatcher(args: {

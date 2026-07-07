@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { ApiKey } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from "./whatsapp-dispatcher";
+import { resolveWhatsAppDispatcherLineByInstanceName, sendViaWhatsAppDispatcher } from "./whatsapp-dispatcher";
 import { listMetaTemplates, sendMetaTemplate } from "./channel-chat-actions";
 import { ClientResponse, DISCONNECT_COOLDOWN_MS, DISCONNECTION_MSG, EVO_FETCH_TIMEOUT_MS, GenerateQrInterface, getDayKeyBogota, getEvoCache, isApiConnected, isWhatsappLike, QRCodeResponse } from "@/types/evo-api";
 import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
@@ -20,9 +20,7 @@ const NOTIFICATIONS_INSTANCE_NAME =
   "VERZAY_NOTIFICACIONES_wh";
 
 async function sendQrDisconnectedNotification(remoteJid: string, userId: string) {
-  const dispatcher = await resolveWhatsAppDispatcherLine({
-    preferredInstanceName: NOTIFICATIONS_INSTANCE_NAME,
-  });
+  const dispatcher = await resolveWhatsAppDispatcherLineByInstanceName(NOTIFICATIONS_INSTANCE_NAME);
   if (!dispatcher) throw new Error("No hay linea de notificaciones conectada.");
 
   if (dispatcher.provider === "meta") {

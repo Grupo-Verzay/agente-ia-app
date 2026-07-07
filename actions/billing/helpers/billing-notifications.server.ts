@@ -1,7 +1,7 @@
 ﻿import { Prisma } from "@prisma/client";
 
 import {
-    resolveWhatsAppDispatcherLine,
+    resolveWhatsAppDispatcherLineByInstanceName,
     sendViaWhatsAppDispatcher,
     type WhatsAppDispatcherLine,
 } from "@/actions/whatsapp-dispatcher";
@@ -160,7 +160,7 @@ export async function loadBillingDispatcherConfig(): Promise<BillingDispatcherCo
         process.env.BILLING_WHATSAPP_INSTANCE ||
         process.env.NOTIFICATIONS_WHATSAPP_INSTANCE ||
         "VERZAY_NOTIFICACIONES_wh";
-    const line = await resolveWhatsAppDispatcherLine({ preferredInstanceName });
+    const line = await resolveWhatsAppDispatcherLineByInstanceName(preferredInstanceName);
     return line;
 }
 
