@@ -5,6 +5,7 @@ import { ApiKey } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from "./whatsapp-dispatcher";
+import { listMetaTemplates, sendMetaTemplate } from "./channel-chat-actions";
 import { ClientResponse, DISCONNECT_COOLDOWN_MS, DISCONNECTION_MSG, EVO_FETCH_TIMEOUT_MS, GenerateQrInterface, getDayKeyBogota, getEvoCache, isApiConnected, isWhatsappLike, QRCodeResponse } from "@/types/evo-api";
 import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
 
@@ -13,6 +14,44 @@ import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
    - Solo usa Evolution si instanceType es WhatsApp o nulo.
    - Mantiene TUS mensajes originales.
 ========================= */
+const NOTIFICATIONS_INSTANCE_NAME =
+  process.env.BILLING_WHATSAPP_INSTANCE ||
+  process.env.NOTIFICATIONS_WHATSAPP_INSTANCE ||
+  "VERZAY_NOTIFICACIONES_wh";
+
+async function sendQrDisconnectedNotification(remoteJid: string, userId: string) {
+  const dispatcher = await resolveWhatsAppDispatcherLine({
+    preferredInstanceName: NOTIFICATIONS_INSTANCE_NAME,
+  });
+  if (!dispatcher) throw new Error("No hay linea de notificaciones conectada.");
+
+  if (dispatcher.provider === "meta") {
+    const templateName = "whatsapp_desvinculado_qr";
+    const templateList = await listMetaTemplates(dispatcher.instanceName);
+    const template = templateList.templates.find((item) => item.name === templateName);
+    if (templateList.success && template) {
+      return sendMetaTemplate(dispatcher.instanceName, remoteJid, template, [
+        "agente.ia-app.com/profile",
+      ]);
+    }
+  }
+
+  return sendViaWhatsAppDispatcher({
+    dispatcher,
+    remoteJid,
+    text: DISCONNECTION_MSG,
+    history: {
+      instanceName: dispatcher.instanceName,
+      type: 'notification',
+      additionalKwargs: {
+        source: 'generateQRCode',
+        userId,
+        reason: 'evolution_disconnect',
+      },
+    },
+  });
+}
+
 // Vincular Mensajería WhatsApp por NÚMERO de teléfono (código): Evolution devuelve
 // un pairingCode al pasar ?number=. Alternativa al QR (evita el flujo QR+passkey).
 export async function generateWhatsappPairingCode({
@@ -174,23 +213,7 @@ export async function generateQRCode({ instanceName, userId }: GenerateQrInterfa
 
     if (remoteJid) {
       try {
-        const dispatcher = await resolveWhatsAppDispatcherLine();
-        if (!dispatcher) throw new Error("No hay linea de notificaciones conectada.");
-
-        await sendViaWhatsAppDispatcher({
-          dispatcher,
-          remoteJid,
-          text: DISCONNECTION_MSG,
-          history: {
-            instanceName: dispatcher.instanceName,
-            type: 'notification',
-            additionalKwargs: {
-              source: 'generateQRCode',
-              userId,
-              reason: 'evolution_disconnect',
-            },
-          },
-        });
+        await sendQrDisconnectedNotification(remoteJid, userId);
       } catch {
         // best-effort
       }
