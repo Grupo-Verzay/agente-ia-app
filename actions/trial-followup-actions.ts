@@ -168,7 +168,6 @@ export async function getAvailableInstances(): Promise<{
     const metaInstances = await db.instancia.findMany({
       where: {
         ...(ownerIds ? { userId: { in: Array.from(ownerIds) } } : {}),
-        instanceName: { not: null },
         instanceType: { equals: 'Meta', mode: 'insensitive' },
         OR: [
           { metaChannel: null },
