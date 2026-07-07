@@ -39,6 +39,50 @@ export const BusinessDraftSchema = z.object({
     notas: z.string().optional().default(""),
 });
 
+/**
+ * Elemento de un paso (texto o función). Los dos primeros miembros son las
+ * formas válidas actuales; el tercero es un fallback TOLERANTE que preserva tal
+ * cual cualquier elemento con forma legada (p.ej. un `fn` que ya no existe en el
+ * enum, o un `kind` ausente). Sin él, un único elemento viejo hacía fallar la
+ * validación de TODO el prompt al guardar (patchSection revalida todas las
+ * secciones), rompiendo cualquier "agregar instrucción" sobre ese prompt.
+ */
+export const PromptElementSchema = z.union([
+    z.object({
+        id: z.string(),
+        kind: z.literal("text"),
+        text: z.string().optional().default(""),
+    }),
+    z.object({
+        id: z.string(),
+        kind: z.literal("function"),
+        fn: z.enum([
+            "captura_datos",
+            "ejecutar_flujo",
+            "notificar_asesor",
+            "consulta_datos",
+            "actualizar_datos",
+            "enrutamiento",
+        ]),
+        subtype: z
+            .enum(["Solicitudes", "Reclamos", "Pedidos", "Reservas", "Citas"])
+            .optional(),
+        prompt: z.string().optional(),
+        fields: z.array(z.string()).optional(),
+        flowId: z.string().nullable().optional(),
+        flowName: z.string().nullable().optional(),
+        notificationNumber: z.string().nullable().optional(),
+        rules: z.array(z.object({
+            id: z.string(),
+            keywords: z.string().default(""),
+            targetStepName: z.string().default(""),
+        })).optional().default([]),
+    }),
+    // Fallback tolerante: cualquier otro objeto se conserva sin validar en vez
+    // de lanzar y romper el guardado completo del prompt.
+    z.object({}).passthrough(),
+]);
+
 export const TrainingDraftSchema = z.object({
     steps: z.array(
         z.object({
@@ -48,40 +92,7 @@ export const TrainingDraftSchema = z.object({
             variableQueRecoge: z.string().optional().default(""),
             condicionParaAvanzar: z.string().optional().default(""),
             welcomeType: z.enum(["obligatoria", "inteligente"]).optional(),
-            elements: z.array(
-                z.union([
-                    z.object({
-                        id: z.string(),
-                        kind: z.literal("text"),
-                        text: z.string().optional().default(""),
-                    }),
-                    z.object({
-                        id: z.string(),
-                        kind: z.literal("function"),
-                        fn: z.enum([
-                            "captura_datos",
-                            "ejecutar_flujo",
-                            "notificar_asesor",
-                            "consulta_datos",
-                            "actualizar_datos",
-                            "enrutamiento",
-                        ]),
-                        subtype: z
-                            .enum(["Solicitudes", "Reclamos", "Pedidos", "Reservas", "Citas"])
-                            .optional(),
-                        prompt: z.string().optional(),
-                        fields: z.array(z.string()).optional(),
-                        flowId: z.string().nullable().optional(),
-                        flowName: z.string().nullable().optional(),
-                        notificationNumber: z.string().nullable().optional(),
-                        rules: z.array(z.object({
-                            id: z.string(),
-                            keywords: z.string().default(""),
-                            targetStepName: z.string().default(""),
-                        })).optional().default([]),
-                    }),
-                ])
-            ).default([]),
+            elements: z.array(PromptElementSchema).default([]),
         })
     ).default([]),
 });
@@ -92,40 +103,7 @@ export const FaqDraftSchema = z.object({
             id: z.string(),
             title: z.string().optional(),
             mainMessage: z.string().optional().default(""),
-            elements: z.array(
-                z.union([
-                    z.object({
-                        id: z.string(),
-                        kind: z.literal("text"),
-                        text: z.string().optional().default(""),
-                    }),
-                    z.object({
-                        id: z.string(),
-                        kind: z.literal("function"),
-                        fn: z.enum([
-                            "captura_datos",
-                            "ejecutar_flujo",
-                            "notificar_asesor",
-                            "consulta_datos",
-                            "actualizar_datos",
-                            "enrutamiento",
-                        ]),
-                        subtype: z
-                            .enum(["Solicitudes", "Reclamos", "Pedidos", "Reservas", "Citas"])
-                            .optional(),
-                        prompt: z.string().optional(),
-                        fields: z.array(z.string()).optional(),
-                        flowId: z.string().nullable().optional(),
-                        flowName: z.string().nullable().optional(),
-                        notificationNumber: z.string().nullable().optional(),
-                        rules: z.array(z.object({
-                            id: z.string(),
-                            keywords: z.string().default(""),
-                            targetStepName: z.string().default(""),
-                        })).optional().default([]),
-                    }),
-                ])
-            ).default([]),
+            elements: z.array(PromptElementSchema).default([]),
         })
     ).default([]),
 });
@@ -136,40 +114,7 @@ export const ProductsDraftSchema = z.object({
             id: z.string(),
             title: z.string().optional(),
             mainMessage: z.string().optional().default(""),
-            elements: z.array(
-                z.union([
-                    z.object({
-                        id: z.string(),
-                        kind: z.literal("text"),
-                        text: z.string().optional().default(""),
-                    }),
-                    z.object({
-                        id: z.string(),
-                        kind: z.literal("function"),
-                        fn: z.enum([
-                            "captura_datos",
-                            "ejecutar_flujo",
-                            "notificar_asesor",
-                            "consulta_datos",
-                            "actualizar_datos",
-                            "enrutamiento",
-                        ]),
-                        subtype: z
-                            .enum(["Solicitudes", "Reclamos", "Pedidos", "Reservas", "Citas"])
-                            .optional(),
-                        prompt: z.string().optional(),
-                        fields: z.array(z.string()).optional(),
-                        flowId: z.string().nullable().optional(),
-                        flowName: z.string().nullable().optional(),
-                        notificationNumber: z.string().nullable().optional(),
-                        rules: z.array(z.object({
-                            id: z.string(),
-                            keywords: z.string().default(""),
-                            targetStepName: z.string().default(""),
-                        })).optional().default([]),
-                    }),
-                ])
-            ).default([]),
+            elements: z.array(PromptElementSchema).default([]),
         })
     ).default([]),
 });
@@ -183,40 +128,7 @@ export const ExtrasDraftSchema = z.object({
             id: z.string(),
             title: z.string().optional(),
             mainMessage: z.string().optional().default(""),
-            elements: z.array(
-                z.union([
-                    z.object({
-                        id: z.string(),
-                        kind: z.literal("text"),
-                        text: z.string().optional().default(""),
-                    }),
-                    z.object({
-                        id: z.string(),
-                        kind: z.literal("function"),
-                        fn: z.enum([
-                            "captura_datos",
-                            "ejecutar_flujo",
-                            "notificar_asesor",
-                            "consulta_datos",
-                            "actualizar_datos",
-                            "enrutamiento",
-                        ]),
-                        subtype: z
-                            .enum(["Solicitudes", "Reclamos", "Pedidos", "Reservas", "Citas"])
-                            .optional(),
-                        prompt: z.string().optional(),
-                        fields: z.array(z.string()).optional(),
-                        flowId: z.string().nullable().optional(),
-                        flowName: z.string().nullable().optional(),
-                        notificationNumber: z.string().nullable().optional(),
-                        rules: z.array(z.object({
-                            id: z.string(),
-                            keywords: z.string().default(""),
-                            targetStepName: z.string().default(""),
-                        })).optional().default([]),
-                    }),
-                ])
-            ).default([]),
+            elements: z.array(PromptElementSchema).default([]),
         })
     ).default([]),
 });
@@ -227,40 +139,7 @@ export const ManagementDraftSchema = z.object({
             id: z.string(),
             title: z.string().optional(),
             mainMessage: z.string().optional().default(""),
-            elements: z.array(
-                z.union([
-                    z.object({
-                        id: z.string(),
-                        kind: z.literal("text"),
-                        text: z.string().optional().default(""),
-                    }),
-                    z.object({
-                        id: z.string(),
-                        kind: z.literal("function"),
-                        fn: z.enum([
-                            "captura_datos",
-                            "ejecutar_flujo",
-                            "notificar_asesor",
-                            "consulta_datos",
-                            "actualizar_datos",
-                            "enrutamiento",
-                        ]),
-                        subtype: z
-                            .enum(["Solicitudes", "Reclamos", "Pedidos", "Reservas", "Citas"])
-                            .optional(),
-                        prompt: z.string().optional(),
-                        fields: z.array(z.string()).optional(),
-                        flowId: z.string().nullable().optional(),
-                        flowName: z.string().nullable().optional(),
-                        notificationNumber: z.string().nullable().optional(),
-                        rules: z.array(z.object({
-                            id: z.string(),
-                            keywords: z.string().default(""),
-                            targetStepName: z.string().default(""),
-                        })).optional().default([]),
-                    }),
-                ])
-            ).default([]),
+            elements: z.array(PromptElementSchema).default([]),
         })
     ).default([]),
 });
