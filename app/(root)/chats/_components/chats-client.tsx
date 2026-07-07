@@ -33,7 +33,12 @@ import { isBadContactName } from "./chat-sidebar.utils";
 import { useSidebar } from "@/components/ui/sidebar";
 import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
-import { buildWhatsAppJidCandidates, fmtPhone, extractWhatsAppDigits } from "@/lib/whatsapp-jid";
+import {
+  buildWhatsAppJidCandidates,
+  fmtPhone,
+  extractWhatsAppDigits,
+  pickPreferredWhatsAppRemoteJid,
+} from "@/lib/whatsapp-jid";
 import { avatarSrcFor } from "@/lib/avatar";
 import type { OutgoingMessagePayload } from "./chat-main";
 import type {
@@ -200,6 +205,26 @@ function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
   return getChatIdentityCandidates(chat)
     .map((candidate) => sessions[candidate])
     .find(Boolean);
+}
+
+function resolveSendRemoteJid(selectedJid: string, contact?: ChatData) {
+  const selected = selectedJid.trim();
+  if (!selected) return selected;
+
+  const hasLid =
+    selected.toLowerCase().endsWith("@lid") ||
+    contact?.remoteJid?.toLowerCase().endsWith("@lid") ||
+    contact?.aliases?.some((alias) => alias.toLowerCase().endsWith("@lid"));
+
+  if (!hasLid && !contact?.senderPn) return selected;
+
+  return pickPreferredWhatsAppRemoteJid([
+    contact?.senderPn,
+    contact?.remoteJidAlt,
+    ...(contact?.aliases ?? []),
+    contact?.remoteJid,
+    selected,
+  ]) || selected;
 }
 
 function isChatDeletedByPreference(chat: ChatData, preference?: ChatConversationPreference) {
@@ -1048,7 +1073,8 @@ export function ChatsClient({
         throw new Error("No hay un chat seleccionado para enviar el mensaje.");
       }
 
-      const result = await (activeActionSetRef.current?.sendText ?? sendAnyAction)(selectedJid, payload);
+      const sendJid = resolveSendRemoteJid(selectedJid, currentContact);
+      const result = await (activeActionSetRef.current?.sendText ?? sendAnyAction)(sendJid, payload);
       if (!result.success) {
         throw new Error(result.message || "No se pudo enviar el mensaje.");
       }
@@ -1057,7 +1083,7 @@ export function ChatsClient({
       await refreshSidebarData();
     },
     [
-      currentContact?.aliases,
+      currentContact,
       pollAndCompareMessages,
       refreshSidebarData,
       selectedJid,
@@ -1121,7 +1147,8 @@ export function ChatsClient({
         throw new Error("No hay un chat seleccionado para enviar el workflow.");
       }
 
-      const result = await (activeActionSetRef.current?.sendWorkflow ?? sendWorkflowAction)(selectedJid, workflowId);
+      const sendJid = resolveSendRemoteJid(selectedJid, currentContact);
+      const result = await (activeActionSetRef.current?.sendWorkflow ?? sendWorkflowAction)(sendJid, workflowId);
       if (!result.success) {
         throw new Error(result.message || "No se pudo enviar el workflow.");
       }
@@ -1132,7 +1159,7 @@ export function ChatsClient({
       return result;
     },
     [
-      currentContact?.aliases,
+      currentContact,
       pollAndCompareMessages,
       refreshSidebarData,
       selectedJid,
@@ -1146,7 +1173,8 @@ export function ChatsClient({
         throw new Error("No hay un chat seleccionado para enviar la respuesta rapida.");
       }
 
-      const result = await (activeActionSetRef.current?.sendQuickReply ?? sendQuickReplyAction)(selectedJid, quickReplyId);
+      const sendJid = resolveSendRemoteJid(selectedJid, currentContact);
+      const result = await (activeActionSetRef.current?.sendQuickReply ?? sendQuickReplyAction)(sendJid, quickReplyId);
       if (!result.success) {
         throw new Error(result.message || "No se pudo enviar la respuesta rapida.");
       }
@@ -1157,7 +1185,7 @@ export function ChatsClient({
       return result;
     },
     [
-      currentContact?.aliases,
+      currentContact,
       pollAndCompareMessages,
       refreshSidebarData,
       selectedJid,
@@ -1174,7 +1202,8 @@ export function ChatsClient({
       if (!instName) {
         throw new Error("No se encontró la instancia del chat.");
       }
-      const result = await sendMetaTemplate(instName, selectedJid, template, params);
+      const sendJid = resolveSendRemoteJid(selectedJid, currentContact);
+      const result = await sendMetaTemplate(instName, sendJid, template, params);
       if (result.success) {
         await pollAndCompareMessages(selectedJid, currentContact?.aliases);
         await refreshSidebarData();
@@ -1182,8 +1211,7 @@ export function ChatsClient({
       return result;
     },
     [
-      currentContact?.aliases,
-      currentContact?.instanceName,
+      currentContact,
       pollAndCompareMessages,
       refreshSidebarData,
       selectedJid,
