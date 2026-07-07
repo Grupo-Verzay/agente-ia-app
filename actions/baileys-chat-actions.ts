@@ -29,6 +29,12 @@ function authHeaders(): Record<string, string> {
   };
 }
 
+function mediaFallbackLabel(payload: BaileysOutgoingPayload) {
+  const mediatype = String(payload.mediatype ?? 'media');
+  if (mediatype === 'audio') return payload.ptt === false ? '[Audio]' : 'Nota de voz';
+  return '[Media]';
+}
+
 export async function fetchChatsFromBaileys(instanceName: string): Promise<FetchChatsResult> {
   try {
     const res = await fetch(
@@ -42,7 +48,7 @@ export async function fetchChatsFromBaileys(instanceName: string): Promise<Fetch
     const chats: ChatData[] = (json.chats ?? []).map((c: any) => {
       const MEDIA_LABELS_CHAT: Record<string, string> = {
         imageMessage: '[Imagen]', videoMessage: '[Video]',
-        audioMessage: '[Audio]', documentMessage: '[Documento]', stickerMessage: '[Sticker]',
+        audioMessage: 'Nota de voz', documentMessage: '[Documento]', stickerMessage: '[Sticker]',
       };
       const lastBody = c.lastMessageBody ?? '';
       const lastType = c.lastMessageType ?? 'conversation';
@@ -130,7 +136,7 @@ export async function findMessagesFromBaileys(
     const MEDIA_LABELS: Record<string, string> = {
       imageMessage:    '[Imagen]',
       videoMessage:    '[Video]',
-      audioMessage:    '[Audio]',
+      audioMessage:    'Nota de voz',
       documentMessage: '[Documento]',
       stickerMessage:  '[Sticker]',
     };
@@ -230,7 +236,7 @@ export async function sendBaileysTextAction(
           remoteJid,
           fromMe: true,
           messageType: `${String(payload.mediatype ?? 'media')}Message`,
-          content: String(payload.caption ?? payload.fileName ?? '[Media]'),
+          content: String(payload.caption ?? payload.fileName ?? mediaFallbackLabel(payload)),
           mediaUrl: typeof payload.mediaUrl === 'string' ? payload.mediaUrl : null,
           raw: { payload } as any,
           messageTimestamp: new Date(),

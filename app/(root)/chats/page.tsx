@@ -83,6 +83,26 @@ async function settle<T>(promise: Promise<T>): Promise<T | null> {
   }
 }
 
+async function isBaileysRuntimeOpen(instanceName: string) {
+  const baseUrl = process.env.BACKEND_URL?.replace(/\/+$/, "");
+  const secret = process.env.BAILEYS_SECRET || process.env.CRM_FOLLOW_UP_RUNNER_KEY || "";
+  if (!baseUrl || !secret || !instanceName) return false;
+
+  try {
+    const res = await fetch(
+      `${baseUrl}/whatsapp/baileys/status/${encodeURIComponent(instanceName)}`,
+      { headers: { "x-internal-secret": secret }, cache: "no-store" },
+    );
+    if (!res.ok) return false;
+
+    const json = await res.json().catch(() => null);
+    const status = String(json?.status ?? json?.state ?? json?.connection ?? "").toLowerCase();
+    return Boolean(json?.connected) || status === "open" || status === "connected";
+  } catch {
+    return false;
+  }
+}
+
 function settleValue<T>(value: T | null | undefined): T | null {
   return value ?? null;
 }
@@ -222,6 +242,29 @@ export default async function ChatsPage({
   ].filter((li) => !ownInstancias.some((oi) => oi.instanceName === li.instanceName));
 
   const instancias = [...ownInstancias, ...linkedInstancias];
+  const baileysRuntimeNames = new Set(
+    instancias.filter((inst) => inst.instanceType === "baileys").map((inst) => inst.instanceName),
+  );
+  const baileysRuntimeChecks = await Promise.allSettled(
+    instancias
+      .filter(
+        (inst) =>
+          inst.instanceType !== "baileys" &&
+          inst.instanceType !== "meta" &&
+          inst.instanceType !== "telegram",
+      )
+      .map(async (inst) => ({
+        instanceName: inst.instanceName,
+        open: await isBaileysRuntimeOpen(inst.instanceName),
+      })),
+  );
+  for (const check of baileysRuntimeChecks) {
+    if (check.status === "fulfilled" && check.value.open) {
+      baileysRuntimeNames.add(check.value.instanceName);
+    }
+  }
+  const isBaileysRuntimeInstance = (inst: Pick<Instancia, "instanceName" | "instanceType">) =>
+    inst.instanceType === "baileys" || baileysRuntimeNames.has(inst.instanceName);
 
   // UserIds de todas las cuentas cuyas sesiones debe ver el usuario actual
   const allSessionUserIds = [
@@ -300,7 +343,7 @@ export default async function ChatsPage({
         inst.instanceType == null,
     )
     .map((inst) =>
-      inst.instanceType === "baileys"
+      isBaileysRuntimeInstance(inst)
         ? {
             instanceName: inst.instanceName,
             instanceType: inst.instanceType,
@@ -326,8 +369,8 @@ export default async function ChatsPage({
         inst.instanceType === "baileys" ||
         inst.instanceType == null,
     )
-    .filter((inst) => inst.instanceType === "baileys" || !!apiKey)
-    .map((inst) => ({ instancia: inst, isBaileys: inst.instanceType === "baileys" }));
+    .filter((inst) => isBaileysRuntimeInstance(inst) || !!apiKey)
+    .map((inst) => ({ instancia: inst, isBaileys: isBaileysRuntimeInstance(inst) }));
 
   let chatsResult: FetchChatsResult;
   let instanceActionSets: InstanceActionSet[] = [];
@@ -485,7 +528,7 @@ export default async function ChatsPage({
     } satisfies InstanceActionSet);
   }
 
-  const isBaileys = whatsappInstancia?.instanceType === "baileys";
+  const isBaileys = whatsappInstancia ? isBaileysRuntimeInstance(whatsappInstancia) : false;
 
   const requestedJid = searchParams?.jid
     ? normalizeWhatsAppConversationJid(searchParams.jid) || searchParams.jid

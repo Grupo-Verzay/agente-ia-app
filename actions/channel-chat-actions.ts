@@ -28,6 +28,12 @@ function authHeaders(): Record<string, string> {
   };
 }
 
+function mediaFallbackLabel(payload: ChannelOutgoingPayload) {
+  const mediatype = String(payload.mediatype ?? 'media');
+  if (mediatype === 'audio') return payload.ptt === false ? '[Audio]' : 'Nota de voz';
+  return '[Media]';
+}
+
 async function applyAdvisorSignatureIfEnabled(instanceName: string, remoteJid: string, text: string) {
   const user = await currentUser();
   const signature = (user?.advisorSignature as string | null | undefined)?.trim();
@@ -138,7 +144,7 @@ export async function sendChannelTextAction(
           remoteJid,
           fromMe: true,
           messageType: `${String(payload.mediatype ?? 'media')}Message`,
-          content: String(payload.caption ?? payload.fileName ?? '[Media]'),
+          content: String(payload.caption ?? payload.fileName ?? mediaFallbackLabel(payload)),
           mediaUrl: typeof publicUrl === 'string' ? publicUrl : (typeof payload.mediaUrl === 'string' ? payload.mediaUrl : null),
           messageTimestamp: new Date(),
         });
