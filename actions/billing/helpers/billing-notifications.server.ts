@@ -5,10 +5,12 @@ import {
     sendViaWhatsAppDispatcher,
     type WhatsAppDispatcherLine,
 } from "@/actions/whatsapp-dispatcher";
+import { listMetaTemplates, sendMetaTemplate } from "@/actions/channel-chat-actions";
 import { db } from "@/lib/db";
 import type { BillingStatus, BillingTemplateType, AccessStatus } from "@/types/billing";
 
 import { buildBillingMessage, buildBillingMessageForRecord } from "../billing-message-templates";
+import { fmtDateDDMMYYYY, fmtPriceLine } from "./billing-helpers";
 import {
     evaluateBillingLifecycle,
     getBillingDaysRemaining,
@@ -154,8 +156,90 @@ export async function getBillingUserRecord(
 }
 
 export async function loadBillingDispatcherConfig(): Promise<BillingDispatcherConfig | null> {
-    const line = await resolveWhatsAppDispatcherLine();
+    const preferredInstanceName =
+        process.env.BILLING_WHATSAPP_INSTANCE ||
+        process.env.NOTIFICATIONS_WHATSAPP_INSTANCE ||
+        "VERZAY_NOTIFICACIONES_wh";
+    const line = await resolveWhatsAppDispatcherLine({ preferredInstanceName });
     return line;
+}
+
+const META_BILLING_TEMPLATES: Partial<Record<BillingTemplateType, string>> = {
+    REMINDER_3D: "servicio_vencer_3",
+    DUE_TODAY: "servicio_vence_hoy",
+    STATUS_SUSPENDED: "servicio_suspendido",
+    STATUS_ACTIVE: "servicio_estado_actualizado",
+};
+
+function buildMetaBillingParams(
+    billing: BillingUserRecord,
+    template: BillingTemplateType,
+    now: Date,
+): string[] | null {
+    const dueDate = billing.dueDate ? new Date(billing.dueDate) : null;
+    const daysRemaining = getBillingDaysRemaining(dueDate, now);
+    const days = typeof daysRemaining === "number" ? Math.abs(daysRemaining) : 0;
+    const company = billing.user?.company || billing.user?.name || "Cliente";
+    const fecha = dueDate ? fmtDateDDMMYYYY(dueDate) : "Sin fecha";
+    const plan = billing.serviceName || "Plan Agente IA";
+    const licencia = `${billing.licenseDays ?? 30} días`;
+    const precio = fmtPriceLine({
+        price: billing.price,
+        currencyCode: billing.currencyCode || "COP",
+        currencyFlag: billing.currencyCode === "USD" ? "US" : null,
+    });
+    const link = (billing.paymentNotes?.trim() || billing.paymentMethodLabel?.trim() || "-").trim();
+
+    if (template === "STATUS_ACTIVE") {
+        return [fecha, String(days), plan, licencia, precio, company];
+    }
+
+    if (template === "REMINDER_3D" || template === "DUE_TODAY" || template === "STATUS_SUSPENDED") {
+        return [company, fecha, String(days), plan, licencia, precio, link];
+    }
+
+    return null;
+}
+
+async function sendMetaBillingTemplate(args: {
+    dispatcher: BillingDispatcherConfig;
+    billing: BillingUserRecord;
+    template: BillingTemplateType;
+    remoteJid: string;
+    now: Date;
+}): Promise<BillingSendResult | null> {
+    if (args.dispatcher.provider !== "meta") return null;
+
+    const templateName = META_BILLING_TEMPLATES[args.template];
+    const params = buildMetaBillingParams(args.billing, args.template, args.now);
+    if (!templateName || !params) return null;
+
+    const templateList = await listMetaTemplates(args.dispatcher.instanceName);
+    const metaTemplate = templateList.templates.find((item) => item.name === templateName);
+    if (!templateList.success || !metaTemplate) {
+        return {
+            success: false,
+            template: args.template,
+            remoteJid: args.remoteJid,
+            message: `La plantilla Meta "${templateName}" no esta activa o no se pudo cargar.`,
+            error: "MISSING_META_TEMPLATE",
+        };
+    }
+
+    const result = await sendMetaTemplate(
+        args.dispatcher.instanceName,
+        args.remoteJid,
+        metaTemplate,
+        params,
+    );
+
+    return {
+        success: result.success,
+        template: args.template,
+        remoteJid: args.remoteJid,
+        message: result.message,
+        error: result.error,
+    };
 }
 
 // Override editable por Verzay (SiteConfig). Solo aplica a las 5 plantillas que
@@ -215,6 +299,15 @@ export async function sendBillingTemplateMessage(args: {
     }
 
     const now = args.now ?? new Date();
+    const metaResult = await sendMetaBillingTemplate({
+        dispatcher,
+        billing: args.billing,
+        template: args.template,
+        remoteJid,
+        now,
+    });
+    if (metaResult) return metaResult;
+
     // Verzay puede editar sus mensajes de cobro desde /admin/notificaciones.
     // Si hay override para esta plantilla, se usa; si no, el texto estándar.
     const override = await loadPlatformBillingOverride(args.template);
