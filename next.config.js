@@ -14,6 +14,10 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "50mb",
     },
+    // sharp es un módulo nativo: se usa en runtime en /api/brand-icon para
+    // normalizar el logo del reseller a ícono cuadrado. Externalizarlo evita
+    // que webpack intente empaquetarlo.
+    serverComponentsExternalPackages: ["sharp"],
   },
   images: {
     remotePatterns: [

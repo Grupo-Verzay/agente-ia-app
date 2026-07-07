@@ -54,7 +54,18 @@ export async function generateMetadata(): Promise<Metadata> {
         const company = reseller?.data?.company?.trim();
         const title = brandName || (company && company !== "Empresa Demo" ? company : "Agente IA");
 
-        return { title, icons: { icon: favicon } };
+        // PWA con la marca del reseller del usuario logueado: manifest, ícono de
+        // Apple e identidad de app se resuelven por ?u=<userId> (ver
+        // app/manifest.webmanifest/route.ts y app/api/brand-icon/route.ts).
+        return {
+            title,
+            icons: {
+                icon: favicon,
+                apple: `/api/brand-icon?size=180&u=${user.id}`,
+            },
+            manifest: `/manifest.webmanifest?u=${user.id}`,
+            appleWebApp: { capable: true, statusBarStyle: "default", title },
+        };
     } catch {
         return fallback;
     }

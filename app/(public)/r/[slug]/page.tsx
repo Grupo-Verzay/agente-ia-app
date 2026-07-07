@@ -16,9 +16,15 @@ export async function generateMetadata({ params }: Props) {
   ]);
   // Favicon del reseller; si no tiene, el de la plataforma (SiteConfig); si no, el default.
   const favicon = faviconUrl?.trim() || siteConfig.faviconUrl?.trim() || "/favicon.ico";
+  // PWA con la marca del reseller resuelta por el slug de la landing.
   return {
     title: businessName ? `${businessName} — Planes` : "Planes",
-    icons: { icon: favicon },
+    icons: {
+      icon: favicon,
+      apple: `/api/brand-icon?size=180&r=${encodeURIComponent(params.slug)}`,
+    },
+    manifest: `/manifest.webmanifest?r=${encodeURIComponent(params.slug)}`,
+    appleWebApp: { capable: true, statusBarStyle: "default", title: businessName || "Verzay" },
   };
 }
 

@@ -36,6 +36,10 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-touch-icon.png",
   },
+  // Manifest por defecto (marca plataforma). Los layouts que conocen al reseller
+  // (app autenticada y landings /r/[slug]) lo sobreescriben con ?u=/?r= para
+  // servir la marca del reseller. Ver app/manifest.webmanifest/route.ts.
+  manifest: "/manifest.webmanifest",
   // iOS necesita esto para tratar el acceso directo como app real (pantalla completa +
   // almacenamiento persistente), no como un bookmark efímero de Safari que pierde la sesión.
   appleWebApp: {
