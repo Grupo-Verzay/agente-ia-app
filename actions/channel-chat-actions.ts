@@ -6,6 +6,8 @@ import {
   persistChatMessage,
   resolveInstanceOwner,
 } from '@/lib/chat-persistence';
+import { currentUser } from '@/lib/auth';
+import { db } from '@/lib/db';
 import type {
   FetchChatsResult,
   FindMessagesResult,
@@ -24,6 +26,29 @@ function authHeaders(): Record<string, string> {
     'x-internal-secret': process.env.CRM_FOLLOW_UP_RUNNER_KEY ?? '',
     'Content-Type': 'application/json',
   };
+}
+
+async function applyAdvisorSignatureIfEnabled(instanceName: string, remoteJid: string, text: string) {
+  const user = await currentUser();
+  const signature = (user?.advisorSignature as string | null | undefined)?.trim();
+  if (!user?.id || !signature) return text;
+
+  const owner = await resolveInstanceOwner(instanceName);
+  const userIds = Array.from(
+    new Set([owner?.userId, user.effectiveId, user.ownerId, user.id].filter(Boolean) as string[]),
+  );
+  if (userIds.length === 0) return text;
+
+  const sessionRow = await db.session.findFirst({
+    where: {
+      userId: { in: userIds },
+      remoteJid,
+      signatureEnabled: true,
+    },
+    select: { id: true },
+  });
+
+  return sessionRow ? `${signature}\n${text}` : text;
 }
 
 /**
@@ -120,7 +145,11 @@ export async function sendChannelTextAction(
       }
       return { success: true, message: 'Enviado.', remoteJid };
     }
-    const text = (payload.text ?? '').trim();
+    const text = await applyAdvisorSignatureIfEnabled(
+      instanceName,
+      remoteJid,
+      (payload.text ?? '').trim(),
+    );
     if (!text) return { success: false, message: 'Mensaje vacío.', remoteJid };
 
     const res = await fetch(
