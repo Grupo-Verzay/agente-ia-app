@@ -57,25 +57,23 @@ export async function GET(req: NextRequest) {
     const srcBuf = await loadImage(logoUrl, origin);
     if (!srcBuf) return staticFallback(origin, size, maskable);
 
-    let png: Buffer;
-    if (maskable) {
-      // Zona segura: el logo ocupa ~72% centrado sobre fondo, para que el
-      // recorte circular/redondeado de Android no lo corte.
-      const inner = Math.round(size * 0.72);
-      const logo = await sharp(srcBuf)
-        .resize(inner, inner, { fit: 'contain', background: BG })
-        .png()
-        .toBuffer();
-      png = await sharp({ create: { width: size, height: size, channels: 4, background: BG } })
-        .composite([{ input: logo, gravity: 'center' }])
-        .png()
-        .toBuffer();
-    } else {
-      png = await sharp(srcBuf)
-        .resize(size, size, { fit: 'contain', background: BG })
-        .png()
-        .toBuffer();
-    }
+    // Recorta el margen uniforme del logo para que no quede diminuto dentro del
+    // ícono (muchos logos vienen con mucho espacio en blanco alrededor). Si el
+    // trim falla (imagen uniforme), usa el original.
+    const trimmed = await sharp(srcBuf).trim({ threshold: 10 }).png().toBuffer().catch(() => srcBuf);
+
+    // El logo llena el ~86% del tile (72% en maskable, por la zona segura del
+    // recorte circular de Android), centrado sobre fondo.
+    const ratio = maskable ? 0.72 : 0.86;
+    const inner = Math.round(size * ratio);
+    const logo = await sharp(trimmed)
+      .resize(inner, inner, { fit: 'contain', background: BG })
+      .png()
+      .toBuffer();
+    const png = await sharp({ create: { width: size, height: size, channels: 4, background: BG } })
+      .composite([{ input: logo, gravity: 'center' }])
+      .png()
+      .toBuffer();
 
     return new NextResponse(png, {
       headers: {
