@@ -1188,23 +1188,29 @@ export async function toggleAgentDisabled(userId: string, sessionId: number, age
   }
 }
 
+// Saludo con nombre SOLO si es válido; si no, saluda sin nombre (evita
+// "Hola *Você*", donde Você es un pushName basura de WhatsApp).
+const greetName = (name: string) => (name ? `Hola *${name}*,` : 'Hola,');
+
 const LEAD_STATUS_NOTIFICATION_MESSAGES: Partial<Record<LeadStatus, (name: string) => string>> = {
-  FRIO:       (name) => `👋 Hola *${name}*, gracias por contactarnos. Estamos revisando tu consulta y pronto nos comunicaremos contigo.`,
-  TIBIO:      (name) => `👋 Hola *${name}*, queremos mantenernos en contacto y ayudarte. ¿Tienes alguna pregunta sobre nuestros servicios?`,
-  CALIENTE:   (name) => `🔥 Hola *${name}*, tu solicitud ha captado nuestra atención. ¿Podemos conversar hoy sobre cómo podemos ayudarte?`,
-  FINALIZADO: (name) => `✅ Hola *${name}*, ha sido un placer atenderte. Gracias por confiar en nosotros. ¡Hasta la próxima!`,
+  FRIO:       (name) => `👋 ${greetName(name)} gracias por contactarnos. Estamos revisando tu consulta y pronto nos comunicaremos contigo.`,
+  TIBIO:      (name) => `👋 ${greetName(name)} queremos mantenernos en contacto y ayudarte. ¿Tienes alguna pregunta sobre nuestros servicios?`,
+  CALIENTE:   (name) => `🔥 ${greetName(name)} tu solicitud ha captado nuestra atención. ¿Podemos conversar hoy sobre cómo podemos ayudarte?`,
+  FINALIZADO: (name) => `✅ ${greetName(name)} ha sido un placer atenderte. Gracias por confiar en nosotros. ¡Hasta la próxima!`,
 };
 
 async function sendLeadStatusNotification({
   remoteJid,
   pushName,
+  customName,
   newStatus,
   apiKeyUrl,
   apiKeyValue,
   instanceName,
 }: {
   remoteJid: string;
-  pushName: string;
+  pushName: string | null;
+  customName?: string | null;
   newStatus: LeadStatus | null;
   apiKeyUrl?: string | null;
   apiKeyValue?: string | null;
@@ -1216,12 +1222,18 @@ async function sendLeadStatusNotification({
   const messageFn = LEAD_STATUS_NOTIFICATION_MESSAGES[newStatus];
   if (!messageFn) return;
 
+  // Nombre para saludar: prioriza el nombre editado a mano (customName) sobre el
+  // pushName; descarta basura ("Você"/"Voce"/vacío) → devuelve '' y se saluda sin
+  // nombre en vez de "Hola *Você*".
+  const { formatContactDisplayName } = await import('@/lib/contact-display-name');
+  const displayName = formatContactDisplayName(customName || pushName, '');
+
   const { sendMessageWithHistoryAction } = await import('@/actions/chat-history/send-message-with-history-action');
 
   await sendMessageWithHistoryAction({
     instanceName,
     remoteJid,
-    message: messageFn(pushName || 'Cliente'),
+    message: messageFn(displayName),
     url: `https://${apiKeyUrl}/message/sendText/${encodeURIComponent(instanceName)}`,
     apikey: apiKeyValue,
     historyType: 'notification',
@@ -1240,6 +1252,7 @@ export async function updateSessionLeadStatus(
         userId: true,
         remoteJid: true,
         pushName: true,
+        customName: true,
         agentDisabled: true,
         leadStatus: true,
         user: {
@@ -1297,6 +1310,7 @@ export async function updateSessionLeadStatus(
     void sendLeadStatusNotification({
       remoteJid: session.remoteJid,
       pushName: session.pushName,
+      customName: session.customName,
       newStatus: leadStatus,
       apiKeyUrl: session.user?.apiKey?.url,
       apiKeyValue: session.user?.apiKey?.key,
