@@ -155,7 +155,7 @@ export function TrialFollowUpForm({ initial }: Props) {
         <CardContent className="pt-0">
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold">Instancia Evolution (opcional)</Label>
+              <Label className="text-xs font-semibold">Linea de WhatsApp para enviar</Label>
               <button
                 type="button"
                 onClick={() => (manualInstance ? loadInstances() : setManualInstance(true))}
@@ -171,7 +171,7 @@ export function TrialFollowUpForm({ initial }: Props) {
 
             {manualInstance ? (
               <Input
-                placeholder="Ej: VERZAY_PRINCIPAL — vacío = usa la instancia central de la plataforma"
+                placeholder="Ej: VERZAY_NOTIFICACIONES_wh - vacio = usa Notificaciones"
                 value={form.instanceName}
                 onChange={(e) => setForm(f => ({ ...f, instanceName: e.target.value }))}
               />
@@ -211,7 +211,7 @@ export function TrialFollowUpForm({ initial }: Props) {
               </div>
             )}
             <p className="text-[11px] text-muted-foreground">
-              Si dejas este campo vacío, los mensajes saldrán desde el número central configurado en la plataforma.
+              Si dejas este campo vacio, los mensajes saldran desde Verzay Notificaciones.
             </p>
           </div>
         </CardContent>

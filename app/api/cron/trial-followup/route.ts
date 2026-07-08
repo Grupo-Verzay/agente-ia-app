@@ -36,6 +36,10 @@ Tu *prueba gratis* finaliza mañana. 🚀
 
 const FOLLOW_UP_DAYS = [1, 3, 6]
 const MAX_ATTEMPTS = 3
+const DEFAULT_TRIAL_FOLLOWUP_INSTANCE =
+  process.env.TRIAL_FOLLOWUP_WHATSAPP_INSTANCE ||
+  process.env.NOTIFICATIONS_WHATSAPP_INSTANCE ||
+  'VERZAY_NOTIFICACIONES_wh'
 
 // Hora local del cliente en la que se envía el seguimiento. El cron corre cada
 // hora al minuto :30, así que al exigir la hora 9 el mensaje llega ~9:30 AM
@@ -207,11 +211,15 @@ async function runTrialFollowUps() {
     // resuelve dinámicamente desde la instancia (mismo criterio que el botón
     // "Probar a mi número"). Si no hay instancia, se usa el número central de
     // respaldo (FOLLOWUP_* env).
-    const selectedInstance = (config?.instanceName ?? '').trim()
+    const configuredInstance = (config?.instanceName ?? '').trim()
+    const selectedInstance =
+      user.demoResellerId && configuredInstance
+        ? configuredInstance
+        : DEFAULT_TRIAL_FOLLOWUP_INSTANCE
     const dispatcher = await resolveWhatsAppDispatcherLine({
-      ownerUserId: user.demoResellerId ?? null,
-      preferredInstanceName: selectedInstance || null,
-      includeAdminFallback: !user.demoResellerId,
+      ownerUserId: user.demoResellerId && configuredInstance ? user.demoResellerId : null,
+      preferredInstanceName: selectedInstance,
+      includeAdminFallback: true,
     })
 
     if (!dispatcher) {

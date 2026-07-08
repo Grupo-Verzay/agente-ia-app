@@ -3,6 +3,7 @@
 import { db } from '@/lib/db'
 import { currentUser } from '@/lib/auth'
 import { isAdmin } from '@/lib/rbac'
+import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from '@/actions/whatsapp-dispatcher'
 
 export interface TrialFollowUpConfigData {
   enabled: boolean
@@ -44,6 +45,11 @@ Tu *prueba gratis* finaliza mañana. 🚀
 
 💬 Escríbenos para ayudarte a elegir el plan ideal.`,
 }
+
+const DEFAULT_TRIAL_FOLLOWUP_INSTANCE =
+  process.env.TRIAL_FOLLOWUP_WHATSAPP_INSTANCE ||
+  process.env.NOTIFICATIONS_WHATSAPP_INSTANCE ||
+  'VERZAY_NOTIFICACIONES_wh'
 
 export async function getTrialFollowUpConfig(resellerId?: string) {
   const user = await currentUser()
@@ -211,46 +217,45 @@ export async function sendTrialTestMessage(
   if (!user) return { success: false, message: 'No autenticado' }
 
   const text = (message || '').trim()
-  if (!text) return { success: false, message: 'El mensaje está vacío.' }
+  if (!text) return { success: false, message: 'El mensaje esta vacio.' }
 
   const dbUser = await db.user.findUnique({
     where: { id: user.id },
-    select: { notificationNumber: true, apiKey: { select: { url: true, key: true } } },
+    select: { notificationNumber: true },
   })
 
   const phone = dbUser?.notificationNumber
   if (!phone || phone === '0000000000') {
-    return { success: false, message: 'No tienes un número de notificación configurado.' }
-  }
-
-  // Credenciales: instancia propia si se indicó, si no la central de la plataforma.
-  let apiUrl = process.env.FOLLOWUP_API_URL ?? ''
-  let apiKey = process.env.FOLLOWUP_API_KEY ?? ''
-  let instance = instanceName || (process.env.FOLLOWUP_INSTANCE_NAME ?? '')
-
-  if (instanceName && dbUser?.apiKey?.url && dbUser.apiKey.key) {
-    apiUrl = dbUser.apiKey.url
-    apiKey = dbUser.apiKey.key
-  }
-
-  if (!instance || !apiUrl || !apiKey) {
-    return { success: false, message: 'Faltan credenciales Evolution para enviar la prueba.' }
+    return { success: false, message: 'No tienes un numero de notificacion configurado.' }
   }
 
   const preview = text.replace(/\{nombre\}/gi, user.name?.split(' ')[0] || 'amigo')
-  const remoteJid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`
+  const preferredInstanceName = (instanceName || DEFAULT_TRIAL_FOLLOWUP_INSTANCE).trim()
+  const dispatcher = await resolveWhatsAppDispatcherLine({
+    ownerUserId: instanceName ? user.id : null,
+    preferredInstanceName,
+    includeAdminFallback: true,
+  })
+
+  if (!dispatcher) {
+    return { success: false, message: 'No se encontro una linea de WhatsApp conectada para enviar la prueba.' }
+  }
 
   try {
-    const res = await fetch(`${normalizeBaseUrl(apiUrl)}/message/sendText/${instance}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: apiKey },
-      body: JSON.stringify({ number: remoteJid, delay: 1200, text: preview }),
-      signal: AbortSignal.timeout(10000),
+    const result = await sendViaWhatsAppDispatcher({
+      dispatcher,
+      remoteJid: phone,
+      text: preview,
+      history: {
+        instanceName: dispatcher.instanceName,
+        type: 'notification',
+        additionalKwargs: { kind: 'trial-followup-test' },
+      },
     })
-    if (!res.ok) {
-      return { success: false, message: `Evolution respondió ${res.status}: ${await res.text().catch(() => '')}` }
+    if (!result.success) {
+      return { success: false, message: result.message }
     }
-    return { success: true, message: `Mensaje de prueba enviado a ${phone}` }
+    return { success: true, message: `Mensaje de prueba enviado a ${phone} por ${dispatcher.instanceName}` }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     return { success: false, message: `Error al enviar: ${message}` }
