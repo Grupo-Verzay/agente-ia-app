@@ -450,8 +450,12 @@ export async function getAvailableBookingSlots(
             let cursor = fromZonedTime(new Date(year, month - 1, day, sh, sm, 0), teamTimezone);
             const blockEnd = fromZonedTime(new Date(year, month - 1, day, eh, em, 0), teamTimezone);
 
-            while (isBefore(addMinutes(cursor, durationMinutes), blockEnd) ||
-                   addMinutes(cursor, durationMinutes).getTime() === blockEnd.getTime()) {
+            // El bloque define las horas de INICIO permitidas: basta con que el
+            // inicio caiga dentro del bloque (la cita puede terminar después del fin
+            // del bloque). Así cada turno configurado se ofrece al cliente aunque sea
+            // más corto que la duración del servicio, y un bloque largo ofrece varios
+            // inicios (p. ej. 08:00-14:00 con 180 min => 08:00 y 11:00).
+            while (isBefore(cursor, blockEnd)) {
                 const slotEnd = addMinutes(cursor, durationMinutes);
 
                 // Verificar si choca con una cita existente

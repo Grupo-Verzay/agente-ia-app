@@ -97,7 +97,13 @@ export async function getAvailableSlots(
                 const slotStartUtc = new Date(cursorUtc);
                 const slotEndUtc = new Date(slotStartUtc.getTime() + slotDuration * 60 * 1000);
 
-                const insideRange = slotEndUtc <= rangeEndUtc;
+                // El turno define las horas de INICIO permitidas: basta con que el
+                // inicio caiga dentro del rango (la cita puede terminar después del
+                // fin del turno). Así cada turno configurado en Disponibilidad se
+                // ofrece al cliente aunque sea más corto que la duración del servicio
+                // (p. ej. un turno de noche 19:00-20:00 con servicio de 180 min
+                // muestra 19:00), y un turno largo ofrece varios inicios.
+                const insideRange = slotStartUtc < rangeEndUtc;
                 const notTaken = !takenRanges.some(r => slotStartUtc < r.end && slotEndUtc > r.start);
                 const notPast = slotStartUtc >= nowUtcCutoff;
 
