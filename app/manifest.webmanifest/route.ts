@@ -37,7 +37,9 @@ export async function GET(req: NextRequest) {
     short_name: name,
     description:
       'La plataforma de inteligencia artificial que potencia y automatiza tu negocio.',
-    start_url: '/',
+    // Ruta de arranque: /abrir decide (server-side) entrar a Chats o al home
+    // según el acceso del plan. Ver app/abrir/page.tsx.
+    start_url: '/abrir',
     scope: '/',
     display: 'standalone',
     background_color: '#ffffff',
