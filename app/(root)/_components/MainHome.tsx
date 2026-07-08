@@ -47,6 +47,10 @@ const QUICK_LINKS = [
   },
 ] as const;
 
+// Variantes de Panel por rol (comparten label "Panel"). Se colapsan a la del rol
+// y se muestran a ancho completo en "Tus módulos".
+const PANEL_ROUTES = ['/panel', '/reseller-panel', '/client-panel'];
+
 export function MainHome({
   user,
   modules,
@@ -63,7 +67,6 @@ export function MainHome({
     // Los tres paneles (/panel, /reseller-panel, /client-panel) comparten label
     // "Panel"; un admin tiene acceso a los tres. Mostrar solo el del rol para no
     // duplicar tarjetas "Panel".
-    const PANEL_ROUTES = ['/panel', '/reseller-panel', '/client-panel'];
     const rolePanel = isAdmin(user.role)
       ? '/panel'
       : user.role === 'reseller'
@@ -188,12 +191,16 @@ export function MainHome({
             const Icon = iconMap[moduleComponent.icon as keyof typeof iconMap] || HomeIcon;
             const group = isGroup(moduleComponent);
             const subCount = getSubmodules(moduleComponent).length;
+            const isPanel = PANEL_ROUTES.includes(moduleComponent.route);
             return (
               <button
                 key={moduleComponent.id}
                 type="button"
                 onClick={() => handleModuleClick(moduleComponent)}
-                className="rounded-2xl border border-zinc-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-700"
+                className={cn(
+                  'rounded-2xl border border-zinc-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-700',
+                  isPanel && 'col-span-full',
+                )}
               >
                 <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600/10 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
                   <Icon className="h-6 w-6" />
