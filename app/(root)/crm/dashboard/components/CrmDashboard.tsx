@@ -185,8 +185,8 @@ export const CrmDashboard = ({
     return (
         <TooltipProvider delayDuration={120}>
             <div className="flex h-full min-h-0 min-w-0 w-full flex-col gap-2 overflow-hidden">
-                {/* Metric Cards */}
-                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+                {/* Metric Cards — ocultas en móvil (ocupaban mucho espacio); visibles desde sm */}
+                <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
                     {viewMode === "llamadas" ? (
                         <>
                             <div className="min-w-0 sm:flex-1">
@@ -339,7 +339,7 @@ export const CrmDashboard = ({
 
                 {/* View toggle + period selector + actions */}
                 <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1">
+                    <div className="flex flex-nowrap gap-1 overflow-x-auto max-w-full rounded-lg border border-border/60 bg-muted/30 p-1 [&>button]:shrink-0">
                         <button
                             type="button"
                             onClick={() => setViewMode("analiticas")}
