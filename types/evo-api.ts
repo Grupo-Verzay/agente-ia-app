@@ -10,7 +10,8 @@ export type EvoHealthCacheEntry = {
   lastIsConnected: boolean | null; // null = no hay historial
   lastNotifiedAt: number;          // timestamp ms (para cooldown)
   notifiedDayKey: string;          // "YYYY-MM-DD" (Bogotá)
-  notifiedCountToday: number;      // 0..2
+  notifiedCountToday: number;      // contador diario
+  notifiedSlotsToday?: string[];   // horas locales ya notificadas en el dia
 };
 
 export const getDayKeyBogota = (ts = Date.now()) =>

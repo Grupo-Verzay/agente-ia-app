@@ -15,11 +15,15 @@ import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
    - Mantiene TUS mensajes originales.
 ========================= */
 const NOTIFICATIONS_INSTANCE_NAME =
-  process.env.BILLING_WHATSAPP_INSTANCE ||
   process.env.NOTIFICATIONS_WHATSAPP_INSTANCE ||
+  process.env.BILLING_WHATSAPP_INSTANCE ||
   "VERZAY_NOTIFICACIONES_wh";
 
-async function sendQrDisconnectedNotification(remoteJid: string, userId: string) {
+export async function sendQrDisconnectedNotification(
+  remoteJid: string,
+  userId: string,
+  source = 'generateQRCode',
+) {
   const dispatcher = await resolveWhatsAppDispatcherLineByInstanceName(NOTIFICATIONS_INSTANCE_NAME);
   if (!dispatcher) throw new Error("No hay linea de notificaciones conectada.");
 
@@ -42,7 +46,7 @@ async function sendQrDisconnectedNotification(remoteJid: string, userId: string)
       instanceName: dispatcher.instanceName,
       type: 'notification',
       additionalKwargs: {
-        source: 'generateQRCode',
+        source,
         userId,
         reason: 'evolution_disconnect',
       },
