@@ -37,10 +37,35 @@ interface Props {
   defaultPlan?: string;
   defaultAssistanceType?: AssistanceType;
   showToggle?: boolean;
+  showAssistanceIA?: boolean;
+  showAssistanceHUMANO?: boolean;
 }
 
-export function PlanesClient({ plans, paymentMethods, defaultPlan, defaultAssistanceType = "IA", showToggle = true }: Props) {
-  const [assistanceType, setAssistanceType] = useState<AssistanceType>(defaultAssistanceType);
+export function PlanesClient({ plans, paymentMethods, defaultPlan, defaultAssistanceType = "IA", showToggle = true, showAssistanceIA = true, showAssistanceHUMANO = true }: Props) {
+  // Tipos de asistencia visibles: flag ("Sección de planes") Y que existan planes
+  // activos de ese tipo — misma lógica que la landing pública.
+  const hasIAPlans = plans.some((p) => p.assistanceType === "IA");
+  const hasHUMANOPlans = plans.some((p) => p.assistanceType === "HUMANO");
+  const showIA = showAssistanceIA && hasIAPlans;
+  const showHUMANO = showAssistanceHUMANO && hasHUMANOPlans;
+
+  // Pestaña inicial permitida: con suscripción activa respeta el tipo del plan;
+  // si no, el tipo por defecto si está visible, o el primero disponible.
+  const resolveInitialType = (): AssistanceType => {
+    if (!showToggle) return defaultAssistanceType;
+    if (defaultAssistanceType === "IA" && showIA) return "IA";
+    if (defaultAssistanceType === "HUMANO" && showHUMANO) return "HUMANO";
+    return showIA ? "IA" : "HUMANO";
+  };
+
+  const [assistanceType, setAssistanceType] = useState<AssistanceType>(resolveInitialType);
+
+  // Corrige la pestaña activa si apunta a un tipo oculto (igual que la landing).
+  useEffect(() => {
+    if (!showToggle) return;
+    if (assistanceType === "IA" && !showIA && showHUMANO) setAssistanceType("HUMANO");
+    if (assistanceType === "HUMANO" && !showHUMANO && showIA) setAssistanceType("IA");
+  }, [assistanceType, showIA, showHUMANO, showToggle]);
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("yearly");
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlanItem | null>(null);
   const [selectedPrice, setSelectedPrice] = useState<number>(0);
@@ -65,8 +90,9 @@ export function PlanesClient({ plans, paymentMethods, defaultPlan, defaultAssist
     <div className="flex min-h-full flex-col">
       {/* Header */}
       <div className="border-b px-4 pt-1 pb-2 text-center">
-        {/* Toggle IA / Humano — solo visible cuando no hay suscripción activa */}
-        {showToggle && (
+        {/* Toggle IA / Humano — solo si no hay suscripción activa y AMBOS tipos
+            están habilitados y con planes (si solo hay uno, se fuerza ese). */}
+        {showToggle && showIA && showHUMANO && (
           <div className="mt-1 inline-flex items-center rounded-full border p-1 bg-muted gap-1">
             <button
               onClick={() => setAssistanceType("IA")}
