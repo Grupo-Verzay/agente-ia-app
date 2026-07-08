@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { FontSizeControl } from "@/components/font-size-control";
+import { ColorModeControl } from "@/components/color-mode-control";
 import { z } from 'zod';
 import {
     Bell,
@@ -1261,20 +1262,22 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                 </div>
                                             </div>
                                         </CardHeader>
-                                        <CardContent className="flex flex-col gap-2 pt-2">
-                                            <p className="text-xs text-muted-foreground">PNG, JPG o WEBP · Recomendado 256×256 px</p>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => fileRef.current?.click()}
-                                                disabled={loadingField === 'image'}
-                                            >
-                                                {loadingField === 'image'
-                                                    ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                                                    : <Camera className="h-3.5 w-3.5 mr-1.5" />
-                                                }
-                                                {user?.image ? 'Cambiar logo' : 'Subir logo'}
-                                            </Button>
+                                        <CardContent className="flex flex-col flex-1 pt-2">
+                                            <div className="mt-auto flex flex-col gap-2">
+                                                <p className="text-xs text-muted-foreground">PNG, JPG o WEBP · Recomendado 256×256 px</p>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => fileRef.current?.click()}
+                                                    disabled={loadingField === 'image'}
+                                                >
+                                                    {loadingField === 'image'
+                                                        ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                                        : <Camera className="h-3.5 w-3.5 mr-1.5" />
+                                                    }
+                                                    {user?.image ? 'Cambiar logo' : 'Subir logo'}
+                                                </Button>
+                                            </div>
                                         </CardContent>
                                     </Card>
 
@@ -1295,20 +1298,22 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                 </div>
                                             </div>
                                         </CardHeader>
-                                        <CardContent className="flex flex-col gap-2 pt-2">
-                                            <p className="text-xs text-muted-foreground">PNG, ICO, SVG o WEBP · Recomendado 32×32 o 64×64 px</p>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => faviconRef.current?.click()}
-                                                disabled={loadingField === 'faviconUrl'}
-                                            >
-                                                {loadingField === 'faviconUrl'
-                                                    ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                                                    : <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                                                }
-                                                {(user as { faviconUrl?: string | null })?.faviconUrl ? 'Cambiar favicon' : 'Subir favicon'}
-                                            </Button>
+                                        <CardContent className="flex flex-col flex-1 pt-2">
+                                            <div className="mt-auto flex flex-col gap-2">
+                                                <p className="text-xs text-muted-foreground">PNG, ICO, SVG o WEBP · Recomendado 32×32 o 64×64 px</p>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => faviconRef.current?.click()}
+                                                    disabled={loadingField === 'faviconUrl'}
+                                                >
+                                                    {loadingField === 'faviconUrl'
+                                                        ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                                        : <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                                                    }
+                                                    {(user as { faviconUrl?: string | null })?.faviconUrl ? 'Cambiar favicon' : 'Subir favicon'}
+                                                </Button>
+                                            </div>
                                         </CardContent>
                                     </Card>
                                     )}
@@ -1380,6 +1385,25 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                         <CardContent className="flex flex-col flex-1">
                                             <div className="mt-auto">
                                                 <FontSizeControl />
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+
+                                    <Card className="border-border flex flex-col">
+                                        <CardHeader className="pb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                    <Monitor className="w-4 h-4 text-primary" />
+                                                </div>
+                                                <div>
+                                                    <CardTitle className="text-sm font-semibold">Modo de color</CardTitle>
+                                                    <CardDescription className="text-xs">Claro, oscuro o según tu dispositivo</CardDescription>
+                                                </div>
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent className="flex flex-col flex-1">
+                                            <div className="mt-auto">
+                                                <ColorModeControl />
                                             </div>
                                         </CardContent>
                                     </Card>
