@@ -126,6 +126,42 @@ export function MainHome({
     router.push(resolveModuleItemDest(item.url, item.customUrl));
   };
 
+  // Accesos principales (arriba, a media página cada uno): el Panel del rol y
+  // Conexión→Ajustes (/profile). El resto va debajo en la grilla normal.
+  const PRIMARY_ROUTES = [...PANEL_ROUTES, '/profile'];
+  const primaryModules = [
+    accessibleModules.find((m) => PANEL_ROUTES.includes(m.route)),
+    accessibleModules.find((m) => m.route === '/profile'),
+  ].filter(Boolean) as ModuleWithItems[];
+  const otherModules = accessibleModules.filter((m) => !PRIMARY_ROUTES.includes(m.route));
+
+  const renderModuleCard = (moduleComponent: ModuleWithItems) => {
+    const Icon = iconMap[moduleComponent.icon as keyof typeof iconMap] || HomeIcon;
+    const group = isGroup(moduleComponent);
+    const subCount = getSubmodules(moduleComponent).length;
+    return (
+      <button
+        key={moduleComponent.id}
+        type="button"
+        onClick={() => handleModuleClick(moduleComponent)}
+        className="rounded-2xl border border-zinc-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-700"
+      >
+        <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600/10 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
+          <Icon className="h-6 w-6" />
+        </div>
+        <p className="text-base font-bold text-zinc-900 dark:text-zinc-100">{moduleComponent.label}</p>
+        {group ? (
+          <p className="mt-1 flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400">
+            {subCount} {subCount === 1 ? 'módulo' : 'módulos'}
+            <ChevronRightIcon className="h-3.5 w-3.5" />
+          </p>
+        ) : (
+          <p className="mt-1 line-clamp-1 text-xs text-zinc-500 dark:text-zinc-400">{moduleComponent.route}</p>
+        )}
+      </button>
+    );
+  };
+
   const displayName = user.company?.trim() || user.name?.trim() || 'Usuario';
 
   return (
@@ -186,38 +222,19 @@ export function MainHome({
           <h2 className="text-xl font-bold tracking-tight">Tus modulos</h2>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {accessibleModules.map((moduleComponent) => {
-            const Icon = iconMap[moduleComponent.icon as keyof typeof iconMap] || HomeIcon;
-            const group = isGroup(moduleComponent);
-            const subCount = getSubmodules(moduleComponent).length;
-            const isPanel = PANEL_ROUTES.includes(moduleComponent.route);
-            return (
-              <button
-                key={moduleComponent.id}
-                type="button"
-                onClick={() => handleModuleClick(moduleComponent)}
-                className={cn(
-                  'rounded-2xl border border-zinc-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-700',
-                  isPanel && 'col-span-full',
-                )}
-              >
-                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600/10 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
-                  <Icon className="h-6 w-6" />
-                </div>
-                <p className="text-base font-bold text-zinc-900 dark:text-zinc-100">{moduleComponent.label}</p>
-                {group ? (
-                  <p className="mt-1 flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400">
-                    {subCount} {subCount === 1 ? 'módulo' : 'módulos'}
-                    <ChevronRightIcon className="h-3.5 w-3.5" />
-                  </p>
-                ) : (
-                  <p className="mt-1 line-clamp-1 text-xs text-zinc-500 dark:text-zinc-400">{moduleComponent.route}</p>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        {/* Accesos principales: Panel (izq) + Conexión→Ajustes (der), media página cada uno */}
+        {primaryModules.length > 0 && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {primaryModules.map(renderModuleCard)}
+          </div>
+        )}
+
+        {/* Resto de módulos */}
+        {otherModules.length > 0 && (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {otherModules.map(renderModuleCard)}
+          </div>
+        )}
       </section>
 
       {/* Selector de sub-módulos de un agrupador */}
