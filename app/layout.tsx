@@ -47,6 +47,11 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "Verzay",
   },
+  // Equivalente estándar (Android/Chromium) del apple-mobile-web-app-capable, que
+  // esos navegadores marcan como deprecado si va solo. Ambas conviven.
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
