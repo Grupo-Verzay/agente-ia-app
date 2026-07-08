@@ -631,7 +631,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           aria-label="Escribe tu mensaje"
           className={cn(
             'min-h-10 rounded-xl w-full shadow-sm',
-            'pl-4 pr-24 py-2 resize-none overflow-y-auto text-sm leading-relaxed',
+            'pl-4 pr-24 py-2 resize-none overflow-y-auto text-base sm:text-sm leading-relaxed',
             'transition-[height] duration-100 ease-out',
             noteMode
               ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100 border border-amber-300 dark:border-amber-700 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none'
