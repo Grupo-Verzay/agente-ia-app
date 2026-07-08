@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { HomeIcon, RocketLaunchIcon, SparklesIcon, ChartBarIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
 import { iconMap, ModuleWithItems } from '@/schema/module';
 import { canAccessRoute } from '@/utils/access';
-import { isAdmin } from '@/lib/rbac';
+import { isAdminLike } from '@/lib/rbac';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { resolveModuleItemDest } from '@/lib/canva-embed';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -67,7 +67,7 @@ export function MainHome({
     // Los tres paneles (/panel, /reseller-panel, /client-panel) comparten label
     // "Panel"; un admin tiene acceso a los tres. Mostrar solo el del rol para no
     // duplicar tarjetas "Panel".
-    const rolePanel = isAdmin(user.role)
+    const rolePanel = isAdminLike(user.role)
       ? '/panel'
       : user.role === 'reseller'
         ? '/reseller-panel'
