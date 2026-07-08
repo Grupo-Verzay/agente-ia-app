@@ -18,16 +18,27 @@ export async function getClientsWithBilling(): Promise<ResponseFormat<any[]>> {
     let assignedUserIds: string[] | undefined;
 
     if (me.role === "reseller") {
-      const assignments = await db.reseller.findMany({
-        where: { resellerid: me.id },
-        select: { userId: true },
-      });
+      // Clientes del reseller: combinar sistema viejo (Reseller.userId) y nuevo
+      // (User.demoResellerId), igual que /panel/clientes. Antes solo usaba el
+      // viejo, por eso el billing salía vacío para clientes vinculados por
+      // demoResellerId aunque sí aparecieran en /panel/clientes.
+      const [oldAssignments, newClients] = await Promise.all([
+        db.reseller.findMany({
+          where: { resellerid: me.id },
+          select: { userId: true },
+        }),
+        db.user.findMany({
+          where: { demoResellerId: me.id, isDemo: false },
+          select: { id: true },
+        }),
+      ]);
 
-      assignedUserIds = assignments
-        .map((assignment) => assignment.userId)
-        .filter((id): id is string => Boolean(id));
-
-      assignedUserIds = Array.from(new Set(assignedUserIds));
+      assignedUserIds = Array.from(
+        new Set([
+          ...oldAssignments.map((a) => a.userId).filter((id): id is string => Boolean(id)),
+          ...newClients.map((c) => c.id),
+        ]),
+      );
 
       if (!assignedUserIds.length) {
         return { success: true, message: "No hay usuarios asignados.", data: [] };
