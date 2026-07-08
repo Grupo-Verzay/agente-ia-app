@@ -164,6 +164,31 @@ export async function loadBillingDispatcherConfig(): Promise<BillingDispatcherCo
     return line;
 }
 
+export async function loadBillingDispatcherForUser(
+    userId: string
+): Promise<BillingDispatcherConfig | null> {
+    const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { demoResellerId: true },
+    });
+
+    if (user?.demoResellerId) {
+        const resellerConfig = await db.resellerBillingConfig.findUnique({
+            where: { resellerId: user.demoResellerId },
+            select: { enabled: true, instanceName: true },
+        });
+        const resellerInstanceName = resellerConfig?.enabled
+            ? resellerConfig.instanceName?.trim()
+            : null;
+
+        if (resellerInstanceName) {
+            return resolveWhatsAppDispatcherLineByInstanceName(resellerInstanceName);
+        }
+    }
+
+    return loadBillingDispatcherConfig();
+}
+
 const META_BILLING_TEMPLATES: Partial<Record<BillingTemplateType, string>> = {
     REMINDER_3D: "servicio_vencer_3",
     DUE_TODAY: "servicio_vencer_hoy",
@@ -191,7 +216,7 @@ function buildMetaBillingParams(
     const link = (billing.paymentNotes?.trim() || billing.paymentMethodLabel?.trim() || "-").trim();
 
     if (template === "STATUS_ACTIVE") {
-        return [fecha, String(days), plan, licencia, precio, company];
+        return [company, fecha, String(days), plan, licencia, precio];
     }
 
     if (template === "REMINDER_3D" || template === "DUE_TODAY" || template === "STATUS_SUSPENDED") {

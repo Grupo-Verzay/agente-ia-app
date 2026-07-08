@@ -13,7 +13,7 @@ import { PaymentSource } from "@prisma/client";
 
 import {
     getBillingUserRecord,
-    loadBillingDispatcherConfig,
+    loadBillingDispatcherForUser,
     sendBillingStateChangeMessage,
     setUserBillingWebhookEnabled,
 } from "./helpers/billing-notifications.server";
@@ -78,7 +78,7 @@ async function runStatusSideEffects(args: {
 
     if (!changed) return;
 
-    const dispatcher = await loadBillingDispatcherConfig();
+    const dispatcher = await loadBillingDispatcherForUser(updated.userId);
 
     await setUserBillingWebhookEnabled({
         userId: updated.userId,
@@ -108,7 +108,10 @@ async function runStatusSideEffects(args: {
 // markUserAsPaidInternal
 // ---------------------------------------------------------------------------
 
-export async function markUserAsPaidInternal(userId: string) {
+export async function markUserAsPaidInternal(
+    userId: string,
+    options: { runSideEffects?: boolean } = {}
+) {
     const now = new Date();
     const existing = await db.userBilling.findUnique({ where: { userId } });
 
@@ -135,11 +138,13 @@ export async function markUserAsPaidInternal(userId: string) {
         },
     });
 
-    await runStatusSideEffects({
-        userId,
-        previousBillingStatus: existing?.billingStatus ?? null,
-        previousAccessStatus: existing?.accessStatus ?? null,
-    });
+    if (options.runSideEffects !== false) {
+        await runStatusSideEffects({
+            userId,
+            previousBillingStatus: existing?.billingStatus ?? null,
+            previousAccessStatus: existing?.accessStatus ?? null,
+        });
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -335,8 +340,13 @@ export async function confirmPaymentInternal(
     newDueDate.setDate(newDueDate.getDate() + licenseDays);
 
     // 4. Marcar como pagado y extender la fecha
-    await markUserAsPaidInternal(clientUserId);
+    await markUserAsPaidInternal(clientUserId, { runSideEffects: false });
     await setUserBillingDueDateInternal(clientUserId, newDueDate);
+    await runStatusSideEffects({
+        userId: clientUserId,
+        previousBillingStatus: billing?.billingStatus ?? null,
+        previousAccessStatus: billing?.accessStatus ?? null,
+    });
 
     // 5. Registrar la transacción financiera
     await createPaymentTransaction({
