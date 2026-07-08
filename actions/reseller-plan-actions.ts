@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { Plan } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { getActiveSubscriptionPlans, type SubscriptionPlanItem } from "./subscription-plan-actions";
+import { getActiveSubscriptionPlans, getAllSubscriptionPlans, type SubscriptionPlanItem } from "./subscription-plan-actions";
 
 export type ResellerPlanItem = {
   id: string;
@@ -377,12 +377,13 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
     }
 
     const resellerUserId = resellerRow.resellerid;
-    const [resellerPlans, masterPlansResult, resellerUser] = await Promise.all([
+    const [resellerPlans, masterPlansResult, allPlansResult, resellerUser] = await Promise.all([
       db.resellerPlan.findMany({
         where: { resellerUserId, isActive: true },
         orderBy: [{ assistanceType: "asc" }, { order: "asc" }],
       }),
       getActiveSubscriptionPlans(),
+      getAllSubscriptionPlans(),
       db.user.findUnique({
         where: { id: resellerUserId },
         select: { notificationNumber: true, meetingUrl: true, faviconUrl: true },
@@ -390,14 +391,18 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
     ]);
 
     const masterPlans = masterPlansResult.data;
+    // Plantillas de TODOS los maestros (activos e inactivos), para poder renderizar
+    // un plan que el reseller activó aunque el maestro de la plataforma esté inactivo.
+    const masterTemplates = allPlansResult.data.filter((p) => !p.isResellerPlan);
 
     const resellerMap = new Map(
       resellerPlans.map((p) => [`${p.plan}:${p.assistanceType}`, p])
     );
 
-    const merged: SubscriptionPlanItem[] = masterPlans.map((master) => {
-      const key = `${master.plan}:${master.assistanceType}`;
-      const rp = resellerMap.get(key);
+    // Aplica el override del reseller (precio/features/etc.) sobre la plantilla del
+    // maestro. Si hay override activo, el plan queda activo aunque el maestro no lo esté.
+    const applyOverride = (master: SubscriptionPlanItem) => {
+      const rp = resellerMap.get(`${master.plan}:${master.assistanceType}`);
       if (!rp) return { ...master, checkoutUrlMonthly: null, checkoutUrlQuarterly: null, checkoutUrlYearly: null };
       return {
         ...master,
@@ -413,8 +418,24 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
         isPopular: rp.isPopular,
         color: rp.color ?? master.color,
         order: rp.order,
+        isActive: true, // el reseller lo activó → visible aunque el maestro esté inactivo
       };
-    });
+    };
+
+    const activeMasterKeys = new Set(masterPlans.map((m) => `${m.plan}:${m.assistanceType}`));
+
+    const merged: SubscriptionPlanItem[] = [
+      // Maestros activos (con override del reseller si existe) — comportamiento previo.
+      ...masterPlans.map(applyOverride),
+      // Planes que el reseller activó pero cuyo maestro NO está activo: antes se
+      // perdían y la landing salía vacía. Se agregan usando la plantilla del maestro.
+      ...masterTemplates
+        .filter((m) => {
+          const key = `${m.plan}:${m.assistanceType}`;
+          return !activeMasterKeys.has(key) && resellerMap.has(key);
+        })
+        .map(applyOverride),
+    ];
 
     return {
       success: true,
