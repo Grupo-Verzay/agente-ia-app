@@ -72,17 +72,24 @@ export async function assertBillingScope(actor: { id?: string; role?: string | n
 
   const targetUser = await db.user.findUnique({
     where: { id: userId },
-    select: { id: true },
+    select: { id: true, demoResellerId: true },
   });
   if (!targetUser) throw new Error("Cliente no encontrado.");
 
   if (actor?.role === "reseller") {
     if (!actor?.id) throw new Error("No autorizado.");
 
-    const assigned = await db.reseller.findFirst({
-      where: { resellerid: actor.id, userId },
-      select: { id: true },
-    });
+    // Autorizado si el cliente está vinculado por el sistema NUEVO (demoResellerId)
+    // o el VIEJO (Reseller.userId). Antes solo miraba el viejo, por eso rechazaba
+    // ("No autorizado para gestionar este cliente") a clientes vinculados por
+    // demoResellerId aunque sí aparecieran en el listado de billing.
+    const assigned =
+      targetUser.demoResellerId === actor.id
+        ? true
+        : await db.reseller.findFirst({
+            where: { resellerid: actor.id, userId },
+            select: { id: true },
+          });
 
     if (!assigned) throw new Error("No autorizado para gestionar este cliente.");
   }
