@@ -201,16 +201,37 @@ export default async function RootGroupLayout({
     const userIntegrationsResult = await getUserIntegrations();
     const userIntegrations = userIntegrationsResult.data;
 
-    const panelModule = await db.module.findFirst({
-        where: { route: { in: ["/panel", "/admin"] } },
-        include: { moduleItems: { orderBy: { createdAt: "asc" } } },
-    });
-    const panelTabs = isAdminOrReseller(user.role)
-        ? (panelModule?.moduleItems ?? []).map((item) => ({
+    const [panelModule, resellerModule] = await Promise.all([
+        db.module.findFirst({
+            where: { route: { in: ["/panel", "/admin"] } },
+            include: { moduleItems: { orderBy: { createdAt: "asc" } } },
+        }),
+        user.role === 'reseller'
+            ? db.module.findFirst({
+                where: { route: "/reseller-panel" },
+                include: { moduleItems: { orderBy: { createdAt: "asc" } } },
+              })
+            : Promise.resolve(null),
+    ]);
+    // Pestañas del panel según rol (misma lógica que panel/layout.tsx). El reseller
+    // ve las pestañas de SU panel (/reseller-panel), NO las de super admin
+    // (Módulos/Prompt/Resellers/Monitoreo VPS/Plantillas). Sin esto, en rutas fuera
+    // de /panel (ej. /dashboard/finance, /crm/dashboard) el reseller veía el tab-nav
+    // admin. Admin/super_admin ven el panel admin; otros roles, ninguno.
+    const RESELLER_ONLY_URLS = ['/panel/mis-planes', '/panel/mi-landing'];
+    const panelTabs = user.role === 'reseller'
+        ? (resellerModule?.moduleItems ?? []).map((item) => ({
             url: resolveModuleItemDest(item.url, item.customUrl),
             title: item.title,
-        }))
-        : [];
+          }))
+        : isAdminOrReseller(user.role)
+            ? (panelModule?.moduleItems ?? [])
+                .filter((item) => !RESELLER_ONLY_URLS.includes(item.url.replace("/admin/", "/panel/")))
+                .map((item) => ({
+                    url: resolveModuleItemDest(item.url, item.customUrl),
+                    title: item.title,
+                }))
+            : [];
     const clientPanelTabs = !isAdminOrReseller(user.role) ? getClientPanelTabs(modules) : [];
 
     return (
