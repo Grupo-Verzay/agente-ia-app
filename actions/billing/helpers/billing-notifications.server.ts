@@ -166,8 +166,8 @@ export async function loadBillingDispatcherConfig(): Promise<BillingDispatcherCo
 
 const META_BILLING_TEMPLATES: Partial<Record<BillingTemplateType, string>> = {
     REMINDER_3D: "servicio_vencer_3",
-    DUE_TODAY: "servicio_vence_hoy",
-    STATUS_SUSPENDED: "servicio_suspendido",
+    DUE_TODAY: "servicio_vencer_hoy",
+    STATUS_SUSPENDED: "servicio_fue_suspendido",
     STATUS_ACTIVE: "servicio_estado_actualizado",
 };
 
