@@ -58,6 +58,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={`${poppins.className} overflow-hidden`}>
+        {/* Tamaño de letra por dispositivo (cookie ui_scale): aplica el escalado
+            del font-size base ANTES de pintar, para no parpadear. Lo controla el
+            usuario en Perfil → Apariencia (components/font-size-control.tsx). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var m=document.cookie.match(/(?:^|; )ui_scale=([^;]+)/);var v=m?decodeURIComponent(m[1]):'100';if(v&&v!=='100')document.documentElement.style.fontSize=v+'%';}catch(e){}`,
+          }}
+        />
         <ErrorBoundary>
           <ChunkRecovery />
           <AppProviders>

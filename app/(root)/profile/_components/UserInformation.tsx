@@ -8,6 +8,7 @@ import { getOwnIaCredits } from "@/actions/actions-ia-credits";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { FontSizeControl } from "@/components/font-size-control";
 import { z } from 'zod';
 import {
     Bell,
@@ -1360,6 +1361,25 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                         <CardContent className="flex flex-col flex-1">
                                             <div className="mt-auto">
                                                 <BrandSelector fallbackUserId={userId} />
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+
+                                    <Card className="border-border flex flex-col">
+                                        <CardHeader className="pb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                    <span className="text-primary text-sm font-bold">Aa</span>
+                                                </div>
+                                                <div>
+                                                    <CardTitle className="text-sm font-semibold">Tamaño de letra</CardTitle>
+                                                    <CardDescription className="text-xs">Ajusta el tamaño del texto de toda la app en este dispositivo</CardDescription>
+                                                </div>
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent className="flex flex-col flex-1">
+                                            <div className="mt-auto">
+                                                <FontSizeControl />
                                             </div>
                                         </CardContent>
                                     </Card>
