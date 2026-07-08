@@ -6,7 +6,6 @@ import { ChevronDown, ChevronRight, Lock } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
 import { useChatUnreadStore } from '@/stores/useChatUnreadStore';
 
-import { canAccessRoute } from '@/utils/access';
 import { PremiumModule } from './shared/PremiumModule';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -29,9 +28,7 @@ import { iconMap } from '@/schema/module';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { resolveModuleItemDest } from '@/lib/canva-embed';
 import { Settings2 } from 'lucide-react';
-
-const PANEL_ROUTES = ['/panel', '/admin'];
-const CLIENT_PANEL_ROUTE = '/client-panel';
+import { getVisibleSidebarModules, PANEL_ROUTES, CLIENT_PANEL_ROUTE } from '@/lib/sidebar-modules';
 
 export function NavMain({ user }: { user: User }) {
     const { modules, navPrefs, setLabelModule, labelModule, setCanvaUrl, userIntegrations } = useModuleStore();
@@ -42,46 +39,21 @@ export function NavMain({ user }: { user: User }) {
     const chatUnreadCount = useChatUnreadStore((s) => s.unreadCount);
 
     const isAdvisor = !!user.ownerId;
-    // Agente = cuenta vinculada SIN rol administrador. Los administradores de una
-    // cuenta vinculada tienen los mismos accesos que el dueño de esa cuenta.
-    const isAgente = isAdvisor && user.advisorRole !== 'administrador';
-    // Rutas de gestión (leads en masa / equipo / pipeline) ocultas para agentes.
-    const AGENT_HIDDEN_ROUTES = ['/equipo', '/sessions', '/crm', '/asesores'];
 
     const [openModuleId, setOpenModuleId] = useState<string | null>(null);
     useEffect(() => { setOpenModuleId(null); }, [pathname]);
 
-    /* Aplica preferencias del usuario (displayLabel, isHidden, sortOrder) */
-    const navItems = modules
-        .filter(link => link.showInSidebar)
-        .filter(link => {
-            // Gestión (equipo, leads, pipeline): oculta para agentes; visible para
-            // la cuenta principal y los administradores de cuenta vinculada.
-            if (isAgente && AGENT_HIDDEN_ROUTES.includes(link.route)) return false;
-            // /profile (Perfil/Conexión/Ajustes) sí es visible para asesores.
-            // /panel/mis-planes solo para resellers
-            if (link.route === '/panel/mis-planes' && user.role !== 'reseller') return false;
-            // /panel y sub-rutas nunca aparecen en sidebar para resellers (van en tabs superiores)
-            if ((PANEL_ROUTES.includes(link.route) || link.route.startsWith('/panel/')) && user.role === 'reseller') return false;
-            // El módulo /reseller-panel solo se muestra en sidebar para resellers (no admins)
-            if (link.route === '/reseller-panel' && user.role !== 'reseller') return false;
-            if (link.route === CLIENT_PANEL_ROUTE && (user.role === 'admin' || user.role === 'super_admin' || user.role === 'reseller')) return false;
-            const access = canAccessRoute({
-                route: link.route,
-                userRole: user.role,
-                userPlan: user.plan,
-                modules,
-                label: link.label,
-                isAdvisor,
-            });
-            if (!access.allowed) return false;
-            return true;
-        })
+    /* Aplica preferencias del usuario (displayLabel, isHidden, sortOrder).
+       La visibilidad (rol/plan/acceso) se resuelve en un helper compartido con el
+       personalizador de menú para que ambos usen exactamente los mismos módulos. */
+    const navItems = getVisibleSidebarModules(user, modules)
         .map(link => {
+            // El orden y el nombre son SIEMPRE del sistema; del usuario solo se
+            // respeta la visibilidad (ocultar/mostrar). No hay reordenamiento.
             const pref = navPrefs.find(p => p.moduleId === link.id);
             const isHidden = pref?.isHidden ?? false;
-            const displayLabel = pref?.displayLabel ?? link.label;
-            const sortOrder = pref?.sortOrder ?? link.order;
+            const displayLabel = link.label;
+            const sortOrder = link.order;
 
             let isActive = false;
             if (pathname === '/canva') {

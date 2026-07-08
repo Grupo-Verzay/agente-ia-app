@@ -39,7 +39,7 @@ function SidebarFooterContent({ user, resellerImage, resellerCompany }: { user: 
             </div>
             <div className="flex flex-row w-full justify-center items-center">
                 <LogoutButton user={user} resellerImage={resellerImage} resellerCompany={resellerCompany} />
-                {!collapsed && <NavCustomizer userId={user.id} />}
+                {!collapsed && <NavCustomizer user={user} />}
                 {!collapsed && (
                     <div>
                         <ThemeSwitcher />
