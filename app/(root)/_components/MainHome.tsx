@@ -1,12 +1,15 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { HomeIcon, RocketLaunchIcon, SparklesIcon, ChartBarIcon } from '@heroicons/react/24/solid';
+import { HomeIcon, RocketLaunchIcon, SparklesIcon, ChartBarIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
 import { iconMap, ModuleWithItems } from '@/schema/module';
 import { canAccessRoute } from '@/utils/access';
+import { isAdmin } from '@/lib/rbac';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
+import { resolveModuleItemDest } from '@/lib/canva-embed';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 type HomeUser = {
@@ -53,8 +56,20 @@ export function MainHome({
 }) {
   const router = useRouter();
   const { setLabelModule } = useModuleStore();
+  // Módulo agrupador abierto (para elegir sub-módulo).
+  const [openModule, setOpenModule] = useState<ModuleWithItems | null>(null);
 
   const accessibleModules = useMemo(() => {
+    // Los tres paneles (/panel, /reseller-panel, /client-panel) comparten label
+    // "Panel"; un admin tiene acceso a los tres. Mostrar solo el del rol para no
+    // duplicar tarjetas "Panel".
+    const PANEL_ROUTES = ['/panel', '/reseller-panel', '/client-panel'];
+    const rolePanel = isAdmin(user.role)
+      ? '/panel'
+      : user.role === 'reseller'
+        ? '/reseller-panel'
+        : '/client-panel';
+
     return modules
       .filter((moduleComponent) => moduleComponent.showInSidebar)
       .filter((moduleComponent) => {
@@ -66,7 +81,9 @@ export function MainHome({
           label: moduleComponent.label,
         });
         return access.allowed;
-      });
+      })
+      // Colapsa las variantes de Panel a la del rol.
+      .filter((m) => !PANEL_ROUTES.includes(m.route) || m.route === rolePanel);
   }, [modules, user.role, user.plan]);
 
   const quickLinks = useMemo(() => {
@@ -87,6 +104,25 @@ export function MainHome({
     router.push(route);
   };
 
+  // Módulos agrupadores (isContainer o con sub-módulos): al tocarlos se muestran
+  // los sub-módulos para elegir, en vez de navegar a una ruta contenedora vacía.
+  const getSubmodules = (m: ModuleWithItems) => m.moduleItems ?? [];
+  const isGroup = (m: ModuleWithItems) => m.isContainer || getSubmodules(m).length > 0;
+
+  const handleModuleClick = (m: ModuleWithItems) => {
+    if (isGroup(m) && getSubmodules(m).length > 0) {
+      setOpenModule(m);
+      return;
+    }
+    handleGoToModule(m.label, m.route);
+  };
+
+  const handleGoToSubmodule = (item: { url: string; customUrl?: string | null; title: string }) => {
+    if (openModule) setLabelModule(openModule.label);
+    setOpenModule(null);
+    router.push(resolveModuleItemDest(item.url, item.customUrl));
+  };
+
   const displayName = user.company?.trim() || user.name?.trim() || 'Usuario';
 
   return (
@@ -102,12 +138,9 @@ export function MainHome({
               Workspace Home
             </p>
             <h1 className="text-3xl font-black tracking-tight md:text-5xl">
-              Bienvenido, {displayName}
+              Bienvenido:
+              <span className="block">{displayName}</span>
             </h1>
-            <p className="max-w-2xl text-sm text-cyan-100/90 md:text-base">
-              Este es tu punto de entrada principal. Desde aqui puedes saltar directo a los
-              modulos activos segun tu rol y plan.
-            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-center">
@@ -153,23 +186,54 @@ export function MainHome({
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {accessibleModules.map((moduleComponent) => {
             const Icon = iconMap[moduleComponent.icon as keyof typeof iconMap] || HomeIcon;
+            const group = isGroup(moduleComponent);
+            const subCount = getSubmodules(moduleComponent).length;
             return (
               <button
                 key={moduleComponent.id}
                 type="button"
-                onClick={() => handleGoToModule(moduleComponent.label, moduleComponent.route)}
+                onClick={() => handleModuleClick(moduleComponent)}
                 className="rounded-2xl border border-zinc-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-700"
               >
                 <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600/10 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
                   <Icon className="h-6 w-6" />
                 </div>
                 <p className="text-base font-bold text-zinc-900 dark:text-zinc-100">{moduleComponent.label}</p>
-                <p className="mt-1 line-clamp-1 text-xs text-zinc-500 dark:text-zinc-400">{moduleComponent.route}</p>
+                {group ? (
+                  <p className="mt-1 flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400">
+                    {subCount} {subCount === 1 ? 'módulo' : 'módulos'}
+                    <ChevronRightIcon className="h-3.5 w-3.5" />
+                  </p>
+                ) : (
+                  <p className="mt-1 line-clamp-1 text-xs text-zinc-500 dark:text-zinc-400">{moduleComponent.route}</p>
+                )}
               </button>
             );
           })}
         </div>
       </section>
+
+      {/* Selector de sub-módulos de un agrupador */}
+      <Dialog open={!!openModule} onOpenChange={(o) => !o && setOpenModule(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{openModule?.label}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-2">
+            {(openModule?.moduleItems ?? []).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleGoToSubmodule(item)}
+                className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-3 text-left text-sm font-medium transition hover:border-blue-300 hover:bg-blue-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-700 dark:hover:bg-blue-950/30"
+              >
+                <span>{item.title}</span>
+                <ChevronRightIcon className="h-4 w-4 shrink-0 text-zinc-400" />
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
