@@ -13,7 +13,9 @@ import {
     getAgentPromptByUserAndAgentId,
 } from '@/actions/system-prompt-actions';
 import { AGENT_PROMPT_IDS } from '@/lib/agent-prompt-ids';
-import { getTrainingChannel, DEFAULT_TRAINING_CHANNEL } from '@/lib/channel-training';
+import { getTrainingChannel, DEFAULT_TRAINING_CHANNEL, isChannelEnabled } from '@/lib/channel-training';
+import { getUserChannelFlags } from '@/lib/channel-access';
+import { ChannelLockedNotice } from '../_components/ChannelLockedNotice';
 import type { SectionsPromptSystem } from '@/types/agentAi';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +30,12 @@ export default async function ChannelTrainingPage({ params }: { params: { channe
 
     const channel = getTrainingChannel(params.channel);
     if (!channel) redirect(`/ia/${DEFAULT_TRAINING_CHANNEL}`);
+
+    // Canal no habilitado para la cuenta → aviso (no crea entrenamiento fantasma).
+    const channelFlags = await getUserChannelFlags(user.effectiveId);
+    if (!isChannelEnabled(channel, channelFlags)) {
+        return <ChannelLockedNotice label={channel.label} />;
+    }
 
     // Canal de voz → editor del prompt de llamadas.
     if (channel.kind === 'voice') {

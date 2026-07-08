@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Phone } from 'lucide-react';
+import { Phone, Lock } from 'lucide-react';
 import { FaWhatsapp, FaTelegramPlane, FaFacebook, FaInstagram } from 'react-icons/fa';
 import { cn } from '@/lib/utils';
 import { TRAINING_CHANNELS } from '@/lib/channel-training';
@@ -29,9 +29,10 @@ const ICON_COLORS: Record<string, string> = {
 
 // Tabs superiores para cambiar de canal de entrenamiento. Estilo segmentado con
 // recuadro en el activo (igual que los tabs de Agenda).
-export function ChannelTabs() {
+export function ChannelTabs({ lockedSlugs = [] }: { lockedSlugs?: string[] }) {
   const pathname = usePathname();
   const active = pathname?.split('/')[2] || 'whatsapp';
+  const locked = new Set(lockedSlugs);
 
   return (
     <div className="shrink-0 border-b border-border/40 px-2 py-2 sm:px-3">
@@ -39,18 +40,25 @@ export function ChannelTabs() {
         {TRAINING_CHANNELS.map((c) => {
           const Icon = ICONS[c.slug] ?? FaWhatsapp;
           const isActive = active === c.slug;
+          const isLocked = locked.has(c.slug);
           return (
             <Link
               key={c.slug}
               href={`/ia/${c.slug}`}
+              title={isLocked ? 'Canal no habilitado' : undefined}
               className={cn(
                 'flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1.5 text-sm font-medium transition-colors',
                 isActive
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground',
+                isLocked && !isActive && 'opacity-50',
               )}
             >
-              <Icon className={cn('h-4 w-4 shrink-0', ICON_COLORS[c.slug])} />
+              {isLocked ? (
+                <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />
+              ) : (
+                <Icon className={cn('h-4 w-4 shrink-0', ICON_COLORS[c.slug])} />
+              )}
               {c.label}
             </Link>
           );
