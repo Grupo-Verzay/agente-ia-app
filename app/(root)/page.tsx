@@ -1,19 +1,17 @@
 import { redirect } from 'next/navigation';
 import { currentUser } from '@/lib/auth';
 import { getAllModules } from '@/actions/module-actions';
-import { resolveLandingRoute } from '@/lib/pwa-landing';
 import { MainHome } from './_components/MainHome';
 
+// El home web SIEMPRE muestra el Workspace Home (no redirige), para no arriesgar
+// bucles de redirección con guards de otras secciones. El aterrizaje directo en la
+// pantalla operativa (crm/dashboard → chats) se hace SOLO en el arranque de la PWA
+// (/abrir), que no es una ruta de navegación normal.
 const HomePage = async () => {
   const user = await currentUser();
   if (!user) {
     redirect('/login');
   }
-
-  // Aterrizaje directo en la pantalla operativa (CRM dashboard → Chats). Si el
-  // usuario no tiene acceso a ninguna, se queda en el Workspace Home (launcher).
-  const landing = await resolveLandingRoute(user);
-  if (landing !== '/') redirect(landing);
 
   const modulesResponse = await getAllModules();
   const modules = modulesResponse.data ?? [];

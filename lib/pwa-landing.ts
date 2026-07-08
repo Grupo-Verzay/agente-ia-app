@@ -11,6 +11,7 @@ type LandingUser = {
   role: string;
   plan: any; // Plan enum
   ownerId?: string | null;
+  advisorRole?: string | null;
   trialEndsAt?: Date | null;
 };
 
@@ -75,7 +76,12 @@ function canUseRoute(route: string, modules: ModuleWithItems[], user: LandingUse
  */
 export async function resolveLandingRoute(user: LandingUser): Promise<string> {
   const modules = await getVisibleModules(user);
+  // El área /crm redirige a los asesores puros de vuelta a "/". Si la landing los
+  // mandara a /crm/dashboard se crea un BUCLE (/ → /crm → / → …). Se excluye /crm
+  // para ellos → caen a Chats o al home.
+  const isPureAdvisor = !!user.ownerId && user.advisorRole !== "administrador";
   for (const route of LANDING_PREFERENCE) {
+    if (isPureAdvisor && route.startsWith("/crm")) continue;
     if (canUseRoute(route, modules, user)) return route;
   }
   return "/";
