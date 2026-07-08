@@ -85,6 +85,10 @@ export function money(price?: string | null, code?: string) {
 }
 
 export function serializeUserBilling(u: any) {
+    // Null-safe: clientes sin registro de billing llegan como null (ej.
+    // getUserBillingByUserId cuando no hay config). Antes reventaba con
+    // "Cannot read properties of null (reading 'billing')".
+    if (!u) return null;
     const b = u.billing;
     if (!b) return { ...u, billing: null };
 
