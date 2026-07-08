@@ -1,22 +1,19 @@
 import { redirect } from "next/navigation";
 
 import { currentUser } from "@/lib/auth";
-import { canAccessChats } from "@/lib/pwa-landing";
+import { resolveLandingRoute } from "@/lib/pwa-landing";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Ruta de arranque de la PWA (start_url del manifest). Decide server-side a
- * dónde entrar al abrir la app instalada:
- *   - Con acceso a Chats  → /chats (pantalla principal operativa).
- *   - Sin acceso (plan)   → /      (home).
- * Al ser un redirect en el servidor no hay parpadeo. Si más adelante se quiere
- * una preferencia de "pantalla de inicio" por usuario, se resuelve aquí.
+ * Ruta de arranque de la PWA (start_url del manifest). Decide server-side a dónde
+ * entrar al abrir la app instalada: CRM dashboard → Chats → home, según el acceso
+ * del usuario (ver resolveLandingRoute). Al ser un redirect en el servidor no hay
+ * parpadeo.
  */
 export default async function AbrirApp() {
   const user = await currentUser();
-  if (!user) redirect("/login?callbackUrl=/chats");
+  if (!user) redirect("/login?callbackUrl=/");
 
-  const chats = await canAccessChats(user);
-  redirect(chats ? "/chats" : "/");
+  redirect(await resolveLandingRoute(user));
 }

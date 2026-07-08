@@ -2,7 +2,9 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { getAllModules } from "@/actions/module-actions";
+import { getRouteAccess } from "@/utils/access";
 import { isAdmin, isAdminOrReseller } from "@/lib/rbac";
+import type { ModuleWithItems } from "@/schema/module";
 
 type LandingUser = {
   id: string;
@@ -12,60 +14,69 @@ type LandingUser = {
   trialEndsAt?: Date | null;
 };
 
-const CHATS_ROUTE = "/chats";
 const normRoute = (p?: string | null) => (p ?? "").replace(/\/+$/, "") || "/";
 
-/**
- * ¿El usuario puede realmente USAR /chats? Replica el gating del layout (root):
- * módulo visible según rol/plan/asignaciones (UserModule) y NO bloqueado por
- * `lockedPlans`. Se usa para decidir el landing de la PWA (ver app/abrir/page.tsx):
- * si puede, abre en Chats; si no, deriva al home.
- */
-export async function canAccessChats(user: LandingUser): Promise<boolean> {
+// Rutas candidatas de aterrizaje, en orden de preferencia. La primera a la que el
+// usuario tenga acceso gana; si a ninguna, cae al home (/). Así los usuarios entran
+// directo a su pantalla operativa (dashboard del CRM) sin chocar con el gating.
+const LANDING_PREFERENCE = ["/crm/dashboard", "/chats"];
+
+/** Módulos visibles para el usuario (mismo gating rol/plan/asignaciones del layout). */
+async function getVisibleModules(user: LandingUser): Promise<ModuleWithItems[]> {
   const allModules = (await getAllModules()).data ?? [];
-  // Sin módulos cargados no forzamos Chats: mejor derivar al home.
-  if (allModules.length === 0) return false;
+  if (isAdmin(user.role)) return allModules;
 
   const isAdvisor = !!user.ownerId;
   const isActiveTrial = !!user.trialEndsAt && new Date(user.trialEndsAt) > new Date();
 
   let modules = allModules;
-  if (!isAdmin(user.role)) {
-    if (user.role === "reseller") {
-      // Resellers: por plan y sin adminOnly (igual que el layout).
-      modules = allModules.filter(
-        (m) => !m.adminOnly && !(m.allowedPlans?.length && !m.allowedPlans.includes(user.plan)),
-      );
-    } else {
-      // Usuarios regulares: primero por asignaciones explícitas UserModule.
-      const userModuleRecords = await db.userModule.findMany({
-        where: { B: user.id },
-        select: { A: true },
+  if (user.role === "reseller") {
+    modules = allModules.filter(
+      (m) => !m.adminOnly && !(m.allowedPlans?.length && !m.allowedPlans.includes(user.plan)),
+    );
+  } else {
+    const userModuleRecords = await db.userModule.findMany({
+      where: { B: user.id },
+      select: { A: true },
+    });
+    if (userModuleRecords.length > 0) {
+      const allowedIds = new Set(userModuleRecords.map((r) => r.A));
+      modules = allModules.filter((m) => allowedIds.has(m.id));
+    }
+    if (!isAdminOrReseller(user.role)) {
+      modules = modules.filter((m) => {
+        if (m.adminOnly) return false;
+        if (!isAdvisor && !isActiveTrial && m.allowedPlans?.length && !m.allowedPlans.includes(user.plan)) return false;
+        return true;
       });
-      if (userModuleRecords.length > 0) {
-        const allowedIds = new Set(userModuleRecords.map((r) => r.A));
-        modules = allModules.filter((m) => allowedIds.has(m.id));
-      }
-      if (!isAdminOrReseller(user.role)) {
-        modules = modules.filter((m) => {
-          if (m.adminOnly) return false;
-          // Asesores y prueba activa no se filtran por plan.
-          if (!isAdvisor && !isActiveTrial && m.allowedPlans?.length && !m.allowedPlans.includes(user.plan)) return false;
-          return true;
-        });
-      }
     }
   }
+  return modules;
+}
 
-  // Coincidencia exacta con el módulo /chats (evita el falso positivo de un
-  // módulo base "/" que haría prefijo con cualquier ruta).
-  const chatsModule = modules.find((m) => normRoute(m.route) === CHATS_ROUTE);
-  if (!chatsModule) return false;
-
-  // Bloqueado por plan (visible pero con pantalla de "actualiza tu plan").
-  if (!isAdmin(user.role) && !isAdvisor && !isActiveTrial) {
-    if ((chatsModule as any).lockedPlans?.includes(user.plan)) return false;
+/** ¿El usuario puede realmente usar una ruta? (módulo visible y no bloqueado por plan). */
+function canUseRoute(route: string, modules: ModuleWithItems[], user: LandingUser): boolean {
+  const m = getRouteAccess(route, modules);
+  if (!m) return false;
+  // Evita el falso positivo del módulo base "/" (prefijo de cualquier ruta).
+  if (normRoute(m.route) === "/") return false;
+  const isAdvisor = !!user.ownerId;
+  const isActiveTrial = !!user.trialEndsAt && new Date(user.trialEndsAt) > new Date();
+  if (!isAdmin(user.role) && !isAdvisor && !isActiveTrial && (m as any).lockedPlans?.includes(user.plan)) {
+    return false;
   }
-
   return true;
+}
+
+/**
+ * Ruta de aterrizaje del usuario: la primera de LANDING_PREFERENCE a la que tenga
+ * acceso (CRM dashboard → Chats); si a ninguna, el home (/). La usan la ruta de
+ * arranque de la PWA (/abrir) y el home web.
+ */
+export async function resolveLandingRoute(user: LandingUser): Promise<string> {
+  const modules = await getVisibleModules(user);
+  for (const route of LANDING_PREFERENCE) {
+    if (canUseRoute(route, modules, user)) return route;
+  }
+  return "/";
 }
