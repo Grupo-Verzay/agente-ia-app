@@ -83,23 +83,43 @@ async function settle<T>(promise: Promise<T>): Promise<T | null> {
   }
 }
 
+// Cache corto del estado del runtime Baileys por instancia. El chequeo hace un
+// fetch al backend en CADA carga de Chats (page es force-dynamic); sin cache ni
+// timeout, un backend lento colgaba toda la carga de la bandeja. Un TTL corto es
+// seguro: solo decide la ruta de fetch (Baileys vs Evolution), ambas válidas.
+const BAILEYS_RUNTIME_TTL_MS = 20_000;
+const BAILEYS_RUNTIME_TIMEOUT_MS = 2_000;
+const baileysRuntimeStatusCache = new Map<string, { open: boolean; at: number }>();
+
 async function isBaileysRuntimeOpen(instanceName: string) {
   const baseUrl = process.env.BACKEND_URL?.replace(/\/+$/, "");
   const secret = process.env.BAILEYS_SECRET || process.env.CRM_FOLLOW_UP_RUNNER_KEY || "";
   if (!baseUrl || !secret || !instanceName) return false;
 
+  const cached = baileysRuntimeStatusCache.get(instanceName);
+  if (cached && Date.now() - cached.at < BAILEYS_RUNTIME_TTL_MS) return cached.open;
+
+  // Timeout duro: un backend caído/lento no debe bloquear el render de Chats.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), BAILEYS_RUNTIME_TIMEOUT_MS);
   try {
     const res = await fetch(
       `${baseUrl}/whatsapp/baileys/status/${encodeURIComponent(instanceName)}`,
-      { headers: { "x-internal-secret": secret }, cache: "no-store" },
+      { headers: { "x-internal-secret": secret }, cache: "no-store", signal: controller.signal },
     );
     if (!res.ok) return false;
 
     const json = await res.json().catch(() => null);
     const status = String(json?.status ?? json?.state ?? json?.connection ?? "").toLowerCase();
-    return Boolean(json?.connected) || status === "open" || status === "connected";
+    const open = Boolean(json?.connected) || status === "open" || status === "connected";
+    baileysRuntimeStatusCache.set(instanceName, { open, at: Date.now() });
+    return open;
   } catch {
+    // No cacheamos el fallo: puede ser un timeout puntual y no queremos fijar
+    // "cerrado" durante 20s; el próximo load reintenta.
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

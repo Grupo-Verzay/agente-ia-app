@@ -986,7 +986,10 @@ export function ChatsClient({
       }
 
       try {
-        const shouldOpenFromLocalFirst = actionSet?.instanceType !== "baileys";
+        // Todas las líneas abren "local primero" (historial persistido) y luego
+        // sincronizan en segundo plano. Baileys ya persiste sus mensajes, así que
+        // también entra por esta ruta rápida en vez de bloquear contra el backend.
+        const shouldOpenFromLocalFirst = true;
         const localResult = await effectiveWarmMessages(remoteJid, {
           page: 1,
           pageSize: INITIAL_MESSAGE_PAGE_SIZE,
@@ -1091,7 +1094,10 @@ export function ChatsClient({
       }
 
       await pollAndCompareMessages(selectedJid, currentContact?.aliases);
-      await refreshSidebarData();
+      // Reconciliar la lista de TODAS las instancias es lo más pesado del envío y
+      // no debe bloquear el input ni el estado "enviando": va en segundo plano.
+      // El tiempo real (socket) y este refetch actualizan la barra un instante después.
+      void refreshSidebarData();
     },
     [
       currentContact,
@@ -1173,7 +1179,7 @@ export function ChatsClient({
       }
 
       await pollAndCompareMessages(selectedJid, currentContact?.aliases);
-      await refreshSidebarData();
+      void refreshSidebarData();
 
       return result;
     },
@@ -1199,7 +1205,7 @@ export function ChatsClient({
       }
 
       await pollAndCompareMessages(selectedJid, currentContact?.aliases);
-      await refreshSidebarData();
+      void refreshSidebarData();
 
       return result;
     },
@@ -1225,7 +1231,7 @@ export function ChatsClient({
       const result = await sendMetaTemplate(instName, sendJid, template, params);
       if (result.success) {
         await pollAndCompareMessages(selectedJid, currentContact?.aliases);
-        await refreshSidebarData();
+        void refreshSidebarData();
       }
       return result;
     },
