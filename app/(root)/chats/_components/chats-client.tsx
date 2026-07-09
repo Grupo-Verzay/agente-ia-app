@@ -33,6 +33,8 @@ import { isBadContactName } from "./chat-sidebar.utils";
 import { useSidebar } from "@/components/ui/sidebar";
 import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
+import { CommitmentTaskDialog } from "./CommitmentTaskDialog";
+import { detectCommitment, type DetectedCommitment } from "@/lib/commitment-detection";
 import {
   buildWhatsAppJidCandidates,
   fmtPhone,
@@ -417,6 +419,7 @@ export function ChatsClient({
   const [unreadOnly, setUnreadOnly] = useState(true);
   const [closeInfoPanelSignal, setCloseInfoPanelSignal] = useState(0);
   const [sessionRefreshSignal, setSessionRefreshSignal] = useState(0);
+  const [detectedCommitment, setDetectedCommitment] = useState<DetectedCommitment | null>(null);
 
   const goToChatTab = useCallback((tab: TabKey, unread = false) => {
     setChatListTab(tab);
@@ -1080,6 +1083,10 @@ export function ChatsClient({
       const result = await (activeActionSetRef.current?.sendText ?? sendAnyAction)(sendJid, payload);
       if (!result.success) {
         throw new Error(result.message || "No se pudo enviar el mensaje.");
+      }
+
+      if (payload.kind === "text") {
+        setDetectedCommitment(detectCommitment(payload.text));
       }
 
       await pollAndCompareMessages(selectedJid, currentContact?.aliases);
@@ -1888,6 +1895,22 @@ export function ChatsClient({
         workflows={workflows}
       />
     )}
+    <CommitmentTaskDialog
+      commitment={detectedCommitment}
+      assignedToId={currentAdvisorId ?? userId}
+      assignedToName={
+        advisors.find((advisor) => advisor.id === (currentAdvisorId ?? userId))?.name ?? null
+      }
+      sessionId={currentContactSession?.id}
+      contactName={
+        currentContactSession?.customName?.trim() ||
+        currentContactSession?.pushName?.trim() ||
+        currentContact?.pushName?.trim() ||
+        null
+      }
+      contactJid={selectedJid || null}
+      onClose={() => setDetectedCommitment(null)}
+    />
     </>
   );
 }
