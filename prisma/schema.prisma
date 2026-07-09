@@ -411,6 +411,10 @@ model Session {
   tasks                     Task[]
   leadStatusWorkflowHistory LeadStatusWorkflowExecution[]
 
+  // Candado: un lead único por (cuenta, línea, número). Evita sesiones/leads
+  // duplicados del mismo contacto en la misma instancia. El índice ya existe en
+  // BD (Session_userId_instanceId_remoteJid_key).
+  @@unique([userId, instanceId, remoteJid])
   @@index([userId, remoteJid])
 }
 

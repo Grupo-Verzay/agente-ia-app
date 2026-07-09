@@ -474,9 +474,8 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
   // bloque anterior la actualiza; si no existe, no la creamos desde un saliente.
   if (input.fromMe) return;
 
-  // Creación ATÓMICA e idempotente: inserta solo si no hay ya una sesión para
-  // este número (evita duplicados por webhooks/persistencias concurrentes, ya
-  // que Session no tiene una restricción única por número).
+  // Creación idempotente: el índice único (userId, instanceId, remoteJid) impide
+  // duplicados; ON CONFLICT DO NOTHING absorbe cualquier carrera concurrente.
   await db.$executeRaw`
     INSERT INTO "Session" ("userId", "remoteJid", "remoteJidAlt", "pushName", "instanceId", "status", "createdAt", "updatedAt")
     SELECT ${sessionUserId}, ${remoteJid}, ${remoteJidAlt}, ${cleanPushName || remoteJid}, ${instanceId}, true, NOW(), NOW()
@@ -485,6 +484,7 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
       WHERE "userId" = ${sessionUserId}
         AND ("remoteJid" = ANY(${candidates}::text[]) OR "remoteJidAlt" = ANY(${candidates}::text[]))
     )
+    ON CONFLICT ("userId", "instanceId", "remoteJid") DO NOTHING
   `;
 }
 
