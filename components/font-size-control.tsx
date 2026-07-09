@@ -40,7 +40,7 @@ export function FontSizeControl() {
   };
 
   return (
-    <div className="inline-flex items-center rounded-lg border border-border bg-muted/30 p-1 gap-1">
+    <div className="flex w-full items-center rounded-lg border border-border bg-muted/30 p-1 gap-1">
       {OPTIONS.map((opt) => {
         const active = value === opt.value;
         return (
@@ -49,7 +49,7 @@ export function FontSizeControl() {
             type="button"
             onClick={() => onSelect(opt.value)}
             className={cn(
-              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+              'flex-1 rounded-md px-3 py-1.5 text-sm font-medium text-center transition-colors',
               active
                 ? 'bg-background text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground',

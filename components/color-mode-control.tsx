@@ -20,7 +20,7 @@ export function ColorModeControl() {
   const current = mounted ? theme ?? 'system' : 'system';
 
   return (
-    <div className="inline-flex items-center rounded-lg border border-border bg-muted/30 p-1 gap-1">
+    <div className="flex w-full items-center rounded-lg border border-border bg-muted/30 p-1 gap-1">
       {OPTIONS.map((opt) => {
         const active = current === opt.value;
         return (
@@ -29,7 +29,7 @@ export function ColorModeControl() {
             type="button"
             onClick={() => setTheme(opt.value)}
             className={cn(
-              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+              'flex-1 rounded-md px-3 py-1.5 text-sm font-medium text-center transition-colors',
               active
                 ? 'bg-background text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground',

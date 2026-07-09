@@ -297,29 +297,30 @@ export function WeeklyReportsView({ onStatsLoaded }: { onStatsLoaded?: (s: Repor
 
             {/* Toolbar */}
             <div className="flex items-center justify-between gap-2">
-                <p className="text-sm text-muted-foreground">
+                <p className="hidden sm:block text-sm text-muted-foreground">
                     Últimos <span className="font-medium text-foreground">{reports.length}</span> reportes generados por IA
                 </p>
-                <div className="flex items-center gap-2">
+                {/* En móvil, botones solo-icono (max-sm:w-9) para no desbordar */}
+                <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end">
                     {reports.length > 0 && (
-                        <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
-                            <Download className="h-3.5 w-3.5" />
-                            Exportar
+                        <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5 max-sm:w-9 max-sm:px-0" title="Exportar">
+                            <Download className="h-3.5 w-3.5 shrink-0" />
+                            <span className="hidden sm:inline">Exportar</span>
                         </Button>
                     )}
                     {reports.length > 0 && (
-                        <Button variant="outline" size="sm" onClick={handleDeleteAll} disabled={deletingAll} className="gap-1.5 text-destructive hover:text-destructive">
-                            {deletingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                            Eliminar todos
+                        <Button variant="outline" size="sm" onClick={handleDeleteAll} disabled={deletingAll} className="gap-1.5 text-destructive hover:text-destructive max-sm:w-9 max-sm:px-0" title="Eliminar todos">
+                            {deletingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 shrink-0" />}
+                            <span className="hidden sm:inline">Eliminar todos</span>
                         </Button>
                     )}
-                    <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-1.5">
-                        <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-                        Actualizar
+                    <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-1.5 max-sm:w-9 max-sm:px-0" title="Actualizar">
+                        <RefreshCw className={cn('h-3.5 w-3.5 shrink-0', loading && 'animate-spin')} />
+                        <span className="hidden sm:inline">Actualizar</span>
                     </Button>
-                    <Button size="sm" onClick={handleGenerate} disabled={generating} className="gap-1.5">
-                        {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                        Generar reporte
+                    <Button size="sm" onClick={handleGenerate} disabled={generating} className="gap-1.5 max-sm:w-9 max-sm:px-0" title="Generar reporte">
+                        {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 shrink-0" />}
+                        <span className="hidden sm:inline">Generar reporte</span>
                     </Button>
                 </div>
             </div>

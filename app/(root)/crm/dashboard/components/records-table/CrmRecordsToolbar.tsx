@@ -53,7 +53,7 @@ export function CrmRecordsToolbar({
         <div className="space-y-3">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-                    <div className="relative w-64 shrink-0">
+                    <div className="relative w-full sm:w-64 shrink-0">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={searchValue}
@@ -73,6 +73,9 @@ export function CrmRecordsToolbar({
                         ) : null}
                     </div>
 
+                    {/* En móvil: botones en fila horizontal (no apilados). En sm+
+                        `contents` disuelve el wrapper para mantener el layout de escritorio. */}
+                    <div className="flex items-center gap-2 sm:contents">
                     <CrmRecordsAdvancedFilters
                         activeTab={activeTab}
                         filters={filters}
@@ -138,6 +141,7 @@ export function CrmRecordsToolbar({
                         </TooltipTrigger>
                         <TooltipContent side="bottom">Exportar a Excel</TooltipContent>
                     </Tooltip>
+                    </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">

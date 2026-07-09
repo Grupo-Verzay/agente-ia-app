@@ -355,9 +355,9 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                             <UiTooltip>
                                 <TooltipTrigger asChild>
                                     <PopoverTrigger asChild>
-                                        <Button variant="outline" size="sm" className="relative h-9 gap-1.5 flex-1 sm:flex-none">
+                                        <Button variant="outline" size="sm" className="relative h-9 gap-1.5 sm:flex-none">
                                             <SlidersHorizontal className="h-4 w-4 shrink-0" />
-                                            <span className="truncate">Filtros</span>
+                                            <span className="hidden sm:inline">Filtros</span>
                                             {advFilterCount > 0 && (
                                                 <Badge variant="secondary" className="ml-0.5 h-5 min-w-5 rounded-full px-1 text-[10px]">
                                                     {advFilterCount}
@@ -411,9 +411,9 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                             <UiTooltip>
                                 <TooltipTrigger asChild>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" size="sm" className="h-9 gap-1.5 flex-1 sm:flex-none">
+                                        <Button variant="outline" size="sm" className="h-9 gap-1.5 max-sm:w-9 max-sm:px-0 sm:flex-none">
                                             <Columns3 className="h-4 w-4 shrink-0" />
-                                            <span className="truncate">Secciones</span>
+                                            <span className="hidden sm:inline">Secciones</span>
                                         </Button>
                                     </DropdownMenuTrigger>
                                 </TooltipTrigger>
@@ -437,12 +437,12 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className="h-9 gap-1.5 flex-1 sm:flex-none"
+                                    className="h-9 gap-1.5 max-sm:w-9 max-sm:px-0 sm:flex-none"
                                     onClick={handleExport}
                                     disabled={!a}
                                 >
                                     <Download className="h-4 w-4 shrink-0" />
-                                    <span className="truncate">Exportar</span>
+                                    <span className="hidden sm:inline">Exportar</span>
                                 </Button>
                             </TooltipTrigger>
                             <TooltipContent side="bottom">Exportar analíticas a CSV</TooltipContent>
