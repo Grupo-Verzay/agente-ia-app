@@ -336,7 +336,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
           )}
         </div>
         {/* Zona central: SCROLLEA cuando no cabe (toggle + acciones de asignación) */}
-        <div className="flex-1 min-w-0 overflow-x-auto flex items-center gap-2">
+        <div className="toolbar-collapse flex-1 min-w-0 overflow-x-auto flex items-center gap-2">
           {/* Toggle de vista: Tabla / Pipeline (ml-auto: empuja el grupo a la derecha) */}
           <div className="flex gap-1 rounded-lg border border-border/60 bg-muted/30 p-1 shrink-0 ml-auto">
             <button
@@ -385,7 +385,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
           </Button>
         </div>
         {/* Lado derecho FIJO: Agregar asesor + menú de acciones */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="toolbar-collapse flex items-center gap-2 shrink-0">
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="w-3.5 h-3.5" />
             Agregar asesor

@@ -293,3 +293,25 @@
     height: 100%;
   }
 }
+
+/* ── Toolbars: botones de acción SOLO-ICONO en móvil ──────────────────────
+   Marca el CONTENEDOR de una fila de botones de acción con la clase
+   `toolbar-collapse`. En pantallas <640px TODOS sus botones ocultan el texto
+   y quedan compactos (icono solo). Truco: `font-size:0` colapsa cualquier
+   texto —plano o en <span>— sin tener que envolver labels; los iconos SVG
+   (tamaño en px/rem vía h-4 w-4) siguen visibles.
+   Un botón que deba CONSERVAR su texto (o que NO tenga icono) lleva `keep-label`.
+   Los menús/popovers se renderizan en portal (fuera del contenedor), así que
+   solo colapsan los botones-disparadores del toolbar, no sus items. */
+@media (max-width: 639px) {
+  /* Solo colapsan los botones que TIENEN icono (svg). Los botones solo-texto
+     (+ Crear, Eliminar todas, selectores de días) conservan su texto solos, sin
+     necesidad de `keep-label`. Un botón con icono+contador que deba mantener el
+     texto (ej. "Completadas (5)") lleva `keep-label`. */
+  .toolbar-collapse button:has(svg):not(.keep-label) {
+    font-size: 0 !important;
+    gap: 0 !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+}

@@ -39,7 +39,7 @@ export function MyDataContent({ userId }: Props) {
         </div>
 
         {/* Accesos directos siempre visibles */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="toolbar-collapse flex items-center gap-2 shrink-0">
           <Button
             variant={section === 'sheets' ? 'default' : 'outline'}
             size="sm"

@@ -83,7 +83,7 @@ export function MyDataManagement({ userId, onTotalChange }: Props) {
               <Database className="h-5 w-5 text-primary" />
               <CardTitle className="text-lg">Mis datos externos</CardTitle>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="toolbar-collapse flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"

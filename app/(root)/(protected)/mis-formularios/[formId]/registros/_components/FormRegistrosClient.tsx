@@ -129,7 +129,7 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
                 <p className="text-xs text-muted-foreground truncate">Respuestas recibidas en este formulario</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="toolbar-collapse flex items-center gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
                 <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
                 Actualizar

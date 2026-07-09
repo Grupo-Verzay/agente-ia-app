@@ -493,7 +493,7 @@ export function KanbanBoard({
                     )}
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 ml-auto">
+                <div className="toolbar-collapse flex items-center gap-2 shrink-0 ml-auto">
                     <span className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
                         <Users className="h-3.5 w-3.5" />
                         <span className="font-medium text-foreground">

@@ -177,7 +177,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
               className="w-full text-xs"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="toolbar-collapse flex items-center gap-2">
             <Button
               size="sm"
               variant="outline"

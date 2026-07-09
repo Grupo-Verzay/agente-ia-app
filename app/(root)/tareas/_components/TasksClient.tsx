@@ -285,7 +285,7 @@ export function TasksClient({ userId, userName }: Props) {
             />
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="toolbar-collapse flex items-center gap-2">
           <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => void load()} disabled={loading} title="Actualizar">
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
           </Button>

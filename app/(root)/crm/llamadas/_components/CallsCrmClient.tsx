@@ -369,7 +369,7 @@ export function CallsCrmClient({
             className="h-9 pl-9"
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="toolbar-collapse flex items-center gap-2">
           {/* Rango de días */}
           <div className="flex rounded-lg border border-border p-0.5">
             {DAY_OPTIONS.map((o) => (

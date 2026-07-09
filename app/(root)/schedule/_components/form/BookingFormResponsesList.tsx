@@ -158,7 +158,7 @@ export function BookingFormResponsesList({ userId, onCountsChange }: Props) {
                 className="w-full pl-8"
               />
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="toolbar-collapse flex items-center gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={load} disabled={loading}>
                 <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
                 Actualizar

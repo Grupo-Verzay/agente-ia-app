@@ -66,7 +66,7 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
                         onChange={(e) => setFilter(e.target.value)}
                     />
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="toolbar-collapse flex items-center gap-3">
                     {limitInfo && limitInfo.limit !== null && (
                         <span className={`flex items-center gap-1.5 text-sm font-semibold ${limitInfo.reached ? 'text-destructive' : 'text-foreground'}`}>
                             <Package className="h-4 w-4" />

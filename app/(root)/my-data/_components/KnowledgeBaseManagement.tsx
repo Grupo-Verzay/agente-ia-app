@@ -173,7 +173,7 @@ export function KnowledgeBaseManagement({ userId, refreshKey, onDataChanged }: P
                   </CardDescription>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="toolbar-collapse flex items-center gap-2">
                 <Button variant="outline" size="icon" onClick={load} disabled={isLoading} title="Refrescar">
                   <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                 </Button>
