@@ -46,6 +46,7 @@ import { useResellerStore } from "@/stores/resellers/resellerStore";
 import { Role } from "@prisma/client";
 import { ApiKeyConfigurator, ChangePasswordCard, ChangeEmailCard } from "./";
 import { NotificationContactsManager } from "./NotificationContactsManager";
+import { OperatorContactsManager } from "./OperatorContactsManager";
 import { UserInformationProps } from "../page";
 import { ConnectionMain } from "../../connection/_components";
 import { CallLinkCard } from "../../connection/_components/CallLinkCard";
@@ -789,6 +790,9 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                             userId={userId}
                                             primaryNumber={(user.notificationNumber as string) ?? ""}
                                         />
+                                        <div className="border-t border-border pt-4">
+                                            <OperatorContactsManager userId={userId} />
+                                        </div>
                                     </CardContent>
                                 </Card>
                             </div>
