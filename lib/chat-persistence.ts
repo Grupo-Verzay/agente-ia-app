@@ -437,6 +437,11 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
   // caché (chat_messages), pero NO debe crear un lead bajo su cuenta.
   const sessionUserId = (await resolveInstanceOwnerId(input.instanceName)) ?? input.userId;
 
+  // Nombre "basura" (mensajes propios, sin nombre): no debe guardarse como
+  // nombre del lead. 'Você'/'Voce' es lo que WhatsApp asigna a los mensajes
+  // salientes (fromMe).
+  const cleanPushName = isBadPushName(input.pushName) ? undefined : input.pushName?.trim();
+
   const existing = await db.session.findFirst({
     where: {
       userId: sessionUserId,
@@ -455,7 +460,7 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
       data: {
         remoteJid,
         remoteJidAlt,
-        pushName: input.pushName?.trim() || undefined,
+        pushName: cleanPushName || undefined,
         instanceId,
         updatedAt: new Date(),
       },
@@ -463,16 +468,32 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
     return;
   }
 
-  await db.session.create({
-    data: {
-      userId: sessionUserId,
-      remoteJid,
-      remoteJidAlt,
-      pushName: input.pushName?.trim() || remoteJid,
-      instanceId,
-      status: true,
-    },
-  });
+  // Un lead se origina cuando el CLIENTE escribe (mensaje entrante). Los mensajes
+  // salientes (fromMe, 'Você') NO deben crear leads nuevos: hacerlo generaba
+  // sesiones fantasma duplicadas del propio número. Si la sesión ya existe, el
+  // bloque anterior la actualiza; si no existe, no la creamos desde un saliente.
+  if (input.fromMe) return;
+
+  // Creación ATÓMICA e idempotente: inserta solo si no hay ya una sesión para
+  // este número (evita duplicados por webhooks/persistencias concurrentes, ya
+  // que Session no tiene una restricción única por número).
+  await db.$executeRaw`
+    INSERT INTO "Session" ("userId", "remoteJid", "remoteJidAlt", "pushName", "instanceId", "status", "createdAt", "updatedAt")
+    SELECT ${sessionUserId}, ${remoteJid}, ${remoteJidAlt}, ${cleanPushName || remoteJid}, ${instanceId}, true, NOW(), NOW()
+    WHERE NOT EXISTS (
+      SELECT 1 FROM "Session"
+      WHERE "userId" = ${sessionUserId}
+        AND ("remoteJid" = ANY(${candidates}::text[]) OR "remoteJidAlt" = ANY(${candidates}::text[]))
+    )
+  `;
+}
+
+// 'Você'/'Voce' = nombre que WhatsApp asigna a mensajes propios (fromMe); junto
+// con vacío/'.'/'desconocido' no son nombres reales de lead. Espeja isBadName
+// del backend (session.service).
+function isBadPushName(name?: string | null) {
+  const lower = (name ?? '').toLowerCase().trim();
+  return lower === '' || lower === '.' || lower === 'desconocido' || lower === 'você' || lower === 'voce';
 }
 
 export async function persistChatMessage(input: PersistChatMessageInput) {
