@@ -324,9 +324,7 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                         className="inline-flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium text-white"
                         style={{ backgroundColor: item.color }}
                     >
-                        <span className="hidden sm:inline">
-                            {item.label} ({loading ? "…" : item.value})
-                        </span>
+                        <span className="hidden sm:inline">{item.label}</span>
                         <span className="sm:hidden">{loading ? "…" : item.value}</span>
                     </div>
                 ))}
