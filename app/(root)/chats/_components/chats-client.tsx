@@ -71,7 +71,7 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
 }
 
 type ApiKeyData = { url: string; key: string };
-const INITIAL_MESSAGE_PAGE_SIZE = 5;
+const INITIAL_MESSAGE_PAGE_SIZE = 50;
 const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
 const SELECTED_CHAT_SYNC_DELAY_MS = 3500;
 const SELECTED_CHAT_POLLING_DELAY_MS = 10000;
@@ -885,15 +885,18 @@ export function ChatsClient({
           const nextMessages = result.data || [];
           if (areListsDifferent(messagesRef.current, nextMessages)) {
             setMessages((previous) => mergeMessages(previous, nextMessages));
-            setInfo({
-              total: result.total,
-              pages: result.pages,
-              currentPage: result.currentPage,
-              nextPage: result.nextPage,
-              instanceName: effectiveInstanceName,
-              remoteJid,
-              remoteJidAliases,
-              apiKeyData: effectiveApiKeyData,
+            setInfo((currentInfo) => {
+              const loadedPage = currentInfo?.currentPage ?? 1;
+              return {
+                total: result.total ?? currentInfo?.total,
+                pages: result.pages ?? currentInfo?.pages,
+                currentPage: loadedPage,
+                nextPage: loadedPage > 1 ? currentInfo?.nextPage : result.nextPage,
+                instanceName: effectiveInstanceName,
+                remoteJid,
+                remoteJidAliases,
+                apiKeyData: effectiveApiKeyData,
+              };
             });
           }
           backoffRef.current = 0;
@@ -1115,8 +1118,7 @@ export function ChatsClient({
         return;
       }
 
-      setMessages((previous) => mergeMessages(previous, result.data || []));
-      setInfo({
+      const nextInfo = {
         total: result.total,
         pages: result.pages,
         currentPage: result.currentPage ?? nextPage,
@@ -1125,7 +1127,16 @@ export function ChatsClient({
         remoteJid: selectedJid,
         remoteJidAliases,
         apiKeyData: effectiveApiKeyData,
+      };
+      setMessages((previous) => {
+        const merged = mergeMessages(previous, result.data || []);
+        messageCacheRef.current.set(
+          getMessageCacheKey(effectiveInstanceName, selectedJid),
+          { messages: merged, info: nextInfo },
+        );
+        return merged;
       });
+      setInfo(nextInfo);
     } finally {
       setLoadingOlderMessages(false);
     }
