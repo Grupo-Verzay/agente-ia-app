@@ -279,6 +279,18 @@
 .whatsapp-chat-background {
   position: relative;
   isolation: isolate;
+  background-color: #f0f2f5;
+  background-image: url("/patterns/whatsapp-chat-pattern-light.svg");
+  background-repeat: repeat;
+  background-size: 430px 766px;
+  background-position: top left;
+}
+
+/* Tema oscuro: lo aplica next-themes (clase `.dark` en <html>) antes del render,
+   así el fondo del chat nunca aparece claro en oscuro (ni al entrar por URL). */
+.dark .whatsapp-chat-background {
+  background-color: #0d1418;
+  background-image: url("/patterns/whatsapp-chat-pattern.svg");
 }
 
 @media (max-width: 767px) {

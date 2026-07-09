@@ -34,28 +34,11 @@ function estimateItemHeight(item: RenderedListItem) {
   return ESTIMATED_TEXT_HEIGHT + Math.min(180, Math.floor(textLength / 55) * 22);
 }
 
-/* Chat background — official WhatsApp pattern.
-   El patrón claro usa un trazo gris fijo (#dfe3e7); el oscuro usa currentColor
-   tintado tenue dentro del propio SVG, para que en modo oscuro los doodles se
-   vean sutiles (como WhatsApp) y no "repintados" sobre el fondo. */
-const WA_PATTERN_URL = `url("/patterns/whatsapp-chat-pattern-light.svg")`;
-const WA_PATTERN_URL_DARK = `url("/patterns/whatsapp-chat-pattern.svg")`;
-
-const WA_STYLE_LIGHT: React.CSSProperties = {
-  backgroundColor: '#f0f2f5',
-  backgroundImage: WA_PATTERN_URL,
-  backgroundRepeat: 'repeat',
-  backgroundSize: '430px 766px',
-  backgroundPosition: 'top left',
-};
-
-const WA_STYLE_DARK: React.CSSProperties = {
-  backgroundColor: '#0d1418',
-  backgroundImage: WA_PATTERN_URL_DARK,
-  backgroundRepeat: 'repeat',
-  backgroundSize: '430px 766px',
-  backgroundPosition: 'top left',
-};
+/* Chat background — patrón oficial estilo WhatsApp. El fondo (color + patrón
+   claro/oscuro) se resuelve por CSS en `.whatsapp-chat-background` y su override
+   `.dark` (ver app/globals.css). Se hace por CSS —no por JS— para que next-themes
+   aplique el tema correcto ANTES del render y no aparezca claro en oscuro al
+   entrar directo a un chat por URL/recarga. */
 
 /* Skeleton de carga */
 const ChatMessageListSkeleton: React.FC = () => (
@@ -284,8 +267,6 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   callPhone,
   callContactName,
 }) => {
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-  const bgStyle = isDark ? WA_STYLE_DARK : WA_STYLE_LIGHT;
   const autoLoadLockRef = useRef(false);
   const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 });
 
@@ -377,7 +358,6 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
     return (
       <div
         className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto custom-scrollbar w-full"
-        style={bgStyle}
         ref={listRef}
         onScroll={handleScroll}
       >
@@ -393,7 +373,6 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   return (
     <div
       className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto custom-scrollbar w-full"
-      style={bgStyle}
       ref={listRef}
       onScroll={handleScroll}
     >
