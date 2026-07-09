@@ -22,6 +22,7 @@ import {
 } from '@/types/session';
 import { assertUserCanUseApp } from './billing/helpers/app-access-guard';
 import { currentUser } from '@/lib/auth';
+import { recordConfirmedSalesOutcome } from '@/lib/sales-learning';
 import { revalidatePath } from 'next/cache';
 import {
   buildWhatsAppJidCandidates,
@@ -1320,6 +1321,14 @@ export async function updateSessionLeadStatus(
     // Ejecutar automaciones de etapa (fire-and-forget)
     if (leadStatus) {
       void triggerStageAutomations(sessionId, leadStatus).catch(() => undefined);
+    }
+
+    // Solo aprende de resultados confirmados explícitamente por el asesor.
+    if (leadStatus === 'FINALIZADO' || leadStatus === 'DESCARTADO') {
+      await recordConfirmedSalesOutcome(
+        sessionId,
+        leadStatus === 'FINALIZADO' ? 'WON' : 'LOST',
+      ).catch((error) => console.error('[sales-learning:record]', error));
     }
 
     return { success: true, message: 'Estado del lead actualizado correctamente' };

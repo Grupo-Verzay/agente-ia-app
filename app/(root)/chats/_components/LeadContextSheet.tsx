@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Brain, TrendingUp, Tag, Bell, Loader2, Sparkles, RefreshCw } from 'lucide-react';
+import { Brain, TrendingUp, Tag, Bell, Loader2, Sparkles, RefreshCw, BookOpen, Check, ThumbsDown, ThumbsUp, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,8 @@ import { getSessionLatestSummarySnapshot } from '@/actions/crm-follow-up-actions
 import { scoreLeadBySessionId } from '@/actions/lead-score-action';
 import type { Session } from '@/types/session';
 import type { LeadStatus } from '@prisma/client';
+import { getSalesPlaybookAction, saveSalesPlaybookFeedbackAction } from '@/actions/sales-playbook-actions';
+import type { SalesPlaybook } from '@/lib/sales-learning';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -58,9 +60,25 @@ export function LeadContextSheet({ session, onScoreUpdated }: LeadContextSheetPr
     const [scoring, setScoring] = useState(false);
     const [localScore, setLocalScore] = useState<number | null>(session.leadScore ?? null);
     const [localReason, setLocalReason] = useState<string | null>(session.leadScoreReason ?? null);
+    const [playbook, setPlaybook] = useState<SalesPlaybook | null>(null);
+    const [loadingPlaybook, setLoadingPlaybook] = useState(false);
+    const [feedbackSent, setFeedbackSent] = useState(false);
+
+    const loadPlaybook = async () => {
+        setLoadingPlaybook(true);
+        try {
+            const res = await getSalesPlaybookAction(session.id);
+            if (res.success) setPlaybook(res.data);
+            else toast.error(res.message);
+        } finally {
+            setLoadingPlaybook(false);
+        }
+    };
 
     useEffect(() => {
         if (!open) return;
+        setFeedbackSent(false);
+        setPlaybook(null);
         setLoadingSynthesis(true);
         getSessionLatestSummarySnapshot(session.id).then((res) => {
             if (res.success && res.data?.summarySnapshot) {
@@ -68,7 +86,23 @@ export function LeadContextSheet({ session, onScoreUpdated }: LeadContextSheetPr
             }
             setLoadingSynthesis(false);
         });
+        void loadPlaybook();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, session.id]);
+
+    const sendFeedback = async (useful: boolean) => {
+        if (!playbook || feedbackSent) return;
+        const res = await saveSalesPlaybookFeedbackAction({
+            sessionId: session.id,
+            product: playbook.product,
+            stage: playbook.stage,
+            useful,
+        });
+        if (res.success) {
+            setFeedbackSent(true);
+            toast.success('Recomendación evaluada.');
+        }
+    };
 
     const handleScore = async () => {
         setScoring(true);
@@ -193,6 +227,111 @@ export function LeadContextSheet({ session, onScoreUpdated }: LeadContextSheetPr
                             </div>
                         ) : (
                             <p className="text-sm text-muted-foreground rounded-lg border border-dashed p-3">Sin clasificar</p>
+                        )}
+                    </section>
+
+                    <section className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                                <BookOpen className="h-3.5 w-3.5" />
+                                Playbook de venta
+                            </h3>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={loadPlaybook}
+                                disabled={loadingPlaybook}
+                                title="Actualizar recomendaciones"
+                            >
+                                {loadingPlaybook
+                                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    : <RefreshCw className="h-3.5 w-3.5" />}
+                            </Button>
+                        </div>
+                        {loadingPlaybook && !playbook ? (
+                            <div className="flex items-center gap-2 p-3 text-sm text-muted-foreground">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                Analizando conversación...
+                            </div>
+                        ) : playbook ? (
+                            <div className="space-y-3 rounded-lg border p-3">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <Badge variant="secondary">{playbook.product}</Badge>
+                                    <Badge variant="outline">
+                                        {LEAD_STATUS_CONFIG[playbook.stage as LeadStatus]?.label ?? playbook.stage}
+                                    </Badge>
+                                </div>
+                                <p className="text-[11px] text-muted-foreground">
+                                    {playbook.evidence.label}
+                                    {playbook.evidence.winRate !== null
+                                        ? ` · ${playbook.evidence.winRate}% ganadas`
+                                        : ''}
+                                </p>
+                                {[
+                                    ['Preguntas recomendadas', playbook.questions],
+                                    ['Próximos pasos', playbook.nextSteps],
+                                    ['Argumentos útiles', playbook.arguments],
+                                ].map(([title, items]) => (items as string[]).length > 0 && (
+                                    <div key={title as string}>
+                                        <p className="mb-1 text-xs font-semibold">{title as string}</p>
+                                        <ul className="space-y-1">
+                                            {(items as string[]).map((item) => (
+                                                <li key={item} className="flex gap-2 text-sm">
+                                                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                                                    <span>{item}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                ))}
+                                {playbook.warnings.length > 0 && (
+                                    <div className="space-y-1 rounded border border-amber-200 bg-amber-50 p-2 text-amber-900">
+                                        {playbook.warnings.map((item) => (
+                                            <p key={item} className="flex gap-1.5 text-xs">
+                                                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                                {item}
+                                            </p>
+                                        ))}
+                                    </div>
+                                )}
+                                <div className="flex items-center justify-between gap-2 border-t pt-2">
+                                    <span className="text-[11px] text-muted-foreground">
+                                        No se envía al cliente.
+                                    </span>
+                                    {feedbackSent ? (
+                                        <span className="text-xs text-emerald-600">Evaluado</span>
+                                    ) : (
+                                        <div className="flex gap-1">
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7"
+                                                onClick={() => sendFeedback(true)}
+                                                title="Útil"
+                                            >
+                                                <ThumbsUp className="h-3.5 w-3.5" />
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7"
+                                                onClick={() => sendFeedback(false)}
+                                                title="No útil"
+                                            >
+                                                <ThumbsDown className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+                                Sin recomendaciones disponibles
+                            </p>
                         )}
                     </section>
 

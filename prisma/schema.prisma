@@ -88,17 +88,17 @@ model ApiKey {
 }
 
 model Appointment {
-  id         String            @id @default(uuid())
-  userId     String
-  sessionId  Int
-  clientName String?
-  startTime  DateTime
-  endTime    DateTime
-  timezone   String
-  status     AppointmentStatus @default(PENDIENTE)
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  serviceId  String?
+  id           String               @id @default(uuid())
+  userId       String
+  sessionId    Int
+  clientName   String?
+  startTime    DateTime
+  endTime      DateTime
+  timezone     String
+  status       AppointmentStatus    @default(PENDIENTE)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  serviceId    String?
   service      Service?             @relation(fields: [serviceId], references: [id])
   session      Session              @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -123,23 +123,23 @@ model GuideUrl {
 }
 
 model Instancia {
-  id                     Int     @id @default(autoincrement())
-  instanceName           String
-  userId                 String
-  instanceId             String
-  instanceType           String? @default("Whatsapp")
-  metaPhoneNumberId      String? @map("meta_phone_number_id")
-  metaAccessToken        String? @map("meta_access_token")
-  metaWabaId             String? @map("meta_waba_id")
-  metaVerifyToken        String? @map("meta_verify_token")
-  metaChannel            String? @default("whatsapp") @map("meta_channel")
-  metaPageId             String? @map("meta_page_id")
+  id                 Int     @id @default(autoincrement())
+  instanceName       String
+  userId             String
+  instanceId         String
+  instanceType       String? @default("Whatsapp")
+  metaPhoneNumberId  String? @map("meta_phone_number_id")
+  metaAccessToken    String? @map("meta_access_token")
+  metaWabaId         String? @map("meta_waba_id")
+  metaVerifyToken    String? @map("meta_verify_token")
+  metaChannel        String? @default("whatsapp") @map("meta_channel")
+  metaPageId         String? @map("meta_page_id")
   // Voicebot (Item 7): contesta llamadas entrantes con IA de voz, por cuenta.
-  voicebotEnabled        Boolean @default(false) @map("voicebot_enabled")
-  voicebotVoice          String? @map("voicebot_voice")
-  voicebotTransferTo     String? @map("voicebot_transfer_to")
-  voicebotPrompt         String? @map("voicebot_prompt") @db.Text // prompt propio del agente de llamadas (separado del de chat)
-  user                   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  voicebotEnabled    Boolean @default(false) @map("voicebot_enabled")
+  voicebotVoice      String? @map("voicebot_voice")
+  voicebotTransferTo String? @map("voicebot_transfer_to")
+  voicebotPrompt     String? @map("voicebot_prompt") @db.Text // prompt propio del agente de llamadas (separado del de chat)
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([metaPhoneNumberId])
@@ -165,22 +165,22 @@ model Manual {
 }
 
 model Module {
-  id                     String       @id @default(uuid())
+  id                     String              @id @default(uuid())
   label                  String
   route                  String
   icon                   String
-  showInSidebar          Boolean?     @default(true)
-  hiddenModuleToSelector Boolean?     @default(false)
-  adminOnly              Boolean      @default(false)
-  requiresPremium        Boolean      @default(false)
+  showInSidebar          Boolean?            @default(true)
+  hiddenModuleToSelector Boolean?            @default(false)
+  adminOnly              Boolean             @default(false)
+  requiresPremium        Boolean             @default(false)
   allowedPlans           Plan[]
   lockedPlans            Plan[]
-  order                  Int          @default(0)
-  createdAt              DateTime     @default(now())
-  updatedAt              DateTime     @updatedAt
-  showOnlySelectedPlans  Boolean?     @default(false)
+  order                  Int                 @default(0)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  showOnlySelectedPlans  Boolean?            @default(false)
   customUrl              String?
-  isContainer            Boolean      @default(false)
+  isContainer            Boolean             @default(false)
   moduleItems            ModuleItem[]
   userModules            UserModule[]
   navPreferences         UserNavPreference[]
@@ -369,40 +369,40 @@ model Service {
 }
 
 model Session {
-  userId               String
-  remoteJid            String
-  pushName             String
-  customName           String?                @map("custom_name")
-  instanceId           String
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-  status               Boolean
-  id                   Int                    @id @default(autoincrement())
-  seguimientos         String?                @default("")
-  inactividad          String?                @default("")
-  sessionDelay         String?
-  flujos               String?                @default("")
-  remoteJidAlt         String?
-  agentDisabled        Boolean                @default(false)
-  signatureEnabled     Boolean                @default(false) @map("signature_enabled")
-  leadStatus           LeadStatus?
-  leadStatusReason     String?                @map("lead_status_reason")
-  leadStatusSourceHash String?                @map("lead_status_source_hash")
-  leadStatusUpdatedAt  DateTime?              @map("lead_status_updated_at")
-  serviceType          ServiceType?           @map("service_type")
-  clientStatus         ClientStatus?          @map("client_status")
-  leadScore            Int?                   @map("lead_score")
-  leadScoreReason      String?                @map("lead_score_reason")
-  leadScoredAt         DateTime?              @map("lead_scored_at")
-  assignedAdvisorId    String?                @map("assigned_advisor_id")
-  adSource             Json?                  @map("ad_source")
-  adSourceAt           DateTime?              @map("ad_source_at")
-  appointments         Appointment[]
-  registros            Registro[]
-  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessionTags          SessionTag[]
-  sessionTrigger       SessionTrigger?
-  workflowStates       SessionWorkflowState[]
+  userId                    String
+  remoteJid                 String
+  pushName                  String
+  customName                String?                       @map("custom_name")
+  instanceId                String
+  createdAt                 DateTime                      @default(now())
+  updatedAt                 DateTime                      @updatedAt
+  status                    Boolean
+  id                        Int                           @id @default(autoincrement())
+  seguimientos              String?                       @default("")
+  inactividad               String?                       @default("")
+  sessionDelay              String?
+  flujos                    String?                       @default("")
+  remoteJidAlt              String?
+  agentDisabled             Boolean                       @default(false)
+  signatureEnabled          Boolean                       @default(false) @map("signature_enabled")
+  leadStatus                LeadStatus?
+  leadStatusReason          String?                       @map("lead_status_reason")
+  leadStatusSourceHash      String?                       @map("lead_status_source_hash")
+  leadStatusUpdatedAt       DateTime?                     @map("lead_status_updated_at")
+  serviceType               ServiceType?                  @map("service_type")
+  clientStatus              ClientStatus?                 @map("client_status")
+  leadScore                 Int?                          @map("lead_score")
+  leadScoreReason           String?                       @map("lead_score_reason")
+  leadScoredAt              DateTime?                     @map("lead_scored_at")
+  assignedAdvisorId         String?                       @map("assigned_advisor_id")
+  adSource                  Json?                         @map("ad_source")
+  adSourceAt                DateTime?                     @map("ad_source_at")
+  appointments              Appointment[]
+  registros                 Registro[]
+  user                      User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionTags               SessionTag[]
+  sessionTrigger            SessionTrigger?
+  workflowStates            SessionWorkflowState[]
   crmFollowUps              CrmFollowUp[]
   financeTransactions       FinanceTransaction[]
   financeContacts           FinanceContact[]
@@ -474,7 +474,7 @@ model CollabNotification {
 // 1 clic (estilo Chatwoot). Las acciones se guardan como JSON ordenado.
 // Sin relaciones Prisma a propósito (columna userId plana).
 model Macro {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   userId      String // dueño (owner) de la macro
   name        String
   description String?
@@ -503,7 +503,7 @@ model UserTaskType {
 }
 
 model Task {
-  id             Int       @id @default(autoincrement())
+  id             Int      @id @default(autoincrement())
   ownerId        String
   assignedToId   String
   assignedToName String?
@@ -511,14 +511,14 @@ model Task {
   contactName    String?
   contactJid     String?
   title          String
-  type           String    @default("Seguimiento")
+  type           String   @default("Seguimiento")
   dueDate        DateTime
   result         String?
-  status         String    @default("pending")
+  status         String   @default("pending")
   createdById    String
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  session        Session?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  session        Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   @@index([ownerId])
   @@index([assignedToId])
@@ -871,6 +871,7 @@ model OperatorContact {
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   bridges   OperatorBridge[]
 
+  @@unique([userId, phone])
   @@index([userId])
 }
 
@@ -1028,14 +1029,14 @@ model VerificationToken {
 }
 
 model LinkedAccount {
-  id           String   @id @default(uuid())
-  masterUserId String   @map("master_user_id")
-  linkedUserId String   @map("linked_user_id")
+  id           String            @id @default(uuid())
+  masterUserId String            @map("master_user_id")
+  linkedUserId String            @map("linked_user_id")
   role         LinkedAccountRole @default(agente)
   label        String?
-  createdAt    DateTime @default(now())
-  masterUser   User     @relation("MasterLinks", fields: [masterUserId], references: [id], onDelete: Cascade)
-  linkedUser   User     @relation("LinkedTo", fields: [linkedUserId], references: [id], onDelete: Cascade)
+  createdAt    DateTime          @default(now())
+  masterUser   User              @relation("MasterLinks", fields: [masterUserId], references: [id], onDelete: Cascade)
+  linkedUser   User              @relation("LinkedTo", fields: [linkedUserId], references: [id], onDelete: Cascade)
 
   @@unique([masterUserId, linkedUserId])
   @@index([masterUserId])
@@ -1044,23 +1045,23 @@ model LinkedAccount {
 }
 
 model Workflow {
-  id                  String                 @id @default(cuid())
+  id                  String                     @id @default(cuid())
   userId              String
   name                String
   description         String?
   definition          String
   status              String
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt @map("updateAt")
-  umbral              Float                  @default(0.5)
-  isPro               Boolean                @default(false)
-  order               Int                    @default(0)
-  triggerOnNewSession Boolean                @default(false)
-  isFunnelStep        Boolean                @default(false)
-  sessionStates             SessionWorkflowState[]
-  workflowEdges             WorkflowEdge[]
-  nodes                     WorkflowNode[]
-  leadStatusConfigs         LeadStatusWorkflowConfig[]
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt @map("updateAt")
+  umbral              Float                      @default(0.5)
+  isPro               Boolean                    @default(false)
+  order               Int                        @default(0)
+  triggerOnNewSession Boolean                    @default(false)
+  isFunnelStep        Boolean                    @default(false)
+  sessionStates       SessionWorkflowState[]
+  workflowEdges       WorkflowEdge[]
+  nodes               WorkflowNode[]
+  leadStatusConfigs   LeadStatusWorkflowConfig[]
 
   @@unique([name, userId])
 }
@@ -1363,30 +1364,30 @@ model PlanConfig {
 }
 
 model SubscriptionPlan {
-  id             String   @id @default(uuid())
-  plan           Plan
-  assistanceType String   @default("IA") // "IA" | "HUMANO"
-  isResellerPlan Boolean  @default(false) // true = plan para resellers en /resellers
-  priceUSD       Decimal  @default(0) @db.Decimal(10, 2)
-  priceWholesale Decimal? @db.Decimal(10, 2) // precio mayorista para resellers
-  credits        Int      @default(0)
-  features       String[]
-  description    String?
-  isPopular      Boolean  @default(false)
-  isActive       Boolean  @default(true)
-  color               String?
-  order               Int      @default(0)
-  checkoutUrlMonthly  String?
+  id                   String   @id @default(uuid())
+  plan                 Plan
+  assistanceType       String   @default("IA") // "IA" | "HUMANO"
+  isResellerPlan       Boolean  @default(false) // true = plan para resellers en /resellers
+  priceUSD             Decimal  @default(0) @db.Decimal(10, 2)
+  priceWholesale       Decimal? @db.Decimal(10, 2) // precio mayorista para resellers
+  credits              Int      @default(0)
+  features             String[]
+  description          String?
+  isPopular            Boolean  @default(false)
+  isActive             Boolean  @default(true)
+  color                String?
+  order                Int      @default(0)
+  checkoutUrlMonthly   String?
   checkoutUrlQuarterly String?
-  checkoutUrlYearly   String?
-  priceQuarterly      Decimal? @db.Decimal(10, 2)
-  priceYearly         Decimal? @db.Decimal(10, 2)
-  name                String?
-  createdAt           DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  checkoutUrlYearly    String?
+  priceQuarterly       Decimal? @db.Decimal(10, 2)
+  priceYearly          Decimal? @db.Decimal(10, 2)
+  name                 String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  subscriptions      UserSubscription[]
-  planDetail         PlanDetail?
+  subscriptions        UserSubscription[]
+  planDetail           PlanDetail?
   resellerLicensePools ResellerLicensePool[]
 
   @@unique([plan, assistanceType, isResellerPlan])
@@ -1423,16 +1424,16 @@ model UserSubscription {
 }
 
 model PaymentMethodConfig {
-  id           String   @id @default(uuid())
-  method       String   @unique  // slug único, ej: "nequi", "bancolombia"
-  label        String
-  icon         String?           // emoji o texto, ej: "🟣"
-  isActive     Boolean  @default(true)
-  instructions String?
-  accountFields Json    @default("[]") // [{label, value}]
-  order        Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(uuid())
+  method        String   @unique // slug único, ej: "nequi", "bancolombia"
+  label         String
+  icon          String? // emoji o texto, ej: "🟣"
+  isActive      Boolean  @default(true)
+  instructions  String?
+  accountFields Json     @default("[]") // [{label, value}]
+  order         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@map("payment_method_configs")
 }
@@ -1452,6 +1453,44 @@ model ExternalClientData {
   @@map("external_client_data")
 }
 
+model SalesOutcomeLearning {
+  id             String   @id @default(cuid())
+  userId         String
+  sessionId      Int
+  outcome        String
+  product        String
+  stage          String
+  outcomeReason  String?
+  keyArguments   String[] @default([])
+  objections     String[] @default([])
+  effectiveSteps String[] @default([])
+  cycleDays      Int?
+  evidenceCount  Int      @default(0)
+  source         String   @default("confirmed-lead-status")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, sessionId])
+  @@index([userId, product, outcome])
+  @@index([userId, createdAt])
+  @@map("sales_outcome_learning")
+}
+
+model SalesPlaybookFeedback {
+  id        String   @id @default(cuid())
+  userId    String
+  sessionId Int
+  advisorId String
+  product   String
+  stage     String
+  useful    Boolean
+  createdAt DateTime @default(now())
+
+  @@index([userId, product, stage])
+  @@index([sessionId, createdAt])
+  @@map("sales_playbook_feedback")
+}
+
 model KnowledgeBlock {
   id        String   @id @default(cuid())
   userId    String
@@ -1459,7 +1498,7 @@ model KnowledgeBlock {
   keywords  String[]
   content   String
   category  String?
-  embedding Float[]  // vector semántico (RAG por embeddings); vacío = solo keywords
+  embedding Float[] // vector semántico (RAG por embeddings); vacío = solo keywords
   isActive  Boolean  @default(true)
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
@@ -1620,45 +1659,45 @@ model ResellerLicensePool {
 }
 
 model PlanDetail {
-  id                   String   @id @default(uuid())
-  subscriptionPlanId   String   @unique
+  id                 String   @id @default(uuid())
+  subscriptionPlanId String   @unique
   // Hero
-  heroTitle            String?
-  heroSubtitle         String?
-  heroImageUrl         String?
-  heroBadge            String?
+  heroTitle          String?
+  heroSubtitle       String?
+  heroImageUrl       String?
+  heroBadge          String?
   // Video
-  videoUrl             String?
-  videoTitle           String?
-  videoThumbnailUrl    String?
+  videoUrl           String?
+  videoTitle         String?
+  videoThumbnailUrl  String?
   // Secciones de funciones: [{title, description, imageUrl, imageAlt, layout, badge}]
-  featureSections      Json     @default("[]")
+  featureSections    Json     @default("[]")
   // Galería: [{url, caption, alt}]
-  galleryImages        Json     @default("[]")
+  galleryImages      Json     @default("[]")
   // FAQ: [{question, answer}]
-  faqs                 Json     @default("[]")
+  faqs               Json     @default("[]")
   // Stats: [{value, label}]
-  stats                Json     @default("[]")
+  stats              Json     @default("[]")
   // Testimonios: [{name, role, company, text, avatarUrl, rating}]
-  testimonials         Json     @default("[]")
+  testimonials       Json     @default("[]")
   // Links de acción
-  meetingUrl           String?
-  demoUrl              String?
-  whatsappMessage      String?
+  meetingUrl         String?
+  demoUrl            String?
+  whatsappMessage    String?
   // CTA final
-  ctaTitle             String?
-  ctaSubtitle          String?
-  ctaButtonText        String?
-  ctaButtonUrl         String?
-  ctaSecondaryText     String?
-  ctaSecondaryUrl      String?
+  ctaTitle           String?
+  ctaSubtitle        String?
+  ctaButtonText      String?
+  ctaButtonUrl       String?
+  ctaSecondaryText   String?
+  ctaSecondaryUrl    String?
   // SEO
-  metaTitle            String?
-  metaDescription      String?
-  ogImageUrl           String?
-  updatedAt            DateTime @updatedAt
+  metaTitle          String?
+  metaDescription    String?
+  ogImageUrl         String?
+  updatedAt          DateTime @updatedAt
 
-  subscriptionPlan     SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id], onDelete: Cascade)
+  subscriptionPlan SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id], onDelete: Cascade)
 
   @@map("plan_details")
 }
@@ -1816,11 +1855,11 @@ model NoteFolder {
 }
 
 model UserNote {
-  id        String      @id @default(uuid())
-  userId    String
-  folderId  String?
-  title     String      @default("Sin título")
-  content   Json        @default("{}")
+  id          String      @id @default(uuid())
+  userId      String
+  folderId    String?
+  title       String      @default("Sin título")
+  content     Json        @default("{}")
   isPinned    Boolean     @default(false)
   emoji       String?
   color       String?
@@ -1830,8 +1869,8 @@ model UserNote {
   order       Int         @default(0)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  folder    NoteFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder      NoteFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([userId, isPinned])
@@ -1944,7 +1983,7 @@ model StageAutomation {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  user    User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   actions StageAutomationAction[]
 
   @@index([userId, stage])
@@ -1976,7 +2015,7 @@ model TaskTypeAutomation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user    User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   actions TaskTypeAutomationAction[]
 
   @@index([userId, taskType])
@@ -2008,7 +2047,7 @@ model ReminderGroupAutomation {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  user    User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
   actions ReminderGroupAutomationAction[]
 
   @@index([userId, reminderGroup])
@@ -2040,7 +2079,7 @@ model TagAutomation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   actions TagAutomationAction[]
 
   @@index([userId, tagId])
@@ -2075,7 +2114,7 @@ model AdvisorAutomation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user    User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
   actions AdvisorAutomationAction[]
 
   @@index([userId, advisorId])
@@ -2107,7 +2146,7 @@ model ApptAutomation {
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 
-  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   actions ApptAutomationAction[]
 
   @@index([userId, apptStatus])
@@ -2115,14 +2154,14 @@ model ApptAutomation {
 }
 
 model ApptAutomationAction {
-  id           String            @id @default(cuid())
+  id           String          @id @default(cuid())
   automationId String
   type         StageActionType
-  order        Int               @default(0)
+  order        Int             @default(0)
   config       Json
-  delayMinutes Int               @default(0)
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  delayMinutes Int             @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
   automation ApptAutomation @relation(fields: [automationId], references: [id], onDelete: Cascade)
 
@@ -2179,12 +2218,12 @@ model AffiliateProfile {
 }
 
 model AffiliateReferral {
-  id             String              @id @default(uuid())
+  id             String                @id @default(uuid())
   affiliateId    String
-  affiliate      AffiliateProfile    @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
-  referredUserId String              @unique
-  referredUser   User                @relation("ReferredBy", fields: [referredUserId], references: [id], onDelete: Cascade)
-  createdAt      DateTime            @default(now())
+  affiliate      AffiliateProfile      @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  referredUserId String                @unique
+  referredUser   User                  @relation("ReferredBy", fields: [referredUserId], references: [id], onDelete: Cascade)
+  createdAt      DateTime              @default(now())
   commissions    AffiliateCommission[]
 }
 
@@ -2424,21 +2463,21 @@ model TeamMemberAvailability {
 }
 
 model TeamService {
-  id           String               @id @default(uuid())
-  teamId       String
-  name         String
-  description  String?
-  duration     Int
-  messageText     String?
-  remindersConfig Json?
-  color           String?
-  isActive        Boolean              @default(true)
-  order        Int                  @default(0)
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  team         Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  members      TeamMemberService[]
-  appointments BookingAppointment[]
+  id               String               @id @default(uuid())
+  teamId           String
+  name             String
+  description      String?
+  duration         Int
+  messageText      String?
+  remindersConfig  Json?
+  color            String?
+  isActive         Boolean              @default(true)
+  order            Int                  @default(0)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  team             Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  members          TeamMemberService[]
+  appointments     BookingAppointment[]
   bookingQuestions BookingQuestion[]
 
   @@index([teamId])
@@ -2456,7 +2495,7 @@ model TeamMemberService {
 }
 
 model BookingAppointment {
-  id            String            @id @default(uuid())
+  id            String               @id @default(uuid())
   teamId        String
   teamMemberId  String
   teamServiceId String
@@ -2465,13 +2504,13 @@ model BookingAppointment {
   startTime     DateTime
   endTime       DateTime
   timezone      String
-  status        AppointmentStatus @default(PENDIENTE)
+  status        AppointmentStatus    @default(PENDIENTE)
   notes         String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  team          Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  teamMember    TeamMember          @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
-  teamService   TeamService         @relation(fields: [teamServiceId], references: [id])
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  team          Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamMember    TeamMember           @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  teamService   TeamService          @relation(fields: [teamServiceId], references: [id])
   formResponse  BookingFormResponse?
 
   @@index([teamId, startTime])
@@ -2543,22 +2582,22 @@ enum FormSubmissionSyncStatus {
 }
 
 model Form {
-  id                 String           @id @default(uuid())
-  userId             String
-  title              String
-  slug               String
-  publicSlug         String?          @unique
-  description        String?
-  sheetsUrl          String?
-  isActive           Boolean          @default(true)
-  whatsappEnabled    Boolean          @default(false)
-  whatsappNumber     String?
-  whatsappMessage    String?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fields             FormField[]
-  submissions        FormSubmission[]
+  id              String           @id @default(uuid())
+  userId          String
+  title           String
+  slug            String
+  publicSlug      String?          @unique
+  description     String?
+  sheetsUrl       String?
+  isActive        Boolean          @default(true)
+  whatsappEnabled Boolean          @default(false)
+  whatsappNumber  String?
+  whatsappMessage String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fields          FormField[]
+  submissions     FormSubmission[]
 
   @@unique([userId, slug])
   @@index([userId])
@@ -2607,19 +2646,19 @@ enum BookingQuestionType {
 }
 
 model BookingQuestion {
-  id        String              @id @default(uuid())
-  userId    String
+  id            String              @id @default(uuid())
+  userId        String
   teamServiceId String?
-  label     String
-  type      BookingQuestionType @default(TEXT)
-  options   String[]            @default([])
-  required  Boolean             @default(false)
-  order     Int                 @default(0)
-  active    Boolean             @default(true)
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
-  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  teamService TeamService?      @relation(fields: [teamServiceId], references: [id], onDelete: Cascade)
+  label         String
+  type          BookingQuestionType @default(TEXT)
+  options       String[]            @default([])
+  required      Boolean             @default(false)
+  order         Int                 @default(0)
+  active        Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamService   TeamService?        @relation(fields: [teamServiceId], references: [id], onDelete: Cascade)
 
   @@index([userId, order])
   @@index([teamServiceId, order])
