@@ -247,16 +247,18 @@ export function NotificationCenter() {
         <DropdownMenuSeparator />
 
         {summary.length > 0 && (
-          <div className="grid shrink-0 grid-cols-2 gap-1 px-2 py-2 sm:grid-cols-4">
-            {summary.map(([kind, count]) => {
+          <div className="grid shrink-0 grid-cols-6 gap-1 px-2 py-2">
+            {summary.map(([kind, count], index) => {
               const meta = KIND_META[kind];
+              const balanceFiveItems = summary.length === 5 && index >= 3;
               return (
                 <button
                   key={kind}
                   type="button"
                   onClick={() => setActiveKind(kind)}
                   className={cn(
-                    "flex min-w-0 items-center justify-between gap-1 rounded-md border px-1.5 py-1 text-left transition-colors",
+                    "col-span-2 flex min-w-0 items-center justify-between gap-1 rounded-md border px-1.5 py-1 text-left transition-colors",
+                    balanceFiveItems && "col-span-3",
                     meta.filterClass,
                     activeKind === kind && meta.activeClass,
                   )}
