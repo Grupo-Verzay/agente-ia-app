@@ -34,8 +34,12 @@ function estimateItemHeight(item: RenderedListItem) {
   return ESTIMATED_TEXT_HEIGHT + Math.min(180, Math.floor(textLength / 55) * 22);
 }
 
-/* Chat background — official WhatsApp pattern */
+/* Chat background — official WhatsApp pattern.
+   El patrón claro usa un trazo gris fijo (#dfe3e7); el oscuro usa currentColor
+   tintado tenue dentro del propio SVG, para que en modo oscuro los doodles se
+   vean sutiles (como WhatsApp) y no "repintados" sobre el fondo. */
 const WA_PATTERN_URL = `url("/patterns/whatsapp-chat-pattern-light.svg")`;
+const WA_PATTERN_URL_DARK = `url("/patterns/whatsapp-chat-pattern.svg")`;
 
 const WA_STYLE_LIGHT: React.CSSProperties = {
   backgroundColor: '#f0f2f5',
@@ -47,7 +51,7 @@ const WA_STYLE_LIGHT: React.CSSProperties = {
 
 const WA_STYLE_DARK: React.CSSProperties = {
   backgroundColor: '#0d1418',
-  backgroundImage: WA_PATTERN_URL,
+  backgroundImage: WA_PATTERN_URL_DARK,
   backgroundRepeat: 'repeat',
   backgroundSize: '430px 766px',
   backgroundPosition: 'top left',
