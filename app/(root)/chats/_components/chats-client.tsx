@@ -1728,7 +1728,7 @@ export function ChatsClient({
             : isSidebarVisible
               ? "w-full sm:w-[18rem] md:w-[20rem] lg:w-[22rem] xl:w-[24rem]"
               : "hidden md:block md:w-[20rem] lg:w-[22rem] xl:w-[24rem]"
-        } h-full flex-shrink-0 transition-all duration-300 sm:border-r`}
+        } h-full flex-shrink-0 transition-all duration-300 sm:border-r border-border`}
       >
         <ChatSidebar
           allTags={allTags}

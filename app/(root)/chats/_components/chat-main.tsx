@@ -848,7 +848,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   }, [onInfoPanelChange]);
 
   return (
-    <div className="relative flex h-full w-full min-w-[100px] sm:border-l sm:border-r overflow-hidden">
+    <div className="relative flex h-full w-full min-w-[100px] sm:border-l sm:border-r border-border overflow-hidden">
       {/* ── Chat area ── */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
       <ChatHeader

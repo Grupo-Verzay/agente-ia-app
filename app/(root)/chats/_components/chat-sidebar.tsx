@@ -756,8 +756,8 @@ export function ChatSidebar({
 
   return (
     <>
-      <aside className="flex h-full w-full max-w-[700px] flex-col bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/50 xs:min-w-[200px] sm:border-r">
-        <div className="sticky top-0 z-10 space-y-1.5 border-b bg-background/80 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:space-y-2 sm:px-3">
+      <aside className="flex h-full w-full max-w-[700px] flex-col bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/50 xs:min-w-[200px] sm:border-r border-border">
+        <div className="sticky top-0 z-10 space-y-1.5 border-b border-border bg-background/80 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:space-y-2 sm:px-3">
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2">
             <ChatSearchBar
               value={q}
