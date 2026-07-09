@@ -33,12 +33,16 @@ async function triggerTaskTypeAutomations(sessionId: number, taskType: string): 
   }
 }
 
-function toTaskData(t: any, phoneMap: Record<string, string | null> = {}): TaskData {
+function toTaskData(
+  t: any,
+  phoneMap: Record<string, string | null> = {},
+  nameMap: Record<string, string | null> = {},
+): TaskData {
   return {
     id: t.id,
     ownerId: t.ownerId,
     assignedToId: t.assignedToId,
-    assignedToName: t.assignedToName,
+    assignedToName: t.assignedToName ?? nameMap[t.assignedToId] ?? null,
     assignedToPhone: phoneMap[t.assignedToId] ?? null,
     sessionId: t.sessionId,
     contactName: t.contactName,
@@ -77,12 +81,20 @@ export async function createTaskAction(
     const user = await getAuth();
     const parsed = createSchema.parse(input);
     const ownerId = user.ownerId ?? user.id;
+    const assignedUser = parsed.assignedToName
+      ? null
+      : await db.user.findUnique({
+          where: { id: parsed.assignedToId },
+          select: { name: true, email: true },
+        });
+    const assignedToName =
+      parsed.assignedToName ?? assignedUser?.name ?? assignedUser?.email ?? null;
 
     const task = await (db as any).task.create({
       data: {
         ownerId,
         assignedToId: parsed.assignedToId,
-        assignedToName: parsed.assignedToName ?? null,
+        assignedToName,
         sessionId: parsed.sessionId ?? null,
         contactName: parsed.contactName ?? null,
         contactJid: parsed.contactJid ?? null,
@@ -186,11 +198,12 @@ export async function getMyTasksAction(): Promise<{
     const advisorIds = Array.from(new Set<string>(tasks.map((t: any) => t.assignedToId)));
     const advisors = await db.user.findMany({
       where: { id: { in: advisorIds } },
-      select: { id: true, notificationNumber: true },
+      select: { id: true, name: true, email: true, notificationNumber: true },
     });
     const phoneMap = Object.fromEntries(advisors.map(a => [a.id, a.notificationNumber]));
+    const nameMap = Object.fromEntries(advisors.map(a => [a.id, a.name ?? a.email]));
 
-    return { success: true, data: tasks.map((t: any) => toTaskData(t, phoneMap)) };
+    return { success: true, data: tasks.map((t: any) => toTaskData(t, phoneMap, nameMap)) };
   } catch (error) {
     console.error("[getMyTasksAction]", error);
     return { success: false, message: "Error al cargar las tareas." };

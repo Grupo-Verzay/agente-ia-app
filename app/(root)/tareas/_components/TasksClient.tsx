@@ -579,7 +579,8 @@ function KanbanCard({ task, onComplete, onCancel, onDelete }: {
             <User className="h-3 w-3 shrink-0" />
             {task.assignedToName ?? "Sin asesor"}
           </span>
-          {task.assignedToPhone && (
+          {task.assignedToPhone &&
+            task.assignedToPhone.replace(/\D/g, "") !== task.contactJid?.replace(/\D/g, "") && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <Phone className="h-3 w-3 shrink-0" />
               <span className="truncate">{fmtPhone(task.assignedToPhone)}</span>
@@ -708,7 +709,8 @@ function TaskCard({
               <User className="h-3 w-3 shrink-0" />
               {task.assignedToName ?? task.assignedToId}
             </span>
-            {task.assignedToPhone && (
+            {task.assignedToPhone &&
+              task.assignedToPhone.replace(/\D/g, "") !== task.contactJid?.replace(/\D/g, "") && (
               <span className="flex items-center gap-1">
                 <Phone className="h-3 w-3 shrink-0" />
                 <span className="whitespace-nowrap">{fmtPhone(task.assignedToPhone)}</span>
