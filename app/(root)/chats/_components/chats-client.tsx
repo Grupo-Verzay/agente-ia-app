@@ -35,6 +35,7 @@ import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
 import { CommitmentTaskDialog } from "./CommitmentTaskDialog";
 import { detectCommitment, type DetectedCommitment } from "@/lib/commitment-detection";
+import { createClientPromiseFollowUpAction } from "@/actions/conversation-intelligence-actions";
 import {
   buildWhatsAppJidCandidates,
   fmtPhone,
@@ -1691,6 +1692,27 @@ export function ChatsClient({
       const isOpenChat =
         jid && (jid === selectedJid || currentContact?.aliases?.includes(jid));
       const m = payload.message;
+      if (m && !m.fromMe && m.content) {
+        const promiseSession = chatSessions[jid] ?? Object.values(chatSessions).find(
+          (session) =>
+            session?.remoteJid === jid ||
+            session?.remoteJidAlt === jid,
+        );
+        if (promiseSession?.id) {
+          void createClientPromiseFollowUpAction({
+            sessionId: promiseSession.id,
+            text: m.content,
+            assignedToId:
+              promiseSession.assignedAdvisorId ?? currentAdvisorId ?? userId,
+          }).then((result) => {
+            if (result.created) {
+              toast.success("Promesa del cliente detectada", {
+                description: result.title,
+              });
+            }
+          });
+        }
+      }
       const existsInList =
         currentChatsResult.success &&
         currentChatsResult.data.some(

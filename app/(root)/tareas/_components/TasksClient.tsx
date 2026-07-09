@@ -170,6 +170,12 @@ export function TasksClient({ userId, userName }: Props) {
   const pending = tasks.filter((t) => t.status === "pending").length;
   const done = tasks.filter((t) => t.status === "done").length;
   const overdue = tasks.filter((t) => t.status === "pending" && new Date(t.dueDate) < new Date()).length;
+  const overdueCommitments = tasks.filter(
+    (t) =>
+      t.status === "pending" &&
+      t.title.toLowerCase().startsWith("compromiso:") &&
+      new Date(t.dueDate) < new Date(),
+  ).length;
   const dueToday = tasks.filter((t) => {
     if (t.status !== "pending") return false;
     const d = new Date(t.dueDate);
@@ -243,6 +249,9 @@ export function TasksClient({ userId, userName }: Props) {
         </div>
         <div className="min-w-0 sm:flex-1">
           <MetricCard icon={<Calendar className="h-4 w-4" />} label="Completadas" value={done} color="#22C55E" helper="Tareas completadas" />
+        </div>
+        <div className="min-w-0 sm:flex-1">
+          <MetricCard icon={<Calendar className="h-4 w-4" />} label="Compromisos" value={overdueCommitments} color="#F97316" helper="Compromisos vencidos del asesor" />
         </div>
       </div>
 

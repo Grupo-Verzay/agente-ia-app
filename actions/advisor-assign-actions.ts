@@ -2,6 +2,7 @@
 
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { generateConversationIntelligence } from "@/actions/conversation-intelligence-actions";
 
 type Result = { success: true; warning?: string } | { success: false; message: string };
 
@@ -215,6 +216,12 @@ export async function releaseSession(sessionId: number): Promise<Result> {
     return { success: false, message: "Solo puedes liberar tus propias conversaciones." };
   }
 
+  await generateConversationIntelligence({
+    sessionId,
+    actorId: user.id,
+    reason: "transferred",
+  }).catch((error) => console.error("[releaseSession intelligence]", error));
+
   await db.$executeRaw`
     UPDATE "Session" SET assigned_advisor_id = NULL WHERE id = ${sessionId}
   `;
@@ -253,6 +260,13 @@ export async function transferSession(
     return { success: false, message: "Solo puedes transferir tus propias conversaciones." };
   }
 
+  await generateConversationIntelligence({
+    sessionId,
+    actorId: user.id,
+    reason: "transferred",
+    targetAdvisorId,
+  }).catch((error) => console.error("[transferSession intelligence]", error));
+
   await db.$executeRaw`
     UPDATE "Session" SET assigned_advisor_id = ${targetAdvisorId} WHERE id = ${sessionId}
   `;
@@ -277,6 +291,12 @@ export async function resolveSession(sessionId: number): Promise<{ success: bool
   const isOwner = user.id === ownerId;
   const isAssigned = user.id === assignedAdvisorId;
   if (!isOwner && !isAssigned) return { success: false, message: "No autorizado." };
+
+  await generateConversationIntelligence({
+    sessionId,
+    actorId: user.id,
+    reason: "resolved",
+  }).catch((error) => console.error("[resolveSession intelligence]", error));
 
   await db.$executeRaw`UPDATE "Session" SET status = false WHERE id = ${sessionId}`;
   await logAssignment(sessionId, assignedAdvisorId, user.id, "resolved");

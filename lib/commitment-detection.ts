@@ -85,12 +85,12 @@ export function detectCommitment(text: string, now = new Date()): DetectedCommit
   }> = [
     { pattern: /\b(?:recuerdame|recordarme)\b.*\b(?:llamar|escribir|contactar|enviar|confirmar)\b/, kind: "reminder", title: "Recordatorio de seguimiento", type: "Seguimiento" },
     { pattern: /\b(?:nos\s+conectamos|nos\s+reunimos|agendamos|tenemos\s+reunion)\b/, kind: "appointment", title: "Reunión con el cliente", type: "Reunión" },
-    { pattern: /\b(?:te|le)\s+(?:llamo|llamare|marco)\b/, kind: "task", title: "Llamar al cliente", type: "Llamada" },
-    { pattern: /\b(?:te|le)\s+(?:envio|enviare|mando|mandare)\b.*\b(propuesta|cotizacion)\b/, kind: "task", title: "Enviar propuesta", type: "Seguimiento" },
-    { pattern: /\b(?:te|le)\s+(?:envio|enviare|mando|mandare)\b/, kind: "task", title: "Enviar información pendiente", type: "Seguimiento" },
-    { pattern: /\b(?:te|le)\s+(?:escribo|contacto)\b/, kind: "reminder", title: "Contactar nuevamente al cliente", type: "Seguimiento" },
-    { pattern: /\b(?:te|le)\s+(?:confirmo|confirmare|aviso|avisare)\b/, kind: "reminder", title: "Confirmar al cliente", type: "Seguimiento" },
-    { pattern: /\b(?:revisamos|revisare|reviso)\b/, kind: "task", title: "Revisar pendiente con el cliente", type: "Tarea" },
+    { pattern: /\b(?:te|le)\s+(?:llamo|llamare|marco)\b/, kind: "task", title: "Compromiso: llamar al cliente", type: "Llamada" },
+    { pattern: /\b(?:te|le)\s+(?:envio|enviare|mando|mandare)\b.*\b(propuesta|cotizacion)\b/, kind: "task", title: "Compromiso: enviar propuesta", type: "Seguimiento" },
+    { pattern: /\b(?:te|le)\s+(?:envio|enviare|mando|mandare)\b/, kind: "task", title: "Compromiso: enviar información pendiente", type: "Seguimiento" },
+    { pattern: /\b(?:te|le)\s+(?:escribo|contacto)\b/, kind: "reminder", title: "Compromiso: contactar nuevamente al cliente", type: "Seguimiento" },
+    { pattern: /\b(?:te|le)\s+(?:confirmo|confirmare|aviso|avisare)\b/, kind: "reminder", title: "Compromiso: confirmar al cliente", type: "Seguimiento" },
+    { pattern: /\b(?:revisamos|revisare|reviso)\b/, kind: "task", title: "Compromiso: revisar pendiente con el cliente", type: "Tarea" },
   ];
 
   const rule = rules.find((item) => item.pattern.test(clean));
@@ -99,4 +99,25 @@ export function detectCommitment(text: string, now = new Date()): DetectedCommit
   const dueDate = parseDueDate(clean, now);
   if (!dueDate) return null;
   return { kind: rule.kind, title: rule.title, type: rule.type, dueDate, sourceText: text };
+}
+
+export function detectClientPromise(text: string, now = new Date()): DetectedCommitment | null {
+  const clean = normalizeText(text).replace(/\s+/g, " ").trim();
+  const rules = [
+    { pattern: /\b(?:pago|pagare|te\s+pago|le\s+pago)\b/, title: "Cliente prometió realizar el pago" },
+    { pattern: /\b(?:te|le)\s+(?:confirmo|confirmare)\b/, title: "Cliente prometió confirmar" },
+    { pattern: /\b(?:te|le)\s+(?:envio|enviare|mando|mandare)\b.*\b(?:documento|documentos|soporte|comprobante|informacion)\b/, title: "Cliente prometió enviar documentos" },
+    { pattern: /\b(?:te|le)\s+(?:llamo|llamare|escribo|escribire)\b/, title: "Cliente prometió volver a contactar" },
+  ];
+  const rule = rules.find((item) => item.pattern.test(clean));
+  if (!rule) return null;
+  const dueDate = parseDueDate(clean, now);
+  if (!dueDate) return null;
+  return {
+    kind: "reminder",
+    title: `Promesa cliente: ${rule.title.replace(/^Cliente prometió\s*/i, "")}`,
+    type: "Seguimiento",
+    dueDate,
+    sourceText: text,
+  };
 }
