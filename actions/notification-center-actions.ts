@@ -11,7 +11,8 @@ export type NotificationKind =
   | "appointment"
   | "connection"
   | "chat"
-  | "mention";
+  | "mention"
+  | "followup";
 
 export type NotificationCenterItem = {
   id: string;
@@ -34,6 +35,7 @@ const EMPTY_COUNTS: Record<NotificationKind, number> = {
   connection: 0,
   chat: 0,
   mention: 0,
+  followup: 0,
 };
 
 const ITEMS_PER_KIND_LIMIT = 50;
@@ -56,24 +58,53 @@ export async function getNotificationCenterData(): Promise<{
 
   const ownerId = user.ownerId ?? user.id;
   const now = new Date();
+  const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const followupWhere = {
+    ownerId,
+    status: "pending",
+    dueDate: { lte: next24Hours },
+    OR: [
+      { type: "Seguimiento" },
+      { title: { startsWith: "Compromiso:", mode: "insensitive" } },
+      { title: { startsWith: "Promesa cliente:", mode: "insensitive" } },
+    ],
+  };
 
   try {
     const [
       overdueTasks,
       taskCount,
+      followups,
+      followupCount,
       pendingAppointments,
       appointmentCount,
       instances,
       owner,
     ] = await Promise.all([
       (db as any).task.findMany({
-        where: { ownerId, status: "pending", dueDate: { lt: now } },
+        where: {
+          ownerId,
+          status: "pending",
+          dueDate: { lt: now },
+          NOT: { OR: followupWhere.OR },
+        },
         orderBy: { dueDate: "asc" },
         take: ITEMS_PER_KIND_LIMIT,
       }),
       (db as any).task.count({
-        where: { ownerId, status: "pending", dueDate: { lt: now } },
+        where: {
+          ownerId,
+          status: "pending",
+          dueDate: { lt: now },
+          NOT: { OR: followupWhere.OR },
+        },
       }),
+      (db as any).task.findMany({
+        where: followupWhere,
+        orderBy: { dueDate: "asc" },
+        take: ITEMS_PER_KIND_LIMIT,
+      }),
+      (db as any).task.count({ where: followupWhere }),
       db.appointment.findMany({
         where: { userId: ownerId, status: "PENDIENTE", startTime: { gte: now } },
         include: { session: { select: { pushName: true, remoteJid: true } }, service: { select: { name: true } } },
@@ -215,6 +246,16 @@ export async function getNotificationCenterData(): Promise<{
         href: "/tareas",
         date: task.dueDate?.toISOString?.() ?? null,
       })),
+      ...followups.map((task: any) => ({
+        id: `followup-${task.id}`,
+        kind: "followup" as const,
+        title: task.title,
+        description: task.contactName
+          ? `Seguimiento con ${task.contactName}`
+          : "Seguimiento pendiente",
+        href: "/tareas",
+        date: task.dueDate?.toISOString?.() ?? null,
+      })),
     ];
 
     const counts = {
@@ -223,6 +264,7 @@ export async function getNotificationCenterData(): Promise<{
       connection: connectionItems.length,
       chat: chatCount,
       mention: collabItems.length,
+      followup: followupCount,
     };
 
     return {

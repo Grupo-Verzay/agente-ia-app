@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   FileText,
   MessageCircle,
+  ListChecks,
   PlugZap,
   RefreshCw,
   UserRound,
@@ -88,13 +89,20 @@ const KIND_META: Record<
     filterClass: "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
     activeClass: "border-blue-400 bg-blue-100 text-blue-800",
   },
+  followup: {
+    label: "Seguimientos",
+    Icon: ListChecks,
+    color: "text-violet-600",
+    filterClass: "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
+    activeClass: "border-violet-400 bg-violet-100 text-violet-800",
+  },
 };
 
-const FILTER_ORDER: NotificationKind[] = ["mention", "chat", "appointment", "task", "connection"];
+const FILTER_ORDER: NotificationKind[] = ["mention", "chat", "appointment", "task", "followup", "connection"];
 
 const EMPTY_DATA: NotificationCenterData = {
   total: 0,
-  counts: { task: 0, appointment: 0, connection: 0, chat: 0, mention: 0 },
+  counts: { task: 0, appointment: 0, connection: 0, chat: 0, mention: 0, followup: 0 },
   items: [],
 };
 
@@ -124,7 +132,7 @@ export function NotificationCenter() {
       if (res.success) {
         const dismissed = loadDismissed();
         const items = res.data.items.filter((i) => !dismissed.has(i.id));
-        const counts = { task: 0, appointment: 0, connection: 0, chat: 0, mention: 0 } as Record<NotificationKind, number>;
+        const counts = { task: 0, appointment: 0, connection: 0, chat: 0, mention: 0, followup: 0 } as Record<NotificationKind, number>;
         for (const item of items) counts[item.kind] = (counts[item.kind] ?? 0) + 1;
         setData({ items, counts, total: items.length });
       }
