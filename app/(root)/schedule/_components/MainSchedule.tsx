@@ -100,7 +100,7 @@ export const MainSchedule = ({
         <div className="flex h-full w-full flex-col gap-3" data-schedule-view>
             {/* Metric cards — siempre visibles, altura fija. En "Registros" muestran
                 las métricas de los registros del formulario (4 cards). */}
-            <div className="grid grid-cols-2 gap-2 shrink-0 sm:flex sm:flex-wrap sm:gap-3">
+            <div className="hidden shrink-0 sm:flex sm:flex-wrap sm:gap-3">
                 {tab === 'registros'
                     ? bookingMetrics.map((m) => (
                         <div key={m.key} className="min-w-0 sm:flex-1">

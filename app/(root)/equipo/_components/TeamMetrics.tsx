@@ -49,7 +49,7 @@ export function TeamKpiCards({ metrics }: Props) {
   const totalClassified = Object.values(global.leadStatus).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+    <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
       <div className="min-w-0 sm:flex-1">
         <MetricCard icon={<MessageSquare className="h-4 w-4" />} label="Conversaciones activas" value={global.totalActive} helper="Total de conversaciones activas en el equipo" color="#3B82F6" />
       </div>

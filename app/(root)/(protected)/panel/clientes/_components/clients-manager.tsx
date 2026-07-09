@@ -255,7 +255,7 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         <TooltipProvider delayDuration={120}>
         <div className="flex h-full min-w-0 w-full flex-col gap-2 overflow-hidden">
             {/* MetricCards */}
-            <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+            <div className="hidden shrink-0 sm:flex sm:flex-wrap sm:gap-3">
                 <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<Users className="h-4 w-4" />}

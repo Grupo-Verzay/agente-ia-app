@@ -73,7 +73,7 @@ export function TagsPageClient({
         <TooltipProvider delayDuration={120}>
             <div data-full-bleed className="flex h-full min-w-0 w-full flex-col gap-2">
                 {/* Top 4 metric cards por conteo */}
-                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+                <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
                     {topMetrics.map((m) => (
                         <div key={m.id} className="min-w-0 sm:flex-1">
                             <MetricCard
