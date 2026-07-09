@@ -6,20 +6,37 @@ import type { FetchChatsResult } from "@/actions/chat-actions";
 
 async function showNotification(title: string, options: NotificationOptions): Promise<void> {
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  const mobileOptions = {
+    ...options,
+    icon: options.icon || "/icon-192.png",
+    badge: "/favicon-48.png",
+    vibrate: [250, 120, 250, 120, 400],
+    renotify: true,
+  } as NotificationOptions;
   try {
-    const n = new Notification(title, options);
+    const n = new Notification(title, mobileOptions);
     setTimeout(() => n.close(), 7000);
   } catch {
     // Mobile Chrome (Android) requires ServiceWorkerRegistration.showNotification()
     if ("serviceWorker" in navigator) {
       try {
         const reg = await navigator.serviceWorker.ready;
-        await reg.showNotification(title, options);
+        await reg.showNotification(title, mobileOptions);
       } catch {
         // Service worker not available
       }
     }
   }
+}
+
+function updateAppBadge(count: number) {
+  if (!("setAppBadge" in navigator)) return;
+  const badgeNavigator = navigator as Navigator & {
+    setAppBadge: (value?: number) => Promise<void>;
+    clearAppBadge?: () => Promise<void>;
+  };
+  if (count > 0) void badgeNavigator.setAppBadge(count);
+  else if (badgeNavigator.clearAppBadge) void badgeNavigator.clearAppBadge();
 }
 
 function playNotificationSound() {
@@ -70,6 +87,9 @@ export function useAdvisorNotifications(
   // Inicializar título y solicitar permiso de notificaciones al montar
   useEffect(() => {
     originalTitleRef.current = document.title;
+    if ("serviceWorker" in navigator) {
+      void navigator.serviceWorker.register("/sw.js");
+    }
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
       void Notification.requestPermission();
     }
@@ -79,6 +99,7 @@ export function useAdvisorNotifications(
   useEffect(() => {
     const onFocus = () => {
       pendingCountRef.current = 0;
+      updateAppBadge(0);
       if (originalTitleRef.current) document.title = originalTitleRef.current;
     };
     window.addEventListener("focus", onFocus);
@@ -138,6 +159,7 @@ export function useAdvisorNotifications(
       localStorage.setItem(storageKey, JSON.stringify(Array.from(seenIdsRef.current)));
 
       pendingCountRef.current += newSessions.length;
+      updateAppBadge(pendingCountRef.current);
       playNotificationSound();
 
       newSessions.forEach((session) => {
@@ -179,16 +201,8 @@ export function useAdvisorNotifications(
       const prevTs = prev.get(chat.remoteJid) ?? 0;
       const isFromMe = chat.lastMessage?.key?.fromMe ?? true;
 
-      if (currentTs > prevTs && !isFromMe) {
-        const session = chatSessions[chat.remoteJid];
-        const agentInactive = session
-          ? session.agentDisabled === true || session.status === false
-          : false;
-        const isNotSelected = chat.remoteJid !== selectedJid;
-
-        if (agentInactive && isNotSelected) {
-          toNotify.push(chat);
-        }
+      if (currentTs > prevTs && !isFromMe && chat.remoteJid !== selectedJid) {
+        toNotify.push(chat);
       }
 
       // Siempre actualizar el timestamp visto para no re-detectar el mismo mensaje
@@ -217,12 +231,14 @@ export function useAdvisorNotifications(
         chat.remoteJid;
       void showNotification("Nuevo mensaje", {
         body: name,
-        icon: "/favicon.ico",
+        icon: "/icon-192.png",
         tag: `new-msg-${chat.remoteJid}`,
+        data: { url: `/chats?jid=${encodeURIComponent(chat.remoteJid)}` },
       });
     }
 
     pendingCountRef.current += reallNew.length;
+    updateAppBadge(pendingCountRef.current);
     if (originalTitleRef.current) {
       document.title = `(${pendingCountRef.current}) ${originalTitleRef.current}`;
     }
