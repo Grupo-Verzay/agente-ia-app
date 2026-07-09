@@ -790,9 +790,6 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                             userId={userId}
                                             primaryNumber={(user.notificationNumber as string) ?? ""}
                                         />
-                                        <div className="border-t border-border pt-4">
-                                            <OperatorContactsManager userId={userId} />
-                                        </div>
                                     </CardContent>
                                 </Card>
                             </div>
@@ -907,6 +904,14 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     </div>
                                 </CardHeader>
                             </Card>
+
+                            {/* Puente con operario */}
+                            <Card className="border-border mb-4">
+                                <CardContent className="pt-4">
+                                    <OperatorContactsManager userId={userId} />
+                                </CardContent>
+                            </Card>
+
                             <SectionTitle>Respuestas de voz</SectionTitle>
                             <Card className="border-border">
                                 <CardHeader className="pb-3">
