@@ -302,33 +302,8 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
     const activityData = a?.activityByDay ?? [];
     const activityInterval = activityData.length > 30 ? 6 : activityData.length > 14 ? 3 : 0;
 
-    const LEAD_SUMMARY = [
-        { key: "FRIO",        label: "Frío",         value: a?.leadStatusCounts.FRIO ?? 0,        color: LEAD_COLORS.FRIO },
-        { key: "TIBIO",       label: "Tibio",        value: a?.leadStatusCounts.TIBIO ?? 0,       color: LEAD_COLORS.TIBIO },
-        { key: "CALIENTE",    label: "Caliente",     value: a?.leadStatusCounts.CALIENTE ?? 0,    color: LEAD_COLORS.CALIENTE },
-        { key: "FINALIZADO",  label: "Finalizado",   value: a?.leadStatusCounts.FINALIZADO ?? 0,  color: LEAD_COLORS.FINALIZADO },
-        { key: "DESCARTADO",  label: "Descartado",   value: a?.leadStatusCounts.DESCARTADO ?? 0,  color: LEAD_COLORS.DESCARTADO },
-        { key: "CITAS",       label: "Citas",        value: a?.appointments.total ?? 0,           color: "#5288E0" },
-        { key: "FOLLOW_UPS",  label: "Follow-ups",   value: stats?.crmFollowUps.active ?? 0,      color: "#24A1DB" },
-        { key: "FLUJOS",      label: "Flujos",       value: a?.totalWorkflows ?? 0,               color: "#8E67E9" },
-    ];
-
     return (
         <div className="flex min-h-0 flex-1 w-full flex-col gap-2">
-
-            {/* --- Barra de resumen (simétrica con tabs de Registros) --- */}
-            <div className="flex h-auto w-full flex-nowrap justify-between gap-1 overflow-x-auto rounded-md border border-border bg-muted/40 p-0">
-                {LEAD_SUMMARY.map((item) => (
-                    <div
-                        key={item.key}
-                        className="inline-flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium text-white"
-                        style={{ backgroundColor: item.color }}
-                    >
-                        <span className="hidden sm:inline">{item.label}</span>
-                        <span className="sm:hidden">{loading ? "…" : item.value}</span>
-                    </div>
-                ))}
-            </div>
 
             {/* --- Toolbar (simétrica con CrmRecordsToolbar) --- */}
             <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
