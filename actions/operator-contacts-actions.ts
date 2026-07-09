@@ -32,6 +32,12 @@ const nameSchema = z
     .min(1, "Ingresa un nombre.")
     .max(40, "El nombre no puede superar 40 caracteres.");
 
+// Especialidad/tema del operario: la IA la usa para elegir a quién consultar.
+const descriptionSchema = z
+    .string()
+    .max(120, "La especialidad no puede superar 120 caracteres.")
+    .optional();
+
 // El webhook compara el número del operario con el remitente entrante
 // (remoteJid = "573001234567@s.whatsapp.net"), así que guardamos SOLO dígitos.
 function toDigits(phone: string): string {
@@ -44,6 +50,7 @@ export type OperatorContact = {
     id: string;
     name: string;
     phone: string;
+    description: string | null;
     isActive: boolean;
     createdAt: Date;
 };
@@ -74,7 +81,7 @@ export async function getOperatorContacts(userId: string): Promise<OperatorConta
         const [contacts, user] = await Promise.all([
             db.operatorContact.findMany({
                 where: { userId },
-                select: { id: true, name: true, phone: true, isActive: true, createdAt: true },
+                select: { id: true, name: true, phone: true, description: true, isActive: true, createdAt: true },
                 orderBy: { createdAt: "asc" },
             }),
             db.user.findUnique({ where: { id: userId }, select: { operatorBridgeEnabled: true } }),
@@ -109,6 +116,7 @@ export async function addOperatorContact(
     userId: string,
     name: string,
     phone: string,
+    description?: string,
 ): Promise<OperatorContactResult> {
     if (!userId) return { success: false, message: "userId requerido." };
 
@@ -120,6 +128,9 @@ export async function addOperatorContact(
 
     const phoneResult = phoneSchema.safeParse(phone);
     if (!phoneResult.success) return { success: false, message: phoneResult.error.errors[0].message };
+
+    const descResult = descriptionSchema.safeParse(description);
+    if (!descResult.success) return { success: false, message: descResult.error.errors[0].message };
 
     const normalizedPhone = toDigits(phone);
     if (normalizedPhone.length < 7) {
@@ -133,8 +144,8 @@ export async function addOperatorContact(
         if (existing) return { success: false, message: "Este operario ya está registrado." };
 
         const contact = await db.operatorContact.create({
-            data: { userId, name: name.trim(), phone: normalizedPhone },
-            select: { id: true, name: true, phone: true, isActive: true, createdAt: true },
+            data: { userId, name: name.trim(), phone: normalizedPhone, description: description?.trim() || null },
+            select: { id: true, name: true, phone: true, description: true, isActive: true, createdAt: true },
         });
 
         revalidatePath("/profile");
@@ -148,14 +159,14 @@ export async function addOperatorContact(
 export async function updateOperatorContact(
     id: string,
     userId: string,
-    data: { name?: string; phone?: string; isActive?: boolean },
+    data: { name?: string; phone?: string; description?: string; isActive?: boolean },
 ): Promise<{ success: boolean; message: string }> {
     if (!id || !userId) return { success: false, message: "Parámetros requeridos." };
 
     try { await assertCanManage(userId); }
     catch { return { success: false, message: "No autorizado." }; }
 
-    const patch: { name?: string; phone?: string; isActive?: boolean } = {};
+    const patch: { name?: string; phone?: string; description?: string; isActive?: boolean } = {};
 
     if (data.name !== undefined) {
         const r = nameSchema.safeParse(data.name);
@@ -168,6 +179,11 @@ export async function updateOperatorContact(
         const digits = toDigits(data.phone);
         if (digits.length < 7) return { success: false, message: "Ingresa un número válido (mínimo 7 dígitos)." };
         patch.phone = digits;
+    }
+    if (data.description !== undefined) {
+        const r = descriptionSchema.safeParse(data.description);
+        if (!r.success) return { success: false, message: r.error.errors[0].message };
+        patch.description = data.description.trim();
     }
     if (data.isActive !== undefined) patch.isActive = data.isActive;
 

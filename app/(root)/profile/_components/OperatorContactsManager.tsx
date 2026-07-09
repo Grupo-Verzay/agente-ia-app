@@ -34,6 +34,7 @@ export function OperatorContactsManager({ userId }: Props) {
     const [showAddForm, setShowAddForm] = useState(false);
     const [newName, setNewName] = useState("");
     const [newPhone, setNewPhone] = useState("");
+    const [newDescription, setNewDescription] = useState("");
     const [saving, setSaving] = useState(false);
     const addNameRef = useRef<HTMLInputElement>(null);
 
@@ -69,11 +70,12 @@ export function OperatorContactsManager({ userId }: Props) {
     const handleAdd = async () => {
         if (!newName.trim() || !newPhone.trim()) return;
         setSaving(true);
-        const result = await addOperatorContact(userId, newName.trim(), newPhone.trim());
+        const result = await addOperatorContact(userId, newName.trim(), newPhone.trim(), newDescription.trim() || undefined);
         if (result.success && result.data) {
             setOperators((prev) => [...prev, result.data!]);
             setNewName("");
             setNewPhone("");
+            setNewDescription("");
             setShowAddForm(false);
             toast.success("Operario agregado");
         } else {
@@ -86,6 +88,7 @@ export function OperatorContactsManager({ userId }: Props) {
         setShowAddForm(false);
         setNewName("");
         setNewPhone("");
+        setNewDescription("");
     };
 
     const handleToggleActive = async (op: OperatorContact) => {
@@ -149,6 +152,9 @@ export function OperatorContactsManager({ userId }: Props) {
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate">{op.name}</p>
                                 <p className="text-xs text-muted-foreground truncate">{op.phone}</p>
+                                {op.description && (
+                                    <p className="text-[11px] text-primary/80 truncate">{op.description}</p>
+                                )}
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                                 <Switch
@@ -197,6 +203,17 @@ export function OperatorContactsManager({ userId }: Props) {
                                 placeholder="WhatsApp (ej. 573001234567)"
                                 value={newPhone}
                                 onChange={(e) => setNewPhone(e.target.value)}
+                                disabled={saving}
+                                className="h-8 text-sm"
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") void handleAdd();
+                                    if (e.key === "Escape") handleCancelAdd();
+                                }}
+                            />
+                            <Input
+                                placeholder="Especialidad (ej. Soporte técnico, Precios)"
+                                value={newDescription}
+                                onChange={(e) => setNewDescription(e.target.value)}
                                 disabled={saving}
                                 className="h-8 text-sm"
                                 onKeyDown={(e) => {
