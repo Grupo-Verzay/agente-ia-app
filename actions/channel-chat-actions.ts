@@ -100,7 +100,13 @@ export async function warmChannelMessages(
       take: pageSize,
       skip: (page - 1) * pageSize,
     });
-    return { success: true, message: 'OK', data };
+    return {
+      success: true,
+      message: 'OK',
+      data,
+      currentPage: page,
+      nextPage: data.length === pageSize ? page + 1 : null,
+    };
   } catch (err: any) {
     return { success: false, message: err?.message ?? 'Error al cargar mensajes.' };
   }
