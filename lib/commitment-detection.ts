@@ -1,4 +1,5 @@
 export type DetectedCommitment = {
+  kind: "task" | "reminder" | "appointment";
   title: string;
   type: "Seguimiento" | "Llamada" | "Reunión" | "Email" | "Tarea";
   dueDate: Date;
@@ -78,15 +79,18 @@ export function detectCommitment(text: string, now = new Date()): DetectedCommit
 
   const rules: Array<{
     pattern: RegExp;
+    kind: DetectedCommitment["kind"];
     title: string;
     type: DetectedCommitment["type"];
   }> = [
-    { pattern: /\b(?:te|le)\s+(?:llamo|llamare|marco)\b/, title: "Llamar al cliente", type: "Llamada" },
-    { pattern: /\b(?:te|le)\s+(?:envio|enviare|mando|mandare)\b.*\b(propuesta|cotizacion)\b/, title: "Enviar propuesta", type: "Seguimiento" },
-    { pattern: /\b(?:te|le)\s+(?:envio|enviare|mando|mandare)\b/, title: "Enviar información pendiente", type: "Seguimiento" },
-    { pattern: /\b(?:te|le)\s+(?:confirmo|confirmare|aviso|avisare)\b/, title: "Confirmar al cliente", type: "Seguimiento" },
-    { pattern: /\b(?:revisamos|revisare|reviso)\b/, title: "Revisar pendiente con el cliente", type: "Tarea" },
-    { pattern: /\b(?:nos\s+conectamos|nos\s+reunimos|agendamos)\b/, title: "Reunión con el cliente", type: "Reunión" },
+    { pattern: /\b(?:recuerdame|recordarme)\b.*\b(?:llamar|escribir|contactar|enviar|confirmar)\b/, kind: "reminder", title: "Recordatorio de seguimiento", type: "Seguimiento" },
+    { pattern: /\b(?:nos\s+conectamos|nos\s+reunimos|agendamos|tenemos\s+reunion)\b/, kind: "appointment", title: "Reunión con el cliente", type: "Reunión" },
+    { pattern: /\b(?:te|le)\s+(?:llamo|llamare|marco)\b/, kind: "task", title: "Llamar al cliente", type: "Llamada" },
+    { pattern: /\b(?:te|le)\s+(?:envio|enviare|mando|mandare)\b.*\b(propuesta|cotizacion)\b/, kind: "task", title: "Enviar propuesta", type: "Seguimiento" },
+    { pattern: /\b(?:te|le)\s+(?:envio|enviare|mando|mandare)\b/, kind: "task", title: "Enviar información pendiente", type: "Seguimiento" },
+    { pattern: /\b(?:te|le)\s+(?:escribo|contacto)\b/, kind: "reminder", title: "Contactar nuevamente al cliente", type: "Seguimiento" },
+    { pattern: /\b(?:te|le)\s+(?:confirmo|confirmare|aviso|avisare)\b/, kind: "reminder", title: "Confirmar al cliente", type: "Seguimiento" },
+    { pattern: /\b(?:revisamos|revisare|reviso)\b/, kind: "task", title: "Revisar pendiente con el cliente", type: "Tarea" },
   ];
 
   const rule = rules.find((item) => item.pattern.test(clean));
@@ -94,5 +98,5 @@ export function detectCommitment(text: string, now = new Date()): DetectedCommit
 
   const dueDate = parseDueDate(clean, now);
   if (!dueDate) return null;
-  return { title: rule.title, type: rule.type, dueDate, sourceText: text };
+  return { kind: rule.kind, title: rule.title, type: rule.type, dueDate, sourceText: text };
 }

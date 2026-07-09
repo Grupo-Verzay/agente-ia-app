@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CalendarClock } from "lucide-react";
-import { createTaskAction } from "@/actions/task-actions";
+import { createDetectedAppointmentAction, createTaskAction } from "@/actions/task-actions";
 import type { DetectedCommitment } from "@/lib/commitment-detection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,7 @@ function toLocalInputValue(date: Date) {
 export function CommitmentTaskDialog(props: Props) {
   const { commitment, onClose } = props;
   const [title, setTitle] = useState("");
+  const [kind, setKind] = useState<DetectedCommitment["kind"]>("task");
   const [type, setType] = useState("Seguimiento");
   const [dueDate, setDueDate] = useState("");
   const [saving, setSaving] = useState(false);
@@ -42,6 +43,7 @@ export function CommitmentTaskDialog(props: Props) {
   useEffect(() => {
     if (!commitment) return;
     setTitle(commitment.title);
+    setKind(commitment.kind);
     setType(commitment.type);
     setDueDate(toLocalInputValue(commitment.dueDate));
   }, [commitment]);
@@ -49,22 +51,32 @@ export function CommitmentTaskDialog(props: Props) {
   const createTask = async () => {
     if (!commitment || !title.trim() || !dueDate) return;
     setSaving(true);
-    const result = await createTaskAction({
-      assignedToId: props.assignedToId,
-      assignedToName: props.assignedToName,
-      sessionId: props.sessionId,
-      contactName: props.contactName,
-      contactJid: props.contactJid,
-      title: title.trim(),
-      type,
-      dueDate: new Date(dueDate).toISOString(),
-    });
+    const result = kind === "appointment"
+      ? props.sessionId
+        ? await createDetectedAppointmentAction({
+            assignedToId: props.assignedToId,
+            sessionId: props.sessionId,
+            contactName: props.contactName,
+            title: title.trim(),
+            startTime: new Date(dueDate).toISOString(),
+          })
+        : { success: false, message: "El chat no tiene una sesión para crear la cita." }
+      : await createTaskAction({
+          assignedToId: props.assignedToId,
+          assignedToName: props.assignedToName,
+          sessionId: props.sessionId,
+          contactName: props.contactName,
+          contactJid: props.contactJid,
+          title: title.trim(),
+          type: kind === "reminder" ? "Seguimiento" : type,
+          dueDate: new Date(dueDate).toISOString(),
+        });
     setSaving(false);
     if (!result.success) {
       toast.error(result.message);
       return;
     }
-    toast.success("Tarea creada y vinculada al cliente.");
+    toast.success(kind === "appointment" ? "Cita creada en la agenda." : kind === "reminder" ? "Recordatorio creado." : "Tarea creada y vinculada al cliente.");
     onClose();
   };
 
@@ -85,6 +97,18 @@ export function CommitmentTaskDialog(props: Props) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
+              <Label>Crear como</Label>
+              <Select value={kind} onValueChange={(value) => setKind(value as DetectedCommitment["kind"])}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="task">Tarea</SelectItem>
+                  <SelectItem value="reminder">Recordatorio</SelectItem>
+                  <SelectItem value="appointment">Cita</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {kind !== "appointment" && (
+            <div className="space-y-1.5">
               <Label>Tipo</Label>
               <Select value={type} onValueChange={setType}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -93,6 +117,7 @@ export function CommitmentTaskDialog(props: Props) {
                 </SelectContent>
               </Select>
             </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="commitment-date">Fecha y hora</Label>
               <Input id="commitment-date" type="datetime-local" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
@@ -102,7 +127,7 @@ export function CommitmentTaskDialog(props: Props) {
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>Ignorar</Button>
           <Button type="button" onClick={createTask} disabled={saving || !title.trim() || !dueDate}>
-            {saving ? "Creando..." : "Crear tarea"}
+            {saving ? "Creando..." : kind === "appointment" ? "Crear cita" : kind === "reminder" ? "Crear recordatorio" : "Crear tarea"}
           </Button>
         </DialogFooter>
       </DialogContent>

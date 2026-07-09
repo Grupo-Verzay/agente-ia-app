@@ -178,6 +178,74 @@ export async function createTaskAction(
   }
 }
 
+export async function createDetectedAppointmentAction(input: {
+  assignedToId: string;
+  sessionId: number;
+  contactName?: string | null;
+  title: string;
+  startTime: string;
+}): Promise<{ success: boolean; message: string }> {
+  try {
+    const user = await getAuth();
+    const ownerId = user.ownerId ?? user.id;
+    const session = await db.session.findFirst({
+      where: { id: input.sessionId, userId: ownerId },
+      select: { id: true, pushName: true },
+    });
+    if (!session) return { success: false, message: "No se encontró el chat asociado." };
+
+    const assignedUser = await db.user.findFirst({
+      where: {
+        id: input.assignedToId,
+        OR: [{ id: ownerId }, { ownerId }],
+      },
+      select: { id: true },
+    });
+    if (!assignedUser) return { success: false, message: "Asesor no autorizado." };
+
+    const startTime = new Date(input.startTime);
+    if (Number.isNaN(startTime.getTime()) || startTime <= new Date()) {
+      return { success: false, message: "Selecciona una fecha futura válida." };
+    }
+    const endTime = new Date(startTime.getTime() + 30 * 60_000);
+    const overlap = await db.appointment.findFirst({
+      where: {
+        userId: assignedUser.id,
+        status: { in: ["PENDIENTE", "CONFIRMADA", "ATENDIDA"] },
+        startTime: { lt: endTime },
+        endTime: { gt: startTime },
+      },
+      select: { id: true },
+    });
+    if (overlap) return { success: false, message: "Ya existe una cita en ese horario." };
+
+    const appointment = await db.appointment.create({
+      data: {
+        userId: assignedUser.id,
+        sessionId: session.id,
+        clientName: input.contactName?.trim() || session.pushName,
+        startTime,
+        endTime,
+        timezone: user.timezone || "America/Bogota",
+        status: "PENDIENTE",
+      },
+    });
+    await writeAuditLog({
+      userId: ownerId,
+      actorId: user.id,
+      entityType: "appointment",
+      entityId: appointment.id,
+      action: "created",
+      summary: `Creó cita detectada en chat: ${input.title}`,
+      metadata: { sessionId: session.id, startTime: startTime.toISOString() },
+    });
+    return { success: true, message: "Cita creada en la agenda." };
+  } catch (error) {
+    console.error("[createDetectedAppointmentAction]", error);
+    return { success: false, message: "No se pudo crear la cita." };
+  }
+}
+
 export async function getMyTasksAction(): Promise<{
   success: boolean;
   data?: TaskData[];
