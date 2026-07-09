@@ -137,9 +137,14 @@ export function useAdvisorNotifications(
       return;
     }
 
+    const prevMyIds = prevMyIdsRef.current;
+    // Si el snapshot anterior estaba vacío (la bandeja aún cargaba), la siguiente
+    // población es la carga INICIAL: registrar sin notificar para no floodear al abrir.
+    const wasEmpty = !prevMyIds || prevMyIds.size === 0;
+
     // Detectar sesiones quitadas (estaban en prevMyIds pero ya no están en las mías)
-    if (prevMyIdsRef.current) {
-      const removedIds = Array.from(prevMyIdsRef.current).filter((id) => !currentMyIds.has(id));
+    if (prevMyIds && !wasEmpty) {
+      const removedIds = Array.from(prevMyIds).filter((id) => !currentMyIds.has(id));
       if (removedIds.length > 0) {
         removedIds.forEach((id) => {
           void showNotification("Conversación reasignada", {
@@ -158,22 +163,25 @@ export function useAdvisorNotifications(
       newSessions.forEach((s) => s && seenIdsRef.current!.add(s.id));
       localStorage.setItem(storageKey, JSON.stringify(Array.from(seenIdsRef.current)));
 
-      pendingCountRef.current += newSessions.length;
-      updateAppBadge(pendingCountRef.current);
-      playNotificationSound();
+      // Solo notificar si NO es la carga inicial (snapshot previo vacío).
+      if (!wasEmpty) {
+        pendingCountRef.current += newSessions.length;
+        updateAppBadge(pendingCountRef.current);
+        playNotificationSound();
 
-      newSessions.forEach((session) => {
-        if (!session) return;
-        const name = session.pushName?.trim() || session.remoteJid;
-        void showNotification("Nueva conversación asignada", {
-          body: name,
-          icon: "/favicon.ico",
-          tag: `advisor-assign-${session.id}`,
+        newSessions.forEach((session) => {
+          if (!session) return;
+          const name = session.pushName?.trim() || session.remoteJid;
+          void showNotification("Nueva conversación asignada", {
+            body: name,
+            icon: "/favicon.ico",
+            tag: `advisor-assign-${session.id}`,
+          });
         });
-      });
 
-      if (originalTitleRef.current) {
-        document.title = `(${pendingCountRef.current}) ${originalTitleRef.current}`;
+        if (originalTitleRef.current) {
+          document.title = `(${pendingCountRef.current}) ${originalTitleRef.current}`;
+        }
       }
     }
   }, [chatSessions, currentAdvisorId, advisorRole]);
@@ -200,8 +208,14 @@ export function useAdvisorNotifications(
       const currentTs = chat.lastMessage?.messageTimestamp ?? 0;
       const prevTs = prev.get(chat.remoteJid) ?? 0;
       const isFromMe = chat.lastMessage?.key?.fromMe ?? true;
+      // Un chat que aparece por PRIMERA vez en esta sesión (la bandeja carga de
+      // forma incremental al abrir) NO debe notificar: solo se registra su
+      // timestamp. Sin este guard, al abrir la app se disparaban CIENTOS de
+      // notificaciones (cada chat con último mensaje del cliente entraba con
+      // prevTs=0 y pasaba el filtro).
+      const known = prev.has(chat.remoteJid);
 
-      if (currentTs > prevTs && !isFromMe && chat.remoteJid !== selectedJid) {
+      if (known && currentTs > prevTs && !isFromMe && chat.remoteJid !== selectedJid) {
         toNotify.push(chat);
       }
 
