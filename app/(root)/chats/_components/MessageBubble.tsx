@@ -147,12 +147,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     const isOutgoing = call?.direction === 'outgoing';
     const isVideo = !!call?.isVideo;
     const dur = call?.durationSecs ?? 0;
+    const completed = call?.status?.toUpperCase?.() === 'COMPLETED';
     const durLabel = dur > 0
       ? ` (${String(Math.floor(dur / 60)).padStart(2, '0')}:${String(dur % 60).padStart(2, '0')})`
       : '';
     const label = isOutgoing
       ? `${isVideo ? 'Videollamada' : 'Llamada'} realizada${durLabel}`
-      : `${isVideo ? 'Videollamada' : 'Llamada'} perdida`;
+      : completed || dur > 0
+        ? `${isVideo ? 'Videollamada' : 'Llamada'} recibida${durLabel}`
+        : `${isVideo ? 'Videollamada' : 'Llamada'} entrante`;
     const CallIcon = isOutgoing ? PhoneOutgoing : PhoneMissed;
     return (
       <div className="my-2 flex justify-center">

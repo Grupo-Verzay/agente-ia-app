@@ -80,6 +80,27 @@ export function getIconForMessageType(type?: string): LucideIcon | null {
   }
 }
 
+function normalizePreviewText(text: string): string {
+  const value = text.trim();
+  const labels: Record<string, string> = {
+    "[imagen]": "🖼️ Imagen",
+    "imagen": "🖼️ Imagen",
+    "[video]": "🎥 Video",
+    "video": "🎥 Video",
+    "[audio]": "🎧 Audio",
+    "audio": "🎧 Audio",
+    "[nota de voz]": "🎙️ Nota de voz",
+    "nota de voz": "🎙️ Nota de voz",
+    "[documento]": "📄 Documento",
+    "documento": "📄 Documento",
+    "[sticker]": "🏷️ Sticker",
+    "sticker": "🏷️ Sticker",
+    "[media]": "📎 Archivo",
+    "media": "📎 Archivo",
+  };
+  return labels[value.toLowerCase()] ?? value;
+}
+
 export function lastTextFrom(chat: ChatData): {
   text: string;
   messageType?: string;
@@ -95,31 +116,50 @@ export function lastTextFrom(chat: ChatData): {
   if (!msg) {
     text = "";
   } else if (msg.conversation) {
-    text = msg.conversation;
+    text = normalizePreviewText(msg.conversation);
   } else {
     switch (type) {
       case "imageMessage":
-        text = "Imagen";
+        text = "🖼️ Imagen";
         break;
       case "videoMessage":
-        text = "Video";
+        text = "🎥 Video";
         break;
       case "audioMessage":
-        text = "Nota de voz";
+        text = msg?.audioMessage?.ptt === false ? "🎧 Audio" : "🎙️ Nota de voz";
         break;
       case "documentMessage":
       case "fileMessage":
-        text = "Documento";
+        text = "📄 Documento";
         break;
       case "locationMessage":
-        text = "Ubicacion";
+        text = "📍 Ubicación";
         break;
       case "stickerMessage":
-        text = "Sticker";
+        text = "🏷️ Sticker";
         break;
       case "reactionMessage": {
         const emoji = msg?.reactionMessage?.text;
-        text = emoji ? `Reaccionó: ${emoji}` : "Reaccion";
+        text = emoji ? `👍 Reacción: ${emoji}` : "👍 Reacción";
+        break;
+      }
+      case "interactiveResponseMessage": {
+        const bodyText = msg?.interactiveResponseMessage?.body?.text;
+        const flowName = msg?.interactiveResponseMessage?.nativeFlowResponseMessage?.name;
+        if (flowName === "call_permission_request") {
+          text = bodyText?.toLowerCase?.().includes("permitir")
+            ? "📞 Permiso de llamada aprobado"
+            : "📞 Permiso de llamada";
+        } else {
+          text = bodyText || "↩️ Respuesta";
+        }
+        break;
+      }
+      case "meta_call": {
+        const metaCall = msg?.metaCall;
+        const duration = Number(metaCall?.duration ?? 0) || 0;
+        const direction = metaCall?.direction === "BUSINESS_INITIATED" ? "realizada" : "recibida";
+        text = duration > 0 ? `📞 Llamada ${direction}` : "📞 Llamada";
         break;
       }
       default:

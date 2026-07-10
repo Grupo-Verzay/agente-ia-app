@@ -68,7 +68,7 @@ export type UIBubble = {
   status?: MessageDeliveryState;
   kind?: 'sticker' | 'reaction' | 'call';
   /** Info de llamada (cuando kind === 'call') */
-  call?: { direction: 'incoming' | 'outgoing'; isVideo?: boolean; durationSecs?: number };
+  call?: { direction: 'incoming' | 'outgoing'; isVideo?: boolean; durationSecs?: number; status?: string };
   /** Emoji de reacción pegado a este mensaje (estilo WhatsApp) */
   reaction?: string;
   quotedMessage?: { id: string; content: string; sender: 'user' | 'other'; mediaType?: string };

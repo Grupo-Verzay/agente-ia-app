@@ -80,14 +80,14 @@ function buildOutgoingHistoryEntry(payload: OutgoingMessagePayload) {
 
   const mediaLabel =
     payload.mediatype === "image"
-      ? "[Imagen]"
+      ? "🖼️ Imagen"
       : payload.mediatype === "video"
-        ? "[Video]"
+        ? "🎥 Video"
         : payload.mediatype === "audio"
           ? payload.ptt
-            ? "[Nota de voz]"
-            : "[Audio]"
-          : "[Documento]";
+            ? "🎙️ Nota de voz"
+            : "🎧 Audio"
+          : "📄 Documento";
 
   const fileName = payload.fileName?.trim();
   const caption = payload.caption?.trim();

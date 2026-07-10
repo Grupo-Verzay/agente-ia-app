@@ -30,8 +30,11 @@ function authHeaders(): Record<string, string> {
 
 function mediaFallbackLabel(payload: ChannelOutgoingPayload) {
   const mediatype = String(payload.mediatype ?? 'media');
-  if (mediatype === 'audio') return payload.ptt === false ? '[Audio]' : 'Nota de voz';
-  return '[Media]';
+  if (mediatype === 'image') return '🖼️ Imagen';
+  if (mediatype === 'video') return '🎥 Video';
+  if (mediatype === 'audio') return payload.ptt === false ? '🎧 Audio' : '🎙️ Nota de voz';
+  if (mediatype === 'document') return '📄 Documento';
+  return '📎 Archivo';
 }
 
 async function applyAdvisorSignatureIfEnabled(instanceName: string, remoteJid: string, text: string) {

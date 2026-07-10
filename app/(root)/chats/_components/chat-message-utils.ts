@@ -81,6 +81,44 @@ export function extractMediaInfo(msg: any, type: MediaType): MediaData | null {
   return null;
 }
 
+function getInteractiveResponseText(messageData: Record<string, any>, isUser: boolean): string {
+  const interactive = messageData?.interactiveResponseMessage;
+  const bodyText = typeof interactive?.body?.text === 'string' ? interactive.body.text.trim() : '';
+  const flowName = interactive?.nativeFlowResponseMessage?.name;
+
+  if (flowName === 'call_permission_request') {
+    if (bodyText.toLowerCase().includes('permitir')) {
+      return isUser
+        ? 'Permiso de llamada solicitado por WhatsApp'
+        : 'Permiso de llamada aprobado por el cliente';
+    }
+    return bodyText || (isUser ? 'Solicitud de permiso de llamada enviada' : 'Permiso de llamada recibido');
+  }
+
+  return bodyText || 'Respuesta interactiva de WhatsApp';
+}
+
+function normalizeMessageLabel(text: string): string {
+  const value = text.trim();
+  const labels: Record<string, string> = {
+    '[imagen]': '🖼️ Imagen',
+    'imagen': '🖼️ Imagen',
+    '[video]': '🎥 Video',
+    'video': '🎥 Video',
+    '[audio]': '🎧 Audio',
+    'audio': '🎧 Audio',
+    '[nota de voz]': '🎙️ Nota de voz',
+    'nota de voz': '🎙️ Nota de voz',
+    '[documento]': '📄 Documento',
+    'documento': '📄 Documento',
+    '[sticker]': '🏷️ Sticker',
+    'sticker': '🏷️ Sticker',
+    '[media]': '📎 Archivo',
+    'media': '📎 Archivo',
+  };
+  return labels[value.toLowerCase()] ?? value;
+}
+
 export function resolveEvolutionMessageStatus(message: EvolutionMessage): string {
   const updates = Array.isArray(message.MessageUpdate) ? message.MessageUpdate : [];
 
@@ -144,10 +182,12 @@ export function toUIMessages(
 
     switch (m.messageType) {
       case 'conversation':
-        content = messageData?.conversation || '';
+        content = messageData?.conversation ? normalizeMessageLabel(messageData.conversation) : '';
         break;
       case 'extendedTextMessage':
-        content = messageData?.extendedTextMessage?.text || '';
+        content = messageData?.extendedTextMessage?.text
+          ? normalizeMessageLabel(messageData.extendedTextMessage.text)
+          : '';
         break;
       case 'imageMessage':
         media = extractMediaInfo(messageData, 'image');
@@ -165,6 +205,9 @@ export function toUIMessages(
         media = extractMediaInfo(messageData, 'document');
         content = media?.caption || '';
         break;
+      case 'interactiveResponseMessage':
+        content = getInteractiveResponseText(messageData as Record<string, any>, isUser);
+        break;
       case 'stickerMessage': {
         const s = messageData.stickerMessage || {};
         const url = messageData.mediaUrl || s.mediaUrl || s.url || s.directPath;
@@ -178,13 +221,32 @@ export function toUIMessages(
           direction?: 'incoming' | 'outgoing';
           isVideo?: boolean;
           durationSecs?: number;
+          status?: string;
         };
         call = {
           direction: callRaw.direction ?? 'incoming',
           isVideo: !!callRaw.isVideo,
           durationSecs: callRaw.durationSecs ?? 0,
+          status: callRaw.status,
         };
         content = messageData?.conversation || (call.isVideo ? 'Videollamada' : 'Llamada');
+        break;
+      }
+      case 'meta_call': {
+        kind = 'call';
+        const metaCall = ((messageData as Record<string, any>).metaCall ?? {}) as {
+          direction?: string;
+          status?: string;
+          duration?: number | string;
+        };
+        const durationSecs = Number(metaCall.duration ?? 0) || 0;
+        call = {
+          direction: metaCall.direction === 'BUSINESS_INITIATED' ? 'outgoing' : 'incoming',
+          isVideo: false,
+          durationSecs,
+          status: metaCall.status,
+        };
+        content = 'Llamada de WhatsApp';
         break;
       }
       default:

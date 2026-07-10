@@ -32,8 +32,11 @@ function authHeaders(): Record<string, string> {
 
 function mediaFallbackLabel(payload: BaileysOutgoingPayload) {
   const mediatype = String(payload.mediatype ?? 'media');
-  if (mediatype === 'audio') return payload.ptt === false ? '[Audio]' : 'Nota de voz';
-  return '[Media]';
+  if (mediatype === 'image') return '🖼️ Imagen';
+  if (mediatype === 'video') return '🎥 Video';
+  if (mediatype === 'audio') return payload.ptt === false ? '🎧 Audio' : '🎙️ Nota de voz';
+  if (mediatype === 'document') return '📄 Documento';
+  return '📎 Archivo';
 }
 
 export async function fetchChatsFromBaileys(instanceName: string): Promise<FetchChatsResult> {
@@ -48,8 +51,8 @@ export async function fetchChatsFromBaileys(instanceName: string): Promise<Fetch
 
     const chats: ChatData[] = (json.chats ?? []).map((c: any) => {
       const MEDIA_LABELS_CHAT: Record<string, string> = {
-        imageMessage: '[Imagen]', videoMessage: '[Video]',
-        audioMessage: 'Nota de voz', documentMessage: '[Documento]', stickerMessage: '[Sticker]',
+        imageMessage: '🖼️ Imagen', videoMessage: '🎥 Video',
+        audioMessage: '🎙️ Nota de voz', documentMessage: '📄 Documento', stickerMessage: '🏷️ Sticker',
       };
       const lastBody = c.lastMessageBody ?? '';
       const lastType = c.lastMessageType ?? 'conversation';
@@ -168,11 +171,11 @@ export async function findMessagesFromBaileys(
     const json = await res.json();
 
     const MEDIA_LABELS: Record<string, string> = {
-      imageMessage:    '[Imagen]',
-      videoMessage:    '[Video]',
-      audioMessage:    'Nota de voz',
-      documentMessage: '[Documento]',
-      stickerMessage:  '[Sticker]',
+      imageMessage:    '🖼️ Imagen',
+      videoMessage:    '🎥 Video',
+      audioMessage:    '🎙️ Nota de voz',
+      documentMessage: '📄 Documento',
+      stickerMessage:  '🏷️ Sticker',
     };
     const MEDIA_TYPES = Object.keys(MEDIA_LABELS);
 
