@@ -33,13 +33,14 @@ function isMediaMessage(m: EvolutionMessage): boolean {
 
 function hasRemoteOnlyUrl(m: EvolutionMessage): boolean {
   const body = (m.message || {}) as import('@/actions/chat-actions').MessageContent;
-  const media =
+  const media = (
     body.imageMessage ||
     body.videoMessage ||
     body.audioMessage ||
     body.documentMessage ||
     body.stickerMessage ||
-    {};
+    {}
+  ) as Record<string, any>;
   const url = body.mediaUrl || media.mediaUrl || media.url || media.directPath;
   return !!url && typeof url === 'string' && !/^data:[^;]+;base64,/.test(url);
 }
@@ -79,10 +80,12 @@ export function useMediaCache({
 
     if (!candidates.length) return;
 
+    const batch = candidates.slice(0, 4);
+
     let cancelled = false;
 
     void (async () => {
-      for (const messageId of candidates) {
+      for (const messageId of batch) {
         try {
           inflightRef.current.add(messageId);
           const res = await getMediaBase64FromMessage(apiKeyData, instanceName, messageId);

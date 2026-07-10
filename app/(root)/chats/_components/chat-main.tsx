@@ -199,12 +199,15 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     }
 
     let cancelled = false;
-    getAiMessageContentsAction(info.instanceName, info.remoteJid).then((contents) => {
-      if (!cancelled) setAiContents(contents);
-    });
+    const timer = window.setTimeout(() => {
+      getAiMessageContentsAction(info.instanceName!, info.remoteJid!).then((contents) => {
+        if (!cancelled) setAiContents(contents);
+      });
+    }, 500);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [info?.instanceName, info?.remoteJid]);
 
@@ -296,10 +299,15 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   useEffect(() => {
     if (!session?.id) return;
     let cancelled = false;
-    getInternalNotesBySessionAction(session.id).then((res) => {
-      if (!cancelled && res.success && res.data) setNotes(res.data);
-    });
-    return () => { cancelled = true; };
+    const timer = window.setTimeout(() => {
+      getInternalNotesBySessionAction(session.id).then((res) => {
+        if (!cancelled && res.success && res.data) setNotes(res.data);
+      });
+    }, 600);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [session?.id]);
 
   /* ─── Convert notes to UIBubbles and merge with messages ─── */

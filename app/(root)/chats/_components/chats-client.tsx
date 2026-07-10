@@ -109,6 +109,84 @@ function getMessageCacheKey(instanceName: string | null | undefined, remoteJid: 
   return `${instanceName ?? ""}:${remoteJid}`;
 }
 
+function extractSentMessageId(data: unknown) {
+  const rec = data as Record<string, any> | null | undefined;
+  return (
+    rec?.key?.id ||
+    rec?.message?.key?.id ||
+    rec?.data?.key?.id ||
+    rec?.id ||
+    null
+  );
+}
+
+function buildOptimisticOutgoingMessage(
+  remoteJid: string,
+  payload: OutgoingMessagePayload,
+  sentData?: unknown,
+): EvolutionMessage {
+  const now = Math.floor(Date.now() / 1000);
+  const messageId = extractSentMessageId(sentData) ?? `local-${now}-${Math.random().toString(36).slice(2)}`;
+
+  if (payload.kind === "text") {
+    return {
+      key: { id: messageId, fromMe: true, remoteJid },
+      messageType: "conversation",
+      message: { conversation: payload.text },
+      messageTimestamp: now,
+      status: "PENDING",
+    } as EvolutionMessage;
+  }
+
+  const mediaLabel =
+    payload.mediatype === "image"
+      ? "🖼️ Imagen"
+      : payload.mediatype === "video"
+        ? "🎥 Video"
+        : payload.mediatype === "audio"
+          ? payload.ptt
+            ? "🎙️ Nota de voz"
+            : "🎧 Audio"
+          : "📄 Documento";
+  const mediaKey = `${payload.mediatype}Message`;
+  const caption = payload.caption?.trim();
+
+  return {
+    key: { id: messageId, fromMe: true, remoteJid },
+    messageType: mediaKey,
+    message: {
+      conversation: caption || payload.fileName || mediaLabel,
+      mediaUrl: payload.mediaUrl,
+      [mediaKey]: {
+        caption: caption || undefined,
+        fileName: payload.fileName,
+        mimetype: payload.mimetype,
+        mediaUrl: payload.mediaUrl,
+        ptt: payload.ptt,
+      },
+    },
+    messageTimestamp: now,
+    status: "PENDING",
+  } as EvolutionMessage;
+}
+
+function getMessageContentForDedupe(message: EvolutionMessage) {
+  const body = (message.message || {}) as Record<string, any>;
+  return String(
+    body.conversation ??
+    body.extendedTextMessage?.text ??
+    body.imageMessage?.caption ??
+    body.videoMessage?.caption ??
+    body.documentMessage?.caption ??
+    body.audioMessage?.caption ??
+    "",
+  ).trim();
+}
+
+function isLocalOptimisticMessage(message: EvolutionMessage) {
+  return String(message.key?.id ?? message.id ?? "").startsWith("local-");
+}
+
 export type InstanceHealth = {
   instanceName: string;
   instanceType?: string | null;
@@ -459,7 +537,21 @@ export function ChatsClient({
     (current: EvolutionMessage[], next: EvolutionMessage[]) => {
       const map = new Map<string, EvolutionMessage>();
       for (const message of current) map.set(getMessageKey(message), message);
-      for (const message of next) map.set(getMessageKey(message), message);
+      for (const message of next) {
+        if (!isLocalOptimisticMessage(message)) {
+          const content = getMessageContentForDedupe(message);
+          const timestamp = message.messageTimestamp ?? 0;
+          for (const [key, existing] of Array.from(map.entries())) {
+            if (!isLocalOptimisticMessage(existing)) continue;
+            if (existing.key?.fromMe !== message.key?.fromMe) continue;
+            if ((existing.key?.remoteJid ?? "") !== (message.key?.remoteJid ?? "")) continue;
+            if (getMessageContentForDedupe(existing) !== content) continue;
+            if (Math.abs((existing.messageTimestamp ?? 0) - timestamp) > 180) continue;
+            map.delete(key);
+          }
+        }
+        map.set(getMessageKey(message), message);
+      }
       return Array.from(map.values()).sort((a, b) => {
         const tsDiff = (b.messageTimestamp ?? 0) - (a.messageTimestamp ?? 0);
         if (tsDiff !== 0) return tsDiff;
@@ -669,15 +761,16 @@ export function ChatsClient({
         chatDescriptors: buildChatContactDescriptors(currentChatsResult.data),
       }).then((result) => {
         if (cancelled || !result.success || !result.data) return;
+        const data = result.data;
 
-        setAllTags(result.data.allTags);
-        setWorkflows(result.data.workflows);
-        setQuickReplies(result.data.quickReplies);
-        setAdvisors(result.data.advisors);
-        setClientValidationEnabled(result.data.clientValidationEnabled);
-        setChatPreferences(result.data.chatPreferences);
+        setAllTags(data.allTags);
+        setWorkflows(data.workflows);
+        setQuickReplies(data.quickReplies);
+        setAdvisors(data.advisors);
+        setClientValidationEnabled(data.clientValidationEnabled);
+        setChatPreferences(data.chatPreferences);
         setChatSessions((prev) => {
-          const next = { ...result.data.chatSessions };
+          const next = { ...data.chatSessions };
           for (const jid of Object.keys(next)) {
             if (!next[jid].customName && prev[jid]?.customName) {
               next[jid] = { ...next[jid], customName: prev[jid].customName };
@@ -1089,18 +1182,43 @@ export function ChatsClient({
         throw new Error(result.message || "No se pudo enviar el mensaje.");
       }
 
+      const optimisticMessage = buildOptimisticOutgoingMessage(selectedJid, payload, result.data);
+      setMessages((previous) => {
+        const merged = mergeMessages(previous, [optimisticMessage]);
+        const cacheInstanceName = activeActionSetRef.current?.instanceName ?? currentContact?.instanceName ?? instanceName;
+        if (cacheInstanceName) {
+          messageCacheRef.current.set(getMessageCacheKey(cacheInstanceName, selectedJid), {
+            messages: merged,
+            info: {
+              ...(info ?? {}),
+              instanceName: cacheInstanceName,
+              remoteJid: selectedJid,
+              remoteJidAliases: currentContact?.aliases,
+              apiKeyData: activeActionSetRef.current?.instanceType === "baileys" ? undefined : apiKeyData,
+            },
+          });
+        }
+        return merged;
+      });
+
       if (payload.kind === "text") {
         setDetectedCommitment(detectCommitment(payload.text));
       }
 
-      await pollAndCompareMessages(selectedJid, currentContact?.aliases);
+      window.setTimeout(() => {
+        void pollAndCompareMessages(selectedJid, currentContact?.aliases);
+        void refreshSidebarData();
+      }, 350);
       // Reconciliar la lista de TODAS las instancias es lo más pesado del envío y
       // no debe bloquear el input ni el estado "enviando": va en segundo plano.
       // El tiempo real (socket) y este refetch actualizan la barra un instante después.
-      void refreshSidebarData();
     },
     [
+      apiKeyData,
       currentContact,
+      info,
+      instanceName,
+      mergeMessages,
       pollAndCompareMessages,
       refreshSidebarData,
       selectedJid,
@@ -1178,8 +1296,10 @@ export function ChatsClient({
         throw new Error(result.message || "No se pudo enviar el workflow.");
       }
 
-      await pollAndCompareMessages(selectedJid, currentContact?.aliases);
-      void refreshSidebarData();
+      window.setTimeout(() => {
+        void pollAndCompareMessages(selectedJid, currentContact?.aliases);
+        void refreshSidebarData();
+      }, 350);
 
       return result;
     },
@@ -1204,8 +1324,10 @@ export function ChatsClient({
         throw new Error(result.message || "No se pudo enviar la respuesta rapida.");
       }
 
-      await pollAndCompareMessages(selectedJid, currentContact?.aliases);
-      void refreshSidebarData();
+      window.setTimeout(() => {
+        void pollAndCompareMessages(selectedJid, currentContact?.aliases);
+        void refreshSidebarData();
+      }, 350);
 
       return result;
     },
@@ -1230,8 +1352,10 @@ export function ChatsClient({
       const sendJid = resolveSendRemoteJid(selectedJid, currentContact);
       const result = await sendMetaTemplate(instName, sendJid, template, params);
       if (result.success) {
-        await pollAndCompareMessages(selectedJid, currentContact?.aliases);
-        void refreshSidebarData();
+        window.setTimeout(() => {
+          void pollAndCompareMessages(selectedJid, currentContact?.aliases);
+          void refreshSidebarData();
+        }, 350);
       }
       return result;
     },
@@ -1310,7 +1434,7 @@ export function ChatsClient({
       );
       setChatSessions((prev) => {
         const next = { ...prev };
-        for (const candidate of deletedCandidates) delete next[candidate];
+        for (const candidate of Array.from(deletedCandidates)) delete next[candidate];
         return next;
       });
       applyChatPreference(result.data);
@@ -1383,7 +1507,7 @@ export function ChatsClient({
       );
       setChatSessions((prev) => {
         const next = { ...prev };
-        for (const jid of deletedJids) delete next[jid];
+        for (const jid of Array.from(deletedJids)) delete next[jid];
         return next;
       });
       setChatPreferences((prev) => {
