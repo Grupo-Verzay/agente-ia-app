@@ -106,11 +106,23 @@ export function lastTextFrom(chat: ChatData): {
   const type = chat.lastMessage?.messageType;
   const id = chat.lastMessage?.key.id ?? "";
   const fromMe = chat.lastMessage?.key.fromMe ?? false;
+  const typedPreviewTypes = new Set([
+    "imageMessage",
+    "videoMessage",
+    "audioMessage",
+    "documentMessage",
+    "fileMessage",
+    "locationMessage",
+    "stickerMessage",
+    "reactionMessage",
+    "interactiveResponseMessage",
+    "meta_call",
+  ]);
   let text = "";
 
   if (!msg) {
     text = "";
-  } else if (msg.conversation) {
+  } else if (msg.conversation && !typedPreviewTypes.has(type ?? "")) {
     text = normalizePreviewText(msg.conversation);
   } else {
     switch (type) {
