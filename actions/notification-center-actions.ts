@@ -124,7 +124,7 @@ export async function getNotificationCenterData(): Promise<{
       }),
     ]);
 
-    // Chats sin leer: combina Evolution/Baileys unreadCount + sesiones con agente inactivo
+    // Chats sin leer: mensajes con unreadCount > 0 en Evolution/Baileys (bajan a 0 al abrir el chat)
     let unreadChats: { remoteJid: string; pushName?: string | null; updatedAt?: string | null }[] = [];
     if (instances.length > 0 && owner?.apiKeyId) {
       const instance =
@@ -138,26 +138,20 @@ export async function getNotificationCenterData(): Promise<{
         const apiKey = resApikey.success && resApikey.data ? resApikey.data : null;
         if (apiKey) {
           const isBaileys = instance.instanceType === "baileys";
-          const [chatsResult, inactiveSessions] = await Promise.all([
-            isBaileys
-              ? fetchChatsFromBaileys(instance.instanceName)
-              : fetchChatsFromEvolution({ url: apiKey.url, key: apiKey.key }, instance.instanceName),
-            db.session.findMany({
-              where: { userId: ownerId, OR: [{ status: false }, { agentDisabled: true }] },
-              select: { remoteJid: true, remoteJidAlt: true },
-            }),
-          ]);
+          const chatsResult = isBaileys
+            ? await fetchChatsFromBaileys(instance.instanceName)
+            : await fetchChatsFromEvolution({ url: apiKey.url, key: apiKey.key }, instance.instanceName);
 
           if (chatsResult.success && chatsResult.data) {
-            const inactiveJids = new Set<string>([
-              ...inactiveSessions.map((s) => s.remoteJid),
-              ...inactiveSessions.flatMap((s) => (s.remoteJidAlt ? [s.remoteJidAlt] : [])),
-            ]);
-
+            // Solo mensajes REALMENTE sin leer (unreadCount > 0). Al abrir el chat
+            // se marcan como leídos en Evolution → desaparece de la campanita; un
+            // mensaje nuevo lo vuelve a mostrar. (Antes se incluían también las
+            // sesiones con el agente pausado, que reaparecían aunque ya se hubieran
+            // visto, porque ese estado no cambia al leer el chat.)
             unreadChats = chatsResult.data
               .filter((c) => {
                 if (!c.lastMessage || c.lastMessage.key?.fromMe) return false;
-                return (c.unreadCount ?? 0) > 0 || inactiveJids.has(c.remoteJid);
+                return (c.unreadCount ?? 0) > 0;
               })
               .slice(0, ITEMS_PER_KIND_LIMIT);
           }
