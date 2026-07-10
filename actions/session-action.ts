@@ -1174,6 +1174,10 @@ export async function toggleAgentDisabled(userId: string, sessionId: number, age
       where: { id: sessionId },
       data: {
         agentDisabled,
+        // Opt-in de IA por contacto: prender el agente aquí habilita la IA para
+        // ESTE contacto aunque el "Estado del agente" global esté apagado;
+        // apagarlo retira el opt-in. Espeja el nodo "Activar IA" de los flujos.
+        aiOptIn: !agentDisabled,
         ...(!agentDisabled && wasDescartado && {
           leadStatus: null,
           leadStatusSourceHash: null,
@@ -1280,7 +1284,10 @@ export async function updateSessionLeadStatus(
         leadStatus: leadStatus ?? null,
         leadStatusSourceHash: null,
         leadStatusUpdatedAt: new Date(),
-        ...(isDescartado && { agentDisabled: true }),
+        // DESCARTADO → apaga el agente y retira el opt-in de IA del contacto.
+        // Salir de DESCARTADO solo quita el bloqueo (no fuerza IA: eso es opt-in
+        // explícito vía toggle "Agente" o nodo "Activar IA").
+        ...(isDescartado && { agentDisabled: true, aiOptIn: false }),
         ...(wasDescartado && !isDescartado && { agentDisabled: false }),
       },
     });
