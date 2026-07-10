@@ -1,10 +1,4 @@
-import {
-  Image as ImageIcon,
-  Video,
-  Mic,
-  FileText,
-  type LucideIcon,
-} from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 import { extractWhatsAppDigits, fmtPhone } from "@/lib/whatsapp-jid";
 import { avatarSrcFor } from "@/lib/avatar";
 import type { ChatData } from "@/actions/chat-actions";
@@ -67,14 +61,15 @@ export function getIconForMessageType(type?: string): LucideIcon | null {
       return null;
     case "imageMessage":
     case "stickerMessage":
-      return ImageIcon;
     case "videoMessage":
-      return Video;
     case "audioMessage":
-      return Mic;
     case "documentMessage":
     case "fileMessage":
-      return FileText;
+    case "locationMessage":
+    case "reactionMessage":
+    case "interactiveResponseMessage":
+    case "meta_call":
+      return null;
     default:
       return null;
   }
