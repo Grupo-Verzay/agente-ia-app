@@ -130,6 +130,10 @@ function buildOptimisticOutgoingMessage(
 
   if (payload.kind === "text") {
     return {
+      // El id devuelto por el proveedor no siempre coincide con el que luego
+      // llega por webhook/historial. Conservamos una marca independiente del id
+      // para poder reemplazar esta burbuja temporal por la versión persistida.
+      __localOptimistic: true,
       key: { id: messageId, fromMe: true, remoteJid },
       messageType: "conversation",
       message: { conversation: payload.text },
@@ -152,6 +156,7 @@ function buildOptimisticOutgoingMessage(
   const caption = payload.caption?.trim();
 
   return {
+    __localOptimistic: true,
     key: { id: messageId, fromMe: true, remoteJid },
     messageType: mediaKey,
     message: {
@@ -184,7 +189,25 @@ function getMessageContentForDedupe(message: EvolutionMessage) {
 }
 
 function isLocalOptimisticMessage(message: EvolutionMessage) {
-  return String(message.key?.id ?? message.id ?? "").startsWith("local-");
+  return (
+    (message as EvolutionMessage & { __localOptimistic?: boolean }).__localOptimistic === true ||
+    String(message.key?.id ?? message.id ?? "").startsWith("local-")
+  );
+}
+
+function areOptimisticMessagesEquivalent(
+  optimistic: EvolutionMessage,
+  persisted: EvolutionMessage,
+) {
+  const optimisticContent = getMessageContentForDedupe(optimistic);
+  const persistedContent = getMessageContentForDedupe(persisted);
+  if (optimisticContent && optimisticContent === persistedContent) return true;
+
+  // Los webhooks de multimedia suelen omitir caption/url, por lo que su texto
+  // deduplicable queda vacío. El tipo y una ventana corta identifican el eco.
+  const optimisticType = optimistic.messageType ?? "";
+  const persistedType = persisted.messageType ?? "";
+  return optimisticType !== "conversation" && optimisticType === persistedType;
 }
 
 export type InstanceHealth = {
@@ -539,16 +562,20 @@ export function ChatsClient({
       for (const message of current) map.set(getMessageKey(message), message);
       for (const message of next) {
         if (!isLocalOptimisticMessage(message)) {
-          const content = getMessageContentForDedupe(message);
           const timestamp = message.messageTimestamp ?? 0;
+          let closestOptimistic: { key: string; distance: number } | null = null;
           for (const [key, existing] of Array.from(map.entries())) {
             if (!isLocalOptimisticMessage(existing)) continue;
             if (existing.key?.fromMe !== message.key?.fromMe) continue;
             if ((existing.key?.remoteJid ?? "") !== (message.key?.remoteJid ?? "")) continue;
-            if (getMessageContentForDedupe(existing) !== content) continue;
-            if (Math.abs((existing.messageTimestamp ?? 0) - timestamp) > 180) continue;
-            map.delete(key);
+            if (!areOptimisticMessagesEquivalent(existing, message)) continue;
+            const distance = Math.abs((existing.messageTimestamp ?? 0) - timestamp);
+            if (distance > 180) continue;
+            if (!closestOptimistic || distance < closestOptimistic.distance) {
+              closestOptimistic = { key, distance };
+            }
           }
+          if (closestOptimistic) map.delete(closestOptimistic.key);
         }
         map.set(getMessageKey(message), message);
       }
@@ -614,6 +641,26 @@ export function ChatsClient({
       (contact) => contact.remoteJid === selectedJid || contact.aliases?.includes(selectedJid),
     );
   }, [contacts, selectedJid]);
+
+  // La lista y el panel abierto se refrescan por rutas distintas. Si la lista
+  // ya recibió el último mensaje, úsalo también en el panel sin esperar el poll.
+  const syncOpenChatFromList = useCallback(
+    (chats: ChatData[]) => {
+      if (!selectedJid) return;
+      const openChat = chats.find(
+        (chat) =>
+          chat.remoteJid === selectedJid ||
+          chat.aliases?.includes(selectedJid) ||
+          currentContact?.aliases?.includes(chat.remoteJid),
+      );
+      const lastMessage = openChat?.lastMessage;
+      if (!lastMessage || lastMessage.messageType === "reactionMessage") return;
+      setMessages((previous) =>
+        mergeMessages(previous, [lastMessage as unknown as EvolutionMessage]),
+      );
+    },
+    [currentContact?.aliases, mergeMessages, selectedJid],
+  );
 
   const currentContactSession = useMemo(() => {
     if (currentContact) return getSessionForChat(currentContact, chatSessions);
@@ -805,9 +852,10 @@ export function ChatsClient({
     setCurrentChatsResult(filtered);
 
     if (filtered.success) {
+      syncOpenChatFromList(filtered.data);
       await refreshChatSessions(filtered.data);
     }
-  }, [refetchAllInstances, refreshChatSessions]);
+  }, [refetchAllInstances, refreshChatSessions, syncOpenChatFromList]);
 
   const applyChatPreference = useCallback((preference: ChatConversationPreference) => {
     setChatPreferences((previous) => ({
@@ -1648,6 +1696,7 @@ export function ChatsClient({
         const filtered = filterChatList(result);
         setCurrentChatsResult(filtered);
         if (filtered.success) {
+          syncOpenChatFromList(filtered.data);
           await refreshChatSessions(filtered.data);
         }
       }
@@ -1665,7 +1714,7 @@ export function ChatsClient({
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-  }, [normalizedInitialChatsResult.success, refetchAllInstances, refreshChatSessions]);
+  }, [normalizedInitialChatsResult.success, refetchAllInstances, refreshChatSessions, syncOpenChatFromList]);
 
   useEffect(() => {
     if (pollingRef.current) {
@@ -1843,14 +1892,9 @@ export function ChatsClient({
           });
         }
       }
-      const existsInList =
-        currentChatsResult.success &&
-        currentChatsResult.data.some(
-          (c) => c.remoteJid === jid || c.aliases?.includes(jid),
-        );
-
-      // Append directo: solo texto con id y chat ya presente en la lista.
-      if (m && m.content && m.id && existsInList) {
+      // El evento puede llegar antes que la actualización de la lista. Si tiene
+      // datos suficientes, insertarlo de inmediato en el chat abierto.
+      if (m && m.content && m.id) {
         if (isOpenChat) appendRealtimeMessage({ remoteJid: jid, message: m });
         updateChatListLocal({ remoteJid: jid, message: m });
         return; // sin golpear Evolution
