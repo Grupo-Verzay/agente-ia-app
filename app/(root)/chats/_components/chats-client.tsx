@@ -540,6 +540,7 @@ export function ChatsClient({
   const messagesRef = useRef<EvolutionMessage[]>(initialMessages || []);
   const activeActionSetRef = useRef<InstanceActionSet | null>(null);
   const selectionRequestRef = useRef(0);
+  const sessionRefreshRequestRef = useRef(0);
   const bootstrapRequestedRef = useRef(false);
   const messageCacheRef = useRef<Map<string, ChatMessageCacheEntry>>(new Map());
   // Poll de mensajes del chat abierto. Con el tiempo real activo, el socket
@@ -774,20 +775,30 @@ export function ChatsClient({
   const refreshChatSessions = useCallback(
     async (chats: ChatData[]) => {
       const descriptors = buildChatContactDescriptors(chats);
+      const requestId = ++sessionRefreshRequestRef.current;
 
       if (descriptors.length === 0) {
         setChatSessions({});
         return;
       }
 
-      const result = await getChatContactSessions(sessionUserIds?.length ? sessionUserIds : userId, descriptors);
-      if (result.success) {
+      const accountIds = sessionUserIds?.length ? sessionUserIds : userId;
+      const batches = [descriptors.slice(0, 80)];
+      for (let start = 80; start < descriptors.length; start += 300) {
+        batches.push(descriptors.slice(start, start + 300));
+      }
+
+      for (let index = 0; index < batches.length; index += 1) {
+        const result = await getChatContactSessions(accountIds, batches[index]);
+        if (sessionRefreshRequestRef.current !== requestId) return;
+        if (!result.success) continue;
         setChatSessions((prev) => {
-          const next = { ...(result.data ?? {}) };
+          const incoming = result.data ?? {};
+          const next = index === 0 ? { ...incoming } : { ...prev, ...incoming };
           // Preservar customName de memoria si DB aún no lo tiene (race condition de rename)
-          for (const jid of Object.keys(next)) {
-            if (!next[jid].customName && prev[jid]?.customName) {
-              next[jid] = { ...next[jid], customName: prev[jid].customName };
+          for (const jid of Object.keys(incoming)) {
+            if (!incoming[jid].customName && prev[jid]?.customName) {
+              next[jid] = { ...incoming[jid], customName: prev[jid].customName };
             }
           }
           return next;
