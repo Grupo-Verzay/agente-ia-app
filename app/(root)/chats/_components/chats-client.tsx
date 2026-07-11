@@ -783,13 +783,18 @@ export function ChatsClient({
       }
 
       const accountIds = sessionUserIds?.length ? sessionUserIds : userId;
-      const loadBatch = async (batch: typeof descriptors, replace: boolean) => {
-        const result = await getChatContactSessions(accountIds, batch);
+      const batches = [descriptors.slice(0, 80)];
+      for (let start = 80; start < descriptors.length; start += 300) {
+        batches.push(descriptors.slice(start, start + 300));
+      }
+
+      for (let index = 0; index < batches.length; index += 1) {
+        const result = await getChatContactSessions(accountIds, batches[index]);
         if (sessionRefreshRequestRef.current !== requestId) return;
-        if (!result.success) return;
-        const applySessions = () => setChatSessions((prev) => {
+        if (!result.success) continue;
+        setChatSessions((prev) => {
           const incoming = result.data ?? {};
-          const next = replace ? { ...incoming } : { ...prev, ...incoming };
+          const next = index === 0 ? { ...incoming } : { ...prev, ...incoming };
           // Preservar customName de memoria si DB aún no lo tiene (race condition de rename)
           for (const jid of Object.keys(incoming)) {
             if (!incoming[jid].customName && prev[jid]?.customName) {
@@ -798,18 +803,6 @@ export function ChatsClient({
           }
           return next;
         });
-        if (replace) applySessions();
-        else React.startTransition(applySessions);
-      };
-
-      await loadBatch(descriptors.slice(0, 80), true);
-
-      const remaining = descriptors.slice(80);
-      if (remaining.length > 0 && sessionRefreshRequestRef.current === requestId) {
-        window.setTimeout(() => {
-          if (sessionRefreshRequestRef.current !== requestId) return;
-          void loadBatch(remaining, false);
-        }, 1500);
       }
     },
     [sessionUserIds, userId],
