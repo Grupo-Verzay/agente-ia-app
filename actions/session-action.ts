@@ -443,7 +443,6 @@ export async function getChatContactSessions(
               },
             },
           },
-          take: 1000,
         }),
       ),
     );
@@ -469,12 +468,22 @@ export async function getChatContactSessions(
 
     const allRemoteJids = sessions.map((s) => s.remoteJid).filter(Boolean) as string[];
 
-    const seguimientosRaw = allRemoteJids.length
-      ? await db.seguimiento.findMany({
+    const sessionIds = sessions.map((s) => s.id);
+    const [seguimientosRaw, appointmentsRaw] = await Promise.all([
+      allRemoteJids.length
+      ? db.seguimiento.findMany({
           where: { remoteJid: { in: allRemoteJids }, followUpStatus: 'pending' },
           select: { remoteJid: true, tipo: true },
         })
-      : [];
+      : Promise.resolve([]),
+      sessionIds.length
+      ? db.appointment.findMany({
+          where: { sessionId: { in: sessionIds } },
+          select: { sessionId: true, status: true, startTime: true },
+          orderBy: { startTime: 'desc' },
+        })
+      : Promise.resolve([]),
+    ]);
 
     const seguimientosMap = new Map<string, { count: number; tiposMap: Record<string, number> }>();
     for (const s of seguimientosRaw) {
@@ -485,15 +494,6 @@ export async function getChatContactSessions(
       entry.tiposMap[t] = (entry.tiposMap[t] ?? 0) + 1;
       seguimientosMap.set(s.remoteJid, entry);
     }
-
-    const sessionIds = sessions.map((s) => s.id);
-    const appointmentsRaw = sessionIds.length
-      ? await db.appointment.findMany({
-          where: { sessionId: { in: sessionIds } },
-          select: { sessionId: true, status: true, startTime: true },
-          orderBy: { startTime: 'desc' },
-        })
-      : [];
 
     const appointmentStatusMap = new Map<number, AppointmentStatus>();
     for (const appt of appointmentsRaw) {
