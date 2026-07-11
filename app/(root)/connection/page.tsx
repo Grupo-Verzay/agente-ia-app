@@ -41,12 +41,12 @@ const Connection = async () => {
         redirect("/login");
     }
 
-    const effectiveId = user.effectiveId;
+    const effectiveId = user.effectiveId ?? user.id;
 
     // Obtener instancias, API key y prompts en paralelo
     const [resInstancias, resApikey, resPrompts] = await Promise.all([
         getInstancesByUserId(effectiveId),
-        getApiKeyById(user.apiKeyId),
+        getApiKeyById(user.apiKeyId ?? ''),
         getPromptsByUserId(effectiveId)
     ]);
 
@@ -128,7 +128,7 @@ const Connection = async () => {
     return (
         <div className="grid w-full grid-cols-1 gap-2 p-4 lg:grid-cols-2 auto-rows-fr">
             <ConnectionMain
-                user={user}
+                user={user as any}
                 instance={instancesData["Whatsapp"].instance}
                 instanceInfo={instancesData["Whatsapp"].info}
                 instanceType={"Whatsapp"}
@@ -142,6 +142,7 @@ const Connection = async () => {
                 <MetaInstanceCard
                     key={inst.instanceName}
                     instanceName={inst.instanceName}
+                    displayName={(inst as any).displayName ?? null}
                     metaChannel="whatsapp"
                     phoneNumberId={(inst as any).metaPhoneNumberId ?? ''}
                     wabaId={(inst as any).metaWabaId}
@@ -151,6 +152,7 @@ const Connection = async () => {
                 <MetaInstanceCard
                     key={inst.instanceName}
                     instanceName={inst.instanceName}
+                    displayName={(inst as any).displayName ?? null}
                     metaChannel="facebook"
                     pageId={(inst as any).metaPageId ?? ''}
                 />
@@ -159,6 +161,7 @@ const Connection = async () => {
                 <MetaInstanceCard
                     key={inst.instanceName}
                     instanceName={inst.instanceName}
+                    displayName={(inst as any).displayName ?? null}
                     metaChannel="instagram"
                     pageId={(inst as any).metaPageId ?? ''}
                 />
@@ -167,6 +170,7 @@ const Connection = async () => {
                 <TelegramInstanceCard
                     key={inst.instanceName}
                     instanceName={inst.instanceName}
+                    displayName={(inst as any).displayName ?? null}
                     botUsername={(inst as any).metaPhoneNumberId ?? null}
                 />
             ))}

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { createTelegramInstance } from '@/actions/instances-actions';
 import { sanitizeInstanceName } from '@/schema/connection';
+import { cleanInstanceDisplayName } from '@/lib/instance-display-name';
 import { toast } from 'sonner';
 
 interface TelegramInstanceCreatorProps {
@@ -28,6 +29,7 @@ export const TelegramInstanceCreator = ({ userId, company }: TelegramInstanceCre
     () => `${sanitizeInstanceName(company ?? userId ?? 'instancia')}_tg`,
     [company, userId]
   );
+  const visibleName = cleanInstanceDisplayName(instanceName);
 
   const handleCreate = async () => {
     if (!botToken.trim()) {
@@ -59,7 +61,7 @@ export const TelegramInstanceCreator = ({ userId, company }: TelegramInstanceCre
           <div className="space-y-1.5">
             <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
             <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-              <span className="flex-1 font-mono text-foreground">{instanceName}</span>
+              <span className="flex-1 font-mono text-foreground">{visibleName}</span>
               <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </div>
           </div>
@@ -93,7 +95,7 @@ export const TelegramInstanceCreator = ({ userId, company }: TelegramInstanceCre
             <div className="space-y-1">
               <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
               <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-                <span className="flex-1 font-mono text-foreground">{instanceName}</span>
+                <span className="flex-1 font-mono text-foreground">{visibleName}</span>
                 <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               </div>
             </div>

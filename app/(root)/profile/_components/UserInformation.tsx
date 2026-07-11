@@ -650,6 +650,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                 <MetaInstanceCard
                                                     key={inst.instanceName}
                                                     instanceName={inst.instanceName}
+                                                    displayName={(inst as any).displayName ?? null}
                                                     metaChannel="whatsapp"
                                                     phoneNumberId={(inst as any).metaPhoneNumberId ?? ''}
                                                     wabaId={(inst as any).metaWabaId}
@@ -675,6 +676,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                             <TelegramInstanceCard
                                                 key={inst.instanceName}
                                                 instanceName={inst.instanceName}
+                                                displayName={(inst as any).displayName ?? null}
                                                 botUsername={(inst as any).metaPhoneNumberId ?? null}
                                             />
                                         ))
@@ -685,7 +687,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                     <LockedChannelCard
                                         icon={<FaTelegramPlane className="w-6 h-6" style={{ color: '#229ED9' }} />}
                                         title="Mensajería Telegram"
-                                        instanceName={`${sanitizeInstanceName(user?.company ?? userId ?? '')}_tg`}
+                                        instanceName={sanitizeInstanceName(user?.company ?? userId ?? '')}
                                     />
                                 )}
                                 {user?.onFacebook ? (() => {
@@ -698,6 +700,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                 <MetaInstanceCard
                                                     key={inst.instanceName}
                                                     instanceName={inst.instanceName}
+                                                    displayName={(inst as any).displayName ?? null}
                                                     metaChannel="facebook"
                                                     pageId={(inst as any).metaPageId ?? ''}
                                                 />
@@ -726,6 +729,7 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                 <MetaInstanceCard
                                                     key={inst.instanceName}
                                                     instanceName={inst.instanceName}
+                                                    displayName={(inst as any).displayName ?? null}
                                                     metaChannel="instagram"
                                                     pageId={(inst as any).metaPageId ?? ''}
                                                 />

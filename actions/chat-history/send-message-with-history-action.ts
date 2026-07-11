@@ -2,6 +2,10 @@
 
 import type { ChatHistoryMessageType } from '@/lib/chat-history/chat-history.helper';
 import { sendingMessages } from '../sending-messages-actions';
+import {
+  resolveWhatsAppDispatcherLineByInstanceName,
+  sendViaWhatsAppDispatcher,
+} from '@/actions/whatsapp-dispatcher';
 
 type OutgoingHistoryType = Exclude<ChatHistoryMessageType, 'human' | 'intention'>;
 
@@ -55,6 +59,25 @@ export async function sendMessageWithHistoryAction({
 }: SendMessageWithHistoryInput) {
   if (!message?.trim()) {
     return { success: false, message: 'Mensaje vacio.', error: 'Mensaje vacio.' };
+  }
+
+  const dispatcher = await resolveWhatsAppDispatcherLineByInstanceName(instanceName);
+  if (dispatcher && dispatcher.provider !== 'evolution') {
+    const result = await sendViaWhatsAppDispatcher({
+      dispatcher,
+      remoteJid,
+      text: message,
+      history: {
+        instanceName,
+        type: historyType,
+        additionalKwargs,
+        responseMetadata,
+      },
+    });
+
+    return result.success
+      ? result
+      : { ...result, error: result.error ?? result.message };
   }
 
   const resolvedUrl =

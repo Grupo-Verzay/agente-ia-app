@@ -17,11 +17,13 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { deleteMetaInstance, enableMetaCalling, getMetaCallingStatus, getMetaDisplayPhone, updateMetaInstance } from '@/actions/instances-actions';
+import { deleteMetaInstance, enableMetaCalling, getMetaCallingStatus, getMetaDisplayPhone, updateInstanceDisplayName, updateMetaInstance } from '@/actions/instances-actions';
+import { getInstanceDisplayName } from '@/lib/instance-display-name';
 import { toast } from 'sonner';
 
 interface MetaInstanceCardProps {
   instanceName: string;
+  displayName?: string | null;
   metaChannel?: string | null;
   phoneNumberId?: string | null;
   wabaId?: string | null;
@@ -48,6 +50,7 @@ const CHANNEL_META = {
 
 export const MetaInstanceCard = ({
   instanceName,
+  displayName,
   metaChannel,
   phoneNumberId,
   wabaId,
@@ -58,6 +61,7 @@ export const MetaInstanceCard = ({
   const channelMeta = CHANNEL_META[channel] ?? CHANNEL_META.whatsapp;
   const ChannelIcon = channelMeta.Icon;
   const iconColor = channelMeta.color.split(' ')[0];
+  const visibleName = getInstanceDisplayName(instanceName, displayName);
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -68,6 +72,7 @@ export const MetaInstanceCard = ({
   const [displayPhone, setDisplayPhone] = useState<string | null>(null);
 
   const [draft, setDraft] = useState({
+    displayName: visibleName,
     phoneNumberId: phoneNumberId ?? '',
     pageId: pageId ?? '',
     accessToken: '',
@@ -111,6 +116,14 @@ export const MetaInstanceCard = ({
       return;
     }
     setSaving(true);
+    const nameRes = draft.displayName.trim() !== visibleName
+      ? await updateInstanceDisplayName(instanceName, draft.displayName)
+      : { success: true, message: '' };
+    if (!nameRes.success) {
+      setSaving(false);
+      toast.error(nameRes.message);
+      return;
+    }
     const res = await updateMetaInstance({
       instanceName,
       metaChannel: channel,
@@ -121,7 +134,7 @@ export const MetaInstanceCard = ({
       verifyToken: draft.verifyToken,
     });
     setSaving(false);
-    if (res.success) { toast.success(res.message); setShowEditDialog(false); }
+    if (res.success) { toast.success(res.message || nameRes.message || 'Actualizado.'); setShowEditDialog(false); router.refresh(); }
     else toast.error(res.message);
   };
 
@@ -179,7 +192,7 @@ export const MetaInstanceCard = ({
               <ChannelIcon className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{instanceName}</p>
+              <p className="truncate text-sm font-medium">{visibleName}</p>
               {channel === 'whatsapp' && (
                 <p className="truncate text-xs text-muted-foreground">
                   {displayPhone || phoneNumberId || 'Consultando número...'}
@@ -220,9 +233,18 @@ export const MetaInstanceCard = ({
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Editar — {instanceName}</DialogTitle>
+            <DialogTitle>Editar — {visibleName}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label>Nombre visible</Label>
+              <Input
+                value={draft.displayName}
+                onChange={(e) => setDraft(d => ({ ...d, displayName: e.target.value }))}
+                placeholder="Nombre visible"
+                maxLength={60}
+              />
+            </div>
             {channel === 'whatsapp' && (
               <>
                 <div className="space-y-1">
@@ -275,7 +297,7 @@ export const MetaInstanceCard = ({
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar instancia {channelMeta.label}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se eliminará <strong>{instanceName}</strong> y sus credenciales.
+              Se eliminará <strong>{visibleName}</strong> y sus credenciales.
               Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>

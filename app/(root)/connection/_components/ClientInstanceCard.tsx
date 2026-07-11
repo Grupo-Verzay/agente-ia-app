@@ -61,6 +61,7 @@ const SocialIconSelector = ({ instanceType, callback }: SocialIconSelectorProps)
 
 export const ClientInstanceCard = ({
   intanceName,
+  displayName,
   instanceType,
   user,
   currentInstanceInfo,
@@ -92,6 +93,7 @@ export const ClientInstanceCard = ({
   const profileName = currentInstanceInfo?.profileName;
   const profilePicUrl = currentInstanceInfo?.profilePicUrl;
   const userInitial = intanceName.charAt(0).toUpperCase() ?? '?';
+  const visibleName = displayName?.trim() || intanceName;
   const isActive = instanceType == 'Facebook' ? user.onFacebook : user.onInstagram
 
   return (
@@ -124,7 +126,7 @@ export const ClientInstanceCard = ({
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{intanceName}</div>
+                  <div className="truncate text-sm font-medium">{visibleName}</div>
                   {ownerJid ? (
                     <div className="truncate text-xs text-muted-foreground">+{ownerJid.split('@')[0]}</div>
                   ) : (
@@ -171,6 +173,8 @@ export const ClientInstanceCard = ({
         userId={user.id}
         instanceType={instanceType}
         currentName={intanceName}
+        currentDisplayName={visibleName}
+        displayOnly
       />
 
       <RecreateInstanceDialog

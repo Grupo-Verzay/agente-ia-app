@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
+import { cleanInstanceDisplayName } from '@/lib/instance-display-name';
 
 /**
  * Embedded Signup de Meta (WhatsApp Cloud API / Coexistencia).
@@ -206,7 +207,7 @@ async function discoverNumbers(token: string): Promise<MetaNumberOption[]> {
     }
 
     // 2. Por cada WABA, listar sus números.
-    for (const id of wabaIds) {
+    for (const id of Array.from(wabaIds)) {
       const res = await fetch(
         `${GRAPH}/${encodeURIComponent(id)}/phone_numbers?fields=id,display_phone_number,verified_name`,
         { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' },
@@ -309,11 +310,12 @@ export async function exchangeMetaSignup(params: ExchangeParams): Promise<MetaSi
         } as any,
         select: { id: true },
       });
-      instanceDbId = updated.id;
+      instanceDbId = String(updated.id);
     } else {
       const created = await db.instancia.create({
         data: {
           instanceName,
+          displayName: cleanInstanceDisplayName(instanceName),
           instanceType: 'meta',
           userId,
           instanceId: `meta-${phoneNumberId}`,
@@ -324,7 +326,7 @@ export async function exchangeMetaSignup(params: ExchangeParams): Promise<MetaSi
         } as any,
         select: { id: true },
       });
-      instanceDbId = created.id;
+      instanceDbId = String(created.id);
     }
   } catch (e: any) {
     console.error('[exchangeMetaSignup] db', e);
@@ -359,8 +361,13 @@ export async function selectMetaNumber(params: {
     return { success: false, message: 'Faltan datos para seleccionar el número.' };
   }
 
+  const numericInstanceDbId = Number(instanceDbId);
+  if (!Number.isFinite(numericInstanceDbId)) {
+    return { success: false, message: 'ID de instancia inválido.' };
+  }
+
   const inst: any = await db.instancia.findUnique({
-    where: { id: instanceDbId },
+    where: { id: numericInstanceDbId },
     select: { metaAccessToken: true } as any,
   });
   const token: string | undefined = inst?.metaAccessToken;
@@ -376,7 +383,7 @@ export async function selectMetaNumber(params: {
 
   try {
     await db.instancia.update({
-      where: { id: instanceDbId },
+      where: { id: numericInstanceDbId },
       data: {
         metaPhoneNumberId: phoneNumberId,
         metaWabaId: wabaId || null,

@@ -16,22 +16,26 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { deleteTelegramInstance, updateTelegramInstance } from '@/actions/instances-actions';
+import { deleteTelegramInstance, updateInstanceDisplayName, updateTelegramInstance } from '@/actions/instances-actions';
+import { getInstanceDisplayName } from '@/lib/instance-display-name';
 import { toast } from 'sonner';
 
 interface TelegramInstanceCardProps {
   instanceName: string;
+  displayName?: string | null;
   botUsername?: string | null;
 }
 
 const TELEGRAM_BLUE = '#229ED9';
 
-export const TelegramInstanceCard = ({ instanceName, botUsername }: TelegramInstanceCardProps) => {
+export const TelegramInstanceCard = ({ instanceName, displayName, botUsername }: TelegramInstanceCardProps) => {
   const router = useRouter();
+  const visibleName = getInstanceDisplayName(instanceName, displayName);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [draftDisplayName, setDraftDisplayName] = useState(visibleName);
   const [botToken, setBotToken] = useState('');
 
   const handleDelete = async () => {
@@ -43,15 +47,39 @@ export const TelegramInstanceCard = ({ instanceName, botUsername }: TelegramInst
   };
 
   const handleSave = async () => {
-    if (!botToken.trim()) {
-      toast.error('El Bot Token es requerido.');
+    if (!draftDisplayName.trim()) {
+      toast.error('El nombre visible es requerido.');
       return;
     }
+
     setSaving(true);
+    const nameRes = draftDisplayName.trim() !== visibleName
+      ? await updateInstanceDisplayName(instanceName, draftDisplayName)
+      : { success: true, message: '' };
+    if (!nameRes.success) {
+      setSaving(false);
+      toast.error(nameRes.message);
+      return;
+    }
+
+    if (!botToken.trim()) {
+      setSaving(false);
+      toast.success(nameRes.message || 'Nombre actualizado.');
+      setShowEditDialog(false);
+      router.refresh();
+      return;
+    }
+
     const res = await updateTelegramInstance({ instanceName, botToken });
     setSaving(false);
-    if (res.success) { toast.success(res.message); setShowEditDialog(false); setBotToken(''); }
-    else toast.error(res.message);
+    if (res.success) {
+      toast.success(res.message || nameRes.message || 'Actualizado.');
+      setShowEditDialog(false);
+      setBotToken('');
+      router.refresh();
+    } else {
+      toast.error(res.message);
+    }
   };
 
   return (
@@ -75,7 +103,7 @@ export const TelegramInstanceCard = ({ instanceName, botUsername }: TelegramInst
               <FaTelegramPlane className="h-5 w-5" style={{ color: TELEGRAM_BLUE }} />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{instanceName}</p>
+              <p className="truncate text-sm font-medium">{visibleName}</p>
               {botUsername && (
                 <p className="truncate text-xs text-muted-foreground">@{botUsername}</p>
               )}
@@ -102,15 +130,23 @@ export const TelegramInstanceCard = ({ instanceName, botUsername }: TelegramInst
         </CardFooter>
       </Card>
 
-      {/* Dialog de edición */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Actualizar token — {instanceName}</DialogTitle>
+            <DialogTitle>Editar — {visibleName}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">
-              <Label>Bot Token <span className="text-red-500">*</span></Label>
+              <Label>Nombre visible</Label>
+              <Input
+                value={draftDisplayName}
+                onChange={(e) => setDraftDisplayName(e.target.value)}
+                placeholder="Nombre visible"
+                maxLength={60}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Bot Token <span className="text-xs text-muted-foreground">(dejar vacío si solo cambias el nombre)</span></Label>
               <Input
                 type="password"
                 value={botToken}
@@ -118,7 +154,7 @@ export const TelegramInstanceCard = ({ instanceName, botUsername }: TelegramInst
                 placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyz"
               />
               <p className="text-xs text-muted-foreground">
-                Al guardar se valida el token y se vuelve a configurar el webhook.
+                Si actualizas el token, también se vuelve a configurar el webhook.
               </p>
             </div>
           </div>
@@ -132,13 +168,12 @@ export const TelegramInstanceCard = ({ instanceName, botUsername }: TelegramInst
         </DialogContent>
       </Dialog>
 
-      {/* Dialog de eliminación */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Desconectar el bot de Telegram?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se eliminará <strong>{instanceName}</strong> y sus credenciales, y se quitará el webhook del bot.
+              Se eliminará <strong>{visibleName}</strong> y sus credenciales, y se quitará el webhook del bot.
               Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>

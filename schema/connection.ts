@@ -42,6 +42,7 @@ export const FormInstanceConnectionSchema = z.object({
 
 export interface ClientInstanceCardProps {
     intanceName: string
+    displayName?: string | null
     user: User
     instanceType: string
     currentInstanceInfo?: EvolutionInstance

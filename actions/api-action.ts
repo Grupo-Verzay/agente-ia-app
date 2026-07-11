@@ -8,6 +8,7 @@ import { resolveWhatsAppDispatcherLineByInstanceName, sendViaWhatsAppDispatcher 
 import { listMetaTemplates, sendMetaTemplate } from "./channel-chat-actions";
 import { ClientResponse, DISCONNECT_COOLDOWN_MS, DISCONNECTION_MSG, EVO_FETCH_TIMEOUT_MS, GenerateQrInterface, getDayKeyBogota, getEvoCache, isApiConnected, isWhatsappLike, QRCodeResponse } from "@/types/evo-api";
 import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
+import { cleanInstanceDisplayName } from "@/lib/instance-display-name";
 
 /* =========================
    Server-Action: Generar QR
@@ -412,7 +413,7 @@ export async function createInstance(data: FormData) {
       }
 
       const nuevaInstancia = await db.instancia.create({
-        data: { instanceName, instanceType, userId, instanceId },
+        data: { instanceName, displayName: cleanInstanceDisplayName(instanceName), instanceType, userId, instanceId } as any,
       });
 
       revalidatePath('/agregar-api');
@@ -567,7 +568,7 @@ export async function forceRecreateInstance(userId: string, instanceType: string
 
       // 4. Guardar nueva instancia en BD
       await db.instancia.create({
-        data: { instanceName, instanceType, userId, instanceId },
+        data: { instanceName, displayName: cleanInstanceDisplayName(instanceName), instanceType, userId, instanceId } as any,
       });
     }
 
@@ -785,11 +786,11 @@ export async function createInstanceInternal(
         return { success: false, message: 'No se recibió instanceId en la respuesta de la API.' };
       }
 
-      await db.instancia.create({ data: { instanceName, instanceType, userId, instanceId } });
+      await db.instancia.create({ data: { instanceName, displayName: cleanInstanceDisplayName(instanceName), instanceType, userId, instanceId } as any });
       return { success: true, message: "Instancia creada exitosamente." };
     } else {
       await db.instancia.create({
-        data: { instanceName, instanceType, userId, instanceId: `local-${randomUUID()}` },
+        data: { instanceName, displayName: cleanInstanceDisplayName(instanceName), instanceType, userId, instanceId: `local-${randomUUID()}` } as any,
       });
       return { success: true, message: "Instancia creada exitosamente." };
     }

@@ -70,12 +70,12 @@ const ProfilePage = async ({ searchParams }: { searchParams?: { openApiKey?: str
 
   // Los asesores (sub-cuentas) SÍ acceden a Perfil. Usan effectiveId, por lo que
   // ven/gestionan la configuración (conexión, instancias, etc.) de la cuenta principal.
-  const effectiveId = user.effectiveId;
+  const effectiveId = user.effectiveId ?? user.id;
 
   // Obtener instancias, API key y prompts en paralelo
   const [resInstancias, resApikey, resPrompts] = await Promise.all([
     getInstancesByUserId(effectiveId),
-    getApiKeyById(user.apiKeyId),
+    getApiKeyById(user.apiKeyId ?? ''),
     getPromptsByUserId(effectiveId)
   ]);
 

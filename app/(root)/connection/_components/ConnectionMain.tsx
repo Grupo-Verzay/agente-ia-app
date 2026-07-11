@@ -7,6 +7,7 @@ import { ClientInstanceCard, ConnectionCard } from './';
 import { ConnectionMainInterface, FormInstanceConnectionValues, sanitizeInstanceName } from '@/schema/connection';
 import { PromptInstance } from '@prisma/client';
 import { checkInstanceNameExists, createBaileysInstance } from '@/actions/instances-actions';
+import { getInstanceDisplayName } from '@/lib/instance-display-name';
 
 export const ConnectionMain = ({
   user,
@@ -18,6 +19,7 @@ export const ConnectionMain = ({
 }: ConnectionMainInterface & { autoCreate?: boolean }) => {
   const [loading, setLoading] = useState<boolean>(false);
   const instanceName = !instance ? '' : instance.instanceName;
+  const displayName = getInstanceDisplayName(instance?.instanceName, (instance as any)?.displayName);
   const currentInstanceInfo = instanceInfo?.find((i) => i.name === instanceName);
 
   // Nombre de instancia derivado del campo company del usuario (no editable por el cliente)
@@ -94,6 +96,7 @@ export const ConnectionMain = ({
   return instance ? (
     <ClientInstanceCard
       intanceName={instanceName}
+      displayName={displayName}
       instanceType={instanceType}
       user={user}
       currentInstanceInfo={currentInstanceInfo}

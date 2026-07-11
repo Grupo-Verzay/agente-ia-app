@@ -126,6 +126,7 @@ model GuideUrl {
 model Instancia {
   id                 Int     @id @default(autoincrement())
   instanceName       String
+  displayName        String? @map("display_name")
   userId             String
   instanceId         String
   instanceType       String? @default("Whatsapp")

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { Instancia } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
+import { cleanInstanceDisplayName } from "@/lib/instance-display-name";
 
 const getInstancesSchema = z.object({
   userId: z.string().min(1, "El userId es obligatorio"),
@@ -72,7 +73,7 @@ export async function switchInstanceAdapter(
 
     revalidatePath('/connection');
     return { success: true, message: `Adaptador cambiado a ${targetType === 'baileys' ? 'Baileys' : 'Evolution API'}.` };
-  } catch (error) {
+  } catch (error: any) {
     console.error('[switchInstanceAdapter]', error);
     return { success: false, message: 'Error al cambiar el adaptador.' };
   }
@@ -116,6 +117,7 @@ export async function createBaileysInstance(
     await db.instancia.create({
       data: {
         instanceName,
+        displayName: cleanInstanceDisplayName(instanceName),
         instanceType: 'baileys',
         userId,
         instanceId: `baileys-${instanceName}`,
@@ -131,7 +133,7 @@ export async function createBaileysInstance(
 
     revalidatePath('/connection');
     return { success: true, message: 'Instancia Baileys creada. Escanea el QR para conectar.' };
-  } catch (error) {
+  } catch (error: any) {
     console.error('[createBaileysInstance]', error);
     return { success: false, message: error?.message ?? 'Error al crear la instancia.' };
   }
@@ -325,6 +327,60 @@ async function subscribeMetaAppToWaba(wabaId: string, token: string): Promise<bo
   }
 }
 
+export async function updateInstanceDisplayName(
+  instanceName: string,
+  displayName: string,
+): Promise<{ success: boolean; message: string }> {
+  const cleanName = displayName.trim();
+  if (!instanceName) return { success: false, message: 'Instancia requerida.' };
+  if (cleanName.length < 2) return { success: false, message: 'El nombre debe tener al menos 2 caracteres.' };
+  if (cleanName.length > 60) return { success: false, message: 'El nombre no puede superar 60 caracteres.' };
+
+  try {
+    await db.instancia.updateMany({
+      where: { instanceName },
+      data: { displayName: cleanName } as any,
+    });
+    revalidatePath('/connection');
+    revalidatePath('/profile');
+    return { success: true, message: 'Nombre actualizado.' };
+  } catch (error: any) {
+    console.error('[updateInstanceDisplayName]', error);
+    return { success: false, message: 'Error al actualizar el nombre.' };
+  }
+}
+
+async function validateMetaPhoneNumberAccess(phoneNumberId: string, token: string): Promise<{ ok: boolean; message?: string }> {
+  const cleanPhoneNumberId = phoneNumberId.trim();
+  const cleanToken = token.trim();
+  if (!cleanPhoneNumberId || !cleanToken) {
+    return { ok: false, message: 'Phone Number ID y Access Token son requeridos.' };
+  }
+
+  const version =
+    process.env.META_GRAPH_VERSION || process.env.NEXT_PUBLIC_META_GRAPH_VERSION || 'v25.0';
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${version}/${encodeURIComponent(cleanPhoneNumberId)}?fields=display_phone_number`,
+      {
+        headers: { Authorization: `Bearer ${cleanToken}` },
+        cache: 'no-store',
+      },
+    );
+    const json: any = await res.json().catch(() => ({}));
+    if (res.ok) return { ok: true };
+
+    const metaMessage = json?.error?.message;
+    const message = metaMessage
+      ? `Meta no autorizó ese Phone Number ID. Verifica que el ID pertenezca a este token. Detalle: ${metaMessage}`
+      : `Meta respondió ${res.status}. Verifica Phone Number ID y token.`;
+    return { ok: false, message };
+  } catch (error: any) {
+    return { ok: false, message: error?.message || 'No se pudo validar el Phone Number ID con Meta.' };
+  }
+}
+
 export async function createMetaInstance(params: {
   instanceName: string;
   userId: string;
@@ -338,9 +394,15 @@ export async function createMetaInstance(params: {
     return { success: false, message: 'Nombre, Phone Number ID y Access Token son requeridos.' };
   }
   try {
+    const validation = await validateMetaPhoneNumberAccess(phoneNumberId, accessToken);
+    if (!validation.ok) {
+      return { success: false, message: validation.message || 'Credenciales de Meta inválidas.' };
+    }
+
     await db.instancia.create({
       data: {
         instanceName,
+        displayName: cleanInstanceDisplayName(instanceName),
         instanceType: 'meta',
         userId,
         instanceId: `meta-${phoneNumberId}`,
@@ -381,6 +443,7 @@ export async function createFacebookInstance(params: {
     await db.instancia.create({
       data: {
         instanceName,
+        displayName: cleanInstanceDisplayName(instanceName),
         instanceType: 'meta',
         userId,
         instanceId: `meta-fb-${pageId}`,
@@ -413,6 +476,7 @@ export async function createInstagramInstance(params: {
     await db.instancia.create({
       data: {
         instanceName,
+        displayName: cleanInstanceDisplayName(instanceName),
         instanceType: 'meta',
         userId,
         instanceId: `meta-ig-${instagramAccountId}`,
@@ -517,6 +581,7 @@ export async function createTelegramInstance(params: {
     await db.instancia.create({
       data: {
         instanceName,
+        displayName: cleanInstanceDisplayName(instanceName),
         instanceType: 'telegram',
         userId,
         instanceId: `telegram-${me.username ?? instanceName}`,
@@ -622,12 +687,27 @@ export async function updateMetaInstance(params: {
 }): Promise<{ success: boolean; message: string }> {
   const { instanceName, phoneNumberId, pageId, accessToken, wabaId, verifyToken } = params;
   try {
+    const current: any = await db.instancia.findFirst({
+      where: { instanceName },
+      select: { metaAccessToken: true, metaPhoneNumberId: true, metaWabaId: true, metaChannel: true } as any,
+    });
+    const effPhoneNumberId = phoneNumberId !== undefined ? phoneNumberId.trim() : current?.metaPhoneNumberId;
+    const effToken = accessToken?.trim() || current?.metaAccessToken;
+    const effChannel = current?.metaChannel ?? params.metaChannel ?? 'whatsapp';
+
+    if (effChannel === 'whatsapp' && (phoneNumberId !== undefined || accessToken)) {
+      const validation = await validateMetaPhoneNumberAccess(effPhoneNumberId, effToken);
+      if (!validation.ok) {
+        return { success: false, message: validation.message || 'Credenciales de Meta inválidas.' };
+      }
+    }
+
     await db.instancia.updateMany({
       where: { instanceName },
       data: {
-        ...(phoneNumberId !== undefined && { metaPhoneNumberId: phoneNumberId }),
+        ...(phoneNumberId !== undefined && { metaPhoneNumberId: phoneNumberId.trim() }),
         ...(pageId !== undefined && { metaPageId: pageId }),
-        ...(accessToken && { metaAccessToken: accessToken }),
+        ...(accessToken && { metaAccessToken: accessToken.trim() }),
         ...(wabaId !== undefined && { metaWabaId: wabaId || null }),
         ...(verifyToken !== undefined && { metaVerifyToken: verifyToken || null }),
       } as any,
@@ -639,11 +719,11 @@ export async function updateMetaInstance(params: {
       where: { instanceName },
       select: { metaAccessToken: true, metaWabaId: true, metaChannel: true } as any,
     });
-    const effToken = accessToken || inst?.metaAccessToken;
+    const subscribedToken = accessToken?.trim() || inst?.metaAccessToken;
     const effWaba = (wabaId ?? undefined) || inst?.metaWabaId;
     let subscribed = false;
-    if ((inst?.metaChannel ?? 'whatsapp') === 'whatsapp' && effToken && effWaba) {
-      subscribed = await subscribeMetaAppToWaba(effWaba, effToken);
+    if ((inst?.metaChannel ?? 'whatsapp') === 'whatsapp' && subscribedToken && effWaba) {
+      subscribed = await subscribeMetaAppToWaba(effWaba, subscribedToken);
     }
 
     revalidatePath('/connection');

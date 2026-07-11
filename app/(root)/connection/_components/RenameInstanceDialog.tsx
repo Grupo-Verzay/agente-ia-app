@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { renameInstance } from '@/actions/api-action';
+import { updateInstanceDisplayName } from '@/actions/instances-actions';
 import { sanitizeInstanceNameInput, sanitizeInstanceName } from '@/schema/connection';
 
 interface RenameInstanceDialogProps {
@@ -24,6 +25,8 @@ interface RenameInstanceDialogProps {
   userId: string;
   instanceType: string;
   currentName: string;
+  currentDisplayName?: string;
+  displayOnly?: boolean;
 }
 
 export const RenameInstanceDialog = ({
@@ -32,19 +35,23 @@ export const RenameInstanceDialog = ({
   userId,
   instanceType,
   currentName,
+  currentDisplayName,
+  displayOnly = false,
 }: RenameInstanceDialogProps) => {
   const router = useRouter();
   const [name, setName] = useState('');
 
   useEffect(() => {
-    if (open) setName(currentName);
-  }, [open, currentName]);
+    if (open) setName(currentDisplayName || currentName);
+  }, [open, currentDisplayName, currentName]);
 
   const mutation = useMutation({
-    mutationFn: (newName: string) => renameInstance(userId, instanceType, newName),
+    mutationFn: (newName: string) => displayOnly
+      ? updateInstanceDisplayName(currentName, newName)
+      : renameInstance(userId, instanceType, newName),
     onSuccess: (res) => {
       if (!res?.success) {
-        toast.error(res?.message || 'Error al renombrar la instancia.');
+        toast.error(res?.message || 'Error al guardar el nombre.');
         return;
       }
       toast.success(res.message);
@@ -52,31 +59,31 @@ export const RenameInstanceDialog = ({
       router.refresh();
     },
     onError: (err: any) => {
-      toast.error(err?.message || 'Error inesperado al renombrar.');
+      toast.error(err?.message || 'Error inesperado al guardar.');
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const sanitized = sanitizeInstanceName(name);
-    if (sanitized.length < 2) {
-      toast.error('El nombre debe tener al menos 2 caracteres válidos.');
+    const finalName = displayOnly ? name.trim() : sanitizeInstanceName(name);
+    if (finalName.length < 2) {
+      toast.error('El nombre debe tener al menos 2 caracteres.');
       return;
     }
-    if (sanitized === currentName) {
+    if (finalName === (displayOnly ? (currentDisplayName || currentName) : currentName)) {
       toast.error('El nombre es igual al actual.');
       return;
     }
-    mutation.mutate(sanitized);
+    mutation.mutate(finalName);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-md border-border">
         <DialogHeader>
-          <DialogTitle>Editar nombre de instancia</DialogTitle>
+          <DialogTitle>Editar nombre</DialogTitle>
           <DialogDescription>
-            Ingresa el nuevo nombre para tu instancia.
+            Ingresa el nombre que verás en la tarjeta.
           </DialogDescription>
         </DialogHeader>
 
@@ -86,13 +93,13 @@ export const RenameInstanceDialog = ({
             <Input
               id="instance-name"
               value={name}
-              onChange={(e) => setName(sanitizeInstanceNameInput(e.target.value))}
-              placeholder="NOMBRE_INSTANCIA"
+              onChange={(e) => setName(displayOnly ? e.target.value : sanitizeInstanceNameInput(e.target.value))}
+              placeholder="Nombre visible"
               maxLength={60}
               autoComplete="off"
             />
             <p className="text-xs text-muted-foreground">
-              Solo letras mayúsculas, números, guion bajo y guion medio.
+              Este nombre es solo visual; no cambia la conexión técnica.
             </p>
           </div>
 
