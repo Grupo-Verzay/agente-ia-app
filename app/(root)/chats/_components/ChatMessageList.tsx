@@ -268,7 +268,6 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   callContactName,
 }) => {
   const autoLoadLockRef = useRef(false);
-  const scrollFrameRef = useRef<number | null>(null);
   const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 });
 
   const fullList = useMemo(() => {
@@ -341,16 +340,8 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
 
   const handleScroll = useCallback(() => {
     const el = listRef.current;
-    if (el && scrollFrameRef.current === null) {
-      scrollFrameRef.current = window.requestAnimationFrame(() => {
-        scrollFrameRef.current = null;
-        setViewport((current) => {
-          const next = { scrollTop: el.scrollTop, height: el.clientHeight };
-          return current.scrollTop === next.scrollTop && current.height === next.height
-            ? current
-            : next;
-        });
-      });
+    if (el) {
+      setViewport({ scrollTop: el.scrollTop, height: el.clientHeight });
     }
     if (!el || !onLoadOlderMessages || !canLoadOlderMessages || loading || loadingOlderMessages || autoLoadLockRef.current) {
       return;
@@ -362,12 +353,6 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
       autoLoadLockRef.current = false;
     });
   }, [canLoadOlderMessages, listRef, loading, loadingOlderMessages, onLoadOlderMessages]);
-
-  useEffect(() => () => {
-    if (scrollFrameRef.current !== null) {
-      window.cancelAnimationFrame(scrollFrameRef.current);
-    }
-  }, []);
 
   if (loading && renderedList.length === 0) {
     return (
