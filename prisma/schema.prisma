@@ -580,8 +580,6 @@ model ChatMessage {
 
   @@unique([userId, instanceName, remoteJid, messageId, fromMe], map: "chat_messages_user_instance_jid_msg_from_unique")
   @@index([userId, remoteJid, messageTimestamp], map: "chat_messages_user_jid_ts_idx")
-  @@index([userId, instanceName, remoteJidAlt, messageTimestamp], map: "chat_messages_user_instance_alt_ts_idx")
-  @@index([userId, instanceName, senderPn, messageTimestamp], map: "chat_messages_user_instance_sender_ts_idx")
   @@index([userId, instanceName, messageTimestamp], map: "chat_messages_user_instance_ts_idx")
   @@map("chat_messages")
 }

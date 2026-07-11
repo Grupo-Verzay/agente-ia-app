@@ -803,12 +803,9 @@ export function ChatsClient({
 
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      // Los badges dependen solo de las sesiones. Cargarlos por separado evita
-      // que esperen flujos, macros, asesores y el resto del bootstrap.
-      void refreshChatSessions(currentChatsResult.data);
       void loadChatBootstrapData({
         sessionUserIds: sessionUserIds?.length ? sessionUserIds : [userId],
-        chatDescriptors: [],
+        chatDescriptors: buildChatContactDescriptors(currentChatsResult.data),
       }).then((result) => {
         if (cancelled || !result.success || !result.data) return;
         const data = result.data;
@@ -819,6 +816,15 @@ export function ChatsClient({
         setAdvisors(data.advisors);
         setClientValidationEnabled(data.clientValidationEnabled);
         setChatPreferences(data.chatPreferences);
+        setChatSessions((prev) => {
+          const next = { ...data.chatSessions };
+          for (const jid of Object.keys(next)) {
+            if (!next[jid].customName && prev[jid]?.customName) {
+              next[jid] = { ...next[jid], customName: prev[jid].customName };
+            }
+          }
+          return next;
+        });
       });
     }, 100);
 
@@ -826,7 +832,7 @@ export function ChatsClient({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [currentChatsResult, refreshChatSessions, sessionUserIds, userId]);
+  }, [currentChatsResult, sessionUserIds, userId]);
 
   const refetchAllInstances = useCallback(async (): Promise<FetchChatsResult> => {
     if (!instanceActionSets?.length) return refetchChatsAction();
