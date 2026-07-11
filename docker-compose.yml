@@ -1,6 +1,33 @@
 version: "3.7"
 
 services:
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.25.2-p0
+    networks:
+      - minha_rede
+    environment:
+      - DB_HOST=${POSTGRES_HOST}
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_NAME=${POSTGRES_DB}
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=200
+      - DEFAULT_POOL_SIZE=20
+      - MIN_POOL_SIZE=5
+      - RESERVE_POOL_SIZE=5
+      - SERVER_IDLE_TIMEOUT=300
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+
   verzay_app:
     image: ghcr.io/grupo-verzay/agente-ia-app:latest
     networks:
@@ -13,7 +40,8 @@ services:
 
       - AUTH_SECRET=CAMBIA_ESTE_VALOR
       - NEXTAUTH_URL=https://tu-dominio.com
-      - DATABASE_URL=postgresql://USUARIO:PASSWORD@HOST:5432/BASE?schema=public
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}?schema=public&pgbouncer=true&connection_limit=5
+      - DIRECT_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_DB}?schema=public
 
       - AUTH_RESEND_KEY=CAMBIA_ESTE_VALOR
 
@@ -69,6 +97,8 @@ services:
         - traefik.http.routers.verzay_app.service=verzay_app
         - traefik.http.services.verzay_app.loadbalancer.server.port=3000
         - traefik.http.services.verzay_app.loadbalancer.passHostHeader=true
+    depends_on:
+      - pgbouncer
 
 networks:
   minha_rede:

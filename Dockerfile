@@ -51,4 +51,6 @@ RUN npx prisma generate
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss && node server.js"]
+# Los cambios de esquema deben ir directo a PostgreSQL. La aplicacion conserva
+# DATABASE_URL (PgBouncer) cuando arranca Node.
+CMD ["sh", "-c", "DATABASE_URL=\"$DIRECT_URL\" npx prisma db push --skip-generate --accept-data-loss && node server.js"]
