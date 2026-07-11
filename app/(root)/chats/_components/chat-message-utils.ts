@@ -162,7 +162,19 @@ export function toUIMessages(
   // text vacío = reacción removida.
   const reactions = new Map<string, string>();
 
-  const bubbles = messages.map((m): UIBubble | null => {
+  // Evolution puede entregar el mismo mensaje desde historial y desde el evento
+  // en vivo. Desduplicar antes de convertir evita burbujas repetidas y también
+  // reduce el trabajo de render, media y búsqueda en conversaciones largas.
+  const seenMessageIds = new Set<string>();
+  const uniqueMessages = messages.filter((message) => {
+    const id = message.key?.id || message.id;
+    if (!id) return true;
+    if (seenMessageIds.has(id)) return false;
+    seenMessageIds.add(id);
+    return true;
+  });
+
+  const bubbles = uniqueMessages.map((m): UIBubble | null => {
     const isUser = m.key?.fromMe === true;
     const sender: 'user' | 'other' = isUser ? 'user' : 'other';
     const ts = m.messageTimestamp;
