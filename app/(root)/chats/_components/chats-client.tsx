@@ -85,8 +85,8 @@ const LIST_SYNC_INTERVAL_MS = 60000;
 // Polling ADAPTATIVO: si el WebSocket de tiempo real está caído o no
 // configurado, usamos intervalos más ágiles para que igual se sienta en vivo.
 // Con el socket conectado se mantienen los intervalos relajados de arriba.
-const REALTIME_OFF_MSG_INTERVAL_MS = 6000;
-const REALTIME_OFF_LIST_INTERVAL_MS = 15000;
+const REALTIME_OFF_MSG_INTERVAL_MS = 12000;
+const REALTIME_OFF_LIST_INTERVAL_MS = 60000;
 
 type ChatMessageInfo = {
   total?: number;
@@ -809,7 +809,7 @@ export function ChatsClient({
         window.setTimeout(() => {
           if (sessionRefreshRequestRef.current !== requestId) return;
           void loadBatch(remaining, false);
-        }, 1500);
+        }, 5000);
       }
     },
     [sessionUserIds, userId],
@@ -1709,7 +1709,6 @@ export function ChatsClient({
         setCurrentChatsResult(filtered);
         if (filtered.success) {
           syncOpenChatFromList(filtered.data);
-          await refreshChatSessions(filtered.data);
         }
       }
 
@@ -1726,7 +1725,7 @@ export function ChatsClient({
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-  }, [normalizedInitialChatsResult.success, refetchAllInstances, refreshChatSessions, syncOpenChatFromList]);
+  }, [normalizedInitialChatsResult.success, refetchAllInstances, syncOpenChatFromList]);
 
   useEffect(() => {
     if (pollingRef.current) {
