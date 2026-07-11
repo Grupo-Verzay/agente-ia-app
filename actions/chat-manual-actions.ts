@@ -304,25 +304,13 @@ async function requireCurrentUser() {
   return user;
 }
 
-const chatOwnerCache = new Map<string, { userId: string | null; expiresAt: number }>();
-const CHAT_OWNER_CACHE_TTL_MS = 5 * 60 * 1000;
-
 async function resolveChatStorageUserId(
   context: ChatActionContext,
   fallbackUserId?: string | null,
 ) {
   if (hasReadyContext(context)) {
-    const key = context.instanceName.trim();
-    const cached = chatOwnerCache.get(key);
-    if (cached && cached.expiresAt > Date.now()) return cached.userId ?? fallbackUserId ?? null;
-
-    const owner = await resolveInstanceOwner(key);
-    const ownerId = owner?.userId ?? null;
-    chatOwnerCache.set(key, {
-      userId: ownerId,
-      expiresAt: Date.now() + CHAT_OWNER_CACHE_TTL_MS,
-    });
-    if (ownerId) return ownerId;
+    const owner = await resolveInstanceOwner(context.instanceName);
+    if (owner?.userId) return owner.userId;
   }
 
   return fallbackUserId ?? null;
