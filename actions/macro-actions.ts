@@ -9,7 +9,7 @@ import {
   sendManualWorkflowAction,
 } from "@/actions/chat-manual-actions";
 import { sendBaileysTextAction } from "@/actions/baileys-chat-actions";
-import { sendChannelTextAction } from "@/actions/channel-chat-actions";
+import { sendChannelTextAction, sendMetaTemplate, type MetaTemplateOption } from "@/actions/channel-chat-actions";
 import { getApiKeyById } from "@/actions/api-action";
 import { assignTagToSessionAction, removeTagFromSessionAction } from "@/actions/tag-actions";
 import { updateSessionLeadStatus, toggleAgentDisabled } from "@/actions/session-action";
@@ -39,6 +39,13 @@ export type MacroActionItem = {
   config?: {
     text?: string;
     instanceName?: string; // línea/instancia por la que se envía (SEND_TEXT_VIA)
+    // SEND_TEXT_VIA por línea Meta (WhatsApp Cloud): plantilla aprobada en vez de
+    // texto libre. Fuera de la ventana de 24 h Meta solo acepta plantillas.
+    viaMode?: "text" | "template"; // default "text"
+    templateName?: string;
+    templateLanguage?: string;
+    templateBody?: string; // cuerpo con {{n}} (para renderizar el saliente en el panel)
+    templateParams?: string[]; // valores de {{1}}, {{2}}…
     quickReplyId?: number;
     tagId?: number;
     stage?: string | null; // LeadStatus (FRIO | TIBIO | CALIENTE | FINALIZADO | DESCARTADO)
@@ -208,6 +215,35 @@ async function sendTextViaLine(
     remoteJid,
     { kind: "text", text },
   );
+}
+
+/**
+ * Envía una PLANTILLA de WhatsApp Cloud (Meta) al contacto por una línea Meta
+ * distinta a la actual (para SEND_TEXT_VIA en modo plantilla). Valida que la línea
+ * pertenezca a una cuenta autorizada y sea de tipo Meta antes de enviar.
+ */
+async function sendTemplateViaLine(
+  accountIds: string[],
+  instanceName: string,
+  remoteJid: string,
+  cfg: NonNullable<MacroActionItem["config"]>,
+): Promise<void> {
+  const inst = await db.instancia.findFirst({
+    where: { instanceName, userId: { in: accountIds } },
+  });
+  if (!inst) throw new Error(`Línea "${instanceName}" no encontrada o no autorizada.`);
+  if (inst.instanceType !== "meta") {
+    throw new Error("Las plantillas solo se pueden enviar por líneas de WhatsApp Cloud (Meta).");
+  }
+  const template: MetaTemplateOption = {
+    name: cfg.templateName ?? "",
+    language: cfg.templateLanguage || "es",
+    category: "",
+    bodyText: cfg.templateBody ?? "",
+    paramCount: (cfg.templateParams ?? []).length,
+  };
+  const res = await sendMetaTemplate(instanceName, remoteJid, template, cfg.templateParams ?? []);
+  if (!res.success) throw new Error(res.message || "No se pudo enviar la plantilla.");
 }
 
 /* ─────────────── CRUD ─────────────── */
@@ -415,8 +451,12 @@ export async function executeMacroAction(input: {
             }
             break;
           case "SEND_TEXT_VIA":
-            if (remoteJid && cfg.instanceName && cfg.text) {
-              await sendTextViaLine(lineAccountIds, cfg.instanceName, remoteJid, cfg.text);
+            if (remoteJid && cfg.instanceName) {
+              if (cfg.viaMode === "template" && cfg.templateName) {
+                await sendTemplateViaLine(lineAccountIds, cfg.instanceName, remoteJid, cfg);
+              } else if (cfg.text) {
+                await sendTextViaLine(lineAccountIds, cfg.instanceName, remoteJid, cfg.text);
+              }
             }
             break;
           case "SEND_FILE":

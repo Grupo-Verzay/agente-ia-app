@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Plus, Zap, Pencil, Trash2, ArrowUp, ArrowDown, X, Loader2, GripVertical,
   Search, CheckCircle2, List, Play, MoreVertical, Copy, Power, PowerOff, Paperclip,
@@ -52,6 +52,7 @@ import {
   type MacroActionItem,
   type MacroActionType,
 } from '@/actions/macro-actions';
+import { listMetaTemplates, type MetaTemplateOption } from '@/actions/channel-chat-actions';
 
 type TagOpt = { id: number; name: string; color: string | null };
 type RROpt = { id: number; name: string | null; mensaje: string | null };
@@ -258,6 +259,38 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
     all: false,
   });
   const [deleting, setDeleting] = useState(false);
+  // Plantillas de Meta por línea (WhatsApp Cloud), cargadas bajo demanda para el
+  // selector "Enviar por otra línea" cuando la línea elegida es de tipo Meta.
+  const [templatesByLine, setTemplatesByLine] = useState<Record<string, MetaTemplateOption[]>>({});
+  const [loadingTemplates, setLoadingTemplates] = useState<Set<string>>(new Set());
+
+  const metaLineNames = useMemo(
+    () => new Set(lines.filter((l) => l.type === 'meta').map((l) => l.instanceName)),
+    [lines],
+  );
+
+  // Carga las plantillas de las líneas Meta usadas en el borrador (una sola vez por línea).
+  useEffect(() => {
+    const needed = draft.actions
+      .filter((a) => a.type === 'SEND_TEXT_VIA')
+      .map((a) => a.config?.instanceName)
+      .filter((n): n is string => !!n && metaLineNames.has(n) && !(n in templatesByLine) && !loadingTemplates.has(n));
+    if (needed.length === 0) return;
+    setLoadingTemplates((prev) => {
+      const next = new Set(prev);
+      needed.forEach((n) => next.add(n));
+      return next;
+    });
+    needed.forEach(async (inst) => {
+      const res = await listMetaTemplates(inst);
+      setTemplatesByLine((prev) => ({ ...prev, [inst]: res.success ? res.templates : [] }));
+      setLoadingTemplates((prev) => {
+        const next = new Set(prev);
+        next.delete(inst);
+        return next;
+      });
+    });
+  }, [draft.actions, metaLineNames, templatesByLine, loadingTemplates]);
 
   const filtered = useMemo(
     () => macros.filter((m) => m.name.toLowerCase().includes(search.trim().toLowerCase())),
@@ -673,34 +706,145 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
                           className="text-sm"
                         />
                       )}
-                      {a.type === 'SEND_TEXT_VIA' && (
-                        <div className="space-y-1.5">
-                          <select
-                            value={a.config?.instanceName ?? ''}
-                            onChange={(e) => setActionConfig(i, { instanceName: e.target.value })}
-                            className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm"
-                          >
-                            <option value="">Elige la línea…</option>
-                            {lines.map((l) => (
-                              <option key={l.instanceName} value={l.instanceName}>
-                                {l.label}
-                              </option>
-                            ))}
-                          </select>
-                          <Textarea
-                            value={a.config?.text ?? ''}
-                            onChange={(e) => setActionConfig(i, { text: e.target.value })}
-                            placeholder="Mensaje a enviar por esa línea…"
-                            rows={2}
-                            className="text-sm"
-                          />
-                          {lines.length === 0 && (
-                            <p className="text-xs text-muted-foreground">
-                              No hay líneas conectadas disponibles.
-                            </p>
-                          )}
-                        </div>
-                      )}
+                      {a.type === 'SEND_TEXT_VIA' && (() => {
+                        const selName = a.config?.instanceName ?? '';
+                        const isMeta = !!selName && metaLineNames.has(selName);
+                        const tpls = selName ? templatesByLine[selName] ?? [] : [];
+                        const loadingTpl = selName ? loadingTemplates.has(selName) : false;
+                        const mode = a.config?.viaMode === 'template' ? 'template' : 'text';
+                        const selTpl = tpls.find((t) => t.name === a.config?.templateName);
+                        const params = a.config?.templateParams ?? [];
+                        return (
+                          <div className="space-y-1.5">
+                            <select
+                              value={selName}
+                              onChange={(e) => {
+                                const name = e.target.value;
+                                const meta = metaLineNames.has(name);
+                                setActionConfig(i, {
+                                  instanceName: name,
+                                  // En líneas Meta, por defecto plantilla (el texto libre solo
+                                  // llega dentro de la ventana de 24 h); en el resto, texto.
+                                  viaMode: meta ? 'template' : 'text',
+                                  templateName: '',
+                                  templateLanguage: '',
+                                  templateBody: '',
+                                  templateParams: [],
+                                });
+                              }}
+                              className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm"
+                            >
+                              <option value="">Elige la línea…</option>
+                              {lines.map((l) => (
+                                <option key={l.instanceName} value={l.instanceName}>
+                                  {l.label}
+                                </option>
+                              ))}
+                            </select>
+
+                            {isMeta && (
+                              <div className="inline-flex rounded-md border border-border p-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setActionConfig(i, { viaMode: 'template' })}
+                                  className={cn(
+                                    'rounded px-2 py-0.5 text-xs',
+                                    mode === 'template' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
+                                  )}
+                                >
+                                  Plantilla de Meta
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActionConfig(i, { viaMode: 'text' })}
+                                  className={cn(
+                                    'rounded px-2 py-0.5 text-xs',
+                                    mode === 'text' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
+                                  )}
+                                >
+                                  Texto libre
+                                </button>
+                              </div>
+                            )}
+
+                            {isMeta && mode === 'template' ? (
+                              <div className="space-y-1.5">
+                                <select
+                                  value={a.config?.templateName ?? ''}
+                                  onChange={(e) => {
+                                    const t = tpls.find((x) => x.name === e.target.value);
+                                    setActionConfig(i, {
+                                      templateName: t?.name ?? '',
+                                      templateLanguage: t?.language ?? '',
+                                      templateBody: t?.bodyText ?? '',
+                                      templateParams: t ? new Array(t.paramCount).fill('') : [],
+                                    });
+                                  }}
+                                  disabled={loadingTpl || tpls.length === 0}
+                                  className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm disabled:opacity-60"
+                                >
+                                  <option value="">
+                                    {loadingTpl ? 'Cargando plantillas…' : 'Elige una plantilla…'}
+                                  </option>
+                                  {tpls.map((t) => (
+                                    <option key={`${t.name}-${t.language}`} value={t.name}>
+                                      {t.name} ({t.language})
+                                    </option>
+                                  ))}
+                                </select>
+                                {selTpl && (
+                                  <>
+                                    <p className="whitespace-pre-wrap rounded bg-muted p-2 text-xs text-muted-foreground">
+                                      {selTpl.bodyText}
+                                    </p>
+                                    {selTpl.paramCount > 0 &&
+                                      Array.from({ length: selTpl.paramCount }).map((_, pi) => (
+                                        <Input
+                                          key={pi}
+                                          value={params[pi] ?? ''}
+                                          onChange={(e) => {
+                                            const next = [...(params.length ? params : new Array(selTpl.paramCount).fill(''))];
+                                            next[pi] = e.target.value;
+                                            setActionConfig(i, { templateParams: next });
+                                          }}
+                                          placeholder={`Valor {{${pi + 1}}}`}
+                                          className="h-8 text-sm"
+                                        />
+                                      ))}
+                                  </>
+                                )}
+                                {!loadingTpl && selName && tpls.length === 0 && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Esta línea no tiene plantillas aprobadas en Meta.
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <>
+                                <Textarea
+                                  value={a.config?.text ?? ''}
+                                  onChange={(e) => setActionConfig(i, { text: e.target.value })}
+                                  placeholder="Mensaje a enviar por esa línea…"
+                                  rows={2}
+                                  className="text-sm"
+                                />
+                                {isMeta && (
+                                  <p className="text-xs text-muted-foreground">
+                                    En líneas de Meta el texto libre solo llega dentro de la ventana de 24 h.
+                                    Para iniciar la conversación usa una plantilla.
+                                  </p>
+                                )}
+                              </>
+                            )}
+
+                            {lines.length === 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                No hay líneas conectadas disponibles.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {a.type === 'SEND_FILE' && (
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-2">
