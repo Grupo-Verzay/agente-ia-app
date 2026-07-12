@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Headset, Check, Loader2, Plus, Trash2, X, User as UserIcon } from "lucide-react";
+import { Headset, Check, Loader2, Pencil, Plus, Trash2, X, User as UserIcon } from "lucide-react";
 import {
     addOperatorContact,
     getOperatorContacts,
@@ -37,6 +37,13 @@ export function OperatorContactsManager({ userId }: Props) {
     const [newDescription, setNewDescription] = useState("");
     const [saving, setSaving] = useState(false);
     const addNameRef = useRef<HTMLInputElement>(null);
+
+    // Edición inline de un operario existente
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editName, setEditName] = useState("");
+    const [editPhone, setEditPhone] = useState("");
+    const [editDescription, setEditDescription] = useState("");
+    const [savingEdit, setSavingEdit] = useState(false);
 
     const fetchOperators = useCallback(async () => {
         setLoading(true);
@@ -115,6 +122,46 @@ export function OperatorContactsManager({ userId }: Props) {
         setRemovingId(null);
     };
 
+    const startEdit = (op: OperatorContact) => {
+        setShowAddForm(false);
+        setEditingId(op.id);
+        setEditName(op.name);
+        setEditPhone(op.phone);
+        setEditDescription(op.description ?? "");
+    };
+
+    const cancelEdit = () => {
+        setEditingId(null);
+        setEditName("");
+        setEditPhone("");
+        setEditDescription("");
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingId || !editName.trim() || !editPhone.trim()) return;
+        setSavingEdit(true);
+        const result = await updateOperatorContact(editingId, userId, {
+            name: editName.trim(),
+            phone: editPhone.trim(),
+            description: editDescription.trim(),
+        });
+        if (result.success) {
+            const normalizedPhone = editPhone.trim().replace(/\D/g, "");
+            setOperators((prev) =>
+                prev.map((o) =>
+                    o.id === editingId
+                        ? { ...o, name: editName.trim(), phone: normalizedPhone, description: editDescription.trim() || null }
+                        : o,
+                ),
+            );
+            toast.success("Operario actualizado");
+            cancelEdit();
+        } else {
+            toast.error(result.message);
+        }
+        setSavingEdit(false);
+    };
+
     const canAddMore = operators.length < MAX_OPERATORS;
 
     return (
@@ -143,39 +190,106 @@ export function OperatorContactsManager({ userId }: Props) {
                 </div>
             ) : (
                 <div className={cn("space-y-2", !enabled && "opacity-60 pointer-events-none")}>
-                    {operators.map((op) => (
-                        <div
-                            key={op.id}
-                            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-muted/30"
-                        >
-                            <UserIcon className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{op.name}</p>
-                                <p className="text-xs text-muted-foreground truncate">{op.phone}</p>
-                                {op.description && (
-                                    <p className="text-[11px] text-primary/80 truncate">{op.description}</p>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                                <Switch
-                                    checked={op.isActive}
-                                    onCheckedChange={() => handleToggleActive(op)}
-                                    disabled={togglingId === op.id}
+                    {operators.map((op) =>
+                        editingId === op.id ? (
+                            <div
+                                key={op.id}
+                                className="flex flex-col gap-2 px-3 py-2.5 rounded-lg border border-dashed border-primary/40 bg-primary/5"
+                            >
+                                <div className="flex items-center gap-1.5">
+                                    <Pencil className="w-3 h-3 text-primary" />
+                                    <span className="text-xs font-medium text-primary">Editar operario</span>
+                                </div>
+                                <Input
+                                    placeholder="Nombre (ej. Técnico Juan)"
+                                    value={editName}
+                                    onChange={(e) => setEditName(e.target.value)}
+                                    disabled={savingEdit}
+                                    className="h-8 text-sm"
+                                    onKeyDown={(e) => { if (e.key === "Escape") cancelEdit(); }}
                                 />
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="w-6 h-6 text-muted-foreground hover:text-destructive"
-                                    onClick={() => handleRemove(op.id)}
-                                    disabled={removingId === op.id}
-                                >
-                                    {removingId === op.id
-                                        ? <Loader2 className="w-3 h-3 animate-spin" />
-                                        : <Trash2 className="w-3 h-3" />}
-                                </Button>
+                                <Input
+                                    placeholder="WhatsApp (ej. 573001234567)"
+                                    value={editPhone}
+                                    onChange={(e) => setEditPhone(e.target.value)}
+                                    disabled={savingEdit}
+                                    className="h-8 text-sm"
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") void handleSaveEdit();
+                                        if (e.key === "Escape") cancelEdit();
+                                    }}
+                                />
+                                <Input
+                                    placeholder="Especialidad (ej. Soporte técnico, Precios)"
+                                    value={editDescription}
+                                    onChange={(e) => setEditDescription(e.target.value)}
+                                    disabled={savingEdit}
+                                    className="h-8 text-sm"
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") void handleSaveEdit();
+                                        if (e.key === "Escape") cancelEdit();
+                                    }}
+                                />
+                                <div className="flex gap-2">
+                                    <Button
+                                        size="sm"
+                                        className="h-7 text-xs flex-1"
+                                        onClick={handleSaveEdit}
+                                        disabled={savingEdit || !editName.trim() || !editPhone.trim()}
+                                    >
+                                        {savingEdit ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Check className="w-3 h-3 mr-1" />}
+                                        Guardar
+                                    </Button>
+                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEdit} disabled={savingEdit}>
+                                        <X className="w-3 h-3 mr-1" />
+                                        Cancelar
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        ) : (
+                            <div
+                                key={op.id}
+                                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-muted/30"
+                            >
+                                <UserIcon className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{op.name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{op.phone}</p>
+                                    {op.description && (
+                                        <p className="text-[11px] text-primary/80 truncate">{op.description}</p>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                    <Switch
+                                        checked={op.isActive}
+                                        onCheckedChange={() => handleToggleActive(op)}
+                                        disabled={togglingId === op.id}
+                                    />
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="w-6 h-6 text-muted-foreground hover:text-primary"
+                                        onClick={() => startEdit(op)}
+                                        title="Editar operario"
+                                    >
+                                        <Pencil className="w-3 h-3" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="w-6 h-6 text-muted-foreground hover:text-destructive"
+                                        onClick={() => handleRemove(op.id)}
+                                        disabled={removingId === op.id}
+                                        title="Eliminar operario"
+                                    >
+                                        {removingId === op.id
+                                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                                            : <Trash2 className="w-3 h-3" />}
+                                    </Button>
+                                </div>
+                            </div>
+                        ),
+                    )}
 
                     {operators.length === 0 && !showAddForm && (
                         <p className="text-xs text-muted-foreground text-center py-1">
