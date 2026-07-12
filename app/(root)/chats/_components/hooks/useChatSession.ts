@@ -55,16 +55,15 @@ export function useChatSession({
       );
 
       const effectiveUserIds = sessionUserIds?.length ? sessionUserIds : [userId];
-      let resolved: SingleSessionResponse | null = null;
-      for (const candidate of candidates) {
-        const result: SingleSessionResponse = await getSessionByRemoteJid(effectiveUserIds, candidate, {
-          aliases: candidates,
-        });
-        if (result.success && result.data) {
-          resolved = result;
-          break;
-        }
-      }
+      // `getSessionByRemoteJid` ya construye internamente los candidatos a partir
+      // de `remoteJid` + `aliases` y busca contra todos en una sola query, así que
+      // una única llamada equivale al loop secuencial anterior (que hacía N
+      // round-trips redundantes, uno por candidato) sin perder cobertura.
+      const resolved: SingleSessionResponse = await getSessionByRemoteJid(
+        effectiveUserIds,
+        remoteJid,
+        { aliases: candidates },
+      );
 
       if (resolved?.success && resolved.data) {
         setSession(resolved.data);

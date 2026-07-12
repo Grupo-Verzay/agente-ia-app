@@ -248,7 +248,6 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     messages,
     instanceName: info?.instanceName,
     apiKeyData: info?.apiKeyData,
-    cacheResetKey: info?.remoteJid,
   });
 
   /* ─── Derived display values ─── */
