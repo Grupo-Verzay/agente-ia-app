@@ -1015,6 +1015,69 @@ export function ChatsClient({
     [apiKeyData, instanceName, mergeMessages, warmMessagesAction],
   );
 
+  // Precalienta el historial de una conversación (página 1, solo local) y lo
+  // deja en el cache en memoria SIN cambiar la selección ni la UI. Se dispara al
+  // pasar el mouse/tocar un chat en la lista, de modo que al hacer click los
+  // mensajes ya están listos y la apertura se siente instantánea (estilo
+  // WhatsApp/Chatwoot). Es idempotente y barato: si ya hay cache, no hace nada.
+  const prefetchingRef = useRef<Set<string>>(new Set());
+  const prefetchChat = useCallback(
+    (remoteJid: string, contactInstanceName?: string) => {
+      if (!remoteJid) return;
+
+      const selectedContact = contacts.find(
+        (contact) =>
+          (contactInstanceName ? contact.instanceName === contactInstanceName : true) &&
+          (contact.remoteJid === remoteJid || contact.aliases?.includes(remoteJid)),
+      ) ?? contacts.find(
+        (contact) => contact.remoteJid === remoteJid || contact.aliases?.includes(remoteJid),
+      );
+
+      const actionSet =
+        instanceActionSets?.find((s) => s.instanceName === selectedContact?.instanceName) ?? null;
+      const effectiveInstanceName = selectedContact?.instanceName ?? instanceName;
+      const effectiveApiKeyData = actionSet?.instanceType === "baileys" ? undefined : apiKeyData;
+      const effectiveWarmMessages = actionSet?.warmMessages ?? warmMessagesAction;
+      const cacheKey = getMessageCacheKey(effectiveInstanceName, remoteJid);
+
+      // Ya cacheado o ya en vuelo → nada que hacer.
+      if (messageCacheRef.current.has(cacheKey) || prefetchingRef.current.has(cacheKey)) return;
+
+      prefetchingRef.current.add(cacheKey);
+      void effectiveWarmMessages(remoteJid, {
+        page: 1,
+        pageSize: INITIAL_MESSAGE_PAGE_SIZE,
+        remoteJidAliases: selectedContact?.aliases,
+        localOnly: true,
+      })
+        .then((result) => {
+          if (!result?.success) return;
+          // Otro flujo pudo haber poblado el cache mientras tanto; no lo pisamos.
+          if (messageCacheRef.current.has(cacheKey)) return;
+          messageCacheRef.current.set(cacheKey, {
+            messages: result.data || [],
+            info: {
+              total: result.total,
+              pages: result.pages,
+              currentPage: result.currentPage,
+              nextPage: result.nextPage,
+              instanceName: effectiveInstanceName,
+              remoteJid,
+              remoteJidAliases: selectedContact?.aliases,
+              apiKeyData: effectiveApiKeyData,
+            },
+          });
+        })
+        .catch(() => {
+          // Prefetch es best-effort: si falla, el click abrirá normalmente.
+        })
+        .finally(() => {
+          prefetchingRef.current.delete(cacheKey);
+        });
+    },
+    [apiKeyData, contacts, instanceActionSets, instanceName, warmMessagesAction],
+  );
+
   const handleSelectFromSidebar = useCallback(
     async (remoteJid: string, contactInstanceName?: string) => {
       if (!remoteJid) {
@@ -1901,6 +1964,7 @@ export function ChatsClient({
           clientValidationEnabled={clientValidationEnabled}
           onRestoreChat={handleRestoreChat}
           onSelectRemoteJid={handleSelectFromSidebar}
+          onPrefetchRemoteJid={prefetchChat}
           onTogglePin={handleToggleChatPin}
           result={filteredSidebarResult}
           selectedJid={selectedJid}

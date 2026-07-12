@@ -147,6 +147,7 @@ type ChatSidebarProps = {
   clientValidationEnabled?: boolean;
   onRestoreChat?: (remoteJid: string) => void | Promise<void>;
   onSelectRemoteJid?: (remoteJid: string, instanceName?: string) => void | Promise<void>;
+  onPrefetchRemoteJid?: (remoteJid: string, instanceName?: string) => void;
   onTogglePin?: (remoteJid: string, isPinned: boolean) => void | Promise<void>;
   result: FetchChatsResult;
   selectedJid?: string;
@@ -189,6 +190,7 @@ export function ChatSidebar({
   clientValidationEnabled = false,
   onRestoreChat,
   onSelectRemoteJid,
+  onPrefetchRemoteJid,
   onTogglePin,
   result,
   selectedJid,
@@ -636,6 +638,13 @@ export function ChatSidebar({
     [markMessageAsSeen, onSelectRemoteJid],
   );
 
+  const handlePrefetchJid = useCallback(
+    (jid: string, instanceName?: string) => {
+      onPrefetchRemoteJid?.(jid, instanceName);
+    },
+    [onPrefetchRemoteJid],
+  );
+
   const toggleSelectJid = useCallback((jid: string) => {
     setSelectedJids((prev) => {
       const next = new Set(prev);
@@ -950,6 +959,7 @@ export function ChatSidebar({
                 contact={contact}
                 selected={selectedJid === contact.id && (selectedInstanceName == null || contact.instanceName === selectedInstanceName)}
                 onSelect={handleSelectJid}
+                onPrefetch={handlePrefetchJid}
                 onTogglePin={handleItemTogglePin}
                 onArchive={handleItemArchive}
                 canDelete={canDeleteChats}

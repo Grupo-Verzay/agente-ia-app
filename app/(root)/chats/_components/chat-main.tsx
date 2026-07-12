@@ -56,6 +56,10 @@ import IframeRenderer from '@/components/custom/IframeRenderer';
 /* ─── Re-exports para compatibilidad con chats-client ─── */
 export type { OutgoingMessagePayload };
 
+// Mapa vacío estable para parsear burbujas sin resolver media base64 (la
+// inyección de base64 se hace en un paso aparte, barato, por tick de descarga).
+const EMPTY_MEDIA_MAP: Map<string, { dataUrl: string; mime: string; length: number }> = new Map();
+
 type ChatMainProps = {
   userId: string;
   sessionUserIds?: string[];
@@ -275,11 +279,22 @@ export const ChatMain: React.FC<ChatMainProps> = ({
 
   /* ─── Message list ─── */
   const reversed = useMemo(() => messages.slice().reverse(), [messages]);
-  const uiMessages = useMemo(() => {
-    void mediaCacheTick;
-    const all = toUIMessages(reversed, header.avatarSrc, mediaCacheRef.current);
-    const filtered = deletedIds.size > 0 ? all.filter((m) => !deletedIds.has(m.id)) : all;
-    if (aiContents.size === 0) return filtered;
+
+  // Parseo PESADO de los mensajes a burbujas: se hace UNA sola vez por cambio de
+  // mensajes (no en cada base64 que llega). No resuelve media base64 aquí; eso se
+  // inyecta barato más abajo. Parsear una sola vez también estabiliza los `id`
+  // (antes, mensajes sin id recibían un id aleatorio nuevo en cada recompute,
+  // rompiendo las keys y la memoización de React en la lista).
+  const baseBubbles = useMemo(
+    () => toUIMessages(reversed, header.avatarSrc, EMPTY_MEDIA_MAP),
+    [reversed, header.avatarSrc],
+  );
+
+  // Emparejamiento por texto de mensajes generados por IA: O(n×m) pero
+  // independiente de la media, así que solo se recalcula cuando cambian los
+  // mensajes o el set de contenidos de IA (no en cada tick de descarga de media).
+  const aiTaggedIds = useMemo<Set<string> | null>(() => {
+    if (aiContents.size === 0) return null;
     const aiList = Array.from(aiContents).filter((ai) => ai.length > 10).slice(-80);
     const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
     const isAiMessage = (content: string) => {
@@ -287,12 +302,34 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       if (aiContents.has(norm)) return true;
       return aiList.some((ai) => norm.includes(ai) || ai.includes(norm));
     };
-    return filtered.map((m) =>
-      m.sender === 'user' && m.content && isAiMessage(m.content)
-        ? { ...m, sentByAi: true }
-        : m,
-    );
-  }, [reversed, header.avatarSrc, mediaCacheTick, mediaCacheRef, deletedIds, aiContents]);
+    const ids = new Set<string>();
+    for (const b of baseBubbles) {
+      if (b.sender === 'user' && b.content && isAiMessage(b.content)) ids.add(b.id);
+    }
+    return ids;
+  }, [baseBubbles, aiContents]);
+
+  // Paso BARATO por tick: inyecta el base64 ya cacheado, aplica el filtro de
+  // eliminados y marca `sentByAi`. Es O(n) con spreads superficiales, sin
+  // re-parsear ni rehacer el matching de IA en cada media que llega.
+  const uiMessages = useMemo(() => {
+    void mediaCacheTick;
+    const cache = mediaCacheRef.current;
+    const out: UIBubble[] = [];
+    for (const b of baseBubbles) {
+      if (deletedIds.size > 0 && deletedIds.has(b.id)) continue;
+      let bubble = b;
+      if (b.media && cache.has(b.id)) {
+        const cached = cache.get(b.id)!;
+        bubble = { ...bubble, media: { ...b.media, url: cached.dataUrl, mimeType: cached.mime } };
+      }
+      if (aiTaggedIds?.has(b.id) && !bubble.sentByAi) {
+        bubble = { ...bubble, sentByAi: true };
+      }
+      out.push(bubble);
+    }
+    return out;
+  }, [baseBubbles, mediaCacheTick, mediaCacheRef, deletedIds, aiTaggedIds]);
 
   /* ─── Load notes when session changes ─── */
   useEffect(() => {

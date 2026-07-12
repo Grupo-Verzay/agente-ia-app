@@ -80,6 +80,8 @@ type ChatContactItemProps = {
   onDeleteRequest: (contact: SidebarContact) => void;
   canDelete?: boolean;
   onSelect: (id: string, lastMessageId: string, instanceName?: string) => void;
+  /** Precarga el historial al pasar el mouse/tocar, para que el click sea instantáneo. */
+  onPrefetch?: (id: string, instanceName?: string) => void;
   onTogglePin: (id: string, isPinned: boolean) => void;
   onLeadStatusChange?: (remoteJid: string, status: LeadStatus | null) => void;
   onServiceTypeChange?: (remoteJid: string, value: ServiceType | null) => void;
@@ -110,6 +112,7 @@ function ChatContactItemBase({
   canDelete = true,
   onDeleteRequest,
   onSelect,
+  onPrefetch,
   onTogglePin,
   onLeadStatusChange,
   onServiceTypeChange,
@@ -273,6 +276,9 @@ function ChatContactItemBase({
     <div
       role="listitem"
       data-chat-id={contact.id}
+      onMouseEnter={onPrefetch ? () => onPrefetch(contact.id, contact.instanceName) : undefined}
+      onFocus={onPrefetch ? () => onPrefetch(contact.id, contact.instanceName) : undefined}
+      onTouchStart={onPrefetch ? () => onPrefetch(contact.id, contact.instanceName) : undefined}
       className={cn(
         "group rounded-xl border p-2 transition hover:bg-accent hover:text-accent-foreground",
         selected && !selectionMode
