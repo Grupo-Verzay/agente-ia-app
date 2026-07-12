@@ -66,6 +66,7 @@ import { ChatEmptyState } from "./ChatEmptyState";
 import { DeleteChatDialog } from "./DeleteChatDialog";
 import { BulkActionBar } from "./BulkActionBar";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
+import { getInstanceDisplayName } from "@/lib/instance-display-name";
 import {
   epochToMs,
   formatTimeFromEpoch,
@@ -154,7 +155,7 @@ type ChatSidebarProps = {
   advisorRole?: string | null;
   currentAdvisorId?: string;
   onAssignAdvisor?: (remoteJid: string, advisorId: string | null) => Promise<void>;
-  instancias?: { instanceName: string; instanceId: string; instanceType?: string | null; linkedUserId?: string; company?: string }[];
+  instancias?: { instanceName: string; instanceId: string; instanceType?: string | null; displayName?: string | null; linkedUserId?: string; company?: string }[];
   selectedChannel?: string | null;
   channelCounts?: Record<string, number>;
   onChannelChange?: (channel: string | null) => void;
@@ -301,6 +302,12 @@ export function ChatSidebar({
 
   const contacts = useMemo<SidebarContact[]>(() => {
     if (!result.success) return [];
+    const instanceLabelMap = new Map(
+      instancias.map((inst) => [
+        inst.instanceName,
+        getInstanceDisplayName(inst.instanceName, inst.displayName),
+      ]),
+    );
 
     return result.data
       .map((chat) => {
@@ -343,6 +350,9 @@ export function ChatSidebar({
           isArchived: Boolean(preference?.isArchived),
           isDeleted: isChatDeletedByPreference(chat, preference),
           instanceName: chat.instanceName,
+          instanceDisplayName: chat.instanceName
+            ? instanceLabelMap.get(chat.instanceName) ?? getInstanceDisplayName(chat.instanceName)
+            : undefined,
           hasNotes: notedSessionIds.has(chatSession?.id ?? -1),
         } satisfies SidebarContact;
       })
@@ -359,7 +369,7 @@ export function ChatSidebar({
           return true;
         };
       })());
-  }, [chatPreferences, chatSessions, forcedUnreadJids, inactiveAgentUnreadJids, isMessageSeen, notedSessionIds, result, selectedJid]);
+  }, [chatPreferences, chatSessions, forcedUnreadJids, inactiveAgentUnreadJids, instancias, isMessageSeen, notedSessionIds, result, selectedJid]);
 
   const myChats = useMemo(() => {
     if (!currentAdvisorId) return [];

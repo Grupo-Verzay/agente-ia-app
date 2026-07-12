@@ -10,9 +10,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { getInstanceDisplayName } from "@/lib/instance-display-name";
 
 type Channel = {
   instanceName: string;
+  displayName?: string | null;
   linkedUserId?: string;
   company?: string;
 };
@@ -41,7 +43,10 @@ export function ChatSearchBar({
   isRefreshing,
 }: ChatSearchBarProps) {
   const hasChannels = channels.length > 1;
-  const activeLabel = selectedChannel ?? "Todos";
+  const activeChannel = channels.find((ch) => ch.instanceName === selectedChannel);
+  const activeLabel = activeChannel
+    ? getInstanceDisplayName(activeChannel.instanceName, activeChannel.displayName)
+    : "Todos";
   const totalCount = Object.values(channelCounts).reduce((a, b) => a + b, 0);
 
   return (
@@ -81,6 +86,7 @@ export function ChatSearchBar({
             {channels.map((ch) => {
               const isActive = selectedChannel === ch.instanceName;
               const count = channelCounts[ch.instanceName] ?? 0;
+              const label = getInstanceDisplayName(ch.instanceName, ch.displayName);
               return (
                 <DropdownMenuItem
                   key={ch.instanceName}
@@ -89,7 +95,7 @@ export function ChatSearchBar({
                 >
                   <div className="flex min-w-0 flex-col">
                     <span className={cn("truncate text-xs", isActive && "font-medium text-primary")}>
-                      {ch.instanceName}
+                      {label}
                     </span>
                     {ch.company && (
                       <span className="truncate text-[10px] text-muted-foreground">{ch.company}</span>

@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { normalizeWhatsAppConversationJid, fmtPhone, pickExplicitWhatsAppPhoneJid } from '@/lib/whatsapp-jid';
+import { getInstanceDisplayName } from '@/lib/instance-display-name';
 import type { InstanceActionSet } from './chats-client';
 import type { ChatData } from '@/actions/chat-actions';
 import type { ChatQuickReplyOption, ChatWorkflowOption } from '@/types/chat';
@@ -18,6 +19,7 @@ import { sendMetaTemplate, type MetaTemplateOption } from '@/actions/channel-cha
 
 type Instancia = {
   instanceName: string;
+  displayName?: string | null;
   instanceType?: string | null;
   metaChannel?: string | null;
   company?: string;
@@ -84,7 +86,8 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
   const selectedInstance = whatsappInstancias.find((i) => i.instanceName === selectedInstanceName);
   const getInstanceLabel = (inst: Instancia) => {
     const isMetaWhatsApp = inst.instanceType?.trim().toLowerCase() === 'meta';
-    return isMetaWhatsApp ? `${inst.instanceName} (API)` : (inst.company || inst.instanceName);
+    const visibleName = getInstanceDisplayName(inst.instanceName, inst.displayName);
+    return isMetaWhatsApp ? `${visibleName} (API)` : (inst.company || visibleName);
   };
   const instanceLabel = selectedInstance
     ? getInstanceLabel(selectedInstance)

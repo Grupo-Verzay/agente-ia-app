@@ -361,7 +361,7 @@ function dedupeAndSortChats(chats: ChatData[]) {
 interface ChatsClientProps {
   userId: string;
   sessionUserIds?: string[];
-  instancias?: { instanceName: string; instanceId: string; instanceType?: string | null; linkedUserId?: string; company?: string }[];
+  instancias?: { instanceName: string; instanceId: string; instanceType?: string | null; displayName?: string | null; linkedUserId?: string; company?: string }[];
   chatsResult: FetchChatsResult;
   initialChatPreferences: ChatConversationPreferenceMap;
   initialChatSessions: ChatContactSessionMap;

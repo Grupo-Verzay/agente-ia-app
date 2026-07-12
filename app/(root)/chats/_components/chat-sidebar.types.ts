@@ -17,6 +17,7 @@ export type SidebarContact = {
   timestamp: string;
   ts: number;
   instanceName?: string;
+  instanceDisplayName?: string;
   hasNotes?: boolean;
 };
 
