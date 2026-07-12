@@ -255,12 +255,12 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
-      <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden p-0 gap-0 sm:max-w-md">
         <DialogHeader className="px-5 pt-5 pb-3 border-b">
           <DialogTitle className="text-base font-semibold">Nuevo mensaje</DialogTitle>
         </DialogHeader>
 
-        <div className="divide-y">
+        <div className="min-h-0 flex-1 divide-y overflow-y-auto">
           {/* Para: */}
           <div className="flex items-start gap-3 px-5 py-3">
             <span className="w-10 shrink-0 pt-1.5 text-sm text-muted-foreground">Para:</span>
@@ -518,7 +518,7 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t bg-muted/30 px-5 py-3">
+        <div className="flex shrink-0 items-center justify-between border-t bg-muted/30 px-5 py-3">
           <Button variant="ghost" size="sm" onClick={handleClose} disabled={isSending}>
             Descartar
           </Button>
