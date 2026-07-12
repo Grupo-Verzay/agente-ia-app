@@ -66,7 +66,7 @@ import { ChatEmptyState } from "./ChatEmptyState";
 import { DeleteChatDialog } from "./DeleteChatDialog";
 import { BulkActionBar } from "./BulkActionBar";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
-import { getInstanceDisplayName } from "@/lib/instance-display-name";
+import { getInstanceDisplayName, getInstanceUiDisplayName } from "@/lib/instance-display-name";
 import {
   epochToMs,
   formatTimeFromEpoch,
@@ -305,7 +305,12 @@ export function ChatSidebar({
     const instanceLabelMap = new Map(
       instancias.map((inst) => [
         inst.instanceName,
-        getInstanceDisplayName(inst.instanceName, inst.displayName),
+        getInstanceUiDisplayName({
+          instanceName: inst.instanceName,
+          displayName: inst.displayName,
+          company: inst.company,
+          instanceType: inst.instanceType,
+        }),
       ]),
     );
 

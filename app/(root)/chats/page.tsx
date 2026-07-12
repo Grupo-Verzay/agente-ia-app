@@ -272,6 +272,7 @@ export default async function ChatsPage({
     ...linkedAccountsData.map((la) => la.linkedUserId),
     ...masterAccountsData.map((ma) => ma.masterUserId),
   ].filter((id, idx, arr) => Boolean(id) && arr.indexOf(id) === idx);
+  const ownCompanyName = user.company || user.name || "";
 
   // Meta enriquecida para la UI (incluye info de cuenta vinculada)
   const instanciasMeta = [
@@ -281,6 +282,7 @@ export default async function ChatsPage({
       instanceType: i.instanceType,
       displayName: i.displayName,
       metaChannel: i.metaChannel,
+      company: ownCompanyName,
     })),
     ...linkedAccountsData.flatMap((la) =>
       la.instances
