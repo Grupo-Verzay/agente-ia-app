@@ -1052,6 +1052,9 @@ export function ChatsClient({
       })
         .then((result) => {
           if (!result?.success) return;
+          // No cachear vacío: haría que el click tomara la rama "cacheada" y
+          // mostrara el chat en blanco sin skeleton ni sincronización inmediata.
+          if (!result.data?.length) return;
           // Otro flujo pudo haber poblado el cache mientras tanto; no lo pisamos.
           if (messageCacheRef.current.has(cacheKey)) return;
           messageCacheRef.current.set(cacheKey, {
@@ -1155,6 +1158,9 @@ export function ChatsClient({
 
         if (selectionRequestRef.current !== requestId) return;
 
+        const localMessages = localResult?.success ? (localResult.data || []) : [];
+        const hasLocal = localMessages.length > 0;
+
         if (localResult?.success) {
           const nextInfo = {
             total: localResult.total,
@@ -1166,12 +1172,16 @@ export function ChatsClient({
             remoteJidAliases,
             apiKeyData: effectiveApiKeyData,
           };
-          setMessages(localResult.data || []);
+          setMessages(localMessages);
           setInfo(nextInfo);
-          messageCacheRef.current.set(cacheKey, {
-            messages: localResult.data || [],
-            info: nextInfo,
-          });
+          // Solo cacheamos cuando hay contenido real: un cache vacío haría que la
+          // próxima apertura tome la rama "cacheada" y muestre el chat en blanco.
+          if (hasLocal) {
+            messageCacheRef.current.set(cacheKey, {
+              messages: localMessages,
+              info: nextInfo,
+            });
+          }
         } else {
           setMessages([]);
           setInfo((currentInfo) => ({
@@ -1183,7 +1193,12 @@ export function ChatsClient({
           }));
         }
 
-        if (!shouldOpenFromLocalFirst) return;
+        // Con historial local visible: apaga el skeleton y sincroniza en segundo
+        // plano con debounce. Sin nada local, la vista queda vacía: mantén el
+        // skeleton y trae el remoto de INMEDIATO (sin los 3.5s) para que los
+        // mensajes aparezcan cuanto antes en vez de un chat en blanco.
+        if (hasLocal) setLoading(false);
+        const syncDelay = hasLocal ? SELECTED_CHAT_SYNC_DELAY_MS : 0;
 
         window.setTimeout(() => {
           if (selectionRequestRef.current !== requestId) return;
@@ -1208,15 +1223,20 @@ export function ChatsClient({
               };
               setMessages(merged);
               setInfo(nextInfo);
-              messageCacheRef.current.set(cacheKey, {
-                messages: merged,
-                info: nextInfo,
-              });
+              if (merged.length > 0) {
+                messageCacheRef.current.set(cacheKey, {
+                  messages: merged,
+                  info: nextInfo,
+                });
+              }
             })
             .catch(() => {
               // Keep the local messages visible if the background sync fails.
+            })
+            .finally(() => {
+              if (selectionRequestRef.current === requestId) setLoading(false);
             });
-        }, SELECTED_CHAT_SYNC_DELAY_MS);
+        }, syncDelay);
       } catch {
         setMessages([]);
         setInfo((currentInfo) => ({
@@ -1226,7 +1246,6 @@ export function ChatsClient({
           remoteJidAliases,
           apiKeyData: effectiveApiKeyData,
         }));
-      } finally {
         setLoading(false);
       }
     },
