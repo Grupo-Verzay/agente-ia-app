@@ -43,6 +43,17 @@ function instanceColor(name: string): string {
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff;
   return INSTANCE_COLORS[h % INSTANCE_COLORS.length];
 }
+
+function shortInstanceLabel(name: string): string {
+  const clean = name.replace(/_(wh|tg|fb|ig)$/i, "").trim();
+  const pipeParts = clean.split("|").map((part) => part.trim()).filter(Boolean);
+  if (pipeParts.length > 1) return pipeParts[pipeParts.length - 1];
+
+  const parts = clean.split(/[_\s-]+/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length > 1) return parts[parts.length - 1];
+
+  return clean;
+}
 const APPT_DOT: Record<string, string> = {
   PENDIENTE:   'bg-yellow-500',
   CONFIRMADA:  'bg-green-500',
@@ -374,9 +385,11 @@ function ChatContactItemBase({
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className="flex max-w-[96px] items-center gap-0.5 rounded bg-muted/80 px-1 py-0.5 text-[9px] font-medium leading-3 text-muted-foreground cursor-default">
+                        <span className="flex max-w-[86px] items-center gap-0.5 rounded bg-muted/80 px-1 py-0.5 text-[9px] font-medium leading-3 text-muted-foreground cursor-default">
                           <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${instanceColor(contact.instanceName)}`} />
-                          <span className="truncate">{contact.instanceDisplayName ?? contact.instanceName}</span>
+                          <span className="truncate">
+                            {shortInstanceLabel(contact.instanceDisplayName ?? contact.instanceName)}
+                          </span>
                         </span>
                       </TooltipTrigger>
                       <TooltipContent side="top" sideOffset={6} className="z-[9999]">
