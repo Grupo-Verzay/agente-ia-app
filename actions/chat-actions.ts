@@ -498,6 +498,7 @@ export type MessageContent = {
   videoMessage?: MediaMessagePayload;
   audioMessage?: MediaMessagePayload;
   stickerMessage?: MediaMessagePayload & { isAnimated?: boolean };
+  lottieStickerMessage?: MediaMessagePayload & { isAnimated?: boolean };
   reactionMessage?: {
     text: string;
     key?: { id?: string; fromMe?: boolean; remoteJid?: string };

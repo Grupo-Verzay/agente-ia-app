@@ -61,6 +61,7 @@ export function getIconForMessageType(type?: string): LucideIcon | null {
       return null;
     case "imageMessage":
     case "stickerMessage":
+    case "lottieStickerMessage":
     case "videoMessage":
     case "audioMessage":
     case "documentMessage":
@@ -93,7 +94,11 @@ function normalizePreviewText(text: string): string {
     "[media]": "📎 Archivo",
     "media": "📎 Archivo",
   };
-  return labels[value.toLowerCase()] ?? value;
+  const normalized = value.toLowerCase();
+  if (normalized === "[lottiestickermessage]" || normalized === "lottiestickermessage" || normalized === "[mensaje lottiestickermessage]") {
+    return labels["sticker"] ?? "Sticker";
+  }
+  return labels[normalized] ?? value;
 }
 
 export function lastTextFrom(chat: ChatData): {
@@ -114,6 +119,7 @@ export function lastTextFrom(chat: ChatData): {
     "fileMessage",
     "locationMessage",
     "stickerMessage",
+    "lottieStickerMessage",
     "reactionMessage",
     "interactiveResponseMessage",
     "meta_call",
@@ -143,7 +149,11 @@ export function lastTextFrom(chat: ChatData): {
         text = "📍 Ubicación";
         break;
       case "stickerMessage":
+      case "lottieStickerMessage":
         text = "🏷️ Sticker";
+        break;
+      case "protocolMessage":
+        text = "Mensaje eliminado";
         break;
       case "reactionMessage": {
         const emoji = msg?.reactionMessage?.text;

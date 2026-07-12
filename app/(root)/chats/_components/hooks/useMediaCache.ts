@@ -27,7 +27,8 @@ function isMediaMessage(m: EvolutionMessage): boolean {
     body.videoMessage ||
     body.audioMessage ||
     body.documentMessage ||
-    body.stickerMessage
+    body.stickerMessage ||
+    (body as Record<string, any>).lottieStickerMessage
   );
 }
 
@@ -39,6 +40,7 @@ function hasRemoteOnlyUrl(m: EvolutionMessage): boolean {
     body.audioMessage ||
     body.documentMessage ||
     body.stickerMessage ||
+    (body as Record<string, any>).lottieStickerMessage ||
     {}
   ) as Record<string, any>;
   const url = body.mediaUrl || media.mediaUrl || media.url || media.directPath;

@@ -100,6 +100,14 @@ function getInteractiveResponseText(messageData: Record<string, any>, isUser: bo
 
 function normalizeMessageLabel(text: string): string {
   const value = text.trim();
+  const normalized = value.toLowerCase();
+  if (
+    normalized === '[lottiestickermessage]' ||
+    normalized === 'lottiestickermessage' ||
+    normalized === '[mensaje lottiestickermessage]'
+  ) {
+    return '🏷️ Sticker';
+  }
   const labels: Record<string, string> = {
     '[imagen]': '🖼️ Imagen',
     'imagen': '🖼️ Imagen',
@@ -116,7 +124,19 @@ function normalizeMessageLabel(text: string): string {
     '[media]': '📎 Archivo',
     'media': '📎 Archivo',
   };
-  return labels[value.toLowerCase()] ?? value;
+  return labels[normalized] ?? value;
+}
+
+function isDeletedMessage(messageType: string | undefined, messageData: Record<string, any>): boolean {
+  const protocolType = messageData?.protocolMessage?.type;
+  return (
+    messageType === 'protocolMessage' ||
+    messageType === 'messageStubType' ||
+    messageType === 'revokedMessage' ||
+    protocolType === 0 ||
+    protocolType === 'REVOKE' ||
+    protocolType === 'MESSAGE_REVOKE'
+  );
 }
 
 export function resolveEvolutionMessageStatus(message: EvolutionMessage): string {
@@ -180,7 +200,10 @@ export function toUIMessages(
       return null;
     }
 
-    switch (m.messageType) {
+    if (isDeletedMessage(m.messageType, messageData as Record<string, any>)) {
+      content = 'Mensaje eliminado';
+    } else {
+      switch (m.messageType) {
       case 'conversation':
         content = messageData?.conversation ? normalizeMessageLabel(messageData.conversation) : '';
         break;
@@ -208,8 +231,10 @@ export function toUIMessages(
       case 'interactiveResponseMessage':
         content = getInteractiveResponseText(messageData as Record<string, any>, isUser);
         break;
-      case 'stickerMessage': {
-        const s = messageData.stickerMessage || {};
+      case 'stickerMessage':
+      case 'lottieStickerMessage': {
+        const raw = messageData as Record<string, any>;
+        const s = raw.stickerMessage || raw.lottieStickerMessage || {};
         const url = messageData.mediaUrl || s.mediaUrl || s.url || s.directPath;
         if (url) media = { type: 'image', url, mimeType: s.mimetype || 'image/webp' };
         kind = 'sticker';
@@ -251,6 +276,7 @@ export function toUIMessages(
       }
       default:
         content = `[Mensaje ${m.messageType || 'desconocido'}]`;
+      }
     }
 
     // Inyección de base64 desde caché
