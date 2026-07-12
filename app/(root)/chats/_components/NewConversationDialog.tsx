@@ -91,7 +91,6 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
       company: inst.company,
       instanceType: inst.instanceType,
       metaChannel: inst.metaChannel,
-      includeApiSuffix: true,
     });
   };
   const instanceLabel = selectedInstance

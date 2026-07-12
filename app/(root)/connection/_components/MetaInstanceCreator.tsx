@@ -62,14 +62,14 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
         <CardHeader className="flex flex-row items-center justify-center px-6 py-4">
           <CardTitle className="text-center text-2xl font-bold flex items-center gap-2">
             <FaWhatsapp className="text-green-500 rounded-sm w-6 h-6" />
-            <span className="text-xl font-bold">WhatsApp Cloud API</span>
+            <span>WhatsApp Cloud API</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 px-6 pb-3 pt-0">
           <div className="space-y-1.5">
             <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
             <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-              <span className="flex-1 font-mono text-foreground">{visibleName}</span>
+              <span className="flex-1 font-medium text-foreground">{visibleName}</span>
               <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </div>
           </div>
@@ -125,7 +125,7 @@ export const MetaInstanceCreator = ({ userId, company }: MetaInstanceCreatorProp
             <div className="space-y-1">
               <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
               <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-                <span className="flex-1 font-mono text-foreground">{visibleName}</span>
+                <span className="flex-1 font-medium text-foreground">{visibleName}</span>
                 <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               </div>
             </div>

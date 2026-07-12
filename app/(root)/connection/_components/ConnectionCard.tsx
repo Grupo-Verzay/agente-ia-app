@@ -24,6 +24,7 @@ import { SubmitHandler, useForm } from "react-hook-form"
 import { FormInstanceConnectionValues, FormInstanceConnectionSchema } from '@/schema/connection'
 import { FaInstagram, FaFacebook, FaWhatsapp } from "react-icons/fa"
 import { useMemo, useCallback } from "react"
+import { cleanInstanceDisplayName } from "@/lib/instance-display-name"
 
 interface MinimalUser {
     onFacebook?: boolean
@@ -54,7 +55,7 @@ const SocialIconSelector = ({ instanceType }: SocialIconSelectorProps) => {
         return (
             <>
                 <FaInstagram className="text-pink-500 rounded-sm w-6 h-6" />
-                <span className="text-xl font-bold">Mensajería Instagram</span>
+                <span>Mensajería Instagram</span>
             </>
         )
     }
@@ -62,7 +63,7 @@ const SocialIconSelector = ({ instanceType }: SocialIconSelectorProps) => {
         return (
             <>
                 <FaFacebook className="text-[#1877F2] rounded-sm w-6 h-6" />
-                <span className="text-xl font-bold">Mensajería Facebook</span>
+                <span>Mensajería Facebook</span>
             </>
         )
     }
@@ -70,11 +71,11 @@ const SocialIconSelector = ({ instanceType }: SocialIconSelectorProps) => {
         return (
             <>
                 <FaWhatsapp className="text-green-500 rounded-sm w-6 h-6" />
-                <span className="text-xl font-bold">Business QR</span>
+                <span>Business QR</span>
             </>
         )
     }
-    return <span className="text-xl font-bold">{instanceType || 'Canal'}</span>
+    return <span>{instanceType || 'Canal'}</span>
 }
 
 export const ConnectionCard = ({
@@ -90,6 +91,7 @@ export const ConnectionCard = ({
     const isFacebook = type === 'facebook'
     const isInstagram = type === 'instagram'
     const isFacebookOrInstagram = isFacebook || isInstagram
+    const visibleInstanceName = cleanInstanceDisplayName(defaultValues.instanceName)
 
     // Hooks y Lógica
     const form = useForm<FormInstanceConnectionValues>({
@@ -137,7 +139,7 @@ export const ConnectionCard = ({
                     <div className="space-y-1.5">
                         <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
                         <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-                            <span className="flex-1 font-mono text-foreground">{defaultValues.instanceName}</span>
+                            <span className="flex-1 font-medium text-foreground">{visibleInstanceName}</span>
                             <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         </div>
                     </div>
@@ -187,7 +189,7 @@ export const ConnectionCard = ({
                 <div className="space-y-1.5">
                     <p className="text-sm font-medium text-muted-foreground">Nombre de instancia</p>
                     <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-                        <span className="flex-1 font-mono text-foreground">{defaultValues.instanceName}</span>
+                        <span className="flex-1 font-medium text-foreground">{visibleInstanceName}</span>
                         <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     </div>
                 </div>

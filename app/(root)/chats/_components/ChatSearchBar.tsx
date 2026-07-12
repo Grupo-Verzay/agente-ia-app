@@ -47,7 +47,7 @@ export function ChatSearchBar({
   const hasChannels = channels.length > 1;
   const activeChannel = channels.find((ch) => ch.instanceName === selectedChannel);
   const activeLabel = activeChannel
-    ? getInstanceUiDisplayName({ ...activeChannel, includeApiSuffix: true })
+    ? getInstanceUiDisplayName(activeChannel)
     : "Todos";
   const totalCount = Object.values(channelCounts).reduce((a, b) => a + b, 0);
 
@@ -88,8 +88,7 @@ export function ChatSearchBar({
             {channels.map((ch) => {
               const isActive = selectedChannel === ch.instanceName;
               const count = channelCounts[ch.instanceName] ?? 0;
-              const label = getInstanceUiDisplayName({ ...ch, includeApiSuffix: true });
-              const labelWithoutApi = label.replace(/\s+\(API\)$/i, "");
+              const label = getInstanceUiDisplayName(ch);
               return (
                 <DropdownMenuItem
                   key={ch.instanceName}
@@ -100,7 +99,7 @@ export function ChatSearchBar({
                     <span className={cn("truncate text-xs", isActive && "font-medium text-primary")}>
                       {label}
                     </span>
-                    {ch.company && ch.company !== label && ch.company !== labelWithoutApi && (
+                    {ch.company && ch.company !== label && (
                       <span className="truncate text-[10px] text-muted-foreground">{ch.company}</span>
                     )}
                   </div>
