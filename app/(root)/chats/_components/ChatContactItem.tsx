@@ -43,11 +43,6 @@ function instanceColor(name: string): string {
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff;
   return INSTANCE_COLORS[h % INSTANCE_COLORS.length];
 }
-function shortInstanceLabel(name: string): string {
-  const parts = name.split("_");
-  return parts.length === 1 ? name.slice(0, 6) : parts[parts.length - 1];
-}
-
 const APPT_DOT: Record<string, string> = {
   PENDIENTE:   'bg-yellow-500',
   CONFIRMADA:  'bg-green-500',
@@ -379,13 +374,13 @@ function ChatContactItemBase({
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className="flex items-center gap-0.5 rounded bg-muted/80 px-1 py-0.5 text-[9px] font-medium leading-3 text-muted-foreground cursor-default">
+                        <span className="flex max-w-[96px] items-center gap-0.5 rounded bg-muted/80 px-1 py-0.5 text-[9px] font-medium leading-3 text-muted-foreground cursor-default">
                           <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${instanceColor(contact.instanceName)}`} />
-                          {shortInstanceLabel(contact.instanceName)}
+                          <span className="truncate">{contact.instanceDisplayName ?? contact.instanceName}</span>
                         </span>
                       </TooltipTrigger>
                       <TooltipContent side="top" sideOffset={6} className="z-[9999]">
-                        <p className="text-xs font-semibold">{contact.instanceName}</p>
+                        <p className="text-xs font-semibold">{contact.instanceDisplayName ?? contact.instanceName}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -404,14 +399,17 @@ function ChatContactItemBase({
             type="button"
             onClick={(e) => { e.stopPropagation(); onToggleStar(contact.id); }}
             className={cn(
-              "shrink-0 -mr-1 h-7 w-7 flex items-center justify-center rounded-full transition-all",
+              "shrink-0 -mr-1 flex h-7 items-center justify-center overflow-hidden rounded-full transition-all",
               isStarred
-                ? "opacity-100 text-amber-400"
-                : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-amber-400",
+                // Destacado: siempre visible y ocupa su espacio.
+                ? "w-7 opacity-100 text-amber-400"
+                // Sin destacar: colapsa el ancho (y anula el gap con -ml-2) para NO
+                // reservar espacio; solo aparece y ocupa lugar al hacer hover.
+                : "w-0 -ml-2 opacity-0 group-hover:w-7 group-hover:ml-0 group-hover:opacity-100 text-muted-foreground hover:text-amber-400",
             )}
             title={isStarred ? "Quitar destacado" : "Destacar"}
           >
-            <Star className={cn("h-3.5 w-3.5", isStarred && "fill-amber-400")} />
+            <Star className={cn("h-3.5 w-3.5 shrink-0", isStarred && "fill-amber-400")} />
           </button>
         )}
 
