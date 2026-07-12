@@ -47,7 +47,7 @@ import { applyTemplateToPrompt } from "@/actions/apply-template-action";
 import { toast } from "sonner";
 import { AgentPromptChatDialog } from "./AgentPromptChatDialog";
 import { TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { VoiceSettings } from "./VoiceSettings";
 
 const CADENA_PHASES: Record<keyof typeof TYPE_AI_LABELS, string> = {
@@ -731,17 +731,19 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
 
             <AgentMetricsPanel open={showMetrics} onOpenChange={setShowMetrics} />
 
-            <Sheet open={showVoice} onOpenChange={setShowVoice}>
-                <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
-                    <SheetHeader className="mb-3">
-                        <SheetTitle className="flex items-center gap-2">
+            <Dialog open={showVoice} onOpenChange={setShowVoice}>
+                <DialogContent className="flex h-[min(585px,92dvh)] w-[min(820px,calc(100vw-1.5rem))] max-w-none flex-col overflow-hidden p-0">
+                    <DialogHeader className="border-b px-5 py-3">
+                        <DialogTitle className="flex items-center gap-2">
                             <Mic className="h-4 w-4 text-primary" />
                             Voz del agente
-                        </SheetTitle>
-                    </SheetHeader>
-                    <VoiceSettings userId={user.effectiveId ?? user.id} />
-                </SheetContent>
-            </Sheet>
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="flex-1 overflow-y-auto px-5 py-4">
+                        <VoiceSettings userId={user.effectiveId ?? user.id} />
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <VersionHistoryPanel
                 open={showHistory}
