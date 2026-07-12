@@ -61,6 +61,8 @@ export function AdvisorAssignBadge({
   const assigned = advisors.find((a) => a.id === assignedAdvisorId) ?? null;
   const isAgent = advisorRole === 'agente';
   const isMySession = assignedAdvisorId === currentAdvisorId;
+  const currentAdvisor = currentAdvisorId ? advisors.find((a) => a.id === currentAdvisorId) ?? null : null;
+  const canAssignToMe = !!currentAdvisorId && !isMySession;
 
   const isPill = size === 'sm';
 
@@ -193,6 +195,21 @@ export function AdvisorAssignBadge({
           </span>
           Sin asignar
         </button>
+
+        {canAssignToMe && (
+          <button
+            type="button"
+            onClick={() => void handleAssign(currentAdvisorId ?? null)}
+            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent transition-colors"
+          >
+            <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white shrink-0', colorFor(currentAdvisorId!))}>
+              {currentAdvisor ? initials(currentAdvisor) : 'Yo'}
+            </span>
+            <span className="truncate">Asignarme a mí</span>
+          </button>
+        )}
+
+        {canAssignToMe && <div className="my-1 border-t border-border/50" />}
 
         {advisors.map((a) => (
           <button
