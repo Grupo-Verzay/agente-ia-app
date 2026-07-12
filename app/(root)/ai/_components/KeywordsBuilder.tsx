@@ -67,7 +67,7 @@ function SortableRule({
             >
                 <GripVertical className="h-4 w-4" />
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
                 <Card className="rounded-xl border border-border/70 bg-card/90 shadow-sm transition-shadow hover:shadow-md">
                     <CardContent className="flex items-center gap-3 p-3">
                         <div className={cn(
