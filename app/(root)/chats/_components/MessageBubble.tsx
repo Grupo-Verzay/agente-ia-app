@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Check, CheckCheck, CircleAlert, Clock, Reply, PhoneMissed, PhoneOutgoing, Video, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MediaRenderer } from './MediaRenderer';
+import { SafeImage } from '@/components/custom/SafeImage';
 import { CHAT_TIME_FORMATTER, initialFromName } from './chat-message-utils';
 import { MessageContextMenu } from './MessageContextMenu';
 import { CallDialog } from './CallDialog';
@@ -200,8 +201,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         )}
         <div className="flex flex-col gap-0.5">
-          <div className="w-24 h-24">
-            {media ? (
+          <div className="flex min-h-16 min-w-16 max-h-36 max-w-36 items-center justify-center">
+            {media?.url && media.mimeType?.startsWith('image/') ? (
+              <SafeImage
+                src={media.url}
+                alt="Sticker"
+                className="max-h-36 max-w-36 object-contain"
+                loading="lazy"
+                decoding="async"
+              />
+            ) : media ? (
               <MediaRenderer media={media} />
             ) : (
               <div className="w-24 h-24 flex items-center justify-center rounded-xl bg-muted text-2xl">🏷️</div>

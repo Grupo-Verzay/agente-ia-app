@@ -294,6 +294,24 @@ function getPersistedMessageUpdates(raw: Prisma.JsonValue | null) {
   return Array.isArray(snapshot?.MessageUpdate) ? snapshot.MessageUpdate : undefined;
 }
 
+function isDeletedMessageEvent(input: Pick<PersistChatMessageInput, 'messageType' | 'raw'>): boolean {
+  const raw = input.raw;
+  const rawRecord = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, any>) : null;
+  const message = rawRecord?.message && typeof rawRecord.message === 'object'
+    ? (rawRecord.message as Record<string, any>)
+    : null;
+  const protocolType = message?.protocolMessage?.type ?? rawRecord?.protocolMessage?.type;
+
+  return (
+    input.messageType === 'protocolMessage' ||
+    input.messageType === 'messageStubType' ||
+    input.messageType === 'revokedMessage' ||
+    protocolType === 0 ||
+    protocolType === 'REVOKE' ||
+    protocolType === 'MESSAGE_REVOKE'
+  );
+}
+
 export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): EvolutionMessage {
   const rawSnapshot = getRawEvolutionSnapshot(row.raw);
   // Marca de "enviado por el Agente IA/bot" persistida por el backend en `raw`
@@ -523,6 +541,34 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
     input.messageId?.trim() ||
     randomMessageId(input.fromMe ? 'outgoing' : 'incoming');
   const messageTimestamp = epochToDate(input.messageTimestamp);
+  const isDeleteEvent = isDeletedMessageEvent(input);
+
+  if (isDeleteEvent) {
+    const deleteCandidates = buildWhatsAppJidCandidates(normalizedRemoteJid, [
+      remoteJidAlt,
+      input.senderPn,
+      input.remoteJid,
+      input.remoteJidAlt,
+    ]);
+    const existing = await db.$queryRaw<Array<{ id: bigint }>>`
+      SELECT "id"
+      FROM "chat_messages"
+      WHERE "userId" = ${input.userId}
+        AND "instanceName" = ${input.instanceName}
+        AND "messageId" = ${messageId}
+        AND "fromMe" = ${input.fromMe}
+        AND (
+          "remoteJid" IN (${Prisma.join(deleteCandidates)})
+          OR "remoteJidAlt" IN (${Prisma.join(deleteCandidates)})
+          OR "senderPn" IN (${Prisma.join(deleteCandidates)})
+        )
+      LIMIT 1
+    `;
+
+    if (existing.length > 0) {
+      return;
+    }
+  }
 
   await upsertSessionFromChatMessage({
     ...input,
