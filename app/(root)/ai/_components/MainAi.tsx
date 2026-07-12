@@ -18,7 +18,7 @@ import {
 } from "@/types/agentAi";
 import { ProductBuilder } from "./ProductBuilder";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, BarChart2, Bot, History, Layers, MoreVertical, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BarChart2, Bot, History, Layers, Mic, MoreVertical, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PromptToolbar } from "./PromptToolbar";
@@ -47,6 +47,8 @@ import { applyTemplateToPrompt } from "@/actions/apply-template-action";
 import { toast } from "sonner";
 import { AgentPromptChatDialog } from "./AgentPromptChatDialog";
 import { TYPE_AI_LABELS, type AiSectionKey } from "./ai-section-labels";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { VoiceSettings } from "./VoiceSettings";
 
 const CADENA_PHASES: Record<keyof typeof TYPE_AI_LABELS, string> = {
     business:   "Base transversal · Datos del negocio y contexto del agente",
@@ -67,6 +69,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
     const [showMetrics, setShowMetrics] = useState(false);
     const [showTemplates, setShowTemplates] = useState(false);
     const [showPromptChat, setShowPromptChat] = useState(false);
+    const [showVoice, setShowVoice] = useState(false);
 
     const trainingMd = sections?.training
         ? buildTrainingMarkdown(TrainingDraftSchema.parse(sections.training))
@@ -437,6 +440,16 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 <span className="hidden sm:inline">IA Prompts</span>
                             </Button>
 
+                            <Button
+                                variant="outline"
+                                className="gap-2 h-9"
+                                onClick={() => setShowVoice(true)}
+                                title="Voz del agente (notas de voz)"
+                            >
+                                <Mic className="h-4 w-4" />
+                                <span className="hidden sm:inline">Voz</span>
+                            </Button>
+
                             <span
                                 title={`~${estimatedTokens.toLocaleString()} tokens estimados del prompt completo`}
                                 className={[
@@ -717,6 +730,18 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
             />
 
             <AgentMetricsPanel open={showMetrics} onOpenChange={setShowMetrics} />
+
+            <Sheet open={showVoice} onOpenChange={setShowVoice}>
+                <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+                    <SheetHeader className="mb-3">
+                        <SheetTitle className="flex items-center gap-2">
+                            <Mic className="h-4 w-4 text-primary" />
+                            Voz del agente
+                        </SheetTitle>
+                    </SheetHeader>
+                    <VoiceSettings userId={user.effectiveId ?? user.id} />
+                </SheetContent>
+            </Sheet>
 
             <VersionHistoryPanel
                 open={showHistory}

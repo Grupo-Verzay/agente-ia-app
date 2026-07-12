@@ -852,6 +852,64 @@ export async function updateUserVoiceSettings(
   }
 }
 
+export type UserVoiceSettings = {
+  enableVoiceResponses: boolean;
+  voiceId: string;
+  voiceModel: string;
+  voiceInstructions: string;
+  ttsProvider: string;
+  elevenLabsApiKey: string;
+  elevenLabsVoiceId: string;
+};
+
+/** Lee la configuración de voz del agente (global por cuenta) para inicializar el panel. */
+export async function getUserVoiceSettings(
+  userId: string,
+): Promise<ClientResponse<UserVoiceSettings>> {
+  try {
+    await ensureSelfOrAdmin(userId);
+    const row = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        enableVoiceResponses: true,
+        voiceId: true,
+        voiceModel: true,
+        voiceInstructions: true,
+        ttsProvider: true,
+        elevenLabsApiKey: true,
+        elevenLabsVoiceId: true,
+      } as Prisma.UserSelect,
+    }) as {
+      enableVoiceResponses?: boolean | null;
+      voiceId?: string | null;
+      voiceModel?: string | null;
+      voiceInstructions?: string | null;
+      ttsProvider?: string | null;
+      elevenLabsApiKey?: string | null;
+      elevenLabsVoiceId?: string | null;
+    } | null;
+
+    if (!row) return { success: false, message: 'Usuario no encontrado.' };
+
+    return {
+      success: true,
+      message: 'OK',
+      data: {
+        enableVoiceResponses: !!row.enableVoiceResponses,
+        voiceId: row.voiceId ?? 'nova',
+        voiceModel: row.voiceModel ?? 'gpt-4o-mini-tts',
+        voiceInstructions: row.voiceInstructions ?? '',
+        ttsProvider: row.ttsProvider ?? 'openai',
+        elevenLabsApiKey: row.elevenLabsApiKey ?? '',
+        elevenLabsVoiceId: row.elevenLabsVoiceId ?? '',
+      },
+    };
+  } catch (error) {
+    console.error('[GET_USER_VOICE_SETTINGS]', error);
+    return { success: false, message: 'Error al cargar la configuración de voz.' };
+  }
+}
+
 export async function getElevenLabsVoices(
   apiKey: string,
 ): Promise<ClientResponse<{ voice_id: string; name: string; category: string }[]>> {
