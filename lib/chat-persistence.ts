@@ -151,6 +151,12 @@ function ensureChatMessagesTable() {
          OR "lastMessageRaw"->'message' ? 'reactionMessage'
     `;
     await db.$executeRaw`
+      DELETE FROM "chat_conversations"
+      WHERE "lastMessageType" IN ('conversation', 'extendedTextMessage')
+        AND COALESCE(NULLIF(BTRIM("lastMessageContent"), ''), '-') = '-'
+        AND "lastMessageMediaUrl" IS NULL
+    `;
+    await db.$executeRaw`
       INSERT INTO "chat_conversations" (
         "userId", "instanceName", "instanceType", "remoteJid", "remoteJidAlt", "senderPn",
         "pushName", "lastMessageId", "lastMessageFromMe", "lastMessageType",
@@ -162,6 +168,11 @@ function ensureChatMessagesTable() {
         "pushName", "messageId", "fromMe", "messageType",
         "content", "mediaUrl", "raw", "messageTimestamp", NOW(), NOW()
       FROM "chat_messages"
+      WHERE NOT (
+        "messageType" IN ('conversation', 'extendedTextMessage')
+        AND COALESCE(NULLIF(BTRIM("content"), ''), '-') = '-'
+        AND "mediaUrl" IS NULL
+      )
       ORDER BY "userId", "instanceName", "remoteJid", "messageTimestamp" DESC, "id" DESC
       ON CONFLICT ("userId", "instanceName", "remoteJid")
       DO UPDATE SET
@@ -310,6 +321,14 @@ function isDeletedMessageEvent(input: Pick<PersistChatMessageInput, 'messageType
     protocolType === 'REVOKE' ||
     protocolType === 'MESSAGE_REVOKE'
   );
+}
+
+function hasDisplayableMessagePayload(input: Pick<PersistChatMessageInput, 'messageType' | 'content' | 'mediaUrl'>): boolean {
+  const content = typeof input.content === 'string' ? input.content.trim() : '';
+  if (content && content !== '-') return true;
+  if (input.mediaUrl) return true;
+
+  return !['conversation', 'extendedTextMessage', null, undefined].includes(input.messageType ?? undefined);
 }
 
 export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): EvolutionMessage {
@@ -542,32 +561,14 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
     randomMessageId(input.fromMe ? 'outgoing' : 'incoming');
   const messageTimestamp = epochToDate(input.messageTimestamp);
   const isDeleteEvent = isDeletedMessageEvent(input);
+  const hasDisplayablePayload = hasDisplayableMessagePayload(input);
 
   if (isDeleteEvent) {
-    const deleteCandidates = buildWhatsAppJidCandidates(normalizedRemoteJid, [
-      remoteJidAlt,
-      input.senderPn,
-      input.remoteJid,
-      input.remoteJidAlt,
-    ]);
-    const existing = await db.$queryRaw<Array<{ id: bigint }>>`
-      SELECT "id"
-      FROM "chat_messages"
-      WHERE "userId" = ${input.userId}
-        AND "instanceName" = ${input.instanceName}
-        AND "messageId" = ${messageId}
-        AND "fromMe" = ${input.fromMe}
-        AND (
-          "remoteJid" IN (${Prisma.join(deleteCandidates)})
-          OR "remoteJidAlt" IN (${Prisma.join(deleteCandidates)})
-          OR "senderPn" IN (${Prisma.join(deleteCandidates)})
-        )
-      LIMIT 1
-    `;
+    return;
+  }
 
-    if (existing.length > 0) {
-      return;
-    }
+  if (!hasDisplayablePayload) {
+    return;
   }
 
   await upsertSessionFromChatMessage({
@@ -595,11 +596,23 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
       "remoteJidAlt" = COALESCE(EXCLUDED."remoteJidAlt", "chat_messages"."remoteJidAlt"),
       "senderPn" = COALESCE(EXCLUDED."senderPn", "chat_messages"."senderPn"),
       "pushName" = COALESCE(EXCLUDED."pushName", "chat_messages"."pushName"),
-      "messageType" = EXCLUDED."messageType",
+      "messageType" = CASE
+        WHEN EXCLUDED."content" IS NULL AND EXCLUDED."mediaUrl" IS NULL
+          THEN "chat_messages"."messageType"
+        ELSE EXCLUDED."messageType"
+      END,
       "content" = COALESCE(EXCLUDED."content", "chat_messages"."content"),
       "mediaUrl" = COALESCE(EXCLUDED."mediaUrl", "chat_messages"."mediaUrl"),
-      "raw" = COALESCE(EXCLUDED."raw", "chat_messages"."raw"),
-      "messageTimestamp" = EXCLUDED."messageTimestamp",
+      "raw" = CASE
+        WHEN EXCLUDED."content" IS NULL AND EXCLUDED."mediaUrl" IS NULL
+          THEN "chat_messages"."raw"
+        ELSE COALESCE(EXCLUDED."raw", "chat_messages"."raw")
+      END,
+      "messageTimestamp" = CASE
+        WHEN EXCLUDED."content" IS NULL AND EXCLUDED."mediaUrl" IS NULL
+          THEN "chat_messages"."messageTimestamp"
+        ELSE EXCLUDED."messageTimestamp"
+      END,
       "updatedAt" = NOW()
   `;
 
@@ -632,7 +645,10 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
       "lastMessageTimestamp" = EXCLUDED."lastMessageTimestamp",
       "updatedAt" = NOW()
     WHERE "chat_conversations"."lastMessageTimestamp" IS NULL
-       OR "chat_conversations"."lastMessageTimestamp" <= EXCLUDED."lastMessageTimestamp"
+       OR (
+        "chat_conversations"."lastMessageTimestamp" <= EXCLUDED."lastMessageTimestamp"
+        AND ${hasDisplayablePayload}
+       )
   `;
 }
 
@@ -688,6 +704,11 @@ export async function getPersistedMessages(params: {
       WHERE "userId" IN (${Prisma.join(userIds)})
         ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
         AND "messageType" <> 'reactionMessage'
+        AND NOT (
+          "messageType" IN ('conversation', 'extendedTextMessage')
+          AND COALESCE(NULLIF(BTRIM("content"), ''), '-') = '-'
+          AND "mediaUrl" IS NULL
+        )
         AND "remoteJid" IN (${Prisma.join(candidates)})
       UNION ALL
       SELECT *
@@ -695,6 +716,11 @@ export async function getPersistedMessages(params: {
       WHERE "userId" IN (${Prisma.join(userIds)})
         ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
         AND "messageType" <> 'reactionMessage'
+        AND NOT (
+          "messageType" IN ('conversation', 'extendedTextMessage')
+          AND COALESCE(NULLIF(BTRIM("content"), ''), '-') = '-'
+          AND "mediaUrl" IS NULL
+        )
         AND "remoteJidAlt" IN (${Prisma.join(candidates)})
       UNION ALL
       SELECT *
@@ -702,6 +728,11 @@ export async function getPersistedMessages(params: {
       WHERE "userId" IN (${Prisma.join(userIds)})
         ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
         AND "messageType" <> 'reactionMessage'
+        AND NOT (
+          "messageType" IN ('conversation', 'extendedTextMessage')
+          AND COALESCE(NULLIF(BTRIM("content"), ''), '-') = '-'
+          AND "mediaUrl" IS NULL
+        )
         AND "senderPn" IN (${Prisma.join(candidates)})
     ),
     deduped AS (
