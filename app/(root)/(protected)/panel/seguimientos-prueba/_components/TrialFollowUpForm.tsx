@@ -21,6 +21,7 @@ import {
   getAvailableInstances,
   type TrialFollowUpConfigData,
 } from '@/actions/trial-followup-actions'
+import { cleanInstanceDisplayName } from '@/lib/instance-display-name'
 import { MessageCircle, Zap, RefreshCw, Send, Pencil, ListChecks } from 'lucide-react'
 
 interface Props {
@@ -182,17 +183,19 @@ export function TrialFollowUpForm({ initial }: Props) {
                   onValueChange={(v) => setForm(f => ({ ...f, instanceName: v === CENTRAL ? '' : v }))}
                 >
                   <SelectTrigger className="flex-1">
-                    <SelectValue placeholder={loadingInstances ? 'Cargando instancias…' : 'Selecciona una instancia'} />
+                    <SelectValue placeholder={loadingInstances ? 'Cargando instancias...' : 'Selecciona una instancia'}>
+                      {form.instanceName ? cleanInstanceDisplayName(form.instanceName) : 'Instancia central de la plataforma'}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={CENTRAL}>Instancia central de la plataforma</SelectItem>
                     {instances.map((i) => (
-                      <SelectItem key={i.name} value={i.name}>
+                      <SelectItem key={i.name} value={i.name} textValue={cleanInstanceDisplayName(i.name)}>
                         <span className="flex items-center gap-2">
                           <span
                             className={`h-2 w-2 rounded-full ${i.status === 'open' ? 'bg-green-500' : 'bg-muted-foreground/40'}`}
                           />
-                          {i.name}
+                          {cleanInstanceDisplayName(i.name)}
                         </span>
                       </SelectItem>
                     ))}

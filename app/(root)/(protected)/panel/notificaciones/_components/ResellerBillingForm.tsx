@@ -14,6 +14,7 @@ import {
   saveResellerBillingConfig,
   type ResellerBillingConfigData,
 } from '@/actions/billing/reseller-billing-actions'
+import { cleanInstanceDisplayName } from '@/lib/instance-display-name'
 import { CreditCard, MessageCircle, RefreshCw, Send, Pencil, ListChecks } from 'lucide-react'
 
 interface Props {
@@ -153,14 +154,16 @@ export function ResellerBillingForm({ initial }: Props) {
                   onValueChange={(v) => setForm(f => ({ ...f, instanceName: v }))}
                 >
                   <SelectTrigger className="flex-1">
-                    <SelectValue placeholder={loadingInstances ? 'Cargando…' : 'Selecciona tu instancia'} />
+                    <SelectValue placeholder={loadingInstances ? 'Cargando...' : 'Selecciona tu instancia'}>
+                      {form.instanceName ? cleanInstanceDisplayName(form.instanceName) : undefined}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {instances.map((i) => (
-                      <SelectItem key={i.name} value={i.name}>
+                      <SelectItem key={i.name} value={i.name} textValue={cleanInstanceDisplayName(i.name)}>
                         <span className="flex items-center gap-2">
                           <span className={`h-2 w-2 rounded-full ${i.status === 'open' ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
-                          {i.name}
+                          {cleanInstanceDisplayName(i.name)}
                         </span>
                       </SelectItem>
                     ))}

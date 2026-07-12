@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { ApiKey } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { resolveWhatsAppDispatcherLineByInstanceName, sendViaWhatsAppDispatcher } from "./whatsapp-dispatcher";
+import { resolveSystemNotificationDispatcherLine, sendViaWhatsAppDispatcher } from "./whatsapp-dispatcher";
 import { listMetaTemplates, sendMetaTemplate } from "./channel-chat-actions";
 import { ClientResponse, DISCONNECT_COOLDOWN_MS, DISCONNECTION_MSG, EVO_FETCH_TIMEOUT_MS, GenerateQrInterface, getDayKeyBogota, getEvoCache, isApiConnected, isWhatsappLike, QRCodeResponse } from "@/types/evo-api";
 import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
@@ -15,17 +15,12 @@ import { cleanInstanceDisplayName } from "@/lib/instance-display-name";
    - Solo usa Evolution si instanceType es WhatsApp o nulo.
    - Mantiene TUS mensajes originales.
 ========================= */
-const NOTIFICATIONS_INSTANCE_NAME =
-  process.env.NOTIFICATIONS_WHATSAPP_INSTANCE ||
-  process.env.BILLING_WHATSAPP_INSTANCE ||
-  "VERZAY_NOTIFICACIONES_wh";
-
 export async function sendQrDisconnectedNotification(
   remoteJid: string,
   userId: string,
   source = 'generateQRCode',
 ) {
-  const dispatcher = await resolveWhatsAppDispatcherLineByInstanceName(NOTIFICATIONS_INSTANCE_NAME);
+  const dispatcher = await resolveSystemNotificationDispatcherLine();
   if (!dispatcher) throw new Error("No hay linea de notificaciones conectada.");
 
   if (dispatcher.provider === "meta") {

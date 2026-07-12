@@ -14,6 +14,12 @@ type DispatcherInstance = {
   metaChannel?: string | null;
 };
 
+const DEFAULT_SYSTEM_NOTIFICATION_INSTANCE =
+  process.env.NOTIFICATIONS_WHATSAPP_INSTANCE ||
+  process.env.BILLING_WHATSAPP_INSTANCE ||
+  process.env.TRIAL_FOLLOWUP_WHATSAPP_INSTANCE ||
+  'VERZAY_NOTIFICACIONES_wh';
+
 export type WhatsAppDispatcherLine = {
   id: string;
   notificationNumber: string | null;
@@ -230,6 +236,50 @@ async function findOfficialVerzayLine(preferredInstanceName?: string | null) {
   }
 
   return null;
+}
+
+export async function resolveSystemNotificationInstanceName(): Promise<string> {
+  const configs = await db.resellerBillingConfig.findMany({
+    where: {
+      enabled: true,
+      instanceName: { not: null },
+      reseller: { is: { role: 'super_admin' } },
+    },
+    select: {
+      instanceName: true,
+      updatedAt: true,
+      reseller: {
+        select: {
+          name: true,
+          company: true,
+        },
+      },
+    },
+  });
+
+  const ordered = configs
+    .filter((config) => config.instanceName?.trim())
+    .sort((a, b) => {
+      const aLabel = `${a.reseller.company ?? ''} ${a.reseller.name ?? ''}`.toLowerCase();
+      const bLabel = `${b.reseller.company ?? ''} ${b.reseller.name ?? ''}`.toLowerCase();
+      const aIsGrupo = aLabel.includes('grupo') || aLabel.includes('verzay');
+      const bIsGrupo = bLabel.includes('grupo') || bLabel.includes('verzay');
+      if (aIsGrupo !== bIsGrupo) return aIsGrupo ? -1 : 1;
+      return b.updatedAt.getTime() - a.updatedAt.getTime();
+    });
+
+  return ordered[0]?.instanceName?.trim() || DEFAULT_SYSTEM_NOTIFICATION_INSTANCE;
+}
+
+export async function resolveSystemNotificationDispatcherLine(): Promise<WhatsAppDispatcherLine | null> {
+  const instanceName = await resolveSystemNotificationInstanceName();
+  const exactLine = await resolveWhatsAppDispatcherLineByInstanceName(instanceName);
+  if (exactLine) return exactLine;
+
+  return resolveWhatsAppDispatcherLine({
+    preferredInstanceName: instanceName,
+    includeAdminFallback: true,
+  });
 }
 
 export async function resolveWhatsAppDispatcherLine(args?: {

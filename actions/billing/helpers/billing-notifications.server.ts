@@ -2,6 +2,7 @@
 
 import {
     resolveWhatsAppDispatcherLineByInstanceName,
+    resolveSystemNotificationDispatcherLine,
     sendViaWhatsAppDispatcher,
     type WhatsAppDispatcherLine,
 } from "@/actions/whatsapp-dispatcher";
@@ -156,12 +157,7 @@ export async function getBillingUserRecord(
 }
 
 export async function loadBillingDispatcherConfig(): Promise<BillingDispatcherConfig | null> {
-    const preferredInstanceName =
-        process.env.BILLING_WHATSAPP_INSTANCE ||
-        process.env.NOTIFICATIONS_WHATSAPP_INSTANCE ||
-        "VERZAY_NOTIFICACIONES_wh";
-    const line = await resolveWhatsAppDispatcherLineByInstanceName(preferredInstanceName);
-    return line;
+    return resolveSystemNotificationDispatcherLine();
 }
 
 export async function loadBillingDispatcherForUser(

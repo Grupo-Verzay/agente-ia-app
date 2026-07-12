@@ -1,6 +1,10 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from '@/actions/whatsapp-dispatcher'
+import {
+  resolveSystemNotificationInstanceName,
+  resolveWhatsAppDispatcherLine,
+  sendViaWhatsAppDispatcher,
+} from '@/actions/whatsapp-dispatcher'
 
 const CRON_HEADER = 'x-cron-secret'
 
@@ -36,11 +40,6 @@ Tu *prueba gratis* finaliza mañana. 🚀
 
 const FOLLOW_UP_DAYS = [1, 3, 6]
 const MAX_ATTEMPTS = 3
-const DEFAULT_TRIAL_FOLLOWUP_INSTANCE =
-  process.env.TRIAL_FOLLOWUP_WHATSAPP_INSTANCE ||
-  process.env.NOTIFICATIONS_WHATSAPP_INSTANCE ||
-  'VERZAY_NOTIFICACIONES_wh'
-
 // Hora local del cliente en la que se envía el seguimiento. El cron corre cada
 // hora al minuto :30, así que al exigir la hora 9 el mensaje llega ~9:30 AM
 // local. Si el seguimiento vence fuera de esta hora, se difiere a la mañana
@@ -215,7 +214,7 @@ async function runTrialFollowUps() {
     const selectedInstance =
       user.demoResellerId && configuredInstance
         ? configuredInstance
-        : DEFAULT_TRIAL_FOLLOWUP_INSTANCE
+        : await resolveSystemNotificationInstanceName()
     const dispatcher = await resolveWhatsAppDispatcherLine({
       ownerUserId: user.demoResellerId && configuredInstance ? user.demoResellerId : null,
       preferredInstanceName: selectedInstance,

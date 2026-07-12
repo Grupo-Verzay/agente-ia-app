@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { FileText, Loader2, Send, Phone, ChevronDown, Check, MessageCircleMore, Workflow } from 'lucide-react';
+import { Loader2, Send, Phone, ChevronDown, Check, MessageCircleMore, Workflow } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -439,9 +439,12 @@ export function NewConversationDialog({ open, onClose, instancias, instanceActio
 
               <TabsContent value="template" className="mt-3">
                 {canSendTemplate ? (
-                  <div className="flex min-h-[120px] flex-col items-center justify-center gap-3 rounded-md border bg-muted/30 p-4 text-center">
-                    <FileText className="h-5 w-5 text-muted-foreground" />
-                    <TemplatePickerDialog instanceName={selectedInstanceName} onSendTemplate={handleSendTemplate} />
+                  <div className="min-h-[120px] rounded-md border bg-muted/20 p-3">
+                    <TemplatePickerDialog
+                      inline
+                      instanceName={selectedInstanceName}
+                      onSendTemplate={handleSendTemplate}
+                    />
                   </div>
                 ) : (
                   <p className="min-h-[120px] py-8 text-center text-sm text-muted-foreground">

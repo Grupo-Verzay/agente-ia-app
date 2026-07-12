@@ -3,7 +3,11 @@
 import { db } from '@/lib/db'
 import { currentUser } from '@/lib/auth'
 import { isAdmin } from '@/lib/rbac'
-import { resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from '@/actions/whatsapp-dispatcher'
+import {
+  resolveSystemNotificationInstanceName,
+  resolveWhatsAppDispatcherLine,
+  sendViaWhatsAppDispatcher,
+} from '@/actions/whatsapp-dispatcher'
 
 export interface TrialFollowUpConfigData {
   enabled: boolean
@@ -45,11 +49,6 @@ Tu *prueba gratis* finaliza mañana. 🚀
 
 💬 Escríbenos para ayudarte a elegir el plan ideal.`,
 }
-
-const DEFAULT_TRIAL_FOLLOWUP_INSTANCE =
-  process.env.TRIAL_FOLLOWUP_WHATSAPP_INSTANCE ||
-  process.env.NOTIFICATIONS_WHATSAPP_INSTANCE ||
-  'VERZAY_NOTIFICACIONES_wh'
 
 export async function getTrialFollowUpConfig(resellerId?: string) {
   const user = await currentUser()
@@ -230,7 +229,7 @@ export async function sendTrialTestMessage(
   }
 
   const preview = text.replace(/\{nombre\}/gi, user.name?.split(' ')[0] || 'amigo')
-  const preferredInstanceName = (instanceName || DEFAULT_TRIAL_FOLLOWUP_INSTANCE).trim()
+  const preferredInstanceName = (instanceName || await resolveSystemNotificationInstanceName()).trim()
   const dispatcher = await resolveWhatsAppDispatcherLine({
     ownerUserId: instanceName ? user.id : null,
     preferredInstanceName,
