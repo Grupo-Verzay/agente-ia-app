@@ -379,7 +379,7 @@ async function buildPersistedMessagesResult(params: {
 export async function warmChatMessagesAction(
   context: ChatActionContext,
   remoteJid: string,
-  options?: { page?: number; pageSize?: number; remoteJidAliases?: string[]; localOnly?: boolean },
+  options?: { page?: number; pageSize?: number; remoteJidAliases?: string[]; localOnly?: boolean; localFirst?: boolean },
 ): Promise<FindMessagesResult> {
   const user = await currentUser();
   const effectiveOwnerId = await resolveChatStorageUserId(context, user?.ownerId ?? user?.id);
@@ -394,9 +394,13 @@ export async function warmChatMessagesAction(
   const page = Math.max(options?.page ?? 1, 1);
 
   if (effectiveOwnerId) {
-    const shouldUseLocalOnly = Boolean(options?.localOnly) || page > 1 || !hasReadyContext(context);
+    // localFirst: leer local y, SI hay datos, devolverlos ya (apertura instantánea);
+    // si está VACÍO, cae al fetch remoto de abajo en la MISMA llamada (evita el 2º
+    // round-trip que hacía el cliente al abrir un chat sin historial local).
+    const shouldReadLocal =
+      Boolean(options?.localOnly) || Boolean(options?.localFirst) || page > 1 || !hasReadyContext(context);
 
-    if (shouldUseLocalOnly) {
+    if (shouldReadLocal) {
       const localResult = await buildPersistedMessagesResult({
         userIds: readUserIds,
         instanceName: hasReadyContext(context) ? context.instanceName : undefined,
@@ -406,6 +410,7 @@ export async function warmChatMessagesAction(
         pageSize,
         message: "Mensajes cargados desde historial local.",
       });
+      // localOnly siempre devuelve local (aunque vacío); localFirst solo si hay datos.
       if (localResult.data.length || options?.localOnly) {
         return localResult;
       }

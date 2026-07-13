@@ -86,8 +86,10 @@ export async function fetchChannelChats(instanceName: string): Promise<FetchChat
 export async function warmChannelMessages(
   instanceName: string,
   remoteJid: string,
-  opts?: { pageSize?: number; before?: string; page?: number; remoteJidAliases?: string[]; localOnly?: boolean },
+  opts?: { pageSize?: number; before?: string; page?: number; remoteJidAliases?: string[]; localOnly?: boolean; localFirst?: boolean },
 ): Promise<FindMessagesResult> {
+  // Telegram/Meta siempre leen de local (el webhook persiste todo), así que
+  // localFirst/localOnly se comportan igual: no hay fuente remota a la que caer.
   try {
     const owner = await resolveInstanceOwner(instanceName);
     if (!owner?.userId) return { success: false, message: 'Instancia sin propietario.' };

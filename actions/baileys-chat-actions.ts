@@ -124,15 +124,16 @@ function inferMimeFromUrl(url: string): string {
 export async function findMessagesFromBaileys(
   instanceName: string,
   remoteJid: string,
-  opts?: { pageSize?: number; before?: string; page?: number; remoteJidAliases?: string[]; localOnly?: boolean },
+  opts?: { pageSize?: number; before?: string; page?: number; remoteJidAliases?: string[]; localOnly?: boolean; localFirst?: boolean },
 ): Promise<FindMessagesResult> {
   const pageSize = opts?.pageSize ?? 50;
   const page = Math.max(opts?.page ?? 1, 1);
 
   // Local-first: abrir la conversación al instante desde el historial persistido
   // (los mensajes Baileys se guardan en chat_messages) sin esperar al backend.
-  // El cliente hace una sincronización en segundo plano tras el render inicial.
-  if (opts?.localOnly) {
+  // localOnly → devuelve local siempre. localFirst → devuelve local solo si hay
+  // datos; si está vacío, cae al fetch del backend de abajo (en la MISMA llamada).
+  if (opts?.localOnly || opts?.localFirst) {
     const owner = await resolveInstanceOwner(instanceName);
     const userIds = Array.from(new Set([owner?.userId].filter(Boolean) as string[]));
     if (userIds.length) {
@@ -146,16 +147,18 @@ export async function findMessagesFromBaileys(
       });
       const hasMore = persisted.length > pageSize;
       const data = hasMore ? persisted.slice(0, pageSize) : persisted;
-      return {
-        success: true,
-        message: 'Mensajes cargados desde historial local.',
-        data,
-        total: data.length,
-        pages: hasMore ? page + 1 : page,
-        currentPage: page,
-        nextPage: hasMore ? page + 1 : null,
-        queriedRemoteJid: remoteJid,
-      };
+      if (data.length || opts.localOnly) {
+        return {
+          success: true,
+          message: 'Mensajes cargados desde historial local.',
+          data,
+          total: data.length,
+          pages: hasMore ? page + 1 : page,
+          currentPage: page,
+          nextPage: hasMore ? page + 1 : null,
+          queriedRemoteJid: remoteJid,
+        };
+      }
     }
   }
 

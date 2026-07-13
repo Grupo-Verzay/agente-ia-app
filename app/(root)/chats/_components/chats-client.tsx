@@ -208,7 +208,7 @@ export type InstanceActionSet = {
   instanceType?: string;
   warmMessages: (
     remoteJid: string,
-    opts?: { page?: number; pageSize?: number; remoteJidAliases?: string[]; localOnly?: boolean },
+    opts?: { page?: number; pageSize?: number; remoteJidAliases?: string[]; localOnly?: boolean; localFirst?: boolean },
   ) => Promise<FindMessagesResult>;
   sendText: (remoteJid: string, payload: OutgoingMessagePayload) => Promise<SendMessageResult>;
   sendWorkflow: (remoteJid: string, workflowId: string) => Promise<ChatToolActionResult>;
@@ -374,7 +374,7 @@ interface ChatsClientProps {
   instanceName?: string;
   warmMessagesAction: (
     remoteJid: string,
-    opts?: { page?: number; pageSize?: number; remoteJidAliases?: string[]; localOnly?: boolean },
+    opts?: { page?: number; pageSize?: number; remoteJidAliases?: string[]; localOnly?: boolean; localFirst?: boolean },
   ) => Promise<FindMessagesResult>;
   sendAnyAction: (
     remoteJid: string,
@@ -1170,40 +1170,42 @@ export function ChatsClient({
       }
 
       try {
-        // Todas las líneas abren "local primero" (historial persistido) y luego
-        // sincronizan en segundo plano. Baileys ya persiste sus mensajes, así que
-        // también entra por esta ruta rápida en vez de bloquear contra el backend.
-        const shouldOpenFromLocalFirst = true;
-        const localResult = await effectiveWarmMessages(remoteJid, {
+        // UNA sola llamada al servidor para abrir (modo localFirst): el servidor lee
+        // el historial local y, SI está vacío, cae al fetch remoto de Evolution en la
+        // MISMA llamada. Antes eran DOS server actions en fila (local vacío + remoto),
+        // cada una con su latencia de red móvil y su auth → el doble de espera al
+        // abrir por primera vez un chat sin historial. (Baileys/canales lo soportan
+        // igual; canales siempre son locales.)
+        const openResult = await effectiveWarmMessages(remoteJid, {
           page: 1,
           pageSize: INITIAL_MESSAGE_PAGE_SIZE,
           remoteJidAliases,
-          localOnly: shouldOpenFromLocalFirst,
+          localFirst: true,
         });
 
         if (selectionRequestRef.current !== requestId) return;
 
-        const localMessages = localResult?.success ? (localResult.data || []) : [];
-        const hasLocal = localMessages.length > 0;
+        const openMessages = openResult?.success ? (openResult.data || []) : [];
+        const hasMessages = openMessages.length > 0;
 
-        if (localResult?.success) {
+        if (openResult?.success) {
           const nextInfo = {
-            total: localResult.total,
-            pages: localResult.pages,
-            currentPage: localResult.currentPage,
-            nextPage: localResult.nextPage,
+            total: openResult.total,
+            pages: openResult.pages,
+            currentPage: openResult.currentPage,
+            nextPage: openResult.nextPage,
             instanceName: effectiveInstanceName,
             remoteJid,
             remoteJidAliases,
             apiKeyData: effectiveApiKeyData,
           };
-          setMessages(localMessages);
+          setMessages(openMessages);
           setInfo(nextInfo);
           // Solo cacheamos cuando hay contenido real: un cache vacío haría que la
           // próxima apertura tome la rama "cacheada" y muestre el chat en blanco.
-          if (hasLocal) {
+          if (hasMessages) {
             messageCacheRef.current.set(cacheKey, {
-              messages: localMessages,
+              messages: openMessages,
               info: nextInfo,
             });
           }
@@ -1218,50 +1220,47 @@ export function ChatsClient({
           }));
         }
 
-        // Con historial local visible: apaga el skeleton y sincroniza en segundo
-        // plano con debounce. Sin nada local, la vista queda vacía: mantén el
-        // skeleton y trae el remoto de INMEDIATO (sin los 3.5s) para que los
-        // mensajes aparezcan cuanto antes en vez de un chat en blanco.
-        if (hasLocal) setLoading(false);
-        const syncDelay = hasLocal ? SELECTED_CHAT_SYNC_DELAY_MS : 0;
+        setLoading(false);
 
-        window.setTimeout(() => {
-          if (selectionRequestRef.current !== requestId) return;
+        // Freshen en 2º plano SOLO si ya mostramos algo: trae mensajes llegados desde
+        // la última persistencia. Si vino vacío, la llamada localFirst ya intentó el
+        // remoto en la misma llamada, así que no hace falta repetirlo.
+        if (hasMessages) {
+          window.setTimeout(() => {
+            if (selectionRequestRef.current !== requestId) return;
 
-          void effectiveWarmMessages(remoteJid, {
-            page: 1,
-            pageSize: INITIAL_MESSAGE_PAGE_SIZE,
-            remoteJidAliases,
-          })
-            .then((syncResult) => {
-              if (selectionRequestRef.current !== requestId || !syncResult?.success) return;
-              const merged = mergeMessages(messagesRef.current, syncResult.data || []);
-              const nextInfo = {
-                total: syncResult.total,
-                pages: syncResult.pages,
-                currentPage: syncResult.currentPage,
-                nextPage: syncResult.nextPage,
-                instanceName: effectiveInstanceName,
-                remoteJid,
-                remoteJidAliases,
-                apiKeyData: effectiveApiKeyData,
-              };
-              setMessages(merged);
-              setInfo(nextInfo);
-              if (merged.length > 0) {
-                messageCacheRef.current.set(cacheKey, {
-                  messages: merged,
-                  info: nextInfo,
-                });
-              }
+            void effectiveWarmMessages(remoteJid, {
+              page: 1,
+              pageSize: INITIAL_MESSAGE_PAGE_SIZE,
+              remoteJidAliases,
             })
-            .catch(() => {
-              // Keep the local messages visible if the background sync fails.
-            })
-            .finally(() => {
-              if (selectionRequestRef.current === requestId) setLoading(false);
-            });
-        }, syncDelay);
+              .then((syncResult) => {
+                if (selectionRequestRef.current !== requestId || !syncResult?.success) return;
+                const merged = mergeMessages(messagesRef.current, syncResult.data || []);
+                const nextInfo = {
+                  total: syncResult.total,
+                  pages: syncResult.pages,
+                  currentPage: syncResult.currentPage,
+                  nextPage: syncResult.nextPage,
+                  instanceName: effectiveInstanceName,
+                  remoteJid,
+                  remoteJidAliases,
+                  apiKeyData: effectiveApiKeyData,
+                };
+                setMessages(merged);
+                setInfo(nextInfo);
+                if (merged.length > 0) {
+                  messageCacheRef.current.set(cacheKey, {
+                    messages: merged,
+                    info: nextInfo,
+                  });
+                }
+              })
+              .catch(() => {
+                // Keep the messages visible if the background sync fails.
+              });
+          }, SELECTED_CHAT_SYNC_DELAY_MS);
+        }
       } catch {
         setMessages([]);
         setInfo((currentInfo) => ({
