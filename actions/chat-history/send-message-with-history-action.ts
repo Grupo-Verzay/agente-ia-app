@@ -115,6 +115,60 @@ function extractPhone(text: string, fallback: string) {
   return clean.startsWith('+') ? `+${digits}` : `+${digits}`;
 }
 
+function buildInternalNotificationContext(message: string, additionalKwargs?: Record<string, unknown>) {
+  const eventType = inferEventType(message, additionalKwargs);
+  const name = cleanTemplateValue(
+    additionalKwargs?.contactName ?? additionalKwargs?.clientName ?? additionalKwargs?.name,
+    extractLine(message, ['Nombre', 'Cliente']) || 'Contacto',
+  );
+  const description = cleanTemplateValue(
+    additionalKwargs?.description,
+    extractLine(message, ['DescripciÃ³n', 'Servicio', 'Fecha y hora']) || 'Evento registrado en Verzay.',
+  );
+  const phone = cleanTemplateValue(
+    additionalKwargs?.contactPhone ?? additionalKwargs?.phone,
+    extractPhone(message, 'Sin nÃºmero'),
+  );
+
+  return {
+    eventType,
+    name: stripMarkdown(name),
+    description: stripMarkdown(description),
+    phone,
+    isAdvisorRequest: isAdvisorRequestNotification(message, additionalKwargs),
+  };
+}
+
+function buildInternalNotificationText(message: string, additionalKwargs?: Record<string, unknown>) {
+  const context = buildInternalNotificationContext(message, additionalKwargs);
+
+  if (context.isAdvisorRequest) {
+    return [
+      '🙋 *Solicitud de asesor*',
+      '',
+      `👤 *Nombre:* ${context.name}`,
+      '📝 *Descripción:* Este contacto está esperando tu respuesta en el chat.',
+      '',
+      '📱 *Contacto:*',
+      `📲 ${context.phone}`,
+      '--------•--------•--------•--------',
+      'Evento registrado',
+    ].join('\n');
+  }
+
+  return [
+    `✅ *Nuevo aviso: ${context.eventType}*`,
+    '',
+    `👤 *Nombre:* ${context.name}`,
+    `📝 *Descripción:* ${context.description}`,
+    '',
+    '📱 *Contacto:*',
+    `📲 ${context.phone}`,
+    '--------•--------•--------•--------',
+    'Evento registrado',
+  ].join('\n');
+}
+
 async function sendMetaInternalNotificationTemplate(args: {
   instanceName: string;
   remoteJid: string;
@@ -172,6 +226,11 @@ export async function sendMessageWithHistoryAction({
     return { success: false, message: 'Mensaje vacio.', error: 'Mensaje vacio.' };
   }
 
+  const outgoingMessage =
+    historyType === 'notification'
+      ? buildInternalNotificationText(message, additionalKwargs)
+      : message;
+
   const dispatcher = await resolveWhatsAppDispatcherLineByInstanceName(instanceName);
   if (dispatcher && dispatcher.provider !== 'evolution') {
     if (dispatcher.provider === 'meta' && historyType === 'notification') {
@@ -195,7 +254,7 @@ export async function sendMessageWithHistoryAction({
     const result = await sendViaWhatsAppDispatcher({
       dispatcher,
       remoteJid,
-      text: message,
+      text: outgoingMessage,
       history: {
         instanceName,
         type: historyType,
@@ -225,7 +284,7 @@ export async function sendMessageWithHistoryAction({
     url: resolvedUrl,
     apikey: resolvedApiKey,
     remoteJid,
-    text: message,
+    text: outgoingMessage,
     history: {
       instanceName,
       type: historyType,
