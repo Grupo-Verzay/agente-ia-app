@@ -6,8 +6,8 @@ const MASTER_SPREADSHEET_ID = '11s450vRmAayrxqodQXpwIDwEI7r7jWlaeairvQ6qFUg';
 const SHEET_NAME = 'Registro web';
 
 function getAuth() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) throw new Error('Falta GOOGLE_SERVICE_ACCOUNT_JSON');
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SHEETS_CREDENTIALS;
+  if (!raw) throw new Error('Falta GOOGLE_SERVICE_ACCOUNT_JSON (o GOOGLE_SHEETS_CREDENTIALS)');
   return new google.auth.GoogleAuth({
     credentials: JSON.parse(raw),
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],

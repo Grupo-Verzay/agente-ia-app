@@ -6,8 +6,11 @@ import { normalizeContactFieldsConfig } from '@/lib/contact-fields';
 
 /* ── Service account auth ──────────────────────────────────── */
 function getAuth() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) throw new Error('Falta la variable GOOGLE_SERVICE_ACCOUNT_JSON en el .env');
+  // Acepta cualquiera de los dos nombres: GOOGLE_SERVICE_ACCOUNT_JSON (app) o
+  // GOOGLE_SHEETS_CREDENTIALS (el que ya usa el webhook), para reutilizar la
+  // misma credencial sin renombrar la variable entre stacks.
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SHEETS_CREDENTIALS;
+  if (!raw) throw new Error('Falta la variable GOOGLE_SERVICE_ACCOUNT_JSON (o GOOGLE_SHEETS_CREDENTIALS) en el entorno');
   const creds = JSON.parse(raw);
   return new google.auth.GoogleAuth({
     credentials: creds,
