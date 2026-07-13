@@ -54,6 +54,22 @@ function shortInstanceLabel(name: string): string {
 
   return clean;
 }
+
+function contactInitials(name: string) {
+  const clean = name
+    .replace(/@\S+/g, " ")
+    .replace(/[^A-Za-zÀ-ÿ0-9\s|_-]+/g, " ")
+    .trim();
+
+  if (!clean || /^\+?\d+$/.test(clean.replace(/\s+/g, ""))) return "?";
+
+  const pipeParts = clean.split("|").map((part) => part.trim()).filter(Boolean);
+  const source = pipeParts.length > 1 ? pipeParts.join(" ") : clean;
+  const parts = source.split(/[\s_-]+/).filter(Boolean);
+  const initials = parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join("");
+
+  return initials || "?";
+}
 const APPT_DOT: Record<string, string> = {
   PENDIENTE:   'bg-yellow-500',
   CONFIRMADA:  'bg-green-500',
@@ -315,8 +331,8 @@ function ChatContactItemBase({
             )}
           >
             <AvatarImage src={contact.avatarSrc} alt={contact.name || "Contacto"} />
-            <AvatarFallback>
-              {contact.name?.charAt(0)?.toUpperCase() || "?"}
+            <AvatarFallback className="text-xs font-bold">
+              {contactInitials(contact.name)}
             </AvatarFallback>
           </Avatar>
           {contact.isGroup && !selectionMode && (
