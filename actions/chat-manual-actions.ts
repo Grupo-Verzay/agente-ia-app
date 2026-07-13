@@ -436,22 +436,23 @@ export async function warmChatMessagesAction(
   );
 
   if (result.success && effectiveOwnerId) {
-    await persistEvolutionMessages({
+    // Camino crítico de la PRIMERA apertura: se devuelve YA lo que respondió
+    // Evolution, sin esperar a persistir + re-leer de la BD (eso agregaba ~100-300ms
+    // encima del round-trip a Evolution). La persistencia corre en segundo plano y
+    // la resync/poll posterior lee de local y reconcilia (dedup por messageId,
+    // badges de eliminado, mediaUrl). Para un chat fresco el contenido es
+    // equivalente (findMessagesByRemoteJid ya filtró reacciones y ordenó recientes
+    // primero; nextPage=null coincide con lo que daría la BD con ≤25 filas).
+    void persistEvolutionMessages({
       userId: effectiveOwnerId,
       instanceName: context.instanceName,
       instanceType: "evolution",
       remoteJid,
       messages: result.data,
+    }).catch(() => {
+      // best-effort: si falla, la próxima sync/poll vuelve a intentarlo (idempotente).
     });
-    return buildPersistedMessagesResult({
-      userIds: readUserIds,
-      instanceName: context.instanceName,
-      remoteJid,
-      aliases: options?.remoteJidAliases,
-      page,
-      pageSize,
-      message: "Mensajes sincronizados con Evolution.",
-    });
+    return result;
   }
 
   if (!result.success && effectiveOwnerId) {

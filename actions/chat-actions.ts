@@ -743,9 +743,20 @@ export async function findMessagesByRemoteJid(
   }> = [];
   let firstFailure: { message: string; raw?: unknown } | null = null;
 
-  for (const candidateRemoteJid of candidatesToQuery) {
-    const response = await fetchMessagesForRemoteJid(endpoint, key, candidateRemoteJid, options);
+  // Los candidatos JID (número real, @lid, senderPn, alias) se consultan EN
+  // PARALELO, no en fila: antes eran N round-trips secuenciales a Evolution, la
+  // latencia oculta que hacía lento abrir por primera vez un contacto con @lid o
+  // alias. Con Promise.all el costo pasa a ~1 sola llamada. El orden no importa:
+  // los resultados se deduplican por fingerprint más abajo.
+  const candidateResponses = await Promise.all(
+    candidatesToQuery.map((candidateRemoteJid) =>
+      fetchMessagesForRemoteJid(endpoint, key, candidateRemoteJid, options).then(
+        (response) => ({ candidateRemoteJid, response }),
+      ),
+    ),
+  );
 
+  for (const { candidateRemoteJid, response } of candidateResponses) {
     if (!response.success) {
       if (!firstFailure) {
         firstFailure = {
