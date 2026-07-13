@@ -307,10 +307,10 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
 
             {/* --- Toolbar (simétrica con CrmRecordsToolbar) --- */}
             <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-                <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="flex flex-1 flex-row items-center gap-2">
 
-                    {/* Búsqueda */}
-                    <div className="relative w-full sm:w-64 shrink-0">
+                    {/* Búsqueda — izquierda, ocupa el espacio; en sm+ ancho fijo */}
+                    <div className="relative flex-1 min-w-0 sm:w-64 sm:flex-none">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={searchValue}
@@ -320,8 +320,8 @@ export function AnalyticsView({ userId, stats, period }: { userId: string; stats
                         />
                     </div>
 
-                    {/* Botones de acción — siempre en fila, con label visible */}
-                    <div className="flex flex-row gap-2">
+                    {/* Botones de acción — fijos a la derecha, siempre en fila */}
+                    <div className="flex flex-row gap-2 shrink-0">
 
                         {/* Filtros avanzados */}
                         <Popover>
