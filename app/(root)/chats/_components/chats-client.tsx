@@ -74,7 +74,11 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
 }
 
 type ApiKeyData = { url: string; key: string };
-const INITIAL_MESSAGE_PAGE_SIZE = 50;
+// Primera página de mensajes al abrir un chat. Bajado de 50 a 25 (alineado con
+// EVOLUTION_SYNC_WINDOW_SIZE del server action) para que el primer render en
+// móvil pinte la mitad de burbujas y llegue menos payload por la red móvil. El
+// resto del historial se trae bajo demanda al hacer scroll hacia arriba.
+const INITIAL_MESSAGE_PAGE_SIZE = 25;
 const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
 const SELECTED_CHAT_SYNC_DELAY_MS = 3500;
 const SELECTED_CHAT_POLLING_DELAY_MS = 10000;

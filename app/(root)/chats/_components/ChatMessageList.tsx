@@ -11,7 +11,8 @@ import { ConversationDateBadge } from './ConversationDateBadge';
 import { getCalendarDayKey, formatConversationDateLabel } from './chat-message-utils';
 import type { UIBubble } from './chat-message-types';
 
-const VIRTUALIZE_AFTER_ITEMS = 80;
+// Activa virtualizacion antes para no pintar historiales largos completos.
+const VIRTUALIZE_AFTER_ITEMS = 30;
 const VIRTUAL_OVERSCAN_ITEMS = 12;
 const ESTIMATED_DATE_HEIGHT = 44;
 const ESTIMATED_TEXT_HEIGHT = 82;
