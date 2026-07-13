@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ArrowRight, Check, Lock, Mic, Plus, PenLine, Send, SendIcon, SmilePlus, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowRight, AudioLines, Check, Lock, Mic, Plus, PenLine, Send, SendIcon, SmilePlus, Sparkles, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ import {
   updateAdvisorSignatureAction,
 } from '@/actions/chat-manual-actions';
 import { EmojiPickerPanel } from './EmojiPickerPanel';
+import { useSpeechDictation } from '@/hooks/useSpeechDictation';
 import type { ComposeMedia } from './attachment-menu';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
 import type { Session } from '@/types/session';
@@ -167,6 +168,18 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
     }, 0);
   }, [input, onInputChange, textareaRef]);
+
+  // Dictado por voz (voz → texto). Escribe la transcripción en la barra usando el
+  // mismo canal que el input (evento sintético a onInputChange), para editarla o
+  // enviarla luego. Es independiente de la nota de voz (audio) que se manda como
+  // archivo; aquí solo se convierte el habla en texto.
+  const dictation = useSpeechDictation();
+  const setDictatedText = useCallback(
+    (value: string) => {
+      onInputChange({ target: { value } } as React.ChangeEvent<HTMLTextAreaElement>);
+    },
+    [onInputChange],
+  );
   const [isLoadingSignature, setIsLoadingSignature] = useState(false);
   const [isSavingSignature, setIsSavingSignature] = useState(false);
   const [isTogglingSignature, setIsTogglingSignature] = useState(false);
@@ -631,7 +644,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           aria-label="Escribe tu mensaje"
           className={cn(
             'min-h-10 rounded-xl w-full shadow-sm',
-            'pl-4 pr-24 py-2 resize-none overflow-y-auto text-base sm:text-sm leading-relaxed',
+            'pl-4 pr-28 py-2 resize-none overflow-y-auto text-base sm:text-sm leading-relaxed',
             'transition-[height] duration-100 ease-out',
             noteMode
               ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100 border border-amber-300 dark:border-amber-700 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none'
@@ -640,6 +653,24 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         />
 
         <div className="absolute right-1.5 flex flex-row items-center gap-1 bottom-1.5">
+          {dictation.supported && !isPreviewingAudio && (
+            <Button
+              onClick={() => dictation.toggle(input, setDictatedText)}
+              size="icon"
+              disabled={!isInputActive || isRecording}
+              className={cn(
+                'h-7 w-7 rounded-full shrink-0',
+                dictation.listening
+                  ? 'bg-red-500 hover:bg-red-600 animate-pulse'
+                  : 'bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600',
+              )}
+              aria-label={dictation.listening ? 'Detener dictado' : 'Dictar por voz'}
+              title={dictation.listening ? 'Detener dictado' : 'Dictar por voz (escribe lo que hablas)'}
+              type="button"
+            >
+              <AudioLines className={cn('w-3.5 h-3.5', dictation.listening ? 'text-white' : 'text-black dark:text-white')} />
+            </Button>
+          )}
           {!isPreviewingAudio && (
             <Button
               onClick={() => (isRecording ? onStopRecordingAndPreview() : onStartRecording())}
@@ -658,7 +689,11 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             </Button>
           )}
           <Button
-            onClick={noteMode ? () => void handleSendNote() : onSend}
+            onClick={() => {
+              if (dictation.listening) dictation.stop();
+              if (noteMode) void handleSendNote();
+              else onSend();
+            }}
             size="icon"
             className={cn(
               "h-7 w-7 rounded-full shrink-0",
