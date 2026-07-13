@@ -38,6 +38,7 @@ import {
 import { getInstancesByUserId } from "@/actions/instances-actions";
 import { getLinkedAccountsInstances, getMasterAccountInstances } from "@/actions/linked-account-actions";
 import { assignSessionToAdvisor, takeSession, releaseSession, transferSession } from "@/actions/advisor-assign-actions";
+import { getTeamAdvisorInfos, type AdvisorInfo } from "@/actions/team-actions";
 import { ChatsClient, type InstanceActionSet } from "./_components/chats-client";
 import { buildWhatsAppJidCandidates, normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
 
@@ -124,6 +125,25 @@ async function isBaileysRuntimeOpen(instanceName: string) {
 
 function settleValue<T>(value: T | null | undefined): T | null {
   return value ?? null;
+}
+
+function withCurrentUserAdvisor(
+  advisors: AdvisorInfo[],
+  user: { id?: string | null; name?: string | null; email?: string | null; company?: string | null; advisorRole?: string | null },
+) {
+  if (!user.id) return advisors;
+
+  const currentAdvisor: AdvisorInfo = {
+    id: user.id,
+    name: user.company || user.name || user.email || "Yo",
+    email: user.email || "",
+    advisorRole: user.advisorRole ?? null,
+  };
+
+  const map = new Map<string, AdvisorInfo>();
+  map.set(currentAdvisor.id, currentAdvisor);
+  for (const advisor of advisors) map.set(advisor.id, advisor);
+  return Array.from(map.values());
 }
 
 function getChatSortTimestamp(chat: ChatData) {
@@ -370,13 +390,18 @@ export default async function ChatsPage({
   let instanceActionSets: InstanceActionSet[] = [];
   // Bandeja local + preferencias en paralelo (independientes) para acelerar la
   // carga inicial de Chats.
-  const [persistedInitialChats, initialPreferencesResult] = await Promise.all([
+  const [persistedInitialChats, initialPreferencesResult, initialAdvisorsResult] = await Promise.all([
     getPersistedInboxChats({
       userIds: allSessionUserIds,
       instanceNames: instancias.map((inst) => inst.instanceName),
     }),
     getChatConversationPreferencesByUserId(effectiveOwnerId),
+    getTeamAdvisorInfos(),
   ]);
+  const initialAdvisors = withCurrentUserAdvisor(
+    initialAdvisorsResult.success ? initialAdvisorsResult.data ?? [] : [],
+    user,
+  );
   const initialChatPreferences = initialPreferencesResult.success
     ? initialPreferencesResult.data ?? {}
     : {};
@@ -595,7 +620,7 @@ export default async function ChatsPage({
       allTags={[]}
       workflows={[]}
       quickReplies={[]}
-      advisors={[]}
+      advisors={initialAdvisors}
       currentAdvisorId={currentAdvisorId}
       advisorRole={advisorRole}
       assignAdvisorAction={assignAdvisorAction}

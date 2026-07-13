@@ -57,6 +57,25 @@ function uniqueStrings(values: Array<string | null | undefined>) {
   );
 }
 
+function withCurrentUserAdvisor(
+  advisors: AdvisorInfo[],
+  user: { id?: string | null; name?: string | null; email?: string | null; company?: string | null; advisorRole?: string | null },
+) {
+  if (!user.id) return advisors;
+
+  const currentAdvisor: AdvisorInfo = {
+    id: user.id,
+    name: user.company || user.name || user.email || "Yo",
+    email: user.email || "",
+    advisorRole: user.advisorRole ?? null,
+  };
+
+  const map = new Map<string, AdvisorInfo>();
+  map.set(currentAdvisor.id, currentAdvisor);
+  for (const advisor of advisors) map.set(advisor.id, advisor);
+  return Array.from(map.values());
+}
+
 export async function loadChatBootstrapData(
   input: ChatBootstrapInput = {},
 ): Promise<ChatBootstrapResponse> {
@@ -129,37 +148,24 @@ export async function loadChatBootstrapData(
     ? quickRepliesRes.data
     : [];
 
-  const quickReplyOptions: ChatQuickReplyOption[] = quickReplies
-    .map((quickReply) => {
-      const workflow = workflows.find((item) => item.id === quickReply.workflowId);
-      const message = quickReply.mensaje?.trim() ?? "";
-      if (!message) return null;
+  const quickReplyOptions = quickReplies.reduce<ChatQuickReplyOption[]>((items, quickReply) => {
+    const workflow = workflows.find((item) => item.id === quickReply.workflowId);
+    const message = quickReply.mensaje?.trim() ?? "";
+    if (!message) return items;
 
-      return {
-        id: quickReply.id,
-        name: quickReply.name ?? null,
-        message,
-        category: normalizeQuickReplyCategory(quickReply.category),
-        workflowId: quickReply.workflowId ?? null,
-        workflowName: workflow?.name ?? null,
-      };
-    })
-    .filter((item): item is ChatQuickReplyOption => item !== null);
+    items.push({
+      id: quickReply.id,
+      name: quickReply.name ?? null,
+      message,
+      category: normalizeQuickReplyCategory(quickReply.category),
+      workflowId: quickReply.workflowId ?? null,
+      workflowName: workflow?.name ?? null,
+    });
+    return items;
+  }, []);
 
   const advisorsFromTeam = advisorsRes?.success ? advisorsRes.data ?? [] : [];
-  const isOwner = !user.ownerId;
-  const advisors =
-    isOwner && user.id && user.email
-      ? [
-          {
-            id: user.id,
-            name: user.name ?? null,
-            email: user.email,
-            advisorRole: null as string | null,
-          },
-          ...advisorsFromTeam,
-        ]
-      : advisorsFromTeam;
+  const advisors = withCurrentUserAdvisor(advisorsFromTeam, user);
 
   return {
     success: true,
