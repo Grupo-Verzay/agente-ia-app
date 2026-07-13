@@ -549,7 +549,15 @@ export function ChatsClient({
             if (!isLocalOptimisticMessage(existing)) continue;
             if (existing.key?.fromMe !== message.key?.fromMe) continue;
             if ((existing.key?.remoteJid ?? "") !== (message.key?.remoteJid ?? "")) continue;
-            if (getMessageContentForDedupe(existing) !== content) continue;
+            // La firma del asesor se antepone en el servidor ("<firma>\n<texto>"),
+            // así que el mensaje real puede terminar en el texto optimista precedido
+            // de un salto de línea. Se acepta ese caso para no dejar la burbuja
+            // optimista duplicada mientras se envía.
+            const optimisticContent = getMessageContentForDedupe(existing);
+            const contentMatches =
+              optimisticContent === content ||
+              (optimisticContent.length > 0 && content.endsWith(`\n${optimisticContent}`));
+            if (!contentMatches) continue;
             if (Math.abs((existing.messageTimestamp ?? 0) - timestamp) > 180) continue;
             map.delete(key);
           }
