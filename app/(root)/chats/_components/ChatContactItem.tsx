@@ -293,8 +293,34 @@ function ChatContactItemBase({
 
   const selectionMode = isChecked !== undefined;
 
+  // Prefetch del historial local en cuanto la fila entra al viewport. En móvil no
+  // hay hover, así que ESTE es el disparador que hace la apertura instantánea: al
+  // tocar el chat, sus mensajes ya están en el cache. Una sola vez por montaje
+  // (disconnect) y el padre acota a una vez por sesión. rootMargin adelanta un
+  // poco la carga antes de que la fila sea 100% visible.
+  const rowRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!onPrefetch) return;
+    const el = rowRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const contactId = contact.id;
+    const contactInstanceName = contact.instanceName;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          onPrefetch(contactId, contactInstanceName);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "150px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [onPrefetch, contact.id, contact.instanceName]);
+
   return (
     <div
+      ref={rowRef}
       role="listitem"
       data-chat-id={contact.id}
       onMouseEnter={onPrefetch ? () => onPrefetch(contact.id, contact.instanceName) : undefined}

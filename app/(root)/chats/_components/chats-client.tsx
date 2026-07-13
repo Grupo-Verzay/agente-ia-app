@@ -1025,6 +1025,12 @@ export function ChatsClient({
   // mensajes ya están listos y la apertura se siente instantánea (estilo
   // WhatsApp/Chatwoot). Es idempotente y barato: si ya hay cache, no hace nada.
   const prefetchingRef = useRef<Set<string>>(new Set());
+  // Chats ya intentados en esta sesión del navegador. Acota la carga cuando el
+  // prefetch se dispara al hacer VISIBLE cada fila (IntersectionObserver en
+  // móvil): sin esto, hacer scroll arriba/abajo re-consultaría la BD por cada
+  // chat sin historial (los que sí tienen historial ya frenan por el cache). Se
+  // marca solo tras una lectura EXITOSA, así un fallo de red sí puede reintentar.
+  const prefetchAttemptedRef = useRef<Set<string>>(new Set());
   const prefetchChat = useCallback(
     (remoteJid: string, contactInstanceName?: string) => {
       if (!remoteJid) return;
@@ -1044,8 +1050,13 @@ export function ChatsClient({
       const effectiveWarmMessages = actionSet?.warmMessages ?? warmMessagesAction;
       const cacheKey = getMessageCacheKey(effectiveInstanceName, remoteJid);
 
-      // Ya cacheado o ya en vuelo → nada que hacer.
-      if (messageCacheRef.current.has(cacheKey) || prefetchingRef.current.has(cacheKey)) return;
+      // Ya cacheado, ya en vuelo o ya intentado en esta sesión → nada que hacer.
+      if (
+        messageCacheRef.current.has(cacheKey) ||
+        prefetchingRef.current.has(cacheKey) ||
+        prefetchAttemptedRef.current.has(cacheKey)
+      )
+        return;
 
       prefetchingRef.current.add(cacheKey);
       void effectiveWarmMessages(remoteJid, {
@@ -1056,6 +1067,8 @@ export function ChatsClient({
       })
         .then((result) => {
           if (!result?.success) return;
+          // Lectura OK (con o sin datos) → no reintentar este chat en la sesión.
+          prefetchAttemptedRef.current.add(cacheKey);
           // No cachear vacío: haría que el click tomara la rama "cacheada" y
           // mostrara el chat en blanco sin skeleton ni sincronización inmediata.
           if (!result.data?.length) return;
