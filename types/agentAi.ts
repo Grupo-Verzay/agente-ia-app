@@ -336,6 +336,9 @@ export type SectionsPromptSystem = {
         escalateFlowId?: string | null;
         notifyNumber?: string;
     };
+    keywords?: {
+        rules: KeywordRule[];
+    };
 };
 
 export interface MainAiInterface {

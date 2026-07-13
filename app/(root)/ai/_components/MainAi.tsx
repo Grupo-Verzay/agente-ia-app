@@ -253,7 +253,9 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
             ].filter(Boolean).join("\n");
         }
 
-        const map: Record<Exclude<TabKey, "business">, keyof BusinessValues> = {
+        // keywords no tiene borrador markdown en `values` (lo maneja KeywordsBuilder
+        // con su propio autosave), por eso el mapa es parcial.
+        const map: Partial<Record<Exclude<TabKey, "business">, keyof BusinessValues>> = {
             training: "training",
             faq: "faq",
             products: "products",
@@ -261,7 +263,8 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
             management: "management",
         };
 
-        return String(values[map[activeTab as Exclude<TabKey, "business">]] ?? "");
+        const mapped = map[activeTab as Exclude<TabKey, "business">];
+        return mapped ? String(values[mapped] ?? "") : "";
     }, [activeTab, values]);
 
     const completedTabs = useMemo((): Set<TabKey> => {
@@ -293,6 +296,7 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
             products: sections?.products?.steps?.length ?? 0,
             more: sections?.extras?.steps?.length ?? 0,
             management: sections?.management?.steps?.length ?? 0,
+            keywords: sections?.keywords?.rules?.length ?? 0,
         };
     }, [sections]);
 
