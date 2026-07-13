@@ -44,7 +44,7 @@ export function buildKeywordsMarkdown(keywords: z.infer<typeof KeywordsDraftSche
         .map((r) => {
             const kws = r.keywords.map((k) => `"${k}"`).join(", ");
             if (r.action === "escalar")
-                return `- Si el mensaje contiene ${kws}: Transfiere INMEDIATAMENTE a un asesor humano. No respondas tú.`;
+                return `- Si el mensaje contiene ${kws}: Transfiere INMEDIATAMENTE a un asesor humano, ejecuta internamente Notificacion Asesor y responde EXACTAMENTE con: "🔄 En este momento estoy *transfiriéndote* con uno de nuestros *asesores* para que te puedan ayudar mejor."`;
             return `- Si el mensaje contiene ${kws}: Responde EXACTAMENTE con: "${r.response}"`;
         });
     if (!lines.length) return "";
