@@ -205,7 +205,7 @@ export function AdvisorAssignBadge({
             <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white shrink-0', colorFor(currentAdvisorId!))}>
               {currentAdvisor ? initials(currentAdvisor) : 'Yo'}
             </span>
-            <span className="truncate">Asignarme a mí</span>
+            <span className="truncate">Asignarme</span>
           </button>
         )}
 

@@ -115,7 +115,7 @@ export const TemplatePickerDialog = ({
   const content = (
     <>
       {!selected ? (
-        <div className="space-y-3 py-1">
+        <div className="flex min-h-0 flex-col gap-3 py-1">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -176,24 +176,26 @@ export const TemplatePickerDialog = ({
           </div>
 
           {selected.paramCount > 0 && (
-            <div className="space-y-2">
-              {Array.from({ length: selected.paramCount }, (_, index) => (
-                <div key={index} className="space-y-1">
-                  <Label className="text-xs">Parametro {`{{${index + 1}}}`}</Label>
-                  <Input
-                    value={params[index] ?? ''}
-                    onChange={(event) =>
-                      setParams((prev) =>
-                        prev.map((param, paramIndex) =>
-                          paramIndex === index ? event.target.value : param,
-                        ),
-                      )
-                    }
-                    placeholder={`Valor para {{${index + 1}}}`}
-                  />
-                </div>
-              ))}
-            </div>
+            <ScrollArea className={inline ? 'h-48 pr-3' : 'h-[38vh] pr-3'}>
+              <div className="space-y-2">
+                {Array.from({ length: selected.paramCount }, (_, index) => (
+                  <div key={index} className="space-y-1">
+                    <Label className="text-xs">Parametro {`{{${index + 1}}}`}</Label>
+                    <Input
+                      value={params[index] ?? ''}
+                      onChange={(event) =>
+                        setParams((prev) =>
+                          prev.map((param, paramIndex) =>
+                            paramIndex === index ? event.target.value : param,
+                          ),
+                        )
+                      }
+                      placeholder={`Valor para {{${index + 1}}}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
           )}
         </div>
       )}
@@ -231,11 +233,11 @@ export const TemplatePickerDialog = ({
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[90vh] max-w-md">
         <DialogHeader>
           <DialogTitle>Plantillas de WhatsApp</DialogTitle>
           <DialogDescription>
-            Utiles para escribir fuera de la ventana de 24 h. Solo plantillas aprobadas por Meta.
+            Utiles para escribir fuera de la ventana de 24 h.
           </DialogDescription>
         </DialogHeader>
 

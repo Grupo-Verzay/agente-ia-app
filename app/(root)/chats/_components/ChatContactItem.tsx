@@ -488,7 +488,7 @@ function ChatContactItemBase({
                         className="flex items-center justify-between gap-2"
                       >
                         <span className="truncate text-sm">
-                          Asignarme a mí{currentAdvisor?.name ? ` (${currentAdvisor.name})` : ''}
+                          Asignarme{currentAdvisor?.name ? ` (${currentAdvisor.name})` : ''}
                         </span>
                         {contact.chatSession?.assignedAdvisorId === currentAdvisorId && (
                           <Check className="h-3.5 w-3.5 text-primary shrink-0" />
