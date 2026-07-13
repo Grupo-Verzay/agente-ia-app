@@ -44,6 +44,7 @@ type InboxRow = {
   raw: Prisma.JsonValue | null;
   messageTimestamp: Date | null;
   sessionUpdatedAt: Date;
+  lastMessageDeleted?: boolean | null;
 };
 
 export type PersistChatMessageInput = {
@@ -141,6 +142,11 @@ function ensureChatMessagesTable() {
     await db.$executeRaw`
       CREATE UNIQUE INDEX IF NOT EXISTS "chat_conversations_user_instance_jid_unique"
       ON "chat_conversations" ("userId", "instanceName", "remoteJid")
+    `;
+    // El último mensaje de la conversación fue eliminado por el cliente: la lista
+    // muestra "🚫 Mensaje eliminado". Se resetea a FALSE al llegar un mensaje nuevo.
+    await db.$executeRaw`
+      ALTER TABLE "chat_conversations" ADD COLUMN IF NOT EXISTS "lastMessageDeleted" BOOLEAN NOT NULL DEFAULT FALSE
     `;
     await db.$executeRaw`
       CREATE INDEX IF NOT EXISTS "chat_conversations_user_last_ts_idx"
@@ -405,6 +411,13 @@ function inboxRowToChat(row: InboxRow): ChatData {
       }
     : null;
 
+  // Si el último mensaje fue eliminado por el cliente, la lista muestra el aviso
+  // (el contenido real se conserva y se ve dentro de la conversación con su badge).
+  if (lastMessage && row.lastMessageDeleted) {
+    lastMessage.message = { conversation: '🚫 Mensaje eliminado' };
+    lastMessage.messageType = 'conversation';
+  }
+
   // Indicador de "pendiente de responder" para canales del store unificado
   // (Telegram/Meta): 1 si el último mensaje es del cliente. WhatsApp/Baileys
   // conservan su comportamiento (0) para no alterar su flujo de no-leídos.
@@ -571,6 +584,34 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
   const hasDisplayablePayload = hasDisplayableMessagePayload(input);
 
   if (isDeleteEvent) {
+    // El cliente borró un mensaje ("eliminar para todos"). NO se persiste el
+    // evento, pero se MARCA el mensaje original como eliminado (conservando su
+    // contenido) para que el panel muestre "Eliminado" en la burbuja y en la lista.
+    const rawRec =
+      input.raw && typeof input.raw === 'object' && !Array.isArray(input.raw)
+        ? (input.raw as Record<string, any>)
+        : null;
+    const targetId: string | undefined =
+      rawRec?.message?.protocolMessage?.key?.id ?? rawRec?.protocolMessage?.key?.id;
+    if (targetId) {
+      const jids = Array.from(
+        new Set([normalizedRemoteJid, remoteJidAlt].filter(Boolean) as string[]),
+      );
+      await db.$executeRaw`
+        UPDATE "chat_messages" SET "deleted" = TRUE, "updatedAt" = NOW()
+        WHERE "userId" = ${input.userId}
+          AND "instanceName" = ${input.instanceName}
+          AND "messageId" = ${targetId}
+          AND "remoteJid" IN (${Prisma.join(jids)})
+      `.catch(() => {});
+      await db.$executeRaw`
+        UPDATE "chat_conversations" SET "lastMessageDeleted" = TRUE, "updatedAt" = NOW()
+        WHERE "userId" = ${input.userId}
+          AND "instanceName" = ${input.instanceName}
+          AND "lastMessageId" = ${targetId}
+          AND "remoteJid" IN (${Prisma.join(jids)})
+      `.catch(() => {});
+    }
     return;
   }
 
@@ -650,6 +691,7 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
       "lastMessageMediaUrl" = EXCLUDED."lastMessageMediaUrl",
       "lastMessageRaw" = EXCLUDED."lastMessageRaw",
       "lastMessageTimestamp" = EXCLUDED."lastMessageTimestamp",
+      "lastMessageDeleted" = FALSE,
       "updatedAt" = NOW()
     WHERE "chat_conversations"."lastMessageTimestamp" IS NULL
        OR (
@@ -810,6 +852,7 @@ export async function getPersistedInboxChats(params: {
         c."lastMessageMediaUrl" AS "mediaUrl",
         c."lastMessageRaw" AS "raw",
         c."lastMessageTimestamp" AS "messageTimestamp",
+        c."lastMessageDeleted" AS "lastMessageDeleted",
         COALESCE(s."updatedAt", c."updatedAt") AS "sessionUpdatedAt"
       FROM "chat_conversations" c
       FULL OUTER JOIN "Session" s
