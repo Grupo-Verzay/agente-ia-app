@@ -52,6 +52,25 @@ function cleanTemplateValue(value: unknown, fallback: string) {
   return text || fallback;
 }
 
+function shouldFormatAsInternalNotification(
+  historyType: OutgoingHistoryType,
+  additionalKwargs?: Record<string, unknown>,
+) {
+  if (historyType !== 'notification') return false;
+  if (additionalKwargs?.internalNotification === true) return true;
+
+  const recipient = String(additionalKwargs?.recipient ?? '').toLowerCase();
+  if (recipient === 'owner' || recipient === 'advisor' || recipient === 'asesor') return true;
+
+  const source = String(additionalKwargs?.source ?? additionalKwargs?.toolType ?? '').toLowerCase();
+  return (
+    source.includes('notificacion_asesor') ||
+    source.includes('notificacion asesor') ||
+    source.includes('bookingnotificationowner') ||
+    source.includes('ownernotification')
+  );
+}
+
 function stripMarkdown(value: string) {
   return value
     .replace(/\*/g, '')
@@ -107,12 +126,11 @@ function isAdvisorRequestNotification(text: string, additionalKwargs?: Record<st
 }
 
 function extractPhone(text: string, fallback: string) {
-  const arrowMatch = text.match(/(?:👉|📲)\s*([+\d][\d\s().-]{7,})/);
-  const raw = arrowMatch?.[1] || text.match(/(\+?\d[\d\s().-]{7,}\d)/)?.[1] || fallback;
+  const raw = text.match(/(\+?\d[\d\s().-]{7,}\d)/)?.[1] || fallback;
   const clean = raw.replace(/@s\.whatsapp\.net$/i, '').trim();
   const digits = clean.replace(/\D/g, '');
   if (!digits) return fallback;
-  return clean.startsWith('+') ? `+${digits}` : `+${digits}`;
+  return clean.startsWith('+') ? '+' + digits : '+' + digits;
 }
 
 function buildInternalNotificationContext(message: string, additionalKwargs?: Record<string, unknown>) {
@@ -123,11 +141,11 @@ function buildInternalNotificationContext(message: string, additionalKwargs?: Re
   );
   const description = cleanTemplateValue(
     additionalKwargs?.description,
-    extractLine(message, ['DescripciÃ³n', 'Servicio', 'Fecha y hora']) || 'Evento registrado en Verzay.',
+    extractLine(message, ['Descripción', 'Descripcion', 'Servicio', 'Fecha y hora']) || 'Evento registrado en Verzay.',
   );
   const phone = cleanTemplateValue(
     additionalKwargs?.contactPhone ?? additionalKwargs?.phone,
-    extractPhone(message, 'Sin nÃºmero'),
+    extractPhone(message, 'Sin número'),
   );
 
   return {
@@ -144,26 +162,26 @@ function buildInternalNotificationText(message: string, additionalKwargs?: Recor
 
   if (context.isAdvisorRequest) {
     return [
-      '🙋 *Solicitud de asesor*',
+      '\u{1F64B} *Solicitud de asesor*',
       '',
-      `👤 *Nombre:* ${context.name}`,
-      '📝 *Descripción:* Este contacto está esperando tu respuesta en el chat.',
+      '\u{1F464} *Nombre:* ' + context.name,
+      '\u{1F4DD} *Descripción:* Este contacto está esperando tu respuesta en el chat.',
       '',
-      '📱 *Contacto:*',
-      `📲 ${context.phone}`,
+      '\u{1F4F1} *Contacto:*',
+      '\u{1F4F2} ' + context.phone,
       '--------•--------•--------•--------',
       'Evento registrado',
     ].join('\n');
   }
 
   return [
-    `✅ *Nuevo aviso: ${context.eventType}*`,
+    '\u{2705} *Nuevo aviso: ' + context.eventType + '*',
     '',
-    `👤 *Nombre:* ${context.name}`,
-    `📝 *Descripción:* ${context.description}`,
+    '\u{1F464} *Nombre:* ' + context.name,
+    '\u{1F4DD} *Descripción:* ' + context.description,
     '',
-    '📱 *Contacto:*',
-    `📲 ${context.phone}`,
+    '\u{1F4F1} *Contacto:*',
+    '\u{1F4F2} ' + context.phone,
     '--------•--------•--------•--------',
     'Evento registrado',
   ].join('\n');
@@ -189,7 +207,7 @@ async function sendMetaInternalNotificationTemplate(args: {
   );
   const description = cleanTemplateValue(
     args.additionalKwargs?.description,
-    extractLine(args.message, ['Descripción', 'Servicio', 'Fecha y hora']) || 'Evento registrado en Verzay.',
+    extractLine(args.message, ['Descripción', 'Descripcion', 'Servicio', 'Fecha y hora']) || 'Evento registrado en Verzay.',
   );
   const phone = cleanTemplateValue(
     args.additionalKwargs?.contactPhone ?? args.additionalKwargs?.phone,
@@ -226,14 +244,16 @@ export async function sendMessageWithHistoryAction({
     return { success: false, message: 'Mensaje vacio.', error: 'Mensaje vacio.' };
   }
 
+  const formatInternalNotification = shouldFormatAsInternalNotification(historyType, additionalKwargs);
+
   const outgoingMessage =
-    historyType === 'notification'
+    formatInternalNotification
       ? buildInternalNotificationText(message, additionalKwargs)
       : message;
 
   const dispatcher = await resolveWhatsAppDispatcherLineByInstanceName(instanceName);
   if (dispatcher && dispatcher.provider !== 'evolution') {
-    if (dispatcher.provider === 'meta' && historyType === 'notification') {
+    if (dispatcher.provider === 'meta' && formatInternalNotification) {
       const templateResult = await sendMetaInternalNotificationTemplate({
         instanceName,
         remoteJid,
