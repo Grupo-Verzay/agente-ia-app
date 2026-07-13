@@ -95,6 +95,8 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
     const [activeView, setActiveView] = useState<'agenda' | 'week' | 'month'>('agenda');
     const calendarRef = useRef<FullCalendar>(null);
     const calendarWrapRef = useRef<HTMLDivElement>(null);
+    const agendaPanelRef = useRef<HTMLDivElement>(null);
+    const [agendaPanelHeight, setAgendaPanelHeight] = useState<number>();
     const ownerTz = user.timezone ?? 'America/Bogota';
 
     // Oculta/muestra el cuerpo del calendario segun el modo
@@ -167,6 +169,22 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
         return hour >= 12 && hour < 18;
     });
     const nightAppts = dayAppts.filter(a => toZonedTime(new Date(a.startTime), ownerTz).getHours() >= 18);
+
+    // Ajusta el alto del panel de agenda a lo que realmente queda visible bajo su
+    // posicion en pantalla (evita que el fondo de las columnas quede fuera del viewport
+    // y no se pueda ver completa la ultima cita).
+    useEffect(() => {
+        if (!agendaMode) return;
+        const recalc = () => {
+            const el = agendaPanelRef.current;
+            if (!el) return;
+            const top = el.getBoundingClientRect().top;
+            setAgendaPanelHeight(Math.max(window.innerHeight - top - 16, 200));
+        };
+        recalc();
+        window.addEventListener('resize', recalc);
+        return () => window.removeEventListener('resize', recalc);
+    }, [agendaMode, dayAppts.length]);
     const agendaColumnClass = nightAppts.length > 0 ? "grid-cols-3" : "grid-cols-2";
 
     const openApptDialog = (appt: AppointmentWithSession) => {
@@ -292,13 +310,17 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
 
             {/* Panel Agenda: dos columnas Mañana / Tarde */}
             {agendaMode && (
-                <div className={`grid ${agendaColumnClass} gap-4 pt-3`} style={{ height: 'calc(100vh - 230px)' }}>
+                <div
+                    ref={agendaPanelRef}
+                    className={`grid ${agendaColumnClass} gap-4 pt-3`}
+                    style={{ height: agendaPanelHeight ? `${agendaPanelHeight}px` : 'calc(100vh - 230px)' }}
+                >
                     {/* Mañana */}
                     <div className="flex h-full min-h-0 flex-col rounded-lg border border-border bg-background/60 overflow-hidden">
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-3 py-2 border-b border-border/70">
                             Mañana
                         </p>
-                        <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2">
+                        <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2 pb-4">
                             {morningAppts.length === 0 ? (
                                 <p className="text-sm text-muted-foreground text-center pt-6">Sin citas</p>
                             ) : morningAppts.map((appt) => {
@@ -360,7 +382,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-3 py-2 border-b border-border/70">
                             Tarde
                         </p>
-                        <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2">
+                        <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2 pb-4">
                             {afternoonAppts.length === 0 ? (
                                 <p className="text-sm text-muted-foreground text-center pt-6">Sin citas</p>
                             ) : afternoonAppts.map((appt) => {
@@ -422,7 +444,7 @@ export const CustomCalendar = ({ user }: ScheduleInterface) => {
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-3 py-2 border-b border-border/70">
                                 Noche
                             </p>
-                            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2">
+                            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2 pb-4">
                                 {nightAppts.map((appt) => {
                                     const status = APPOINTMENT_STATUS_META[appt.status];
                                     return (
