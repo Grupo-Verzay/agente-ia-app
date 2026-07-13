@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -577,11 +577,22 @@ model ChatMessage {
   mediaUrl         String?
   raw              Json?
   messageTimestamp DateTime
+  // Marca de "eliminado por el cliente" (revoke). La agrega el SQL crudo de
+  // ensureChatMessagesTable (lib/chat-persistence.ts) y la escribe el webhook.
+  // DEBE estar declarada aquí o `prisma db push` la DROPEA en cada deploy
+  // (perdiendo las marcas 🚫 Eliminado). Ver [[project_deleted_message_badge]].
+  deleted          Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@unique([userId, instanceName, remoteJid, messageId, fromMe], map: "chat_messages_user_instance_jid_msg_from_unique")
   @@index([userId, remoteJid, messageTimestamp], map: "chat_messages_user_jid_ts_idx")
+  // Índices por (instancia + JID/JIDAlt/senderPn) que aceleran la lectura local
+  // de una conversación. Los crea ensureChatMessagesTable; declarados aquí para
+  // que `db push` no los borre en cada deploy (dejaría el open de chats lento).
+  @@index([userId, instanceName, remoteJid, messageTimestamp], map: "chat_messages_user_instance_jid_ts_idx")
+  @@index([userId, instanceName, remoteJidAlt, messageTimestamp], map: "chat_messages_user_instance_alt_ts_idx")
+  @@index([userId, instanceName, senderPn, messageTimestamp], map: "chat_messages_user_instance_sender_ts_idx")
   @@index([userId, instanceName, messageTimestamp], map: "chat_messages_user_instance_ts_idx")
   @@map("chat_messages")
 }
@@ -602,6 +613,10 @@ model ChatConversation {
   lastMessageMediaUrl  String?
   lastMessageRaw       Json?
   lastMessageTimestamp DateTime?
+  // El último mensaje de la conversación fue eliminado por el cliente. La agrega
+  // el SQL crudo de ensureChatMessagesTable; declarada aquí para que `db push`
+  // no la DROPEE en cada deploy. Ver [[project_deleted_message_badge]].
+  lastMessageDeleted   Boolean   @default(false)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -864,16 +879,16 @@ model UserNotificationContact {
 // Directorio de operarios/expertos que la IA puede consultar por WhatsApp
 // (puente/triangulación). Fase 2 añadirá topic/turno.
 model OperatorContact {
-  id        String           @id @default(uuid())
-  userId    String
-  name      String
-  phone     String
+  id          String           @id @default(uuid())
+  userId      String
+  name        String
+  phone       String
   description String?
-  isActive  Boolean          @default(true) @map("is_active")
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bridges   OperatorBridge[]
+  isActive    Boolean          @default(true) @map("is_active")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bridges     OperatorBridge[]
 
   @@unique([userId, phone])
   @@index([userId])
