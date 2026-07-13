@@ -76,6 +76,35 @@ function withCurrentUserAdvisor(
   return Array.from(map.values());
 }
 
+async function getMissingAssignedAdvisors(
+  chatSessions: ChatContactSessionMap | null | undefined,
+  knownAdvisors: AdvisorInfo[],
+) {
+  const knownIds = new Set(knownAdvisors.map((advisor) => advisor.id));
+  const missingIds = Array.from(
+    new Set(
+      Object.values(chatSessions ?? {})
+        .map((session) => session.assignedAdvisorId)
+        .filter((id): id is string => {
+          if (!id) return false;
+          return !knownIds.has(id);
+        }),
+    ),
+  );
+
+  if (missingIds.length === 0) return [];
+
+  return db.user.findMany({
+    where: { id: { in: missingIds } },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      advisorRole: true,
+    },
+  });
+}
+
 export async function loadChatBootstrapData(
   input: ChatBootstrapInput = {},
 ): Promise<ChatBootstrapResponse> {
@@ -164,8 +193,11 @@ export async function loadChatBootstrapData(
     return items;
   }, []);
 
+  const chatSessions = sessionsRes?.success ? sessionsRes.data ?? {} : {};
   const advisorsFromTeam = advisorsRes?.success ? advisorsRes.data ?? [] : [];
-  const advisors = withCurrentUserAdvisor(advisorsFromTeam, user);
+  const baseAdvisors = withCurrentUserAdvisor(advisorsFromTeam, user);
+  const missingAssignedAdvisors = await getMissingAssignedAdvisors(chatSessions, baseAdvisors);
+  const advisors = withCurrentUserAdvisor([...baseAdvisors, ...missingAssignedAdvisors], user);
 
   return {
     success: true,
@@ -173,7 +205,7 @@ export async function loadChatBootstrapData(
     data: {
       allTags,
       chatPreferences: preferencesRes?.success ? preferencesRes.data ?? {} : {},
-      chatSessions: sessionsRes?.success ? sessionsRes.data ?? {} : {},
+      chatSessions,
       workflows: workflowOptions,
       quickReplies: quickReplyOptions,
       advisors,
