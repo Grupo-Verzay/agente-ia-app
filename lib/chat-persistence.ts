@@ -691,7 +691,14 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
       "lastMessageMediaUrl" = EXCLUDED."lastMessageMediaUrl",
       "lastMessageRaw" = EXCLUDED."lastMessageRaw",
       "lastMessageTimestamp" = EXCLUDED."lastMessageTimestamp",
-      "lastMessageDeleted" = FALSE,
+      -- Solo se limpia la marca de eliminado si llega un mensaje NUEVO (id
+      -- distinto). Re-persistir el mismo último mensaje (re-sync, reentrega de
+      -- Evolution) NO debe borrarla, o la lista pierde el "Mensaje eliminado".
+      "lastMessageDeleted" = CASE
+        WHEN EXCLUDED."lastMessageId" IS DISTINCT FROM "chat_conversations"."lastMessageId"
+          THEN FALSE
+        ELSE "chat_conversations"."lastMessageDeleted"
+      END,
       "updatedAt" = NOW()
     WHERE "chat_conversations"."lastMessageTimestamp" IS NULL
        OR (
