@@ -805,13 +805,19 @@ export async function findMessagesByRemoteJid(
     }
 
     const messagesToMark = Array.from(messagesToMarkMap.values());
-    const resultRead =
-      messagesToMark.length > 0
-        ? await markMessagesAsReadByIds(apiKeyData, instanceName, messagesToMark)
-        : { success: true, message: 'No había mensajes entrantes pendientes por marcar.' };
-
-    if (!resultRead.success) {
-      console.warn(`[READ] ⚠️ Falló la Lectura Mandatoria en ${normalizedRemoteJid}: ${resultRead.message}`);
+    // Marcar como leído es un efecto secundario que NO se necesita para pintar la
+    // conversación; se ejecuta en segundo plano para no sumar un round-trip HTTP
+    // a Evolution al camino crítico de abrir el chat.
+    if (messagesToMark.length > 0) {
+      void markMessagesAsReadByIds(apiKeyData, instanceName, messagesToMark)
+        .then((resultRead) => {
+          if (!resultRead.success) {
+            console.warn(`[READ] ⚠️ Falló la Lectura Mandatoria en ${normalizedRemoteJid}: ${resultRead.message}`);
+          }
+        })
+        .catch((error) => {
+          console.warn(`[READ] ⚠️ Error marcando como leído en ${normalizedRemoteJid}:`, error);
+        });
     }
   }
 

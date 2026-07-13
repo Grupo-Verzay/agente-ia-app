@@ -659,25 +659,38 @@ export async function persistEvolutionMessages(params: {
   remoteJid: string;
   messages: EvolutionMessage[];
 }) {
-  for (const message of params.messages) {
-    if (isReactionMessageSnapshot(message)) continue;
+  const toPersist = params.messages.filter((message) => !isReactionMessageSnapshot(message));
 
-    await persistChatMessage({
-      userId: params.userId,
-      instanceName: params.instanceName,
-      instanceType: params.instanceType ?? 'evolution',
-      remoteJid: message.key?.remoteJid || params.remoteJid,
-      remoteJidAlt: message.key?.remoteJidAlt,
-      senderPn: message.key?.senderPn || message.senderPn,
-      messageId: message.key?.id || message.id,
-      fromMe: Boolean(message.key?.fromMe),
-      pushName: message.pushName,
-      messageType: message.messageType || 'conversation',
-      content: extractMessageText(message),
-      mediaUrl: message.message?.mediaUrl,
-      raw: message as unknown as Prisma.InputJsonValue,
-      messageTimestamp: message.messageTimestamp,
-    });
+  // Persistir en lotes concurrentes en vez de uno-por-uno: cada persistChatMessage
+  // es idempotente (ON CONFLICT + índice único) y todas las llamadas tocan las
+  // filas de sesión/conversación en el mismo orden, así que no hay riesgo de
+  // duplicados ni de deadlock. La concurrencia se acota para no agotar el pool.
+  const PERSIST_CONCURRENCY = 5;
+  for (let i = 0; i < toPersist.length; i += PERSIST_CONCURRENCY) {
+    const batch = toPersist.slice(i, i + PERSIST_CONCURRENCY);
+    await Promise.all(
+      batch.map((message) =>
+        persistChatMessage({
+          userId: params.userId,
+          instanceName: params.instanceName,
+          instanceType: params.instanceType ?? 'evolution',
+          remoteJid: message.key?.remoteJid || params.remoteJid,
+          remoteJidAlt: message.key?.remoteJidAlt,
+          senderPn: message.key?.senderPn || message.senderPn,
+          messageId: message.key?.id || message.id,
+          fromMe: Boolean(message.key?.fromMe),
+          pushName: message.pushName,
+          messageType: message.messageType || 'conversation',
+          content: extractMessageText(message),
+          mediaUrl: message.message?.mediaUrl,
+          raw: message as unknown as Prisma.InputJsonValue,
+          messageTimestamp: message.messageTimestamp,
+        }).catch((error) => {
+          // Una falla puntual no debe abortar el resto del lote.
+          console.error('[chat-persistence] persistChatMessage falló:', error);
+        }),
+      ),
+    );
   }
 }
 
