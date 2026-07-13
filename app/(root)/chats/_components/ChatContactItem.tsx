@@ -272,7 +272,8 @@ function ChatContactItemBase({
   }
 
   const visibleBadges = badgeItems.slice(0, MAX_BADGES);
-  const hiddenCount = badgeItems.length - MAX_BADGES;
+  const hiddenBadges = badgeItems.slice(MAX_BADGES);
+  const hiddenCount = hiddenBadges.length;
 
   const selectionMode = isChecked !== undefined;
 
@@ -593,9 +594,23 @@ function ChatContactItemBase({
         >
           {visibleBadges}
           {hiddenCount > 0 && (
-            <span className="inline-flex items-center h-6 rounded-full bg-muted px-1.5 text-[10px] font-medium text-muted-foreground shrink-0">
-              +{hiddenCount}
-            </span>
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center h-6 rounded-full bg-muted px-1.5 text-[10px] font-medium text-muted-foreground shrink-0 cursor-default">
+                    +{hiddenCount}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="end" sideOffset={6} className="z-[9999] max-w-[260px]">
+                  <div className="space-y-1.5">
+                    <div className="text-xs font-bold">Más etiquetas</div>
+                    <div className="flex flex-col items-start gap-1.5">
+                      {hiddenBadges}
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
       )}
