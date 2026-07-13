@@ -8,7 +8,7 @@ import {
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
 import { ChevronsUpDown, LogOut } from 'lucide-react'
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from './ui/sidebar'
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from './ui/sidebar'
 import { handleLogout } from '@/lib/handleLogout'
 import { getPlanLabel } from '@/components/shared/PlanBadgeDisplay'
 import { UserLogoAvatar } from '@/components/shared/UserLogoAvatar'
@@ -21,6 +21,7 @@ type LogoutButtonProps = {
 };
 
 const LogoutButton = ({ user, resellerImage, resellerCompany }: LogoutButtonProps) => {
+  const { isMobile } = useSidebar()
   const planLabel = getPlanLabel(user?.plan)
   const displayName = resellerCompany ?? user?.company ?? user?.name
 
@@ -46,8 +47,8 @@ const LogoutButton = ({ user, resellerImage, resellerCompany }: LogoutButtonProp
 
           <DropdownMenuContent
             className="w-40 rounded-lg"
-            side="right"
-            align="center"
+            side={isMobile ? "top" : "right"}
+            align={isMobile ? "start" : "center"}
             sideOffset={6}
           >
             <DropdownMenuLabel className="p-0 font-normal">
