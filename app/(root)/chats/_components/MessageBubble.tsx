@@ -66,6 +66,8 @@ interface MessageBubbleProps {
   message: string;
   isUserMessage: boolean;
   sentByAi?: boolean;
+  /** El cliente eliminó este mensaje ("eliminar para todos"); se conserva con badge. */
+  clientDeleted?: boolean;
   senderName?: string;
   avatarSrc?: string;
   timestamp?: number;
@@ -90,6 +92,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isUserMessage,
   sentByAi,
+  clientDeleted,
   senderName,
   avatarSrc,
   timestamp,
@@ -119,8 +122,22 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     </span>
   ) : null;
 
+  const deletedBadge = clientDeleted ? (
+    <span
+      className="flex items-center gap-0.5 text-[0.6rem] font-semibold leading-none text-red-500 dark:text-red-400"
+      title="El cliente eliminó este mensaje; se conserva en la plataforma"
+    >
+      <span>🚫</span>
+      <span>Eliminado</span>
+    </span>
+  ) : null;
+
   const timeAndStatus = (
     <div className="flex items-center gap-0.5">
+      {deletedBadge}
+      {deletedBadge && (senderIcon || timestamp) && (
+        <span className="text-[0.6rem] leading-none text-gray-400/70 mx-0.5">|</span>
+      )}
       {senderIcon}
       {senderIcon && timestamp && (
         <span className="text-[0.6rem] leading-none text-gray-400/70 mx-0.5">|</span>

@@ -541,6 +541,8 @@ export type EvolutionMessage = {
   sessionId?: string | null;
   status?: string;
   MessageUpdate?: Array<unknown>;
+  /** El cliente eliminó ("eliminar para todos") este mensaje; se conserva y se marca. */
+  clientDeleted?: boolean;
 };
 
 export type LastMessage = {

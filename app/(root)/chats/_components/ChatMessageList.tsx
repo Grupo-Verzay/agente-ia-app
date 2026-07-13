@@ -153,6 +153,7 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
           message={message.content}
           isUserMessage={message.sender === 'user'}
           sentByAi={message.sentByAi}
+          clientDeleted={message.clientDeleted}
           senderName={message.sender === 'user' ? (message.sentByAi ? 'Agente IA' : advisorName) : undefined}
           avatarSrc={message.avatarSrc}
           timestamp={message.ts}

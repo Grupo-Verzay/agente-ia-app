@@ -315,6 +315,9 @@ export function toUIMessages(
       // Marca persistida por el backend (respuesta del agente / nodo de flujo).
       // El emparejamiento por texto de chat-main puede sumar más, pero nunca la quita.
       ...((m as any).sentByAi === true ? { sentByAi: true } : {}),
+      // El cliente eliminó este mensaje ("eliminar para todos"); lo conservamos y
+      // el panel muestra el badge "Eliminado".
+      ...(m.clientDeleted === true ? { clientDeleted: true } : {}),
     };
   });
 

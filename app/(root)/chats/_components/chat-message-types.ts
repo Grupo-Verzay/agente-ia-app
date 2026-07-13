@@ -79,6 +79,8 @@ export type UIBubble = {
     thumbnailUrl?: string;
   };
   sentByAi?: boolean;
+  /** El cliente eliminó este mensaje ("eliminar para todos"); se conserva con badge. */
+  clientDeleted?: boolean;
   // Nota interna
   isNote?: boolean;
   noteAuthorName?: string | null;

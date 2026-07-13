@@ -25,6 +25,7 @@ type PersistedChatMessageRow = {
   mediaUrl: string | null;
   raw: Prisma.JsonValue | null;
   messageTimestamp: Date;
+  deleted: boolean | null;
 };
 
 type InboxRow = {
@@ -90,6 +91,11 @@ function ensureChatMessagesTable() {
     await db.$executeRaw`
       CREATE UNIQUE INDEX IF NOT EXISTS "chat_messages_user_instance_jid_msg_from_unique"
       ON "chat_messages" ("userId", "instanceName", "remoteJid", "messageId", "fromMe")
+    `;
+    // Marca de "eliminado por el cliente" (revoke): conserva el contenido y solo
+    // permite mostrar el badge "Eliminado". La escribe el backend (chat-store).
+    await db.$executeRaw`
+      ALTER TABLE "chat_messages" ADD COLUMN IF NOT EXISTS "deleted" BOOLEAN NOT NULL DEFAULT FALSE
     `;
     await db.$executeRaw`
       CREATE INDEX IF NOT EXISTS "chat_messages_user_jid_ts_idx"
@@ -355,6 +361,7 @@ export function persistedRowToEvolutionMessage(row: PersistedChatMessageRow): Ev
     message: buildMessageContent(row),
     contextInfo: rawSnapshot?.contextInfo ?? null,
     ...(sentByAi ? { sentByAi: true } : {}),
+    ...(row.deleted ? { clientDeleted: true } : {}),
     source: rawSnapshot?.source ?? row.instanceType ?? 'local',
     messageTimestamp: rawSnapshot?.messageTimestamp ?? dateToEpochSeconds(row.messageTimestamp),
     instanceId: rawSnapshot?.instanceId ?? row.instanceName,
