@@ -50,7 +50,9 @@ export async function toggleWebhook({
                         enabled: enable,
                         url: webhookUrl,
                         base64: true,
-                        events: ['MESSAGES_UPSERT', 'CALL'],
+                        // MESSAGES_DELETE: para marcar mensajes que el cliente borra
+                        // ("eliminar para todos") y mostrar el badge "Eliminado".
+                        events: ['MESSAGES_UPSERT', 'CALL', 'MESSAGES_DELETE'],
                     },
                 }),
                 cache: 'no-store',
