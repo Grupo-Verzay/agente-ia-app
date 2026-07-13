@@ -805,9 +805,12 @@ export async function getPersistedMessages(params: {
         AND "senderPn" IN (${Prisma.join(candidates)})
     ),
     deduped AS (
+      -- "deleted" DESC primero: si un mismo mensaje quedó en varias filas (típico
+      -- con @lid: número real + @lid) y una resync creó una fila nueva sin la marca
+      -- después del borrado, igual gana la fila eliminada → se conserva el badge.
       SELECT DISTINCT ON ("messageId", "fromMe") *
       FROM matched
-      ORDER BY "messageId", "fromMe", ("raw"->'key' IS NOT NULL) DESC, "messageTimestamp" DESC, "id" DESC
+      ORDER BY "messageId", "fromMe", "deleted" DESC, ("raw"->'key' IS NOT NULL) DESC, "messageTimestamp" DESC, "id" DESC
       )
     SELECT *
     FROM deduped
