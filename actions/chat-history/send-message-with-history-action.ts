@@ -83,6 +83,29 @@ function inferEventType(text: string, additionalKwargs?: Record<string, unknown>
   return 'Solicitud';
 }
 
+function isAdvisorRequestNotification(text: string, additionalKwargs?: Record<string, unknown>) {
+  const haystack = [
+    text,
+    additionalKwargs?.eventType,
+    additionalKwargs?.kind,
+    additionalKwargs?.type,
+    additionalKwargs?.source,
+    additionalKwargs?.reason,
+  ]
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ')
+    .toLowerCase();
+
+  return (
+    haystack.includes('asesor') ||
+    haystack.includes('humano') ||
+    haystack.includes('transfer') ||
+    haystack.includes('handoff') ||
+    haystack.includes('pausad') ||
+    haystack.includes('esperando tu respuesta')
+  );
+}
+
 function extractPhone(text: string, fallback: string) {
   const arrowMatch = text.match(/(?:👉|📲)\s*([+\d][\d\s().-]{7,})/);
   const raw = arrowMatch?.[1] || text.match(/(\+?\d[\d\s().-]{7,}\d)/)?.[1] || fallback;
@@ -99,7 +122,10 @@ async function sendMetaInternalNotificationTemplate(args: {
   additionalKwargs?: Record<string, unknown>;
 }) {
   const templateList = await listMetaTemplates(args.instanceName);
-  const template = templateList.templates.find((item) => item.name === 'notificacion_evento');
+  const advisorTemplate = templateList.templates.find((item) => item.name === 'solicitud_asesor');
+  const eventTemplate = templateList.templates.find((item) => item.name === 'notificacion_evento');
+  const useAdvisorTemplate = isAdvisorRequestNotification(args.message, args.additionalKwargs);
+  const template = useAdvisorTemplate && advisorTemplate ? advisorTemplate : eventTemplate;
   if (!templateList.success || !template) return null;
 
   const eventType = inferEventType(args.message, args.additionalKwargs);
@@ -115,6 +141,13 @@ async function sendMetaInternalNotificationTemplate(args: {
     args.additionalKwargs?.contactPhone ?? args.additionalKwargs?.phone,
     extractPhone(args.message, 'Sin número'),
   );
+
+  if (useAdvisorTemplate && advisorTemplate) {
+    return sendMetaTemplate(args.instanceName, args.remoteJid, advisorTemplate, [
+      stripMarkdown(name),
+      phone,
+    ]);
+  }
 
   return sendMetaTemplate(args.instanceName, args.remoteJid, template, [
     eventType,
