@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 
 import { ThemeProvider } from "@/components/theme-provider";
+import { FontScaleApplier } from "@/components/font-scale-applier";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { Toaster } from "@/components/ui/sonner";
 import { ChunkRecovery } from "@/components/chunk-recovery";
@@ -66,6 +67,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: `try{var m=document.cookie.match(/(?:^|; )ui_scale=([^;]+)/);var v=m?decodeURIComponent(m[1]):'100';if(v&&v!=='100')document.documentElement.style.fontSize=v+'%';}catch(e){}`,
           }}
         />
+        <FontScaleApplier />
         <ErrorBoundary>
           <ChunkRecovery />
           <AppProviders>
