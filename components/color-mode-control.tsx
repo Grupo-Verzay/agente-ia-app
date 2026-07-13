@@ -8,8 +8,8 @@ import { cn } from '@/lib/utils';
 // Reusa next-themes (el mismo que el botón de la barra lateral).
 const OPTIONS = [
   { value: 'light', label: 'Claro' },
-  { value: 'dark', label: 'Oscuro' },
   { value: 'system', label: 'Sistema' },
+  { value: 'dark', label: 'Oscuro' },
 ] as const;
 
 export function ColorModeControl() {
