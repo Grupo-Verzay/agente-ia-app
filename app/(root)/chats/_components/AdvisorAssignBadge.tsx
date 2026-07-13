@@ -63,6 +63,7 @@ export function AdvisorAssignBadge({
   const isMySession = assignedAdvisorId === currentAdvisorId;
   const currentAdvisor = currentAdvisorId ? advisors.find((a) => a.id === currentAdvisorId) ?? null : null;
   const canAssignToMe = !!currentAdvisorId && !isMySession;
+  const hasAssignment = !!assignedAdvisorId;
 
   const isPill = size === 'sm';
 
@@ -147,15 +148,35 @@ export function AdvisorAssignBadge({
           type="button"
           disabled={busy}
           onClick={(e) => e.stopPropagation()}
-          title={assigned ? (assigned.name ?? assigned.email) : 'Sin asignar — click para asignar'}
+          title={
+            isMySession
+              ? 'Mi conversación'
+              : assigned
+                ? (assigned.name ?? assigned.email)
+                : hasAssignment
+                  ? 'Asignado'
+                  : 'Sin asignar - click para asignar'
+          }
           className={cn(
             'inline-flex items-center justify-center shrink-0 transition-opacity disabled:opacity-50',
-            assigned
+            isMySession
+              ? cn(
+                  'border border-green-300 bg-green-100 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400',
+                  isPill ? 'h-6 rounded-full px-1.5 text-[10px]' : 'h-7 rounded-full px-2 text-xs',
+                )
+              : assigned
               ? cn(
                   'font-semibold text-white',
                   isPill
                     ? cn('h-6 rounded-full px-1.5 text-[10px]', colorFor(assigned.id))
                     : cn('h-7 w-7 rounded-full text-xs', colorFor(assigned.id)),
+                )
+              : hasAssignment
+              ? cn(
+                  'font-semibold text-white',
+                  isPill
+                    ? cn('h-6 rounded-full px-1.5 text-[10px]', colorFor(assignedAdvisorId!))
+                    : cn('h-7 w-7 rounded-full text-xs', colorFor(assignedAdvisorId!)),
                 )
               : cn(
                   'border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-primary hover:text-primary',
@@ -163,8 +184,12 @@ export function AdvisorAssignBadge({
                 ),
           )}
         >
-          {assigned
+          {isMySession
+            ? <><UserCheck className={cn('shrink-0', isPill ? 'h-2.5 w-2.5' : 'h-3.5 w-3.5')} /><span>Yo</span></>
+            : assigned
             ? initials(assigned)
+            : hasAssignment
+              ? '?'
             : isPill
               ? <><UserPlus className="h-2.5 w-2.5 shrink-0" /><span>Asignar</span></>
               : <UserPlus className="h-2.5 w-2.5" />
