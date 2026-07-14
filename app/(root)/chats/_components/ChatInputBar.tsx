@@ -113,9 +113,11 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [inputMenuOpen, setInputMenuOpen] = useState(false);
+  const [rightMenuOpen, setRightMenuOpen] = useState(false);
   const [isCompactToolbar, setIsCompactToolbar] = useState(false);
   const inputBarRef = useRef<HTMLDivElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
+  const rightMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const element = inputBarRef.current;
@@ -140,6 +142,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   useEffect(() => {
     if (!isCompactToolbar) {
       setInputMenuOpen(false);
+      setRightMenuOpen(false);
     }
   }, [isCompactToolbar]);
 
@@ -153,6 +156,17 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [emojiOpen]);
+
+  useEffect(() => {
+    if (!rightMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (rightMenuRef.current && !rightMenuRef.current.contains(e.target as Node)) {
+        setRightMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [rightMenuOpen]);
 
   const insertEmoji = useCallback((emoji: string) => {
     const textarea = textareaRef.current;
@@ -633,7 +647,9 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               ? 'Pie de foto (opcional)...'
               : noteMode
                 ? 'Nota interna (solo visible para el equipo)...'
-                : 'Escribe... (/ atajos)'
+                : isCompactToolbar
+                  ? '/atajos'
+                  : 'Escribe... (/ atajos)'
           }
           value={input}
           onChange={onInputChange}
@@ -644,7 +660,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           aria-label="Escribe tu mensaje"
           className={cn(
             'min-h-10 rounded-xl w-full shadow-sm',
-            'pl-4 pr-28 py-2 resize-none overflow-y-auto text-base sm:text-sm leading-relaxed',
+            'pl-4 py-2 resize-none overflow-y-auto text-base sm:text-sm leading-relaxed',
+            isCompactToolbar ? 'pr-12' : 'pr-28', // móvil: 1 botón; desktop: 3
             'transition-[height] duration-100 ease-out',
             noteMode
               ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100 border border-amber-300 dark:border-amber-700 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none'
@@ -652,10 +669,11 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           )}
         />
 
-        <div className="absolute right-1.5 flex flex-row items-center gap-1 bottom-1.5">
-          {dictation.supported && !isPreviewingAudio && (
+        {(() => {
+          const dictadoBtn = dictation.supported && !isPreviewingAudio ? (
             <Button
-              onClick={() => dictation.toggle(input, setDictatedText)}
+              key="dictado"
+              onClick={() => { dictation.toggle(input, setDictatedText); setRightMenuOpen(false); }}
               size="icon"
               disabled={!isInputActive || isRecording}
               className={cn(
@@ -670,10 +688,12 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             >
               <AudioLines className={cn('w-3.5 h-3.5', dictation.listening ? 'text-white' : 'text-black dark:text-white')} />
             </Button>
-          )}
-          {!isPreviewingAudio && (
+          ) : null;
+
+          const voiceNoteBtn = !isPreviewingAudio ? (
             <Button
-              onClick={() => (isRecording ? onStopRecordingAndPreview() : onStartRecording())}
+              key="voicenote"
+              onClick={() => { (isRecording ? onStopRecordingAndPreview() : onStartRecording()); setRightMenuOpen(false); }}
               size="icon"
               className={cn(
                 'h-7 w-7 rounded-full shrink-0',
@@ -687,26 +707,86 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             >
               <Mic className={cn('w-3.5 h-3.5', isRecording ? 'text-white' : 'text-black dark:text-white')} />
             </Button>
-          )}
-          <Button
-            onClick={() => {
-              if (dictation.listening) dictation.stop();
-              if (noteMode) void handleSendNote();
-              else onSend();
-            }}
-            size="icon"
-            className={cn(
-              "h-7 w-7 rounded-full shrink-0",
-              noteMode ? "bg-amber-500 hover:bg-amber-600" : "bg-[#4F7FE8] hover:bg-[#426FD4]",
-            )}
-            aria-label={noteMode ? "Guardar nota" : "Enviar"}
-            title={noteMode ? "Guardar nota interna" : "Enviar"}
-            disabled={noteMode ? !input.trim() : (!isPreviewingAudio && !isSendButtonVisible)}
-            type="button"
-          >
-            {noteMode ? <Lock className="w-3.5 h-3.5 text-white" /> : <SendIcon className="w-3.5 h-3.5 text-white" />}
-          </Button>
-        </div>
+          ) : null;
+
+          const sendBtn = (
+            <Button
+              key="send"
+              onClick={() => {
+                if (dictation.listening) dictation.stop();
+                if (noteMode) void handleSendNote();
+                else onSend();
+              }}
+              size="icon"
+              className={cn(
+                'h-7 w-7 rounded-full shrink-0',
+                noteMode ? 'bg-amber-500 hover:bg-amber-600' : 'bg-[#4F7FE8] hover:bg-[#426FD4]',
+              )}
+              aria-label={noteMode ? 'Guardar nota' : 'Enviar'}
+              title={noteMode ? 'Guardar nota interna' : 'Enviar'}
+              disabled={noteMode ? !input.trim() : (!isPreviewingAudio && !isSendButtonVisible)}
+              type="button"
+            >
+              {noteMode ? <Lock className="w-3.5 h-3.5 text-white" /> : <SendIcon className="w-3.5 h-3.5 text-white" />}
+            </Button>
+          );
+
+          // En MÓVIL se muestra un SOLO botón a la derecha: si hay algo que enviar
+          // (texto/audio/nota) → Enviar; si se está grabando → detener; si no →
+          // un botón que despliega arriba [dictado] + [nota de voz], como el "+"
+          // de la izquierda. En DESKTOP van los tres en fila (como siempre).
+          const hasSomethingToSend =
+            isSendButtonVisible || isPreviewingAudio || (noteMode && input.trim().length > 0);
+
+          let mobileContent: React.ReactNode;
+          if (isRecording) {
+            mobileContent = voiceNoteBtn; // botón detener grabación
+          } else if (hasSomethingToSend) {
+            mobileContent = sendBtn;
+          } else if (dictation.supported) {
+            mobileContent = (
+              <div className="relative" ref={rightMenuRef}>
+                <Button
+                  type="button"
+                  size="icon"
+                  onClick={() => setRightMenuOpen((v) => !v)}
+                  className={cn(
+                    'h-7 w-7 rounded-full shrink-0',
+                    rightMenuOpen
+                      ? 'bg-zinc-300 dark:bg-zinc-600'
+                      : 'bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600',
+                  )}
+                  aria-label="Opciones de voz"
+                  title="Voz (dictado / nota de voz)"
+                >
+                  <Mic className="w-3.5 h-3.5 text-black dark:text-white" />
+                </Button>
+                {rightMenuOpen && (
+                  <div className="absolute bottom-full right-0 mb-2 z-50 flex flex-col items-center gap-1 rounded-xl border border-border bg-popover p-2 shadow-lg">
+                    {dictadoBtn}
+                    {voiceNoteBtn}
+                  </div>
+                )}
+              </div>
+            );
+          } else {
+            mobileContent = voiceNoteBtn; // sin dictado (navegador sin soporte): solo nota de voz
+          }
+
+          return (
+            <div className="absolute right-1.5 flex flex-row items-center gap-1 bottom-1.5">
+              {isCompactToolbar ? (
+                mobileContent
+              ) : (
+                <>
+                  {dictadoBtn}
+                  {voiceNoteBtn}
+                  {sendBtn}
+                </>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
