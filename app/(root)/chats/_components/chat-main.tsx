@@ -482,9 +482,16 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
+    // Vacío → se quita la altura inline para que mande el CSS (1 línea, min-h-10).
+    // Evita que quede "alto" con una altura vieja de un borrador anterior al abrir
+    // un chat. Se re-ejecuta también al cambiar de chat (remoteJid).
+    if (!input.trim()) {
+      el.style.height = '';
+      return;
+    }
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 160) + 'px';
-  }, [input]);
+  }, [input, info?.remoteJid]);
 
   /* ─── AI suggested reply ─── */
   const generateSuggestion = useCallback(async () => {
