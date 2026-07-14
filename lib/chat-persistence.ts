@@ -512,16 +512,42 @@ export async function upsertSessionFromChatMessage(input: PersistChatMessageInpu
   });
 
   if (existing) {
-    await db.session.update({
-      where: { id: existing.id },
-      data: {
-        remoteJid,
-        remoteJidAlt,
-        pushName: cleanPushName || undefined,
-        instanceId,
-        updatedAt: new Date(),
-      },
-    });
+    try {
+      await db.session.update({
+        where: { id: existing.id },
+        data: {
+          remoteJid,
+          remoteJidAlt,
+          pushName: cleanPushName || undefined,
+          instanceId,
+          updatedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      // Colisión con el índice único (userId, instanceId, remoteJid): ya existe
+      // OTRA sesión con ese remoteJid canónico (duplicado @lid vs número real).
+      // NO se fuerza la normalización del remoteJid/instanceId (que rompía el
+      // envío); se refrescan solo los campos seguros. La consolidación de
+      // duplicados se maneja aparte. Ver [[project_session_duplicates]].
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        await db.session
+          .update({
+            where: { id: existing.id },
+            data: {
+              remoteJidAlt,
+              pushName: cleanPushName || undefined,
+              updatedAt: new Date(),
+            },
+          })
+          .catch(() => {
+            // best-effort: la sesión ya existe; no romper la persistencia/envío.
+          });
+      }
+      // Cualquier otro error tampoco debe romper el flujo (el mensaje ya se envió).
+    }
     return;
   }
 
