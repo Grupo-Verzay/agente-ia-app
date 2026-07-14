@@ -222,8 +222,11 @@ export async function createAdvisor(input: {
 
   const passwordHash = await bcrypt.hash(password, LENGTH_PASSWORD_HASH);
 
+  // El asesor es una PERSONA, no una empresa: si no se fija `company`, el modelo
+  // User la deja en su default "Empresa Demo" y eso aparece como su nombre en
+  // varios lugares (header del asesor, etc.). Se usa el nombre real del asesor.
   const newUser = await db.user.create({
-    data: { email, name, password: passwordHash },
+    data: { email, name, company: name, password: passwordHash },
     select: { id: true },
   });
 
