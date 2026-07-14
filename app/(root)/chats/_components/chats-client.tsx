@@ -542,6 +542,16 @@ export function ChatsClient({
       const map = new Map<string, EvolutionMessage>();
       for (const message of current) map.set(getMessageKey(message), message);
       for (const message of next) {
+        // No pisar un mensaje ya marcado como eliminado (clientDeleted viene de
+        // nuestra BD, fuente autoritativa del borrado) con una versión en vivo que
+        // no lo está: tras un revoke, Evolution devuelve el mensaje vacío/como stub
+        // con el MISMO key.id, y sobrescribirlo hacía "desaparecer" la burbuja con
+        // su badge (aunque en BD seguía; por eso F5 lo restauraba). Se conserva la
+        // versión eliminada con su contenido y su badge.
+        const existingSame = map.get(getMessageKey(message));
+        if (existingSame?.clientDeleted && !message.clientDeleted) {
+          continue;
+        }
         if (!isLocalOptimisticMessage(message)) {
           const content = getMessageContentForDedupe(message);
           const timestamp = message.messageTimestamp ?? 0;
