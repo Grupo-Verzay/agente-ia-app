@@ -216,55 +216,60 @@ async function main() {
     console.log('chat_lid_map no existe todavía (se ignora esa fuente).');
   }
 
-  // Índice: (userId, instanceId, remoteJid) -> sesión, para encontrar la gemela.
-  const byKey = new Map();
-  for (const s of sessions) byKey.set(`${s.userId}::${s.instanceId}::${s.remoteJid}`, s);
+  const digitsOf = (jid) => String(jid || '').split('@')[0].replace(/\D/g, '');
 
-  const merges = []; // { winner, loser, realJid }
-  const canon = []; // { session, realJid }  (@lid sin gemela: renombrar)
+  // Detección GENERAL: se agrupan TODAS las sesiones de contacto por
+  // (userId, instanceId, dígitos del número). Un grupo con >1 sesión = duplicados
+  // del MISMO número en la MISMA línea (p.ej. PHONE@lid + PHONE@s.whatsapp.net, o
+  // PHONE@c.us + PHONE@s.whatsapp.net, o dos variantes). El mismo número en líneas
+  // distintas NO se agrupa (leads legítimos). Se exigen >= 8 dígitos para evitar
+  // falsos por códigos cortos.
+  const INDIVIDUAL_SUFFIXES = ['@s.whatsapp.net', '@lid', '@c.us'];
+  const isIndividual = (jid) =>
+    typeof jid === 'string' && INDIVIDUAL_SUFFIXES.some((sfx) => jid.toLowerCase().endsWith(sfx));
 
+  const groups = new Map();
   for (const s of sessions) {
-    if (!isLid(s.remoteJid)) continue; // solo nos interesan las sesiones @lid
-    // Número real conocido de forma SEGURA:
-    let realJid = null;
-    if (isRealNumberJid(s.remoteJidAlt)) realJid = s.remoteJidAlt;
-    if (!realJid) {
-      const m = lidMap.get(`${s.userId}::${String(s.remoteJid).toLowerCase()}`);
-      if (m && isRealNumberJid(m)) realJid = m;
-    }
-    if (!realJid) continue; // no se puede resolver con seguridad -> no se toca
-
-    const winner = byKey.get(`${s.userId}::${s.instanceId}::${realJid}`);
-    if (winner && winner.id !== s.id) {
-      merges.push({ winner, loser: s, realJid });
-    } else if (!winner) {
-      canon.push({ session: s, realJid });
-    }
+    if (!isIndividual(s.remoteJid)) continue;
+    const d = digitsOf(s.remoteJid);
+    if (d.length < 8) continue;
+    const key = `${s.userId}::${s.instanceId}::${d}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
   }
 
-  console.log(`\nDuplicados @lid + número real (a FUSIONAR): ${merges.length}`);
-  console.log(`Sesiones @lid sin gemela, con número real conocido (a CANONIZAR): ${canon.length}\n`);
+  const dupGroups = [];
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    // Ganadora: el número real (@s.whatsapp.net) primero; luego la más reciente.
+    group.sort((a, b) => {
+      const ar = isRealNumberJid(a.remoteJid) ? 1 : 0;
+      const br = isRealNumberJid(b.remoteJid) ? 1 : 0;
+      if (ar !== br) return br - ar;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+    const [winner, ...losers] = group;
+    dupGroups.push({ winner, losers });
+  }
 
-  if (merges.length) {
-    console.log('— Fusiones (loser @lid -> winner número real) —');
-    for (const { winner, loser, realJid } of merges.slice(0, 30)) {
-      const counts = [];
-      for (const c of childTables) {
-        const n = await countChildren(c.table, c.col, loser.id);
-        if (n > 0) counts.push(`${c.table}:${n}`);
+  const totalLosers = dupGroups.reduce((n, g) => n + g.losers.length, 0);
+  console.log(`\nGrupos de duplicados (mismo número + misma línea): ${dupGroups.length}`);
+  console.log(`Sesiones perdedoras a fusionar y borrar: ${totalLosers}\n`);
+
+  if (dupGroups.length) {
+    console.log('— Grupos (winner <- losers) —');
+    for (const { winner, losers } of dupGroups.slice(0, 40)) {
+      let childTotal = 0;
+      for (const l of losers) {
+        for (const c of childTables) childTotal += await countChildren(c.table, c.col, l.id);
       }
       console.log(
-        `   loser #${loser.id} (${loser.remoteJid}) -> winner #${winner.id} (${realJid}) | user ${winner.userId} | hijos: ${counts.join(', ') || 'ninguno'}`,
+        `   winner #${winner.id} (${winner.remoteJid}) <- ${losers
+          .map((l) => `#${l.id}(${l.remoteJid})`)
+          .join(', ')} | user ${winner.userId} | hijos a mover: ${childTotal}`,
       );
     }
-    if (merges.length > 30) console.log(`   ...y ${merges.length - 30} más`);
-  }
-  if (canon.length) {
-    console.log('\n— Canonizaciones (@lid -> número real, sin fusión) —');
-    for (const { session, realJid } of canon.slice(0, 30)) {
-      console.log(`   #${session.id} ${session.remoteJid} -> ${realJid} | user ${session.userId}`);
-    }
-    if (canon.length > 30) console.log(`   ...y ${canon.length - 30} más`);
+    if (dupGroups.length > 40) console.log(`   ...y ${dupGroups.length - 40} grupos más`);
   }
 
   if (!APPLY) {
@@ -274,57 +279,36 @@ async function main() {
 
   console.log('\nAplicando cambios...\n');
   let mergedOk = 0;
-  let canonOk = 0;
+  let deletedLosers = 0;
   let errors = 0;
 
-  for (const { winner, loser, realJid } of merges) {
+  for (const { winner, losers } of dupGroups) {
     try {
       await db.$transaction(async (x) => {
-        for (const c of childTables) {
-          await reassignChildTable(x, c.table, c.col, loser.id, winner.id);
+        for (const loser of losers) {
+          for (const c of childTables) {
+            await reassignChildTable(x, c.table, c.col, loser.id, winner.id);
+          }
+          const fill = fillWinnerData(winner, loser);
+          if (Object.keys(fill).length) {
+            await x.session.update({ where: { id: winner.id }, data: fill });
+            Object.assign(winner, fill); // acumula para el siguiente loser del grupo
+          }
+          if (isLid(loser.remoteJid) && isRealNumberJid(winner.remoteJid)) {
+            await rememberLidMapping(x, winner.userId, loser.remoteJid, winner.remoteJid);
+          }
+          await x.session.delete({ where: { id: loser.id } });
         }
-        const fill = fillWinnerData(winner, loser);
-        if (Object.keys(fill).length) {
-          await x.session.update({ where: { id: winner.id }, data: fill });
-        }
-        await rememberLidMapping(x, winner.userId, loser.remoteJid, realJid);
-        await x.session.delete({ where: { id: loser.id } });
       });
       mergedOk++;
+      deletedLosers += losers.length;
     } catch (e) {
       errors++;
-      console.error(`  ! Fusión falló (loser #${loser.id} -> winner #${winner.id}):`, e.message);
+      console.error(`  ! Fusión del grupo (winner #${winner.id}) falló:`, e.message);
     }
   }
 
-  for (const { session, realJid } of canon) {
-    try {
-      await db.$transaction(async (x) => {
-        // Doble chequeo anti-carrera: que no haya aparecido una gemela.
-        const twin = await x.session.findFirst({
-          where: { userId: session.userId, instanceId: session.instanceId, remoteJid: realJid },
-          select: { id: true },
-        });
-        if (twin) {
-          for (const c of childTables) await reassignChildTable(x, c.table, c.col, session.id, twin.id);
-          await rememberLidMapping(x, session.userId, session.remoteJid, realJid);
-          await x.session.delete({ where: { id: session.id } });
-        } else {
-          const data = { remoteJid: realJid };
-          const altEmpty = !session.remoteJidAlt || String(session.remoteJidAlt).trim() === '';
-          if (altEmpty) data.remoteJidAlt = session.remoteJid; // guarda el @lid como alterno
-          await x.session.update({ where: { id: session.id }, data });
-          await rememberLidMapping(x, session.userId, session.remoteJid, realJid);
-        }
-      });
-      canonOk++;
-    } catch (e) {
-      errors++;
-      console.error(`  ! Canonización falló (#${session.id}):`, e.message);
-    }
-  }
-
-  console.log(`\nListo. Fusionadas: ${mergedOk} | Canonizadas: ${canonOk} | Errores: ${errors}\n`);
+  console.log(`\nListo. Grupos fusionados: ${mergedOk} | Sesiones borradas: ${deletedLosers} | Errores: ${errors}\n`);
 }
 
 main()
