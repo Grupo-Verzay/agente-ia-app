@@ -11,8 +11,11 @@ import { ConversationDateBadge } from './ConversationDateBadge';
 import { getCalendarDayKey, formatConversationDateLabel } from './chat-message-utils';
 import type { UIBubble } from './chat-message-types';
 
-// Activa virtualizacion antes para no pintar historiales largos completos.
-const VIRTUALIZE_AFTER_ITEMS = 30;
+// Umbral ALTO a propósito: la virtualización usa alturas ESTIMADAS y, al
+// mezclarse con el auto-scroll, provoca un rebote continuo del scroll (arriba/
+// abajo) en chats normales. Con las filas ya memoizadas, pintar cientos de
+// burbujas es barato, así que solo se virtualiza en historiales muy largos.
+const VIRTUALIZE_AFTER_ITEMS = 500;
 const VIRTUAL_OVERSCAN_ITEMS = 12;
 const ESTIMATED_DATE_HEIGHT = 44;
 const ESTIMATED_TEXT_HEIGHT = 82;
@@ -272,6 +275,13 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   const autoLoadLockRef = useRef(false);
   const [viewport, setViewport] = useState({ scrollTop: 0, height: 0 });
 
+  // Actualiza el viewport SOLO si cambió de verdad. Sin esto, cada scroll crea un
+  // objeto nuevo y re-renderiza, y con la virtualización eso realimenta el scroll
+  // (handleScroll → setViewport → re-render → scroll → …), causando el parpadeo.
+  const updateViewport = useCallback((scrollTop: number, height: number) => {
+    setViewport((v) => (v.scrollTop === scrollTop && v.height === height ? v : { scrollTop, height }));
+  }, []);
+
   const fullList = useMemo(() => {
     const list = [...uiMessages];
     if (tempMessage) list.push(tempMessage);
@@ -337,13 +347,13 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
-    setViewport({ scrollTop: el.scrollTop, height: el.clientHeight });
-  }, [listRef, renderedList.length]);
+    updateViewport(el.scrollTop, el.clientHeight);
+  }, [listRef, renderedList.length, updateViewport]);
 
   const handleScroll = useCallback(() => {
     const el = listRef.current;
     if (el) {
-      setViewport({ scrollTop: el.scrollTop, height: el.clientHeight });
+      updateViewport(el.scrollTop, el.clientHeight);
     }
     if (!el || !onLoadOlderMessages || !canLoadOlderMessages || loading || loadingOlderMessages || autoLoadLockRef.current) {
       return;
@@ -354,7 +364,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
     void onLoadOlderMessages().finally(() => {
       autoLoadLockRef.current = false;
     });
-  }, [canLoadOlderMessages, listRef, loading, loadingOlderMessages, onLoadOlderMessages]);
+  }, [canLoadOlderMessages, listRef, loading, loadingOlderMessages, onLoadOlderMessages, updateViewport]);
 
   if (loading && renderedList.length === 0) {
     return (
