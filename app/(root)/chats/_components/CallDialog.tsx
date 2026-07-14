@@ -9,7 +9,7 @@ import { startAstraCall, astraCallWebrtc, endAstraCall, logOutgoingCallAction } 
 import { endMetaWhatsAppCall, getMetaWhatsAppCallAnswer, startMetaWhatsAppCall } from '@/actions/meta-calls-actions';
 import { setCallDisposition } from '@/actions/calls-crm-actions';
 import { sendMissedOutgoingCallReply } from '@/actions/missed-call-reply-actions';
-import { processCallRecordingAction } from '@/actions/calls-recording-actions';
+import { processCallRecordingAction, processMetaCallRecordingAction } from '@/actions/calls-recording-actions';
 import { CALL_DISPOSITIONS } from '@/lib/call-dispositions';
 
 interface Props {
@@ -49,9 +49,87 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
   const astraMetaRef = useRef<{ sid: string; callId: string } | null>(null);
   const callLogMetaRef = useRef<{ astraSid?: string; astraCallId?: string; metaCallId?: string; provider?: string } | null>(null);
 
+  // Grabación de llamadas Meta en el navegador (Meta NO ofrece grabación por su
+  // API WebRTC, así que mezclamos mic local + audio remoto y lo grabamos aquí).
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunksRef = useRef<Blob[]>([]);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const recMimeRef = useRef<string>('audio/webm');
+  // Promesa (una sola vez) con el audio ya capturado, reusada por handleClose y
+  // chooseDisposition (según cuál termine la llamada).
+  const metaRecordingRef = useRef<Promise<{ base64: string; mimeType: string } | null> | null>(null);
+
+  const startMetaRecording = () => {
+    if (recorderRef.current) return; // ya grabando
+    const local = micRef.current;
+    const remote = remoteStreamRef.current;
+    if (!local && !remote) return;
+    try {
+      const AC = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx: AudioContext = new AC();
+      audioCtxRef.current = ctx;
+      const dest = ctx.createMediaStreamDestination();
+      if (local) ctx.createMediaStreamSource(local).connect(dest);
+      if (remote) ctx.createMediaStreamSource(remote).connect(dest);
+      const mime = ['audio/webm', 'audio/ogg'].find(
+        (m) => (window as any).MediaRecorder?.isTypeSupported?.(m),
+      );
+      recMimeRef.current = mime || 'audio/webm';
+      const rec = mime ? new MediaRecorder(dest.stream, { mimeType: mime }) : new MediaRecorder(dest.stream);
+      recordChunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordChunksRef.current.push(e.data);
+      };
+      rec.start(1000); // fragmenta cada 1s (evita perder todo si algo se corta)
+      recorderRef.current = rec;
+    } catch {
+      recorderRef.current = null;
+    }
+  };
+
+  const stopMetaRecording = (): Promise<{ base64: string; mimeType: string } | null> => {
+    const rec = recorderRef.current;
+    if (!rec) return Promise.resolve(null);
+    recorderRef.current = null;
+    return new Promise((resolve) => {
+      const finish = async () => {
+        try {
+          const blob = new Blob(recordChunksRef.current, { type: recMimeRef.current });
+          recordChunksRef.current = [];
+          try { audioCtxRef.current?.close(); } catch { /* ignore */ }
+          audioCtxRef.current = null;
+          if (blob.size < 256) return resolve(null);
+          const bytes = new Uint8Array(await blob.arrayBuffer());
+          let binary = '';
+          const CH = 0x8000;
+          for (let i = 0; i < bytes.length; i += CH) {
+            binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CH)));
+          }
+          resolve({ base64: btoa(binary), mimeType: recMimeRef.current });
+        } catch {
+          resolve(null);
+        }
+      };
+      rec.onstop = () => { void finish(); };
+      try { rec.stop(); } catch { void finish(); }
+    });
+  };
+
+  // Captura la grabación una sola vez (la reusan handleClose y chooseDisposition).
+  const captureMetaRecording = () => {
+    if (!metaRecordingRef.current) metaRecordingRef.current = stopMetaRecording();
+    return metaRecordingRef.current;
+  };
+
   const cleanup = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     if (answerPollRef.current) { clearInterval(answerPollRef.current); answerPollRef.current = null; }
+    try { recorderRef.current?.stop(); } catch { /* ignore */ }
+    recorderRef.current = null;
+    try { audioCtxRef.current?.close(); } catch { /* ignore */ }
+    audioCtxRef.current = null;
+    remoteStreamRef.current = null;
     try { micRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ }
     try { pcRef.current?.close(); } catch { /* ignore */ }
     micRef.current = null;
@@ -100,6 +178,8 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
 
   const handleClose = () => {
     cancelledRef.current = true;
+    // Capturar la grabación Meta ANTES de cortar el micrófono (hangup/cleanup).
+    if (callLogMetaRef.current?.provider === 'meta') void captureMetaRecording();
     // Registrar la llamada saliente en los Chats si de verdad se colocó (astraMeta).
     // Contestada (>0s) → "realizada"; colocada pero sin contestar (0s) → "No contesta",
     // y se dispara el auto-mensaje (si está habilitado).
@@ -107,9 +187,19 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
       loggedRef.current = true;
       const meta = callLogMetaRef.current;
       const answered = secondsRef.current > 0;
-      void logOutgoingCallAction(phone, secondsRef.current, false, answered ? undefined : 'no_contesta', meta).then((res) => {
+      void logOutgoingCallAction(phone, secondsRef.current, false, answered ? undefined : 'no_contesta', meta).then(async (res) => {
         loggedIdRef.current = res.id;
-        processRecording(res.id);
+        processRecording(res.id); // Astra
+        if (res.id && meta.provider === 'meta') {
+          const rec = await captureMetaRecording();
+          if (rec?.base64) {
+            void processMetaCallRecordingAction({
+              chatMessageId: res.id,
+              audioBase64: rec.base64,
+              mimeType: rec.mimeType,
+            });
+          }
+        }
       });
       if (!answered && state !== 'error') maybeSendMissedReply();
     }
@@ -130,7 +220,17 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
         const meta = callLogMetaRef.current ?? undefined;
         const res = await logOutgoingCallAction(phone, secondsRef.current, false, value, meta);
         loggedIdRef.current = res.id;
-        processRecording(res.id);
+        processRecording(res.id); // Astra
+        if (res.id && meta?.provider === 'meta') {
+          const rec = await captureMetaRecording();
+          if (rec?.base64) {
+            void processMetaCallRecordingAction({
+              chatMessageId: res.id,
+              audioBase64: rec.base64,
+              mimeType: rec.mimeType,
+            });
+          }
+        }
       } else if (loggedIdRef.current) {
         await setCallDisposition(loggedIdRef.current, value);
       }
@@ -154,6 +254,10 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     replySentRef.current = false;
     astraMetaRef.current = null;
     callLogMetaRef.current = null;
+    metaRecordingRef.current = null;
+    recorderRef.current = null;
+    recordChunksRef.current = [];
+    remoteStreamRef.current = null;
     setDisposition(null);
     setErrorMsg('');
     setMuted(false);
@@ -173,7 +277,10 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
         pcRef.current = pc;
         mic.getAudioTracks().forEach((t) => pc.addTrack(t, mic));
         pc.ontrack = (ev) => {
-          if (audioRef.current && ev.streams[0]) audioRef.current.srcObject = ev.streams[0];
+          if (ev.streams[0]) {
+            remoteStreamRef.current = ev.streams[0];
+            if (audioRef.current) audioRef.current.srcObject = ev.streams[0];
+          }
         };
 
         const offer = await pc.createOffer();
@@ -242,6 +349,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
             if (answered) {
               if (answerPollRef.current) { clearInterval(answerPollRef.current); answerPollRef.current = null; }
               setState('in-call');
+              startMetaRecording(); // graba la conversación (mic + remoto) para transcribir
               secondsRef.current = 0;
               setSeconds(0);
               timerRef.current = setInterval(() => {

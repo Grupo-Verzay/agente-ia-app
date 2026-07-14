@@ -21,6 +21,7 @@ export interface CallRow {
   status: string;
   disposition: string | null;
   hasRecording: boolean;
+  recordingUrl: string | null;
   transcript: string | null;
   summary: string | null;
   leadSynthesis: string | null; // "Detalle del lead (síntesis)" = summarySnapshot del lead
@@ -104,6 +105,7 @@ export async function getCallsCrmData(params?: {
       status?: string;
       disposition?: string;
       hasRecording?: boolean;
+      recordingUrl?: string | null;
       transcript?: string | null;
       summary?: string | null;
       astraSid?: string;
@@ -123,6 +125,7 @@ export async function getCallsCrmData(params?: {
       status: String(callRaw.status ?? ''),
       disposition: callRaw.disposition ? String(callRaw.disposition) : null,
       hasRecording: Boolean(callRaw.hasRecording),
+      recordingUrl: callRaw.recordingUrl ? String(callRaw.recordingUrl) : null,
       transcript: callRaw.transcript ? String(callRaw.transcript) : null,
       summary: callRaw.summary ? String(callRaw.summary) : null,
       leadSynthesis: null as string | null,

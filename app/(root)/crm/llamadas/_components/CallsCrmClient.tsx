@@ -859,9 +859,11 @@ function CallTableRow({
   const name = cleanName(call.contactName);
   const sintesis = (call.leadSynthesis || '').trim();
   const recordingUrl =
-    call.astraSid && call.astraCallId
-      ? `/api/calls/recording?sid=${encodeURIComponent(call.astraSid)}&callId=${encodeURIComponent(call.astraCallId)}`
-      : null;
+    call.recordingUrl // llamadas Meta: URL directa de la grabación subida a S3
+      ? call.recordingUrl
+      : call.astraSid && call.astraCallId
+        ? `/api/calls/recording?sid=${encodeURIComponent(call.astraSid)}&callId=${encodeURIComponent(call.astraCallId)}`
+        : null;
   return (
     <>
     <tr className="border-b last:border-0 align-top hover:bg-muted/40">
