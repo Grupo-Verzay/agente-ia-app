@@ -54,6 +54,7 @@ function cleanTemplateValue(value: unknown, fallback: string) {
 
 function shouldFormatAsInternalNotification(
   historyType: OutgoingHistoryType,
+  message: string,
   additionalKwargs?: Record<string, unknown>,
 ) {
   if (historyType !== 'notification') return false;
@@ -63,12 +64,19 @@ function shouldFormatAsInternalNotification(
   if (recipient === 'owner' || recipient === 'advisor' || recipient === 'asesor') return true;
 
   const source = String(additionalKwargs?.source ?? additionalKwargs?.toolType ?? '').toLowerCase();
-  return (
+  if (
     source.includes('notificacion_asesor') ||
     source.includes('notificacion asesor') ||
     source.includes('bookingnotificationowner') ||
     source.includes('ownernotification')
-  );
+  ) {
+    return true;
+  }
+
+  // Los handoffs disparados por palabras clave pueden llegar sin metadatos de
+  // destinatario/origen. En ese caso el propio texto identifica que se trata de
+  // una solicitud de asesor y debe normalizarse al formato interno vigente.
+  return isAdvisorRequestNotification(message, additionalKwargs);
 }
 
 function stripMarkdown(value: string) {
@@ -244,7 +252,11 @@ export async function sendMessageWithHistoryAction({
     return { success: false, message: 'Mensaje vacio.', error: 'Mensaje vacio.' };
   }
 
-  const formatInternalNotification = shouldFormatAsInternalNotification(historyType, additionalKwargs);
+  const formatInternalNotification = shouldFormatAsInternalNotification(
+    historyType,
+    message,
+    additionalKwargs,
+  );
 
   const outgoingMessage =
     formatInternalNotification
