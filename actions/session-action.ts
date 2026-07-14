@@ -1258,12 +1258,13 @@ export async function updateSessionLeadStatus(
         remoteJid: true,
         pushName: true,
         customName: true,
+        instanceId: true,
         agentDisabled: true,
         leadStatus: true,
         user: {
           select: {
             apiKey: { select: { url: true, key: true } },
-            instancias: { select: { instanceName: true }, take: 1 },
+            instancias: { select: { instanceName: true, instanceId: true } },
           },
         },
       },
@@ -1314,6 +1315,11 @@ export async function updateSessionLeadStatus(
       });
     }
 
+    const currentInstance =
+      session.user?.instancias.find((item) => item.instanceName === session.instanceId) ??
+      session.user?.instancias.find((item) => item.instanceId === session.instanceId) ??
+      session.user?.instancias[0];
+
     // Enviar notificación WhatsApp al contacto (no bloquea, falla silenciosamente)
     void sendLeadStatusNotification({
       remoteJid: session.remoteJid,
@@ -1322,7 +1328,7 @@ export async function updateSessionLeadStatus(
       newStatus: leadStatus,
       apiKeyUrl: session.user?.apiKey?.url,
       apiKeyValue: session.user?.apiKey?.key,
-      instanceName: session.user?.instancias[0]?.instanceName,
+      instanceName: currentInstance?.instanceName,
     }).catch(() => undefined);
 
     // Ejecutar automaciones de etapa (fire-and-forget)
