@@ -189,6 +189,16 @@ async function rememberLidMapping(x, userId, lid, realJid) {
 async function main() {
   console.log(`\n=== Consolidación de sesiones @lid ${APPLY ? '(APLICAR)' : '(DRY RUN)'} ===\n`);
 
+  // Confirmación de a qué BD estás conectado (para no aplicar sobre la equivocada).
+  try {
+    const info = await db.$queryRawUnsafe(
+      `SELECT current_database() AS db, inet_server_addr()::text AS host, current_user AS usr`,
+    );
+    console.log(`Conectado a: db=${info[0].db} host=${info[0].host ?? 'local'} user=${info[0].usr}\n`);
+  } catch {
+    /* noop */
+  }
+
   const childTables = await discoverChildTables();
   console.log(`Tablas hijas de Session detectadas: ${childTables.length}`);
   console.log('  ' + childTables.map((c) => `${c.table}.${c.col}`).join(', ') + '\n');
