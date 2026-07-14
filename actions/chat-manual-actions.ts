@@ -511,9 +511,12 @@ export async function refetchChatsManualAction(
 
   // Superponer el marcador "🚫 Mensaje eliminado" del inbox persistido sobre los
   // chats en vivo. Evolution devuelve el último mensaje de un borrado como stub
-  // vacío (en la lista se veía "_"), pero nuestra BD conserva el estado (marcado
-  // por el revoke). Solo se aplica si el persistido dice "eliminado" y en vivo NO
-  // llegó un mensaje más nuevo (si llegó, se respeta el mensaje real).
+  // vacío (en la lista se veía "_"), pero nuestra BD conserva el estado. Se confía
+  // en getPersistedInboxChats como fuente AUTORITATIVA: solo marca "eliminado"
+  // cuando el último mensaje persistido está borrado (lastMessageDeleted, que se
+  // resetea si llega un mensaje NUEVO). Por eso NO se compara timestamp con el
+  // stub en vivo (Evolution a veces reporta la hora del revoke, más nueva que la
+  // del mensaje original, lo que hacía que el marcador PARPADEARA a "_").
   const DELETED_LAST_MESSAGE_MARK = "🚫 Mensaje eliminado";
   if (result.success && readUserIds.length) {
     try {
@@ -521,25 +524,21 @@ export async function refetchChatsManualAction(
         userIds: readUserIds,
         instanceNames: [context.instanceName],
       });
-      const deletedByJid = new Map<string, number>();
+      const deletedJids = new Set<string>();
       for (const p of persisted) {
         if (p.lastMessage?.message?.conversation !== DELETED_LAST_MESSAGE_MARK) continue;
-        const ts = Number(p.lastMessage?.messageTimestamp ?? 0);
         for (const cand of buildWhatsAppJidCandidates(p.remoteJid, [p.remoteJidAlt, p.senderPn])) {
-          const prev = deletedByJid.get(cand);
-          if (prev === undefined || ts > prev) deletedByJid.set(cand, ts);
+          deletedJids.add(cand);
         }
       }
-      if (deletedByJid.size) {
+      if (deletedJids.size) {
         for (const chat of result.data) {
-          let markTs: number | undefined;
-          for (const cand of buildWhatsAppJidCandidates(chat.remoteJid, [chat.remoteJidAlt, chat.senderPn])) {
-            const t = deletedByJid.get(cand);
-            if (t !== undefined && (markTs === undefined || t > markTs)) markTs = t;
-          }
-          if (markTs === undefined || !chat.lastMessage) continue;
-          // Si en vivo hay un mensaje MÁS NUEVO que el borrado, respetarlo.
-          if (Number(chat.lastMessage.messageTimestamp ?? 0) > markTs) continue;
+          if (!chat.lastMessage) continue;
+          const isDeleted = buildWhatsAppJidCandidates(chat.remoteJid, [
+            chat.remoteJidAlt,
+            chat.senderPn,
+          ]).some((cand) => deletedJids.has(cand));
+          if (!isDeleted) continue;
           chat.lastMessage = {
             ...chat.lastMessage,
             messageType: "conversation",
