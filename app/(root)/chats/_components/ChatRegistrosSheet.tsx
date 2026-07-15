@@ -105,6 +105,21 @@ const LEAD_STATUS_CLASSES: Record<string, string> = {
 
 /* ===== COMPONENTE ===== */
 
+type RegistrosSnapshot = {
+  registros: Registro[];
+  seguimientosPendingCount: number;
+  seguimientosPendientes: number;
+  recordatoriosCount: number;
+  citasCount: number;
+  sintesis: string | null;
+  followUpId: string | null;
+  hasFollowUp: boolean;
+};
+// Cache por sesión (nivel módulo): al REABRIR el sheet de un lead ya visto se muestra
+// al instante lo último conocido y se refresca en 2º plano (la 1ª vez sí carga: es
+// data viva del lead). Evita el skeleton en cada reapertura.
+const registrosSnapshotCache = new Map<number, RegistrosSnapshot>();
+
 export function ChatRegistrosSheet({
   open,
   onOpenChange,
@@ -168,8 +183,19 @@ export function ChatRegistrosSheet({
   const [sintesisDraft, setSintesisDraft] = useState("");
   const [sintesisSaving, setSintesisSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const applySnapshot = useCallback((s: RegistrosSnapshot) => {
+    setRegistros(s.registros);
+    setSeguimientosPendingCount(s.seguimientosPendingCount);
+    setSeguimientosPendientes(s.seguimientosPendientes);
+    setRecordatoriosCount(s.recordatoriosCount);
+    setCitasCount(s.citasCount);
+    setSintesis(s.sintesis);
+    setFollowUpId(s.followUpId);
+    setHasFollowUp(s.hasFollowUp);
+  }, []);
+
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     const [regResult, legacyResult, crmResult, remResult, apptResult, synResult] = await Promise.all([
       getRegistrosBySessionId(sessionId),
       getSessionLegacySeguimientos(remoteJid),
@@ -178,32 +204,48 @@ export function ChatRegistrosSheet({
       getAppointmentsBySession(sessionId),
       getSessionLatestSummarySnapshot(sessionId),
     ]);
-    if (regResult.success && regResult.data) setRegistros(regResult.data);
-    if (legacyResult.success && legacyResult.data)
-      setSeguimientosPendingCount(legacyResult.data.filter((i) => i.followUpStatus === "pending").length);
-    if (crmResult.success && crmResult.data)
-      setSeguimientosPendientes(crmResult.data.filter((i) => i.status === "PENDING" || i.status === "PROCESSING").length);
-    if (remResult.success && remResult.data) setRecordatoriosCount(remResult.data.length);
-    if (apptResult.success && apptResult.data)
-      setCitasCount(apptResult.data.filter((a) => !["FINALIZADO", "DESCARTADO", "CANCELADA"].includes(a.status)).length);
-    if (synResult.success && synResult.data) {
-      setSintesis(synResult.data.summarySnapshot ?? null);
-      setFollowUpId(synResult.data.id ?? null);
-      setHasFollowUp(true);
-    } else {
-      setHasFollowUp(false);
-      setFollowUpId(null);
-    }
+    // Para consultas que fallen, se conserva el último valor cacheado (no borrar la
+    // vista por un error transitorio durante el refresco en 2º plano).
+    const prev = registrosSnapshotCache.get(sessionId);
+    const snapshot: RegistrosSnapshot = {
+      registros: regResult.success && regResult.data ? regResult.data : prev?.registros ?? [],
+      seguimientosPendingCount:
+        legacyResult.success && legacyResult.data
+          ? legacyResult.data.filter((i) => i.followUpStatus === "pending").length
+          : prev?.seguimientosPendingCount ?? 0,
+      seguimientosPendientes:
+        crmResult.success && crmResult.data
+          ? crmResult.data.filter((i) => i.status === "PENDING" || i.status === "PROCESSING").length
+          : prev?.seguimientosPendientes ?? 0,
+      recordatoriosCount:
+        remResult.success && remResult.data ? remResult.data.length : prev?.recordatoriosCount ?? 0,
+      citasCount:
+        apptResult.success && apptResult.data
+          ? apptResult.data.filter((a) => !["FINALIZADO", "DESCARTADO", "CANCELADA"].includes(a.status)).length
+          : prev?.citasCount ?? 0,
+      sintesis:
+        synResult.success && synResult.data ? synResult.data.summarySnapshot ?? null : prev?.sintesis ?? null,
+      followUpId: synResult.success && synResult.data ? synResult.data.id ?? null : prev?.followUpId ?? null,
+      hasFollowUp: synResult.success && synResult.data ? true : prev?.hasFollowUp ?? false,
+    };
+    registrosSnapshotCache.set(sessionId, snapshot);
+    applySnapshot(snapshot);
     setLoading(false);
-  }, [sessionId, userId, remoteJid]);
+  }, [sessionId, userId, remoteJid, applySnapshot]);
 
   useEffect(() => {
     if (open) {
       setActiveTab(initialTab ?? "RESUMEN");
       setSintesisEditing(false);
-      load();
+      const cached = registrosSnapshotCache.get(sessionId);
+      if (cached) {
+        applySnapshot(cached); // reapertura: instantáneo, sin skeleton
+        void load({ silent: true }); // refresca en 2º plano
+      } else {
+        void load(); // 1ª vez para este lead: con skeleton
+      }
     }
-  }, [open, load, initialTab]);
+  }, [open, sessionId, initialTab, load, applySnapshot]);
 
   const countByTipo = useMemo(() => {
     const counts = {} as Record<TipoRegistro, number>;
