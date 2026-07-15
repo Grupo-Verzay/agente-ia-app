@@ -349,22 +349,20 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             <AvatarFallback className="text-xs font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
           </Avatar>
 
-          <div className="min-w-0 flex-1">
+          {/* Alto FIJO + centrado → header mide igual con o sin el subtítulo del anuncio. */}
+          <div className="flex h-9 min-w-0 flex-1 flex-col justify-center overflow-hidden">
             <div className="flex items-center gap-1">
               {header.isPinned && (
                 <Pin className="h-3 w-3 fill-current text-amber-500 flex-shrink-0" />
               )}
               <h2 className="truncate text-sm font-bold leading-tight capitalize">{displayedContactName}</h2>
             </div>
-            {/* Origen del anuncio: siempre presente (reserva su alto) → header de alto fijo. */}
-            <span className="flex min-h-[0.85rem] items-center gap-0.5 text-[0.6rem] leading-none text-blue-500 dark:text-blue-400 truncate">
-              {adSourceLabel && (
-                <>
-                  <Megaphone className="h-2.5 w-2.5 shrink-0" />
-                  {adSourceLabel}
-                </>
-              )}
-            </span>
+            {adSourceLabel && (
+              <span className="flex items-center gap-0.5 text-[0.6rem] leading-none text-blue-500 dark:text-blue-400 truncate">
+                <Megaphone className="h-2.5 w-2.5 shrink-0" />
+                {adSourceLabel}
+              </span>
+            )}
           </div>
 
           {session ? (
@@ -546,7 +544,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             <AvatarImage src={header.avatarSrc || '/default-avatar.png'} />
             <AvatarFallback className="text-lg font-bold">{initialFromName(displayedContactName)}</AvatarFallback>
           </Avatar>
-          <div className="flex flex-col min-w-0">
+          {/* Alto FIJO del bloque nombre(+subtítulo): con `justify-center` el contenido se
+              centra, así el header mide EXACTAMENTE igual con o sin el subtítulo del
+              anuncio → "Mensajes/Notas/Web" queda a la misma altura en todos los chats. */}
+          <div className="flex h-11 flex-col justify-center overflow-hidden min-w-0">
             <div className="flex items-center gap-1.5">
               {header.isPinned && (
                 <Pin className="h-4 w-4 fill-current text-amber-500 flex-shrink-0" />
@@ -565,16 +566,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </Button>
               )}
             </div>
-            {/* Origen del anuncio: se renderiza SIEMPRE (reservando su alto) para que el
-                header mida IGUAL con o sin anuncio y no se descuadre al cambiar de chat. */}
-            <span className="flex min-h-[1rem] items-center gap-1 text-xs text-blue-500 dark:text-blue-400 leading-tight truncate">
-              {adSourceLabel && (
-                <>
-                  <Megaphone className="h-3 w-3 shrink-0" />
-                  {adSourceLabel}
-                </>
-              )}
-            </span>
+            {adSourceLabel && (
+              <span className="flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 leading-tight truncate">
+                <Megaphone className="h-3 w-3 shrink-0" />
+                {adSourceLabel}
+              </span>
+            )}
           </div>
         </div>
 
