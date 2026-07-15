@@ -525,9 +525,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       </div>
 
       {/* ── Desktop ── */}
-      <div className="hidden md:flex md:flex-col overflow-hidden">
-      {/* py-0 (sin padding vertical): sube la fila para alinear "Mensajes/Notas/Web"
-          con los tabs del sidebar (izquierda), que no se toca. */}
+      {/* Alto FIJO (rem) IGUAL al del toolbar del sidebar → el borde/divisor queda
+          continuo de lado a lado a cualquier zoom. Contenido centrado vertical. */}
+      <div className="hidden md:flex md:flex-col md:justify-center overflow-hidden" style={{ height: '5.125rem' }}>
       <div className="flex items-center px-3 py-0 gap-3 overflow-hidden">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {onExpandChatList && (

@@ -1,11 +1,11 @@
-import type { ExternalDataBuiltinToolType } from '@/types/external-client-data';
+﻿import type { ExternalDataBuiltinToolType } from '@/types/external-client-data';
 
 /**
- * Catálogo de herramientas builtin del sistema.
+ * CatÃ¡logo de herramientas builtin del sistema.
  * Es la fuente de verdad compartida entre el frontend (UI) y las server actions.
- * Cada entrada tiene implementación real en NestJS (dispatcher en ai-agent.service.ts).
+ * Cada entrada tiene implementaciÃ³n real en NestJS (dispatcher en ai-agent.service.ts).
  *
- * IMPORTANTE: No agregar entradas aquí sin antes implementar el toolType
+ * IMPORTANTE: No agregar entradas aquÃ­ sin antes implementar el toolType
  * en el backend (buildToolFromConfig en ai-agent.service.ts).
  */
 export const BUILTIN_TOOL_CATALOG: {
@@ -20,12 +20,12 @@ export const BUILTIN_TOOL_CATALOG: {
   {
     toolType: 'notificacion_asesor',
     defaultKey: 'Notificacion_Asesor',
-    defaultDisplayName: 'Notificación al asesor',
+    defaultDisplayName: 'NotificaciÃ³n al asesor',
     defaultDescription:
-      'Utiliza esta **tool** para notificar al asesor humano cuando el cliente lo solicite explícitamente, hayan (solicitudes complejas, dudas de pago o agendamiento), exista un registro guardado (solicitud/pedido/cita/pago/reclamo), o cuando el cliente envíe una **Imagen de comprobante de pago que requiere validación**. Consulta las reglas completas en [3.1] del sistema antes de ejecutar.',
+      'Utiliza esta **tool** para notificar al asesor humano cuando el cliente lo solicite explicitamente, haya una solicitud compleja o exista un registro que requiere atencion manual (solicitud/pedido/reclamo/pago). No la uses despues de crear una cita/reserva con las herramientas de agenda, porque ese flujo ya envia su confirmacion automatica.',
     isCritical: true,
     helpText:
-      'Envía una notificación interna al equipo de soporte cuando el cliente lo necesita. Recomendado tener siempre habilitada.',
+      'EnvÃ­a una notificaciÃ³n interna al equipo de soporte cuando el cliente lo necesita. Recomendado tener siempre habilitada.',
     sortOrder: 0,
   },
   {
@@ -33,10 +33,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'Ejecutar_Flujos',
     defaultDisplayName: 'Ejecutar flujos automatizados',
     defaultDescription:
-      'Siempre consulta y ejecuta esta **tool** si existen flujos disponibles en la base de datos que correspondan a la solicitud del usuario. Si se encuentra un flujo, se ejecuta. Si no hay flujos, la IA continúa la conversación normalmente.',
+      'Siempre consulta y ejecuta esta **tool** si existen flujos disponibles en la base de datos que correspondan a la solicitud del usuario. Si se encuentra un flujo, se ejecuta. Si no hay flujos, la IA continÃºa la conversaciÃ³n normalmente.',
     isCritical: true,
     helpText:
-      'Permite al agente disparar flujos automatizados configurados en el sistema. Es crítica para el funcionamiento de la automatización.',
+      'Permite al agente disparar flujos automatizados configurados en el sistema. Es crÃ­tica para el funcionamiento de la automatizaciÃ³n.',
     sortOrder: 1,
   },
   {
@@ -46,7 +46,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultDescription: 'Devuelve todos los **flujos** disponibles para este cliente.',
     isCritical: true,
     helpText:
-      'Permite al agente conocer qué flujos automáticos están disponibles antes de ejecutarlos.',
+      'Permite al agente conocer quÃ© flujos automÃ¡ticos estÃ¡n disponibles antes de ejecutarlos.',
     sortOrder: 2,
   },
   {
@@ -54,10 +54,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'buscar_producto',
     defaultDisplayName: 'Buscar producto',
     defaultDescription:
-      'Busca un **producto del catálogo por nombre, categoría o SKU**. Úsala cuando el cliente pregunte por un **producto específico**, su precio, disponibilidad o características. El resultado incluye nombre, precio, stock, categoría, descripción e imágenes del producto (campo images[]). Si el producto tiene imágenes, el sistema las enviará automáticamente al cliente.',
+      'Busca un **producto del catÃ¡logo por nombre, categorÃ­a o SKU**. Ãšsala cuando el cliente pregunte por un **producto especÃ­fico**, su precio, disponibilidad o caracterÃ­sticas. El resultado incluye nombre, precio, stock, categorÃ­a, descripciÃ³n e imÃ¡genes del producto (campo images[]). Si el producto tiene imÃ¡genes, el sistema las enviarÃ¡ automÃ¡ticamente al cliente.',
     isCritical: true,
     helpText:
-      'Permite al agente consultar el catálogo de productos en tiempo real. Retorna nombre, precio, stock, categoría y URLs de imágenes. Las imágenes se envían vía /api/send-media.',
+      'Permite al agente consultar el catÃ¡logo de productos en tiempo real. Retorna nombre, precio, stock, categorÃ­a y URLs de imÃ¡genes. Las imÃ¡genes se envÃ­an vÃ­a /api/send-media.',
     sortOrder: 3,
   },
   {
@@ -65,10 +65,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'listar_productos',
     defaultDisplayName: 'Listar productos disponibles',
     defaultDescription:
-      'Lista **todos los productos** activos del catálogo con nombre, precio, categoría, stock e imágenes. Úsala cuando el cliente quiera ver qué productos están disponibles o pida el catálogo completo. Cada producto incluye un campo images[] con **URLs de sus imágenes**, que el sistema enviará al cliente automáticamente.',
+      'Lista **todos los productos** activos del catÃ¡logo con nombre, precio, categorÃ­a, stock e imÃ¡genes. Ãšsala cuando el cliente quiera ver quÃ© productos estÃ¡n disponibles o pida el catÃ¡logo completo. Cada producto incluye un campo images[] con **URLs de sus imÃ¡genes**, que el sistema enviarÃ¡ al cliente automÃ¡ticamente.',
     isCritical: true,
     helpText:
-      'Devuelve el catálogo completo de productos activos incluyendo imágenes. Las imágenes de cada producto se envían vía /api/send-media. Recomendado cuando tienes pocos productos.',
+      'Devuelve el catÃ¡logo completo de productos activos incluyendo imÃ¡genes. Las imÃ¡genes de cada producto se envÃ­an vÃ­a /api/send-media. Recomendado cuando tienes pocos productos.',
     sortOrder: 4,
   },
   {
@@ -76,7 +76,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'listar_servicios_agenda',
     defaultDisplayName: 'Listar servicios de agenda',
     defaultDescription:
-      'Lista los **servicios disponibles** para agendar una cita. Úsala al inicio del flujo de agendamiento, cuando el cliente **quiera reservar una cita** o pregunte qué **servicios se pueden agendar**. Retorna id y nombre de cada servicio.',
+      'Lista los **servicios disponibles** para agendar una cita. Ãšsala al inicio del flujo de agendamiento, cuando el cliente **quiera reservar una cita** o pregunte quÃ© **servicios se pueden agendar**. Retorna id y nombre de cada servicio.',
     isCritical: false,
     helpText:
       'Llama a GET /api/schedule/services?userId={userId}. Devuelve la lista de servicios configurados por el usuario para su agenda.',
@@ -87,7 +87,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'consultar_slots_disponibles',
     defaultDisplayName: 'Consultar horarios disponibles',
     defaultDescription:
-      'Consulta los **horarios libres para una fecha específica**. Úsala después de que el cliente haya elegido un servicio y proporcione una fecha. El cliente puede expresar la fecha de forma natural ("mañana", "el martes", "en 3 días", "a las 10", "10 am", "5 de la tarde", "5:00 pm") — convierte **siempre la fecha a formato YYYY-MM-DD** y la **hora a formato HH:MM (24h)** antes de llamar esta tool. Retorna una lista de slots con startTime y endTime en UTC.',
+      'Consulta los **horarios libres para una fecha especÃ­fica**. Ãšsala despuÃ©s de que el cliente haya elegido un servicio y proporcione una fecha. El cliente puede expresar la fecha de forma natural ("maÃ±ana", "el martes", "en 3 dÃ­as", "a las 10", "10 am", "5 de la tarde", "5:00 pm") â€” convierte **siempre la fecha a formato YYYY-MM-DD** y la **hora a formato HH:MM (24h)** antes de llamar esta tool. Retorna una lista de slots con startTime y endTime en UTC.',
     isCritical: false,
     helpText:
       'Llama a GET /api/schedule/slots?userId={userId}&date={YYYY-MM-DD}. Usa la disponibilidad configurada del usuario y descuenta citas ya registradas.',
@@ -98,7 +98,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'crear_cita',
     defaultDisplayName: 'Crear cita',
     defaultDescription:
-      'Crea una cita en la agenda del usuario. Úsala únicamente después de confirmar con el cliente: **servicio, fecha y hora**. Los datos del cliente (nombre y teléfono) los obtienes del contexto de la conversación. Convierte **siempre la fecha a formato YYYY-MM-DD** y la **hora a formato HH:MM (24h)** antes de llamar esta tool. **Valida disponibilidad y evita solapamientos automáticamente**.',
+      'Crea una cita en la agenda del usuario. Ãšsala Ãºnicamente despuÃ©s de confirmar con el cliente: **servicio, fecha y hora**. Los datos del cliente (nombre y telÃ©fono) los obtienes del contexto de la conversaciÃ³n. Convierte **siempre la fecha a formato YYYY-MM-DD** y la **hora a formato HH:MM (24h)** antes de llamar esta tool. **Valida disponibilidad y evita solapamientos automÃ¡ticamente**.',
     isCritical: false,
     helpText:
       'Llama a POST /api/schedule/appointment. Requiere: userId, serviceId, pushName, phone (remoteJid), instanceName, startTime (ISO UTC), endTime (ISO UTC), timezone.',
@@ -109,10 +109,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'consultar_datos_cliente',
     defaultDisplayName: 'Consultar datos del cliente',
     defaultDescription:
-      'Consulta **automáticamente los datos externos del cliente actual** usando su número de WhatsApp — sin necesidad de pedirle ningún dato. Úsala siempre antes de solicitar cédula u otro identificador, cuando el cliente pregunte por **su propia información:** cuenta, servicio contratado, saldo u otros campos cargados en el sistema. **Si no retorna datos, el cliente no está registrado en el sistema**.',
+      'Consulta **automÃ¡ticamente los datos externos del cliente actual** usando su nÃºmero de WhatsApp â€” sin necesidad de pedirle ningÃºn dato. Ãšsala siempre antes de solicitar cÃ©dula u otro identificador, cuando el cliente pregunte por **su propia informaciÃ³n:** cuenta, servicio contratado, saldo u otros campos cargados en el sistema. **Si no retorna datos, el cliente no estÃ¡ registrado en el sistema**.',
     isCritical: false,
     helpText:
-      'Busca en datos externos el registro asociado al número de WhatsApp del cliente que está escribiendo. Requiere que el cliente tenga datos cargados.',
+      'Busca en datos externos el registro asociado al nÃºmero de WhatsApp del cliente que estÃ¡ escribiendo. Requiere que el cliente tenga datos cargados.',
     sortOrder: 8,
   },
   {
@@ -120,10 +120,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'buscar_cliente_por_dato',
     defaultDisplayName: 'Buscar cliente por dato',
     defaultDescription:
-      'Busca en los **datos externos cargados** a partir de un **campo y valor que proporciona el cliente** (ej: CEDULA, CORREO, REFERENCIA). Úsala cuando el cliente dé un **identificador específico** y necesites encontrar su registro. El nombre del campo debe ir **en MAYÚSCULAS** y coincidir exactamente con el encabezado de la tabla. Si no retorna datos, el cliente no está registrado en el sistema.',
+      'Busca en los **datos externos cargados** a partir de un **campo y valor que proporciona el cliente** (ej: CEDULA, CORREO, REFERENCIA). Ãšsala cuando el cliente dÃ© un **identificador especÃ­fico** y necesites encontrar su registro. El nombre del campo debe ir **en MAYÃšSCULAS** y coincidir exactamente con el encabezado de la tabla. Si no retorna datos, el cliente no estÃ¡ registrado en el sistema.',
     isCritical: false,
     helpText:
-      'Permite al agente buscar por cualquier campo del registro externo. Útil cuando el cliente pregunta por datos de un tercero proporcionando su cédula u otro identificador.',
+      'Permite al agente buscar por cualquier campo del registro externo. Ãštil cuando el cliente pregunta por datos de un tercero proporcionando su cÃ©dula u otro identificador.',
     sortOrder: 9,
   },
   {
@@ -131,10 +131,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'etiquetar_contacto',
     defaultDisplayName: 'Etiquetar contacto',
     defaultDescription:
-      'Aplica una etiqueta al contacto tan pronto identifiques su intención o interés — no esperes al final de la conversación.\n\n**ETIQUETAS DISPONIBLES** (elige la más específica):\n- "interesado": preguntó por precios, disponibilidad o quiere más info de un producto/servicio.\n- "listo_para_comprar": pidió agendar, cotizar o tiene intención de cerrar.\n- "no_interesado": descartó explícitamente el servicio.\n- "soporte_pendiente": tiene un problema o queja activa.\n\n**REGLAS:**\n- Usa SIEMPRE una de estas etiquetas cuando se cumpla la condición, sin importar si el cliente lo dijo explícitamente o se infiere del contexto.\n- Si mencionó su sector/rubro, inclúyelo en la etiqueta: "interesado_estetica", "listo_para_comprar_restaurante", etc.\n- Usa "sin_etiqueta" SOLO si no hay ningún indicio de intención.',
+      'Aplica una etiqueta al contacto tan pronto identifiques su intenciÃ³n o interÃ©s â€” no esperes al final de la conversaciÃ³n.\n\n**ETIQUETAS DISPONIBLES** (elige la mÃ¡s especÃ­fica):\n- "interesado": preguntÃ³ por precios, disponibilidad o quiere mÃ¡s info de un producto/servicio.\n- "listo_para_comprar": pidiÃ³ agendar, cotizar o tiene intenciÃ³n de cerrar.\n- "no_interesado": descartÃ³ explÃ­citamente el servicio.\n- "soporte_pendiente": tiene un problema o queja activa.\n\n**REGLAS:**\n- Usa SIEMPRE una de estas etiquetas cuando se cumpla la condiciÃ³n, sin importar si el cliente lo dijo explÃ­citamente o se infiere del contexto.\n- Si mencionÃ³ su sector/rubro, inclÃºyelo en la etiqueta: "interesado_estetica", "listo_para_comprar_restaurante", etc.\n- Usa "sin_etiqueta" SOLO si no hay ningÃºn indicio de intenciÃ³n.',
     isCritical: false,
     helpText:
-      'Crea y asigna etiquetas al contacto automáticamente. Si la etiqueta no existe, se crea. Útil para segmentar contactos desde la conversación.',
+      'Crea y asigna etiquetas al contacto automÃ¡ticamente. Si la etiqueta no existe, se crea. Ãštil para segmentar contactos desde la conversaciÃ³n.',
     sortOrder: 10,
   },
   {
@@ -142,7 +142,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'registrar_nota_seguimiento',
     defaultDisplayName: 'Registrar nota de seguimiento',
     defaultDescription:
-      'Guarda una nota de seguimiento sobre el contacto actual. Úsala para registrar información relevante de la conversación: acuerdos, compromisos, estado del cliente o cualquier detalle importante para el equipo.',
+      'Guarda una nota de seguimiento sobre el contacto actual. Ãšsala para registrar informaciÃ³n relevante de la conversaciÃ³n: acuerdos, compromisos, estado del cliente o cualquier detalle importante para el equipo.',
     isCritical: false,
     helpText:
       'Agrega una nota con marca de tiempo al historial de seguimientos del contacto. Las notas quedan visibles en el panel CRM para el equipo.',
@@ -153,10 +153,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'crear_recordatorio',
     defaultDisplayName: 'Crear recordatorio',
     defaultDescription:
-      'Programa un **recordatorio para hacer seguimiento** a este contacto en una **fecha y hora específicas**. Úsala cuando el cliente pida que lo contacten más tarde o cuando sea necesario retomar la conversación.',
+      'Programa un **recordatorio para hacer seguimiento** a este contacto en una **fecha y hora especÃ­ficas**. Ãšsala cuando el cliente pida que lo contacten mÃ¡s tarde o cuando sea necesario retomar la conversaciÃ³n.',
     isCritical: false,
     helpText:
-      'Crea un recordatorio vinculado al contacto y a la instancia de WhatsApp. Se puede usar para agendar seguimientos automáticos.',
+      'Crea un recordatorio vinculado al contacto y a la instancia de WhatsApp. Se puede usar para agendar seguimientos automÃ¡ticos.',
     sortOrder: 12,
   },
   {
@@ -164,10 +164,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'buscar_plantilla',
     defaultDisplayName: 'Buscar plantilla de mensaje',
     defaultDescription:
-      'Busca en el **catálogo de plantillas** de **mensajes predefinidas por nombre**, categoría o descripción. Úsala cuando necesites **encontrar un texto o respuesta** estándar para una situación común.',
+      'Busca en el **catÃ¡logo de plantillas** de **mensajes predefinidas por nombre**, categorÃ­a o descripciÃ³n. Ãšsala cuando necesites **encontrar un texto o respuesta** estÃ¡ndar para una situaciÃ³n comÃºn.',
     isCritical: false,
     helpText:
-      'Permite al agente encontrar plantillas de mensajes configuradas en el sistema. Útil para mantener consistencia en las respuestas frecuentes.',
+      'Permite al agente encontrar plantillas de mensajes configuradas en el sistema. Ãštil para mantener consistencia en las respuestas frecuentes.',
     sortOrder: 13,
   },
   {
@@ -175,10 +175,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'leer_google_sheets',
     defaultDisplayName: 'Leer Google Sheets',
     defaultDescription:
-      'Lee datos de una hoja de cálculo pública de Google Sheets. Úsala cuando el cliente pregunte por información relacionada que está en la hoja de cálculo como: precios, inventario, listas, etc. Retornar TODAS las filas coincidentes. La hoja está compartida como "Cualquiera con el enlace puede ver".\n\nEntregar la información correspondiente con el formato único establecido. NO agregues columna ni valor — devuelve todas las filas con los precios, inventario, listas, etc. disponibles tal como están en la hoja.\n\nDevuelve TODAS las filas disponibles con la información que encuentres (pueden ser entre 1 y 12 filas). Mostrar TODAS las filas devueltas sin recortar. NO limitar a 3. PROHIBIDO inventar datos.',
+      'Lee datos de una hoja de cÃ¡lculo pÃºblica de Google Sheets. Ãšsala cuando el cliente pregunte por informaciÃ³n relacionada que estÃ¡ en la hoja de cÃ¡lculo como: precios, inventario, listas, etc. Retornar TODAS las filas coincidentes. La hoja estÃ¡ compartida como "Cualquiera con el enlace puede ver".\n\nEntregar la informaciÃ³n correspondiente con el formato Ãºnico establecido. NO agregues columna ni valor â€” devuelve todas las filas con los precios, inventario, listas, etc. disponibles tal como estÃ¡n en la hoja.\n\nDevuelve TODAS las filas disponibles con la informaciÃ³n que encuentres (pueden ser entre 1 y 12 filas). Mostrar TODAS las filas devueltas sin recortar. NO limitar a 3. PROHIBIDO inventar datos.',
     isCritical: false,
     helpText:
-      'El agente puede consultar cualquier Google Sheet público en tiempo real. Requiere la URL completa de la hoja. Devuelve hasta 10 filas con todos los campos. Ideal para precios, inventarios o datos que cambian frecuentemente.',
+      'El agente puede consultar cualquier Google Sheet pÃºblico en tiempo real. Requiere la URL completa de la hoja. Devuelve hasta 10 filas con todos los campos. Ideal para precios, inventarios o datos que cambian frecuentemente.',
     sortOrder: 14,
   },
   {
@@ -186,10 +186,10 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'escribir_google_sheets',
     defaultDisplayName: 'Guardar en Google Sheets',
     defaultDescription:
-      'Guarda una nueva fila de datos en una hoja de Google Sheets configurada. Úsala cuando **necesites registrar información** recopilada en la conversación: leads, solicitudes, pagos, formularios, etc. Los campos enviados **deben coincidir exactamente con los encabezados** de la hoja — no inventes columnas que no existen. El Sheet destino se toma de la configuración de la herramienta.',
+      'Guarda una nueva fila de datos en una hoja de Google Sheets configurada. Ãšsala cuando **necesites registrar informaciÃ³n** recopilada en la conversaciÃ³n: leads, solicitudes, pagos, formularios, etc. Los campos enviados **deben coincidir exactamente con los encabezados** de la hoja â€” no inventes columnas que no existen. El Sheet destino se toma de la configuraciÃ³n de la herramienta.',
     isCritical: false,
     helpText:
-      'Requiere crear un Google Apps Script en la hoja destino y publicarlo como web app. El agente envía los datos como un objeto JSON y el script los escribe como una nueva fila. Los campos deben coincidir con los encabezados de la hoja.',
+      'Requiere crear un Google Apps Script en la hoja destino y publicarlo como web app. El agente envÃ­a los datos como un objeto JSON y el script los escribe como una nueva fila. Los campos deben coincidir con los encabezados de la hoja.',
     sortOrder: 15,
   },
   {
@@ -197,7 +197,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'editar_google_sheets',
     defaultDisplayName: 'Editar Google Sheets',
     defaultDescription:
-      'Edita una **fila existente** en una hoja de cálculo de Google Sheets. Úsala cuando **necesites actualizar datos** ya registrados: **cambiar estado, precio, disponibilidad u otro campo**. Busca la fila por un campo clave (ej. cédula, código, correo) y **actualiza los campos indicados**.',
+      'Edita una **fila existente** en una hoja de cÃ¡lculo de Google Sheets. Ãšsala cuando **necesites actualizar datos** ya registrados: **cambiar estado, precio, disponibilidad u otro campo**. Busca la fila por un campo clave (ej. cÃ©dula, cÃ³digo, correo) y **actualiza los campos indicados**.',
     isCritical: false,
     helpText:
       'Requiere credenciales de cuenta de servicio de Google (GOOGLE_SHEETS_CREDENTIALS). El agente busca la fila por un campo clave y actualiza las columnas especificadas. Los encabezados de la hoja deben coincidir con los campos enviados.',
@@ -206,12 +206,12 @@ export const BUILTIN_TOOL_CATALOG: {
   {
     toolType: 'scrape_web',
     defaultKey: 'scrape_web',
-    defaultDisplayName: 'Consultar página web',
+    defaultDisplayName: 'Consultar pÃ¡gina web',
     defaultDescription:
-      'Extrae y lee el contenido de texto de una **URL pública** (página web, blog, ficha de producto, etc.). Úsala cuando el cliente pida información que está en una página web específica o cuando necesites consultar datos de una fuente externa en tiempo real. **Solo si la URL es válida y accesible públicamente** — no intentes con URLs internas, privadas o que requieran login.',
+      'Extrae y lee el contenido de texto de una **URL pÃºblica** (pÃ¡gina web, blog, ficha de producto, etc.). Ãšsala cuando el cliente pida informaciÃ³n que estÃ¡ en una pÃ¡gina web especÃ­fica o cuando necesites consultar datos de una fuente externa en tiempo real. **Solo si la URL es vÃ¡lida y accesible pÃºblicamente** â€” no intentes con URLs internas, privadas o que requieran login.',
     isCritical: false,
     helpText:
-      'Permite al agente leer el contenido de cualquier página web pública: sitios HTML estáticos, páginas de precios, fichas técnicas, blogs, etc. No funciona con páginas que requieren login ni con aplicaciones de una sola página (SPA/React). Devuelve el texto limpio extraído de la página.',
+      'Permite al agente leer el contenido de cualquier pÃ¡gina web pÃºblica: sitios HTML estÃ¡ticos, pÃ¡ginas de precios, fichas tÃ©cnicas, blogs, etc. No funciona con pÃ¡ginas que requieren login ni con aplicaciones de una sola pÃ¡gina (SPA/React). Devuelve el texto limpio extraÃ­do de la pÃ¡gina.',
     sortOrder: 15,
   },
   {
@@ -219,7 +219,7 @@ export const BUILTIN_TOOL_CATALOG: {
     defaultKey: 'consultar_inventario',
     defaultDisplayName: 'Consultar inventario',
     defaultDescription:
-      'Consulta el **stock disponible de los productos**. Úsala cuando el cliente pregunte **si hay existencias de un producto** o **cuántas unidades quedan**. Puedes buscar por nombre o pedir todo el inventario.',
+      'Consulta el **stock disponible de los productos**. Ãšsala cuando el cliente pregunte **si hay existencias de un producto** o **cuÃ¡ntas unidades quedan**. Puedes buscar por nombre o pedir todo el inventario.',
     isCritical: false,
     helpText:
       'Devuelve nombre, precio y stock de los productos activos. Si el stock es 0 lo indica como sin stock. Ideal para negocios con inventario propio.',
@@ -228,9 +228,9 @@ export const BUILTIN_TOOL_CATALOG: {
   {
     toolType: 'client_validation',
     defaultKey: 'client_validation',
-    defaultDisplayName: 'Validación de cliente',
+    defaultDisplayName: 'ValidaciÃ³n de cliente',
     defaultDescription:
-      'Antes de responder, valida el estado del contacto: si es nuevo, si tiene servicio contratado (IA o Humano) y si está activo o inactivo. La IA adapta su saludo y comportamiento según esa clasificación.',
+      'Antes de responder, valida el estado del contacto: si es nuevo, si tiene servicio contratado (IA o Humano) y si estÃ¡ activo o inactivo. La IA adapta su saludo y comportamiento segÃºn esa clasificaciÃ³n.',
     isCritical: false,
     helpText:
       'Inyecta el contexto del contacto (ServiceType y ClientStatus) en el prompt del agente antes de cada respuesta. Solo activa esta herramienta si clasificas a tus contactos por tipo de servicio o estado de cliente.',
@@ -239,12 +239,12 @@ export const BUILTIN_TOOL_CATALOG: {
   {
     toolType: 'crear_cotizacion',
     defaultKey: 'crear_cotizacion',
-    defaultDisplayName: 'Crear cotización',
+    defaultDisplayName: 'Crear cotizaciÃ³n',
     defaultDescription:
-      'Genera una **cotización formal con los productos/servicios** que el cliente solicita. Úsala cuando el cliente pida un **presupuesto, cotización o lista de precios para comprar**. Requiere el **nombre del cliente y los ítems con cantidad y precio unitario**.',
+      'Genera una **cotizaciÃ³n formal con los productos/servicios** que el cliente solicita. Ãšsala cuando el cliente pida un **presupuesto, cotizaciÃ³n o lista de precios para comprar**. Requiere el **nombre del cliente y los Ã­tems con cantidad y precio unitario**.',
     isCritical: false,
     helpText:
-      'Crea un registro de cotización en la app con estado "borrador". El agente puede generarla directamente desde el chat y el equipo la verá en /cotizaciones.',
+      'Crea un registro de cotizaciÃ³n en la app con estado "borrador". El agente puede generarla directamente desde el chat y el equipo la verÃ¡ en /cotizaciones.',
     sortOrder: 18,
   },
 ];
