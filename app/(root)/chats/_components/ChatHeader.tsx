@@ -328,9 +328,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const macrosMenu = session && onRunMacro ? <MacrosMenu onRunMacro={onRunMacro} /> : null;
 
   return (
-    <div className="sticky top-0 z-10 border-b-2 border-border bg-gradient-to-r from-background to-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/50">
+    <div className="sticky top-0 z-10 bg-gradient-to-r from-background to-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/50">
       {/* ── Mobile ── */}
-      <div className="md:hidden px-2 py-2 space-y-2">
+      <div className="md:hidden px-2 py-2 space-y-2 border-b-2 border-border">
         {/* Fila única: volver + avatar + nombre + activa + acciones */}
         <div className="flex items-center gap-2">
           <Button
@@ -527,7 +527,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       {/* ── Desktop ── */}
       {/* Alto FIJO (rem) IGUAL al del toolbar del sidebar → el borde/divisor queda
           continuo de lado a lado a cualquier zoom. Contenido centrado vertical. */}
-      <div className="hidden md:flex md:flex-col md:justify-center overflow-hidden" style={{ height: '5.125rem' }}>
+      <div className="hidden md:flex md:flex-col md:justify-center overflow-hidden border-b-2 border-border" style={{ height: '5.125rem' }}>
       <div className="flex items-center px-3 py-0 gap-3 overflow-hidden">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {onExpandChatList && (
