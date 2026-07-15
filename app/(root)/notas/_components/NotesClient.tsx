@@ -14,9 +14,15 @@ import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-interface Props { userId: string }
+interface Props {
+  userId: string
+  // Al abrir/crear una nota, contrae la lista lateral para dar más ancho al
+  // editor (útil en paneles angostos como la pestaña Notas dentro del chat).
+  // Se reabre con el botón de panel del editor. Default: false (página /notas).
+  collapseSidebarOnSelect?: boolean
+}
 
-export function NotesClient({ userId }: Props) {
+export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) {
   const [folders, setFolders] = useState<NoteFolderWithCount[]>([])
   const [notes, setNotes] = useState<UserNoteListItem[]>([])
   const [selectedNote, setSelectedNote] = useState<UserNoteWithContent | null>(null)
@@ -63,11 +69,12 @@ export function NotesClient({ userId }: Props) {
   }, [loadNotes, search])
 
   const handleSelectNote = useCallback(async (id: string) => {
+    if (collapseSidebarOnSelect) setSidebarOpen(false)
     setLoadingNote(true)
     const res = await getNote(id, userId)
     if (res.success && res.data) setSelectedNote(res.data)
     setLoadingNote(false)
-  }, [userId])
+  }, [userId, collapseSidebarOnSelect])
 
   const handleNewNote = useCallback(async (templateContent?: object, templateTitle?: string) => {
     const folderId = (activeFolderId && activeFolderId !== '__archived__') ? activeFolderId : null

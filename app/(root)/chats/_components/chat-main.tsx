@@ -929,7 +929,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       {/* ── Vista Notas (nativa, sin iframe ni marco de app) ── */}
       {chatView === 'notes' && (
         <div className="flex-1 min-h-0 overflow-hidden">
-          <NotesClient userId={userId} />
+          <NotesClient userId={userId} collapseSidebarOnSelect />
         </div>
       )}
 
