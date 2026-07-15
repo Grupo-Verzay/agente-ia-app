@@ -18,14 +18,18 @@ export const GoogleCalendarSettings = ({ userId }: { userId: string }) => {
     const [calendarId, setCalendarId] = useState("");
     const [enabled, setEnabled] = useState(false);
     const [serviceAccountEmail, setServiceAccountEmail] = useState<string | null>(null);
+    // Últimos valores guardados, para poder revertir con "Cancelar".
+    const [saved, setSaved] = useState<{ calendarId: string; enabled: boolean }>({ calendarId: "", enabled: false });
 
     useEffect(() => {
         let active = true;
         getGoogleCalendarConfig(userId)
             .then((cfg) => {
                 if (!active) return;
-                setCalendarId(cfg.calendarId ?? "");
-                setEnabled(cfg.enabled);
+                const initial = { calendarId: cfg.calendarId ?? "", enabled: cfg.enabled };
+                setCalendarId(initial.calendarId);
+                setEnabled(initial.enabled);
+                setSaved(initial);
                 setServiceAccountEmail(cfg.serviceAccountEmail);
             })
             .finally(() => active && setLoading(false));
@@ -57,6 +61,7 @@ export const GoogleCalendarSettings = ({ userId }: { userId: string }) => {
                 enabled,
             });
             if (res.success) {
+                setSaved({ calendarId: calendarId.trim(), enabled: enabled && !!calendarId.trim() });
                 toast.success("Configuración de Google Calendar guardada");
             } else {
                 toast.error(res.error ?? "Error al guardar");
@@ -64,6 +69,11 @@ export const GoogleCalendarSettings = ({ userId }: { userId: string }) => {
         } finally {
             setSaving(false);
         }
+    };
+
+    const handleCancel = () => {
+        setCalendarId(saved.calendarId);
+        setEnabled(saved.enabled);
     };
 
     if (loading) {
@@ -142,7 +152,10 @@ export const GoogleCalendarSettings = ({ userId }: { userId: string }) => {
                 <Switch checked={enabled} onCheckedChange={setEnabled} />
             </div>
 
-            <div className="flex items-center justify-end pt-2">
+            <div className="flex items-center justify-between gap-2 pt-2">
+                <Button type="button" variant="secondary" onClick={handleCancel} disabled={saving}>
+                    Cancelar
+                </Button>
                 <Button type="button" variant="save" onClick={handleSave} disabled={saving}>
                     {saving ? "Guardando..." : "Guardar"}
                 </Button>
