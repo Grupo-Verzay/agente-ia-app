@@ -186,6 +186,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [chatView, setChatView] = useState<'messages' | string>('messages');
+  // Notas: se monta la 1ª vez que se abre y luego se mantiene montada (oculta),
+  // para que reabrir la pestaña sea instantáneo (sin re-descargar ni re-cargar).
+  const [notesLoaded, setNotesLoaded] = useState(false);
   const [copilotTaskDialogOpen, setCopilotTaskDialogOpen] = useState(false);
   const [copilotTaskDraft, setCopilotTaskDraft] = useState<{
     title?: string;
@@ -197,6 +200,24 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   useEffect(() => {
     onInfoPanelChange?.(infoPanelOpen);
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Marca Notas como montada al abrirla la 1ª vez (a partir de ahí se conserva).
+  useEffect(() => {
+    if (chatView === 'notes') setNotesLoaded(true);
+  }, [chatView]);
+
+  // Precarga en 2º plano el chunk del editor de Notas (BlockNote, pesado) al
+  // abrir el chat, sin competir con el render inicial, para que la 1ª apertura
+  // de la pestaña sea rápida.
+  useEffect(() => {
+    const warm = () => { void import('../../notas/_components/NotesClient'); };
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    const id: number = ric ? ric(warm) : (setTimeout(warm, 1500) as unknown as number);
+    return () => {
+      const cic = (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback;
+      if (ric && cic) cic(id); else clearTimeout(id);
+    };
   }, []);
 
   useEffect(() => {
@@ -926,9 +947,11 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onChatViewChange={setChatView}
       />
 
-      {/* ── Vista Notas (nativa, sin iframe ni marco de app) ── */}
-      {chatView === 'notes' && (
-        <div className="flex-1 min-h-0 overflow-hidden">
+      {/* ── Vista Notas (nativa, sin iframe ni marco de app) ──
+          Se monta al abrirla la 1ª vez y luego se conserva montada (oculta con
+          display:none) para que reabrir sea instantáneo. */}
+      {notesLoaded && (
+        <div className={chatView === 'notes' ? 'flex-1 min-h-0 overflow-hidden' : 'hidden'}>
           <NotesClient userId={userId} collapseSidebarOnSelect />
         </div>
       )}
