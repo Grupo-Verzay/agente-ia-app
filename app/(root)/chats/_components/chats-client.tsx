@@ -82,6 +82,12 @@ type ApiKeyData = { url: string; key: string };
 // móvil pinte la mitad de burbujas y llegue menos payload por la red móvil. El
 // resto del historial se trae bajo demanda al hacer scroll hacia arriba.
 const INITIAL_MESSAGE_PAGE_SIZE = 25;
+// Máx. de prefetch simultáneos que tocan Evolution. Acota los picos cuando se
+// hacen visibles muchas filas de golpe o al precalentar los chats de arriba.
+const PREFETCH_MAX_CONCURRENT = 4;
+// Cuántos chats de la parte superior (los más probables de abrir) se precalientan
+// proactivamente al cargar la lista, sin esperar hover ni que se hagan visibles.
+const PREFETCH_TOP_CHATS = 14;
 const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
 const SELECTED_CHAT_SYNC_DELAY_MS = 3500;
 const SELECTED_CHAT_POLLING_DELAY_MS = 10000;
@@ -1054,10 +1060,16 @@ export function ChatsClient({
   // chat sin historial (los que sí tienen historial ya frenan por el cache). Se
   // marca solo tras una lectura EXITOSA, así un fallo de red sí puede reintentar.
   const prefetchAttemptedRef = useRef<Set<string>>(new Set());
-  const prefetchChat = useCallback(
-    (remoteJid: string, contactInstanceName?: string) => {
-      if (!remoteJid) return;
+  // Cola con límite de concurrencia para el prefetch: al hacerse visibles muchas
+  // filas a la vez (render inicial / scroll) NO disparamos decenas de fetch a
+  // Evolution en paralelo, sino como máximo PREFETCH_MAX_CONCURRENT; el resto
+  // espera en cola y drena al liberarse un cupo. Evita picos sobre Evolution.
+  const prefetchQueueRef = useRef<Array<{ remoteJid: string; contactInstanceName?: string; cacheKey: string }>>([]);
+  const prefetchQueuedRef = useRef<Set<string>>(new Set());
+  const prefetchActiveRef = useRef(0);
 
+  const resolvePrefetchTarget = useCallback(
+    (remoteJid: string, contactInstanceName?: string) => {
       const selectedContact = contacts.find(
         (contact) =>
           (contactInstanceName ? contact.instanceName === contactInstanceName : true) &&
@@ -1065,61 +1077,115 @@ export function ChatsClient({
       ) ?? contacts.find(
         (contact) => contact.remoteJid === remoteJid || contact.aliases?.includes(remoteJid),
       );
-
       const actionSet =
         instanceActionSets?.find((s) => s.instanceName === selectedContact?.instanceName) ?? null;
       const effectiveInstanceName = selectedContact?.instanceName ?? instanceName;
       const effectiveApiKeyData = actionSet?.instanceType === "baileys" ? undefined : apiKeyData;
       const effectiveWarmMessages = actionSet?.warmMessages ?? warmMessagesAction;
       const cacheKey = getMessageCacheKey(effectiveInstanceName, remoteJid);
-
-      // Ya cacheado, ya en vuelo o ya intentado en esta sesión → nada que hacer.
-      if (
-        messageCacheRef.current.has(cacheKey) ||
-        prefetchingRef.current.has(cacheKey) ||
-        prefetchAttemptedRef.current.has(cacheKey)
-      )
-        return;
-
-      prefetchingRef.current.add(cacheKey);
-      void effectiveWarmMessages(remoteJid, {
-        page: 1,
-        pageSize: INITIAL_MESSAGE_PAGE_SIZE,
-        remoteJidAliases: selectedContact?.aliases,
-        localOnly: true,
-      })
-        .then((result) => {
-          if (!result?.success) return;
-          // Lectura OK (con o sin datos) → no reintentar este chat en la sesión.
-          prefetchAttemptedRef.current.add(cacheKey);
-          // No cachear vacío: haría que el click tomara la rama "cacheada" y
-          // mostrara el chat en blanco sin skeleton ni sincronización inmediata.
-          if (!result.data?.length) return;
-          // Otro flujo pudo haber poblado el cache mientras tanto; no lo pisamos.
-          if (messageCacheRef.current.has(cacheKey)) return;
-          messageCacheRef.current.set(cacheKey, {
-            messages: result.data || [],
-            info: {
-              total: result.total,
-              pages: result.pages,
-              currentPage: result.currentPage,
-              nextPage: result.nextPage,
-              instanceName: effectiveInstanceName,
-              remoteJid,
-              remoteJidAliases: selectedContact?.aliases,
-              apiKeyData: effectiveApiKeyData,
-            },
-          });
-        })
-        .catch(() => {
-          // Prefetch es best-effort: si falla, el click abrirá normalmente.
-        })
-        .finally(() => {
-          prefetchingRef.current.delete(cacheKey);
-        });
+      return {
+        selectedContact,
+        effectiveInstanceName,
+        effectiveApiKeyData,
+        effectiveWarmMessages,
+        cacheKey,
+      };
     },
     [apiKeyData, contacts, instanceActionSets, instanceName, warmMessagesAction],
   );
+
+  const prefetchChat = useCallback(
+    (remoteJid: string, contactInstanceName?: string) => {
+      if (!remoteJid) return;
+
+      const isDone = (cacheKey: string) =>
+        messageCacheRef.current.has(cacheKey) ||
+        prefetchingRef.current.has(cacheKey) ||
+        prefetchAttemptedRef.current.has(cacheKey);
+
+      const drain = () => {
+        while (prefetchActiveRef.current < PREFETCH_MAX_CONCURRENT && prefetchQueueRef.current.length) {
+          const item = prefetchQueueRef.current.shift()!;
+          prefetchQueuedRef.current.delete(item.cacheKey);
+          runOne(item.remoteJid, item.contactInstanceName);
+        }
+      };
+
+      const runOne = (rj: string, inst?: string) => {
+        const t = resolvePrefetchTarget(rj, inst);
+        // Otro flujo pudo completarlo mientras esperaba en cola → saltar.
+        if (isDone(t.cacheKey)) return;
+
+        prefetchingRef.current.add(t.cacheKey);
+        prefetchActiveRef.current += 1;
+        // localFirst: si YA hay historial local devuelve al instante (barato, sin
+        // Evolution); si NO, trae de Evolution y lo persiste en 2º plano (backfill).
+        // Así el chat queda listo para abrir instantáneo y la próxima sesión lo lee
+        // de local. Se intenta una sola vez por sesión (prefetchAttemptedRef).
+        void t
+          .effectiveWarmMessages(rj, {
+            page: 1,
+            pageSize: INITIAL_MESSAGE_PAGE_SIZE,
+            remoteJidAliases: t.selectedContact?.aliases,
+            localFirst: true,
+          })
+          .then((result) => {
+            if (!result?.success) return;
+            // Lectura OK (con o sin datos) → no reintentar este chat en la sesión.
+            prefetchAttemptedRef.current.add(t.cacheKey);
+            // No cachear vacío: haría que el click tomara la rama "cacheada" y
+            // mostrara el chat en blanco sin skeleton ni sincronización inmediata.
+            if (!result.data?.length) return;
+            // Otro flujo pudo haber poblado el cache mientras tanto; no lo pisamos.
+            if (messageCacheRef.current.has(t.cacheKey)) return;
+            messageCacheRef.current.set(t.cacheKey, {
+              messages: result.data || [],
+              info: {
+                total: result.total,
+                pages: result.pages,
+                currentPage: result.currentPage,
+                nextPage: result.nextPage,
+                instanceName: t.effectiveInstanceName,
+                remoteJid: rj,
+                remoteJidAliases: t.selectedContact?.aliases,
+                apiKeyData: t.effectiveApiKeyData,
+              },
+            });
+          })
+          .catch(() => {
+            // Prefetch es best-effort: si falla, el click abrirá normalmente.
+          })
+          .finally(() => {
+            prefetchingRef.current.delete(t.cacheKey);
+            prefetchActiveRef.current -= 1;
+            drain();
+          });
+      };
+
+      const { cacheKey } = resolvePrefetchTarget(remoteJid, contactInstanceName);
+      // Ya cacheado / en vuelo / intentado / ya en cola → nada que hacer.
+      if (isDone(cacheKey) || prefetchQueuedRef.current.has(cacheKey)) return;
+
+      prefetchQueuedRef.current.add(cacheKey);
+      prefetchQueueRef.current.push({ remoteJid, contactInstanceName, cacheKey });
+      drain();
+    },
+    [resolvePrefetchTarget],
+  );
+
+  // Warm proactivo: al cargar/actualizar la lista, precalentamos en 2º plano los
+  // primeros chats (los más probables de abrir) para que el click sea instantáneo
+  // sin depender de hover ni de que la fila se haga visible. La cola con límite de
+  // concurrencia evita picos y prefetchChat es idempotente (no repite ya hechos).
+  useEffect(() => {
+    if (!contacts.length) return;
+    const timer = setTimeout(() => {
+      for (const contact of contacts.slice(0, PREFETCH_TOP_CHATS)) {
+        prefetchChat(contact.remoteJid, contact.instanceName);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [contacts, prefetchChat]);
 
   const handleSelectFromSidebar = useCallback(
     async (remoteJid: string, contactInstanceName?: string) => {
