@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Bug, ChevronDown, Clipboard, Download, Home, RefreshCcw, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +32,15 @@ export type ErrorReportPayload = {
     };
 };
 
+// Auto-recarga durante despliegues: si la pantalla de error se muestra por un
+// desfase de versión (deploy en curso), la página se recarga sola cada 15s y el
+// asesor vuelve a entrar sin tocar nada. Con tope para NO caer en un bucle
+// infinito si el error es real (no un deploy).
+const AUTO_RELOAD_MS = 15000;
+const AUTO_RELOAD_MAX = 10; // ~2.5 min: cubre de sobra la ventana de un deploy
+const AUTO_RELOAD_WINDOW_MS = 5 * 60 * 1000;
+const AUTO_RELOAD_KEY = "verzay:error-autoreload";
+
 function normalizeError(e: unknown): { name?: string; message?: string; stack?: string } {
     if (e instanceof Error) return { name: e.name, message: e.message, stack: e.stack };
     if (typeof e === "string") return { name: "Error", message: e, stack: undefined };
@@ -53,6 +62,54 @@ export default function ErrorScreen({
     const [open, setOpen] = useState(false);
     const [reporting, setReporting] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [reloadIn, setReloadIn] = useState<number | null>(null);
+
+    // Auto-recarga con tope (ver constantes arriba).
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        let attempts = 0;
+        let first = 0;
+        try {
+            const raw = sessionStorage.getItem(AUTO_RELOAD_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw) as { count: number; first: number };
+                if (Date.now() - parsed.first < AUTO_RELOAD_WINDOW_MS) {
+                    attempts = parsed.count;
+                    first = parsed.first;
+                }
+            }
+        } catch {
+            // storage no disponible / json inválido: seguimos con valores por defecto
+        }
+
+        // Demasiados intentos seguidos → probablemente es un error real, no un deploy.
+        // Dejamos de recargar y mostramos los botones para intervención manual.
+        if (attempts >= AUTO_RELOAD_MAX) return;
+
+        const startFirst = first || Date.now();
+        try {
+            sessionStorage.setItem(
+                AUTO_RELOAD_KEY,
+                JSON.stringify({ count: attempts + 1, first: startFirst })
+            );
+        } catch {
+            // best-effort
+        }
+
+        setReloadIn(Math.round(AUTO_RELOAD_MS / 1000));
+        const tick = setInterval(() => {
+            setReloadIn((s) => (s === null ? null : Math.max(0, s - 1)));
+        }, 1000);
+        const timer = setTimeout(() => {
+            window.location.reload();
+        }, AUTO_RELOAD_MS);
+
+        return () => {
+            clearInterval(tick);
+            clearTimeout(timer);
+        };
+    }, []);
 
     const eventId = useMemo(() => crypto.randomUUID(), []);
     const normalized = useMemo(() => normalizeError(error), [error]);
@@ -132,6 +189,11 @@ export default function ErrorScreen({
                                     {/* Puedes intentar nuevamente o volver al inicio. Si el problema persiste, compártenos el ID del evento. */}
                                     Estamos en mantenimiento de actualizaciones por favor ingresar de nuevo en unos 5 minutos.
                                 </p>
+                                {reloadIn !== null && (
+                                    <p className="text-xs text-muted-foreground/80">
+                                        La página se recargará automáticamente en {reloadIn}s…
+                                    </p>
+                                )}
                             </div>
                         </div>
                         <div className="mt-3 grid w-full grid-cols-3 items-center">

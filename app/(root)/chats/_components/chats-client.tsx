@@ -77,6 +77,30 @@ function areListsDifferent(a: EvolutionMessage[], b: EvolutionMessage[]) {
   return la.id !== lb.id || la.ts !== lb.ts;
 }
 
+function getCommitmentMessageText(message: EvolutionMessage) {
+  const body = message.message ?? {};
+  return (
+    body.conversation ||
+    body.extendedTextMessage?.text ||
+    body.imageMessage?.caption ||
+    body.videoMessage?.caption ||
+    body.documentMessage?.caption ||
+    ""
+  ).trim();
+}
+
+function buildCommitmentContext(list: EvolutionMessage[]) {
+  return list
+    .slice(-8)
+    .map((message) => {
+      const text = getCommitmentMessageText(message);
+      if (!text) return null;
+      return `${message.key?.fromMe ? "ASESOR" : "CLIENTE"}: ${text}`;
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
 type ApiKeyData = { url: string; key: string };
 // Primera página de mensajes al abrir un chat. Bajado de 50 a 25 (alineado con
 // EVOLUTION_SYNC_WINDOW_SIZE del server action) para que el primer render en
@@ -1491,14 +1515,15 @@ export function ChatsClient({
       });
 
       if (payload.kind === "text") {
-        const immediateCommitment = detectCommitment(payload.text);
+        const commitmentContext = buildCommitmentContext(messagesRef.current);
+        const immediateCommitment = detectCommitment(payload.text, undefined, commitmentContext);
         setDetectedCommitment(immediateCommitment);
 
         // El detector local cubre frases frecuentes sin latencia. Cuando no hay
         // coincidencia, la IA interpreta expresiones naturales más variadas.
         if (!immediateCommitment) {
           const sentToJid = selectedJid;
-          void predictAdvisorCommitmentAction(payload.text).then((prediction) => {
+          void predictAdvisorCommitmentAction(payload.text, commitmentContext).then((prediction) => {
             if (prediction.commitment && sentToJid === selectedJidRef.current) {
               setDetectedCommitment(prediction.commitment);
             }

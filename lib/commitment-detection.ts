@@ -73,7 +73,7 @@ function parseDueDate(text: string, now: Date): Date | null {
   return null;
 }
 
-export function detectCommitment(text: string, now = new Date()): DetectedCommitment | null {
+export function detectCommitment(text: string, now = new Date(), context = ""): DetectedCommitment | null {
   const clean = normalizeText(text).replace(/\s+/g, " ").trim();
   if (!clean) return null;
 
@@ -96,7 +96,8 @@ export function detectCommitment(text: string, now = new Date()): DetectedCommit
   const rule = rules.find((item) => item.pattern.test(clean));
   if (!rule) return null;
 
-  const dueDate = parseDueDate(clean, now);
+  const contextClean = normalizeText(context).replace(/\s+/g, " ").trim();
+  const dueDate = parseDueDate(`${contextClean} ${clean}`.trim(), now);
   if (!dueDate) return null;
   return { kind: rule.kind, title: rule.title, type: rule.type, dueDate, sourceText: text };
 }

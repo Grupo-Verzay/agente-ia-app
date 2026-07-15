@@ -95,11 +95,11 @@ type AdvisorCommitmentPrediction = {
   dueDate?: string;
 };
 
-export async function predictAdvisorCommitmentAction(text: string) {
+export async function predictAdvisorCommitmentAction(text: string, context = "") {
   const user = await currentUser();
   if (!user?.id || !text?.trim()) return { success: false, commitment: null };
 
-  const localCommitment = detectCommitment(text);
+  const localCommitment = detectCommitment(text, undefined, context);
   if (localCommitment) return { success: true, commitment: localCommitment };
 
   const ownerId = user.ownerId ?? user.id;
@@ -124,7 +124,10 @@ Fecha y hora actual: ${now.toISOString()}.
 Si no existe un compromiso futuro claro o no puedes determinar una fecha futura, responde {"hasCommitment":false}.
 
 MENSAJE DEL ASESOR:
-${text.trim()}`;
+${text.trim()}
+
+CONTEXTO RECIENTE:
+${context.trim() || "Sin contexto"}`;
 
   try {
     let raw = "{}";
