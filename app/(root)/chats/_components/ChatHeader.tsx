@@ -356,12 +356,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               )}
               <h2 className="truncate text-sm font-bold leading-tight capitalize">{displayedContactName}</h2>
             </div>
-            {adSourceLabel && (
-              <span className="flex items-center gap-0.5 text-[0.6rem] leading-none text-blue-500 dark:text-blue-400 truncate">
-                <Megaphone className="h-2.5 w-2.5 shrink-0" />
-                {adSourceLabel}
-              </span>
-            )}
+            {/* Origen del anuncio: siempre presente (reserva su alto) → header de alto fijo. */}
+            <span className="flex min-h-[0.85rem] items-center gap-0.5 text-[0.6rem] leading-none text-blue-500 dark:text-blue-400 truncate">
+              {adSourceLabel && (
+                <>
+                  <Megaphone className="h-2.5 w-2.5 shrink-0" />
+                  {adSourceLabel}
+                </>
+              )}
+            </span>
           </div>
 
           {session ? (
@@ -562,12 +565,16 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </Button>
               )}
             </div>
-            {adSourceLabel && (
-              <span className="flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400 leading-tight truncate">
-                <Megaphone className="h-3 w-3 shrink-0" />
-                {adSourceLabel}
-              </span>
-            )}
+            {/* Origen del anuncio: se renderiza SIEMPRE (reservando su alto) para que el
+                header mida IGUAL con o sin anuncio y no se descuadre al cambiar de chat. */}
+            <span className="flex min-h-[1rem] items-center gap-1 text-xs text-blue-500 dark:text-blue-400 leading-tight truncate">
+              {adSourceLabel && (
+                <>
+                  <Megaphone className="h-3 w-3 shrink-0" />
+                  {adSourceLabel}
+                </>
+              )}
+            </span>
           </div>
         </div>
 
