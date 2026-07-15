@@ -35,7 +35,10 @@ import { PanelRightOpen } from "lucide-react";
 import { NewConversationDialog } from "./NewConversationDialog";
 import { CommitmentTaskDialog } from "./CommitmentTaskDialog";
 import { detectCommitment, type DetectedCommitment } from "@/lib/commitment-detection";
-import { createClientPromiseFollowUpAction } from "@/actions/conversation-intelligence-actions";
+import {
+  createClientPromiseFollowUpAction,
+  predictAdvisorCommitmentAction,
+} from "@/actions/conversation-intelligence-actions";
 import {
   buildWhatsAppJidCandidates,
   fmtPhone,
@@ -520,6 +523,8 @@ export function ChatsClient({
   const realtimeConnectedRef = useRef(false);
   const messagesRef = useRef<EvolutionMessage[]>(initialMessages || []);
   const activeActionSetRef = useRef<InstanceActionSet | null>(null);
+  const selectedJidRef = useRef(selectedJid);
+  selectedJidRef.current = selectedJid;
   const selectionRequestRef = useRef(0);
   const bootstrapRequestedRef = useRef(false);
   const messageCacheRef = useRef<Map<string, ChatMessageCacheEntry>>(new Map());
@@ -1318,7 +1323,19 @@ export function ChatsClient({
       });
 
       if (payload.kind === "text") {
-        setDetectedCommitment(detectCommitment(payload.text));
+        const immediateCommitment = detectCommitment(payload.text);
+        setDetectedCommitment(immediateCommitment);
+
+        // El detector local cubre frases frecuentes sin latencia. Cuando no hay
+        // coincidencia, la IA interpreta expresiones naturales más variadas.
+        if (!immediateCommitment) {
+          const sentToJid = selectedJid;
+          void predictAdvisorCommitmentAction(payload.text).then((prediction) => {
+            if (prediction.commitment && sentToJid === selectedJidRef.current) {
+              setDetectedCommitment(prediction.commitment);
+            }
+          });
+        }
       }
 
       window.setTimeout(() => {

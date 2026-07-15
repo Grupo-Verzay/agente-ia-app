@@ -3,7 +3,11 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import { detectClientPromise } from "@/lib/commitment-detection";
+import {
+  detectClientPromise,
+  detectCommitment,
+  type DetectedCommitment,
+} from "@/lib/commitment-detection";
 
 type IntelligenceResult = {
   requested?: string;
@@ -80,6 +84,103 @@ ${conversation}`;
     return JSON.parse(raw) as IntelligenceResult;
   } catch {
     return null;
+  }
+}
+
+type AdvisorCommitmentPrediction = {
+  hasCommitment?: boolean;
+  kind?: DetectedCommitment["kind"];
+  title?: string;
+  type?: DetectedCommitment["type"];
+  dueDate?: string;
+};
+
+export async function predictAdvisorCommitmentAction(text: string) {
+  const user = await currentUser();
+  if (!user?.id || !text?.trim()) return { success: false, commitment: null };
+
+  const localCommitment = detectCommitment(text);
+  if (localCommitment) return { success: true, commitment: localCommitment };
+
+  const ownerId = user.ownerId ?? user.id;
+  const cfg = await getAiConfig(ownerId);
+  if (!cfg) return { success: true, commitment: null };
+
+  const now = new Date();
+  const prompt = `Analiza el mensaje que un asesor acaba de enviar a un cliente.
+Detecta solamente compromisos futuros concretos del asesor que deban convertirse en tarea, recordatorio o cita.
+No detectes saludos, preguntas, información ya enviada, acciones del cliente ni frases vagas sin fecha interpretable.
+
+Devuelve SOLO JSON con esta forma:
+{
+  "hasCommitment": true o false,
+  "kind": "task" | "reminder" | "appointment",
+  "title": "acción breve para el asesor",
+  "type": "Seguimiento" | "Llamada" | "Reunión" | "Email" | "Tarea",
+  "dueDate": "fecha ISO 8601"
+}
+
+Fecha y hora actual: ${now.toISOString()}.
+Si no existe un compromiso futuro claro o no puedes determinar una fecha futura, responde {"hasCommitment":false}.
+
+MENSAJE DEL ASESOR:
+${text.trim()}`;
+
+  try {
+    let raw = "{}";
+    if (cfg.provider === "google") {
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey: cfg.apiKey });
+      const result = await ai.models.generateContent({
+        model: cfg.model,
+        contents: prompt,
+        config: { responseMimeType: "application/json", temperature: 0 },
+      });
+      raw = result.text ?? "{}";
+    } else {
+      const OpenAI = (await import("openai")).default;
+      const client = new OpenAI({ apiKey: cfg.apiKey });
+      const result = await client.chat.completions.create({
+        model: cfg.model,
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+        max_completion_tokens: 300,
+      });
+      raw = result.choices[0]?.message?.content ?? "{}";
+    }
+
+    const prediction = JSON.parse(raw) as AdvisorCommitmentPrediction;
+    const dueDate = prediction.dueDate ? new Date(prediction.dueDate) : null;
+    const validKinds = new Set<DetectedCommitment["kind"]>(["task", "reminder", "appointment"]);
+    const validTypes = new Set<DetectedCommitment["type"]>([
+      "Seguimiento", "Llamada", "Reunión", "Email", "Tarea",
+    ]);
+
+    if (
+      prediction.hasCommitment !== true ||
+      !prediction.kind ||
+      !validKinds.has(prediction.kind) ||
+      !prediction.title?.trim() ||
+      !prediction.type ||
+      !validTypes.has(prediction.type) ||
+      !dueDate ||
+      Number.isNaN(dueDate.getTime()) ||
+      dueDate <= now
+    ) {
+      return { success: true, commitment: null };
+    }
+
+    const commitment: DetectedCommitment = {
+      kind: prediction.kind,
+      title: prediction.title.trim().slice(0, 160),
+      type: prediction.type,
+      dueDate,
+      sourceText: text.trim(),
+    };
+    return { success: true, commitment };
+  } catch (error) {
+    console.error("[predictAdvisorCommitmentAction]", error);
+    return { success: false, commitment: null };
   }
 }
 
