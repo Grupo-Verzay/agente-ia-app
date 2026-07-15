@@ -101,11 +101,8 @@ export const GoogleCalendarSettings = ({ userId }: { userId: string }) => {
 
             {/* Paso 1: compartir calendario con la cuenta de servicio */}
             <div className="space-y-1.5">
-                <p className="text-sm font-semibold text-foreground">1. Comparte tu calendario</p>
-                <p className="text-xs text-muted-foreground">
-                    En Google Calendar → Configuración de tu calendario → <strong>Compartir con
-                    determinadas personas</strong>, agrega este correo con el permiso
-                    <strong> “Hacer cambios en los eventos”</strong>:
+                <p className="text-sm font-semibold text-foreground">
+                    1. Comparte tu calendario con este correo
                 </p>
                 {serviceAccountEmail ? (
                     <div className="flex items-center gap-2">
@@ -121,9 +118,10 @@ export const GoogleCalendarSettings = ({ userId }: { userId: string }) => {
                     </div>
                 ) : (
                     <p className="text-xs text-destructive">
-                        No hay una cuenta de servicio de Google configurada en el sistema. Contacta a soporte.
+                        No hay cuenta de servicio configurada. Contacta a soporte.
                     </p>
                 )}
+                <p className="text-xs text-muted-foreground">Permiso: “Hacer cambios en los eventos”.</p>
             </div>
 
             {/* Paso 2: ID del calendario */}
@@ -132,13 +130,10 @@ export const GoogleCalendarSettings = ({ userId }: { userId: string }) => {
                 <Input
                     value={calendarId}
                     onChange={(e) => setCalendarId(e.target.value)}
-                    placeholder="tucorreo@gmail.com  (o el ID que aparece en Configuración → Integrar calendario)"
+                    placeholder="tucorreo@gmail.com"
                     className="h-9 text-sm font-mono"
                 />
-                <p className="text-xs text-muted-foreground">
-                    Suele ser el mismo correo de tu cuenta de Google. Lo encuentras en Configuración del
-                    calendario → <strong>Integrar calendario → ID de calendario</strong>.
-                </p>
+                <p className="text-xs text-muted-foreground">Normalmente tu mismo correo de Google.</p>
             </div>
 
             {/* Paso 3: activar */}

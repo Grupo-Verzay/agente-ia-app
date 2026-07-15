@@ -235,8 +235,8 @@ export const MainSchedule = ({
                 {/* Ajustes */}
                 {tab === 'settings' && (
                     <div className="h-full overflow-y-auto">
-                        <div className="mx-auto grid max-w-5xl grid-cols-1 items-start gap-6 py-8 px-4 lg:grid-cols-2">
-                            <div className="rounded-xl border bg-card shadow-sm p-6">
+                        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 py-8 px-4 lg:grid-cols-2">
+                            <div className="h-full rounded-xl border bg-card shadow-sm p-6">
                                 <UpdateMeetingDuration
                                     userId={userId}
                                     meetingDuration={user.meetingDuration ?? 60}
@@ -244,7 +244,7 @@ export const MainSchedule = ({
                                     minNoticeMinutes={user.minNoticeMinutes ?? 0}
                                 />
                             </div>
-                            <div className="rounded-xl border bg-card shadow-sm p-6">
+                            <div className="h-full rounded-xl border bg-card shadow-sm p-6">
                                 <GoogleCalendarSettings userId={userId} />
                             </div>
                         </div>
