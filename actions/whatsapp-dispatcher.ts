@@ -8,6 +8,7 @@ import { db } from '@/lib/db';
 type DispatcherInstance = {
   instanceId: string | null;
   instanceName: string | null;
+  displayName?: string | null;
   instanceType: string | null;
   metaAccessToken?: string | null;
   metaPhoneNumberId?: string | null;
@@ -60,13 +61,36 @@ function canDispatchWhatsApp(instance: DispatcherInstance) {
   return isWhatsappLike(instance.instanceType);
 }
 
+function buildInstanceNameCandidates(instanceName?: string | null) {
+  const exactName = instanceName?.trim();
+  if (!exactName) return [];
+
+  const suffixVariants = [
+    exactName,
+    exactName.endsWith('_wh') ? exactName.slice(0, -3) : `${exactName}_wh`,
+  ];
+
+  return Array.from(new Set(suffixVariants.filter(Boolean)));
+}
+
 function preferConfiguredInstance(
   instances: DispatcherInstance[],
   preferredInstanceName?: string | null,
 ) {
   const candidates = instances.filter((instance) => canDispatchWhatsApp(instance));
   if (preferredInstanceName) {
-    const preferred = candidates.find((instance) => instance.instanceName === preferredInstanceName);
+    const preferredNames = buildInstanceNameCandidates(preferredInstanceName).map((name) =>
+      name.toLowerCase(),
+    );
+    const normalizedPreferred = preferredInstanceName.trim().toLowerCase();
+    const preferred = candidates.find((instance) => {
+      const instanceNames = buildInstanceNameCandidates(instance.instanceName);
+      const displayName = instance.displayName?.trim().toLowerCase();
+      return (
+        instanceNames.some((name) => preferredNames.includes(name.toLowerCase())) ||
+        displayName === normalizedPreferred
+      );
+    });
     if (preferred) return [preferred, ...candidates.filter((instance) => instance !== preferred)];
   }
   return [
@@ -160,6 +184,7 @@ async function findLineForUser(
         select: {
           instanceId: true,
           instanceName: true,
+          displayName: true,
           instanceType: true,
           metaAccessToken: true,
           metaPhoneNumberId: true,
@@ -271,10 +296,40 @@ export async function resolveSystemNotificationInstanceName(): Promise<string> {
   return ordered[0]?.instanceName?.trim() || DEFAULT_SYSTEM_NOTIFICATION_INSTANCE;
 }
 
-export async function resolveSystemNotificationDispatcherLine(): Promise<WhatsAppDispatcherLine | null> {
-  const instanceName = await resolveSystemNotificationInstanceName();
+export async function resolveConfiguredNotificationInstanceName(
+  ownerUserId?: string | null,
+): Promise<string> {
+  const ownerId = ownerUserId?.trim();
+  if (ownerId) {
+    const config = await db.resellerBillingConfig.findUnique({
+      where: { resellerId: ownerId },
+      select: { enabled: true, instanceName: true },
+    });
+
+    if (config?.enabled && config.instanceName?.trim()) {
+      return config.instanceName.trim();
+    }
+
+    return '';
+  }
+
+  return resolveSystemNotificationInstanceName();
+}
+
+export async function resolveSystemNotificationDispatcherLine(
+  ownerUserId?: string | null,
+): Promise<WhatsAppDispatcherLine | null> {
+  const instanceName = await resolveConfiguredNotificationInstanceName(ownerUserId);
   const exactLine = await resolveWhatsAppDispatcherLineByInstanceName(instanceName);
   if (exactLine) return exactLine;
+
+  if (ownerUserId?.trim()) {
+    return resolveWhatsAppDispatcherLine({
+      ownerUserId,
+      preferredInstanceName: instanceName,
+      includeAdminFallback: false,
+    });
+  }
 
   return resolveWhatsAppDispatcherLine({
     preferredInstanceName: instanceName,
@@ -307,11 +362,17 @@ export async function resolveWhatsAppDispatcherLineByInstanceName(
 ): Promise<WhatsAppDispatcherLine | null> {
   const exactName = instanceName.trim();
   if (!exactName) return null;
+  const candidates = buildInstanceNameCandidates(exactName);
 
   const user = await db.user.findFirst({
     where: {
       instancias: {
-        some: { instanceName: exactName },
+        some: {
+          OR: [
+            { instanceName: { in: candidates } },
+            { displayName: { equals: exactName, mode: 'insensitive' } },
+          ],
+        },
       },
     },
     select: {
@@ -319,11 +380,17 @@ export async function resolveWhatsAppDispatcherLineByInstanceName(
       notificationNumber: true,
       apiKey: { select: { url: true, key: true } },
       instancias: {
-        where: { instanceName: exactName },
+        where: {
+          OR: [
+            { instanceName: { in: candidates } },
+            { displayName: { equals: exactName, mode: 'insensitive' } },
+          ],
+        },
         take: 1,
         select: {
           instanceId: true,
           instanceName: true,
+          displayName: true,
           instanceType: true,
           metaAccessToken: true,
           metaPhoneNumberId: true,

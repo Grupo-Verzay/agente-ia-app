@@ -6,9 +6,16 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { resolveSystemNotificationDispatcherLine, sendViaWhatsAppDispatcher } from "./whatsapp-dispatcher";
 import { listMetaTemplates, sendMetaTemplate } from "./channel-chat-actions";
-import { ClientResponse, DISCONNECT_COOLDOWN_MS, DISCONNECTION_MSG, EVO_FETCH_TIMEOUT_MS, GenerateQrInterface, getDayKeyBogota, getEvoCache, isApiConnected, isWhatsappLike, QRCodeResponse } from "@/types/evo-api";
+import { ClientResponse, DISCONNECT_COOLDOWN_MS, EVO_FETCH_TIMEOUT_MS, GenerateQrInterface, getDayKeyBogota, getEvoCache, isApiConnected, isWhatsappLike, QRCodeResponse } from "@/types/evo-api";
 import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
 import { cleanInstanceDisplayName } from "@/lib/instance-display-name";
+
+const QR_DISCONNECTION_MESSAGE =
+  "📵 El WhatsApp esta *desvinculado* del Agente.\n\n" +
+  "*Solución*: entre a su cuenta\n\n" +
+  "👉 agente.ia-app.com/profile\n\n" +
+  "*Conectar* → en WhatsApp Business: Dispositivos vinculados.\n\n" +
+  "*Vincular un dispositivo* y escanee el *QR* 📳";
 
 /* =========================
    Server-Action: Generar QR
@@ -20,7 +27,21 @@ export async function sendQrDisconnectedNotification(
   userId: string,
   source = 'generateQRCode',
 ) {
-  const dispatcher = await resolveSystemNotificationDispatcherLine();
+  const targetUser = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      role: true,
+      ownerId: true,
+      demoResellerId: true,
+    },
+  });
+  const ownerUserId =
+    targetUser?.ownerId?.trim() ||
+    targetUser?.demoResellerId?.trim() ||
+    (targetUser?.role === 'super_admin' ? targetUser.id : null);
+
+  const dispatcher = await resolveSystemNotificationDispatcherLine(ownerUserId);
   if (!dispatcher) throw new Error("No hay linea de notificaciones conectada.");
 
   if (dispatcher.provider === "meta") {
@@ -37,7 +58,7 @@ export async function sendQrDisconnectedNotification(
   return sendViaWhatsAppDispatcher({
     dispatcher,
     remoteJid,
-    text: DISCONNECTION_MSG,
+    text: QR_DISCONNECTION_MESSAGE,
     history: {
       instanceName: dispatcher.instanceName,
       type: 'notification',
