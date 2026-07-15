@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toZonedTime } from 'date-fns-tz';
@@ -87,13 +87,16 @@ async function runPostBookingTasks({
       where: { id: memberId },
       select: { name: true },
     }),
-    db.instancia.findFirst({ where: { userId, instanceName }, select: { instanceId: true } }),
+    db.instancia.findFirst({
+      where: { userId, instanceName },
+      select: { instanceId: true, instanceType: true, metaPhoneNumberId: true, metaAccessToken: true },
+    }),
     db.user.findUnique({ where: { id: userId }, select: { apiKeyId: true, notificationNumber: true } }),
     db.reminders.findMany({ where: { userId, isSchedule: true }, orderBy: { id: 'asc' } }),
     db.userNotificationContact.findMany({ where: { userId }, select: { phone: true } }).catch(() => []),
   ]);
 
-  // Usar recordatorios del servicio si están configurados; si no, los globales
+  // Usar recordatorios del servicio si estÃ¡n configurados; si no, los globales
   type ServiceReminder = { timeMinutes: number; message: string };
   const serviceReminders: ServiceReminder[] = Array.isArray(service?.remindersConfig)
     ? (service.remindersConfig as ServiceReminder[]).filter(
@@ -106,37 +109,49 @@ async function runPostBookingTasks({
     ? await db.apiKey.findUnique({ where: { id: user.apiKeyId }, select: { url: true, key: true } })
     : null;
 
-  if (!apiKey?.url || !apiKey?.key || !instance?.instanceId) {
-    console.warn(`[bookings/notification] Sin apiKey o instancia — abortando tareas post-cita`);
+  if (!instance?.instanceId) {
+    console.warn(`[bookings/notification] Sin apiKey o instancia â€” abortando tareas post-cita`);
     return;
   }
 
   const slotDuration = service?.duration ?? 60;
-  const rawUrl = apiKey.url.replace(/^https?:\/\//, '').replace(/\/+$/, '');
-  const serverUrl = `https://${rawUrl}`;
-  const sendTextUrl = `${serverUrl}/message/sendText/${instanceName}`;
-  const evolutionApiKey = apiKey.key;
+  const rawUrl = apiKey?.url?.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  const isMetaInstance = String(instance.instanceType ?? '').toLowerCase() === 'meta';
+  const serverUrl = isMetaInstance
+    ? (instance.metaPhoneNumberId || instance.instanceId)
+    : rawUrl ? `https://${rawUrl}` : '';
+  const sendTextUrl = serverUrl ? `${serverUrl}/message/sendText/${instanceName}` : undefined;
+  const evolutionApiKey = isMetaInstance
+    ? (instance.metaAccessToken || apiKey?.key || instance.instanceId)
+    : (apiKey?.key ?? instance.instanceId);
   const clientTimezone = getTimezoneFromPhone(phone, timezone);
 
-  // 1. Confirmación al cliente
+  // 1. ConfirmaciÃ³n al cliente
   const confirmRawText = service?.messageText?.trim()
-    || `📝 ¡Tu cita ha sido registrada! Un asesor se pondrá en contacto contigo a la brevedad.`;
+    || `ðŸ“ Â¡Tu cita ha sido registrada! Un asesor se pondrÃ¡ en contacto contigo a la brevedad.`;
   const confirmMessage = formatReminderMessage(confirmRawText, pushName, startTime, timezone, slotDuration, clientTimezone, service?.name ?? '');
 
-  db.seguimiento.create({
-    data: {
-      idNodo: `booking-confirm-${serviceId}`,
-      serverurl: serverUrl,
-      instancia: instanceName,
-      apikey: evolutionApiKey,
-      remoteJid: phone,
-      mensaje: confirmMessage,
-      tipo: 'text',
-      time: '10',
-    },
+  const clientJid = phone.includes('@s.whatsapp.net')
+    ? phone
+    : `${phone.replace(/\D/g, '')}@s.whatsapp.net`;
+
+  await sendMessageWithHistoryAction({
+    instanceName,
+    url: sendTextUrl,
+    apikey: evolutionApiKey,
+    remoteJid: clientJid,
+    message: confirmMessage,
+    historyType: 'notification',
+    additionalKwargs: { source: 'BookingsApiAgent', recipient: 'client', serviceId },
+  }).then((result) => {
+    if (result.success) {
+      console.log(`[bookings/notification] Confirmación enviada al cliente ${clientJid}`);
+    } else {
+      console.warn(`[bookings/notification] No se pudo enviar confirmación al cliente ${clientJid}: ${result.message}`);
+    }
   }).catch((err) => console.error(`[bookings/notification] Error confirmación: ${err}`));
 
-  // 2. Notificar al asesor/dueño
+  // 2. Notificar al asesor/dueÃ±o
   const ownerPhones: string[] = [];
   if (user?.notificationNumber) ownerPhones.push(user.notificationNumber);
   for (const c of notificationContacts) {
@@ -148,18 +163,18 @@ async function runPostBookingTasks({
     const dateLabel = format(ownerStartLocal, "d 'de' MMMM 'de' yyyy", { locale: es });
     const hourLabel = format(ownerStartLocal, 'hh:mm a', { locale: es });
     const tzLabel = tzCityLabel(timezone);
-    const serviceName = service?.name ?? 'Asesoría';
+    const serviceName = service?.name ?? 'AsesorÃ­a';
     const memberName = member?.name ?? '';
     const clientPhone = phone.replace(/@s\.whatsapp\.net$/, '');
 
     const ownerText =
-      `📅 *Nueva Cita Agendada*:\n\n` +
-      `👤 *Cliente:* ${pushName}\n` +
-      `📝 *Servicio:* ${serviceName}\n` +
-      (memberName ? `🧑‍💼 *Especialista:* ${memberName}\n` : '') +
-      `📆 *Fecha y hora:* ${dateLabel} a las ${hourLabel} (hora ${tzLabel}).\n\n` +
-      `📱 *WhatsApp del cliente:*\n\n` +
-      `👉 ${clientPhone}`;
+      `ðŸ“… *Nueva Cita Agendada*:\n\n` +
+      `ðŸ‘¤ *Cliente:* ${pushName}\n` +
+      `ðŸ“ *Servicio:* ${serviceName}\n` +
+      (memberName ? `ðŸ§‘â€ðŸ’¼ *Especialista:* ${memberName}\n` : '') +
+      `ðŸ“† *Fecha y hora:* ${dateLabel} a las ${hourLabel} (hora ${tzLabel}).\n\n` +
+      `ðŸ“± *WhatsApp del cliente:*\n\n` +
+      `ðŸ‘‰ ${clientPhone}`;
 
     await Promise.allSettled(
       ownerPhones.map(async (ownerPhone) => {
@@ -181,7 +196,7 @@ async function runPostBookingTasks({
 
   // 3. Recordatorios programados
   if (serviceReminders.length > 0) {
-    // Recordatorios específicos del servicio
+    // Recordatorios especÃ­ficos del servicio
     await Promise.allSettled(
       serviceReminders.map(async (rem, idx) => {
         const seconds = rem.timeMinutes * 60;
@@ -242,7 +257,7 @@ async function runPostBookingTasks({
  * Body: { userId, serviceId, memberId, pushName, phone, instanceName, startTime, endTime, timezone }
  *
  * memberId: puede omitirse si solo hay un miembro disponible para el servicio;
- *           en ese caso se asigna automáticamente el primero activo.
+ *           en ese caso se asigna automÃ¡ticamente el primero activo.
  */
 export async function POST(request: Request) {
   if (!isAuthorized(request)) {
@@ -321,7 +336,7 @@ export async function POST(request: Request) {
       .map((m) => m.teamMember.id);
 
     if (activeMembers.length === 0) {
-      // Ningún miembro asignado al servicio → tomar cualquier miembro activo del equipo
+      // NingÃºn miembro asignado al servicio â†’ tomar cualquier miembro activo del equipo
       const anyMember = await db.teamMember.findFirst({
         where: { teamId: team.id, isActive: true },
         select: { id: true },
@@ -353,7 +368,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.message }, { status: 400 });
   }
 
-  // Tareas post-creación (fire-and-forget)
+  // Tareas post-creaciÃ³n (fire-and-forget)
   runPostBookingTasks({
     userId,
     instanceName,
