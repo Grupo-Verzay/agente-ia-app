@@ -363,7 +363,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   if (loading && renderedList.length === 0) {
     return (
       <div
-        className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto custom-scrollbar w-full"
+        className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto overflow-x-hidden custom-scrollbar w-full"
         ref={listRef}
         onScroll={handleScroll}
       >
@@ -378,7 +378,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
 
   return (
     <div
-      className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto custom-scrollbar w-full"
+      className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto overflow-x-hidden custom-scrollbar w-full"
       ref={listRef}
       onScroll={handleScroll}
     >
