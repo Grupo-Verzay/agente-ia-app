@@ -189,9 +189,6 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   // Notas: se monta la 1ª vez que se abre y luego se mantiene montada (oculta),
   // para que reabrir la pestaña sea instantáneo (sin re-descargar ni re-cargar).
   const [notesLoaded, setNotesLoaded] = useState(false);
-  // Copiloto (LibreChat embebido): igual que Notas, se monta al abrir y se
-  // conserva montado (oculto) para no perder la sesión al cambiar de pestaña.
-  const [copilotLoaded, setCopilotLoaded] = useState(false);
   const [copilotTaskDialogOpen, setCopilotTaskDialogOpen] = useState(false);
   const [copilotTaskDraft, setCopilotTaskDraft] = useState<{
     title?: string;
@@ -208,11 +205,6 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   // Marca Notas como montada al abrirla la 1ª vez (a partir de ahí se conserva).
   useEffect(() => {
     if (chatView === 'notes') setNotesLoaded(true);
-  }, [chatView]);
-
-  // Marca Copiloto como montado al abrirlo la 1ª vez (se conserva montado).
-  useEffect(() => {
-    if (chatView === 'copilot') setCopilotLoaded(true);
   }, [chatView]);
 
   // Precarga en 2º plano el chunk del editor de Notas (BlockNote, pesado) al
@@ -964,17 +956,8 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         </div>
       )}
 
-      {/* ── Vista Copiloto (LibreChat embebido) ──
-          Se monta al abrirlo y se conserva montado (oculto) para no perder la
-          sesión de LibreChat al cambiar de pestaña. */}
-      {copilotLoaded && (
-        <div className={chatView === 'copilot' ? 'flex-1 min-h-0 overflow-hidden' : 'hidden'}>
-          <IframeRenderer url="https://copiloto.ia-app.com" />
-        </div>
-      )}
-
       {/* ── Vista iframe de integración ── */}
-      {chatView !== 'messages' && chatView !== 'notes' && chatView !== 'copilot' && (() => {
+      {chatView !== 'messages' && chatView !== 'notes' && (() => {
         const intg = userIntegrations.find(i => i.id === chatView);
         return intg ? (
           <div className="flex-1 min-h-0 overflow-hidden">
