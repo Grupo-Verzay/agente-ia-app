@@ -152,6 +152,35 @@ function ensureChatMessagesTable() {
       CREATE INDEX IF NOT EXISTS "chat_conversations_user_last_ts_idx"
       ON "chat_conversations" ("userId", "lastMessageTimestamp" DESC)
     `;
+    // Índices para la bandeja (getPersistedInboxChats): el emparejamiento
+    // conversación↔sesión sondea por remoteJid/remoteJidAlt/senderPn. Sin estos
+    // índices el LEFT JOIN / anti-join haría seq-scans. Se crean CONCURRENTLY y
+    // en best-effort (un fallo NO debe romper la persistencia de mensajes).
+    // "Session" es tabla compartida (la escribe el backend): CONCURRENTLY evita
+    // lockearla.
+    const bestEffortIndex = async (label: string, sql: Prisma.Sql) => {
+      try {
+        await db.$executeRaw(sql);
+      } catch (e) {
+        console.error(`[idx] ${label}:`, e instanceof Error ? e.message : e);
+      }
+    };
+    await bestEffortIndex(
+      "chat_conversations_user_jid",
+      Prisma.sql`CREATE INDEX CONCURRENTLY IF NOT EXISTS "chat_conversations_user_jid_idx" ON "chat_conversations" ("userId", "remoteJid")`
+    );
+    await bestEffortIndex(
+      "chat_conversations_user_alt",
+      Prisma.sql`CREATE INDEX CONCURRENTLY IF NOT EXISTS "chat_conversations_user_alt_idx" ON "chat_conversations" ("userId", "remoteJidAlt") WHERE "remoteJidAlt" IS NOT NULL`
+    );
+    await bestEffortIndex(
+      "chat_conversations_user_sender",
+      Prisma.sql`CREATE INDEX CONCURRENTLY IF NOT EXISTS "chat_conversations_user_sender_idx" ON "chat_conversations" ("userId", "senderPn") WHERE "senderPn" IS NOT NULL`
+    );
+    await bestEffortIndex(
+      "session_user_alt",
+      Prisma.sql`CREATE INDEX CONCURRENTLY IF NOT EXISTS "session_user_remotejidalt_idx" ON "Session" ("userId", "remoteJidAlt") WHERE "remoteJidAlt" IS NOT NULL`
+    );
     await db.$executeRaw`
       DELETE FROM "chat_messages"
       WHERE "messageType" = 'reactionMessage'
@@ -873,37 +902,33 @@ export async function getPersistedInboxChats(params: {
   await ensureChatMessagesTable();
 
   const __t0 = performance.now();
+  // Equivale exactamente al FULL OUTER JOIN de antes, pero descompuesto en
+  //   (chat_conversations LEFT JOIN Session)  UNION ALL  (Session sin conversación)
+  // Esa forma SÍ permite nested-loop con índices (lineal) en lugar del cruce
+  // cuadrático que forzaba el FULL JOIN (unido solo por userId). Mismas columnas,
+  // mismo DISTINCT ON y mismo orden → mismos resultados.
   const rows = await db.$queryRaw<InboxRow[]>`
-    WITH inbox_rows AS (
-      SELECT DISTINCT ON (
-        COALESCE(c."userId", s."userId"),
-        COALESCE(c."instanceName", i."instanceName", s."instanceId"),
-        COALESCE(c."remoteJid", s."remoteJid")
-      )
-        COALESCE(s."id", c."id") AS "sessionId",
-        COALESCE(c."userId", s."userId") AS "userId",
-        COALESCE(c."remoteJid", s."remoteJid") AS "remoteJid",
-        COALESCE(c."remoteJidAlt", s."remoteJidAlt") AS "remoteJidAlt",
-        COALESCE(c."pushName", s."pushName") AS "pushName",
-        COALESCE(c."instanceName", i."instanceName", s."instanceId") AS "instanceName",
-        COALESCE(c."instanceType", i."instanceType") AS "instanceType",
-        c."lastMessageId" AS "messageId",
-        c."lastMessageFromMe" AS "fromMe",
-        c."lastMessageType" AS "messageType",
-        c."lastMessageContent" AS "content",
-        c."lastMessageMediaUrl" AS "mediaUrl",
-        c."lastMessageRaw" AS "raw",
-        c."lastMessageTimestamp" AS "messageTimestamp",
-        c."lastMessageDeleted" AS "lastMessageDeleted",
-        COALESCE(s."updatedAt", c."updatedAt") AS "sessionUpdatedAt"
+    WITH merged AS (
+      -- Cada conversación con su sesión emparejada (o NULL): cubre "c con s" y "c sin s"
+      SELECT
+        c."id" AS c_id, c."userId" AS c_user, c."instanceName" AS c_instance,
+        c."instanceType" AS c_instance_type, c."remoteJid" AS c_jid,
+        c."remoteJidAlt" AS c_alt, c."senderPn" AS c_sender, c."pushName" AS c_push,
+        c."lastMessageId" AS c_msg_id, c."lastMessageFromMe" AS c_from_me,
+        c."lastMessageType" AS c_msg_type, c."lastMessageContent" AS c_content,
+        c."lastMessageMediaUrl" AS c_media, c."lastMessageRaw" AS c_raw,
+        c."lastMessageTimestamp" AS c_ts, c."lastMessageDeleted" AS c_deleted,
+        c."updatedAt" AS c_updated,
+        s."id" AS s_id, s."userId" AS s_user, s."instanceId" AS s_instance,
+        s."remoteJid" AS s_jid, s."remoteJidAlt" AS s_alt, s."pushName" AS s_push,
+        s."updatedAt" AS s_updated
       FROM "chat_conversations" c
-      FULL OUTER JOIN "Session" s
+      LEFT JOIN "Session" s
         ON s."userId" = c."userId"
         AND (
           s."instanceId" = c."instanceName"
           OR EXISTS (
-            SELECT 1
-            FROM "Instancias" si
+            SELECT 1 FROM "Instancias" si
             WHERE si."userId" = s."userId"
               AND si."instanceId" = s."instanceId"
               AND si."instanceName" = c."instanceName"
@@ -917,20 +942,83 @@ export async function getPersistedInboxChats(params: {
           OR (s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" = c."remoteJidAlt")
           OR (s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" = c."senderPn")
         )
-      LEFT JOIN "Instancias" i
-        ON i."userId" = COALESCE(s."userId", c."userId")
-        AND (
-          i."instanceName" = COALESCE(c."instanceName", s."instanceId")
-          OR i."instanceId" = COALESCE(c."instanceName", s."instanceId")
+      WHERE c."userId" IN (${Prisma.join(userIds)})
+
+      UNION ALL
+
+      -- Sesiones que NO tienen conversación: cubre "s sin c"
+      SELECT
+        NULL::bigint AS c_id, NULL::text AS c_user, NULL::text AS c_instance,
+        NULL::text AS c_instance_type, NULL::text AS c_jid,
+        NULL::text AS c_alt, NULL::text AS c_sender, NULL::text AS c_push,
+        NULL::text AS c_msg_id, NULL::boolean AS c_from_me,
+        NULL::text AS c_msg_type, NULL::text AS c_content,
+        NULL::text AS c_media, NULL::jsonb AS c_raw,
+        NULL::timestamp(3) AS c_ts, NULL::boolean AS c_deleted,
+        NULL::timestamp(3) AS c_updated,
+        s."id" AS s_id, s."userId" AS s_user, s."instanceId" AS s_instance,
+        s."remoteJid" AS s_jid, s."remoteJidAlt" AS s_alt, s."pushName" AS s_push,
+        s."updatedAt" AS s_updated
+      FROM "Session" s
+      WHERE s."userId" IN (${Prisma.join(userIds)})
+        AND NOT EXISTS (
+          SELECT 1 FROM "chat_conversations" c
+          WHERE c."userId" = s."userId"
+            AND (
+              s."instanceId" = c."instanceName"
+              OR EXISTS (
+                SELECT 1 FROM "Instancias" si
+                WHERE si."userId" = s."userId"
+                  AND si."instanceId" = s."instanceId"
+                  AND si."instanceName" = c."instanceName"
+              )
+            )
+            AND (
+              s."remoteJid" = c."remoteJid"
+              OR s."remoteJid" = c."remoteJidAlt"
+              OR s."remoteJid" = c."senderPn"
+              OR (s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" = c."remoteJid")
+              OR (s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" = c."remoteJidAlt")
+              OR (s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" = c."senderPn")
+            )
         )
-      WHERE COALESCE(c."userId", s."userId") IN (${Prisma.join(userIds)})
-        ${params.instanceNames?.length ? Prisma.sql`AND COALESCE(c."instanceName", i."instanceName", s."instanceId") IN (${Prisma.join(params.instanceNames)})` : Prisma.empty}
-        AND COALESCE(c."lastMessageType", '') <> 'reactionMessage'
+    ),
+    inbox_rows AS (
+      SELECT DISTINCT ON (
+        COALESCE(m.c_user, m.s_user),
+        COALESCE(m.c_instance, i."instanceName", m.s_instance),
+        COALESCE(m.c_jid, m.s_jid)
+      )
+        COALESCE(m.s_id, m.c_id) AS "sessionId",
+        COALESCE(m.c_user, m.s_user) AS "userId",
+        COALESCE(m.c_jid, m.s_jid) AS "remoteJid",
+        COALESCE(m.c_alt, m.s_alt) AS "remoteJidAlt",
+        COALESCE(m.c_push, m.s_push) AS "pushName",
+        COALESCE(m.c_instance, i."instanceName", m.s_instance) AS "instanceName",
+        COALESCE(m.c_instance_type, i."instanceType") AS "instanceType",
+        m.c_msg_id AS "messageId",
+        m.c_from_me AS "fromMe",
+        m.c_msg_type AS "messageType",
+        m.c_content AS "content",
+        m.c_media AS "mediaUrl",
+        m.c_raw AS "raw",
+        m.c_ts AS "messageTimestamp",
+        m.c_deleted AS "lastMessageDeleted",
+        COALESCE(m.s_updated, m.c_updated) AS "sessionUpdatedAt"
+      FROM merged m
+      LEFT JOIN "Instancias" i
+        ON i."userId" = COALESCE(m.s_user, m.c_user)
+        AND (
+          i."instanceName" = COALESCE(m.c_instance, m.s_instance)
+          OR i."instanceId" = COALESCE(m.c_instance, m.s_instance)
+        )
+      WHERE COALESCE(m.c_msg_type, '') <> 'reactionMessage'
+        ${params.instanceNames?.length ? Prisma.sql`AND COALESCE(m.c_instance, i."instanceName", m.s_instance) IN (${Prisma.join(params.instanceNames)})` : Prisma.empty}
       ORDER BY
-        COALESCE(c."userId", s."userId"),
-        COALESCE(c."instanceName", i."instanceName", s."instanceId"),
-        COALESCE(c."remoteJid", s."remoteJid"),
-        COALESCE(c."lastMessageTimestamp", s."updatedAt") DESC
+        COALESCE(m.c_user, m.s_user),
+        COALESCE(m.c_instance, i."instanceName", m.s_instance),
+        COALESCE(m.c_jid, m.s_jid),
+        COALESCE(m.c_ts, m.s_updated) DESC
     )
     SELECT *
     FROM inbox_rows
