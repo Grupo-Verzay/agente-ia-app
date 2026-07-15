@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Search, SquarePen, PanelLeftClose } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { readSidebarCache, type CachedSidebarRow } from "./chats-sidebar-cache";
@@ -50,18 +51,32 @@ export function CachedSidebar() {
 
   return (
     <div className="hidden h-full w-80 flex-shrink-0 border-r bg-background/70 p-4 md:flex md:w-96">
-      <div className="flex w-full flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-7 w-24" />
-          <Skeleton className="h-5 w-5 rounded-full" />
+      <div className="flex w-full flex-col gap-3">
+        {/* Toolbar estático (real, no gris): buscador + filtros/tabs, para que esa
+            zona se vea fija mientras el servidor termina de cargar. No interactivo. */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
+          <div className="flex h-8 items-center gap-2 rounded-md border border-input bg-background px-3 text-muted-foreground sm:h-9">
+            <Search className="h-4 w-4 shrink-0" />
+            <span className="truncate text-sm">Buscar...</span>
+          </div>
+          <div className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-input bg-background text-muted-foreground sm:h-8 sm:w-8">
+            <SquarePen className="h-3.5 w-3.5" />
+          </div>
+          <div className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-input bg-background text-muted-foreground sm:h-8 sm:w-8">
+            <PanelLeftClose className="h-3.5 w-3.5" />
+          </div>
         </div>
 
-        <Skeleton className="h-10 w-full rounded-xl" />
-
-        <div className="grid grid-cols-4 gap-2">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-9 rounded-xl" />
-          ))}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
+            Mías
+          </span>
+          <span className="rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white">
+            Todos
+          </span>
+          <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">
+            No leídos
+          </span>
         </div>
 
         {!rows || rows.length === 0 ? (
