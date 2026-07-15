@@ -93,7 +93,7 @@ const PREFETCH_TOP_CHATS = 14;
 // UNA vez por sesión, de fondo y por la cola con límite de concurrencia. Cubre el
 // grueso del uso real sin bajar el archivo histórico completo (no satura Evolution
 // ni el pool). Los que queden fuera se calientan solos al abrirlos por primera vez.
-const BACKFILL_CHATS = 100;
+const BACKFILL_CHATS = 50;
 const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
 const SELECTED_CHAT_SYNC_DELAY_MS = 3500;
 const SELECTED_CHAT_POLLING_DELAY_MS = 10000;
@@ -1224,11 +1224,13 @@ export function ChatsClient({
     if (backfillStartedRef.current || !contacts.length) return;
     backfillStartedRef.current = true;
     const snapshot = contacts.slice(0, BACKFILL_CHATS);
+    // Arranca más tarde (2.5s) para NO competir con la carga inicial de Chats: así
+    // la entrada se siente ágil y el precalentado corre cuando ya estás mirando.
     window.setTimeout(() => {
       for (const contact of snapshot) {
         prefetchChat(contact.remoteJid, contact.instanceName);
       }
-    }, 900);
+    }, 2500);
   }, [contacts, prefetchChat]);
 
   const handleSelectFromSidebar = useCallback(

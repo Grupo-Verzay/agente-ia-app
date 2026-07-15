@@ -529,10 +529,16 @@ export function ChatSidebar({
 
   // Guarda la lista visible (top N) para pintarla al INSTANTE al reentrar a /chats
   // (loading.tsx la muestra en vez del skeleton gris). Best-effort, sin datos sensibles.
+  // Espaciado (máx 1 guardado / 5s) y solo mapea el top 14 → no hace trabajo en cada
+  // actualización de la lista (evita "momentos" de lentitud por el poll).
+  const lastSidebarSaveRef = React.useRef(0);
   React.useEffect(() => {
     if (!filtered.length) return;
+    const now = Date.now();
+    if (now - lastSidebarSaveRef.current < 5000) return;
+    lastSidebarSaveRef.current = now;
     saveSidebarCache(
-      filtered.map((c) => ({
+      filtered.slice(0, 14).map((c) => ({
         name: c.name,
         avatarSrc: c.avatarSrc,
         timestamp: c.timestamp,
