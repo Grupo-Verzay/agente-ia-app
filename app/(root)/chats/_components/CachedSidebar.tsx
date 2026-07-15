@@ -96,25 +96,34 @@ export function CachedSidebar() {
             </ToolbarIcon>
           </div>
 
-          {/* Tabs / chips (mismos colores que el real) */}
-          <div className="flex items-center gap-1.5 overflow-hidden">
-            <span className="shrink-0 rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
-              Mías
-            </span>
-            <span className="shrink-0 rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white">
-              Todos
-            </span>
-            <span className="shrink-0 rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">
-              No leídos
-            </span>
-            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-              <Users className="h-3.5 w-3.5" />
-            </span>
+          {/* Tabs — misma estructura/medidas que ChatTabBar (justify-evenly, h-6, chips
+              con borde) para que la transición del puente al real NO se descuadre. */}
+          <div className="flex w-full items-center gap-1">
+            <div className="flex flex-1 items-center justify-evenly gap-1 overflow-hidden">
+              <span
+                className="inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium whitespace-nowrap"
+                style={{ borderColor: "#7C3AED50", color: "#7C3AED", background: "#7C3AED10" }}
+              >
+                Mías
+              </span>
+              <span
+                className="inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-full border px-2 text-xs font-medium whitespace-nowrap"
+                style={{ background: "#007BFF", borderColor: "#007BFF", color: "#fff" }}
+              >
+                Todos
+              </span>
+              <span className="inline-flex h-6 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full border border-orange-300 bg-orange-50 px-2 text-xs font-medium text-orange-500 dark:border-orange-500/40 dark:bg-orange-500/10 dark:text-orange-400">
+                No leídos
+              </span>
+              <span className="inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-50 px-2 text-xs font-medium text-emerald-600 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-400">
+                <Users className="h-3 w-3 shrink-0" />
+              </span>
+            </div>
             <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-input text-muted-foreground">
-              <Filter className="h-3.5 w-3.5" />
+              <Filter className="h-3 w-3" />
             </span>
-            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-input text-muted-foreground">
-              <ChevronDown className="h-3.5 w-3.5" />
+            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400">
+              <ChevronDown className="h-3 w-3" />
             </span>
           </div>
         </div>
