@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   CheckCircle2, Flame, Loader2, Plus, Snowflake, Trash2, XCircle,
-  Tag, UserCheck, Play, MessageCircle, Bell, BotOff, Bot, Link, Webhook, RefreshCw, Pencil, ChevronDown,
+  Tag, UserCheck, Play, MessageCircle, Bell, BotOff, Bot, Link, Webhook, RefreshCw, Pencil, ChevronDown, Phone,
 } from "lucide-react";
 import { LeadStatus } from "@prisma/client";
 import type { StageActionType } from "@/actions/stage-automation-actions";
@@ -51,6 +51,7 @@ const ACTION_TYPES: { value: StageActionType; label: string; icon: React.ReactNo
   { value: "SEND_FILE",      label: "Enviar archivo",          icon: <Link className="h-4 w-4" /> },
   { value: "WEBHOOK",        label: "Webhook externo",         icon: <Webhook className="h-4 w-4" /> },
   { value: "CHANGE_STATUS",  label: "Cambiar estado lead",     icon: <RefreshCw className="h-4 w-4" /> },
+  { value: "AI_CALL",        label: "Llamar con IA (voz)",     icon: <Phone className="h-4 w-4" /> },
 ];
 
 function actionLabel(type: StageActionType, cfg: StageActionConfig): string {
@@ -67,6 +68,7 @@ function actionLabel(type: StageActionType, cfg: StageActionConfig): string {
     case "SEND_FILE":      return `Archivo: ${String(cfg.fileName ?? cfg.fileUrl ?? "?")}`;
     case "WEBHOOK":        return `Webhook: ${String(cfg.url ?? "?").slice(0, 40)}`;
     case "CHANGE_STATUS":  return `Cambiar estado a ${String(cfg.status ?? "?")}`;
+    case "AI_CALL":        return "Llamar al lead con IA (voz)";
     default:               return type;
   }
 }
@@ -233,6 +235,17 @@ function ActionConfigForm({
               {STAGES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
           </Select>
+        </div>
+      );
+
+    case "AI_CALL":
+      return (
+        <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
+          <p className="font-medium text-foreground flex items-center gap-1.5">
+            <Phone className="h-3.5 w-3.5" /> Llamada de voz con IA
+          </p>
+          <p>La IA llamará automáticamente al número del lead y conversará por voz. No requiere configuración.</p>
+          <p>Requiere: número de llamadas vinculado (Conexión → Llamadas), "Asistente de voz IA" activo y créditos.</p>
         </div>
       );
 

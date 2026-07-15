@@ -10,7 +10,7 @@ const db = _db as any;
 export type StageActionType =
   | 'TAG_ADD' | 'TAG_REMOVE' | 'TASK' | 'ASSIGN' | 'EXECUTE_FLOW'
   | 'MESSAGE' | 'REMINDER' | 'NOTIFY_ADVISOR' | 'TOGGLE_AI'
-  | 'SEND_FILE' | 'WEBHOOK' | 'CHANGE_STATUS';
+  | 'SEND_FILE' | 'WEBHOOK' | 'CHANGE_STATUS' | 'AI_CALL';
 
 export type StageActionConfig = Record<string, unknown>;
 
