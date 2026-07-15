@@ -549,7 +549,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           {/* Alto FIJO del bloque nombre(+subtítulo): con `justify-center` el contenido se
               centra, así el header mide EXACTAMENTE igual con o sin el subtítulo del
               anuncio → "Mensajes/Notas/Web" queda a la misma altura en todos los chats. */}
-          <div className="flex h-[42px] flex-col justify-center overflow-hidden min-w-0">
+          <div className="flex h-[43px] flex-col justify-center overflow-hidden min-w-0">
             <div className="flex items-center gap-1.5">
               {header.isPinned && (
                 <Pin className="h-4 w-4 fill-current text-amber-500 flex-shrink-0" />
