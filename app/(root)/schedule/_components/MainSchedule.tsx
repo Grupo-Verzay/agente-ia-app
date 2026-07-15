@@ -234,8 +234,8 @@ export const MainSchedule = ({
 
                 {/* Ajustes */}
                 {tab === 'settings' && (
-                    <div className="h-full overflow-y-auto">
-                        <div className="grid grid-cols-1 gap-5 p-4 lg:grid-cols-2">
+                    <div className="h-full overflow-y-auto pb-4">
+                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                             <div className="h-full rounded-xl border bg-card shadow-sm p-6">
                                 <UpdateMeetingDuration
                                     userId={userId}
