@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { BellPlus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +21,33 @@ type FormDeps = {
   leads: Session[];
 };
 
+// Las deps del recordatorio (apikey + workflows + TODOS los leads) son a nivel de
+// USUARIO: iguales para todos los chats. Se cargan UNA sola vez por sesión del
+// navegador y se cachean a nivel de módulo, así el diálogo abre al instante en
+// cualquier chat (antes se re-consultaba por chat, con una query pesada de leads).
+let reminderDepsCache: FormDeps | null = null;
+let reminderDepsPromise: Promise<FormDeps | null> | null = null;
+
+function loadReminderDeps(userId: string, instanceId: string): Promise<FormDeps | null> {
+  if (reminderDepsCache) return Promise.resolve(reminderDepsCache);
+  if (!reminderDepsPromise) {
+    reminderDepsPromise = getReminderFormDeps(userId, instanceId)
+      .then((result) => {
+        if (result.success && result.data) {
+          reminderDepsCache = result.data as FormDeps;
+          return reminderDepsCache;
+        }
+        reminderDepsPromise = null; // permitir reintento si vino vacío
+        return null;
+      })
+      .catch(() => {
+        reminderDepsPromise = null; // permitir reintento si falló
+        return null;
+      });
+  }
+  return reminderDepsPromise;
+}
+
 interface ChatReminderDialogProps {
   session: Session;
   userId: string;
@@ -29,20 +56,33 @@ interface ChatReminderDialogProps {
 export function ChatReminderDialog({ session, userId }: ChatReminderDialogProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [deps, setDeps] = useState<FormDeps | null>(null);
+  const [deps, setDeps] = useState<FormDeps | null>(reminderDepsCache);
 
-  const handleOpen = useCallback(async () => {
-    setOpen(true);
+  // Prefetch en 2º plano al montar (al abrir el chat): cachea a nivel de módulo, así
+  // la primera vez carga una sola vez y de ahí en más el diálogo abre instantáneo.
+  useEffect(() => {
     if (deps) return;
-    setIsLoading(true);
-    try {
-      const result = await getReminderFormDeps(userId, session.instanceId);
-      if (result.success && result.data) {
-        setDeps(result.data as FormDeps);
-      }
-    } finally {
-      setIsLoading(false);
+    let alive = true;
+    void loadReminderDeps(userId, session.instanceId).then((d) => {
+      if (alive && d) setDeps(d);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [userId, session.instanceId, deps]);
+
+  const handleOpen = useCallback(() => {
+    setOpen(true);
+    if (deps || reminderDepsCache) {
+      if (!deps && reminderDepsCache) setDeps(reminderDepsCache);
+      return;
     }
+    setIsLoading(true);
+    void loadReminderDeps(userId, session.instanceId)
+      .then((d) => {
+        if (d) setDeps(d);
+      })
+      .finally(() => setIsLoading(false));
   }, [userId, session.instanceId, deps]);
 
   const initialData = {
