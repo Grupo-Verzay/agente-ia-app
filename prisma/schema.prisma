@@ -100,6 +100,7 @@ model Appointment {
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   serviceId    String?
+  googleEventId String?             @map("google_event_id")
   service      Service?             @relation(fields: [serviceId], references: [id])
   session      Session              @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -752,6 +753,8 @@ model User {
   sheetsUrl                          String?                      @map("sheets_url")
   sheetsFormName                     String?                      @map("sheets_form_name")
   sheetsRegistroName                 String?                      @map("sheets_registro_name")
+  googleCalendarId                   String?                      @map("google_calendar_id")
+  googleCalendarSyncEnabled          Boolean                      @default(false) @map("google_calendar_sync_enabled")
   ownerId                            String?                      @map("owner_id")
   advisorRole                        String?                      @map("advisor_role")
   advisorAvailable                   Boolean                      @default(true) @map("advisor_available")
@@ -1991,6 +1994,7 @@ enum StageActionType {
   SEND_FILE
   WEBHOOK
   CHANGE_STATUS
+  AI_CALL
 }
 
 model StageAutomation {

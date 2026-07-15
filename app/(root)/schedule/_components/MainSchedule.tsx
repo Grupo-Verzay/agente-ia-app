@@ -23,7 +23,7 @@ import ServiceManager from './services/ServiceManager';
 import { CustomCalendar } from './dashboard';
 import { AgendaKanban } from './dashboard/AgendaKanban';
 import { ShareScheduleLinkButton, UserAvailabilityForm } from './availability';
-import { UpdateMeetingDuration } from './settings';
+import { UpdateMeetingDuration, GoogleCalendarSettings } from './settings';
 import { BookingFormBuilder } from './form/BookingFormBuilder';
 import { BookingFormResponsesList, type BookingResponseCounts } from './form/BookingFormResponsesList';
 import { getAppointmentStatusCounts } from '@/actions/appointments-actions';
@@ -235,7 +235,7 @@ export const MainSchedule = ({
                 {/* Ajustes */}
                 {tab === 'settings' && (
                     <div className="h-full overflow-y-auto">
-                        <div className="flex justify-center py-8 px-4">
+                        <div className="flex flex-col items-center gap-6 py-8 px-4">
                             <div className="w-full max-w-lg rounded-xl border bg-card shadow-sm p-6">
                                 <UpdateMeetingDuration
                                     userId={userId}
@@ -243,6 +243,9 @@ export const MainSchedule = ({
                                     meetingUrl={user.meetingUrl}
                                     minNoticeMinutes={user.minNoticeMinutes ?? 0}
                                 />
+                            </div>
+                            <div className="w-full max-w-lg rounded-xl border bg-card shadow-sm p-6">
+                                <GoogleCalendarSettings userId={userId} />
                             </div>
                         </div>
                     </div>

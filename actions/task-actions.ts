@@ -239,6 +239,11 @@ export async function createDetectedAppointmentAction(input: {
       summary: `Creó cita detectada en chat: ${input.title}`,
       metadata: { sessionId: session.id, startTime: startTime.toISOString() },
     });
+
+    // Sincronizar con Google Calendar (fire-and-forget).
+    const { syncAppointmentToCalendar } = await import("./google-calendar-actions");
+    void syncAppointmentToCalendar(appointment.id).catch(() => {});
+
     return { success: true, message: "Cita creada en la agenda." };
   } catch (error) {
     console.error("[createDetectedAppointmentAction]", error);

@@ -5,6 +5,11 @@ import { Appointment, AppointmentStatus } from '@prisma/client';
 import { addMinutes, parseISO, isBefore } from 'date-fns';
 import { registerSession } from './session-action';
 import { getAuditActorId, writeAuditLog } from './audit-log-actions';
+import {
+    syncAppointmentToCalendar,
+    updateAppointmentCalendarEvent,
+    deleteCalendarEvent,
+} from './google-calendar-actions';
 
 interface AppointmentOperationResponse {
     success: boolean;
@@ -212,6 +217,9 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
             },
         });
 
+        // Sincronizar con Google Calendar (fire-and-forget: no bloquea ni rompe la cita).
+        void syncAppointmentToCalendar(created.id).catch(() => {});
+
         return {
             success: true,
             message: 'Cita creada exitosamente.',
@@ -308,6 +316,14 @@ export async function updateAppointmentStatus(
 
         void triggerApptAutomations(updated.sessionId, status);
 
+        // Al cancelar, quitar el evento de Google Calendar (y limpiar el eventId).
+        if (status === 'CANCELADA' && (updated as any).googleEventId) {
+            const eventId = (updated as any).googleEventId as string;
+            void deleteCalendarEvent(updated.userId, eventId)
+                .then(() => db.appointment.update({ where: { id }, data: { googleEventId: null } as any }))
+                .catch(() => {});
+        }
+
         await writeAuditLog({
             userId: updated.userId,
             actorId: await getAuditActorId(),
@@ -402,6 +418,10 @@ export async function updateAppointmentDetails(
                 serviceId: updated.serviceId,
             },
         });
+
+        // Reflejar la reprogramación/cambio de servicio en Google Calendar.
+        void updateAppointmentCalendarEvent(id).catch(() => {});
+
         return { success: true, message: 'Cita actualizada correctamente.', data: updated };
     } catch (error) {
         console.error('Error al actualizar cita:', error);
@@ -413,6 +433,10 @@ export async function updateAppointmentDetails(
 export async function deleteAppointment(id: string): Promise<AppointmentOperationResponse> {
     try {
         const deleted = await db.appointment.delete({ where: { id } });
+
+        // Quitar el evento de Google Calendar asociado (si lo hay).
+        void deleteCalendarEvent(deleted.userId, (deleted as any).googleEventId).catch(() => {});
+
         await writeAuditLog({
             userId: deleted.userId,
             actorId: await getAuditActorId(),
