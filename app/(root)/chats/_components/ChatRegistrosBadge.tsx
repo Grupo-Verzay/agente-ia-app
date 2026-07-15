@@ -18,6 +18,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { ChatRegistrosSheet } from "./ChatRegistrosSheet";
 import { readBadgeCount, writeBadgeCount } from "./chat-badge-cache";
+import { loadRegistrosSnapshot } from "./chat-registros-cache";
 import type { SimpleTag } from "@/types/session";
 
 const TIPOS: TipoRegistro[] = ["SOLICITUD", "PEDIDO", "RECLAMO", "PAGO", "RESERVA", "PRODUCTO", "REPORTE"];
@@ -75,21 +76,15 @@ export function ChatRegistrosBadge({
   }, [sessionId]);
 
   const load = useCallback(async () => {
-    const [regResult, segResult, remResult, apptResult, crmResult] = await Promise.all([
-      getRegistrosBySessionId(sessionId),
-      getSessionLegacySeguimientos(remoteJid),
-      getRemindersByRemoteJid(userId, remoteJid),
-      getAppointmentsBySession(sessionId),
-      getSessionCrmFollowUps(sessionId, userId),
-    ]);
-    if (regResult.success && regResult.data) setRegistros(regResult.data);
-    if (segResult.success && segResult.data)
-      setSeguimientosCount(segResult.data.filter((i) => i.followUpStatus === "pending").length);
-    if (remResult.success && remResult.data) setRecordatoriosCount(remResult.data.length);
-    if (apptResult.success && apptResult.data)
-      setCitasCount(apptResult.data.filter((a) => !["FINALIZADO", "DESCARTADO", "CANCELADA"].includes(a.status)).length);
-    if (crmResult.success && crmResult.data)
-      setFollowUpsCount(crmResult.data.filter((i) => i.status === "PENDING" || i.status === "PROCESSING").length);
+    // Cargador COMPARTIDO con el sheet "Registros": al abrir el chat, el badge dispara
+    // esta carga y deja el snapshot cacheado, así el sheet abre instantáneo (no repite
+    // las 6 consultas). El sheet reusa el mismo caché.
+    const snapshot = await loadRegistrosSnapshot(sessionId, userId, remoteJid);
+    setRegistros(snapshot.registros);
+    setSeguimientosCount(snapshot.seguimientosPendingCount);
+    setRecordatoriosCount(snapshot.recordatoriosCount);
+    setCitasCount(snapshot.citasCount);
+    setFollowUpsCount(snapshot.seguimientosPendientes);
     setLoaded(true);
   }, [sessionId, userId, remoteJid]);
 

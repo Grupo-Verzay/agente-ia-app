@@ -6,6 +6,11 @@ import type { Registro, TipoRegistro } from "@prisma/client";
 import { toast } from "sonner";
 
 import { getRegistrosBySessionId, deleteRegistro } from "@/actions/registro-action";
+import {
+  loadRegistrosSnapshot,
+  getCachedRegistrosSnapshot,
+  type RegistrosSnapshot,
+} from "./chat-registros-cache";
 import { getSessionLegacySeguimientos } from "@/actions/seguimientos-actions";
 import { getSessionCrmFollowUps, getSessionLatestSummarySnapshot, updateFollowUpSummarySnapshot, createManualSynthesis } from "@/actions/crm-follow-up-actions";
 import { getRemindersByRemoteJid } from "@/actions/reminders-actions";
@@ -105,21 +110,6 @@ const LEAD_STATUS_CLASSES: Record<string, string> = {
 
 /* ===== COMPONENTE ===== */
 
-type RegistrosSnapshot = {
-  registros: Registro[];
-  seguimientosPendingCount: number;
-  seguimientosPendientes: number;
-  recordatoriosCount: number;
-  citasCount: number;
-  sintesis: string | null;
-  followUpId: string | null;
-  hasFollowUp: boolean;
-};
-// Cache por sesión (nivel módulo): al REABRIR el sheet de un lead ya visto se muestra
-// al instante lo último conocido y se refresca en 2º plano (la 1ª vez sí carga: es
-// data viva del lead). Evita el skeleton en cada reapertura.
-const registrosSnapshotCache = new Map<number, RegistrosSnapshot>();
-
 export function ChatRegistrosSheet({
   open,
   onOpenChange,
@@ -196,53 +186,29 @@ export function ChatRegistrosSheet({
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
-    const [regResult, legacyResult, crmResult, remResult, apptResult, synResult] = await Promise.all([
-      getRegistrosBySessionId(sessionId),
-      getSessionLegacySeguimientos(remoteJid),
-      getSessionCrmFollowUps(sessionId, userId),
-      getRemindersByRemoteJid(userId, remoteJid),
-      getAppointmentsBySession(sessionId),
-      getSessionLatestSummarySnapshot(sessionId),
-    ]);
-    // Para consultas que fallen, se conserva el último valor cacheado (no borrar la
-    // vista por un error transitorio durante el refresco en 2º plano).
-    const prev = registrosSnapshotCache.get(sessionId);
-    const snapshot: RegistrosSnapshot = {
-      registros: regResult.success && regResult.data ? regResult.data : prev?.registros ?? [],
-      seguimientosPendingCount:
-        legacyResult.success && legacyResult.data
-          ? legacyResult.data.filter((i) => i.followUpStatus === "pending").length
-          : prev?.seguimientosPendingCount ?? 0,
-      seguimientosPendientes:
-        crmResult.success && crmResult.data
-          ? crmResult.data.filter((i) => i.status === "PENDING" || i.status === "PROCESSING").length
-          : prev?.seguimientosPendientes ?? 0,
-      recordatoriosCount:
-        remResult.success && remResult.data ? remResult.data.length : prev?.recordatoriosCount ?? 0,
-      citasCount:
-        apptResult.success && apptResult.data
-          ? apptResult.data.filter((a) => !["FINALIZADO", "DESCARTADO", "CANCELADA"].includes(a.status)).length
-          : prev?.citasCount ?? 0,
-      sintesis:
-        synResult.success && synResult.data ? synResult.data.summarySnapshot ?? null : prev?.sintesis ?? null,
-      followUpId: synResult.success && synResult.data ? synResult.data.id ?? null : prev?.followUpId ?? null,
-      hasFollowUp: synResult.success && synResult.data ? true : prev?.hasFollowUp ?? false,
-    };
-    registrosSnapshotCache.set(sessionId, snapshot);
-    applySnapshot(snapshot);
-    setLoading(false);
+    try {
+      // silent=refresco en 2º plano (fuerza data fresca). No-silent=carga normal, que
+      // deduplica con la carga que ya disparó el badge al abrir el chat (misma sesión).
+      const snapshot = await loadRegistrosSnapshot(sessionId, userId, remoteJid, {
+        force: !!opts?.silent,
+      });
+      applySnapshot(snapshot);
+    } finally {
+      setLoading(false);
+    }
   }, [sessionId, userId, remoteJid, applySnapshot]);
 
   useEffect(() => {
     if (open) {
       setActiveTab(initialTab ?? "RESUMEN");
       setSintesisEditing(false);
-      const cached = registrosSnapshotCache.get(sessionId);
+      // El badge del header ya precargó esto al abrir el chat → normalmente cacheado.
+      const cached = getCachedRegistrosSnapshot(sessionId);
       if (cached) {
-        applySnapshot(cached); // reapertura: instantáneo, sin skeleton
+        applySnapshot(cached); // instantáneo, sin skeleton
         void load({ silent: true }); // refresca en 2º plano
       } else {
-        void load(); // 1ª vez para este lead: con skeleton
+        void load(); // aún no cacheado: skeleton (deduplica con la carga del badge)
       }
     }
   }, [open, sessionId, initialTab, load, applySnapshot]);
