@@ -77,6 +77,7 @@ import {
   isBadContactName,
 } from "./chat-sidebar.utils";
 import type { SidebarContact, TabKey, TabCounts } from "./chat-sidebar.types";
+import { saveSidebarCache } from "./chats-sidebar-cache";
 import type { ChatData } from "@/actions/chat-actions";
 
 // --- Virtualización de la lista lateral ---
@@ -524,6 +525,20 @@ export function ChatSidebar({
   const filteredRef = React.useRef(filtered);
   React.useEffect(() => {
     filteredRef.current = filtered;
+  }, [filtered]);
+
+  // Guarda la lista visible (top N) para pintarla al INSTANTE al reentrar a /chats
+  // (loading.tsx la muestra en vez del skeleton gris). Best-effort, sin datos sensibles.
+  React.useEffect(() => {
+    if (!filtered.length) return;
+    saveSidebarCache(
+      filtered.map((c) => ({
+        name: c.name,
+        avatarSrc: c.avatarSrc,
+        timestamp: c.timestamp,
+        lastMessage: c.lastMessage,
+      })),
+    );
   }, [filtered]);
 
   const handleListScroll = useCallback(() => {
