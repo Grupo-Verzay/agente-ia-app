@@ -85,7 +85,7 @@ export const GoogleCalendarSettings = ({ userId }: { userId: string }) => {
     }
 
     return (
-        <div className="space-y-4">
+        <div className="flex h-full flex-col space-y-4">
             {/* Header */}
             <div className="flex items-center gap-3 pb-3 border-b">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0">
@@ -99,9 +99,11 @@ export const GoogleCalendarSettings = ({ userId }: { userId: string }) => {
                 </div>
             </div>
 
+            <div className="flex flex-1 flex-col">
+            <div className="space-y-5">
             {/* Paso 1: compartir calendario con la cuenta de servicio */}
             <div className="space-y-1.5">
-                <p className="text-sm font-semibold text-foreground">
+                <p className="app-typography-compact text-sm font-semibold text-foreground">
                     1. Comparte tu calendario con este correo
                 </p>
                 {serviceAccountEmail ? (
@@ -109,7 +111,7 @@ export const GoogleCalendarSettings = ({ userId }: { userId: string }) => {
                         <Input
                             readOnly
                             value={serviceAccountEmail}
-                            className="h-9 flex-1 text-xs font-mono"
+                            className="flex-1 text-xs font-mono"
                             onFocus={(e) => e.currentTarget.select()}
                         />
                         <Button type="button" size="sm" variant="secondary" onClick={handleCopy} className="shrink-0">
@@ -121,39 +123,41 @@ export const GoogleCalendarSettings = ({ userId }: { userId: string }) => {
                         No hay cuenta de servicio configurada. Contacta a soporte.
                     </p>
                 )}
-                <p className="text-xs text-muted-foreground">Permiso: “Hacer cambios en los eventos”.</p>
             </div>
 
             {/* Paso 2: ID del calendario */}
             <div className="space-y-1.5">
-                <p className="text-sm font-semibold text-foreground">2. ID de tu calendario</p>
+                <p className="app-typography-compact text-sm font-semibold text-foreground">2. ID de tu calendario</p>
                 <Input
                     value={calendarId}
                     onChange={(e) => setCalendarId(e.target.value)}
                     placeholder="tucorreo@gmail.com"
-                    className="h-9 text-sm font-mono"
+                    className="text-sm font-mono"
                 />
                 <p className="text-xs text-muted-foreground">Normalmente tu mismo correo de Google.</p>
             </div>
 
             {/* Paso 3: activar */}
-            <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
-                <div>
-                    <p className="text-sm font-semibold">Sincronización activa</p>
+            <div className="space-y-1.5">
+                <p className="app-typography-compact text-sm font-semibold text-foreground">3. Sincronización activa</p>
+                <div className="flex min-h-10 items-center justify-between gap-4">
                     <p className="text-xs text-muted-foreground">
                         Crea, mueve y elimina eventos según cambien las citas
                     </p>
+                    <Switch checked={enabled} onCheckedChange={setEnabled} className="shrink-0" />
                 </div>
-                <Switch checked={enabled} onCheckedChange={setEnabled} />
             </div>
 
-            <div className="flex items-center justify-between gap-2 pt-2">
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-4 mt-auto">
                 <Button type="button" variant="secondary" onClick={handleCancel} disabled={saving}>
                     Cancelar
                 </Button>
                 <Button type="button" variant="save" onClick={handleSave} disabled={saving}>
                     {saving ? "Guardando..." : "Guardar"}
                 </Button>
+            </div>
             </div>
         </div>
     );

@@ -103,7 +103,7 @@ export const UpdateMeetingDuration = ({
     };
 
     return (
-        <div className="space-y-4">
+        <div className="flex h-full flex-col space-y-4">
             {/* Header — mismo patrón de toolbar que Servicios */}
             <div className="flex items-center gap-3 pb-3 border-b">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0">
@@ -117,7 +117,8 @@ export const UpdateMeetingDuration = ({
                 </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="flex flex-1 flex-col">
+                <div className="space-y-5">
                 <div className="space-y-1.5">
                     <label className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                         <Clock className="h-3.5 w-3.5 text-muted-foreground" />
@@ -185,10 +186,11 @@ export const UpdateMeetingDuration = ({
                             className="w-28 text-center text-lg font-bold shrink-0"
                         />
                     </div>
-                    <p className="text-xs text-muted-foreground">Ej: 60 = clientes no pueden agendar en menos de 1 hora.</p>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 pt-4">
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-4 mt-auto">
                     <Button
                         type="button"
                         variant="secondary"

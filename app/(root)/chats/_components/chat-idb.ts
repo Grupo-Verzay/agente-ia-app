@@ -20,6 +20,10 @@ export type IdbChatValue = {
 type IdbChatRecord = IdbChatValue & { key: string; updatedAt: number };
 
 const DB_NAME = "agente-chats";
+// Cache-buster: SUBE este número (2, 3, …) cuando cambie la FORMA de los mensajes
+// guardados. Al subirlo, onupgradeneeded descarta el store viejo y lo recrea vacío,
+// así no quedan copias con estructura incompatible; se repueblan solas desde el
+// servidor al abrir cada chat. Es a prueba de descuidos: no hay que limpiar a mano.
 const DB_VERSION = 1;
 const STORE = "messages";
 // Máx. de chats guardados: poda LRU por updatedAt para acotar el uso de disco.
@@ -37,10 +41,14 @@ function openDb(): Promise<IDBDatabase | null> {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = () => {
         const db = req.result;
-        if (!db.objectStoreNames.contains(STORE)) {
-          const store = db.createObjectStore(STORE, { keyPath: "key" });
-          store.createIndex("updatedAt", "updatedAt");
+        // Cache-buster: en CUALQUIER subida de versión descartamos el store viejo y
+        // lo recreamos vacío. Si cambió la forma de los datos, no quedan copias con
+        // estructura incompatible; se repueblan desde el servidor al abrir cada chat.
+        if (db.objectStoreNames.contains(STORE)) {
+          db.deleteObjectStore(STORE);
         }
+        const store = db.createObjectStore(STORE, { keyPath: "key" });
+        store.createIndex("updatedAt", "updatedAt");
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => resolve(null);
