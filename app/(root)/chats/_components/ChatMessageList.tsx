@@ -236,7 +236,6 @@ interface ChatMessageListProps {
   uiMessages: UIBubble[];
   loading?: boolean;
   listRef: React.RefObject<HTMLDivElement>;
-  tempMessage: UIBubble | null;
   advisorName?: string;
   onSetReplyTo?: (bubble: UIBubble) => void;
   onCopyMessage?: (bubble: UIBubble) => void;
@@ -257,7 +256,6 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   uiMessages,
   loading,
   listRef,
-  tempMessage,
   advisorName,
   onSetReplyTo,
   onCopyMessage,
@@ -282,11 +280,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
     setViewport((v) => (v.scrollTop === scrollTop && v.height === height ? v : { scrollTop, height }));
   }, []);
 
-  const fullList = useMemo(() => {
-    const list = [...uiMessages];
-    if (tempMessage) list.push(tempMessage);
-    return list;
-  }, [uiMessages, tempMessage]);
+  const fullList = useMemo(() => uiMessages, [uiMessages]);
 
   const renderedList = useMemo(() => {
     const items: RenderedListItem[] = [];

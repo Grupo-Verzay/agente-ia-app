@@ -44,7 +44,6 @@ import type { ComposeMedia } from './attachment-menu';
 import type {
   ChatHeader as ChatHeaderData,
   ChatInfoMeta,
-  MediaData,
   OutgoingMessagePayload,
   UIBubble,
 } from './chat-message-types';
@@ -162,7 +161,6 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [replyTo, setReplyTo] = useState<UIBubble | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const [isSending, setIsSending] = useState(false);
-  const [tempMessage, setTempMessage] = useState<UIBubble | null>(null);
   const [isContactEditorOpen, setIsContactEditorOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -476,7 +474,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       return;
     }
     scrollToBottom();
-  }, [allMessages.length, loadingOlderMessages, tempMessage, scrollToBottom]);
+  }, [allMessages.length, loadingOlderMessages, scrollToBottom]);
 
   /* ─── Textarea auto-resize ─── */
   useEffect(() => {
@@ -766,8 +764,6 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   /* ─── Send ─── */
   const sendNow = useCallback(async () => {
     let payload: OutgoingMessagePayload | null = null;
-    let content = '';
-    let media: MediaData | undefined;
 
     const quotedMessage = replyTo
       ? { key: { id: replyTo.id, fromMe: replyTo.sender === 'user', remoteJid: info?.remoteJid }, message: { conversation: replyTo.content } }
@@ -782,11 +778,6 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         ptt: true,
         quotedMessage,
       };
-      media = {
-        type: 'audio',
-        url: recordedAudio.dataUrlWithPrefix,
-        mimeType: recordedAudio.mimetype,
-      };
       clearRecordedAudio();
     } else if (composeMediaList.length > 0) {
       const listToSend = [...composeMediaList];
@@ -797,16 +788,10 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       setSuggestion('');
       setSuggestionError(false);
       setIsSending(true);
-      setTempMessage({
-        id: `temp-${Date.now()}`,
-        sender: 'user',
-        content: caption,
-        avatarSrc: '/user-avatar.png',
-        ts: Date.now(),
-        media: { type: listToSend[0].mediatype, url: listToSend[0].dataUrl, mimeType: listToSend[0].mimeType, caption },
-        status: 'sending',
-      });
       try {
+        // El optimista inmediato (burbuja con la imagen y relojito "pendiente") lo
+        // agrega onSend/handleSendAny ANTES de subir a Evolution: sin cuadro gris
+        // "Enviando" ni burbuja duplicada. Se envían en el orden elegido.
         for (let i = 0; i < listToSend.length; i++) {
           const m = listToSend[i];
           await onSend({
@@ -824,14 +809,12 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         toast.error(error instanceof Error ? error.message : 'No se pudo enviar el mensaje.');
       } finally {
         setIsSending(false);
-        setTempMessage(null);
       }
       return;
     } else {
       const text = input.trim();
       if (!text) return;
       payload = { kind: 'text', text, quotedMessage };
-      content = text;
       setInput('');
     }
 
@@ -839,27 +822,17 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     setReplyTo(null);
     setSuggestion('');
     setSuggestionError(false);
-
-    const tempMsg: UIBubble = {
-      id: `temp-${Date.now()}`,
-      sender: 'user',
-      content,
-      avatarSrc: '/user-avatar.png',
-      ts: Date.now(),
-      media,
-      status: 'sending',
-    };
-    setTempMessage(tempMsg);
     setIsSending(true);
 
     try {
+      // El optimista (texto/nota de voz con relojito "pendiente") lo agrega onSend
+      // de inmediato; aquí ya no manejamos burbuja temporal ni cuadro "Enviando".
       await onSend(payload);
       mutateSessionStatus();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo enviar el mensaje.');
     } finally {
       setIsSending(false);
-      setTempMessage(null);
     }
   }, [replyTo, recordedAudio, composeMediaList, input, onSend, clearRecordedAudio, mutateSessionStatus, info?.remoteJid]);
 
@@ -1035,7 +1008,6 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         uiMessages={allMessages}
         loading={loading}
         listRef={listRef}
-        tempMessage={tempMessage}
         advisorName={assignedAdvisorName}
         onSetReplyTo={setReplyTo}
         onCopyMessage={handleCopyMessage}

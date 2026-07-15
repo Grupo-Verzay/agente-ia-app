@@ -1364,27 +1364,61 @@ export function ChatsClient({
       }
 
       const sendJid = resolveSendRemoteJid(selectedJid, currentContact);
-      const result = await (activeActionSetRef.current?.sendText ?? sendAnyAction)(sendJid, payload);
+      const cacheInstanceName = activeActionSetRef.current?.instanceName ?? currentContact?.instanceName ?? instanceName;
+      const writeMessagesCache = (msgs: EvolutionMessage[]) => {
+        if (!cacheInstanceName) return;
+        messageCacheRef.current.set(getMessageCacheKey(cacheInstanceName, selectedJid), {
+          messages: msgs,
+          info: {
+            ...(info ?? {}),
+            instanceName: cacheInstanceName,
+            remoteJid: selectedJid,
+            remoteJidAliases: currentContact?.aliases,
+            apiKeyData: activeActionSetRef.current?.instanceType === "baileys" ? undefined : apiKeyData,
+          },
+        });
+      };
+
+      // 1) Optimista INMEDIATO (antes de subir a Evolution): la burbuja aparece ya
+      //    —con su imagen / nota de voz y un relojito "pendiente"— en lugar del viejo
+      //    cuadro gris "Enviando...". Lleva un id local- para reconciliarlo luego.
+      const localOptimistic = buildOptimisticOutgoingMessage(selectedJid, payload);
+      const localKey = getMessageKey(localOptimistic);
+      setMessages((previous) => {
+        const merged = mergeMessages(previous, [localOptimistic]);
+        writeMessagesCache(merged);
+        return merged;
+      });
+
+      let result: SendMessageResult;
+      try {
+        result = await (activeActionSetRef.current?.sendText ?? sendAnyAction)(sendJid, payload);
+      } catch (error) {
+        // Falló la subida/envío → quitar la burbuja optimista para no dejar fantasma.
+        setMessages((previous) => {
+          const cleaned = previous.filter((m) => getMessageKey(m) !== localKey);
+          writeMessagesCache(cleaned);
+          return cleaned;
+        });
+        throw error;
+      }
       if (!result.success) {
+        setMessages((previous) => {
+          const cleaned = previous.filter((m) => getMessageKey(m) !== localKey);
+          writeMessagesCache(cleaned);
+          return cleaned;
+        });
         throw new Error(result.message || "No se pudo enviar el mensaje.");
       }
 
-      const optimisticMessage = buildOptimisticOutgoingMessage(selectedJid, payload, result.data);
+      // 2) Reemplazar la optimista local por la versión con el id REAL del servidor,
+      //    para que el poll/tiempo real deduplique por key (más fiable que por
+      //    contenido, que en media sin caption no coincide) y no quede duplicada.
+      const realOptimistic = buildOptimisticOutgoingMessage(selectedJid, payload, result.data);
       setMessages((previous) => {
-        const merged = mergeMessages(previous, [optimisticMessage]);
-        const cacheInstanceName = activeActionSetRef.current?.instanceName ?? currentContact?.instanceName ?? instanceName;
-        if (cacheInstanceName) {
-          messageCacheRef.current.set(getMessageCacheKey(cacheInstanceName, selectedJid), {
-            messages: merged,
-            info: {
-              ...(info ?? {}),
-              instanceName: cacheInstanceName,
-              remoteJid: selectedJid,
-              remoteJidAliases: currentContact?.aliases,
-              apiKeyData: activeActionSetRef.current?.instanceType === "baileys" ? undefined : apiKeyData,
-            },
-          });
-        }
+        const withoutLocal = previous.filter((m) => getMessageKey(m) !== localKey);
+        const merged = mergeMessages(withoutLocal, [realOptimistic]);
+        writeMessagesCache(merged);
         return merged;
       });
 
