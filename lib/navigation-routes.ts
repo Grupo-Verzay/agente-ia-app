@@ -65,6 +65,7 @@ export const navigationRoutes: NavigationRoutesInterface[] = [
     { route: "/bookings" },
     { route: "/my-data" },
     { route: "/notas" },
+    { route: "/copiloto" },
     { route: "/mis-formularios" },
     { route: "/mis-catalogo" },
     { route: "/integraciones" },
