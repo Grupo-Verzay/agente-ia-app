@@ -1,0 +1,87 @@
+# LibreChat — asistente tipo ChatGPT/Claude embebible dentro de Verzay.
+# Multi-modelo (OpenAI + Anthropic), subir archivos (RAG), historial y búsqueda.
+# Pegar como Stack en Portainer. Rellenar las variables en el .env (ver .env.example).
+#
+# Da acceso a: chat con GPT y Claude, subir documentos, historial guardado.
+# Usa API por uso (no tu suscripción Plus/Max).
+
+services:
+  librechat:
+    image: ghcr.io/danny-avila/librechat:latest
+    container_name: librechat
+    restart: always
+    depends_on:
+      - mongodb
+      - rag_api
+    ports:
+      - "3080:3080"            # el reverse proxy (subdominio) apunta aquí
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3080
+      MONGO_URI: mongodb://mongodb:27017/LibreChat
+      MEILI_HOST: http://meilisearch:7700
+      RAG_API_URL: http://rag_api:8000
+      # ── Modelos (rellenar en .env) ──
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # ── Seguridad (generar valores, ver .env.example) ──
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      CREDS_KEY: ${CREDS_KEY}
+      CREDS_IV: ${CREDS_IV}
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      # ── Acceso: deja true SOLO para crear tu usuario, luego ponlo en false ──
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      ALLOW_EMAIL_LOGIN: "true"
+      DOMAIN_CLIENT: ${DOMAIN_CLIENT}     # ej: https://ia.verzay.com
+      DOMAIN_SERVER: ${DOMAIN_SERVER}     # ej: https://ia.verzay.com
+      TRUST_PROXY: "1"
+    volumes:
+      - ./images:/app/client/public/images
+      - ./uploads:/app/uploads
+      - ./logs:/app/api/logs
+
+  mongodb:
+    image: mongo:7
+    container_name: librechat-mongodb
+    restart: always
+    command: mongod --noauth
+    volumes:
+      - ./data-node:/data/db
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: librechat-meilisearch
+    restart: always
+    environment:
+      MEILI_HOST: http://meilisearch:7700
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+    volumes:
+      - ./meili_data:/meili_data
+
+  vectordb:
+    image: pgvector/pgvector:0.8.0-pg16
+    container_name: librechat-vectordb
+    restart: always
+    environment:
+      POSTGRES_DB: librechat_rag
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+
+  rag_api:
+    image: ghcr.io/danny-avila/librechat-rag-api-dev-lite:latest
+    container_name: librechat-rag-api
+    restart: always
+    depends_on:
+      - vectordb
+    environment:
+      DB_HOST: vectordb
+      DB_PORT: 5432
+      POSTGRES_DB: librechat_rag
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      RAG_PORT: 8000
+      OPENAI_API_KEY: ${OPENAI_API_KEY}   # se usa para indexar/buscar en los archivos
