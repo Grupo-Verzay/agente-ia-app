@@ -461,6 +461,19 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             >
               Mensajes
             </button>
+            {onChatViewChange && (
+              <button
+                onClick={() => onChatViewChange('notes')}
+                className={cn(
+                  'px-3 py-1.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
+                  chatView === 'notes'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Notas
+              </button>
+            )}
             {onChatViewChange && userIntegrations.map((intg) => (
               <button
                 key={intg.id}
@@ -643,6 +656,19 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           >
             Mensajes
           </button>
+          {onChatViewChange && (
+            <button
+              onClick={() => onChatViewChange('notes')}
+              className={cn(
+                'px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
+                chatView === 'notes'
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Notas
+            </button>
+          )}
           {onChatViewChange && userIntegrations.map((intg) => (
             <button
               key={intg.id}

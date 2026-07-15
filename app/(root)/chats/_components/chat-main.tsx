@@ -51,6 +51,23 @@ import { getDisplayWhatsappFromSession } from '../../crm/dashboard/helpers';
 import { extractWhatsAppDigits, fmtPhone } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import IframeRenderer from '@/components/custom/IframeRenderer';
+import dynamic from 'next/dynamic';
+
+// Notas nativas dentro del chat (pestaña "Notas"). Carga diferida: el editor
+// (BlockNote) solo se descarga cuando el usuario abre la pestaña, para no
+// inflar el bundle del chat.
+const NotesClient = dynamic(
+  () => import('../../notas/_components/NotesClient').then((m) => m.NotesClient),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-primary" />
+        Cargando notas…
+      </div>
+    ),
+  },
+);
 
 /* ─── Re-exports para compatibilidad con chats-client ─── */
 export type { OutgoingMessagePayload };
@@ -906,11 +923,18 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onToggleSearch={handleToggleSearch}
         onExpandChatList={onExpandChatList}
         chatView={chatView}
-        onChatViewChange={userIntegrations.length > 0 ? setChatView : undefined}
+        onChatViewChange={setChatView}
       />
 
+      {/* ── Vista Notas (nativa, sin iframe ni marco de app) ── */}
+      {chatView === 'notes' && (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <NotesClient userId={userId} />
+        </div>
+      )}
+
       {/* ── Vista iframe de integración ── */}
-      {chatView !== 'messages' && (() => {
+      {chatView !== 'messages' && chatView !== 'notes' && (() => {
         const intg = userIntegrations.find(i => i.id === chatView);
         return intg ? (
           <div className="flex-1 min-h-0 overflow-hidden">
