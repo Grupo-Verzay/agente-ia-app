@@ -61,20 +61,22 @@ export function loadRegistrosSnapshot(
     // Si alguna consulta falla, se conserva el último valor cacheado (no borrar por un
     // error transitorio durante un refresco).
     const prev = cache.get(sessionId);
-    const legacyData = (legacyResult.success ? legacyResult.data : null) as
+    // Guardas con `?.`: si una server action devuelve undefined (p. ej. por desfase de
+    // versión tras un deploy), NO reventamos leyendo `.success` de undefined.
+    const legacyData = (legacyResult?.success ? legacyResult.data : null) as
       | Array<{ followUpStatus?: string }>
       | null;
-    const crmData = (crmResult.success ? crmResult.data : null) as
+    const crmData = (crmResult?.success ? crmResult.data : null) as
       | Array<{ status?: string }>
       | null;
-    const apptData = (apptResult.success ? apptResult.data : null) as
+    const apptData = (apptResult?.success ? apptResult.data : null) as
       | Array<{ status?: string }>
       | null;
-    const syn = (synResult.success ? synResult.data : null) as
+    const syn = (synResult?.success ? synResult.data : null) as
       | { summarySnapshot?: string | null; id?: string | null }
       | null;
     const snapshot: RegistrosSnapshot = {
-      registros: regResult.success && regResult.data ? regResult.data : prev?.registros ?? [],
+      registros: regResult?.success && regResult.data ? regResult.data : prev?.registros ?? [],
       seguimientosPendingCount: legacyData
         ? legacyData.filter((i) => i.followUpStatus === "pending").length
         : prev?.seguimientosPendingCount ?? 0,
@@ -82,7 +84,7 @@ export function loadRegistrosSnapshot(
         ? crmData.filter((i) => i.status === "PENDING" || i.status === "PROCESSING").length
         : prev?.seguimientosPendientes ?? 0,
       recordatoriosCount:
-        remResult.success && remResult.data ? remResult.data.length : prev?.recordatoriosCount ?? 0,
+        remResult?.success && remResult.data ? remResult.data.length : prev?.recordatoriosCount ?? 0,
       citasCount: apptData
         ? apptData.filter((a) => !["FINALIZADO", "DESCARTADO", "CANCELADA"].includes(a.status ?? "")).length
         : prev?.citasCount ?? 0,
