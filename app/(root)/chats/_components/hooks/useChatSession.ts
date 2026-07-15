@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { getSessionByRemoteJid } from '@/actions/session-action';
 import { updateLeadPushNameAction } from '@/actions/registro-action';
-import type { Session, SingleSessionResponse } from '@/types/session';
+import type { ChatContactSessionSummary, Session, SingleSessionResponse } from '@/types/session';
 
 interface UseChatSessionOptions {
   userId: string;
@@ -13,6 +13,12 @@ interface UseChatSessionOptions {
   remoteJidAliases?: string[];
   onSessionResolved?: (remoteJid: string, session: Session | null) => void;
   refreshSignal?: number;
+  // Session que YA trae el sidebar (chatSessions, un resumen). Se usa como semilla
+  // instantánea para que la barra de contadores del header aparezca de una, sin
+  // esperar el fetch de getSessionByRemoteJid (que la refina un instante después).
+  // Trae lo esencial (id/userId/remoteJid/flujos/tags/asignado); los campos que
+  // falten se completan con el fetch.
+  initialSession?: Session | ChatContactSessionSummary | null;
 }
 
 interface UseChatSessionReturn {
@@ -33,8 +39,10 @@ export function useChatSession({
   remoteJidAliases,
   onSessionResolved,
   refreshSignal,
+  initialSession,
 }: UseChatSessionOptions): UseChatSessionReturn {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<Session | null>((initialSession as Session) ?? null);
+  const seededJidRef = useRef<string | undefined>(undefined);
   const [contactNameDraft, setContactNameDraft] = useState('');
   const [isContactUpdatePending, setIsContactUpdatePending] = useState(false);
   const aliasesKey = useMemo(
@@ -77,6 +85,16 @@ export function useChatSession({
       console.error('Error al obtener el estado de la sesión:', error);
     }
   }, [userId, remoteJid, aliasesKey, sessionUserIds, onSessionResolved]);
+
+  // Semilla instantánea del sidebar al abrir/cambiar de chat: la barra de contadores
+  // del header (envuelta en `{session && ...}`) aparece de una, sin esperar el fetch.
+  // Se siembra una sola vez por chat para no pisar luego el session ya resuelto (más
+  // completo que el del sidebar).
+  useEffect(() => {
+    if (seededJidRef.current === remoteJid) return;
+    seededJidRef.current = remoteJid;
+    setSession((initialSession as Session) ?? null);
+  }, [remoteJid, initialSession]);
 
   useEffect(() => {
     if (userId && remoteJid) {

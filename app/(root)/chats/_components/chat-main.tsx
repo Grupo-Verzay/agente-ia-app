@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import type { EvolutionMessage } from '@/actions/chat-actions';
 import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } from '@/types/chat';
-import type { LeadStatus, Session, SimpleTag } from '@/types/session';
+import type { ChatContactSessionSummary, LeadStatus, Session, SimpleTag } from '@/types/session';
 import type { AdvisorInfo } from '@/actions/team-actions';
 
 import { reactToMessageAction, deleteMessageAction } from '@/actions/chat-manual-actions';
@@ -62,6 +62,7 @@ const EMPTY_MEDIA_MAP: Map<string, { dataUrl: string; mime: string; length: numb
 type ChatMainProps = {
   userId: string;
   sessionUserIds?: string[];
+  initialSession?: Session | ChatContactSessionSummary | null;
   header: ChatHeaderData;
   messages: EvolutionMessage[];
   info?: ChatInfoMeta;
@@ -110,6 +111,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   quickReplies,
   userId,
   sessionUserIds,
+  initialSession,
   allTags,
   workflows,
   onSessionResolved,
@@ -234,6 +236,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     remoteJidAliases: info?.remoteJidAliases,
     onSessionResolved,
     refreshSignal: sessionRefreshSignal,
+    initialSession,
   });
 
   const {

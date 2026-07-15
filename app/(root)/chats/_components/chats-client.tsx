@@ -2258,6 +2258,7 @@ export function ChatsClient({
             quickReplies={quickReplies}
             userId={userId}
             sessionUserIds={sessionUserIds?.length ? sessionUserIds : undefined}
+            initialSession={currentContactSession}
             workflows={workflows}
             advisors={advisors}
             currentAdvisorId={currentAdvisorId}

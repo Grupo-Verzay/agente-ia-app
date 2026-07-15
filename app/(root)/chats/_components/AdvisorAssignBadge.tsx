@@ -192,7 +192,7 @@ export function AdvisorAssignBadge({
               ? '?'
             : isPill
               ? <><UserPlus className="h-2.5 w-2.5 shrink-0" /><span>Asignar</span></>
-              : <UserPlus className="h-2.5 w-2.5" />
+              : <UserPlus className="h-4 w-4" />
           }
         </button>
       </PopoverTrigger>

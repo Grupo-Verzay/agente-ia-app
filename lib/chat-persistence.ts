@@ -680,6 +680,12 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
       "raw" = CASE
         WHEN EXCLUDED."content" IS NULL AND EXCLUDED."mediaUrl" IS NULL
           THEN "chat_messages"."raw"
+        -- Preservar el marcador { sentByAi: true } que puso el backend al enviar por
+        -- IA/flujo/automatización: el snapshot de Evolution NO lo trae y, al reemplazar
+        -- raw, borraba el flag → el mensaje automático se veía como "Asesor". Se
+        -- reinyecta sentByAi sobre el snapshot nuevo (conservando status/ticks/etc.).
+        WHEN ("chat_messages"."raw" ->> 'sentByAi') = 'true'
+          THEN jsonb_set(COALESCE(EXCLUDED."raw", '{}'::jsonb), '{sentByAi}', 'true'::jsonb)
         ELSE COALESCE(EXCLUDED."raw", "chat_messages"."raw")
       END,
       "messageTimestamp" = CASE
