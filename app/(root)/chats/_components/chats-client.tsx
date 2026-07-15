@@ -569,7 +569,7 @@ export function ChatsClient({
     (current: EvolutionMessage[], next: EvolutionMessage[]) => {
       const map = new Map<string, EvolutionMessage>();
       for (const message of current) map.set(getMessageKey(message), message);
-      for (const message of next) {
+      for (let message of next) {
         // No pisar un mensaje ya marcado como eliminado (clientDeleted viene de
         // nuestra BD, fuente autoritativa del borrado) con una versión en vivo que
         // no lo está: tras un revoke, Evolution devuelve el mensaje vacío/como stub
@@ -579,6 +579,14 @@ export function ChatsClient({
         const existingSame = map.get(getMessageKey(message));
         if (existingSame?.clientDeleted && !message.clientDeleted) {
           continue;
+        }
+        // Preservar el marcador "Agente IA" (sentByAi): el eco/poll de Evolution NO
+        // lo trae y, al mezclar, borraba el flag → el mensaje automático parpadeaba
+        // entre "Asesor" y "Agente IA". Nuestra BD es la fuente autoritativa: si la
+        // versión ya presente lo tiene y la nueva no, se conserva.
+        if ((existingSame as { sentByAi?: boolean } | undefined)?.sentByAi &&
+            !(message as { sentByAi?: boolean }).sentByAi) {
+          message = { ...message, sentByAi: true } as EvolutionMessage;
         }
         if (!isLocalOptimisticMessage(message)) {
           const content = getMessageContentForDedupe(message);
