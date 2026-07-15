@@ -94,7 +94,7 @@ export const GoogleCalendarSettings = ({ userId }: { userId: string }) => {
                 <div>
                     <p className="text-sm font-semibold">Google Calendar</p>
                     <p className="text-xs text-muted-foreground">
-                        Cada cita agendada se crea automáticamente como evento en tu calendario
+                        Cada cita agendada se crea automáticamente en tu calendario
                     </p>
                 </div>
             </div>

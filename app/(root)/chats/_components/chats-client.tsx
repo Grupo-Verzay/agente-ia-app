@@ -46,6 +46,7 @@ import {
   pickPreferredWhatsAppRemoteJid,
 } from "@/lib/whatsapp-jid";
 import { avatarSrcFor } from "@/lib/avatar";
+import { idbGetChat, idbSetChat } from "./chat-idb";
 import type { OutgoingMessagePayload } from "./chat-main";
 import type {
   ChatConversationPreference,
@@ -539,6 +540,17 @@ export function ChatsClient({
   const selectionRequestRef = useRef(0);
   const bootstrapRequestedRef = useRef(false);
   const messageCacheRef = useRef<Map<string, ChatMessageCacheEntry>>(new Map());
+  // Escribe el caché de un chat en memoria Y en IndexedDB (persistente en el
+  // navegador). Lo segundo es lo que hace que reabrir un chat visitado sea
+  // instantáneo con CERO red incluso tras recargar. NO se persiste apiKeyData (la
+  // clave de Evolution): se reinyecta desde el contexto al leer.
+  const commitCache = useCallback((cacheKey: string, entry: ChatMessageCacheEntry) => {
+    messageCacheRef.current.set(cacheKey, entry);
+    const { apiKeyData: _omitApiKey, ...safeInfo } = entry.info as ChatMessageInfo & {
+      apiKeyData?: unknown;
+    };
+    void idbSetChat(cacheKey, { messages: entry.messages, info: safeInfo });
+  }, []);
   // Poll de mensajes del chat abierto. Con el tiempo real activo, el socket
   // entrega los mensajes al instante; este poll queda como FALLBACK a 20s
   // (antes 6s) y además sincroniza/persiste con Evolution periódicamente.
@@ -1145,7 +1157,7 @@ export function ChatsClient({
             if (!result.data?.length) return;
             // Otro flujo pudo haber poblado el cache mientras tanto; no lo pisamos.
             if (messageCacheRef.current.has(t.cacheKey)) return;
-            messageCacheRef.current.set(t.cacheKey, {
+            commitCache(t.cacheKey, {
               messages: result.data || [],
               info: {
                 total: result.total,
@@ -1177,7 +1189,7 @@ export function ChatsClient({
       prefetchQueueRef.current.push({ remoteJid, contactInstanceName, cacheKey });
       drain();
     },
-    [resolvePrefetchTarget],
+    [resolvePrefetchTarget, commitCache],
   );
 
   // Warm proactivo: al cargar/actualizar la lista, precalentamos en 2º plano los
@@ -1272,6 +1284,28 @@ export function ChatsClient({
       } else {
         setLoading(true);
         setMessages([]);
+        // Sin copia en memoria → intentamos IndexedDB (almacenamiento del navegador,
+        // CERO red). Si hay copia local la mostramos AL INSTANTE mientras el warm de
+        // abajo reconcilia con el servidor. Esto es lo que hace que reabrir un chat
+        // visitado sea instantáneo incluso tras recargar (como WhatsApp).
+        void idbGetChat(cacheKey).then((stored) => {
+          if (!stored || selectionRequestRef.current !== requestId) return;
+          // El servidor ya respondió (o llegaron mensajes) → no pisamos con lo local.
+          if (messagesRef.current.length > 0) return;
+          const storedMessages = stored.messages as EvolutionMessage[];
+          if (!storedMessages.length) return;
+          const hydratedInfo = {
+            ...(stored.info as ChatMessageInfo),
+            instanceName: effectiveInstanceName,
+            remoteJid,
+            remoteJidAliases,
+            apiKeyData: effectiveApiKeyData,
+          };
+          messageCacheRef.current.set(cacheKey, { messages: storedMessages, info: hydratedInfo });
+          setMessages(storedMessages);
+          setInfo(hydratedInfo);
+          setLoading(false);
+        });
       }
 
       try {
@@ -1309,7 +1343,7 @@ export function ChatsClient({
           // Solo cacheamos cuando hay contenido real: un cache vacío haría que la
           // próxima apertura tome la rama "cacheada" y muestre el chat en blanco.
           if (hasMessages) {
-            messageCacheRef.current.set(cacheKey, {
+            commitCache(cacheKey, {
               messages: openMessages,
               info: nextInfo,
             });
@@ -1355,7 +1389,7 @@ export function ChatsClient({
                 setMessages(merged);
                 setInfo(nextInfo);
                 if (merged.length > 0) {
-                  messageCacheRef.current.set(cacheKey, {
+                  commitCache(cacheKey, {
                     messages: merged,
                     info: nextInfo,
                   });
@@ -1378,7 +1412,7 @@ export function ChatsClient({
         setLoading(false);
       }
     },
-    [apiKeyData, contacts, instanceActionSets, instanceName, isSidebarVisible, mergeMessages, selectedJid, warmMessagesAction],
+    [apiKeyData, contacts, instanceActionSets, instanceName, isSidebarVisible, mergeMessages, selectedJid, warmMessagesAction, commitCache],
   );
 
   const handleSendAny = useCallback(
@@ -1391,7 +1425,7 @@ export function ChatsClient({
       const cacheInstanceName = activeActionSetRef.current?.instanceName ?? currentContact?.instanceName ?? instanceName;
       const writeMessagesCache = (msgs: EvolutionMessage[]) => {
         if (!cacheInstanceName) return;
-        messageCacheRef.current.set(getMessageCacheKey(cacheInstanceName, selectedJid), {
+        commitCache(getMessageCacheKey(cacheInstanceName, selectedJid), {
           messages: msgs,
           info: {
             ...(info ?? {}),
@@ -1480,6 +1514,7 @@ export function ChatsClient({
       refreshSidebarData,
       selectedJid,
       sendAnyAction,
+      commitCache,
     ],
   );
 
@@ -1519,7 +1554,7 @@ export function ChatsClient({
       };
       setMessages((previous) => {
         const merged = mergeMessages(previous, result.data || []);
-        messageCacheRef.current.set(
+        commitCache(
           getMessageCacheKey(effectiveInstanceName, selectedJid),
           { messages: merged, info: nextInfo },
         );
@@ -1539,6 +1574,7 @@ export function ChatsClient({
     mergeMessages,
     selectedJid,
     warmMessagesAction,
+    commitCache,
   ]);
 
   const handleSendWorkflow = useCallback(
