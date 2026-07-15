@@ -88,6 +88,11 @@ const PREFETCH_MAX_CONCURRENT = 4;
 // Cuántos chats de la parte superior (los más probables de abrir) se precalientan
 // proactivamente al cargar la lista, sin esperar hover ni que se hagan visibles.
 const PREFETCH_TOP_CHATS = 14;
+// Backfill acotado: cuántos de los chats MÁS RECIENTES se precalientan+persisten
+// UNA vez por sesión, de fondo y por la cola con límite de concurrencia. Cubre el
+// grueso del uso real sin bajar el archivo histórico completo (no satura Evolution
+// ni el pool). Los que queden fuera se calientan solos al abrirlos por primera vez.
+const BACKFILL_CHATS = 100;
 const INITIAL_CHAT_SYNC_DELAY_MS = 2000;
 const SELECTED_CHAT_SYNC_DELAY_MS = 3500;
 const SELECTED_CHAT_POLLING_DELAY_MS = 10000;
@@ -1067,6 +1072,8 @@ export function ChatsClient({
   const prefetchQueueRef = useRef<Array<{ remoteJid: string; contactInstanceName?: string; cacheKey: string }>>([]);
   const prefetchQueuedRef = useRef<Set<string>>(new Set());
   const prefetchActiveRef = useRef(0);
+  // Guarda para que el backfill acotado corra UNA sola vez por sesión.
+  const backfillStartedRef = useRef(false);
 
   const resolvePrefetchTarget = useCallback(
     (remoteJid: string, contactInstanceName?: string) => {
@@ -1185,6 +1192,23 @@ export function ChatsClient({
       }
     }, 300);
     return () => clearTimeout(timer);
+  }, [contacts, prefetchChat]);
+
+  // Backfill acotado (una vez por sesión): tras cargar la lista, precalienta+persiste
+  // en 2º plano los BACKFILL_CHATS más recientes para que abran instantáneo desde ya.
+  // Va por la MISMA cola con límite de concurrencia (máx. PREFETCH_MAX_CONCURRENT),
+  // así no satura Evolution ni agota el pool de la BD. prefetchChat es idempotente:
+  // los ya persistidos se leen local (barato) y no se repiten llamadas a Evolution.
+  // No cancelamos el timer al cambiar la lista para que el backfill sí llegue a correr.
+  useEffect(() => {
+    if (backfillStartedRef.current || !contacts.length) return;
+    backfillStartedRef.current = true;
+    const snapshot = contacts.slice(0, BACKFILL_CHATS);
+    window.setTimeout(() => {
+      for (const contact of snapshot) {
+        prefetchChat(contact.remoteJid, contact.instanceName);
+      }
+    }, 900);
   }, [contacts, prefetchChat]);
 
   const handleSelectFromSidebar = useCallback(
