@@ -7,6 +7,7 @@ import { FontScaleApplier } from "@/components/font-scale-applier";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { Toaster } from "@/components/ui/sonner";
 import { ChunkRecovery } from "@/components/chunk-recovery";
+import { StoragePersistence } from "@/components/storage-persistence";
 import ErrorBoundary from "@/components/error-bundary";
 
 // Poppins auto-alojada (next/font/local) para no depender de Google Fonts en dev/
@@ -68,6 +69,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         <FontScaleApplier />
+        <StoragePersistence />
         <ErrorBoundary>
           <ChunkRecovery />
           <AppProviders>
