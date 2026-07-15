@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { ChatRegistrosSheet } from "./ChatRegistrosSheet";
+import { readBadgeCount, writeBadgeCount } from "./chat-badge-cache";
 import type { SimpleTag } from "@/types/session";
 
 const TIPOS: TipoRegistro[] = ["SOLICITUD", "PEDIDO", "RECLAMO", "PAGO", "RESERVA", "PRODUCTO", "REPORTE"];
@@ -64,6 +65,14 @@ export function ChatRegistrosBadge({
   const [citasCount, setCitasCount] = useState(0);
   const [followUpsCount, setFollowUpsCount] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Muestra el último total conocido AL INSTANTE mientras cargan las 5 consultas.
+  const [loaded, setLoaded] = useState(false);
+  const [cachedTotal, setCachedTotal] = useState(0);
+
+  useEffect(() => {
+    setLoaded(false);
+    setCachedTotal(readBadgeCount(`reg:${sessionId}`));
+  }, [sessionId]);
 
   const load = useCallback(async () => {
     const [regResult, segResult, remResult, apptResult, crmResult] = await Promise.all([
@@ -81,6 +90,7 @@ export function ChatRegistrosBadge({
       setCitasCount(apptResult.data.filter((a) => !["FINALIZADO", "DESCARTADO", "CANCELADA"].includes(a.status)).length);
     if (crmResult.success && crmResult.data)
       setFollowUpsCount(crmResult.data.filter((i) => i.status === "PENDING" || i.status === "PROCESSING").length);
+    setLoaded(true);
   }, [sessionId, userId, remoteJid]);
 
   useEffect(() => { load(); }, [load]);
@@ -92,6 +102,12 @@ export function ChatRegistrosBadge({
 
   const registrosTotal = registros.length;
   const grandTotal = registrosTotal + seguimientosCount + recordatoriosCount + citasCount + followUpsCount;
+  // Una vez cargado, guardamos el total para que la PRÓXIMA apertura lo muestre ya.
+  // Mientras no ha cargado, mostramos el último total conocido (cachedTotal).
+  useEffect(() => {
+    if (loaded) writeBadgeCount(`reg:${sessionId}`, grandTotal);
+  }, [loaded, grandTotal, sessionId]);
+  const displayTotal = loaded ? grandTotal : cachedTotal;
 
   const notasIaCount = (sessionSeguimientos ?? "")
     .split("\n")
@@ -121,9 +137,9 @@ export function ChatRegistrosBadge({
             className="relative inline-flex h-7 w-7 items-center justify-center rounded-md border border-teal-300 bg-teal-100 text-teal-800 hover:bg-teal-200 focus:outline-none transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
-            {grandTotal > 0 && (
+            {displayTotal > 0 && (
               <span className="absolute top-0 -right-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-teal-600 px-1 text-[9px] font-bold leading-none text-white">
-                {grandTotal > 99 ? "99+" : grandTotal}
+                {displayTotal > 99 ? "99+" : displayTotal}
               </span>
             )}
             {notasIaCount > 0 && (

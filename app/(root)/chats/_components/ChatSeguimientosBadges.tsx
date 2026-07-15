@@ -7,6 +7,7 @@ import { getRemindersByRemoteJid } from "@/actions/reminders-actions";
 import { getAppointmentsBySession } from "@/actions/appointments-actions";
 import type { Session } from "@/types/session";
 import { ChatRegistrosSheet } from "./ChatRegistrosSheet";
+import { readBadgeCount, writeBadgeCount } from "./chat-badge-cache";
 
 export function ChatSeguimientosBadges({
   session,
@@ -19,9 +20,18 @@ export function ChatSeguimientosBadges({
 }) {
   const [open, setOpen] = useState(false);
   const [extraCount, setExtraCount] = useState(0);
+  // Muestra el último "extra" conocido (recordatorios+citas) AL INSTANTE mientras
+  // las 2 consultas cargan; seguimientos y follow-ups ya vienen en la sesión.
+  const [loaded, setLoaded] = useState(false);
+  const [cachedExtra, setCachedExtra] = useState(0);
 
   const seguimientosCount = session.pendingSeguimientos ?? 0;
   const followUpsCount = session.crmFollowUpSummary?.active ?? 0;
+
+  useEffect(() => {
+    setLoaded(false);
+    setCachedExtra(readBadgeCount(`seg:${session.id}`));
+  }, [session.id]);
 
   const loadCounts = useCallback(async () => {
     const [remResult, apptResult] = await Promise.all([
@@ -36,11 +46,16 @@ export function ChatSeguimientosBadges({
       ).length;
     }
     setExtraCount(total);
+    setLoaded(true);
   }, [session.userId, session.remoteJid, session.id]);
 
   useEffect(() => { loadCounts(); }, [loadCounts]);
 
-  const totalCount = seguimientosCount + extraCount + followUpsCount;
+  const effectiveExtra = loaded ? extraCount : cachedExtra;
+  useEffect(() => {
+    if (loaded) writeBadgeCount(`seg:${session.id}`, extraCount);
+  }, [loaded, extraCount, session.id]);
+  const totalCount = seguimientosCount + effectiveExtra + followUpsCount;
 
   return (
     <>
