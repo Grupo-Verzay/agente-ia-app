@@ -298,6 +298,11 @@
     padding: 0;
     border: 0;
     border-radius: 0;
+    /* Clip en AMBOS ejes: con solo overflow-y:clip, el eje X se computa como
+       `auto` (spec CSS) y cualquier desborde mínimo de un hijo genera scroll
+       horizontal de toda la vista en móvil. Clipar X lo evita sin afectar
+       scrollers internos propios (p. ej. barras de pestañas con overflow-x). */
+    overflow-x: clip;
     overflow-y: clip;
   }
 
