@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, SquarePen, PanelLeftClose } from "lucide-react";
+import { Search, SquarePen, PanelLeftClose, Users, Tag, Filter, ChevronDown } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { readSidebarCache, type CachedSidebarRow } from "./chats-sidebar-cache";
@@ -67,15 +67,27 @@ export function CachedSidebar() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
+        <div className="flex items-center gap-1.5 overflow-hidden">
+          <span className="shrink-0 rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
             Mías
           </span>
-          <span className="rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white">
+          <span className="shrink-0 rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white">
             Todos
           </span>
-          <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">
+          <span className="shrink-0 rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">
             No leídos
+          </span>
+          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+            <Users className="h-3.5 w-3.5" />
+          </span>
+          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-input text-muted-foreground">
+            <Tag className="h-3.5 w-3.5" />
+          </span>
+          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-input text-muted-foreground">
+            <Filter className="h-3.5 w-3.5" />
+          </span>
+          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-input text-muted-foreground">
+            <ChevronDown className="h-3.5 w-3.5" />
           </span>
         </div>
 
