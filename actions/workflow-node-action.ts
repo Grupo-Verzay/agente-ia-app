@@ -216,6 +216,41 @@ export async function updateInactivityNode(nodeId: string, inactividad: boolean)
   }
 }
 
+/**
+ * Guarda la configuración de un nodo de AUTOMATIZACIÓN (tag/asesor/tarea/etc.).
+ * Se persiste como JSON en el campo `message` del nodo: estos nodos no envían
+ * texto al cliente, así que reutilizamos esa columna para no migrar el esquema.
+ * El backend (workflow.service.ts) lo lee con JSON.parse y lo despacha a los
+ * handlers de las automatizaciones del Kanban (StageAutomationService).
+ */
+export async function updateNodeConfig(nodeId: string, config: Record<string, unknown>) {
+  try {
+    if (!nodeId) {
+      return { success: false, message: 'Parámetro "nodeId" es requerido.' };
+    }
+
+    const user = await currentUser();
+    if (!user) return { success: false, message: 'Usuario no autenticado.' };
+
+    const updatedNode = await db.workflowNode.update({
+      where: { id: nodeId },
+      data: { message: JSON.stringify(config ?? {}) },
+    });
+
+    return {
+      success: true,
+      message: 'Configuración del nodo actualizada.',
+      data: updatedNode,
+    };
+  } catch (error) {
+    console.error('Error updateNodeConfig', error);
+    return {
+      success: false,
+      message: 'Ocurrió un error al actualizar la configuración del nodo.',
+    };
+  }
+}
+
 export async function updateNodeAiEnabled(nodeId: string, aiEnabled: boolean) {
   try {
     if (!nodeId) {

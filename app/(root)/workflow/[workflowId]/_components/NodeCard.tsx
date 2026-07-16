@@ -15,8 +15,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { GenericTextarea } from "@/components/shared/GenericTextarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Action, ACTIONS, CARD_ACTIONS, MAX_MESSAGE_LENGTH, PropsNodeCard } from "@/types/workflow-node";
+import { Action, ACTIONS, CARD_ACTIONS, MAX_MESSAGE_LENGTH, PropsNodeCard, isAutomationNodeType } from "@/types/workflow-node";
 import { EmbeddingNode } from '.';
+import { AutomationNodeConfig } from "./AutomationNodeConfig";
 import { SafeImage } from "@/components/custom/SafeImage";
 import { Badge } from "@/components/ui/badge";
 import { NodeDocumentViewer } from "@/components/shared/NodeDocumentViewer";
@@ -42,6 +43,7 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
   const isIntention = nodeType === 'intention';
   const isPauseNode = nodeType === 'node_pause';
   const isNotifyNode = nodeType === 'nodo-notify';
+  const isAutomationNode = isAutomationNodeType(nodeType);
   const hasContent = nodeType === 'text' ? !!message : !!nodes.url;
   const currentAction = ACTIONS.find((a) => a.type === nodeType);
   const currentCardAction = CARD_ACTIONS.find((a) => a.type === nodeType);
@@ -248,6 +250,10 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
   const fileInputId = `file-input-${nodes.id}`; //  ID único por nodo
 
   const renderContent = () => {
+    if (isAutomationNode) {
+      return <AutomationNodeConfig node={nodes} user={user} />;
+    }
+
     if (nodeType === 'guardar-ficha') {
       return (
         <div className="space-y-3 rounded-md border border-border bg-muted/40 p-3 nodrag">
@@ -434,7 +440,7 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
 
           <div className="absolute top-0 right-1 nodrag">
             <NodeActions
-              fileType={baseType}
+              fileType={isAutomationNode ? 'text' : baseType}
               onDeleteFile={handleDeleteFile}
               onDeleteNode={handleDeleteNode}
             />
@@ -444,7 +450,7 @@ export const NodeCard = ({ nodes, workflowId, user, targetHandle }: PropsNodeCar
         <CardContent className="p-4">
           {renderContent()}
 
-          {!isNotifyNode && !isPauseNode && nodeType !== 'guardar-ficha' && baseType !== 'text' && baseType !== 'document' && baseType !== 'audio' && !isIntention && (
+          {!isNotifyNode && !isPauseNode && !isAutomationNode && nodeType !== 'guardar-ficha' && baseType !== 'text' && baseType !== 'document' && baseType !== 'audio' && !isIntention && (
             <div className="flex w-full mt-2 nodrag">
               <GenericTextarea
                 fileType={baseType}

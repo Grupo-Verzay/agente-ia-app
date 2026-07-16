@@ -20,7 +20,7 @@ import {
 
 import { MAX_NODES_PER_WORKFLOW, MAX_SEGUIMIENTOS_PER_WORKFLOW } from '@/types/workflow';
 import type { Action, PropsWorkflowSidebar } from '@/types/workflow-node';
-import { baseActions, nodeActions, accionActions, seguimientoActions } from '@/types/workflow-node';
+import { baseActions, nodeActions, accionActions, seguimientoActions, automationActions } from '@/types/workflow-node';
 
 export function WorkflowSidebarTrigger() {
     const { toggleSidebar, open, openMobile, isMobile } = useSidebar();
@@ -167,6 +167,13 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode }: 
                     <SidebarSectionLabel label="Acciones" />
                     <SidebarGroupContent className="flex flex-col gap-1">
                         {accionActions.map((action) => renderTile(action, reachedTotalLimit))}
+                    </SidebarGroupContent>
+                </SidebarGroup>
+
+                <SidebarGroup className="p-0">
+                    <SidebarSectionLabel label="Automatizaciones" />
+                    <SidebarGroupContent className="flex flex-col gap-1">
+                        {automationActions.map((action) => renderTile(action, reachedTotalLimit))}
                     </SidebarGroupContent>
                 </SidebarGroup>
 
