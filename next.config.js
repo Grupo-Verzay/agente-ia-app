@@ -70,8 +70,8 @@ const nextConfig = {
           {
             key: "Permissions-Policy",
             value:
-              'microphone=(self "https://verzay-web-verzay-ventas.2jcx9p.easypanel.host"), ' +
-              'screen-wake-lock=(self "https://verzay-web-verzay-ventas.2jcx9p.easypanel.host")',
+              'microphone=(self "https://verzay-web-verzay-ventas.2jcx9p.easypanel.host" "https://copiloto.ia-app.com"), ' +
+              'screen-wake-lock=(self "https://verzay-web-verzay-ventas.2jcx9p.easypanel.host" "https://copiloto.ia-app.com")',
           },
         ],
       },
