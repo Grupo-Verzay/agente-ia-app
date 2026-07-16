@@ -90,8 +90,9 @@ const CopilotoInner = () => {
                 disabled={busy}
                 title={pinned ? "Quitar el Copiloto de tus Chats" : "Mostrar el Copiloto como pestaña en tus Chats"}
                 className={cn(
-                    "absolute right-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full border bg-background/85 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm transition-all",
-                    busy ? "opacity-100" : "opacity-40 hover:opacity-100",
+                    // Debajo de la barra superior de LibreChat, para no tapar su ícono de esquina.
+                    "absolute right-4 top-16 z-20 inline-flex items-center gap-1.5 rounded-full border bg-background/85 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm transition-all",
+                    busy ? "opacity-100" : "opacity-30 hover:opacity-100",
                     pinned ? "text-muted-foreground" : "text-foreground",
                 )}
             >
