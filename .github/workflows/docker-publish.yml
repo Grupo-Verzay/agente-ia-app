@@ -27,22 +27,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/agente-ia-app
-          tags: |
-            type=raw,value=latest
-            type=sha
-
+      # Tags fijos en minúscula. Se quitó docker/metadata-action porque su paso
+      # fallaba de forma intermitente (500 de la API de GitHub + deprecación de
+      # Node 20) y bloqueaba build + deploy. GHCR exige el nombre en minúscula.
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ghcr.io/grupo-verzay/agente-ia-app:latest
+            ghcr.io/grupo-verzay/agente-ia-app:${{ github.sha }}
           # Variables PÚBLICAS de Meta (Embedded Signup). Next.js las incrusta en el
           # bundle del cliente en build time, por eso van aquí y no en el stack.
           # No son secretos (viajan al navegador). El secreto (META_APP_SECRET) va
