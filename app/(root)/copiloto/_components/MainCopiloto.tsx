@@ -98,7 +98,7 @@ const CopilotoInner = () => {
             <IframeRenderer url={url} />
             {/* Controles flotantes, a la izquierda del ícono nativo de LibreChat
                 (misma altura, sin encimarse). Estilo nativo tipo selector de modelos. */}
-            <div className="absolute right-14 top-2 z-20 flex items-center gap-2">
+            <div className="absolute right-[52px] top-2 z-20 flex items-center gap-2">
                 {/* Fijar / Quitar de Chats (grande, primero — como el selector a la izquierda) */}
                 <button
                     type="button"
