@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Pin, PinOff, Loader2 } from "lucide-react";
 import IframeRenderer from "@/components/custom/IframeRenderer";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useModuleStore } from "@/stores/modules/useModuleStore";
 import {
     getUserIntegrations,
@@ -80,26 +80,26 @@ const CopilotoInner = () => {
     };
 
     return (
-        <div className="flex h-full flex-col">
-            {/* Barra fina con el botón de fijar/quitar en Chats */}
-            <div className="flex shrink-0 items-center justify-end border-b bg-card px-3 py-1.5">
-                <Button
-                    size="sm"
-                    variant={pinned ? "secondary" : "default"}
-                    onClick={togglePin}
-                    disabled={busy}
-                    className="h-8 gap-1.5"
-                    title={pinned ? "Quitar el Copiloto de tus Chats" : "Mostrar el Copiloto como pestaña en tus Chats"}
-                >
-                    {busy
-                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        : pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
-                    {pinned ? "Quitar de Chats" : "Fijar en Chats"}
-                </Button>
-            </div>
-            <div className="min-h-0 flex-1">
-                <IframeRenderer url={url} />
-            </div>
+        <div className="relative h-full w-full overflow-hidden">
+            <IframeRenderer url={url} />
+            {/* Botón flotante discreto (fijar/quitar de Chats). Semitransparente,
+                se vuelve sólido al pasar el mouse. No roba alto al copiloto. */}
+            <button
+                type="button"
+                onClick={togglePin}
+                disabled={busy}
+                title={pinned ? "Quitar el Copiloto de tus Chats" : "Mostrar el Copiloto como pestaña en tus Chats"}
+                className={cn(
+                    "absolute right-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full border bg-background/85 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm transition-all",
+                    busy ? "opacity-100" : "opacity-40 hover:opacity-100",
+                    pinned ? "text-muted-foreground" : "text-foreground",
+                )}
+            >
+                {busy
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+                {pinned ? "Quitar de Chats" : "Fijar en Chats"}
+            </button>
         </div>
     );
 };
