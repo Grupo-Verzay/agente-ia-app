@@ -123,7 +123,13 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
             if (result.data?.id && apiUrl) {
                 await autoConfigureUserAi(result.data.id, apiUrl);
             }
-            toast.success('Cliente creado', { id: toastId });
+            // Si el cliente heredó (o no) la key del reseller, el backend devuelve
+            // un aviso en result.message; se muestra para que el reseller sepa que
+            // debe configurar su propia key de OpenAI en su Perfil.
+            toast.success(
+                result.message?.startsWith('Cliente creado') ? result.message : 'Cliente creado',
+                { id: toastId, duration: result.message?.includes('⚠️') ? 8000 : undefined },
+            );
             router.refresh();
         } else {
             toast.error(result.message || 'Error al crear cliente', { id: toastId });

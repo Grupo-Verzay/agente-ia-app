@@ -640,6 +640,89 @@ export async function autoConfigureUserAi(
   }
 }
 
+/**
+ * Hereda la configuración de IA (proveedor + API Key + modelo) del RESELLER al
+ * cliente recién creado, para que el consumo de IA de los clientes de un reseller
+ * lo cubra EL RESELLER con su propia key (no Verzay). Solo se usa al crear un
+ * cliente nuevo con `demoResellerId`; nunca toca clientes existentes.
+ *
+ * El reseller configura su key en su propio Perfil (/profile → ApiKeyConfigurator),
+ * que la guarda en su `user_ai_configs`. Aquí se copia esa key al config del
+ * cliente, así el backend (getUserDefaultAiConfig) la resuelve sin más cambios.
+ *
+ * Devuelve `inherited=false` (sin error) si el reseller aún no configuró su key,
+ * para que la UI pueda avisarle que la ponga.
+ */
+export async function inheritResellerAiConfig(
+  clientId: string,
+  resellerId: string,
+): Promise<ActionResult<{ inherited: boolean }>> {
+  try {
+    const reseller = await db.user.findUnique({
+      where: { id: resellerId },
+      select: {
+        defaultProviderId: true,
+        defaultAiModelId: true,
+        aiConfigs: { select: { providerId: true, apiKey: true, isActive: true } },
+      },
+    });
+    if (!reseller) return { success: false, message: 'reseller_not_found' };
+
+    // Elegir la config del reseller igual que getUserDefaultAiConfig (backend):
+    // su proveedor por defecto activo → cualquiera activo → la primera.
+    const chosen =
+      (reseller.defaultProviderId
+        ? reseller.aiConfigs.find(
+            (c) => c.providerId === reseller.defaultProviderId && c.isActive,
+          ) ?? reseller.aiConfigs.find((c) => c.providerId === reseller.defaultProviderId)
+        : undefined) ??
+      reseller.aiConfigs.find((c) => c.isActive) ??
+      reseller.aiConfigs[0];
+
+    const apiKey = chosen?.apiKey?.trim();
+    if (!chosen || !apiKey) {
+      // El reseller aún no tiene key propia: no se hereda nada (la UI avisa).
+      return { success: true, message: 'reseller_without_key', data: { inherited: false } };
+    }
+
+    // Copiar la key del reseller al config del cliente + fijar defaults para que
+    // el agente resuelva proveedor/modelo correctamente.
+    await db.userAiConfig.upsert({
+      where: { userId_providerId: { userId: clientId, providerId: chosen.providerId } },
+      update: { apiKey, isActive: true },
+      create: { userId: clientId, providerId: chosen.providerId, apiKey, isActive: true },
+    });
+
+    // Modelo: reusar el del reseller si pertenece a ese proveedor; si no, el
+    // primer modelo del proveedor.
+    let modelId = reseller.defaultAiModelId ?? null;
+    if (modelId) {
+      const m = await db.aiModel.findUnique({
+        where: { id: modelId },
+        select: { providerId: true },
+      });
+      if (!m || m.providerId !== chosen.providerId) modelId = null;
+    }
+    if (!modelId) {
+      const first = await db.aiModel.findFirst({
+        where: { providerId: chosen.providerId },
+        orderBy: { name: 'asc' },
+        select: { id: true },
+      });
+      modelId = first?.id ?? null;
+    }
+
+    await db.user.update({
+      where: { id: clientId },
+      data: { defaultProviderId: chosen.providerId, defaultAiModelId: modelId },
+    });
+
+    return { success: true, message: 'inherited', data: { inherited: true } };
+  } catch (e: any) {
+    return { success: false, message: e?.message || 'inherit_reseller_ai_error' };
+  }
+}
+
 export async function resolveUserAiClient(userId: string): Promise<ActionResult<ResolvedAiClientDTO>> {
   noStore();
   try {

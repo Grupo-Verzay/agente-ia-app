@@ -7,6 +7,7 @@ import { generateQRCode, getDataApi } from "@/actions/api-action";
 import { ClientInterface } from "@/lib/types";
 import { revalidatePath } from 'next/cache';
 import { getIaCreditByUser } from './actions-ia-credits';
+import { inheritResellerAiConfig } from './userAiconfig-actions';
 import { currentUser } from '@/lib/auth';
 import { isAdminLike, isAdminOrReseller } from '@/lib/rbac';
 import { getRemindersByUserId } from './reminders-actions';
@@ -545,6 +546,16 @@ export const createUserWithPausar = async (
       });
     }
 
+    // 1c. Heredar la config de IA (proveedor + API Key + modelo) del RESELLER
+    // dueño: el consumo de IA de los clientes de un reseller lo cubre EL RESELLER
+    // con su propia key (no Verzay). Solo aplica a clientes NUEVOS con reseller.
+    // Best-effort: nunca rompe la creación del cliente.
+    let resellerKeyMissing = false;
+    if (userFields.demoResellerId) {
+      const inh = await inheritResellerAiConfig(user.id, userFields.demoResellerId);
+      if (inh.success && inh.data && !inh.data.inherited) resellerKeyMissing = true;
+    }
+
     let pausarRecord: Pausar | null = null;
 
     // 2. Crear registro Pausar si existe openingPhrase
@@ -573,7 +584,9 @@ export const createUserWithPausar = async (
 
     return {
       success: true,
-      message: 'User and Pausar data created successfully',
+      message: resellerKeyMissing
+        ? 'Cliente creado. ⚠️ Configura tu API Key de OpenAI en tu Perfil para que el agente de tus clientes funcione (tú cubres su consumo).'
+        : 'User and Pausar data created successfully',
       data: createdUser as UserWithPausar,
     };
   } catch (error) {
