@@ -4,25 +4,19 @@ import { db } from '@/lib/db';
 import { currentUser } from '@/lib/auth';
 import { sendMessageWithHistoryAction } from '@/actions/chat-history/send-message-with-history-action';
 import { sendChannelTextAction } from '@/actions/channel-chat-actions';
+import { persistChatMessage } from '@/lib/chat-persistence';
 
 /**
- * Resuelve la cuenta (dueño) a la que pertenecen las llamadas del usuario actual.
- * Espeja getCallAccountUserId de astracalls-actions (no exportado).
+ * Resuelve la cuenta a la que pertenecen las llamadas del usuario actual.
+ * Espeja getCallAccountUserId de astracalls-actions (no exportado): la línea de
+ * llamadas se resuelve por la cuenta ACTIVA (effectiveId), NO por el
+ * master_user_id de linked_accounts. Usar el master cruzaba los números de
+ * cuentas co-administradas y el mensaje salía por otra línea (o no salía) y no
+ * quedaba en el chat visible. Ver [[project_calls_line_astracalls]] (fix 63c2be4).
  */
 async function resolveCallAccountId(): Promise<string | null> {
   const me = await currentUser();
   if (!me?.id) return null;
-  if (me.ownerId) return me.ownerId;
-  const realId = me.sessionUserId ?? me.id;
-  try {
-    const rows = await db.$queryRaw<{ id: string }[]>`
-      SELECT "master_user_id" as id FROM "linked_accounts"
-      WHERE "linked_user_id" = ${realId} LIMIT 1
-    `;
-    if (rows.length && rows[0]?.id) return rows[0].id;
-  } catch {
-    /* tabla ausente: usar cuenta propia */
-  }
   return me.effectiveId ?? me.id;
 }
 
@@ -132,6 +126,28 @@ export async function sendMissedOutgoingCallReply(
       apikey,
       historyType: 'notification',
     });
+
+    // Persistir el saliente en el panel de Chats (chat_messages) además del
+    // historial del agente (n8nChatHistory), que el panel NO lee para burbujas.
+    // Sin esto la burbuja solo aparecía de forma transitoria por el poll en vivo
+    // a Evolution y DESAPARECÍA al recargar la lista desde chat_messages. Se usa
+    // el messageId REAL devuelto por Evolution para que su eco posterior
+    // deduplique (ON CONFLICT) y no salga la burbuja doble. Si no llegó id real,
+    // NO se persiste con id aleatorio (evita duplicar contra el eco).
+    const realMessageId = (res as { messageId?: string })?.messageId;
+    if (res?.success && realMessageId) {
+      await persistChatMessage({
+        userId,
+        instanceName,
+        instanceType: inst?.instanceType ?? 'evolution',
+        remoteJid,
+        messageId: realMessageId,
+        fromMe: true,
+        messageType: 'conversation',
+        content: text,
+        messageTimestamp: new Date(),
+      }).catch(() => { /* best-effort: el mensaje ya se envió */ });
+    }
 
     return { sent: !!res?.success, message: res?.success ? undefined : res?.message };
   } catch (e: any) {

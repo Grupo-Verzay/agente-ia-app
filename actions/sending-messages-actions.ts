@@ -32,6 +32,9 @@ export interface SendingMessagesResult {
     success: boolean;
     message: string;
     error?: string;
+    /** id REAL del mensaje que devuelve Evolution (key.id). Se usa para persistir
+     *  el saliente en chat_messages con ese id y que el eco posterior deduplique. */
+    messageId?: string;
 }
 
 /**
@@ -74,7 +77,14 @@ export const sendingMessages = async ({
             return { success: false, message: errorText, error: errorText };
         }
 
-        await response.json().catch(() => null);
+        const responseJson = (await response.json().catch(() => null)) as
+            | Record<string, any>
+            | null;
+        const messageId =
+            (responseJson?.key?.id as string | undefined) ||
+            (responseJson?.message?.key?.id as string | undefined) ||
+            (responseJson?.data?.key?.id as string | undefined) ||
+            undefined;
 
         const shouldSaveHistory = history?.save !== false;
         const resolvedInstanceName =
@@ -106,7 +116,7 @@ export const sendingMessages = async ({
             }
         }
 
-        return { success: true, message: 'Se notifico correctamente.' };
+        return { success: true, message: 'Se notifico correctamente.', messageId };
 
     } catch (error) {
         const errMsg = `Error enviando texto a ${remoteJid}: ${error.message || error}`;
