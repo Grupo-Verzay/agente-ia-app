@@ -96,6 +96,10 @@ export async function autoAssignUnassignedSessionsForOwner(
 
   let assigned = 0;
   for (const session of unassigned) {
+    // Round-robin 1-1-1: mismo criterio que el backend (auto-assign.service.ts).
+    // Elige al asesor que lleva MÁS tiempo sin recibir un lead de ESTA cuenta,
+    // saltando a los no disponibles o llenos (chats activos >= maxChats). Todo el
+    // conteo está acotado a la cuenta (s."userId" = ownerId).
     const candidates = await db.$queryRaw<{ id: string }[]>`
       WITH members AS (
         SELECT u.id, u.advisor_available
@@ -109,14 +113,31 @@ export async function autoAssignUnassignedSessionsForOwner(
         FROM "linked_accounts" la
         JOIN "User" u ON u.id = la."linked_user_id"
         WHERE la."master_user_id" = ${ownerId}
+      ),
+      load AS (
+        SELECT s.assigned_advisor_id AS id, COUNT(*)::int AS cnt
+        FROM "Session" s
+        WHERE s."userId" = ${ownerId}
+          AND s.status = true
+          AND s.assigned_advisor_id IS NOT NULL
+        GROUP BY s.assigned_advisor_id
+      ),
+      last_assign AS (
+        SELECT al."advisorId" AS id, MAX(al."createdAt") AS last_at
+        FROM "AssignmentLog" al
+        JOIN "Session" s ON s.id = al."sessionId"
+        WHERE s."userId" = ${ownerId}
+          AND al."advisorId" IS NOT NULL
+          AND al.action IN ('auto_assigned', 'assigned', 'taken', 'transferred')
+        GROUP BY al."advisorId"
       )
-      SELECT m.id, COUNT(s.id)::int AS cnt
+      SELECT m.id
       FROM members m
-      LEFT JOIN "Session" s ON s.assigned_advisor_id = m.id AND s.status = true
+      LEFT JOIN load l ON l.id = m.id
+      LEFT JOIN last_assign la ON la.id = m.id
       WHERE m.advisor_available = true
-      GROUP BY m.id
-      HAVING COUNT(s.id)::int < ${maxChats}
-      ORDER BY COUNT(s.id) ASC
+        AND COALESCE(l.cnt, 0) < ${maxChats}
+      ORDER BY la.last_at ASC NULLS FIRST, m.id ASC
       LIMIT 1
     `;
     if (candidates.length === 0) {
@@ -162,7 +183,9 @@ export async function assignSessionToAdvisor(
         (SELECT auto_assign_max_chats FROM "User" WHERE id = ${auth.ownerId}) AS max_chats,
         COUNT(s.id)::int AS current_count
       FROM "Session" s
-      WHERE s.assigned_advisor_id = ${advisorId} AND s.status = true
+      WHERE s.assigned_advisor_id = ${advisorId}
+        AND s.status = true
+        AND s."userId" = ${auth.ownerId}
     `;
     const row = settings[0];
     if (row && row.max_chats != null && row.current_count >= row.max_chats) {
