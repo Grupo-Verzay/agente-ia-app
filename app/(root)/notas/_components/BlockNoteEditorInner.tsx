@@ -62,7 +62,7 @@ export default function TiptapEditor({ initialContent, onChange, editable = true
 
   return (
     <div className="flex h-full flex-col">
-      <EditorToolbar editor={editor} />
+      {editable && <EditorToolbar editor={editor} />}
       <div className="tiptap-scroll flex-1 overflow-y-auto">
         <EditorContent
           editor={editor}

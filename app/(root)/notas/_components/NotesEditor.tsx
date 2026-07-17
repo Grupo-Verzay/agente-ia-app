@@ -5,9 +5,10 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   Archive, ArrowLeft, Check, Download, FileText, Loader2,
   PanelLeftClose, PanelLeftOpen, Pin, PinOff, Smile,
-  Trash2, User, UserPlus, X, Maximize2, Minimize2,
+  Trash2, User, UserPlus, X, Maximize2, Minimize2, Users, Eye,
 } from 'lucide-react'
 import { NoteContactPicker } from './NoteContactPicker'
+import { ShareNoteDialog } from './ShareNoteDialog'
 import { AuditHistoryButton } from '@/components/shared/AuditHistoryButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -90,6 +91,14 @@ interface Props {
   note: UserNoteWithContent
   saving: boolean
   sidebarOpen: boolean
+  /** Cuenta que ve la nota (para el diálogo de compartir). */
+  currentUserId: string
+  /** Puede editar (dueño o compartida con permiso de edición). */
+  canEdit: boolean
+  /** Es el dueño de la nota (controles de compartir/archivar/eliminar). */
+  isOwner: boolean
+  /** Nombre de quien la comparte, cuando NO es propia. */
+  ownerName: string | null
   onSave: (content: object, title: string) => void
   onTogglePin: (id: string, isPinned: boolean) => void
   onDelete: (id: string) => void
@@ -147,7 +156,7 @@ function extractMarkdown(content: object): string {
 }
 
 export function NotesEditor({
-  note, saving, sidebarOpen,
+  note, saving, sidebarOpen, currentUserId, canEdit, isOwner, ownerName,
   onSave, onTogglePin, onDelete, onArchive, onEmojiChange,
   onColorChange, onContactChange, onToggleSidebar, onBackToList, onApplyTemplate,
 }: Props) {
@@ -155,20 +164,24 @@ export function NotesEditor({
   const [wordCount, setWordCount] = useState(0)
   const [focusMode, setFocusMode] = useState(false)
   const [contactPickerOpen, setContactPickerOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
 
   useEffect(() => {
     setWordCount(countWords(note.content as object))
   }, [note.content])
 
-  const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value.toUpperCase()), [])
-  const handleTitleBlur = useCallback(() => onSave(note.content as object, title), [title, note.content, onSave])
+  const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canEdit) return
+    setTitle(e.target.value.toUpperCase())
+  }, [canEdit])
+  const handleTitleBlur = useCallback(() => { if (canEdit) onSave(note.content as object, title) }, [canEdit, title, note.content, onSave])
   const handleTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
   }, [])
   const handleEditorChange = useCallback((content: object) => {
     setWordCount(countWords(content))
-    onSave(content, title)
-  }, [title, onSave])
+    if (canEdit) onSave(content, title)
+  }, [canEdit, title, onSave])
 
   const handleExportMd = () => {
     const md = `# ${title}\n\n${extractMarkdown(note.content as object)}`
@@ -220,85 +233,112 @@ export function NotesEditor({
             </Button>
           )}
 
-          {/* Emoji */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-lg">
-                {note.emoji ? note.emoji : <Smile className="h-4 w-4 text-muted-foreground" />}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="p-2 w-64">
-              <div className="grid grid-cols-10 gap-1">
-                {EMOJI_LIST.map(e => (
-                  <button key={e}
-                    className={cn('flex h-7 w-7 items-center justify-center rounded text-base hover:bg-muted transition-colors', note.emoji === e && 'bg-muted ring-1 ring-border')}
-                    onClick={() => onEmojiChange(note.id, note.emoji === e ? null : e)}
-                  >{e}</button>
-                ))}
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {isOwner && (
+            <>
+              {/* Emoji */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-lg">
+                    {note.emoji ? note.emoji : <Smile className="h-4 w-4 text-muted-foreground" />}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="p-2 w-64">
+                  <div className="grid grid-cols-10 gap-1">
+                    {EMOJI_LIST.map(e => (
+                      <button key={e}
+                        className={cn('flex h-7 w-7 items-center justify-center rounded text-base hover:bg-muted transition-colors', note.emoji === e && 'bg-muted ring-1 ring-border')}
+                        onClick={() => onEmojiChange(note.id, note.emoji === e ? null : e)}
+                      >{e}</button>
+                    ))}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-          {/* Color */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" title="Color de nota">
-                <div className={cn('h-4 w-4 rounded-full border border-border', note.color ? '' : 'bg-muted')} style={note.color ? { backgroundColor: note.color } : undefined} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="p-2 w-48">
-              <div className="grid grid-cols-4 gap-1.5">
-                {NOTE_COLORS.map(c => (
-                  <button key={String(c.value)}
-                    title={c.label}
-                    className={cn('h-8 w-full rounded border-2 transition-transform hover:scale-105', note.color === c.value ? 'border-foreground scale-105' : 'border-transparent', c.bg)}
-                    onClick={() => onColorChange(note.id, c.value)}
-                  />
-                ))}
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              {/* Color */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" title="Color de nota">
+                    <div className={cn('h-4 w-4 rounded-full border border-border', note.color ? '' : 'bg-muted')} style={note.color ? { backgroundColor: note.color } : undefined} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="p-2 w-48">
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {NOTE_COLORS.map(c => (
+                      <button key={String(c.value)}
+                        title={c.label}
+                        className={cn('h-8 w-full rounded border-2 transition-transform hover:scale-105', note.color === c.value ? 'border-foreground scale-105' : 'border-transparent', c.bg)}
+                        onClick={() => onColorChange(note.id, c.value)}
+                      />
+                    ))}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
 
-          {/* Save status */}
-          <div className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
-            {saving
-              ? <><Loader2 className="h-3 w-3 animate-spin" /><span className="hidden sm:inline">Guardando...</span></>
-              : <><Check className="h-3 w-3 text-emerald-500" /><span className="hidden sm:inline">Guardado</span></>
-            }
-          </div>
+          {/* Estado / permiso */}
+          {canEdit ? (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground ml-1">
+              {saving
+                ? <><Loader2 className="h-3 w-3 animate-spin" /><span className="hidden sm:inline">Guardando...</span></>
+                : <><Check className="h-3 w-3 text-emerald-500" /><span className="hidden sm:inline">Guardado</span></>
+              }
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 text-xs text-amber-600 ml-1" title="No puedes editar esta nota">
+              <Eye className="h-3.5 w-3.5" /><span className="hidden sm:inline">Solo lectura</span>
+            </div>
+          )}
+
+          {/* Compartida por (cuando no es propia) */}
+          {!isOwner && ownerName && (
+            <div className="hidden md:flex items-center gap-1 text-xs text-muted-foreground ml-2 border border-border rounded-full px-2 py-0.5">
+              <Users className="h-3 w-3" />
+              <span className="max-w-[120px] truncate">de {ownerName}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-0.5">
-          {/* Vincular contacto */}
-          {note.contactName ? (
-            <div className="flex items-center gap-1 text-xs text-blue-600 border border-blue-200 rounded-full px-2 py-0.5">
-              <User className="h-3 w-3" />
-              <span className="max-w-[80px] truncate">{note.contactName}</span>
-              <button onClick={() => onContactChange(note.id, null, null)} className="hover:text-destructive">
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ) : (
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setContactPickerOpen(true)} title="Vincular contacto">
-              <UserPlus className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          )}
-
-          {/* Templates */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" title="Templates">
-                <FileText className="h-4 w-4 text-muted-foreground" />
+          {isOwner && (
+            <>
+              {/* Compartir con el equipo */}
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShareOpen(true)} title="Compartir con el equipo">
+                <Users className="h-4 w-4 text-muted-foreground" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              {TEMPLATES.map(t => (
-                <DropdownMenuItem key={t.label} onClick={() => onApplyTemplate(t.content, t.title)}>
-                  {t.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+
+              {/* Vincular contacto */}
+              {note.contactName ? (
+                <div className="flex items-center gap-1 text-xs text-blue-600 border border-blue-200 rounded-full px-2 py-0.5">
+                  <User className="h-3 w-3" />
+                  <span className="max-w-[80px] truncate">{note.contactName}</span>
+                  <button onClick={() => onContactChange(note.id, null, null)} className="hover:text-destructive">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setContactPickerOpen(true)} title="Vincular contacto">
+                  <UserPlus className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              )}
+
+              {/* Templates */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" title="Templates">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  {TEMPLATES.map(t => (
+                    <DropdownMenuItem key={t.label} onClick={() => onApplyTemplate(t.content, t.title)}>
+                      {t.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
 
           {/* Exportar */}
           <DropdownMenu>
@@ -322,38 +362,42 @@ export function NotesEditor({
             {focusMode ? <Minimize2 className="h-4 w-4 text-muted-foreground" /> : <Maximize2 className="h-4 w-4 text-muted-foreground" />}
           </Button>
 
-          <AuditHistoryButton entityType="note" entityId={note.id} />
+          {isOwner && (
+            <>
+              <AuditHistoryButton entityType="note" entityId={note.id} />
 
-          {/* Pin */}
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onTogglePin(note.id, note.isPinned)} title={note.isPinned ? 'Desfijar' : 'Fijar'}>
-            {note.isPinned ? <PinOff className="h-4 w-4 text-amber-500" /> : <Pin className="h-4 w-4 text-amber-500" />}
-          </Button>
-
-          {/* Archivar */}
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onArchive(note.id)} title="Archivar nota">
-            <Archive className="h-4 w-4 text-muted-foreground" />
-          </Button>
-
-          {/* Eliminar */}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" title="Eliminar nota">
-                <Trash2 className="h-4 w-4 text-red-500" />
+              {/* Pin */}
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onTogglePin(note.id, note.isPinned)} title={note.isPinned ? 'Desfijar' : 'Fijar'}>
+                {note.isPinned ? <PinOff className="h-4 w-4 text-amber-500" /> : <Pin className="h-4 w-4 text-amber-500" />}
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>¿Eliminar nota?</AlertDialogTitle>
-                <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => onDelete(note.id)}>
-                  Eliminar
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+
+              {/* Archivar */}
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onArchive(note.id)} title="Archivar nota">
+                <Archive className="h-4 w-4 text-muted-foreground" />
+              </Button>
+
+              {/* Eliminar */}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" title="Eliminar nota">
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Eliminar nota?</AlertDialogTitle>
+                    <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => onDelete(note.id)}>
+                      Eliminar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          )}
         </div>
       </div>
 
@@ -364,6 +408,7 @@ export function NotesEditor({
           onChange={handleTitleChange}
           onBlur={handleTitleBlur}
           onKeyDown={handleTitleKeyDown}
+          readOnly={!canEdit}
           placeholder="Sin título"
           className="border-none bg-transparent text-2xl font-bold shadow-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-0 h-auto placeholder:text-muted-foreground/40"
         />
@@ -371,7 +416,7 @@ export function NotesEditor({
 
       {/* Editor */}
       <div className="flex-1 min-h-0 overflow-hidden px-4 pb-2">
-        <TiptapEditor key={note.id} initialContent={initialContent} onChange={handleEditorChange} />
+        <TiptapEditor key={note.id} initialContent={initialContent} onChange={handleEditorChange} editable={canEdit} />
       </div>
 
       {/* Footer: word count + contact link */}
@@ -394,6 +439,15 @@ export function NotesEditor({
         onSelect={(jid, name) => onContactChange(note.id, jid, name)}
         userId={(note as any).userId}
       />
+
+      {isOwner && (
+        <ShareNoteDialog
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          noteId={note.id}
+          ownerId={currentUserId}
+        />
+      )}
     </div>
   )
 }

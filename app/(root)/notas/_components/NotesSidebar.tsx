@@ -4,6 +4,7 @@ import { useState } from 'react'
 import {
   ChevronDown, ChevronRight, FileText, Folder, FolderOpen,
   MoreHorizontal, Pin, PinOff, Plus, Search, Trash2, Pencil, FolderPlus,
+  Eye, Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -17,7 +18,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { NoteFolderWithCount, UserNoteListItem } from '@/actions/notes-actions'
+import type { NoteFolderWithCount, UserNoteListItem, SharedNoteListItem } from '@/actions/notes-actions'
 import { SortableNoteList } from './SortableNoteList'
 
 const FOLDER_COLORS = [
@@ -29,6 +30,7 @@ interface Props {
   className?: string
   folders: NoteFolderWithCount[]
   notes: UserNoteListItem[]
+  sharedNotes: SharedNoteListItem[]
   selectedNoteId?: string
   activeFolderId: string | null | undefined
   search: string
@@ -47,7 +49,7 @@ interface Props {
 
 export function NotesSidebar({
   className,
-  folders, notes, selectedNoteId, activeFolderId, search, userId,
+  folders, notes, sharedNotes, selectedNoteId, activeFolderId, search, userId,
   onSearchChange, onSelectNote, onNewNote, onDeleteNote, onTogglePin, onReorder,
   onSelectFolder, onCreateFolder, onUpdateFolder, onDeleteFolder,
 }: Props) {
@@ -69,7 +71,11 @@ export function NotesSidebar({
     setFolderDialog({ open: false, name: '', color: FOLDER_COLORS[0] })
   }
 
-  const tabValue = activeFolderId === undefined ? 'todas' : activeFolderId === null ? 'sin' : activeFolderId === '__archived__' ? 'archivadas' : 'folder'
+  const tabValue = activeFolderId === undefined ? 'todas'
+    : activeFolderId === null ? 'sin'
+    : activeFolderId === '__archived__' ? 'archivadas'
+    : activeFolderId === '__shared__' ? 'compartidas'
+    : 'folder'
 
   return (
     <aside className={cn('flex w-full min-w-0 max-w-none flex-col border-r border-border bg-background md:w-72 md:min-w-[240px] md:max-w-xs', className)}>
@@ -95,6 +101,11 @@ export function NotesSidebar({
             </TabsTrigger>
             <TabsTrigger value="sin" className="flex-1 text-xs h-5" onClick={() => onSelectFolder(null)}>
               Sin carpeta
+            </TabsTrigger>
+            <TabsTrigger value="compartidas" className="flex-1 text-xs h-5 gap-1" onClick={() => onSelectFolder('__shared__')}>
+              <Users className="h-3 w-3" />
+              {sharedNotes.length > 0 && <span>{sharedNotes.length}</span>}
+              <span className="hidden lg:inline">Compartidas</span>
             </TabsTrigger>
             <TabsTrigger value="archivadas" className="flex-1 text-xs h-5" onClick={() => onSelectFolder('__archived__')}>
               Archivadas
@@ -141,6 +152,15 @@ export function NotesSidebar({
             onDelete={onDeleteNote}
             onTogglePin={onTogglePin}
             onReorder={onReorder}
+          />
+        )}
+
+        {/* Shared-with-me notes list (solo lectura de acciones: no reordenar/eliminar) */}
+        {activeFolderId === '__shared__' && (
+          <SharedNotesList
+            notes={sharedNotes}
+            selectedId={selectedNoteId}
+            onSelect={onSelectNote}
           />
         )}
 
@@ -259,6 +279,52 @@ export function NotesSidebar({
         </DialogContent>
       </Dialog>
     </aside>
+  )
+}
+
+function SharedNotesList({ notes, selectedId, onSelect }: {
+  notes: SharedNoteListItem[]
+  selectedId?: string
+  onSelect: (id: string) => void
+}) {
+  if (notes.length === 0) {
+    return (
+      <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+        Aún no te han compartido notas.
+      </div>
+    )
+  }
+  return (
+    <ul>
+      {notes.map(note => (
+        <li key={note.id}>
+          <div
+            className={cn(
+              'group relative flex cursor-pointer flex-col gap-0.5 px-4 py-2.5 transition-colors border-b border-border/40 hover:bg-muted/50',
+              selectedId === note.id && 'bg-muted border-l-2 border-l-primary',
+            )}
+            onClick={() => onSelect(note.id)}
+          >
+            <div className="flex items-center gap-1.5 pr-6 min-w-0">
+              {note.emoji
+                ? <span className="text-sm shrink-0">{note.emoji}</span>
+                : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              }
+              <span className="truncate text-sm font-medium leading-snug">
+                {note.title || 'Sin título'}
+              </span>
+              {note.canEdit
+                ? <Pencil className="h-3 w-3 shrink-0 text-emerald-500" aria-label="Puede editar" />
+                : <Eye className="h-3 w-3 shrink-0 text-amber-500" aria-label="Solo lectura" />
+              }
+            </div>
+            <span className="text-[11px] text-muted-foreground pl-5 truncate">
+              de {note.ownerName ?? 'otra cuenta'}
+            </span>
+          </div>
+        </li>
+      ))}
+    </ul>
   )
 }
 

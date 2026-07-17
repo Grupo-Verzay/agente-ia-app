@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {
   createNote, deleteNote, getNotes, getNote, archiveNote, getArchivedNotes, unarchiveNote,
-  getFolders, createFolder, updateFolder, deleteFolder, updateNote,
-  type NoteFolderWithCount, type UserNoteListItem, type UserNoteWithContent,
+  getFolders, createFolder, updateFolder, deleteFolder, updateNote, getSharedNotes,
+  type NoteFolderWithCount, type UserNoteListItem, type UserNoteWithContent, type SharedNoteListItem,
 } from '@/actions/notes-actions'
 import { NotesSidebar } from './NotesSidebar'
 import { NotesEditor } from './NotesEditor'
@@ -25,7 +25,12 @@ interface Props {
 export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) {
   const [folders, setFolders] = useState<NoteFolderWithCount[]>([])
   const [notes, setNotes] = useState<UserNoteListItem[]>([])
+  const [sharedNotes, setSharedNotes] = useState<SharedNoteListItem[]>([])
   const [selectedNote, setSelectedNote] = useState<UserNoteWithContent | null>(null)
+  // Permiso de la nota abierta: dueño = acceso total; compartida = según share.
+  const [notePerm, setNotePerm] = useState<{ canEdit: boolean; isOwner: boolean; ownerName: string | null }>(
+    { canEdit: true, isOwner: true, ownerName: null },
+  )
   const [activeFolderId, setActiveFolderId] = useState<string | null | undefined>(undefined)
   const [search, setSearch] = useState('')
   const [loadingNote, setLoadingNote] = useState(false)
@@ -39,8 +44,15 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
     else toast.error('Error al cargar carpetas: ' + (res as { error?: string }).error)
   }, [userId])
 
+  const loadShared = useCallback(async () => {
+    const res = await getSharedNotes(userId)
+    if (res.success) setSharedNotes(res.data)
+  }, [userId])
+
   const loadNotes = useCallback(async (folderId?: string | null, q?: string) => {
-    if (folderId === '__archived__') {
+    if (folderId === '__shared__') {
+      await loadShared()
+    } else if (folderId === '__archived__') {
       const res = await getArchivedNotes(userId)
       if (res.success) setNotes(res.data)
       else toast.error('Error al cargar notas: ' + (res as { error?: string }).error)
@@ -49,12 +61,13 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
       if (res.success) setNotes(res.data)
       else toast.error('Error al cargar notas: ' + (res as { error?: string }).error)
     }
-  }, [userId])
+  }, [userId, loadShared])
 
   useEffect(() => {
     loadFolders()
     loadNotes(undefined, '')
-  }, [loadFolders, loadNotes])
+    loadShared()
+  }, [loadFolders, loadNotes, loadShared])
 
   // Debounced search
   useEffect(() => {
@@ -72,12 +85,21 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
     if (collapseSidebarOnSelect) setSidebarOpen(false)
     setLoadingNote(true)
     const res = await getNote(id, userId)
-    if (res.success && res.data) setSelectedNote(res.data)
+    if (res.success && res.data) {
+      setSelectedNote(res.data)
+      setNotePerm({
+        canEdit: res.canEdit ?? true,
+        isOwner: res.isOwner ?? true,
+        ownerName: res.ownerName ?? null,
+      })
+    } else if (!res.success) {
+      toast.error((res as { error?: string }).error ?? 'No se pudo abrir la nota')
+    }
     setLoadingNote(false)
   }, [userId, collapseSidebarOnSelect])
 
   const handleNewNote = useCallback(async (templateContent?: object, templateTitle?: string) => {
-    const folderId = (activeFolderId && activeFolderId !== '__archived__') ? activeFolderId : null
+    const folderId = (activeFolderId && activeFolderId !== '__archived__' && activeFolderId !== '__shared__') ? activeFolderId : null
     const res = await createNote(userId, folderId, templateContent, templateTitle)
     if (!res.success || !res.data) return toast.error('No se pudo crear la nota')
     setNotes(prev => [res.data!, ...prev])
@@ -104,6 +126,7 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
 
   const handleSave = useCallback((content: object, title: string) => {
     if (!selectedNote) return
+    if (!notePerm.canEdit) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
     setSaving(true)
     saveTimer.current = setTimeout(async () => {
@@ -112,9 +135,10 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
       setSaving(false)
       if (!res.success) return toast.error(res.error)
       setNotes(prev => prev.map(n => n.id === selectedNote.id ? { ...n, title, updatedAt: new Date() } : n))
+      setSharedNotes(prev => prev.map(n => n.id === selectedNote.id ? { ...n, title, updatedAt: new Date() } : n))
       setSelectedNote(prev => prev ? { ...prev, content, title } : prev)
     }, 1500)
-  }, [selectedNote, userId])
+  }, [selectedNote, userId, notePerm.canEdit])
 
   const handleTogglePin = useCallback(async (id: string, isPinned: boolean) => {
     const res = await updateNote(id, userId, { isPinned: !isPinned })
@@ -180,6 +204,7 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
           className={cn(showEditorPane && 'hidden md:flex')}
           folders={folders}
           notes={notes}
+          sharedNotes={sharedNotes}
           userId={userId}
           onReorder={setNotes}
           selectedNoteId={selectedNote?.id}
@@ -218,6 +243,10 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
             note={selectedNote}
             saving={saving}
             sidebarOpen={sidebarOpen}
+            currentUserId={userId}
+            canEdit={notePerm.canEdit}
+            isOwner={notePerm.isOwner}
+            ownerName={notePerm.ownerName}
             onSave={handleSave}
             onTogglePin={handleTogglePin}
             onDelete={handleDeleteNote}

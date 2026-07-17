@@ -12,6 +12,15 @@ export type UserNoteListItem = Pick<
 >
 export type UserNoteWithContent = UserNote
 
+// Nota compartida conmigo: incluye quién la comparte y si la puedo editar.
+export type SharedNoteListItem = UserNoteListItem & {
+  ownerName: string | null
+  canEdit: boolean
+}
+export type TeamAccount = { id: string; name: string | null; email: string }
+export type NoteShareRow = { userId: string; canEdit: boolean; name: string | null; email: string }
+export type NoteSharePermission = 'none' | 'read' | 'edit'
+
 // ── Folders ──────────────────────────────────────────────────────────────────
 
 export async function getFolders(userId: string) {
@@ -117,9 +126,29 @@ export async function getArchivedNotes(userId: string) {
 
 export async function getNote(id: string, userId: string) {
   try {
-    const data = await db.userNote.findFirst({ where: { id, userId } })
+    const data = await db.userNote.findUnique({ where: { id } })
     if (!data) return { success: false, error: 'Nota no encontrada.' }
-    return { success: true, data }
+    // Dueño: acceso total.
+    if (data.userId === userId) {
+      return { success: true, data, canEdit: true, isOwner: true, ownerName: null }
+    }
+    // Compartida: acceso solo si existe un share para esta cuenta.
+    const share = await db.noteShare.findUnique({
+      where: { noteId_userId: { noteId: id, userId } },
+      select: { canEdit: true },
+    })
+    if (!share) return { success: false, error: 'No autorizado.' }
+    const owner = await db.user.findUnique({
+      where: { id: data.userId },
+      select: { name: true, email: true },
+    })
+    return {
+      success: true,
+      data,
+      canEdit: share.canEdit,
+      isOwner: false,
+      ownerName: owner?.name ?? owner?.email ?? null,
+    }
   } catch {
     return { success: false, error: 'No se pudo cargar la nota.' }
   }
@@ -167,6 +196,33 @@ export async function updateNote(
   },
 ) {
   try {
+    const existing = await db.userNote.findUnique({ where: { id }, select: { userId: true } })
+    if (!existing) return { success: false, error: 'Nota no encontrada.' }
+
+    // Cuenta que NO es dueña: solo puede editar si tiene un share con canEdit,
+    // y únicamente contenido/título (no fija, archiva, mueve ni etiqueta).
+    if (existing.userId !== userId) {
+      const share = await db.noteShare.findUnique({
+        where: { noteId_userId: { noteId: id, userId } },
+        select: { canEdit: true },
+      })
+      if (!share?.canEdit) return { success: false, error: 'No tienes permiso para editar esta nota.' }
+      const safe: { content?: object; title?: string } = {}
+      if (payload.content !== undefined) safe.content = payload.content
+      if (payload.title !== undefined) safe.title = payload.title
+      const data = await db.userNote.update({ where: { id }, data: safe })
+      await writeAuditLog({
+        userId: existing.userId,
+        actorId: await getAuditActorId(),
+        entityType: 'note',
+        entityId: id,
+        action: 'updated',
+        summary: `Actualizo la nota compartida "${data.title}"`,
+        metadata: { fields: Object.keys(safe), sharedEditor: userId },
+      })
+      return { success: true, data }
+    }
+
     const data = await db.userNote.update({ where: { id, userId }, data: payload })
     const action = payload.isArchived === true
       ? 'archived'
@@ -249,5 +305,144 @@ export async function deleteNote(id: string, userId: string) {
     return { success: true }
   } catch {
     return { success: false, error: 'No se pudo eliminar la nota.' }
+  }
+}
+
+// ── Compartir con el equipo ─────────────────────────────────────────────────
+
+// Cuentas del mismo equipo (linked_accounts): el master del grupo + todos sus
+// miembros. Toma como referencia la cuenta `accountId` (puede ser el master o
+// un miembro). Devuelve los ids (incluye a `accountId`).
+async function getTeamIds(accountId: string): Promise<string[]> {
+  try {
+    const rows = await db.$queryRaw<{ id: string }[]>`
+      WITH master AS (
+        SELECT COALESCE(
+          (SELECT "master_user_id" FROM "linked_accounts" WHERE "linked_user_id" = ${accountId} LIMIT 1),
+          ${accountId}
+        ) AS id
+      ),
+      team AS (
+        SELECT id FROM master
+        UNION
+        SELECT "linked_user_id" AS id FROM "linked_accounts"
+        WHERE "master_user_id" = (SELECT id FROM master)
+      )
+      SELECT id FROM team
+    `
+    return rows.map(r => r.id)
+  } catch {
+    return [accountId]
+  }
+}
+
+// Otras cuentas del equipo con las que se puede compartir (excluye a uno mismo).
+export async function getTeamAccounts(accountId: string): Promise<{ success: boolean; data: TeamAccount[]; error?: string }> {
+  try {
+    const rows = await db.$queryRaw<TeamAccount[]>`
+      WITH master AS (
+        SELECT COALESCE(
+          (SELECT "master_user_id" FROM "linked_accounts" WHERE "linked_user_id" = ${accountId} LIMIT 1),
+          ${accountId}
+        ) AS id
+      ),
+      team AS (
+        SELECT id FROM master
+        UNION
+        SELECT "linked_user_id" AS id FROM "linked_accounts"
+        WHERE "master_user_id" = (SELECT id FROM master)
+      )
+      SELECT u.id, u.name, u.email
+      FROM team t
+      JOIN "User" u ON u.id = t.id
+      WHERE u.id <> ${accountId}
+      ORDER BY u.name ASC NULLS LAST, u.email ASC
+    `
+    return { success: true, data: rows }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { success: false, data: [], error: msg }
+  }
+}
+
+// Con quién está compartida una nota (solo el dueño puede consultarlo).
+export async function getNoteShares(noteId: string, ownerId: string): Promise<{ success: boolean; data: NoteShareRow[]; error?: string }> {
+  try {
+    const note = await db.userNote.findFirst({ where: { id: noteId, userId: ownerId }, select: { id: true } })
+    if (!note) return { success: false, data: [], error: 'No autorizado.' }
+    const rows = await db.$queryRaw<NoteShareRow[]>`
+      SELECT ns."userId", ns."canEdit", u.name, u.email
+      FROM "note_shares" ns
+      JOIN "User" u ON u.id = ns."userId"
+      WHERE ns."noteId" = ${noteId}
+    `
+    return { success: true, data: rows }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { success: false, data: [], error: msg }
+  }
+}
+
+// Define el permiso de una cuenta sobre una nota: 'none' (quita), 'read' o 'edit'.
+export async function setNoteShare(
+  noteId: string,
+  ownerId: string,
+  targetUserId: string,
+  permission: NoteSharePermission,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const note = await db.userNote.findFirst({ where: { id: noteId, userId: ownerId }, select: { id: true, title: true } })
+    if (!note) return { success: false, error: 'No autorizado.' }
+    if (targetUserId === ownerId) return { success: false, error: 'No puedes compartir contigo mismo.' }
+
+    const team = await getTeamIds(ownerId)
+    if (!team.includes(targetUserId)) return { success: false, error: 'La cuenta no pertenece a tu equipo.' }
+
+    if (permission === 'none') {
+      await db.noteShare.deleteMany({ where: { noteId, userId: targetUserId } })
+    } else {
+      const canEdit = permission === 'edit'
+      await db.noteShare.upsert({
+        where: { noteId_userId: { noteId, userId: targetUserId } },
+        create: { noteId, userId: targetUserId, canEdit },
+        update: { canEdit },
+      })
+    }
+
+    await writeAuditLog({
+      userId: ownerId,
+      actorId: await getAuditActorId(),
+      entityType: 'note',
+      entityId: noteId,
+      action: 'updated',
+      summary: permission === 'none'
+        ? `Dejo de compartir la nota "${note.title}"`
+        : `Compartio la nota "${note.title}" (${permission === 'edit' ? 'edición' : 'solo lectura'})`,
+      metadata: { targetUserId, permission },
+    })
+    return { success: true }
+  } catch {
+    return { success: false, error: 'No se pudo actualizar el compartir.' }
+  }
+}
+
+// Notas que otras cuentas del equipo compartieron CONMIGO (no archivadas).
+export async function getSharedNotes(userId: string): Promise<{ success: boolean; data: SharedNoteListItem[]; error?: string }> {
+  try {
+    const rows = await db.$queryRaw<SharedNoteListItem[]>`
+      SELECT n.id, n.title, n.emoji, n.color, n."isPinned", n."isArchived", n."folderId",
+             n."contactJid", n."contactName", n."updatedAt", n."createdAt",
+             ns."canEdit", COALESCE(u.name, u.email) AS "ownerName"
+      FROM "note_shares" ns
+      JOIN "user_notes" n ON n.id = ns."noteId"
+      JOIN "User" u ON u.id = n."userId"
+      WHERE ns."userId" = ${userId}
+        AND n."isArchived" = false
+      ORDER BY n."isPinned" DESC, n."updatedAt" DESC
+    `
+    return { success: true, data: rows }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { success: false, data: [], error: msg }
   }
 }
