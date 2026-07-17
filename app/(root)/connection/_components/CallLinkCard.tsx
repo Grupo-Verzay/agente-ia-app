@@ -27,7 +27,8 @@ import {
   unlinkMyCallSession,
 } from '@/actions/astracalls-actions';
 import { getVoicebotConfig, setVoicebotConfig } from '@/actions/voicebot-actions';
-import { VOICEBOT_VOICES } from '@/lib/voicebot-voices';
+import { VOICEBOT_VOICE_OPTIONS, DEFAULT_VOICEBOT_VOICE } from '@/lib/voicebot-voices';
+import { cn } from '@/lib/utils';
 
 export function CallLinkCard() {
   const [loading, setLoading] = useState(true);
@@ -299,19 +300,19 @@ function VoicebotControl() {
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
   const [enabled, setEnabled] = useState(false);
-  const [voice, setVoice] = useState('alloy');
+  const [voice, setVoice] = useState<string>(DEFAULT_VOICEBOT_VOICE);
   const [transferTo, setTransferTo] = useState('');
-  const [saved, setSaved] = useState({ voice: 'alloy', transferTo: '' });
+  const [saved, setSaved] = useState({ voice: DEFAULT_VOICEBOT_VOICE as string, transferTo: '' });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     void getVoicebotConfig().then((r) => {
       if (r.success && r.data) {
         setEnabled(r.data.enabled);
-        setVoice(r.data.voice ?? 'alloy');
+        setVoice(r.data.voice ?? DEFAULT_VOICEBOT_VOICE);
         setTransferTo(r.data.transferTo ?? '');
         setSaved({
-          voice: r.data.voice ?? 'alloy',
+          voice: r.data.voice ?? DEFAULT_VOICEBOT_VOICE,
           transferTo: r.data.transferTo ?? '',
         });
       }
@@ -396,8 +397,30 @@ function VoicebotControl() {
               <Select value={voice} onValueChange={setVoice}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {VOICEBOT_VOICES.map((vn) => (
-                    <SelectItem key={vn} value={vn} className="capitalize">{vn}</SelectItem>
+                  {VOICEBOT_VOICE_OPTIONS.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
+                            v.gender === 'F'
+                              ? 'bg-pink-500/15 text-pink-500'
+                              : v.gender === 'M'
+                                ? 'bg-blue-500/15 text-blue-500'
+                                : 'bg-muted text-muted-foreground',
+                          )}
+                        >
+                          {v.gender === 'F' ? '♀' : v.gender === 'M' ? '♂' : '•'}
+                        </span>
+                        <span className="font-medium text-foreground">{v.label}</span>
+                        <span className="text-xs text-muted-foreground">— {v.hint}</span>
+                        {v.recommended && (
+                          <span className="ml-auto rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-500">
+                            Recomendada
+                          </span>
+                        )}
+                      </span>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
