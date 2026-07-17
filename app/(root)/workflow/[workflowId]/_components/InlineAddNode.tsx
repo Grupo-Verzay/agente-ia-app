@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Action, nodeActions, accionActions, seguimientoActions } from '@/types/workflow-node';
+import { Action, nodeActions, accionActions, seguimientoActions, automationActions } from '@/types/workflow-node';
 import { MAX_NODES_PER_WORKFLOW, MAX_SEGUIMIENTOS_PER_WORKFLOW } from '@/types/workflow';
 import { useAddNode } from './WorkflowAddNodeContext';
 
@@ -113,6 +113,11 @@ export function InlineAddNode({
 
                             <SectionDivider label="Acciones" />
                             {accionActions.map((action) => (
+                                <ActionRow key={action.type} action={action} onPick={pick} />
+                            ))}
+
+                            <SectionDivider label="Automatizaciones" />
+                            {automationActions.map((action) => (
                                 <ActionRow key={action.type} action={action} onPick={pick} />
                             ))}
 
