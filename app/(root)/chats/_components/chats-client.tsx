@@ -178,6 +178,7 @@ function buildOptimisticOutgoingMessage(
       message: { conversation: payload.text },
       messageTimestamp: now,
       status: "PENDING",
+      optimistic: true,
     } as EvolutionMessage;
   }
 
@@ -194,22 +195,31 @@ function buildOptimisticOutgoingMessage(
   const mediaKey = `${payload.mediatype}Message`;
   const caption = payload.caption?.trim();
 
+  // El audio grabado se envía a Evolution como base64 "puro" (sin prefijo), pero
+  // la burbuja optimista necesita una URL reproducible: sin el prefijo `data:` el
+  // <audio>/<img> queda como un cuadro roto hasta que llega el mensaje real. Se
+  // normaliza a Data URL SOLO para la previsualización; el envío usa el original.
+  const previewMediaUrl = /^(data:|https?:|blob:)/i.test(payload.mediaUrl)
+    ? payload.mediaUrl
+    : `data:${payload.mimetype || "application/octet-stream"};base64,${payload.mediaUrl}`;
+
   return {
     key: { id: messageId, fromMe: true, remoteJid },
     messageType: mediaKey,
     message: {
       conversation: caption || payload.fileName || mediaLabel,
-      mediaUrl: payload.mediaUrl,
+      mediaUrl: previewMediaUrl,
       [mediaKey]: {
         caption: caption || undefined,
         fileName: payload.fileName,
         mimetype: payload.mimetype,
-        mediaUrl: payload.mediaUrl,
+        mediaUrl: previewMediaUrl,
         ptt: payload.ptt,
       },
     },
     messageTimestamp: now,
     status: "PENDING",
+    optimistic: true,
   } as EvolutionMessage;
 }
 
@@ -226,7 +236,21 @@ function getMessageContentForDedupe(message: EvolutionMessage) {
   ).trim();
 }
 
+const OPTIMISTIC_MEDIA_TYPES = new Set([
+  "imageMessage",
+  "videoMessage",
+  "audioMessage",
+  "documentMessage",
+  "stickerMessage",
+]);
+
 function isLocalOptimisticMessage(message: EvolutionMessage) {
+  // Optimista = burbuja creada por nosotros mientras el mensaje "vuela" a Evolution.
+  // Puede tener un id `local-` (aún sin id de servidor) o ya el id REAL pero con la
+  // marca `optimistic` (se conserva hasta que el poll/tiempo real la reemplace). El
+  // id real puede NO coincidir con el que devuelve más tarde el poll (Evolution a
+  // veces reporta otro id en media), por eso la marca es la fuente fiable.
+  if ((message as { optimistic?: boolean }).optimistic) return true;
   return String(message.key?.id ?? message.id ?? "").startsWith("local-");
 }
 
@@ -619,6 +643,21 @@ export function ChatsClient({
             if (!isLocalOptimisticMessage(existing)) continue;
             if (existing.key?.fromMe !== message.key?.fromMe) continue;
             if ((existing.key?.remoteJid ?? "") !== (message.key?.remoteJid ?? "")) continue;
+            if (Math.abs((existing.messageTimestamp ?? 0) - timestamp) > 180) continue;
+            // Media (imagen/audio/video/doc): la mayoría va sin caption, así que el
+            // texto NO sirve para emparejar. Basta con que sea el MISMO tipo de media
+            // dentro de la ventana temporal para reemplazar la burbuja optimista por la
+            // real; si no, quedaban dos (el "cuadro" optimista + el real). Solo se
+            // empareja así cuando la optimista aún NO tiene id de servidor (local-) o es
+            // exactamente este mensaje, para no borrar OTRA media en vuelo (envíos
+            // seguidos) que se deduplica por su propio id.
+            const existingId = String(existing.key?.id ?? existing.id ?? "");
+            const canMatchByMedia =
+              existingId.startsWith("local-") || existingId === String(message.key?.id ?? "");
+            const bothSameMedia =
+              canMatchByMedia &&
+              OPTIMISTIC_MEDIA_TYPES.has(existing.messageType ?? "") &&
+              existing.messageType === message.messageType;
             // La firma del asesor se antepone en el servidor ("<firma>\n<texto>"),
             // así que el mensaje real puede terminar en el texto optimista precedido
             // de un salto de línea. Se acepta ese caso para no dejar la burbuja
@@ -627,8 +666,7 @@ export function ChatsClient({
             const contentMatches =
               optimisticContent === content ||
               (optimisticContent.length > 0 && content.endsWith(`\n${optimisticContent}`));
-            if (!contentMatches) continue;
-            if (Math.abs((existing.messageTimestamp ?? 0) - timestamp) > 180) continue;
+            if (!bothSameMedia && !contentMatches) continue;
             map.delete(key);
           }
         }
@@ -1503,16 +1541,13 @@ export function ChatsClient({
         throw new Error(result.message || "No se pudo enviar el mensaje.");
       }
 
-      // 2) Reemplazar la optimista local por la versión con el id REAL del servidor,
-      //    para que el poll/tiempo real deduplique por key (más fiable que por
-      //    contenido, que en media sin caption no coincide) y no quede duplicada.
-      const realOptimistic = buildOptimisticOutgoingMessage(selectedJid, payload, result.data);
-      setMessages((previous) => {
-        const withoutLocal = previous.filter((m) => getMessageKey(m) !== localKey);
-        const merged = mergeMessages(withoutLocal, [realOptimistic]);
-        writeMessagesCache(merged);
-        return merged;
-      });
+      // 2) Se MANTIENE la burbuja optimista local (id local-) tal cual: el poll/tiempo
+      //    real traerá el mensaje real y mergeMessages lo reconcilia (por contenido en
+      //    texto; por tipo de media + ventana temporal en imagen/audio/video/doc, que
+      //    suelen ir sin caption). Antes se reemplazaba por una copia con el id de la
+      //    RESPUESTA de envío, pero Evolution a veces guarda el mensaje con OTRO id →
+      //    quedaban dos burbujas (la del id de respuesta + la del id del poll). Ese
+      //    swap era la causa del "se envió 2 veces" en imágenes y del cuadro+audio.
 
       if (payload.kind === "text") {
         const commitmentContext = buildCommitmentContext(messagesRef.current);
