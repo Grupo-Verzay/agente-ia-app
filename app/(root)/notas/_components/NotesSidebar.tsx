@@ -4,7 +4,7 @@ import { useState } from 'react'
 import {
   ChevronDown, ChevronRight, FileText, Folder, FolderOpen,
   MoreHorizontal, Pin, PinOff, Plus, Search, Trash2, Pencil, FolderPlus,
-  Eye, Users, List, Archive, FileX,
+  Users, List, Archive, FileX,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { NoteFolderWithCount, UserNoteListItem, SharedNoteListItem } from '@/actions/notes-actions'
 import { SortableNoteList } from './SortableNoteList'
+import { SortableSharedNoteList } from './SortableSharedNoteList'
 
 const FOLDER_COLORS = [
   '#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6',
@@ -41,6 +42,7 @@ interface Props {
   onDeleteNote: (id: string) => void
   onTogglePin: (id: string, isPinned: boolean) => void
   onReorder: (notes: UserNoteListItem[]) => void
+  onReorderShared: (notes: SharedNoteListItem[]) => void
   onSelectFolder: (folderId: string | null | undefined) => void
   onCreateFolder: (name: string, color?: string) => void
   onUpdateFolder: (id: string, payload: { name?: string; color?: string }) => void
@@ -50,7 +52,7 @@ interface Props {
 export function NotesSidebar({
   className,
   folders, notes, sharedNotes, selectedNoteId, activeFolderId, search, userId,
-  onSearchChange, onSelectNote, onNewNote, onDeleteNote, onTogglePin, onReorder,
+  onSearchChange, onSelectNote, onNewNote, onDeleteNote, onTogglePin, onReorder, onReorderShared,
   onSelectFolder, onCreateFolder, onUpdateFolder, onDeleteFolder,
 }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -158,12 +160,15 @@ export function NotesSidebar({
           />
         )}
 
-        {/* Shared-with-me notes list (solo lectura de acciones: no reordenar/eliminar) */}
+        {/* Shared-with-me notes: reordenar (arrastrar) y fijar como en "Todas",
+            con orden/fijado propios del receptor. Sin eliminar (no es el dueño). */}
         {activeFolderId === '__shared__' && (
-          <SharedNotesList
+          <SortableSharedNoteList
             notes={sharedNotes}
             selectedId={selectedNoteId}
+            userId={userId}
             onSelect={onSelectNote}
+            onReorder={onReorderShared}
           />
         )}
 
@@ -282,52 +287,6 @@ export function NotesSidebar({
         </DialogContent>
       </Dialog>
     </aside>
-  )
-}
-
-function SharedNotesList({ notes, selectedId, onSelect }: {
-  notes: SharedNoteListItem[]
-  selectedId?: string
-  onSelect: (id: string) => void
-}) {
-  if (notes.length === 0) {
-    return (
-      <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-        Aún no te han compartido notas.
-      </div>
-    )
-  }
-  return (
-    <ul>
-      {notes.map(note => (
-        <li key={note.id}>
-          <div
-            className={cn(
-              'group relative flex cursor-pointer flex-col gap-0.5 px-4 py-2.5 transition-colors border-b border-border/40 hover:bg-muted/50',
-              selectedId === note.id && 'bg-muted border-l-2 border-l-primary',
-            )}
-            onClick={() => onSelect(note.id)}
-          >
-            <div className="flex items-center gap-1.5 pr-6 min-w-0">
-              {note.emoji
-                ? <span className="text-sm shrink-0">{note.emoji}</span>
-                : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              }
-              <span className="truncate text-sm font-medium leading-snug">
-                {note.title || 'Sin título'}
-              </span>
-              {note.canEdit
-                ? <Pencil className="h-3 w-3 shrink-0 text-emerald-500" aria-label="Puede editar" />
-                : <Eye className="h-3 w-3 shrink-0 text-amber-500" aria-label="Solo lectura" />
-              }
-            </div>
-            <span className="text-[11px] text-muted-foreground pl-5 truncate">
-              de {note.ownerName ?? 'otra cuenta'}
-            </span>
-          </div>
-        </li>
-      ))}
-    </ul>
   )
 }
 

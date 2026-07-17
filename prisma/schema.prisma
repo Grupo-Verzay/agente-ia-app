@@ -1909,6 +1909,9 @@ model NoteShare {
   noteId    String
   userId    String
   canEdit   Boolean  @default(false)
+  // Orden y fijado PROPIOS del receptor (no afectan la nota del dueño).
+  isPinned  Boolean  @default(false)
+  order     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   note      UserNote @relation(fields: [noteId], references: [id], onDelete: Cascade)

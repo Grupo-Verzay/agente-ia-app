@@ -427,10 +427,12 @@ export async function setNoteShare(
 }
 
 // Notas que otras cuentas del equipo compartieron CONMIGO (no archivadas).
+// El fijado y el orden son PROPIOS del receptor (columnas del share), para que
+// cada quien acomode su lista sin alterar la nota del dueño.
 export async function getSharedNotes(userId: string): Promise<{ success: boolean; data: SharedNoteListItem[]; error?: string }> {
   try {
     const rows = await db.$queryRaw<SharedNoteListItem[]>`
-      SELECT n.id, n.title, n.emoji, n.color, n."isPinned", n."isArchived", n."folderId",
+      SELECT n.id, n.title, n.emoji, n.color, ns."isPinned", n."isArchived", n."folderId",
              n."contactJid", n."contactName", n."updatedAt", n."createdAt",
              ns."canEdit", COALESCE(u.name, u.email) AS "ownerName"
       FROM "note_shares" ns
@@ -438,11 +440,32 @@ export async function getSharedNotes(userId: string): Promise<{ success: boolean
       JOIN "User" u ON u.id = n."userId"
       WHERE ns."userId" = ${userId}
         AND n."isArchived" = false
-      ORDER BY n."isPinned" DESC, n."updatedAt" DESC
+      ORDER BY ns."isPinned" DESC, ns."order" ASC, n."updatedAt" DESC
     `
     return { success: true, data: rows }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { success: false, data: [], error: msg }
+  }
+}
+
+// Fijar/desfijar una nota compartida (solo para el receptor que lo pide).
+export async function setNoteSharePin(noteId: string, userId: string, isPinned: boolean): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await db.noteShare.updateMany({ where: { noteId, userId }, data: { isPinned } })
+    if (res.count === 0) return { success: false, error: 'No tienes esta nota compartida.' }
+    return { success: true }
+  } catch {
+    return { success: false, error: 'No se pudo fijar la nota.' }
+  }
+}
+
+// Guardar el orden propio del receptor para una nota compartida.
+export async function updateNoteShareOrder(noteId: string, userId: string, order: number): Promise<{ success: boolean }> {
+  try {
+    await db.noteShare.updateMany({ where: { noteId, userId }, data: { order } })
+    return { success: true }
+  } catch {
+    return { success: false }
   }
 }

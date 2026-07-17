@@ -207,6 +207,7 @@ export function NotesClient({ userId, collapseSidebarOnSelect = false }: Props) 
           sharedNotes={sharedNotes}
           userId={userId}
           onReorder={setNotes}
+          onReorderShared={setSharedNotes}
           selectedNoteId={selectedNote?.id}
           activeFolderId={activeFolderId}
           search={search}
