@@ -48,6 +48,7 @@ export function VerzayLanding() {
   const [savingReseller, setSavingReseller] = useState(false);
   const [showAssistanceIA, setShowAssistanceIA] = useState(true);
   const [showAssistanceHUMANO, setShowAssistanceHUMANO] = useState(true);
+  const [showFreeTrial, setShowFreeTrial] = useState(true);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basicos: true, identidad: false, hero: false, redes: false,
     video: false, cta: false, stats: false, testimonios: false, planes: false,
@@ -89,6 +90,7 @@ export function VerzayLanding() {
       setResellerMeetingUrlInput(cfg.resellerMeetingUrl ?? "");
       setShowAssistanceIA(cfg.showAssistanceIA ?? true);
       setShowAssistanceHUMANO(cfg.showAssistanceHUMANO ?? true);
+      setShowFreeTrial(cfg.showFreeTrial ?? true);
       setLoading(false);
     });
   }, []);
@@ -116,6 +118,7 @@ export function VerzayLanding() {
       resellerMeetingUrl: resellerMeetingUrlInput || null,
       showAssistanceIA,
       showAssistanceHUMANO,
+      showFreeTrial,
     });
     if (res.success) toast.success(res.message);
     else toast.error(res.message);
@@ -145,6 +148,7 @@ export function VerzayLanding() {
       resellerMeetingUrl: resellerMeetingUrlInput || null,
       showAssistanceIA,
       showAssistanceHUMANO,
+      showFreeTrial,
     });
     if (res.success) toast.success(res.message);
     else toast.error(res.message);
@@ -341,6 +345,13 @@ export function VerzayLanding() {
                     <div className="space-y-1.5">
                       <Label className="flex items-center gap-1.5 text-sm"><FileSpreadsheet className="h-3.5 w-3.5 text-emerald-500" /> Google Sheets (leads del sitio)</Label>
                       <Input placeholder="https://docs.google.com/spreadsheets/d/..." value={sheetsInput} onChange={(e) => setSheetsInput(e.target.value)} />
+                    </div>
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+                      <div>
+                        <Label className="text-sm">Mostrar prueba gratis</Label>
+                        <p className="text-xs text-muted-foreground">Botones «Comenzar gratis» / «Crear cuenta gratis» que llevan al registro.</p>
+                      </div>
+                      <Switch checked={showFreeTrial} onCheckedChange={setShowFreeTrial} />
                     </div>
                   </div>
                 </div>

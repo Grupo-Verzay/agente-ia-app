@@ -196,11 +196,13 @@ interface LandingClientProps {
   stats?: StatData[] | null;
   showAssistanceIA?: boolean;
   showAssistanceHUMANO?: boolean;
+  /** Muestra los CTA de prueba gratis (registro). Si es false, se ocultan. */
+  showFreeTrial?: boolean;
   /** Modo embebido (dentro de la app): oculta navbar, footer y botón de WhatsApp. */
   embed?: boolean;
 }
 
-export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats, showAssistanceIA = true, showAssistanceHUMANO = true, embed = false }: LandingClientProps = {}) {
+export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats, showAssistanceIA = true, showAssistanceHUMANO = true, showFreeTrial = true, embed = false }: LandingClientProps = {}) {
   const [plans, setPlans]                   = useState<SubscriptionPlanItem[]>([]);
   const [plansLoading, setPlansLoading]     = useState(true);
   const [assistanceType, setAssistanceType] = useState<AssistanceType>(showAssistanceIA ? "IA" : "HUMANO");
@@ -270,9 +272,11 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
             <Link href="/login">
               <Button variant="ghost" size="sm" className="text-slate-300 hover:bg-white/10 hover:text-white">Iniciar sesión</Button>
             </Link>
-            <Link href="/completar-registro">
-              <Button size="sm" className={cn("text-white", brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500")}>Comenzar gratis</Button>
-            </Link>
+            {showFreeTrial && (
+              <Link href="/completar-registro">
+                <Button size="sm" className={cn("text-white", brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500")}>Comenzar gratis</Button>
+              </Link>
+            )}
           </div>
           <button className="p-2 text-slate-400 sm:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -287,9 +291,11 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
               <Link href="/login" className="flex-1">
                 <Button variant="outline" size="sm" className="w-full border-white/20 bg-transparent text-white hover:bg-white/10">Iniciar sesión</Button>
               </Link>
-              <Link href="/completar-registro" className="flex-1">
-                <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-500">Registrarse</Button>
-              </Link>
+              {showFreeTrial && (
+                <Link href="/completar-registro" className="flex-1">
+                  <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-500">Registrarse</Button>
+                </Link>
+              )}
             </div>
           </div>
         )}
@@ -322,11 +328,13 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
               </h1>
               <p className="mb-5 text-base text-slate-400 sm:text-lg xl:text-xl">{heroSub}</p>
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:flex-nowrap">
-                <Link href="/completar-registro">
-                  <Button size="lg" className={cn("w-full gap-2 px-8 text-white md:w-auto", brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500")}>
-                    Comenzar gratis <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
+                {showFreeTrial && (
+                  <Link href="/completar-registro">
+                    <Button size="lg" className={cn("w-full gap-2 px-8 text-white md:w-auto", brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500")}>
+                      Comenzar gratis <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                )}
                 <a href="#pricing">
                   <Button size="lg" variant="outline" className="w-full border-white/20 bg-transparent px-8 text-white hover:bg-white/10 md:w-auto">
                     Ver planes
@@ -770,24 +778,28 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
               <h2 className="text-3xl font-bold text-white sm:text-4xl">{ctaHeadline ?? "¿Listo para empezar?"}</h2>
               <p className="mt-4 text-lg text-slate-400">{ctaSubtitle ?? "Configúralo en 5 minutos. Tu agente empieza a responder desde el primer día."}</p>
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <Link href="/completar-registro">
-                  <Button size="lg" className="gap-2 bg-blue-600 px-10 text-white hover:bg-blue-500">
-                    Crear cuenta gratis <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
+                {showFreeTrial && (
+                  <Link href="/completar-registro">
+                    <Button size="lg" className="gap-2 bg-blue-600 px-10 text-white hover:bg-blue-500">
+                      Crear cuenta gratis <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                )}
                 <Link href="/login">
                   <Button size="lg" variant="ghost" className="text-slate-300 hover:bg-white/10 hover:text-white">
                     Ya tengo cuenta →
                   </Button>
                 </Link>
               </div>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
-                {["Sin tarjeta de crédito", "Cancela cuando quieras", "Soporte incluido"].map((t) => (
-                  <span key={t} className="flex items-center gap-1 text-xs text-slate-500">
-                    <ShieldCheck className="h-3 w-3 text-green-500" /> {t}
-                  </span>
-                ))}
-              </div>
+              {showFreeTrial && (
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
+                  {["Sin tarjeta de crédito", "Cancela cuando quieras", "Soporte incluido"].map((t) => (
+                    <span key={t} className="flex items-center gap-1 text-xs text-slate-500">
+                      <ShieldCheck className="h-3 w-3 text-green-500" /> {t}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </FadeIn>
         </div>

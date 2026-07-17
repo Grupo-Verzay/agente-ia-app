@@ -61,6 +61,7 @@ export default async function InicioPage({
       stats={config.stats}
       showAssistanceIA={config.showAssistanceIA}
       showAssistanceHUMANO={config.showAssistanceHUMANO}
+      showFreeTrial={config.showFreeTrial}
     />
   );
 }
