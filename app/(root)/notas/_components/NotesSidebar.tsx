@@ -4,7 +4,7 @@ import { useState } from 'react'
 import {
   ChevronDown, ChevronRight, FileText, Folder, FolderOpen,
   MoreHorizontal, Pin, PinOff, Plus, Search, Trash2, Pencil, FolderPlus,
-  Eye, Users,
+  Eye, Users, List, Archive, FileX,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -95,20 +95,23 @@ export function NotesSidebar({
       {/* Filter tabs */}
       <div className="px-3 py-2 border-b border-border">
         <Tabs value={tabValue}>
-          <TabsList className="h-7 w-full">
-            <TabsTrigger value="todas" className="flex-1 text-xs h-5" onClick={() => onSelectFolder(undefined)}>
-              Todas
+          <TabsList className="h-7 w-full overflow-hidden">
+            <TabsTrigger value="todas" title="Todas" className="flex-1 min-w-0 gap-1 px-1 text-[11px] h-5" onClick={() => onSelectFolder(undefined)}>
+              <List className="h-3 w-3 shrink-0" />
+              <span className="truncate">Todas</span>
             </TabsTrigger>
-            <TabsTrigger value="sin" className="flex-1 text-xs h-5" onClick={() => onSelectFolder(null)}>
-              Sin carpeta
+            <TabsTrigger value="sin" title="Sin carpeta" className="flex-1 min-w-0 gap-1 px-1 text-[11px] h-5" onClick={() => onSelectFolder(null)}>
+              <FileX className="h-3 w-3 shrink-0" />
+              <span className="truncate">Sueltas</span>
             </TabsTrigger>
-            <TabsTrigger value="compartidas" className="flex-1 text-xs h-5 gap-1" onClick={() => onSelectFolder('__shared__')}>
-              <Users className="h-3 w-3" />
-              {sharedNotes.length > 0 && <span>{sharedNotes.length}</span>}
-              <span className="hidden lg:inline">Compartidas</span>
+            <TabsTrigger value="compartidas" title="Compartidas" className="flex-1 min-w-0 gap-1 px-1 text-[11px] h-5" onClick={() => onSelectFolder('__shared__')}>
+              <Users className="h-3 w-3 shrink-0" />
+              {sharedNotes.length > 0 && <span className="shrink-0">{sharedNotes.length}</span>}
+              <span className="truncate">Compart.</span>
             </TabsTrigger>
-            <TabsTrigger value="archivadas" className="flex-1 text-xs h-5" onClick={() => onSelectFolder('__archived__')}>
-              Archivadas
+            <TabsTrigger value="archivadas" title="Archivadas" className="flex-1 min-w-0 gap-1 px-1 text-[11px] h-5" onClick={() => onSelectFolder('__archived__')}>
+              <Archive className="h-3 w-3 shrink-0" />
+              <span className="truncate">Archivo</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
