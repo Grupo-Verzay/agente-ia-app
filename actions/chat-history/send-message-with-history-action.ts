@@ -61,6 +61,12 @@ function shouldFormatAsInternalNotification(
   if (additionalKwargs?.internalNotification === true) return true;
 
   const recipient = String(additionalKwargs?.recipient ?? '').toLowerCase();
+  // Un mensaje dirigido al CLIENTE nunca se reformatea como notificación interna
+  // (asesor/evento). Hacerlo mutila el texto de confirmación de la cita —el
+  // reformateador extrae solo nombre/descripción/teléfono y descarta el resto—
+  // o, peor, envía al cliente la plantilla "Solicitud de asesor" si su mensaje
+  // contiene palabras como "asesor" o "esperando tu respuesta".
+  if (recipient === 'client' || recipient === 'cliente' || recipient === 'customer') return false;
   if (recipient === 'owner' || recipient === 'advisor' || recipient === 'asesor') return true;
 
   const source = String(additionalKwargs?.source ?? additionalKwargs?.toolType ?? '').toLowerCase();
