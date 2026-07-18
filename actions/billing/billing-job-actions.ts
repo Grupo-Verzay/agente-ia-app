@@ -15,6 +15,7 @@ import {
 } from "./helpers/billing-lifecycle";
 import {
     loadBillingDispatcherConfig,
+    loadBillingDispatcherForUser,
     sendBillingTemplateMessage,
     syncUserBillingLifecycle,
     getBillingUserRecord,
@@ -235,6 +236,13 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
 
         for (const candidate of candidates) {
             try {
+                // Línea emisora POR CLIENTE: Verzay para clientes directos; la del
+                // reseller (combinando ambos sistemas de vinculación) para clientes
+                // de un reseller, sin caer NUNCA a Verzay. null = cliente de reseller
+                // sin línea conectada → el ciclo (suspensión/eliminación) sigue igual,
+                // pero NO se le envía ninguna notificación por Verzay.
+                const candidateDispatcher = await loadBillingDispatcherForUser(candidate.userId);
+
                 const syncResult = await syncUserBillingLifecycle({
                     userId: candidate.userId,
                     now,
@@ -304,11 +312,22 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
 
                     // Avisar al cliente que su servicio fue suspendido. Este mensaje
                     // REEMPLAZA al recordatorio de "vencido/paga" ese día (ver continue abajo).
+                    // Cliente de reseller sin línea: se suspende igual, pero sin aviso por Verzay.
+                    if (!candidateDispatcher) {
+                        pushLog({
+                            at: new Date().toISOString(),
+                            level: "INFO",
+                            message: "Suspensión aplicada; cliente de reseller sin línea conectada, no se notifica por Verzay.",
+                            userBillingId: billing.id,
+                            userId: billing.userId,
+                            template: "STATUS_SUSPENDED",
+                        });
+                    } else {
                     attempted++;
                     const suspendedMsg = await sendBillingTemplateMessage({
                         billing,
                         template: "STATUS_SUSPENDED",
-                        dispatcher,
+                        dispatcher: candidateDispatcher,
                         now,
                         source: "billing-cron-suspended",
                     });
@@ -343,6 +362,7 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                             userId: billing.userId,
                             template: "STATUS_SUSPENDED",
                         });
+                    }
                     }
                 }
 
@@ -421,12 +441,25 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                     continue;
                 }
 
+                // Cliente de reseller sin línea conectada → no se envía el
+                // recordatorio por Verzay (se reintentará cuando conecte su línea).
+                if (!candidateDispatcher) {
+                    skipped.push({
+                        userBillingId: billing.id,
+                        userId: billing.userId,
+                        name: candidateName,
+                        template,
+                        reason: "RESELLER_SIN_LINEA",
+                    });
+                    continue;
+                }
+
                 attempted++;
 
                 const reminderResult = await sendBillingTemplateMessage({
                     billing,
                     template,
-                    dispatcher,
+                    dispatcher: candidateDispatcher,
                     now,
                     source: "billing-cron-reminder",
                 });
@@ -579,10 +612,13 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
             try {
                 const billing = await getBillingUserRecord(wc.userId);
                 if (!billing) continue;
+                // Cliente de reseller sin línea → no avisar por Verzay.
+                const wcDispatcher = await loadBillingDispatcherForUser(wc.userId);
+                if (!wcDispatcher) continue;
                 const res = await sendBillingTemplateMessage({
                     billing,
                     template: "PRE_DELETE_DISCOUNT",
-                    dispatcher,
+                    dispatcher: wcDispatcher,
                     now,
                     source: "billing-pre-delete",
                 });
@@ -637,13 +673,17 @@ export async function runBillingDailyJobInternal(requireAuth: boolean): Promise<
                 try {
                     const billing = await getBillingUserRecord(dc.userId);
                     if (billing) {
-                        await sendBillingTemplateMessage({
-                            billing,
-                            template: "ACCOUNT_DELETED",
-                            dispatcher,
-                            now,
-                            source: "billing-account-deleted",
-                        });
+                        // Cliente de reseller sin línea → no avisar por Verzay.
+                        const dcDispatcher = await loadBillingDispatcherForUser(dc.userId);
+                        if (dcDispatcher) {
+                            await sendBillingTemplateMessage({
+                                billing,
+                                template: "ACCOUNT_DELETED",
+                                dispatcher: dcDispatcher,
+                                now,
+                                source: "billing-account-deleted",
+                            });
+                        }
                     }
                 } catch (msgErr: any) {
                     pushLog({

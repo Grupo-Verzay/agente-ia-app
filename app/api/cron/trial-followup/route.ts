@@ -1,8 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import {
-  resolveSystemNotificationInstanceName,
-  resolveWhatsAppDispatcherLine,
+  resolveSystemNotificationDispatcherForClient,
   sendViaWhatsAppDispatcher,
 } from '@/actions/whatsapp-dispatcher'
 
@@ -206,19 +205,15 @@ async function runTrialFollowUps() {
         update: { status, error: error ?? null, attempts: { increment: 1 }, sentAt: now },
       })
 
-    // Credenciales Evolution. Si hay instancia seleccionada, su servidor se
-    // resuelve dinámicamente desde la instancia (mismo criterio que el botón
-    // "Probar a mi número"). Si no hay instancia, se usa el número central de
-    // respaldo (FOLLOWUP_* env).
+    // Línea emisora del SISTEMA: la del reseller si el cliente pertenece a uno
+    // (por cualquiera de los dos sistemas de vinculación) — NUNCA Verzay para
+    // clientes de reseller, aunque su línea esté sin conectar —, o la de Verzay
+    // para clientes directos. Prefiere la instancia que el reseller configuró.
     const configuredInstance = (config?.instanceName ?? '').trim()
-    const selectedInstance =
-      user.demoResellerId && configuredInstance
-        ? configuredInstance
-        : await resolveSystemNotificationInstanceName()
-    const dispatcher = await resolveWhatsAppDispatcherLine({
-      ownerUserId: user.demoResellerId && configuredInstance ? user.demoResellerId : null,
-      preferredInstanceName: selectedInstance,
-      includeAdminFallback: true,
+    const dispatcher = await resolveSystemNotificationDispatcherForClient({
+      clientUserId: user.id,
+      demoResellerId: user.demoResellerId,
+      preferredInstanceName: configuredInstance || null,
     })
 
     if (!dispatcher) {

@@ -296,6 +296,79 @@ export async function resolveSystemNotificationInstanceName(): Promise<string> {
   return ordered[0]?.instanceName?.trim() || DEFAULT_SYSTEM_NOTIFICATION_INSTANCE;
 }
 
+/**
+ * Reseller "dueño" de un cliente combinando los DOS sistemas de vinculación:
+ * el nuevo `User.demoResellerId` y el viejo (tabla `reseller`, columna `userId`
+ * → `resellerid`). Devuelve null si el cliente no pertenece a ningún reseller
+ * (cliente directo de la plataforma). Un cliente vinculado solo por el sistema
+ * viejo tiene `demoResellerId=null`, así que mirar únicamente ese campo hace que
+ * caiga al flujo de Verzay; hay que combinar ambos.
+ */
+export async function resolveClientResellerId(
+  clientUserId: string,
+  knownDemoResellerId?: string | null,
+): Promise<string | null> {
+  const fromNew = knownDemoResellerId?.trim();
+  if (fromNew) return fromNew;
+
+  const user = knownDemoResellerId === undefined
+    ? await db.user.findUnique({
+        where: { id: clientUserId },
+        select: { demoResellerId: true },
+      })
+    : null;
+  if (user?.demoResellerId) return user.demoResellerId;
+
+  const legacy = await db.reseller.findFirst({
+    where: { userId: clientUserId, resellerid: { not: null } },
+    select: { resellerid: true },
+  });
+  return legacy?.resellerid ?? null;
+}
+
+/**
+ * Línea por la que el SISTEMA debe notificar a un cliente (cobros, desconexión,
+ * reportes, seguimientos de prueba, etc.):
+ * - Si el cliente pertenece a un reseller (por CUALQUIERA de los dos sistemas de
+ *   vinculación) o a una cuenta maestra de equipo (`ownerId`), la notificación
+ *   SOLO puede salir por la línea de ese reseller/dueño; NUNCA por Verzay, aunque
+ *   el reseller no tenga línea conectada (en ese caso devuelve null y no se envía).
+ * - Si es cliente directo (sin equipo ni reseller), sale por la línea oficial de
+ *   la plataforma (Verzay).
+ */
+export async function resolveSystemNotificationDispatcherForClient(args: {
+  clientUserId: string;
+  ownerId?: string | null;
+  demoResellerId?: string | null;
+  preferredInstanceName?: string | null;
+}): Promise<WhatsAppDispatcherLine | null> {
+  const ownerId = args.ownerId?.trim() || null;
+  const resellerId = ownerId
+    ? null
+    : await resolveClientResellerId(args.clientUserId, args.demoResellerId ?? undefined);
+  const senderUserId = ownerId ?? resellerId;
+
+  if (!senderUserId) {
+    // Cliente directo → línea oficial de Verzay.
+    return resolveWhatsAppDispatcherLine({
+      preferredInstanceName: args.preferredInstanceName,
+      includeAdminFallback: true,
+    });
+  }
+
+  // Cliente de reseller / cuenta maestra → SOLO su línea; nunca Verzay.
+  const configured = (
+    args.preferredInstanceName?.trim() ||
+    (await resolveConfiguredNotificationInstanceName(senderUserId)) ||
+    ''
+  ).trim();
+  return resolveWhatsAppDispatcherLine({
+    ownerUserId: senderUserId,
+    preferredInstanceName: configured || null,
+    includeAdminFallback: false,
+  });
+}
+
 export async function resolveConfiguredNotificationInstanceName(
   ownerUserId?: string | null,
 ): Promise<string> {

@@ -1,8 +1,10 @@
 ﻿import { Prisma } from "@prisma/client";
 
 import {
+    resolveWhatsAppDispatcherLine,
     resolveWhatsAppDispatcherLineByInstanceName,
     resolveSystemNotificationDispatcherLine,
+    resolveClientResellerId,
     sendViaWhatsAppDispatcher,
     type WhatsAppDispatcherLine,
 } from "@/actions/whatsapp-dispatcher";
@@ -163,14 +165,18 @@ export async function loadBillingDispatcherConfig(): Promise<BillingDispatcherCo
 export async function loadBillingDispatcherForUser(
     userId: string
 ): Promise<BillingDispatcherConfig | null> {
-    const user = await db.user.findUnique({
-        where: { id: userId },
-        select: { demoResellerId: true },
-    });
+    // Reseller del cliente combinando AMBOS sistemas de vinculación (nuevo
+    // demoResellerId + tabla `reseller` vieja). Un cliente vinculado solo por el
+    // sistema viejo tiene demoResellerId=null y, si solo se mirara ese campo,
+    // caería a la línea de Verzay.
+    const resellerId = await resolveClientResellerId(userId);
 
-    if (user?.demoResellerId) {
+    if (resellerId) {
+        // Cliente de un reseller: la notificación SOLO puede salir por la línea de
+        // ese reseller; NUNCA por Verzay, aunque el reseller no tenga línea
+        // conectada (en ese caso devuelve null y no se envía nada).
         const resellerConfig = await db.resellerBillingConfig.findUnique({
-            where: { resellerId: user.demoResellerId },
+            where: { resellerId },
             select: { enabled: true, instanceName: true },
         });
         const resellerInstanceName = resellerConfig?.enabled
@@ -178,10 +184,19 @@ export async function loadBillingDispatcherForUser(
             : null;
 
         if (resellerInstanceName) {
-            return resolveWhatsAppDispatcherLineByInstanceName(resellerInstanceName);
+            const byName = await resolveWhatsAppDispatcherLineByInstanceName(resellerInstanceName);
+            if (byName) return byName;
         }
+
+        // Sin instancia de cobros configurada/conectada → intentar la línea propia
+        // del reseller, pero sin caer nunca a Verzay.
+        return resolveWhatsAppDispatcherLine({
+            ownerUserId: resellerId,
+            includeAdminFallback: false,
+        });
     }
 
+    // Cliente directo de la plataforma → línea oficial de Verzay.
     return loadBillingDispatcherConfig();
 }
 
