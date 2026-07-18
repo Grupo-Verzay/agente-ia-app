@@ -312,3 +312,64 @@ export async function tagOwnerContact(params: {
 
   return { ok: true, data: { sessionId, contact: contactLabel(session), tag: tagName } };
 }
+
+/**
+ * Asigna un contacto del dueño a un asesor de la cuenta (resuelto por nombre),
+ * o lo libera si advisorName viene vacío. Verifica que la sesión y el asesor
+ * pertenezcan a la cuenta.
+ */
+export async function assignOwnerAdvisor(params: {
+  ownerId: string;
+  sessionId: number;
+  advisorName: string;
+}): Promise<OwnerActionResult<{ sessionId: number; contact: string; advisor: string | null }>> {
+  const { ownerId, sessionId } = params;
+  const advisorName = params.advisorName?.trim() ?? "";
+
+  const session = await getOwnedSession(sessionId, ownerId);
+  if (!session) {
+    return { ok: false, status: 404, message: "Contacto no encontrado en esta cuenta." };
+  }
+
+  // Liberar (sin asesor) si se pide explícitamente.
+  const release = /^(ninguno|nadie|quitar|liberar|sin asesor)$/i.test(advisorName);
+
+  let advisorId: string | null = null;
+  let advisorLabel: string | null = null;
+
+  if (!release) {
+    const matches = await db.user.findMany({
+      where: {
+        OR: [{ id: ownerId }, { ownerId }],
+        name: { contains: advisorName, mode: "insensitive" },
+      },
+      select: { id: true, name: true, email: true },
+      take: 5,
+    });
+    if (matches.length === 0) {
+      return { ok: false, status: 404, message: `No encontré un asesor llamado "${advisorName}".` };
+    }
+    if (matches.length > 1) {
+      const names = matches.map((m) => m.name || m.email).join(", ");
+      return { ok: false, status: 409, message: `Hay varios asesores que coinciden (${names}). Sé más específico.` };
+    }
+    advisorId = matches[0].id;
+    advisorLabel = matches[0].name || matches[0].email;
+  }
+
+  await db.$executeRaw`UPDATE "Session" SET assigned_advisor_id = ${advisorId} WHERE id = ${sessionId}`;
+
+  await writeAuditLog({
+    userId: ownerId,
+    actorId: ownerId,
+    entityType: "crm",
+    entityId: String(sessionId),
+    action: "updated",
+    summary: release
+      ? `Liberó a ${contactLabel(session)} (sin asesor) desde WhatsApp (modo dueño)`
+      : `Asignó a ${contactLabel(session)} al asesor ${advisorLabel} desde WhatsApp (modo dueño)`,
+    metadata: { source: "owner-command", kind: "assign-advisor", advisorId },
+  });
+
+  return { ok: true, data: { sessionId, contact: contactLabel(session), advisor: advisorLabel } };
+}

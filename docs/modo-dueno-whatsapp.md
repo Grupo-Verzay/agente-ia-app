@@ -21,18 +21,20 @@ endpoints) es trabajo del proyecto NestJS.
 
 ## Seguridad
 
-Cada endpoint aplica dos controles (`lib/owner-command-auth.ts`):
+Cada endpoint aplica tres controles (`lib/owner-command-auth.ts`):
 
 1. **Secreto compartido** — `Authorization: Bearer <OWNER_COMMANDS_KEY>` (o el
    header `x-owner-commands-secret`). Solo el backend puede invocar.
-2. **Identidad del dueño** — el body incluye `ownerPhone` (el número que dio la
+2. **Opt-in por cuenta** — `User.ownerModeEnabled` debe ser `true`. Apagado por
+   defecto: el Modo Dueño **falla cerrado** (403) hasta que se activa por cuenta.
+3. **Identidad del dueño** — el body incluye `ownerPhone` (el número que dio la
    orden) y `userId` (la cuenta). Se verifica que `ownerPhone` coincide con
    `User.notificationNumber` de esa cuenta. Aunque el backend ya haya decidido
    entrar en "modo dueño", esta app **revalida** antes de ejecutar (defensa en
    profundidad).
 
-En Fase 1 solo se autoriza al **titular** de la cuenta. Ampliar a cuentas
-vinculadas con rol administrador queda para una fase posterior.
+Solo se autoriza al **titular** de la cuenta. Ampliar a cuentas vinculadas con
+rol administrador queda para una fase posterior.
 
 Toda acción de escritura se registra en `AuditLog` con `metadata.source =
 "owner-command"`.
@@ -111,6 +113,14 @@ notificaciones y automatizaciones de etapa existentes.
 ```
 Si la etiqueta no existe para la cuenta, se crea.
 
+#### `POST /api/owner/assign` — Asignar contacto a un asesor
+```json
+{ "userId": "...", "ownerPhone": "573001234567",
+  "sessionId": 123, "advisorName": "María", "confirmed": true }
+```
+Resuelve el asesor por nombre dentro de la cuenta (`ninguno` para liberar).
+`404` si no hay asesor con ese nombre, `409` si hay varios.
+
 > **Agendar cita a un cliente** ya está cubierto por el endpoint existente
 > `POST /api/schedule/appointment` (tool `crear_cita`), por eso no se duplica aquí.
 
@@ -161,10 +171,14 @@ Restaura y republica la revisión indicada.
 
 ## Configuración
 
-Añade a `.env`:
-```
-OWNER_COMMANDS_KEY=<secreto largo y aleatorio, compartido con el backend>
-```
+1. Añade a `.env`:
+   ```
+   OWNER_COMMANDS_KEY=<secreto largo y aleatorio, compartido con el backend>
+   ```
+2. Aplica la migración que agrega `User.owner_mode_enabled`
+   (`prisma migrate deploy`).
+3. Activa el Modo Dueño por cuenta poniendo `ownerModeEnabled = true` en el `User`
+   titular (apagado por defecto), y asegura su `notificationNumber` real.
 
 ## Roadmap (fases siguientes)
 
@@ -172,11 +186,10 @@ OWNER_COMMANDS_KEY=<secreto largo y aleatorio, compartido con el backend>
   separado del agente de clientes. En esta app la confirmación se exige vía el
   flag `confirmed` (428 si falta); el flujo conversacional de confirmación es
   responsabilidad del backend NestJS.
-- **Fase 2 — pendiente:** asignar lead/tarea a un asesor. Se dejó fuera porque
-  `assignSessionToAdvisor` depende de contexto de sesión (`requireOwnerOrAdmin`)
-  y de internals no exportados (`logAssignment`, `triggerAdvisorAutomations`);
-  conviene refactorizarlo para exponer una versión invocable por máquina antes
-  de añadir el endpoint.
+- **Fase 2 — implementado:** asignar contacto a un asesor (`/api/owner/assign`,
+  resuelto por nombre). Nota: hace la reasignación + auditoría; no dispara las
+  automatizaciones de asignación (`triggerAdvisorAutomations`), que quedan como
+  mejora posterior.
 - **Fase 3 — implementado:** auto-mejora del entrenamiento (agregar instrucción
   + publicar revisión, reversible) y rollback a revisiones previas.
 - **Fase 3 — pendiente:** envío masivo con límites y llamadas salientes por voz

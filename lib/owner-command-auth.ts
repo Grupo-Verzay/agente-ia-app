@@ -69,10 +69,15 @@ export async function resolveOwnerCommand(params: {
 }): Promise<ResolveOwnerResult> {
   const account = await db.user.findUnique({
     where: { id: params.userId },
-    select: { id: true, name: true, role: true, notificationNumber: true },
+    select: { id: true, name: true, role: true, notificationNumber: true, ownerModeEnabled: true },
   });
 
   if (!account) return { ok: false, reason: "Cuenta no encontrada." };
+
+  // Falla cerrado: el Modo Dueño está apagado por defecto y debe activarse por cuenta.
+  if (!account.ownerModeEnabled) {
+    return { ok: false, reason: "El Modo Dueño no está activado para esta cuenta." };
+  }
 
   if (!phonesMatch(params.ownerPhone, account.notificationNumber)) {
     return {
