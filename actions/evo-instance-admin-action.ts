@@ -82,18 +82,18 @@ export async function forceDeleteEvoInstance(
 
   try {
     // 1) Logout: Evolution NO borra una instancia conectada, hay que desconectarla
-    //    primero y darle un momento para que pase a estado 'close'.
+    //    primero y ESPERAR a que quede en estado 'close' (no basta un delay fijo).
     await fetch(`${base}/instance/logout/${name}`, { method: 'DELETE', headers }).catch(() => null)
-    await wait(1000)
+    await waitUntilClosed(base, name, headers)
 
     // 2) Delete.
     let res = await fetch(`${base}/instance/delete/${name}`, { method: 'DELETE', headers })
 
     // Si sigue 400/409, casi siempre es porque aún figura conectada: reintenta el
-    // logout, espera un poco más y vuelve a borrar.
+    // logout, espera a que cierre y vuelve a borrar.
     if (!res.ok && (res.status === 400 || res.status === 409)) {
       await fetch(`${base}/instance/logout/${name}`, { method: 'DELETE', headers }).catch(() => null)
-      await wait(1500)
+      await waitUntilClosed(base, name, headers)
       res = await fetch(`${base}/instance/delete/${name}`, { method: 'DELETE', headers })
     }
 
@@ -104,14 +104,34 @@ export async function forceDeleteEvoInstance(
         await cleanDbRow(instanceName)
         return { success: true, message: `La instancia "${instanceName}" ya no existía en Evolution. Limpieza completada.` }
       }
-      return { success: false, message: `Evolution respondió ${res.status}: ${detail}` }
+      return { success: false, message: `Evolution [HTTP ${res.status}] → ${detail}` }
     }
 
     // 3) Limpieza defensiva del registro en BD si por acaso existiera.
     await cleanDbRow(instanceName)
-    return { success: true, message: `Instancia "${instanceName}" eliminada de Evolution.` }
+    return { success: true, message: `Instancia "${instanceName}" eliminada de Evolution. ✅` }
   } catch (err: any) {
     return { success: false, message: `No se pudo contactar al servidor: ${err?.message ?? err}` }
+  }
+}
+
+/** Consulta el estado de conexión y espera (hasta ~6s) a que deje de estar 'open'. */
+async function waitUntilClosed(
+  base: string,
+  name: string,
+  headers: Record<string, string>,
+): Promise<void> {
+  for (let i = 0; i < 8; i++) {
+    try {
+      const r = await fetch(`${base}/instance/connectionState/${name}`, { headers })
+      if (!r.ok) return // si no se puede consultar, seguimos y que decida el delete
+      const j: any = await r.json().catch(() => null)
+      const state = j?.instance?.state ?? j?.state ?? ''
+      if (state !== 'open' && state !== 'connecting') return
+    } catch {
+      return
+    }
+    await new Promise((res) => setTimeout(res, 800))
   }
 }
 
