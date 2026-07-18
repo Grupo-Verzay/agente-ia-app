@@ -37,12 +37,16 @@ vinculadas con rol administrador queda para una fase posterior.
 Toda acción de escritura se registra en `AuditLog` con `metadata.source =
 "owner-command"`.
 
-## Endpoints (Fase 1)
+## Endpoints
 
-Todos son `POST`, reciben JSON y responden JSON. Errores:
-`401` secreto inválido · `403` número no autorizado · `422` parámetros inválidos.
+Todos son `POST`, reciben JSON y responden JSON. Todos incluyen en el body
+`userId` (la cuenta) y `ownerPhone` (el número que dio la orden). Errores:
+`401` secreto inválido · `403` número no autorizado · `422` parámetros inválidos
+· `428` falta confirmación · `404/409/502` según la acción.
 
-### `POST /api/owner/task` — Crear tarea
+### Fase 1 — acciones seguras (no afectan a terceros)
+
+#### `POST /api/owner/task` — Crear tarea
 ```json
 { "userId": "...", "ownerPhone": "573001234567",
   "title": "Llamar al proveedor", "dueDate": "2026-07-20T14:00:00Z",
@@ -54,12 +58,12 @@ Todos son `POST`, reciben JSON y responden JSON. Errores:
   "task": { "id": "...", "title": "...", "type": "...", "dueDate": "...", "status": "pending" } }
 ```
 
-### `POST /api/owner/reminder` — Crear recordatorio
+#### `POST /api/owner/reminder` — Crear recordatorio
 Igual que la tarea pero sin `type` (se fija en `"Recordatorio"`). Devuelve el
 objeto bajo la clave `reminder`. Un recordatorio es una tarea asignada al propio
 dueño; reutiliza la misma infraestructura de tareas.
 
-### `POST /api/owner/summary` — Resumen del día (solo lectura)
+#### `POST /api/owner/summary` — Resumen del día (solo lectura)
 ```json
 { "userId": "...", "ownerPhone": "573001234567" }
 ```
@@ -69,6 +73,46 @@ Respuesta `200`:
   "pendingTasks": 12, "tasksDueToday": 3, "appointmentsToday": 5,
   "generatedAt": "2026-07-18T..." } }
 ```
+
+### Fase 2 — acciones sobre un contacto (requieren confirmación)
+
+Las acciones de escritura de Fase 2 exigen `confirmed: true` en el body; sin él
+responden `428`. La confirmación con el dueño la gestiona el agente **antes** de
+llamar al endpoint. El contacto se identifica por `sessionId` (resuélvelo antes
+con `/contacts/search`); la app valida que la sesión pertenezca a la cuenta.
+
+#### `POST /api/owner/contacts/search` — Buscar contacto (solo lectura)
+```json
+{ "userId": "...", "ownerPhone": "573001234567", "query": "Juan" }
+```
+Respuesta `200`: `contacts: [{ sessionId, name, remoteJid, leadStatus, tags }]`
+(máx. 20). No requiere confirmación.
+
+#### `POST /api/owner/message` — Enviar mensaje a un contacto
+```json
+{ "userId": "...", "ownerPhone": "573001234567",
+  "sessionId": 123, "text": "Tu pedido está listo", "confirmed": true }
+```
+Envía desde la instancia conectada del dueño (sin fallback a la línea oficial).
+`409` si no hay instancia conectada.
+
+#### `POST /api/owner/lead-status` — Mover estado de lead (kanban)
+```json
+{ "userId": "...", "ownerPhone": "573001234567",
+  "sessionId": 123, "status": "FINALIZADO", "confirmed": true }
+```
+`status` ∈ `FRIO | TIBIO | CALIENTE | FINALIZADO | DESCARTADO`. Dispara las
+notificaciones y automatizaciones de etapa existentes.
+
+#### `POST /api/owner/tag` — Etiquetar contacto
+```json
+{ "userId": "...", "ownerPhone": "573001234567",
+  "sessionId": 123, "tag": "VIP", "confirmed": true }
+```
+Si la etiqueta no existe para la cuenta, se crea.
+
+> **Agendar cita a un cliente** ya está cubierto por el endpoint existente
+> `POST /api/schedule/appointment` (tool `crear_cita`), por eso no se duplica aquí.
 
 ## Configuración
 
@@ -80,9 +124,14 @@ OWNER_COMMANDS_KEY=<secreto largo y aleatorio, compartido con el backend>
 ## Roadmap (fases siguientes)
 
 - **Fase 0 (pendiente en backend):** motor de confirmación genérico y modo dueño
-  separado del agente de clientes.
-- **Fase 2 (con confirmación):** enviar mensaje a un contacto, mover lead de
-  estado, etiquetar, agendar cita a un cliente, asignar lead/tarea a un asesor.
+  separado del agente de clientes. En esta app la confirmación se exige vía el
+  flag `confirmed` (428 si falta); el flujo conversacional de confirmación es
+  responsabilidad del backend NestJS.
+- **Fase 2 — pendiente:** asignar lead/tarea a un asesor. Se dejó fuera porque
+  `assignSessionToAdvisor` depende de contexto de sesión (`requireOwnerOrAdmin`)
+  y de internals no exportados (`logAssignment`, `triggerAdvisorAutomations`);
+  conviene refactorizarlo para exponer una versión invocable por máquina antes
+  de añadir el endpoint.
 - **Fase 3 (controles fuertes):** auto-mejora del entrenamiento del agente
   (propone → el dueño confirma → nueva revisión en `AgentPromptRevision`),
   envío masivo con límites, llamadas por voz (AstraCalls).
