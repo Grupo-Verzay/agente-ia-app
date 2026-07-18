@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Bot, ExternalLink, RefreshCw, Save, Trash2 } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { AlertTriangle, Bot, ExternalLink, Loader2, RefreshCw, Save, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   createEvoUrl,
@@ -15,6 +16,7 @@ import {
   updateEvoUrl,
   EvoSlot,
 } from '@/actions/evo-url-action'
+import { getEvoServers, forceDeleteEvoInstance } from '@/actions/evo-instance-admin-action'
 
 const evoConfig = [
   { slot: 'evo0', slotNum: '0', label: 'EVO' },
@@ -35,25 +37,62 @@ export const MainEvo = ({ userId }: Props) => {
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
 
+  // Herramienta: eliminar instancia huérfana (existe en Evolution pero no en la BD).
+  const [servers, setServers] = useState<{ id: string; url: string }[]>([])
+  const [serverChoice, setServerChoice] = useState<string>('manual')
+  const [manualUrl, setManualUrl] = useState('')
+  const [manualKey, setManualKey] = useState('')
+  const [orphanName, setOrphanName] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
   useEffect(() => {
     const load = async () => {
       const result = await getEvoUrls(userId)
-      if (!result.success || !result.data) return
-
-      const map: Record<string, { id: string; url: string }> = {}
-      const vals: Record<string, string> = {}
-
-      for (const evo of result.data) {
-        map[evo.name] = { id: evo.id, url: evo.description || '' }
-        vals[evo.name] = evo.description || ''
+      if (result.success && result.data) {
+        const map: Record<string, { id: string; url: string }> = {}
+        const vals: Record<string, string> = {}
+        for (const evo of result.data) {
+          map[evo.name] = { id: evo.id, url: evo.description || '' }
+          vals[evo.name] = evo.description || ''
+        }
+        setSavedEvos(map)
+        setFormValues(vals)
       }
 
-      setSavedEvos(map)
-      setFormValues(vals)
+      const srv = await getEvoServers()
+      if (srv.success && srv.data && srv.data.length > 0) {
+        setServers(srv.data)
+        setServerChoice(srv.data[0].id)
+      }
+
       setLoading(false)
     }
     load()
   }, [userId])
+
+  const handleForceDelete = async () => {
+    const name = orphanName.trim()
+    if (!name) return toast.error('Escribe el nombre exacto de la instancia.')
+    if (serverChoice === 'manual' && (!manualUrl.trim() || !manualKey.trim())) {
+      return toast.error('Pega la URL del servidor y su API Key.')
+    }
+    if (!confirm(`¿Eliminar la instancia "${name}" de Evolution? Esta acción no se puede deshacer.`)) return
+
+    setDeleting(true)
+    const payload =
+      serverChoice === 'manual'
+        ? { instanceName: name, serverUrl: manualUrl, apiKey: manualKey }
+        : { instanceName: name, apiKeyId: serverChoice }
+    const res = await forceDeleteEvoInstance(payload)
+    setDeleting(false)
+
+    if (res.success) {
+      toast.success(res.message)
+      setOrphanName('')
+    } else {
+      toast.error(res.message)
+    }
+  }
 
   const handleChange = (slot: string, value: string) => {
     setFormValues(prev => ({ ...prev, [slot]: value }))
@@ -113,7 +152,84 @@ export const MainEvo = ({ userId }: Props) => {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+    <div className="space-y-6">
+      {/* Herramienta: eliminar instancia huérfana */}
+      <Card className="border-amber-500/40">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+            Eliminar instancia huérfana
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Borra una instancia que quedó viva en Evolution API pero ya no existe en la app.
+            Devuelve el error real del servidor si algo falla.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Servidor</Label>
+              <Select value={serverChoice} onValueChange={setServerChoice}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Elige un servidor" /></SelectTrigger>
+                <SelectContent>
+                  {servers.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.url}</SelectItem>
+                  ))}
+                  <SelectItem value="manual">Otro (pegar manualmente)…</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Nombre de la instancia</Label>
+              <Input
+                placeholder="CARLOS_ARCOS"
+                value={orphanName}
+                onChange={(e) => setOrphanName(e.target.value)}
+                className="h-9"
+              />
+            </div>
+          </div>
+
+          {serverChoice === 'manual' && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">URL del servidor Evolution</Label>
+                <Input
+                  placeholder="https://evoapi1.ia-app.com"
+                  value={manualUrl}
+                  onChange={(e) => setManualUrl(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">API Key (global)</Label>
+                <Input
+                  type="password"
+                  placeholder="apikey del servidor"
+                  value={manualKey}
+                  onChange={(e) => setManualKey(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={handleForceDelete}
+              disabled={deleting}
+            >
+              {deleting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-1" />}
+              Forzar borrado
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
       {evoConfig.map(({ slot, slotNum, label }) => {
         const saved = savedEvos[slot]
         const isSaved = !!saved
@@ -177,6 +293,7 @@ export const MainEvo = ({ userId }: Props) => {
           </Card>
         )
       })}
+      </div>
     </div>
   )
 }
