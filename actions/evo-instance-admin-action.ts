@@ -78,29 +78,33 @@ export async function forceDeleteEvoInstance(
 
   const headers = { apikey: apiKey.trim(), 'Content-Type': 'application/json' }
   const name = encodeURIComponent(instanceName)
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
   try {
-    // 1) Logout (best-effort: puede fallar si ya está desconectada).
+    // 1) Logout: Evolution NO borra una instancia conectada, hay que desconectarla
+    //    primero y darle un momento para que pase a estado 'close'.
     await fetch(`${base}/instance/logout/${name}`, { method: 'DELETE', headers }).catch(() => null)
+    await wait(1000)
 
-    // 2) Delete (este es el que importa; capturamos su respuesta real).
-    const res = await fetch(`${base}/instance/delete/${name}`, { method: 'DELETE', headers })
-    const text = await res.text().catch(() => '')
+    // 2) Delete.
+    let res = await fetch(`${base}/instance/delete/${name}`, { method: 'DELETE', headers })
+
+    // Si sigue 400/409, casi siempre es porque aún figura conectada: reintenta el
+    // logout, espera un poco más y vuelve a borrar.
+    if (!res.ok && (res.status === 400 || res.status === 409)) {
+      await fetch(`${base}/instance/logout/${name}`, { method: 'DELETE', headers }).catch(() => null)
+      await wait(1500)
+      res = await fetch(`${base}/instance/delete/${name}`, { method: 'DELETE', headers })
+    }
 
     if (!res.ok) {
-      // Extrae un mensaje legible del cuerpo de Evolution (evita el [object Object]).
-      let detail = text
-      try {
-        const j = JSON.parse(text)
-        detail = j?.response?.message || j?.message || j?.error || text
-        if (Array.isArray(detail)) detail = detail.join(', ')
-      } catch { /* texto plano */ }
-      // 404 = ya no existe en Evolution: lo tratamos como éxito (objetivo cumplido).
+      const detail = await readError(res)
+      // 404 = ya no existe en Evolution: objetivo cumplido.
       if (res.status === 404) {
         await cleanDbRow(instanceName)
         return { success: true, message: `La instancia "${instanceName}" ya no existía en Evolution. Limpieza completada.` }
       }
-      return { success: false, message: `Evolution respondió ${res.status}: ${detail || 'sin detalle'}` }
+      return { success: false, message: `Evolution respondió ${res.status}: ${detail}` }
     }
 
     // 3) Limpieza defensiva del registro en BD si por acaso existiera.
@@ -108,6 +112,23 @@ export async function forceDeleteEvoInstance(
     return { success: true, message: `Instancia "${instanceName}" eliminada de Evolution.` }
   } catch (err: any) {
     return { success: false, message: `No se pudo contactar al servidor: ${err?.message ?? err}` }
+  }
+}
+
+/** Extrae SIEMPRE un texto legible del cuerpo de error de Evolution (nunca [object Object]). */
+async function readError(res: Response): Promise<string> {
+  const text = await res.text().catch(() => '')
+  if (!text) return 'sin detalle'
+  try {
+    const j = JSON.parse(text)
+    const msg = j?.response?.message ?? j?.message ?? j?.error ?? j
+    if (typeof msg === 'string') return msg
+    if (Array.isArray(msg)) {
+      return msg.map((m) => (typeof m === 'string' ? m : JSON.stringify(m))).join(', ')
+    }
+    return JSON.stringify(msg)
+  } catch {
+    return text
   }
 }
 
