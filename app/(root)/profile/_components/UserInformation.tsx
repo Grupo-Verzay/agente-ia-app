@@ -45,6 +45,7 @@ import { Role } from "@prisma/client";
 import { ApiKeyConfigurator, ChangePasswordCard, ChangeEmailCard } from "./";
 import { NotificationContactsManager } from "./NotificationContactsManager";
 import { OperatorContactsManager } from "./OperatorContactsManager";
+import { OwnerModeToggle } from "./OwnerModeToggle";
 import { UserInformationProps } from "../page";
 import { ConnectionMain } from "../../connection/_components";
 import { CallLinkCard } from "../../connection/_components/CallLinkCard";
@@ -820,6 +821,13 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                             <Card className="border-border mb-4">
                                 <CardContent className="pt-4">
                                     <OperatorContactsManager userId={userId} />
+                                </CardContent>
+                            </Card>
+
+                            {/* Modo Dueño por WhatsApp */}
+                            <Card className="border-border mb-4">
+                                <CardContent className="pt-4">
+                                    <OwnerModeToggle userId={userId} />
                                 </CardContent>
                             </Card>
 

@@ -177,8 +177,10 @@ Restaura y republica la revisión indicada.
    ```
 2. Aplica la migración que agrega `User.owner_mode_enabled`
    (`prisma migrate deploy`).
-3. Activa el Modo Dueño por cuenta poniendo `ownerModeEnabled = true` en el `User`
-   titular (apagado por defecto), y asegura su `notificationNumber` real.
+3. Activa el Modo Dueño desde el panel: **Perfil → Modo Dueño por WhatsApp**
+   (interruptor, apagado por defecto). Requiere estar logueado como el titular
+   (o un admin), lo que actúa como segundo factor de la activación — sin correo
+   ni PIN. Asegura también el `notificationNumber` real del dueño.
 
 ## Roadmap (fases siguientes)
 
