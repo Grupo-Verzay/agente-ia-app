@@ -204,12 +204,12 @@ function ServiceFormDialog({
                             control={form.control}
                             name="messageText"
                             render={({ field }) => (
-                                <FormItem className="flex flex-col flex-1 min-h-0">
+                                <FormItem>
                                     <FormLabel className="text-sm font-semibold">Mensaje automático para WhatsApp</FormLabel>
-                                    <FormControl className="flex-1 min-h-0">
+                                    <FormControl>
                                         <Textarea
                                             placeholder="Ej: ¡Hola! Gracias por agendar. Te atenderemos puntualmente en tu cita."
-                                            className="flex-1 min-h-[80px] resize-none text-sm"
+                                            className="min-h-[160px] max-h-[360px] resize-y text-sm"
                                             {...field}
                                         />
                                     </FormControl>

@@ -239,7 +239,7 @@ function ServiceFormDialog({
                                 <FormItem>
                                     <FormLabel>Mensaje WhatsApp de confirmación</FormLabel>
                                     <FormControl>
-                                        <Textarea className="min-h-[120px] text-xs" {...field} />
+                                        <Textarea className="min-h-[160px] max-h-[360px] resize-y text-xs" {...field} />
                                     </FormControl>
                                     <FormDescription className="text-xs">
                                         Variables: @client_name, @service_name, @appointment_datetime, @appointment_duration

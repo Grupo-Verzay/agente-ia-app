@@ -80,6 +80,7 @@ export function ServiceForm({ userId }: { userId: string }) {
                             <FormControl>
                                 <Textarea
                                     placeholder="Ej: ¡Hola! Gracias por agendar. Te atenderemos puntualmente en tu cita."
+                                    className="min-h-[160px] max-h-[360px] resize-y text-sm"
                                     {...field}
                                 />
                             </FormControl>
