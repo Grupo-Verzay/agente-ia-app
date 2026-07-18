@@ -114,6 +114,51 @@ Si la etiqueta no existe para la cuenta, se crea.
 > **Agendar cita a un cliente** ya está cubierto por el endpoint existente
 > `POST /api/schedule/appointment` (tool `crear_cita`), por eso no se duplica aquí.
 
+### Fase 3 — auto-mejora del entrenamiento
+
+El entrenamiento del agente **no es código**: vive en `AgentPrompt.sections` y está
+versionado en `AgentPromptRevision`. Por eso el dueño puede ajustar el
+comportamiento del agente por WhatsApp sin entrar a la plataforma ni redesplegar.
+
+Diseño conservador y reversible: solo se **agregan** instrucciones (nunca se
+reescribe ni se borra lo existente), cada cambio se publica como una revisión
+(snapshot para rollback), y existe restore para volver atrás. `agentId` es
+opcional (por defecto `system-prompt-ai`, el entrenamiento base de WhatsApp).
+
+#### `POST /api/owner/training/get` — Ver entrenamiento (solo lectura)
+```json
+{ "userId": "...", "ownerPhone": "573001234567" }
+```
+Respuesta: `training: { agentId, promptId, version, status, steps: [{ id, title, mainMessage }] }`.
+
+#### `POST /api/owner/training/revisions` — Historial de revisiones (solo lectura)
+Respuesta: `revisions: [{ revisionNumber, publishedAt, notes }]` (máx. 20).
+
+#### `POST /api/owner/training/instruction` — Agregar instrucción
+```json
+{ "userId": "...", "ownerPhone": "573001234567",
+  "instruction": "Primero pregunta el servicio y luego la fecha",
+  "title": "Orden del flujo de agenda", "confirmed": true }
+```
+Agrega un step al entrenamiento y publica una nueva revisión (queda activa).
+
+#### `POST /api/owner/training/restore` — Rollback a una revisión
+```json
+{ "userId": "...", "ownerPhone": "573001234567",
+  "revisionNumber": 4, "confirmed": true }
+```
+Restaura y republica la revisión indicada.
+
+### Fase 3 — pendiente (requiere backend / diseño con límites)
+
+- **Envío masivo / campaña.** Reutilizable vía el mecanismo de `Reminders`
+  (campaña), pero requiere ensamblar credenciales de instancia + programación y
+  un **límite duro de destinatarios** por seguridad. No se construye a ciegas:
+  conviene diseñarlo con tope y cola, idealmente en el backend.
+- **Llamadas salientes.** El sistema actual de voz es WebRTC desde el navegador
+  o el voicebot para llamadas **entrantes**; no hay acción de servidor para
+  llamadas salientes automáticas. Requiere trabajo en AstraCalls / backend.
+
 ## Configuración
 
 Añade a `.env`:
@@ -132,6 +177,7 @@ OWNER_COMMANDS_KEY=<secreto largo y aleatorio, compartido con el backend>
   y de internals no exportados (`logAssignment`, `triggerAdvisorAutomations`);
   conviene refactorizarlo para exponer una versión invocable por máquina antes
   de añadir el endpoint.
-- **Fase 3 (controles fuertes):** auto-mejora del entrenamiento del agente
-  (propone → el dueño confirma → nueva revisión en `AgentPromptRevision`),
-  envío masivo con límites, llamadas por voz (AstraCalls).
+- **Fase 3 — implementado:** auto-mejora del entrenamiento (agregar instrucción
+  + publicar revisión, reversible) y rollback a revisiones previas.
+- **Fase 3 — pendiente:** envío masivo con límites y llamadas salientes por voz
+  (ver arriba).
