@@ -12,9 +12,6 @@ const EvoManagementPage = async () => {
 
     return (
         <div className="p-6 space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold">Gestión servidores Evo Api</h1>
-            </div>
             <MainEvo userId={user.id} />
         </div>
     );
