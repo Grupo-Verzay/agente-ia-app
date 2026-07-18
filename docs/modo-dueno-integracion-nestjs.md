@@ -4,9 +4,11 @@ Esta guía define **todo lo que el backend NestJS (`api-webhook` / `ai-agent.ser
 debe implementar** para que el "Modo Dueño por WhatsApp" funcione de punta a punta.
 
 La app `verzay-app` ya expone la "mano" (los endpoints `/api/owner/*`, ver
-[`modo-dueno-whatsapp.md`](./modo-dueno-whatsapp.md)). Falta el "cerebro": que el
-agente **reconozca al dueño, gestione la confirmación y llame estos endpoints como
-herramientas**. Aquí está el contrato exacto.
+[`modo-dueno-whatsapp.md`](./modo-dueno-whatsapp.md)). El "cerebro" (que el agente
+reconozca al dueño, gestione la confirmación y llame estos endpoints como
+herramientas) **ya está implementado** en el repo `api-webhook`
+(`src/modules/ai-agent/owner/`, PR grupo-verzay/api-webhook#3). Este documento es
+el contrato de referencia y la base para operarlo/extenderlo.
 
 ---
 
@@ -200,6 +202,20 @@ Respuesta: `contacts: [{ sessionId, name, remoteJid, leadStatus, tags }]`.
 }
 ```
 
+### 5.7b `owner_asignar_asesor` — endpoint `/api/owner/assign` — CONFIRMACIÓN
+> Asigna un contacto a un asesor de la cuenta (por nombre) o lo libera ("ninguno").
+> Requiere `sessionId`. Confirma antes.
+```json
+{
+  "type": "object",
+  "properties": {
+    "sessionId": { "type": "integer" },
+    "asesor": { "type": "string", "description": "Nombre del asesor, o 'ninguno' para liberar" }
+  },
+  "required": ["sessionId", "asesor"]
+}
+```
+
 ### 5.8 `owner_ver_entrenamiento` — endpoint `/api/owner/training/get` — RO
 > Muestra las instrucciones de entrenamiento actuales del agente. Úsala cuando el
 > dueño pregunte qué tiene configurado o antes de proponer un cambio.
@@ -282,15 +298,11 @@ centralizar). No está implementado todavía.
 
 ## 8. Interruptor por cuenta (opt-in)
 
-El modo dueño debe poder **activarse/desactivarse por cuenta**, apagado por
-defecto. Opciones:
-
-- Campo nuevo en `User` (p.ej. `ownerModeEnabled boolean @default(false)`) +
-  migración Prisma, o
-- Config existente por cuenta si ya hay un mecanismo de flags.
-
-El backend consulta ese flag en el paso `ownerModeEnabled(account)` de la
-sección 3.
+**Implementado** en la app: campo `User.ownerModeEnabled` (`@default(false)`) +
+migración. Los endpoints `/api/owner/*` **fallan cerrado** (403) si el flag está
+apagado, así que el modo dueño está desactivado por cuenta por defecto aunque el
+backend tenga `OWNER_MODE_ENABLED=true` global. Para activar una cuenta: poner
+`ownerModeEnabled = true` en su `User`.
 
 ---
 
