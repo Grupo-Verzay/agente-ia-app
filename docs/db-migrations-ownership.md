@@ -33,6 +33,33 @@ CMD ["sh","-c","node server.js"]
 `migrate deploy` con su propia carpeta de migraciones, vería las 10 migraciones del
 backend como desconocidas → divergencia → fallaría el arranque de ambos servicios.
 
+## ⚠️ Gate OBLIGATORIO antes de mergear/desplegar
+
+`db push` **enmascaraba** cualquier drift schema↔BD (lo corregía en cada arranque). Al
+quitarlo, un drift se vuelve **permanente** y aparece como **error en runtime** (fue lo
+que tumbó la IA con `passPlainTxt`). Por eso, **antes de mergear**, alguien con acceso a
+la BD debe correr este comando — **solo imprime SQL, no aplica nada**:
+
+```bash
+npx prisma migrate diff \
+  --from-url "$DIRECT_URL" \
+  --to-schema-datamodel prisma/schema.prisma \
+  --script
+```
+
+- **Sin salida** → schema y BD sincronizados → **mergear** y vigilar el arranque.
+- **Con salida** → **NO mergear.** Ese SQL es exactamente lo que `db push` venía
+  aplicando en cada deploy. Hay que aplicarlo primero mediante una **migración en
+  `api-webhook`** y, recién después, quitar el `db push` (mergear este PR).
+
+## Rollback
+
+Si tras el deploy el frontend **no arranca**:
+1. Revertir el `Dockerfile` a la línea anterior
+   (`... npx prisma db push --skip-generate --accept-data-loss && node server.js`).
+2. Redesplegar (push a `main`).
+3. Investigar el drift con el comando `migrate diff` de arriba antes de reintentar.
+
 ## Por qué el frontend sigue arrancando sin `db push`
 
 Quitar `db push` **no** borra nada ni cambia el esquema: la BD ya contiene todas las
@@ -73,14 +100,26 @@ Prisma** (sus cambios entraron por `db push`) y por tanto **no están registrada
 20260718230000_add_owner_mode_phone
 ```
 
-Sus cambios **YA están en la BD**. Para dejar el historial consistente (opción
-recomendada por la revisión):
+Sus cambios (`booking_questions.teamServiceId`, `Product.order`, panel de cliente,
+operator bridge, sales learning/playbook, `User.owner_mode_enabled`,
+`User.owner_mode_phone`) **YA están en la BD**. Por ahora quedan **fuera del historial de
+migraciones** y así se dejan.
 
-1. Portar esas 7 carpetas al repo del **backend**
-   (`api-webhook/src/database/prisma/migrations/`).
-2. Marcarlas como aplicadas en producción **sin re-ejecutarlas** (sus objetos ya existen):
+**NO portarlas ahora.** No aportan nada hoy (sus cambios ya están aplicados) y el riesgo
+es real:
+
+> ⚠️ Si estos archivos llegan a la carpeta de migraciones del backend **sin** estar
+> marcados como aplicados, el `migrate deploy` del backend intentará **re-ejecutarlos** al
+> arrancar, fallará con `column already exists` y —como su `CMD` es
+> `migrate deploy && node dist/main`— **el backend NO levantará**. Además el backend se
+> **despliega automáticamente al pushear a `master`**, así que el fallo sería inmediato.
+
+### Orden SEGURO para cuando se decida portarlas (tarea futura)
+
+1. Tener los 7 archivos localmente en una **rama** del backend (sin pushear).
+2. Con acceso de escritura a la BD, marcarlas como aplicadas en producción **sin
+   ejecutarlas** (sus objetos ya existen):
    ```bash
-   # Repo backend, con acceso de escritura a la BD:
    for m in 20260622181000_add_booking_question_team_service \
             20260705233000_add_product_order \
             20260706001000_add_client_panel_module \
@@ -91,12 +130,9 @@ recomendada por la revisión):
      npx prisma migrate resolve --applied "$m" --schema=src/database/prisma/schema.prisma
    done
    ```
-3. Luego eliminar esas carpetas de `agente-ia-app/prisma/migrations/`.
-
-> Alternativa: si se decide **no** portarlas, dejar constancia de que esos cambios
-> (`booking_questions.teamServiceId`, `Product.order`, panel de cliente, operator bridge,
-> sales learning/playbook, `User.owner_mode_enabled`, `User.owner_mode_phone`) están en
-> la BD pero **fuera del historial de migraciones**.
+3. **Recién entonces** pushear/mergear la rama del backend (su `migrate deploy` las verá
+   ya aplicadas y no las re-ejecutará).
+4. Luego eliminar esas carpetas de `agente-ia-app/prisma/migrations/`.
 
 ## Objetos que existen en la BD y ningún schema declara
 
