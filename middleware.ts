@@ -7,6 +7,9 @@ const apiAvatarPrefix = "/api/avatar";
 const apiCronPrefix = "/api/cron";
 const apiSchedulePrefix = "/api/schedule";
 const apiAdminPrefix = "/api/admin";
+// Modo Dueño por WhatsApp: el backend llama estos endpoints máquina-a-máquina
+// (sin sesión de usuario); su seguridad es el secreto OWNER_COMMANDS_KEY.
+const apiOwnerPrefix = "/api/owner";
 
 export default auth((req) => {
   const { nextUrl } = req;
@@ -32,6 +35,7 @@ export default auth((req) => {
   if (currentPath.startsWith(apiCronPrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiSchedulePrefix)) return NextResponse.next();
   if (currentPath.startsWith(apiAdminPrefix)) return NextResponse.next();
+  if (currentPath.startsWith(apiOwnerPrefix)) return NextResponse.next();
   if (publicRoutes.includes(currentPath)) return NextResponse.next();
 
   if (isLoggedIn && authRoutes.includes(currentPath)) {
