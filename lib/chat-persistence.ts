@@ -749,7 +749,13 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
       "lastMessageFromMe" = EXCLUDED."lastMessageFromMe",
       "lastMessageType" = EXCLUDED."lastMessageType",
       "lastMessageContent" = EXCLUDED."lastMessageContent",
-      "lastMessageMediaUrl" = EXCLUDED."lastMessageMediaUrl",
+      -- Mismo mensaje re-persistido (re-sync sin mediaUrl) NO debe nulear el preview;
+      -- un mensaje NUEVO sí usa su propio valor (null si el último pasa a ser texto).
+      "lastMessageMediaUrl" = CASE
+        WHEN EXCLUDED."lastMessageId" IS DISTINCT FROM "chat_conversations"."lastMessageId"
+          THEN EXCLUDED."lastMessageMediaUrl"
+        ELSE COALESCE(EXCLUDED."lastMessageMediaUrl", "chat_conversations"."lastMessageMediaUrl")
+      END,
       "lastMessageRaw" = EXCLUDED."lastMessageRaw",
       "lastMessageTimestamp" = EXCLUDED."lastMessageTimestamp",
       -- Solo se limpia la marca de eliminado si llega un mensaje NUEVO (id
