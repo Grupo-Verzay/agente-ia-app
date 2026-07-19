@@ -21,19 +21,23 @@ async function assertCanManage(targetUserId: string): Promise<void> {
   }
 }
 
-export async function getOwnerModeStatus(
-  userId: string,
-): Promise<{ success: boolean; enabled: boolean; notificationNumber?: string }> {
+export async function getOwnerModeStatus(userId: string): Promise<{
+  success: boolean;
+  enabled: boolean;
+  ownerPhone?: string;
+  notificationNumber?: string;
+}> {
   if (!userId) return { success: false, enabled: false };
   try {
     await assertCanManage(userId);
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: { ownerModeEnabled: true, notificationNumber: true },
+      select: { ownerModeEnabled: true, ownerModePhone: true, notificationNumber: true },
     });
     return {
       success: true,
       enabled: !!user?.ownerModeEnabled,
+      ownerPhone: user?.ownerModePhone ?? "",
       notificationNumber: user?.notificationNumber ?? "",
     };
   } catch {
@@ -41,9 +45,15 @@ export async function getOwnerModeStatus(
   }
 }
 
-export async function setOwnerModeEnabled(
+/**
+ * Guarda la configuración del Modo Dueño: activar/desactivar y el número
+ * dedicado del dueño (solo dígitos). Un número vacío borra el dedicado (cae al
+ * número de notificación).
+ */
+export async function saveOwnerModeConfig(
   userId: string,
   enabled: boolean,
+  ownerPhone: string,
 ): Promise<{ success: boolean; message: string }> {
   if (!userId) return { success: false, message: "userId requerido." };
 
@@ -53,8 +63,16 @@ export async function setOwnerModeEnabled(
     return { success: false, message: "No autorizado." };
   }
 
+  const digits = (ownerPhone ?? "").replace(/\D/g, "");
+  if (enabled && digits && digits.length < 7) {
+    return { success: false, message: "El número del dueño no es válido (mínimo 7 dígitos)." };
+  }
+
   try {
-    await db.user.update({ where: { id: userId }, data: { ownerModeEnabled: enabled } });
+    await db.user.update({
+      where: { id: userId },
+      data: { ownerModeEnabled: enabled, ownerModePhone: digits || null },
+    });
     revalidatePath("/profile");
     return {
       success: true,

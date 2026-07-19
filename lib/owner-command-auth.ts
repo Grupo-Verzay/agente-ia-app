@@ -69,7 +69,14 @@ export async function resolveOwnerCommand(params: {
 }): Promise<ResolveOwnerResult> {
   const account = await db.user.findUnique({
     where: { id: params.userId },
-    select: { id: true, name: true, role: true, notificationNumber: true, ownerModeEnabled: true },
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      notificationNumber: true,
+      ownerModeEnabled: true,
+      ownerModePhone: true,
+    },
   });
 
   if (!account) return { ok: false, reason: "Cuenta no encontrada." };
@@ -79,7 +86,9 @@ export async function resolveOwnerCommand(params: {
     return { ok: false, reason: "El Modo Dueño no está activado para esta cuenta." };
   }
 
-  if (!phonesMatch(params.ownerPhone, account.notificationNumber)) {
+  // Número dedicado del dueño; si está vacío, cae al número de notificación.
+  const ownerNumber = account.ownerModePhone || account.notificationNumber;
+  if (!phonesMatch(params.ownerPhone, ownerNumber)) {
     return {
       ok: false,
       reason: "El número no está autorizado para administrar esta cuenta.",
