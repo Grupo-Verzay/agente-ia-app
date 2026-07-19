@@ -65,15 +65,26 @@ no toca lo que no está en las migraciones.
 
 ## 3. Drift de `passPlainTxt` (paso b) — YA RESUELTO
 
-- Frontend: columna quitada del schema (PR #16) y la columna se dropeó en la BD.
+- Frontend: columna quitada del schema (PR #16).
 - Backend: quitada del schema (commit `62a85c6`).
+- **La columna NUNCA existió en la BD.** El schema la declaraba pero la tabla `User`
+  real no la tenía — por eso el Agente IA fallaba con **P2022 (columna inexistente)**.
+  Es decir: **no se dropeó nada**; quitarla del schema solo eliminó una referencia a una
+  columna fantasma. (No pierdas tiempo buscando un `DROP` en los logs: no ocurrió.)
 - Estado actual: la columna **no existe** en la BD ni en ningún schema → el baseline
   generado desde el schema del frontend es **consistente**. No requiere acción.
 
-> Si por algún motivo `migrate status`/diff en la copia (paso d) revelara que la
-> columna aún existe en la BD, decidir en ese momento: (A) `ALTER TABLE "User" DROP
-> COLUMN IF EXISTS "passPlainTxt";` para alinear, o (B) declararla de nuevo. La opción
-> por defecto es (A) porque el código ya no la usa.
+> Contingencia: si `migrate status`/diff en la copia (paso d) revelara que la columna
+> sí existe en la BD, decidir en ese momento: (A) `ALTER TABLE "User" DROP COLUMN IF
+> EXISTS "passPlainTxt";` para alinear, o (B) declararla de nuevo. La opción por defecto
+> es (A) porque el código ya no la usa.
+
+### Tarea futura (no bloquea esta migración)
+
+Declarar `chat_lid_map` e `ia_credit_alerts` como modelos en `prisma/schema.prisma`
+(en una migración additiva posterior, ya con `migrate deploy` en marcha), para que
+queden **trazadas en el esquema** y no dependan de que nadie corra `db push`/`migrate dev`
+por error. Hoy están seguras (ver §2), pero declararlas las hace explícitas.
 
 ---
 
@@ -103,45 +114,46 @@ pg_restore -d "postgres://.../verzay_restore_test" --no-owner backup_pre_baselin
 psql "postgres://.../verzay_restore_test" -c 'SELECT count(*) FROM chat_messages;'
 ```
 
-### d) Crear copia y probar TODO el procedimiento ahí
+### d) Crear copia y probar TODO el procedimiento ahí — UN SOLO COMANDO
+
+Usa el script `scripts/baseline-dry-run.js`, que hace de corrido: backup de prod (solo
+lectura) → crea/recrea la copia → restaura → genera `0_init` → resuelve el baseline en la
+copia → verifica que `migrate deploy` es no-op → verifica los objetos protegidos (§6).
+Imprime **OK/FALLO por paso** y se **detiene al primer fallo**. **Nunca toca producción**
+(solo el `pg_dump` de lectura); es **idempotente** (recrea la copia y no deja basura).
 
 ```bash
-# 1) Crear copia de producción (staging)
-createdb verzay_staging
-pg_restore -d "postgres://.../verzay_staging" --no-owner backup_pre_baseline_*.dump
+# Primero instala dependencias del repo si no están (para tener el CLI de prisma):
+npm install
 
-# 2) Contra la COPIA (DIRECT_URL apuntando a verzay_staging), generar el baseline:
-#    Genera el 0_init a partir del schema actual del frontend (determinista, no toca la BD)
-mkdir -p prisma/migrations/0_init
-npx prisma migrate diff \
-  --from-empty \
-  --to-schema-datamodel prisma/schema.prisma \
-  --script > prisma/migrations/0_init/migration.sql
-
-# 3) Eliminar las 7 migraciones vestigiales (nunca aplicadas vía migrate; su DDL ya
-#    está en la BD porque db push sincronizó el schema). El 0_init las contiene todas.
-git rm -r prisma/migrations/20260622181000_add_booking_question_team_service \
-          prisma/migrations/20260705233000_add_product_order \
-          prisma/migrations/20260706001000_add_client_panel_module \
-          prisma/migrations/20260709140000_add_operator_bridge \
-          prisma/migrations/20260709143000_add_sales_learning_playbook \
-          prisma/migrations/20260718220000_add_owner_mode_enabled \
-          prisma/migrations/20260718230000_add_owner_mode_phone
-
-# 4) Marcar el baseline como YA aplicado en la COPIA (no ejecuta el SQL)
-DATABASE_URL="$DIRECT_URL_STAGING" npx prisma migrate resolve --applied 0_init
-
-# 5) VERIFICAR no-op: migrate status debe decir "Database schema is up to date"
-DATABASE_URL="$DIRECT_URL_STAGING" npx prisma migrate status
-
-# 6) VERIFICAR que un migrate deploy es un no-op (cero DDL)
-DATABASE_URL="$DIRECT_URL_STAGING" npx prisma migrate deploy   # => "No pending migrations to apply."
-
-# 7) VERIFICAR que los objetos protegidos SIGUEN existiendo en la copia (§6)
+# Luego corre el dry-run. Ajusta las dos conexiones:
+PROD_URL="postgres://USUARIO:CLAVE@HOST_PROD:5432/NOMBRE_BD_PROD" \
+STAGING_ADMIN_URL="postgres://USUARIO:CLAVE@HOST_PRUEBA:5432/postgres" \
+node scripts/baseline-dry-run.js
 ```
 
-> Si el paso 6 aplicara cualquier DDL, **DETENER**: el schema no refleja la BD. Revisar
-> el diff antes de continuar (probablemente un drift real que hay que reconciliar).
+- `PROD_URL`: conexión a producción. El script la usa **solo** para `pg_dump` (lectura).
+- `STAGING_ADMIN_URL`: conexión de mantenimiento del servidor de PRUEBA (termina en
+  `/postgres`), con permiso `CREATEDB`. La copia se crea ahí, **no** en producción.
+- Opcional: `COPY_DB_NAME` (default `verzay_baseline_dryrun`), `KEEP_COPY=1` para conservar la copia.
+
+Si el script termina con **"✔ DRY-RUN COMPLETO"**, el baseline es seguro. Si falla en
+cualquier paso, se detiene y muestra el error; **producción no se tocó**.
+
+> El `0_init` que genera el script (en un directorio temporal) es idéntico al que hay que
+> commitear a la rama para el baseline real (paso e). También hay que eliminar las 7
+> migraciones vestigiales del repo antes de mergear (nunca se aplicaron vía migrate; su
+> DDL ya está en la BD y el `0_init` las contiene):
+>
+> ```bash
+> git rm -r prisma/migrations/20260622181000_add_booking_question_team_service \
+>           prisma/migrations/20260705233000_add_product_order \
+>           prisma/migrations/20260706001000_add_client_panel_module \
+>           prisma/migrations/20260709140000_add_operator_bridge \
+>           prisma/migrations/20260709143000_add_sales_learning_playbook \
+>           prisma/migrations/20260718220000_add_owner_mode_enabled \
+>           prisma/migrations/20260718230000_add_owner_mode_phone
+> ```
 
 ### e) Baseline en PRODUCCIÓN
 
@@ -225,3 +237,32 @@ SELECT count(*) FROM chat_conversations WHERE "lastMessageDeleted" = true;
       `chat_lid_map`, `ia_credit_alerts` y `Session_userId_instanceId_remoteJid_key`
       siguen intactos (§6).
 - [ ] Existe este plan de rollback escrito (§7).
+
+## 9. Qué requiere un humano con acceso a la BD (y qué no)
+
+**Automatizado — un solo comando `node scripts/baseline-dry-run.js`** (necesita las
+credenciales pero hace toda la prueba solo, con OK/FALLO por paso):
+- Backup de producción (pg_dump, lectura).
+- Crear/restaurar la copia.
+- Generar `0_init`.
+- Resolver el baseline **en la copia**.
+- Verificar el no-op de `migrate deploy` **en la copia**.
+- Verificar los objetos protegidos **en la copia**.
+
+**Requiere un humano con acceso de ESCRITURA a producción** (poco y explícito):
+1. **Correr el dry-run** con las credenciales reales (paso d) — el comando de arriba.
+   (No modifica prod, pero necesita la conexión de prod para el pg_dump y de prueba
+   para crear la copia.)
+2. **Baseline en producción** (paso e), un solo comando de escritura:
+   ```bash
+   DATABASE_URL="$DIRECT_URL_PROD" npx prisma migrate resolve --applied 0_init
+   ```
+3. **Commitear** `prisma/migrations/0_init/` a la rama del PR y **eliminar** las 7
+   migraciones vestigiales (paso d, bloque `git rm`).
+4. **Mergear el PR #18** (paso f) — dispara el deploy.
+5. **Revisar los logs del deploy** (paso g): confirmar "No pending migrations to apply."
+
+> Nota: quien preparó este runbook (el asistente) **no tiene acceso a la BD** desde su
+> entorno (no hay `.env` con `DATABASE_URL`), por eso no pudo correr ni las verificaciones
+> de lectura; todas están encapsuladas en el script para que las ejecute quien tenga las
+> credenciales.
