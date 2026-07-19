@@ -2,19 +2,20 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Crown, Loader2, AlertTriangle } from "lucide-react";
-import { getOwnerModeStatus, setOwnerModeEnabled } from "@/actions/owner-mode-actions";
+import { Crown, Loader2, Check } from "lucide-react";
+import { getOwnerModeStatus, saveOwnerModeConfig } from "@/actions/owner-mode-actions";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 interface Props {
   userId: string;
 }
 
-const DEFAULT_NUMBER = "0000000000";
-
 export function OwnerModeToggle({ userId }: Props) {
   const [enabled, setEnabled] = useState(false);
-  const [notificationNumber, setNotificationNumber] = useState("");
+  const [phone, setPhone] = useState("");
+  const [savedPhone, setSavedPhone] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -23,7 +24,8 @@ export function OwnerModeToggle({ userId }: Props) {
     const result = await getOwnerModeStatus(userId);
     if (result.success) {
       setEnabled(result.enabled);
-      setNotificationNumber(result.notificationNumber ?? "");
+      setPhone(result.ownerPhone ?? "");
+      setSavedPhone(result.ownerPhone ?? "");
     }
     setLoading(false);
   }, [userId]);
@@ -32,21 +34,29 @@ export function OwnerModeToggle({ userId }: Props) {
     void fetchStatus();
   }, [fetchStatus]);
 
-  const handleToggle = async (val: boolean) => {
+  const persist = async (nextEnabled: boolean, nextPhone: string) => {
     setSaving(true);
-    setEnabled(val);
-    const result = await setOwnerModeEnabled(userId, val);
+    const result = await saveOwnerModeConfig(userId, nextEnabled, nextPhone);
     if (!result.success) {
-      setEnabled(!val);
       toast.error(result.message);
+      await fetchStatus(); // revertir al estado real
     } else {
       toast.success(result.message);
+      setSavedPhone((nextPhone ?? "").replace(/\D/g, ""));
     }
     setSaving(false);
   };
 
-  const numberMissing =
-    !notificationNumber.trim() || notificationNumber.replace(/\D/g, "") === DEFAULT_NUMBER;
+  const handleToggle = async (val: boolean) => {
+    setEnabled(val);
+    await persist(val, phone);
+  };
+
+  const handleSavePhone = async () => {
+    await persist(enabled, phone);
+  };
+
+  const phoneDirty = phone.replace(/\D/g, "") !== savedPhone.replace(/\D/g, "");
 
   return (
     <div className="space-y-3">
@@ -62,10 +72,10 @@ export function OwnerModeToggle({ userId }: Props) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Permite que TÚ le des órdenes al agente escribiéndole por WhatsApp desde tu número
-        personal: pedir reportes, crear tareas o recordatorios, enviar mensajes a contactos,
-        mover leads, etiquetar, asignar asesores y ajustar el entrenamiento del agente.
-        Solo se reconoce a quien escribe desde el número de notificación de la cuenta.
+        Escribe aquí el número de WhatsApp del dueño. La IA reconocerá los mensajes de
+        ESE número como órdenes y las ejecutará (reportes, tareas, recordatorios, enviar
+        mensajes a contactos, mover leads, etiquetar, asignar asesores y ajustar el
+        entrenamiento). Cualquier otro número se atiende como cliente normal.
       </p>
 
       {loading ? (
@@ -74,15 +84,32 @@ export function OwnerModeToggle({ userId }: Props) {
           Cargando...
         </div>
       ) : (
-        enabled && numberMissing && (
-          <div className="flex items-start gap-2 rounded-md bg-amber-50 dark:bg-amber-950/30 p-2 text-xs text-amber-700 dark:text-amber-400">
-            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-            <span>
-              Configura tu <strong>número de notificación</strong> real (arriba) para que el
-              agente te reconozca como dueño. Sin un número válido, el Modo Dueño no funcionará.
-            </span>
-          </div>
-        )
+        <div className="flex items-center gap-2">
+          <Input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Número del dueño (ej. 573001234567)"
+            inputMode="tel"
+            disabled={saving}
+            className="h-8 text-sm"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8"
+            onClick={handleSavePhone}
+            disabled={saving || !phoneDirty}
+          >
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+            <span className="ml-1">Guardar</span>
+          </Button>
+        </div>
+      )}
+
+      {enabled && !savedPhone && !loading && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          Escribe y guarda el número del dueño para que el Modo Dueño funcione.
+        </p>
       )}
     </div>
   );
