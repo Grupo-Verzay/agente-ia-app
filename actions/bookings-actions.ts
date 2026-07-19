@@ -340,33 +340,44 @@ export async function createBookingAppointment(input: CreateBookingInput) {
                 return { success: false, message: `Debes agendar con al menos ${effectiveNotice} minutos de anticipación.` };
             }
         }
-        const overlap = await db.bookingAppointment.findFirst({
-            where: {
-                teamMemberId,
-                status: { in: ['PENDIENTE', 'CONFIRMADA', 'ATENDIDA'] },
-                startTime: { lt: end },
-                endTime: { gt: start },
-            },
+        // Serializa las reservas concurrentes del MISMO especialista con un advisory
+        // lock por transacción (se libera automáticamente al hacer commit/rollback).
+        // Evita la doble reserva sin constraint de BD ni migración: una 2ª solicitud
+        // simultánea espera a que la 1ª haga commit y entonces su verificación de
+        // solape sí ve la cita recién creada. Reservas de otros miembros no se bloquean.
+        const appt = await db.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${teamMemberId}`}))`;
+
+            const overlap = await tx.bookingAppointment.findFirst({
+                where: {
+                    teamMemberId,
+                    status: { in: ['PENDIENTE', 'CONFIRMADA', 'ATENDIDA'] },
+                    startTime: { lt: end },
+                    endTime: { gt: start },
+                },
+            });
+
+            if (overlap) return null;
+
+            return tx.bookingAppointment.create({
+                data: {
+                    teamId,
+                    teamMemberId,
+                    teamServiceId,
+                    clientName: clientName.trim(),
+                    clientPhone,
+                    startTime: start,
+                    endTime: end,
+                    timezone,
+                    status: AppointmentStatus.PENDIENTE,
+                    notes,
+                },
+            });
         });
 
-        if (overlap) {
+        if (!appt) {
             return { success: false, message: 'El especialista ya tiene una cita en ese horario.' };
         }
-
-        const appt = await db.bookingAppointment.create({
-            data: {
-                teamId,
-                teamMemberId,
-                teamServiceId,
-                clientName: clientName.trim(),
-                clientPhone,
-                startTime: start,
-                endTime: end,
-                timezone,
-                status: AppointmentStatus.PENDIENTE,
-                notes,
-            },
-        });
 
         return { success: true, message: 'Cita agendada exitosamente.', data: appt };
     } catch (error) {

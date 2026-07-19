@@ -164,42 +164,53 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
             sessionId = register.data.id;
         }
 
-        const overlap = await db.appointment.findFirst({
-            where: {
-                userId,
-                status: { in: ['PENDIENTE', 'CONFIRMADA', 'ATENDIDA'] },
-                OR: [
-                    {
-                        startTime: {
-                            lt: end,
+        // Serializa las citas concurrentes del MISMO usuario con un advisory lock por
+        // transacción (se libera automáticamente al hacer commit/rollback). Evita el
+        // doble agendamiento sin constraint de BD ni migración: una 2ª solicitud
+        // simultánea espera a que la 1ª haga commit y entonces su verificación de
+        // solape ya ve la cita recién creada. Citas de otros usuarios no se bloquean.
+        const created = await db.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`appt:${userId}`}))`;
+
+            const overlap = await tx.appointment.findFirst({
+                where: {
+                    userId,
+                    status: { in: ['PENDIENTE', 'CONFIRMADA', 'ATENDIDA'] },
+                    OR: [
+                        {
+                            startTime: {
+                                lt: end,
+                            },
+                            endTime: {
+                                gt: start,
+                            },
                         },
-                        endTime: {
-                            gt: start,
-                        },
-                    },
-                ],
-            },
+                    ],
+                },
+            });
+
+            if (overlap) return null;
+
+            return tx.appointment.create({
+                data: {
+                    userId,
+                    sessionId,
+                    clientName: normalizedPushName,
+                    startTime: start,
+                    endTime: end,
+                    timezone,
+                    status: AppointmentStatus.PENDIENTE,
+                    serviceId,
+                },
+            });
         });
 
-        if (overlap) {
+        if (!created) {
             return {
                 success: false,
                 message: 'Ya existe una cita registrada en ese horario.',
             };
         }
-
-        const created = await db.appointment.create({
-            data: {
-                userId,
-                sessionId,
-                clientName: normalizedPushName,
-                startTime: start,
-                endTime: end,
-                timezone,
-                status: AppointmentStatus.PENDIENTE,
-                serviceId,
-            },
-        });
 
         await writeAuditLog({
             userId,
