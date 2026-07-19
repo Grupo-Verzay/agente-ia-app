@@ -3,6 +3,7 @@
 import { db } from '@/lib/db';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
+import { assertCanAccessTargetUser } from './billing/helpers/app-access-guard';
 import {
     PatchSectionSchema,
     SaveSchema,
@@ -296,6 +297,9 @@ export async function upsertAgentPromptText(input: {
 }) {
     try {
         const { userId, agentId, promptText } = FreeformAgentPromptSchema.parse(input);
+        // Verifica que el usuario de la sesión tenga permiso sobre este userId
+        // (evita sobrescribir/borrar el prompt del Agente IA de otro tenant — IDOR).
+        await assertCanAccessTargetUser(userId);
         const normalizedPromptText = promptText.trim();
         const existing = await db.agentPrompt.findFirst({
             where: { userId, agentId },
