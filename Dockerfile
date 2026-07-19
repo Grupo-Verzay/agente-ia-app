@@ -51,6 +51,10 @@ RUN npx prisma generate
 
 EXPOSE 3000
 
-# Los cambios de esquema deben ir directo a PostgreSQL. La aplicacion conserva
-# DATABASE_URL (PgBouncer) cuando arranca Node.
-CMD ["sh", "-c", "DATABASE_URL=\"$DIRECT_URL\" npx prisma db push --skip-generate --accept-data-loss && node server.js"]
+# Migraciones versionadas: 'migrate deploy' solo aplica migraciones pendientes y
+# NUNCA borra objetos ausentes del esquema (a diferencia de 'db push --accept-data-loss',
+# que causaba perdida de datos en cada despliegue). Requiere que el baseline (0_init)
+# este resuelto en la BD ANTES del primer arranque con esta linea; ver
+# docs/prisma-migrate-baseline-runbook.md. Se usa DIRECT_URL para la migracion; la
+# aplicacion conserva DATABASE_URL (PgBouncer) cuando arranca Node.
+CMD ["sh", "-c", "DATABASE_URL=\"$DIRECT_URL\" npx prisma migrate deploy && node server.js"]
