@@ -632,7 +632,13 @@ export async function sendBookingNotifications(input: BookingNotificationInput):
                 remoteJid: ownerJid,
                 message: ownerMsg,
                 historyType: 'notification',
-                additionalKwargs: { source: 'BookingNotificationOwner' },
+                additionalKwargs: {
+                    source: 'BookingNotificationOwner',
+                    recipient: 'owner',
+                    eventType: 'Cita',
+                    advisorRequest: false,
+                    preformatted: true,
+                },
             }).catch(() => {});
         }
     } catch (err) {

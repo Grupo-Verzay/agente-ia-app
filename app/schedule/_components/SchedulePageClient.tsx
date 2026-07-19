@@ -291,6 +291,9 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                                         source: "SchedulePageClient",
                                         recipient: "owner",
                                         appointmentUserId: user.id,
+                                        eventType: "Cita",
+                                        advisorRequest: false,
+                                        preformatted: true,
                                     },
                                 });
                                 if (!ownerRes.success) {

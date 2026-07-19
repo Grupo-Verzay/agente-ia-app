@@ -188,7 +188,14 @@ async function runPostBookingTasks({
           remoteJid: ownerJid,
           message: ownerText,
           historyType: 'notification',
-          additionalKwargs: { source: 'BookingsApiAgent', recipient: 'owner', serviceId },
+          additionalKwargs: {
+            source: 'BookingsApiAgent',
+            recipient: 'owner',
+            serviceId,
+            eventType: 'Cita',
+            advisorRequest: false,
+            preformatted: true,
+          },
         });
       }),
     );
