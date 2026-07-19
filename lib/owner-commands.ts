@@ -183,7 +183,7 @@ export async function searchOwnerContacts(
   const sessions = await db.session.findMany({
     where,
     orderBy: { updatedAt: "desc" },
-    take: 20,
+    take: 40,
     select: {
       id: true,
       remoteJid: true,
@@ -194,7 +194,16 @@ export async function searchOwnerContacts(
     },
   });
 
-  return sessions.map((s) => ({
+  // Un contacto por número: junta sesiones duplicadas del mismo remoteJid
+  // (quedan ordenadas por updatedAt desc, así que se conserva la más reciente).
+  const seen = new Set<string>();
+  const unique = sessions.filter((s) => {
+    if (seen.has(s.remoteJid)) return false;
+    seen.add(s.remoteJid);
+    return true;
+  });
+
+  return unique.slice(0, 20).map((s) => ({
     sessionId: s.id,
     name: s.customName?.trim() || s.pushName?.trim() || "contacto",
     remoteJid: s.remoteJid,
