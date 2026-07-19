@@ -51,6 +51,11 @@ RUN npx prisma generate
 
 EXPOSE 3000
 
-# Los cambios de esquema deben ir directo a PostgreSQL. La aplicacion conserva
-# DATABASE_URL (PgBouncer) cuando arranca Node.
-CMD ["sh", "-c", "DATABASE_URL=\"$DIRECT_URL\" npx prisma db push --skip-generate --accept-data-loss && node server.js"]
+# El frontend NO gestiona el esquema de la BD. El repo BACKEND (api-webhook) es el
+# unico duenno de las migraciones y las aplica en su arranque
+# ('prisma migrate deploy'). La BD es compartida (una sola _prisma_migrations), asi
+# que el frontend NO debe correr ni 'db push' ni 'migrate deploy': solo arranca Node.
+# Se quito 'db push --accept-data-loss' que borraba datos en cada despliegue.
+# Todo cambio de esquema de aqui en adelante se hace con una migracion en api-webhook.
+# Ver docs/db-migrations-ownership.md.
+CMD ["sh", "-c", "node server.js"]
