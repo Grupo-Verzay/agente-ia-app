@@ -735,7 +735,6 @@ model User {
   minNoticeMinutes                   Int                          @default(0)
   preferredCurrencyCode              String                       @default("COP")
   tokenVersion                       Int                          @default(0)
-  passPlainTxt                       String?                      @default("IA@verzay.1234")
   enabledSynthesizer                 Boolean                      @default(false)
   status                             Boolean                      @default(true)
   enabledCrmFollowUps                Boolean                      @default(false)

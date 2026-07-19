@@ -91,7 +91,6 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
             apiUrl,
             timezone,
             status: formData.status ?? true,
-            passPlainTxt: password,
             meetingDuration: 60,//tiempo en minutos
             meetingUrl: null,//tiempo en minutos
             delayTimeGpt: '12',//tiempo en minutos
@@ -158,13 +157,15 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
         }
         formData.delete('openMsg');
 
-        // === Rehash de contraseña si cambió ===
+        // === Establecer nueva contraseña solo si el reseller escribió una ===
+        // El campo ya no se precarga con la contraseña real (que nunca se guarda
+        // en texto plano); si viene vacío, la contraseña no se modifica.
         const newPass = formData.get('passPlainTxt') as string;
-        const currentUser = users.find(u => u.id === userId);
-        if (newPass?.trim() && newPass !== currentUser?.passPlainTxt) {
+        if (newPass?.trim()) {
             const hashed = await bcrypt.hash(newPass, LENGTH_PASSWORD_HASH);
             formData.set('password', hashed);
         }
+        formData.delete('passPlainTxt');
 
         // === Actualización de créditos ===
         const creditTotalRaw = formData.get('creditTotal');

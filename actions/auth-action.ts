@@ -136,13 +136,6 @@ export async function adminChangeUserPassword(input: {
     },
   });
 
-  await db.user.update({
-    where: { id: userId },
-    data: {
-      passPlainTxt: newPassword,
-    },
-  });
-
   return { success: true, message: "Contraseña actualizada. Se cerró sesión en todos los dispositivos." };
 }
 
@@ -180,11 +173,6 @@ export async function selfChangePassword(input: {
   await db.user.update({
     where: { id: userId },
     data: { password: hash, tokenVersion: { increment: 1 } },
-  });
-
-  await db.user.update({
-    where: { id: userId },
-    data: { passPlainTxt: newPassword },
   });
 
   return { success: true, message: "Contraseña actualizada correctamente." };
