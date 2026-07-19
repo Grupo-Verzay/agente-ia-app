@@ -134,6 +134,31 @@ async function getOwnedSession(sessionId: number, ownerId: string) {
   return session;
 }
 
+/**
+ * Resuelve la sesión objetivo por sessionId o por número de teléfono. El número
+ * es lo que el agente siempre tiene visible en la conversación (a diferencia del
+ * sessionId, que se pierde entre turnos), así que las acciones aceptan ambos.
+ * Por número, elige la sesión más reciente de ese contacto.
+ */
+async function resolveTargetSession(
+  ownerId: string,
+  target: { sessionId?: number; phone?: string },
+) {
+  if (target.sessionId) return getOwnedSession(target.sessionId, ownerId);
+
+  const digits = (target.phone ?? "").replace(/\D/g, "");
+  if (digits.length < 7) return null;
+  const suffix = digits.slice(-10);
+  return db.session.findFirst({
+    where: {
+      userId: ownerId,
+      OR: [{ remoteJid: { contains: suffix } }, { remoteJidAlt: { contains: suffix } }],
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, userId: true, remoteJid: true, pushName: true, customName: true },
+  });
+}
+
 function contactLabel(s: { pushName: string | null; customName: string | null }): string {
   return s.customName?.trim() || s.pushName?.trim() || "contacto";
 }
@@ -218,12 +243,13 @@ export async function searchOwnerContacts(
  */
 export async function sendOwnerMessage(params: {
   ownerId: string;
-  sessionId: number;
+  sessionId?: number;
+  phone?: string;
   text: string;
 }): Promise<OwnerActionResult<{ sessionId: number; contact: string }>> {
-  const { ownerId, sessionId, text } = params;
+  const { ownerId, text } = params;
 
-  const session = await getOwnedSession(sessionId, ownerId);
+  const session = await resolveTargetSession(ownerId, params);
   if (!session) {
     return { ok: false, status: 404, message: "Contacto no encontrado en esta cuenta." };
   }
@@ -253,29 +279,30 @@ export async function sendOwnerMessage(params: {
     userId: ownerId,
     actorId: ownerId,
     entityType: "crm",
-    entityId: String(sessionId),
+    entityId: String(session.id),
     action: "updated",
     summary: `Envió un mensaje a ${contactLabel(session)} desde WhatsApp (modo dueño)`,
     metadata: { source: "owner-command", kind: "message", chars: text.length },
   });
 
-  return { ok: true, data: { sessionId, contact: contactLabel(session) } };
+  return { ok: true, data: { sessionId: session.id, contact: contactLabel(session) } };
 }
 
 /** Cambia el estado de lead (kanban) de un contacto del dueño. */
 export async function moveOwnerLeadStatus(params: {
   ownerId: string;
-  sessionId: number;
+  sessionId?: number;
+  phone?: string;
   status: LeadStatus;
 }): Promise<OwnerActionResult<{ sessionId: number; contact: string; status: LeadStatus }>> {
-  const { ownerId, sessionId, status } = params;
+  const { ownerId, status } = params;
 
-  const session = await getOwnedSession(sessionId, ownerId);
+  const session = await resolveTargetSession(ownerId, params);
   if (!session) {
     return { ok: false, status: 404, message: "Contacto no encontrado en esta cuenta." };
   }
 
-  const res = await updateSessionLeadStatus(sessionId, status);
+  const res = await updateSessionLeadStatus(session.id, status);
   if (!res.success) {
     return { ok: false, status: 502, message: res.message ?? "No se pudo actualizar el estado." };
   }
@@ -284,13 +311,13 @@ export async function moveOwnerLeadStatus(params: {
     userId: ownerId,
     actorId: ownerId,
     entityType: "crm",
-    entityId: String(sessionId),
+    entityId: String(session.id),
     action: "status_changed",
     summary: `Movió a ${contactLabel(session)} a estado ${status} desde WhatsApp (modo dueño)`,
     metadata: { source: "owner-command", kind: "lead-status", status },
   });
 
-  return { ok: true, data: { sessionId, contact: contactLabel(session), status } };
+  return { ok: true, data: { sessionId: session.id, contact: contactLabel(session), status } };
 }
 
 function slugify(name: string): string {
@@ -329,19 +356,20 @@ async function resolveOrCreateTag(ownerId: string, tagName: string): Promise<num
 /** Aplica una etiqueta (por nombre) a un contacto del dueño; la crea si no existe. */
 export async function tagOwnerContact(params: {
   ownerId: string;
-  sessionId: number;
+  sessionId?: number;
+  phone?: string;
   tagName: string;
 }): Promise<OwnerActionResult<{ sessionId: number; contact: string; tag: string }>> {
-  const { ownerId, sessionId, tagName } = params;
+  const { ownerId, tagName } = params;
 
-  const session = await getOwnedSession(sessionId, ownerId);
+  const session = await resolveTargetSession(ownerId, params);
   if (!session) {
     return { ok: false, status: 404, message: "Contacto no encontrado en esta cuenta." };
   }
 
   const tagId = await resolveOrCreateTag(ownerId, tagName);
 
-  const res = await addTagsToSessionAction({ userId: ownerId, sessionId, tagIds: [tagId] });
+  const res = await addTagsToSessionAction({ userId: ownerId, sessionId: session.id, tagIds: [tagId] });
   if (!res.success) {
     return { ok: false, status: 502, message: res.message ?? "No se pudo aplicar la etiqueta." };
   }
@@ -350,13 +378,13 @@ export async function tagOwnerContact(params: {
     userId: ownerId,
     actorId: ownerId,
     entityType: "crm",
-    entityId: String(sessionId),
+    entityId: String(session.id),
     action: "updated",
     summary: `Etiquetó a ${contactLabel(session)} como "${tagName}" desde WhatsApp (modo dueño)`,
     metadata: { source: "owner-command", kind: "tag", tag: tagName, tagId },
   });
 
-  return { ok: true, data: { sessionId, contact: contactLabel(session), tag: tagName } };
+  return { ok: true, data: { sessionId: session.id, contact: contactLabel(session), tag: tagName } };
 }
 
 /**
@@ -366,13 +394,14 @@ export async function tagOwnerContact(params: {
  */
 export async function assignOwnerAdvisor(params: {
   ownerId: string;
-  sessionId: number;
+  sessionId?: number;
+  phone?: string;
   advisorName: string;
 }): Promise<OwnerActionResult<{ sessionId: number; contact: string; advisor: string | null }>> {
-  const { ownerId, sessionId } = params;
+  const { ownerId } = params;
   const advisorName = params.advisorName?.trim() ?? "";
 
-  const session = await getOwnedSession(sessionId, ownerId);
+  const session = await resolveTargetSession(ownerId, params);
   if (!session) {
     return { ok: false, status: 404, message: "Contacto no encontrado en esta cuenta." };
   }
@@ -403,13 +432,13 @@ export async function assignOwnerAdvisor(params: {
     advisorLabel = matches[0].name || matches[0].email;
   }
 
-  await db.$executeRaw`UPDATE "Session" SET assigned_advisor_id = ${advisorId} WHERE id = ${sessionId}`;
+  await db.$executeRaw`UPDATE "Session" SET assigned_advisor_id = ${advisorId} WHERE id = ${session.id}`;
 
   await writeAuditLog({
     userId: ownerId,
     actorId: ownerId,
     entityType: "crm",
-    entityId: String(sessionId),
+    entityId: String(session.id),
     action: "updated",
     summary: release
       ? `Liberó a ${contactLabel(session)} (sin asesor) desde WhatsApp (modo dueño)`
@@ -417,5 +446,5 @@ export async function assignOwnerAdvisor(params: {
     metadata: { source: "owner-command", kind: "assign-advisor", advisorId },
   });
 
-  return { ok: true, data: { sessionId, contact: contactLabel(session), advisor: advisorLabel } };
+  return { ok: true, data: { sessionId: session.id, contact: contactLabel(session), advisor: advisorLabel } };
 }

@@ -14,7 +14,8 @@ import { guardOwnerRequest, ownerBaseSchema } from "@/lib/owner-command-auth";
  * Body: { userId, ownerPhone, sessionId, advisorName, confirmed }
  */
 const bodySchema = ownerBaseSchema.extend({
-  sessionId: z.number().int().positive(),
+  sessionId: z.number().int().positive().optional(),
+  phone: z.string().trim().min(1).optional(),
   advisorName: z.string().trim().min(1).max(60),
   confirmed: z.boolean().optional(),
 });
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
     const result = await assignOwnerAdvisor({
       ownerId: guard.owner.ownerId,
       sessionId: guard.body.sessionId,
+      phone: guard.body.phone,
       advisorName: guard.body.advisorName,
     });
     if (!result.ok) {
