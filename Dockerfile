@@ -51,10 +51,11 @@ RUN npx prisma generate
 
 EXPOSE 3000
 
-# Migraciones versionadas: 'migrate deploy' solo aplica migraciones pendientes y
-# NUNCA borra objetos ausentes del esquema (a diferencia de 'db push --accept-data-loss',
-# que causaba perdida de datos en cada despliegue). Requiere que el baseline (0_init)
-# este resuelto en la BD ANTES del primer arranque con esta linea; ver
-# docs/prisma-migrate-baseline-runbook.md. Se usa DIRECT_URL para la migracion; la
-# aplicacion conserva DATABASE_URL (PgBouncer) cuando arranca Node.
-CMD ["sh", "-c", "DATABASE_URL=\"$DIRECT_URL\" npx prisma migrate deploy && node server.js"]
+# El frontend NO gestiona el esquema de la BD. El repo BACKEND (api-webhook) es el
+# unico duenno de las migraciones y las aplica en su arranque
+# ('prisma migrate deploy'). La BD es compartida (una sola _prisma_migrations), asi
+# que el frontend NO debe correr ni 'db push' ni 'migrate deploy': solo arranca Node.
+# Se quito 'db push --accept-data-loss' que borraba datos en cada despliegue.
+# Todo cambio de esquema de aqui en adelante se hace con una migracion en api-webhook.
+# Ver docs/db-migrations-ownership.md.
+CMD ["sh", "-c", "node server.js"]
