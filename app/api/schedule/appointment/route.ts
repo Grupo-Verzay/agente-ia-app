@@ -233,7 +233,10 @@ async function runPostAppointmentTasks({
             serviceId,
             eventType: 'Cita',
             advisorRequest: false,
-            preformatted: true,
+            contactName: pushName,
+            descriptionLabel: serviceName,
+            description: `Para el día ${dateLabel} a las ${hourLabel} (hora ${tzLabel}).`,
+            contactPhone: `+${clientPhone.replace(/\D/g, '')}`,
           },
         });
         if (result.success) {

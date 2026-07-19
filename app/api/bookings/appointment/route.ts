@@ -194,7 +194,10 @@ async function runPostBookingTasks({
             serviceId,
             eventType: 'Cita',
             advisorRequest: false,
-            preformatted: true,
+            contactName: pushName,
+            descriptionLabel: serviceName,
+            description: `Para el día ${dateLabel} a las ${hourLabel} (hora ${tzLabel})${memberName ? ` con ${memberName}` : ''}.`,
+            contactPhone: `+${clientPhone.replace(/\D/g, '')}`,
           },
         });
       }),
