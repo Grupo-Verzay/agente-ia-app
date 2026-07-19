@@ -293,7 +293,10 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                                         appointmentUserId: user.id,
                                         eventType: "Cita",
                                         advisorRequest: false,
-                                        preformatted: true,
+                                        contactName: normalizedClientName,
+                                        descriptionLabel: serviceName,
+                                        description: `Para el día ${dateLabel} a las ${hourLabel}.`,
+                                        contactPhone: `+${e164.replace(/\D/g, "")}`,
                                     },
                                 });
                                 if (!ownerRes.success) {

@@ -175,11 +175,15 @@ function buildInternalNotificationContext(message: string, additionalKwargs?: Re
     additionalKwargs?.contactPhone ?? additionalKwargs?.phone,
     extractPhone(message, 'Sin número'),
   );
+  // Etiqueta de la línea de descripción. Por defecto "Descripción"; los avisos
+  // de cita la sobrescriben con el nombre del servicio (p. ej. "*Botox Facial:*").
+  const descriptionLabel = cleanTemplateValue(additionalKwargs?.descriptionLabel, 'Descripción');
 
   return {
     eventType,
     name: stripMarkdown(name),
     description: stripMarkdown(description),
+    descriptionLabel: stripMarkdown(descriptionLabel),
     phone,
     isAdvisorRequest: isAdvisorRequestNotification(message, additionalKwargs),
   };
@@ -214,7 +218,7 @@ function buildInternalNotificationText(message: string, additionalKwargs?: Recor
     '\u{2705} *Nuevo aviso: ' + context.eventType + '*',
     '',
     '\u{1F464} *Nombre:* ' + context.name,
-    '\u{1F4DD} *Descripción:* ' + context.description,
+    '\u{1F4DD} *' + context.descriptionLabel + ':* ' + context.description,
     '',
     '\u{1F4F1} *Contacto:*',
     '\u{1F4F2} ' + context.phone,

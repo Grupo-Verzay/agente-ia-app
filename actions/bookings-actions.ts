@@ -637,7 +637,10 @@ export async function sendBookingNotifications(input: BookingNotificationInput):
                     recipient: 'owner',
                     eventType: 'Cita',
                     advisorRequest: false,
-                    preformatted: true,
+                    contactName: clientName,
+                    descriptionLabel: serviceName,
+                    description: `Para el día ${dateLabel} a las ${hourLabel}${memberName ? ` con ${memberName}` : ''}.`,
+                    contactPhone: `+${clientPhone.replace(/\D/g, '')}`,
                 },
             }).catch(() => {});
         }
