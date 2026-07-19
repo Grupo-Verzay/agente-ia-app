@@ -20,7 +20,7 @@ import {
   SessionWithRegistrosAndTags,
   SingleSessionResponse,
 } from '@/types/session';
-import { assertUserCanUseApp } from './billing/helpers/app-access-guard';
+import { assertUserCanUseApp, assertCanAccessTargetUser } from './billing/helpers/app-access-guard';
 import { currentUser } from '@/lib/auth';
 import { recordConfirmedSalesOutcome } from '@/lib/sales-learning';
 import { revalidatePath } from 'next/cache';
@@ -723,6 +723,9 @@ export async function searchSessionsByUserId(
 // 🟢 Activar todos los clientes de un usuario
 export async function activateAllSessions(userId: string): Promise<SessionsListResponse> {
   try {
+    // Verifica que el usuario de la sesión tenga permiso sobre este userId
+    // (evita que un tenant modifique las sesiones de otro — IDOR).
+    await assertCanAccessTargetUser(userId);
     await db.session.updateMany({
       where: { userId },
       data: { status: true },
@@ -744,6 +747,9 @@ export async function activateAllSessions(userId: string): Promise<SessionsListR
 // 🔴 Desactivar todos los clientes de un usuario
 export async function deactivateAllSessions(userId: string): Promise<SessionsListResponse> {
   try {
+    // Verifica que el usuario de la sesión tenga permiso sobre este userId
+    // (evita que un tenant modifique las sesiones de otro — IDOR).
+    await assertCanAccessTargetUser(userId);
     await db.session.updateMany({
       where: { userId },
       data: { status: false },
@@ -765,6 +771,9 @@ export async function deactivateAllSessions(userId: string): Promise<SessionsLis
 // 🗑️ Eliminar todos los clientes de un usuario
 export async function deleteAllSessions(userId: string): Promise<SessionsListResponse> {
   try {
+    // Verifica que el usuario de la sesión tenga permiso sobre este userId
+    // (evita que un tenant borre las sesiones de otro — IDOR).
+    await assertCanAccessTargetUser(userId);
     await db.session.deleteMany({
       where: { userId },
     })
