@@ -8,7 +8,6 @@ import {
 } from "@/actions/whatsapp-dispatcher";
 import {
   addTagsToSessionAction,
-  searchSessionsByUserId,
   updateSessionLeadStatus,
 } from "@/actions/session-action";
 
@@ -150,19 +149,57 @@ export type OwnerContact = {
 /**
  * Resuelve contactos del dueño por nombre o número. Solo lectura — sirve para
  * que el agente encuentre el sessionId antes de pedir confirmación de una acción.
+ *
+ * Búsqueda robusta por número: normaliza a dígitos y compara por los últimos 10
+ * (absorbe el prefijo de país y el "+"), buscando tanto en remoteJid como en
+ * remoteJidAlt, sin excluir los @lid. Por nombre: busca en pushName/customName.
  */
 export async function searchOwnerContacts(
   ownerId: string,
   query: string,
 ): Promise<OwnerContact[]> {
-  const res = await searchSessionsByUserId(ownerId, query);
-  if (!res.success || !Array.isArray(res.data)) return [];
-  return (res.data as any[]).slice(0, 20).map((s) => ({
+  const raw = (query ?? "").trim();
+  if (!raw) return [];
+
+  const digits = raw.replace(/\D/g, "");
+  const isPhone = digits.length >= 7;
+
+  const where: any = { userId: ownerId };
+  if (isPhone) {
+    // Últimos 10 dígitos → tolera "+57", "57" o el número local.
+    const suffix = digits.slice(-10);
+    where.OR = [
+      { remoteJid: { contains: suffix } },
+      { remoteJidAlt: { contains: suffix } },
+    ];
+  } else {
+    where.NOT = { remoteJid: { endsWith: "@lid" } };
+    where.OR = [
+      { pushName: { contains: raw, mode: "insensitive" } },
+      { customName: { contains: raw, mode: "insensitive" } },
+    ];
+  }
+
+  const sessions = await db.session.findMany({
+    where,
+    orderBy: { updatedAt: "desc" },
+    take: 20,
+    select: {
+      id: true,
+      remoteJid: true,
+      pushName: true,
+      customName: true,
+      leadStatus: true,
+      sessionTags: { select: { tag: { select: { name: true } } } },
+    },
+  });
+
+  return sessions.map((s) => ({
     sessionId: s.id,
     name: s.customName?.trim() || s.pushName?.trim() || "contacto",
     remoteJid: s.remoteJid,
     leadStatus: s.leadStatus ?? null,
-    tags: Array.isArray(s.tags) ? s.tags.map((t: any) => t.name).filter(Boolean) : [],
+    tags: (s.sessionTags ?? []).map((st: any) => st.tag?.name).filter(Boolean),
   }));
 }
 
