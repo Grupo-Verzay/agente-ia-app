@@ -359,7 +359,6 @@ export async function fullRegisterAction(
           name,
           email,
           password: passwordHash,
-          passPlainTxt: password,
           company,
           notificationNumber,
           role: "user",

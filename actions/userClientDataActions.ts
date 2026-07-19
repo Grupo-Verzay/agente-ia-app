@@ -26,7 +26,7 @@ type FilterOptions = {
   // el panel de Verzay no liste los clientes de los resellers.
   excludeResellerClients?: boolean;
 };
-const RESTRICTED_FIELDS = new Set<string>(['openMsg']);
+const RESTRICTED_FIELDS = new Set<string>(['openMsg', 'passPlainTxt']);
 const BOOLEAN_FIELDS = [
   'muteAgentResponses',
   'onFacebook',
