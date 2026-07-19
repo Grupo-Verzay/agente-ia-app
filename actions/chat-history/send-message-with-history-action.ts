@@ -117,6 +117,20 @@ function inferEventType(text: string, additionalKwargs?: Record<string, unknown>
 }
 
 function isAdvisorRequestNotification(text: string, additionalKwargs?: Record<string, unknown>) {
+  // Señal explícita del emisor: cuando la notificación declara su naturaleza
+  // (p. ej. una cita agendada) no debe reclasificarse por coincidencia de
+  // palabras clave. Evita que "Asesoría"/"asesor" en el nombre del servicio o
+  // en el texto de confirmación convierta una cita en "Solicitud de asesor".
+  if (typeof additionalKwargs?.advisorRequest === 'boolean') {
+    return additionalKwargs.advisorRequest;
+  }
+  const explicitKind = String(
+    additionalKwargs?.eventType ?? additionalKwargs?.kind ?? additionalKwargs?.type ?? '',
+  ).toLowerCase();
+  if (/\b(cita|agenda|booking|appointment|pago|pedido|orden|reclamo)\b/.test(explicitKind)) {
+    return false;
+  }
+
   const haystack = [
     text,
     additionalKwargs?.eventType,
@@ -172,6 +186,14 @@ function buildInternalNotificationContext(message: string, additionalKwargs?: Re
 }
 
 function buildInternalNotificationText(message: string, additionalKwargs?: Record<string, unknown>) {
+  // Mensajes ya formateados por el emisor (p. ej. la notificación de cita del
+  // agente, con fecha/servicio/especialista) se envían tal cual en canales de
+  // texto libre; reformatearlos descartaría esos detalles y podría reducirlos a
+  // la plantilla genérica de "Solicitud de asesor".
+  if (additionalKwargs?.preformatted === true) {
+    return message;
+  }
+
   const context = buildInternalNotificationContext(message, additionalKwargs);
 
   if (context.isAdvisorRequest) {

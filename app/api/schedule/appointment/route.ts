@@ -227,7 +227,14 @@ async function runPostAppointmentTasks({
           remoteJid: ownerJid,
           message: ownerText,
           historyType: 'notification',
-          additionalKwargs: { source: 'ScheduleApiAgent', recipient: 'owner', serviceId },
+          additionalKwargs: {
+            source: 'ScheduleApiAgent',
+            recipient: 'owner',
+            serviceId,
+            eventType: 'Cita',
+            advisorRequest: false,
+            preformatted: true,
+          },
         });
         if (result.success) {
           console.log(`[schedule/notification] NotificaciÃ³n al asesor enviada a ${ownerPhone}`);
