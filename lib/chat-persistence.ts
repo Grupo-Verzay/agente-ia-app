@@ -908,14 +908,28 @@ export async function getPersistedInboxChats(params: {
   await ensureChatMessagesTable();
 
   const __t0 = performance.now();
-  // Equivale exactamente al FULL OUTER JOIN de antes, pero descompuesto en
-  //   (chat_conversations LEFT JOIN Session)  UNION ALL  (Session sin conversación)
-  // Esa forma SÍ permite nested-loop con índices (lineal) en lugar del cruce
-  // cuadrático que forzaba el FULL JOIN (unido solo por userId). Mismas columnas,
-  // mismo DISTINCT ON y mismo orden → mismos resultados.
+  // Mapa instanceId -> instanceName resuelto UNA sola vez por llamada. Antes esto
+  // vivía como un EXISTS correlacionado contra "Instancias" DENTRO del JOIN, y se
+  // evaluaba por cada combinación conversación × sesión (millones de veces). Ahora
+  // se pasa como lista literal al query y el planificador lo resuelve con un hash.
+  const instRows = await db.instancia.findMany({
+    where: { userId: { in: userIds } },
+    select: { userId: true, instanceId: true, instanceName: true },
+  });
+  const instMapExtra = instRows.length
+    ? Prisma.sql`, ${Prisma.join(
+        instRows.map((r) => Prisma.sql`(${r.userId}, ${r.instanceId}, ${r.instanceName})`),
+      )}`
+    : Prisma.empty;
+  // El emparejamiento conversación↔sesión se descompone en igualdades simples:
+  // 2 claves de la sesión (remoteJid, remoteJidAlt) × 3 de la conversación
+  // (remoteJid, remoteJidAlt, senderPn) = exactamente las 6 reglas del OR anterior,
+  // pero unidas por UN SOLO hash join (índice-friendly) en lugar del JOIN con 6
+  // ORs + EXISTS que obligaba a un nested-loop cuadrático. Mismas columnas, mismo
+  // DISTINCT ON y mismo orden que antes → mismos resultados (verificado con un
+  // dataset de equivalencia: todas las reglas, multi-match, Meta, aislamiento).
   const rows = await db.$queryRaw<InboxRow[]>`
-    WITH merged AS (
-      -- Cada conversación con su sesión emparejada (o NULL): cubre "c con s" y "c sin s"
+    WITH conv AS (
       SELECT
         c."id" AS c_id, c."userId" AS c_user, c."instanceName" AS c_instance,
         c."instanceType" AS c_instance_type, c."remoteJid" AS c_jid,
@@ -924,31 +938,63 @@ export async function getPersistedInboxChats(params: {
         c."lastMessageType" AS c_msg_type, c."lastMessageContent" AS c_content,
         c."lastMessageMediaUrl" AS c_media, c."lastMessageRaw" AS c_raw,
         c."lastMessageTimestamp" AS c_ts, c."lastMessageDeleted" AS c_deleted,
-        c."updatedAt" AS c_updated,
+        c."updatedAt" AS c_updated
+      FROM "chat_conversations" c
+      WHERE c."userId" IN (${Prisma.join(userIds)})
+    ),
+    sess AS (
+      SELECT
         s."id" AS s_id, s."userId" AS s_user, s."instanceId" AS s_instance,
         s."remoteJid" AS s_jid, s."remoteJidAlt" AS s_alt, s."pushName" AS s_push,
         s."updatedAt" AS s_updated
-      FROM "chat_conversations" c
-      LEFT JOIN "Session" s
-        ON s."userId" = c."userId"
-        AND (
-          s."instanceId" = c."instanceName"
-          OR EXISTS (
-            SELECT 1 FROM "Instancias" si
-            WHERE si."userId" = s."userId"
-              AND si."instanceId" = s."instanceId"
-              AND si."instanceName" = c."instanceName"
-          )
-        )
-        AND (
-          s."remoteJid" = c."remoteJid"
-          OR s."remoteJid" = c."remoteJidAlt"
-          OR s."remoteJid" = c."senderPn"
-          OR (s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" = c."remoteJid")
-          OR (s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" = c."remoteJidAlt")
-          OR (s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" = c."senderPn")
-        )
-      WHERE c."userId" IN (${Prisma.join(userIds)})
+      FROM "Session" s
+      WHERE s."userId" IN (${Prisma.join(userIds)})
+    ),
+    -- Mapa (userId, instanceId, instanceName) como lista literal. La fila centinela
+    -- (NULL,NULL,NULL) fija los tipos a text y nunca casa (NULL <> nada).
+    inst_map(user_id, instance_id, instance_name) AS (
+      VALUES (NULL::text, NULL::text, NULL::text)${instMapExtra}
+    ),
+    -- Cada sesión con los nombres de instancia con los que puede casar: su propio
+    -- instanceId + el/los instanceName mapeados en Instancias.
+    sess_named AS (
+      SELECT s_id, s_user, s_jid, s_alt, s_instance AS inst_name FROM sess
+      UNION
+      SELECT sess.s_id, sess.s_user, sess.s_jid, sess.s_alt, im.instance_name
+      FROM sess
+      JOIN inst_map im ON im.user_id = sess.s_user AND im.instance_id = sess.s_instance
+    ),
+    -- Claves de emparejamiento "desapiladas": una fila por (entidad, clave).
+    sess_keys AS (
+      SELECT s_id, s_user, inst_name, s_jid AS k FROM sess_named
+      UNION ALL
+      SELECT s_id, s_user, inst_name, s_alt FROM sess_named WHERE s_alt IS NOT NULL
+    ),
+    conv_keys AS (
+      SELECT c_id, c_user, c_instance, c_jid AS k FROM conv
+      UNION ALL
+      SELECT c_id, c_user, c_instance, c_alt FROM conv WHERE c_alt IS NOT NULL
+      UNION ALL
+      SELECT c_id, c_user, c_instance, c_sender FROM conv WHERE c_sender IS NOT NULL
+    ),
+    -- Pares (conversación, sesión) que casan: mismo usuario + misma instancia +
+    -- alguna clave en común. Un único hash join en vez del cruce con 6 ORs.
+    pairs AS (
+      SELECT DISTINCT ck.c_id, sk.s_id
+      FROM conv_keys ck
+      JOIN sess_keys sk
+        ON sk.s_user = ck.c_user AND sk.inst_name = ck.c_instance AND sk.k = ck.k
+    ),
+    merged AS (
+      -- Cada conversación con su sesión emparejada (o NULL): cubre "c con s" y "c sin s"
+      SELECT
+        c.c_id, c.c_user, c.c_instance, c.c_instance_type, c.c_jid, c.c_alt, c.c_sender,
+        c.c_push, c.c_msg_id, c.c_from_me, c.c_msg_type, c.c_content, c.c_media, c.c_raw,
+        c.c_ts, c.c_deleted, c.c_updated,
+        s.s_id, s.s_user, s.s_instance, s.s_jid, s.s_alt, s.s_push, s.s_updated
+      FROM conv c
+      LEFT JOIN pairs p ON p.c_id = c.c_id
+      LEFT JOIN sess s ON s.s_id = p.s_id
 
       UNION ALL
 
@@ -962,32 +1008,9 @@ export async function getPersistedInboxChats(params: {
         NULL::text AS c_media, NULL::jsonb AS c_raw,
         NULL::timestamp(3) AS c_ts, NULL::boolean AS c_deleted,
         NULL::timestamp(3) AS c_updated,
-        s."id" AS s_id, s."userId" AS s_user, s."instanceId" AS s_instance,
-        s."remoteJid" AS s_jid, s."remoteJidAlt" AS s_alt, s."pushName" AS s_push,
-        s."updatedAt" AS s_updated
-      FROM "Session" s
-      WHERE s."userId" IN (${Prisma.join(userIds)})
-        AND NOT EXISTS (
-          SELECT 1 FROM "chat_conversations" c
-          WHERE c."userId" = s."userId"
-            AND (
-              s."instanceId" = c."instanceName"
-              OR EXISTS (
-                SELECT 1 FROM "Instancias" si
-                WHERE si."userId" = s."userId"
-                  AND si."instanceId" = s."instanceId"
-                  AND si."instanceName" = c."instanceName"
-              )
-            )
-            AND (
-              s."remoteJid" = c."remoteJid"
-              OR s."remoteJid" = c."remoteJidAlt"
-              OR s."remoteJid" = c."senderPn"
-              OR (s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" = c."remoteJid")
-              OR (s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" = c."remoteJidAlt")
-              OR (s."remoteJidAlt" IS NOT NULL AND s."remoteJidAlt" = c."senderPn")
-            )
-        )
+        s.s_id, s.s_user, s.s_instance, s.s_jid, s.s_alt, s.s_push, s.s_updated
+      FROM sess s
+      WHERE NOT EXISTS (SELECT 1 FROM pairs p WHERE p.s_id = s.s_id)
     ),
     inbox_rows AS (
       SELECT DISTINCT ON (
@@ -1024,7 +1047,11 @@ export async function getPersistedInboxChats(params: {
         COALESCE(m.c_user, m.s_user),
         COALESCE(m.c_instance, i."instanceName", m.s_instance),
         COALESCE(m.c_jid, m.s_jid),
-        COALESCE(m.c_ts, m.s_updated) DESC
+        COALESCE(m.c_ts, m.s_updated) DESC,
+        -- Desempate determinista cuando una conversación casa con varias sesiones
+        -- (antes la sesión elegida era arbitraria/plan-dependiente): gana la más
+        -- recientemente actualizada, luego el id mayor.
+        m.s_updated DESC NULLS LAST, m.s_id DESC NULLS LAST
     )
     SELECT *
     FROM inbox_rows

@@ -5,6 +5,7 @@ import { currentUser } from "@/lib/auth";
 import { getApiKeyById } from "@/actions/api-action";
 import { fetchChatsFromEvolution } from "@/actions/chat-actions";
 import { fetchChatsFromBaileys } from "@/actions/baileys-chat-actions";
+import { isEvolutionRestInstance } from "@/lib/instance-display-name";
 
 export type NotificationKind =
   | "task"
@@ -127,11 +128,15 @@ export async function getNotificationCenterData(): Promise<{
     // Chats sin leer: mensajes con unreadCount > 0 en Evolution/Baileys (bajan a 0 al abrir el chat)
     let unreadChats: { remoteJid: string; pushName?: string | null; updatedAt?: string | null }[] = [];
     if (instances.length > 0 && owner?.apiKeyId) {
+      // Solo instancias servibles por Evolution/Baileys. El último fallback ya NO
+      // es instances[0]: si solo hay Meta/Telegram, no se llama al endpoint de
+      // Evolution (daba 404 "Cannot GET /chat/findChats/<meta>"); esos chats se
+      // leen del store unificado, no de aquí.
       const instance =
         instances.find((i) => i.instanceType === "Whatsapp") ??
         instances.find((i) => i.instanceType == null) ??
         instances.find((i) => i.instanceType === "baileys") ??
-        instances[0];
+        instances.find((i) => isEvolutionRestInstance(i.instanceType));
 
       if (instance) {
         const resApikey = await getApiKeyById(owner.apiKeyId);

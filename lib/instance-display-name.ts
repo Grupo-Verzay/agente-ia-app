@@ -60,6 +60,20 @@ export function isMetaWhatsAppInstance(instanceType?: string | null, metaChannel
   return type === 'meta' && (!channel || channel === 'whatsapp');
 }
 
+/**
+ * ¿Se le puede pedir chats al endpoint REST de Evolution (/chat/findChats/...)?
+ * Las instancias de Meta y Telegram NO viven en Evolution: llamarlas allí devuelve
+ * 404 ("Cannot GET /chat/findChats/<meta>") y ensucia los logs. Sus chats se leen
+ * del store unificado (fetchChannelChats), no de aquí. Baileys sí es Evolution-like
+ * pero tiene su propia ruta (fetchChatsFromBaileys); esta función lo considera
+ * apto y quien la use decide la ruta. Todo lo demás (Whatsapp, evolution, null) es
+ * Evolution clásico.
+ */
+export function isEvolutionRestInstance(instanceType?: string | null): boolean {
+  const type = instanceType?.trim().toLowerCase();
+  return type !== 'meta' && type !== 'telegram';
+}
+
 export function getInstanceUiDisplayName(args: {
   instanceName?: string | null;
   displayName?: string | null;
