@@ -185,6 +185,199 @@ export async function appendOwnerTrainingInstruction(params: {
   };
 }
 
+/**
+ * Edita una instrucción existente del entrenamiento (por su id de step) y publica
+ * una nueva revisión. Como todo cambio, queda snapshot para rollback.
+ */
+export async function updateOwnerTrainingInstruction(params: {
+  ownerId: string;
+  agentId?: string;
+  stepId: string;
+  title?: string;
+  instruction?: string;
+}): Promise<OwnerActionResult<{ promptId: string; stepId: string; revisionNumber: number }>> {
+  const agentId = params.agentId ?? DEFAULT_AGENT_ID;
+  const prompt = await loadPrompt(params.ownerId, agentId);
+  if (!prompt) {
+    return { ok: false, status: 404, message: "Esta cuenta no tiene entrenamiento configurado." };
+  }
+
+  const applyEdit = (steps: any[]) => {
+    let found = false;
+    const next = steps.map((s) => {
+      if (String(s.id) !== params.stepId) return s;
+      found = true;
+      return {
+        ...s,
+        title:
+          params.title !== undefined ? params.title.trim() || s.title : s.title,
+        mainMessage:
+          params.instruction !== undefined ? params.instruction : s.mainMessage,
+      };
+    });
+    return { next, found };
+  };
+
+  const first = applyEdit(readSteps(prompt.sections));
+  if (!first.found) {
+    return {
+      ok: false,
+      status: 404,
+      message: "No encontré esa instrucción en el entrenamiento. Pídeme la lista para ver cuáles hay.",
+    };
+  }
+
+  let patchRes = await patchTrainingSection({
+    promptId: prompt.id,
+    version: prompt.version,
+    data: { steps: first.next },
+  });
+
+  if (!patchRes.ok && (patchRes as any).conflict) {
+    const fresh = await loadPrompt(params.ownerId, agentId);
+    if (fresh) {
+      const retry = applyEdit(readSteps(fresh.sections));
+      if (!retry.found) {
+        return { ok: false, status: 404, message: "No encontré esa instrucción en el entrenamiento." };
+      }
+      patchRes = await patchTrainingSection({
+        promptId: fresh.id,
+        version: fresh.version,
+        data: { steps: retry.next },
+      });
+    }
+  }
+
+  if (!patchRes.ok) {
+    return {
+      ok: false,
+      status: 409,
+      message: "No se pudo actualizar el entrenamiento (conflicto de versión). Intenta de nuevo.",
+    };
+  }
+
+  const updated = patchRes.data;
+  const pub = await publishPrompt({
+    promptId: updated.id,
+    version: updated.version,
+    publishedBy: params.ownerId,
+    note: "Instrucción editada desde WhatsApp (modo dueño)",
+  });
+  if (!pub.ok) {
+    return { ok: false, status: 502, message: pub.error ?? "No se pudo publicar el entrenamiento." };
+  }
+
+  await writeAuditLog({
+    userId: params.ownerId,
+    actorId: params.ownerId,
+    entityType: "note",
+    entityId: updated.id,
+    action: "updated",
+    summary: "Editó una instrucción del entrenamiento desde WhatsApp (modo dueño)",
+    metadata: {
+      source: "owner-command",
+      kind: "training-instruction-edit",
+      stepId: params.stepId,
+      revisionNumber: pub.data.revision.revisionNumber,
+    },
+  });
+
+  return {
+    ok: true,
+    data: { promptId: updated.id, stepId: params.stepId, revisionNumber: pub.data.revision.revisionNumber },
+  };
+}
+
+/**
+ * Elimina una instrucción del entrenamiento (por su id de step) y publica una
+ * nueva revisión. Reversible: la instrucción queda en el snapshot anterior.
+ */
+export async function deleteOwnerTrainingInstruction(params: {
+  ownerId: string;
+  agentId?: string;
+  stepId: string;
+}): Promise<OwnerActionResult<{ promptId: string; stepId: string; revisionNumber: number }>> {
+  const agentId = params.agentId ?? DEFAULT_AGENT_ID;
+  const prompt = await loadPrompt(params.ownerId, agentId);
+  if (!prompt) {
+    return { ok: false, status: 404, message: "Esta cuenta no tiene entrenamiento configurado." };
+  }
+
+  const applyDelete = (steps: any[]) => {
+    const next = steps.filter((s) => String(s.id) !== params.stepId);
+    return { next, found: next.length !== steps.length };
+  };
+
+  const first = applyDelete(readSteps(prompt.sections));
+  if (!first.found) {
+    return {
+      ok: false,
+      status: 404,
+      message: "No encontré esa instrucción en el entrenamiento. Pídeme la lista para ver cuáles hay.",
+    };
+  }
+
+  let patchRes = await patchTrainingSection({
+    promptId: prompt.id,
+    version: prompt.version,
+    data: { steps: first.next },
+  });
+
+  if (!patchRes.ok && (patchRes as any).conflict) {
+    const fresh = await loadPrompt(params.ownerId, agentId);
+    if (fresh) {
+      const retry = applyDelete(readSteps(fresh.sections));
+      if (!retry.found) {
+        return { ok: false, status: 404, message: "No encontré esa instrucción en el entrenamiento." };
+      }
+      patchRes = await patchTrainingSection({
+        promptId: fresh.id,
+        version: fresh.version,
+        data: { steps: retry.next },
+      });
+    }
+  }
+
+  if (!patchRes.ok) {
+    return {
+      ok: false,
+      status: 409,
+      message: "No se pudo actualizar el entrenamiento (conflicto de versión). Intenta de nuevo.",
+    };
+  }
+
+  const updated = patchRes.data;
+  const pub = await publishPrompt({
+    promptId: updated.id,
+    version: updated.version,
+    publishedBy: params.ownerId,
+    note: "Instrucción eliminada desde WhatsApp (modo dueño)",
+  });
+  if (!pub.ok) {
+    return { ok: false, status: 502, message: pub.error ?? "No se pudo publicar el entrenamiento." };
+  }
+
+  await writeAuditLog({
+    userId: params.ownerId,
+    actorId: params.ownerId,
+    entityType: "note",
+    entityId: updated.id,
+    action: "updated",
+    summary: "Eliminó una instrucción del entrenamiento desde WhatsApp (modo dueño)",
+    metadata: {
+      source: "owner-command",
+      kind: "training-instruction-delete",
+      stepId: params.stepId,
+      revisionNumber: pub.data.revision.revisionNumber,
+    },
+  });
+
+  return {
+    ok: true,
+    data: { promptId: updated.id, stepId: params.stepId, revisionNumber: pub.data.revision.revisionNumber },
+  };
+}
+
 /** Restaura el entrenamiento a una revisión previa y la republica (rollback). */
 export async function restoreOwnerTraining(params: {
   ownerId: string;
