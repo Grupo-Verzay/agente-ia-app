@@ -284,6 +284,12 @@ export async function sendMessageWithHistoryAction({
     return { success: false, message: 'Mensaje vacio.', error: 'Mensaje vacio.' };
   }
 
+  // Instrumentación del envío desde el panel (#2a): mide dónde se va el tiempo
+  // entre el click del asesor y la llamada a Evolution. La hipótesis es que el
+  // trabajo previo en BD (resolver la línea) se encolaba detrás del pool saturado
+  // por getPersistedInboxChats; sólo se loguea si es lento para no ensuciar.
+  const __t0 = performance.now();
+
   const formatInternalNotification = shouldFormatAsInternalNotification(
     historyType,
     message,
@@ -296,6 +302,7 @@ export async function sendMessageWithHistoryAction({
       : message;
 
   const dispatcher = await resolveWhatsAppDispatcherLineByInstanceName(instanceName);
+  const __tDispatcher = performance.now();
   if (dispatcher && dispatcher.provider !== 'evolution') {
     if (dispatcher.provider === 'meta' && formatInternalNotification) {
       const templateResult = await sendMetaInternalNotificationTemplate({
@@ -356,6 +363,15 @@ export async function sendMessageWithHistoryAction({
       responseMetadata,
     },
   });
+
+  const __tSend = performance.now();
+  if (__tSend - __t0 > 1500) {
+    console.error(
+      `[PERF] sendMessageWithHistoryAction ${Math.round(__tSend - __t0)}ms ` +
+        `(prep+línea=${Math.round(__tDispatcher - __t0)}ms, evolution=${Math.round(__tSend - __tDispatcher)}ms) ` +
+        `instance=${instanceName}`,
+    );
+  }
 
   if (!result.success) {
     return {
