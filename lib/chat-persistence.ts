@@ -792,13 +792,30 @@ export async function persistEvolutionMessages(params: {
   for (let i = 0; i < toPersist.length; i += PERSIST_CONCURRENCY) {
     const batch = toPersist.slice(i, i + PERSIST_CONCURRENCY);
     await Promise.all(
-      batch.map((message) =>
-        persistChatMessage({
+      batch.map((message) => {
+        // Identidad canónica del mensaje. El eco de un saliente que devuelve
+        // Evolution puede venir SOLO con @lid en key.remoteJid (sin el número real
+        // entre los candidatos), y entonces se guardaba bajo @lid, duplicando el
+        // mismo mensaje (mismo messageId, fromMe=true) que el panel ya había
+        // guardado bajo el número real. Aquí SIEMPRE conocemos el JID canónico de
+        // la conversación (params.remoteJid), así que lo damos como candidato para
+        // que gane el número real cuando exista; el @lid pasa a remoteJidAlt, nunca
+        // como clave. Así el eco choca por ON CONFLICT en vez de duplicar.
+        const rawMsgJid = message.key?.remoteJid || params.remoteJid;
+        const canonicalMsgJid = normalizeStoredRemoteJid(rawMsgJid, [
+          message.key?.remoteJidAlt,
+          message.key?.senderPn,
+          message.senderPn,
+          params.remoteJid,
+        ]);
+        const altFromRaw =
+          rawMsgJid && rawMsgJid !== canonicalMsgJid ? rawMsgJid : undefined;
+        return persistChatMessage({
           userId: params.userId,
           instanceName: params.instanceName,
           instanceType: params.instanceType ?? 'evolution',
-          remoteJid: message.key?.remoteJid || params.remoteJid,
-          remoteJidAlt: message.key?.remoteJidAlt,
+          remoteJid: canonicalMsgJid,
+          remoteJidAlt: message.key?.remoteJidAlt || altFromRaw,
           senderPn: message.key?.senderPn || message.senderPn,
           messageId: message.key?.id || message.id,
           fromMe: Boolean(message.key?.fromMe),
@@ -811,8 +828,8 @@ export async function persistEvolutionMessages(params: {
         }).catch((error) => {
           // Una falla puntual no debe abortar el resto del lote.
           console.error('[chat-persistence] persistChatMessage falló:', error);
-        }),
-      ),
+        });
+      }),
     );
   }
 }
