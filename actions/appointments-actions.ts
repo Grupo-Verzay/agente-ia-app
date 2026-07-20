@@ -109,6 +109,19 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
     }
 
     try {
+        // El servicio debe existir y pertenecer a la cuenta; si no, el create
+        // fallaría con un error de clave foránea genérico. Avisamos claro.
+        const service = await db.service.findFirst({
+            where: { id: serviceId, userId },
+            select: { id: true },
+        });
+        if (!service) {
+            return {
+                success: false,
+                message: 'El servicio seleccionado ya no existe. Actualiza la página y vuelve a elegirlo.',
+            };
+        }
+
         // Validar tiempo mínimo de anticipación
         const userNotice = await db.user.findUnique({ where: { id: userId }, select: { minNoticeMinutes: true } });
         if (userNotice && userNotice.minNoticeMinutes > 0) {
@@ -238,10 +251,20 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
         };
     } catch (error) {
         console.error('Error al crear la cita:', error);
-        return {
-            success: false,
-            message: 'Error al crear la cita.',
-        };
+        // Mensaje específico según el tipo de error para poder diagnosticar sin logs.
+        const code = (error as { code?: string })?.code;
+        let message = 'Error al crear la cita.';
+        if (code === 'P2003') {
+            message = 'El servicio o el contacto de la cita ya no existe. Actualiza la página y vuelve a intentarlo.';
+        } else if (code === 'P2002') {
+            message = 'Ya existe una cita con esos datos.';
+        } else if (code) {
+            message = `Error al crear la cita (${code}).`;
+        } else {
+            const raw = error instanceof Error ? error.message : String(error);
+            if (raw) message = `Error al crear la cita: ${raw.slice(0, 140)}`;
+        }
+        return { success: false, message };
     }
 }
 
