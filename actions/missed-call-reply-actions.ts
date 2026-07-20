@@ -125,6 +125,12 @@ export async function sendMissedOutgoingCallReply(
       url: `${normalizedBase}/message/sendText/${instanceName}`,
       apikey,
       historyType: 'notification',
+      // Va al CLIENTE: se envía tal cual (el texto de "llamada perdida" de la
+      // cuenta). Sin este flag, si el texto contenía palabras como "asesor" o
+      // "esperando tu respuesta", el reformateador lo convertía en la plantilla
+      // genérica "Solicitud de asesor / Sin número" y el cliente recibía eso en
+      // vez del mensaje real de la cuenta.
+      additionalKwargs: { recipient: 'client' },
     });
 
     // Persistir el saliente en el panel de Chats (chat_messages) además del
