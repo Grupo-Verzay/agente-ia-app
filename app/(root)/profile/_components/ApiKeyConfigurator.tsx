@@ -213,6 +213,19 @@ export function ApiKeyConfigurator({
     }, [showOrigin, userId, previewProviderId, previewApiKey]);
 
     const submit = async (data: FormValues) => {
+        // Validación de formato de la API key según el proveedor: evita guardar una
+        // URL, un teléfono u otro texto (causaba 401 silenciosos y degradaba el
+        // clasificador de leads). El servidor la revalida como barrera definitiva.
+        const providerName = (providers.find((p) => p.id === data.providerId)?.name ?? "").toLowerCase();
+        if (providerName === "openai" && !data.apiKey.trim().startsWith("sk-")) {
+            form.setError("apiKey", {
+                type: "manual",
+                message: 'La API key de OpenAI debe empezar por "sk-" (no pegues una URL ni un teléfono).',
+            });
+            toast.error('API key de OpenAI inválida: debe empezar por "sk-".');
+            return;
+        }
+
         setLoading(true);
         try {
             // 1) API key x usuario x provider (upsert)
