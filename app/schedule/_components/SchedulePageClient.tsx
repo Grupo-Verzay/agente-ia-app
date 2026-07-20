@@ -156,6 +156,26 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
             return false;
         }
 
+        // El horario pudo dejar de estar disponible mientras el cliente llenaba el
+        // formulario (lo tomó otra persona, o entró en el mínimo de anticipación).
+        // Revalidamos antes de crear para no dejarlo en un error sin salida.
+        const revalidacion = await getAvailableSlots(user.id as string, selectedDateYmd, slotDuration, ownerTimezone);
+        if (revalidacion.success) {
+            const vigentes = revalidacion.data || [];
+            const sigueLibre = vigentes.some((s) => s.startTime === startTime && s.endTime === endTime);
+            if (!sigueLibre) {
+                setSlots(vigentes);
+                setSelectedSlot(null);
+                setStep(2);
+                toast.error(
+                    vigentes.length
+                        ? "Ese horario ya no está disponible. Elige otro, por favor."
+                        : "Ya no quedan horarios disponibles ese día. Elige otra fecha."
+                );
+                return false;
+            }
+        }
+
         const remoteJid = toRemoteJid(e164);
 
         setLoading(true);
