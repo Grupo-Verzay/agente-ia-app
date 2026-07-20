@@ -20,6 +20,7 @@ import { Session, SessionsContentProps } from "@/types/session";
 import { FilterLeadsByStats, FilterSessionTypes, SessionStatsInterface } from "./FilterLeadsByStats";
 import { CreateContactDialog } from "./CreateContactDialog";
 import { getSessionsForExport } from "@/actions/export-actions";
+import { syncAllContactsToGoogleSheets } from "@/actions/google-sheets-actions";
 import { toast } from "sonner";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import { formatContactDisplayName } from "@/lib/contact-display-name";
@@ -211,6 +212,7 @@ export function SessionsContent({ userId, allTags }: SessionsContentProps) {
               onClearHistory={clearAllHistory}
               onClearSeguimientos={deleteSeguimientosByInstanceName}
               onCleanupJunk={cleanupJunkSessions}
+              onSyncSheets={syncAllContactsToGoogleSheets}
               onSuccess={() => { mutate(); router.refresh(); }}
             />
           </div>

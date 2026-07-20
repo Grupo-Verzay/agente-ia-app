@@ -31,7 +31,8 @@ import {
     Trash2,
     History,
     MoreHorizontal,
-    Eraser
+    Eraser,
+    Sheet as SheetIcon
 } from 'lucide-react'
 
 type BulkActionType = 'activate' | 'deactivate' | 'deleteAll' | 'clearHistory' | 'clearSeguimientos' | 'cleanupJunk'
@@ -45,6 +46,7 @@ interface BulkActionsDropdownProps {
     onClearHistory: (userId: string) => Promise<unknown>
     onClearSeguimientos: (userId: string) => Promise<unknown>
     onCleanupJunk?: (userId: string) => Promise<unknown>
+    onSyncSheets?: (userId: string) => Promise<unknown>
     onSuccess?: () => void
 }
 
@@ -56,11 +58,31 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
     onClearHistory,
     onClearSeguimientos,
     onCleanupJunk,
+    onSyncSheets,
     onSuccess,
 }) => {
     const [dialogOpen, setDialogOpen] = useState(false)
     const [actionType, setActionType] = useState<BulkActionType | null>(null)
     const [confirmationText, setConfirmationText] = useState('')
+
+    // La sincronización a Sheets NO es destructiva: se ejecuta directo, con toast.
+    const runSyncSheets = async () => {
+        if (!onSyncSheets) return
+        const toastId = 'sync-sheets'
+        toast.loading('Sincronizando a Google Sheets...', { id: toastId })
+        try {
+            const result = (await onSyncSheets(userId)) as { success?: boolean; message?: string }
+            if (result?.success) {
+                toast.success(result.message || 'Sincronizado con Google Sheets', { id: toastId })
+                onSuccess?.()
+            } else {
+                toast.error(result?.message || 'No se pudo sincronizar', { id: toastId })
+            }
+        } catch (error) {
+            console.error('Error al sincronizar a Google Sheets:', error)
+            toast.error('Error inesperado al sincronizar', { id: toastId })
+        }
+    }
 
     const actionMap: Record<BulkActionType, {
         label: string
@@ -169,6 +191,15 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
                         <FileDown className="mr-2 h-4 w-4" />
                         Exportar a Excel
                     </DropdownMenuItem>
+                    {onSyncSheets && (
+                        <DropdownMenuItem
+                            onClick={runSyncSheets}
+                            className="text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/40"
+                        >
+                            <SheetIcon className="mr-2 h-4 w-4" />
+                            Sincronizar a Google Sheets
+                        </DropdownMenuItem>
+                    )}
 
                     <DropdownMenuSeparator />
 
