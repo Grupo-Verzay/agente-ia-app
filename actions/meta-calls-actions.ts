@@ -41,6 +41,44 @@ async function getMetaInstance(instanceName?: string) {
   };
 }
 
+/**
+ * Resuelve con qué instancia/proveedor debe llamarse desde la CUENTA que se
+ * está gestionando (cuenta efectiva/dueña), sin depender de que el call site
+ * pase la instancia. Así llamar funciona igual desde Chats, CRM u otras
+ * secciones, y en cuentas administradas/vinculadas usa el número de esa cuenta.
+ *
+ * - Si la cuenta tiene WhatsApp Cloud API (Meta) con credenciales → llama por Meta.
+ * - Si no → devuelve vacío y el diálogo usa el número de llamadas (AstraCalls).
+ */
+export async function getPreferredCallInstance(): Promise<{
+  instanceType?: string;
+  instanceName?: string;
+}> {
+  const me = await currentUser();
+  if (!me?.id) return {};
+
+  const userId = me.ownerId ?? me.effectiveId ?? me.id;
+
+  const inst = await db.instancia.findFirst({
+    where: {
+      userId,
+      instanceType: 'meta',
+      metaChannel: 'whatsapp',
+    } as any,
+    select: {
+      instanceName: true,
+      metaPhoneNumberId: true,
+      metaAccessToken: true,
+    } as any,
+  });
+
+  if (inst?.metaPhoneNumberId && inst?.metaAccessToken) {
+    return { instanceType: 'meta', instanceName: (inst as any).instanceName as string };
+  }
+
+  return {};
+}
+
 export async function startMetaWhatsAppCall(params: {
   instanceName?: string;
   phone: string;

@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { startAstraCall, astraCallWebrtc, endAstraCall, logOutgoingCallAction } from '@/actions/astracalls-actions';
-import { endMetaWhatsAppCall, getMetaWhatsAppCallAnswer, startMetaWhatsAppCall } from '@/actions/meta-calls-actions';
+import { endMetaWhatsAppCall, getMetaWhatsAppCallAnswer, startMetaWhatsAppCall, getPreferredCallInstance } from '@/actions/meta-calls-actions';
 import { setCallDisposition } from '@/actions/calls-crm-actions';
 import { sendMissedOutgoingCallReply } from '@/actions/missed-call-reply-actions';
 import { processCallRecordingAction, processMetaCallRecordingAction } from '@/actions/calls-recording-actions';
@@ -46,6 +46,9 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
   const micRef = useRef<MediaStream | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const callRef = useRef<{ provider: 'astra'; sid: string; callId: string } | { provider: 'meta'; callId: string } | null>(null);
+  // Instancia Meta realmente usada para esta llamada (puede resolverse en
+  // runtime cuando el call site no la pasa). Se usa al colgar/limpiar.
+  const metaInstanceRef = useRef<string | undefined>(instanceName);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const answerPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -153,7 +156,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
   const hangup = useCallback(() => {
     const c = callRef.current;
     if (c?.provider === 'astra') void endAstraCall(c.sid, c.callId);
-    if (c?.provider === 'meta') void endMetaWhatsAppCall({ instanceName, callId: c.callId });
+    if (c?.provider === 'meta') void endMetaWhatsAppCall({ instanceName: metaInstanceRef.current ?? instanceName, callId: c.callId });
     callRef.current = null;
     cleanup();
   }, [cleanup, instanceName]);
@@ -294,8 +297,26 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     setMuted(false);
     setNoAnswer(false);
 
+    // Resolver la instancia/número desde el cual se llama. Si el call site ya
+    // la pasó (Chats), se usa esa. Si no (CRM, "devolver llamada", otras
+    // secciones), se resuelve la de la cuenta que se está gestionando (cuenta
+    // efectiva), para que llamar funcione en cualquier cuenta administrada.
+    let effType = instanceType;
+    let effName = instanceName;
+    if (!effType && !effName) {
+      try {
+        const pref = await getPreferredCallInstance();
+        if (cancelledRef.current) return;
+        effType = pref.instanceType;
+        effName = pref.instanceName;
+      } catch {
+        /* si falla, cae al proveedor por defecto (AstraCalls) */
+      }
+    }
+    metaInstanceRef.current = effName;
+
     // 1) Crear la llamada en AstraCalls
-    if (instanceType === 'meta') {
+    if (effType === 'meta') {
       try {
         const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
         if (cancelledRef.current) { mic.getTracks().forEach((t) => t.stop()); return; }
@@ -329,7 +350,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
         });
 
         const started = await startMetaWhatsAppCall({
-          instanceName,
+          instanceName: effName,
           phone,
           sdpOffer: pc.localDescription!.sdp,
         });
@@ -348,7 +369,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
         for (let attempt = 0; attempt < 20; attempt += 1) {
           if (cancelledRef.current) return;
           const answer = await getMetaWhatsAppCallAnswer({
-            instanceName,
+            instanceName: effName,
             callId: started.callId,
           });
           if (answer.success && answer.sdpAnswer) {
@@ -540,7 +561,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="w-[calc(100%-2rem)] max-w-sm overflow-x-hidden z-[70]">
         <DialogHeader>
           <DialogTitle>Llamada por WhatsApp</DialogTitle>
         </DialogHeader>
@@ -636,7 +657,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
           )}
 
           {/* Acciones principales */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
             {finished && (
               <Button
                 variant="secondary"
