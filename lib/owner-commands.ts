@@ -182,6 +182,72 @@ export async function listOwnerAppointments(
   }));
 }
 
+export type OwnerTaskItem = {
+  id: number;
+  title: string;
+  type: string;
+  dueDate: string;
+  status: string;
+  contactName: string | null;
+  phone: string | null;
+  assignedTo: string | null;
+};
+
+/**
+ * Lista las tareas del dueño con DETALLE (título, tipo, vencimiento, contacto,
+ * responsable). Solo lectura. scope: "pending" (todas las pendientes, por defecto)
+ * o "today" (pendientes que vencen hoy). El resumen solo daba el conteo.
+ */
+export async function listOwnerTasks(
+  ownerId: string,
+  opts?: { scope?: "pending" | "today"; limit?: number },
+): Promise<OwnerTaskItem[]> {
+  const now = new Date();
+  const scope = opts?.scope ?? "pending";
+  const where: any = { ownerId, status: "pending" };
+  if (scope === "today") {
+    where.dueDate = {
+      gte: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0),
+      lte: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999),
+    };
+  }
+
+  const rows = await (db as any).task.findMany({
+    where,
+    orderBy: { dueDate: "asc" },
+    take: Math.min(Math.max(opts?.limit ?? 50, 1), 100),
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      dueDate: true,
+      status: true,
+      contactName: true,
+      contactJid: true,
+      assignedToName: true,
+      session: { select: { pushName: true, customName: true, remoteJid: true } },
+    },
+  });
+
+  return rows.map((r: any) => ({
+    id: r.id,
+    title: r.title,
+    type: r.type,
+    dueDate: r.dueDate.toISOString(),
+    status: r.status,
+    contactName:
+      r.contactName?.trim() ||
+      r.session?.customName?.trim() ||
+      r.session?.pushName?.trim() ||
+      null,
+    phone:
+      String(r.contactJid || r.session?.remoteJid || "")
+        .split("@")[0]
+        .replace(/\D/g, "") || null,
+    assignedTo: r.assignedToName?.trim() || null,
+  }));
+}
+
 // ── Fase 2 ──────────────────────────────────────────────────────────────────
 
 /** Verifica que la sesión (contacto) exista y pertenezca a la cuenta del dueño. */
