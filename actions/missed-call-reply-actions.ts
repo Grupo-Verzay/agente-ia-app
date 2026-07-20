@@ -26,7 +26,7 @@ export interface MissedCallReplyConfig {
 }
 
 const DEFAULT_MISSED_CALL_TEXT =
-  'Hola 👋 Te llamamos y no pudimos comunicarnos. Cuéntanos por aquí en qué podemos ayudarte y te atendemos enseguida.';
+  'Hola 👋 Te acabamos de *llamar* y no logramos comunicarnos. ¿Prefieres que te *devolvamos la llamada más tarde*, o que *sigamos la conversación por aquí?*\n\nLo que te resulte más cómodo; *quedamos atentos* a tu respuesta 🙌';
 
 /** Lee la configuración de "mensaje al no contestar" de la cuenta. */
 export async function getMissedCallReplyConfig(): Promise<MissedCallReplyConfig> {
