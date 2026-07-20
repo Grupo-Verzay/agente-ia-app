@@ -514,7 +514,7 @@ export function MacrosManager({ initialMacros, tags, quickReplies, advisors, wor
   return (
     <div className="flex h-full flex-col">
       {/* Métricas */}
-      <div className="mb-3 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+      <div className="mb-3 hidden sm:grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <MetricCard icon={<Zap className="h-4 w-4" />} label="Total" value={macros.length} helper="Macros creadas" color="#6366F1" />
         <MetricCard icon={<CheckCircle2 className="h-4 w-4" />} label="Activas" value={activeCount} helper="Macros habilitadas" color="#10B981" />
         <MetricCard icon={<List className="h-4 w-4" />} label="Acciones" value={totalActions} helper="Acciones en total" color="#3B82F6" />

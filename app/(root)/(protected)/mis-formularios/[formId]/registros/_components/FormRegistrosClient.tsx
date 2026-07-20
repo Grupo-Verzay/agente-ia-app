@@ -100,7 +100,7 @@ export function FormRegistrosClient({ form, initialSubmissions }: Props) {
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-2">
 
           {/* MetricCards */}
-          <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+          <div className="hidden sm:grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
             <div className="min-w-0">
               <MetricCard label="Total registros" value={total} icon={<ClipboardList className="h-4 w-4" />} color="#3B82F6" />
             </div>

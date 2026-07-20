@@ -185,7 +185,7 @@ export function MainIntegraciones({ initial }: { initial: UserIntegrationItem[] 
     return (
         <div className="flex h-full flex-col gap-3 p-4">
             {/* Métricas */}
-            <div className="grid shrink-0 grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+            <div className="hidden shrink-0 sm:grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
                 <MetricCard
                     icon={<Globe className="h-4 w-4" />}
                     label="Total"

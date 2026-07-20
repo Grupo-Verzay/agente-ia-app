@@ -53,7 +53,7 @@ export async function UserWorkflows({ userId, isPro, triggers = [], showSummary 
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-2">
             {showSummary && (
-                <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+                <div className="hidden sm:grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
                     <MetricCard
                         icon={<HomeIcon className="h-4 w-4" />}
                         label="Inicio"

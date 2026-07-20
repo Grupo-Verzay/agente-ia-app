@@ -41,7 +41,7 @@ export const MainProducts = ({ userId, data, initialFilter = '', limitInfo, stat
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
-            <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+            <div className="hidden shrink-0 sm:flex sm:flex-wrap sm:gap-3">
                 <div className="min-w-0 sm:flex-1">
                     <MetricCard icon={<Package className="h-4 w-4" />} label="Total productos" value={stats.total} helper="Productos registrados en el catálogo" color="#3B82F6" />
                 </div>
