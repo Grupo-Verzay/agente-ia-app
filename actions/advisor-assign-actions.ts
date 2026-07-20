@@ -3,6 +3,7 @@
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateConversationIntelligence } from "@/actions/conversation-intelligence-actions";
+import { autoSyncContactIfEnabled } from "@/actions/google-sheets-actions";
 
 type Result = { success: true; warning?: string } | { success: false; message: string };
 
@@ -199,6 +200,13 @@ export async function assignSessionToAdvisor(
 
   await logAssignment(sessionId, advisorId, auth.userId, advisorId ? "assigned" : "released");
   void triggerAdvisorAutomations(sessionId, advisorId);
+
+  // Auto-sync a Google Sheets (opt-in): cambió el asesor del contacto.
+  const assigned = await db.session.findUnique({
+    where: { id: sessionId },
+    select: { userId: true, remoteJid: true },
+  });
+  if (assigned) await autoSyncContactIfEnabled(assigned.userId, assigned.remoteJid);
 
   return { success: true, ...(warning ? { warning } : {}) };
 }

@@ -3,6 +3,7 @@
 import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 import { buildWhatsAppJidCandidates, normalizeWhatsAppConversationJid } from '@/lib/whatsapp-jid';
+import { autoSyncContactIfEnabled } from '@/actions/google-sheets-actions';
 import type {
   ExternalClientData,
   ExternalClientDataImportResult,
@@ -90,6 +91,9 @@ export async function upsertExternalClientData(
     create: { userId, remoteJid: canonicalJid, data: data as Prisma.InputJsonValue, source },
     update: { data: data as Prisma.InputJsonValue, source, updatedAt: new Date() },
   });
+
+  // Sincronización automática a Google Sheets (solo si la cuenta la activó).
+  await autoSyncContactIfEnabled(userId, canonicalJid);
 
   return record as ExternalClientData;
 }

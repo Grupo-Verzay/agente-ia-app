@@ -28,6 +28,8 @@ import {
   getGoogleSheetsWebhookUrl,
   saveGoogleSheetsWebhookUrl,
   syncContactToGoogleSheets,
+  getSheetsAutoSyncEnabled,
+  setSheetsAutoSyncEnabled,
 } from '@/actions/google-sheets-actions';
 import { updateLeadPushNameAction } from '@/actions/registro-action';
 import { toggleAgentDisabled } from '@/actions/session-action';
@@ -182,6 +184,8 @@ export function ContactInfoPanel({
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [savingUrl, setSavingUrl] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [autoSync, setAutoSync] = useState(false);
+  const [savingAutoSync, setSavingAutoSync] = useState(false);
 
   // La ficha (config de campos + datos + Sheets) pertenece a la CUENTA DUEÑA del
   // CONTACTO (session.userId), no al usuario logueado: así cualquier agente que
@@ -269,6 +273,28 @@ export function ContactInfoPanel({
     });
     return () => { cancelled = true; };
   }, [ownerId]);
+
+  /* Carga la preferencia de sincronización automática (opt-in) de la cuenta. */
+  useEffect(() => {
+    let cancelled = false;
+    getSheetsAutoSyncEnabled(ownerId).then((v) => {
+      if (!cancelled) setAutoSync(v);
+    });
+    return () => { cancelled = true; };
+  }, [ownerId]);
+
+  const handleToggleAutoSync = async (next: boolean) => {
+    setAutoSync(next); // optimista
+    setSavingAutoSync(true);
+    const res = await setSheetsAutoSyncEnabled(ownerId, next);
+    setSavingAutoSync(false);
+    if (res.success) {
+      toast.success(next ? 'Sincronización automática activada' : 'Sincronización automática desactivada');
+    } else {
+      setAutoSync(!next); // revertir
+      toast.error(res.message ?? 'No se pudo guardar la preferencia');
+    }
+  };
 
   const handleFieldChange = useCallback((field: string, value: string) => {
     setFields((prev) => ({ ...prev, [field]: value }));
@@ -495,13 +521,31 @@ export function ContactInfoPanel({
         <Section title="Google Sheets" icon={Sheet} defaultOpen={false}>
           <div className="px-4 space-y-2 pb-1">
             {sheetsSaved && !editingSheets ? (
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Hoja conectada
-                </span>
-                <button type="button" onClick={() => setEditingSheets(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                  Cambiar hoja
-                </button>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Hoja conectada
+                  </span>
+                  <button type="button" onClick={() => setEditingSheets(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                    Cambiar hoja
+                  </button>
+                </div>
+                <div className="flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/20 px-2.5 py-1.5">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium">Sincronización automática</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">
+                      Cada lead nuevo o modificado se envía solo a la hoja.
+                    </p>
+                  </div>
+                  <SwitchPrimitive.Root
+                    checked={autoSync}
+                    onCheckedChange={handleToggleAutoSync}
+                    disabled={savingAutoSync}
+                    className="relative h-5 w-9 shrink-0 rounded-full bg-input transition-colors data-[state=checked]:bg-emerald-600 disabled:opacity-50"
+                  >
+                    <SwitchPrimitive.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow transition-transform data-[state=checked]:translate-x-[18px]" />
+                  </SwitchPrimitive.Root>
+                </div>
               </div>
             ) : (
               <div className="space-y-2">

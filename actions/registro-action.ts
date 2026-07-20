@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { getAuditActorId, writeAuditLog } from "@/actions/audit-log-actions";
 import { assertUserCanUseApp } from "@/actions/billing/helpers/app-access-guard";
+import { autoSyncContactIfEnabled } from "@/actions/google-sheets-actions";
 import { db } from "@/lib/db";
 import { ActionResult } from "@/types/registro";
 import {
@@ -183,6 +184,9 @@ export async function updateLeadPushNameAction(
         await db.$transaction(async (tx) => {
             await syncSessionLeadName(tx, session, normalizedPushName);
         });
+
+        // Auto-sync a Google Sheets (opt-in): el nombre cambió.
+        await autoSyncContactIfEnabled(session.userId, session.remoteJid);
 
         return {
             success: true,

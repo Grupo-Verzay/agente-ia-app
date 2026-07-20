@@ -21,6 +21,7 @@ import {
   SingleSessionResponse,
 } from '@/types/session';
 import { assertUserCanUseApp, assertCanAccessTargetUser } from './billing/helpers/app-access-guard';
+import { autoSyncContactIfEnabled } from './google-sheets-actions';
 import { currentUser } from '@/lib/auth';
 import { recordConfirmedSalesOutcome } from '@/lib/sales-learning';
 import { revalidatePath } from 'next/cache';
@@ -916,10 +917,13 @@ export async function registerSession(input: z.infer<typeof registerSessionSchem
         remoteJid: preferredRemoteJid,
         remoteJidAlt: pickObservedAlternateRemoteJid(preferredRemoteJid, observedAliases),
         pushName,
-        instanceId: trimmedInstanceId, 
+        instanceId: trimmedInstanceId,
         status: true,
       },
     });
+
+    // Auto-sync a Google Sheets (opt-in): contacto nuevo.
+    await autoSyncContactIfEnabled(created.userId, created.remoteJid);
 
     return {
       success: true,
