@@ -202,7 +202,10 @@ export async function loadBillingDispatcherForUser(
 
 const META_BILLING_TEMPLATES: Partial<Record<BillingTemplateType, string>> = {
     REMINDER_3D: "servicio_vencer_3",
-    DUE_TODAY: "servicio_vencer_hoy",
+    // Ojo: la plantilla real en Meta es "servicio_vence_hoy" (vence), no "vencer".
+    // Estaba escrita "servicio_vencer_hoy" y Meta la rechazaba por inexistente, asi
+    // que el aviso del dia de vencimiento no se enviaba a nadie.
+    DUE_TODAY: "servicio_vence_hoy",
     STATUS_SUSPENDED: "servicio_fue_suspendido",
     STATUS_ACTIVE: "servicio_estado_actualizado",
 };
