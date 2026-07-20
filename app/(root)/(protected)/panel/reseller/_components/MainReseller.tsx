@@ -157,7 +157,7 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
     <div className="flex flex-col h-full min-h-0 overflow-hidden gap-4">
 
       {/* MetricCards */}
-      <div className="shrink-0 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="shrink-0 hidden sm:grid grid-cols-2 gap-2 sm:grid-cols-4">
         <MetricCard
           icon={<UsersRound className="h-3.5 w-3.5" />}
           label="Total afiliados"

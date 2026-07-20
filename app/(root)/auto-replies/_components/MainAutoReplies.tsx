@@ -43,7 +43,7 @@ export const MainAutoReplies = ({ user, Workflows, autoReplies = [] }: Props) =>
 
   return (
     <div className="flex h-full flex-col gap-2">
-      <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+      <div className="hidden shrink-0 sm:flex sm:flex-wrap sm:gap-3">
         <div className="min-w-0 sm:flex-1">
           <MetricCard icon={<MessagesSquare className="h-4 w-4" />} label="Total" value={autoReplies.length} helper="Respuestas rapidas disponibles" color="#3B82F6" />
         </div>

@@ -115,7 +115,7 @@ export const MainTemplate = ({ userRole }: { userRole: Role }) => {
         <TooltipProvider delayDuration={120}>
         <div className="flex h-full min-w-0 w-full flex-col gap-2">
             {/* MetricCards */}
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+            <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
                 <div className="min-w-0 sm:flex-1">
                     <MetricCard
                         icon={<FileText className="h-4 w-4" />}

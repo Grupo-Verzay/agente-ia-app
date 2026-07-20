@@ -184,7 +184,7 @@ export const MainReminders = ({ isCampaignPage, user, apiKey, reminders, deliver
       <div className={`sticky top-0 z-1 mb-2 ${themeClass}`}>
         <div className="flex flex-col overflow-hidden justify-between flex-1 gap-2">
           {!isScheduleView && (
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+            <div className="hidden sm:grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
               <div className="min-w-0">
                 <MetricCard icon={<Bell className="h-4 w-4" />} label="Pendientes" value={reminderMetrics.pending} helper={isCampaignPage ? "Campañas pendientes por enviar" : "Recordatorios pendientes por enviar"} color="#F59E0B" />
               </div>

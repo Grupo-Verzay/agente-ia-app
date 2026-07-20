@@ -480,7 +480,7 @@ export function CallsCrmClient({
 
       {/* KPIs (4 tarjetas estándar) — en modo embebido van en el slot superior del dashboard */}
       {!embedded && (
-      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+      <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
         <div className="min-w-0 sm:flex-1">
           <MetricCard
             icon={<Phone className="h-4 w-4" />}
