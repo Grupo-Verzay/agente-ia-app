@@ -19,6 +19,7 @@ import { BulkActionsDropdown, FilterLeadsByStats, FilterSessionTypes, SessionSta
 import { clearAllHistory } from "@/actions/n8n-chat-historial-action";
 import { activateAllSessions, cleanupJunkSessions, deactivateAllSessions, deleteAllSessions, getSessionsCountByUserId } from "@/actions/session-action";
 import { deleteSeguimientosByInstanceName } from "@/actions/seguimientos-actions";
+import { syncAllContactsToGoogleSheets } from "@/actions/google-sheets-actions";
 import { useRouter } from "next/navigation";
 import { ActionsCell } from "../../sessions/_components/Columns";
 import { SessionTagsCombobox, TagFilterBar } from "../../tags/components";
@@ -225,6 +226,7 @@ export const LeadsManagement = ({
                                     onClearHistory={clearAllHistory}
                                     onClearSeguimientos={deleteSeguimientosByInstanceName}
                                     onCleanupJunk={cleanupJunkSessions}
+                                    onSyncSheets={syncAllContactsToGoogleSheets}
                                     onSuccess={() => { mutateSessions(); router.refresh(); }}
                                 />
                             </div>

@@ -303,9 +303,12 @@ export function ContactInfoPanel({
   const handleSync = async () => {
     if (!displayedWhatsapp) return;
     setSyncing(true);
+    const advisorName =
+      advisors.find((a) => a.id === session?.assignedAdvisorId)?.name ?? '';
     const res = await syncContactToGoogleSheets(ownerId, {
       phone: displayedWhatsapp,
       name: displayedContactName,
+      advisor: advisorName,
       ...fields,
     });
     setSyncing(false);

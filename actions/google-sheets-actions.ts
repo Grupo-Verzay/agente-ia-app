@@ -2,7 +2,15 @@
 
 import { google } from 'googleapis';
 import { db } from '@/lib/db';
+import { currentUser } from '@/lib/auth';
 import { normalizeContactFieldsConfig } from '@/lib/contact-fields';
+import {
+  pickExplicitWhatsAppPhoneJid,
+  fmtPhone,
+  isGroupJid,
+  isBroadcastJid,
+  isStatusBroadcastJid,
+} from '@/lib/whatsapp-jid';
 
 /* ── Service account auth ──────────────────────────────────── */
 function getAuth() {
@@ -127,7 +135,7 @@ function columnLetter(n: number): string {
 
 export async function syncContactToGoogleSheets(
   userId: string,
-  payload: { phone: string; name: string } & Record<string, string | undefined>,
+  payload: { phone: string; name: string; advisor?: string } & Record<string, string | undefined>,
 ): Promise<{ success: boolean; error?: string }> {
   // Lee la hoja y la config de campos del usuario en una sola consulta.
   const userRec = await db.user.findUnique({
@@ -146,11 +154,13 @@ export async function syncContactToGoogleSheets(
     .filter((f) => f.enabled)
     .sort((a, b) => a.order - b.order);
 
-  const headers = ['Teléfono', 'Nombre', ...fieldDefs.map((f) => f.label), 'Actualizado'];
+  // 'Asesor' es una columna fija por defecto (Teléfono · Nombre · Asesor · …).
+  const headers = ['Teléfono', 'Nombre', 'Asesor', ...fieldDefs.map((f) => f.label), 'Actualizado'];
   const colEnd = columnLetter(headers.length);
   const row = [
     payload.phone,
     payload.name,
+    payload.advisor ?? '',
     ...fieldDefs.map((f) => payload[f.key] ?? ''),
     new Date().toLocaleString('es-CO'),
   ];
@@ -196,5 +206,189 @@ export async function syncContactToGoogleSheets(
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return { success: false, error: msg };
+  }
+}
+
+/* ── Sincronización masiva ─────────────────────────────────── */
+// Resuelve el nombre visible de un asesor (empresa || nombre || email).
+async function resolveAdvisorNames(advisorIds: string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const ids = Array.from(new Set(advisorIds.filter(Boolean)));
+  if (!ids.length) return map;
+  const advisors = await db.user.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, name: true, email: true },
+  });
+  for (const a of advisors) {
+    // Igual que la UI de chats: el asesor se muestra por su NOMBRE (fallback email).
+    map.set(a.id, (a.name || a.email || '').trim());
+  }
+  return map;
+}
+
+/**
+ * Sincroniza TODOS los contactos de la cuenta a la Google Sheet en una sola
+ * pasada (upsert por teléfono). Columnas por defecto: Teléfono · Nombre · Asesor,
+ * más los campos personalizados habilitados del usuario.
+ *
+ * Escritura por lotes (2 llamadas a la API: 1 lectura + 1 escritura) para no
+ * chocar con los límites de Google al haber cientos de contactos. Preserva las
+ * filas existentes que no correspondan a contactos actuales (no borra nada).
+ */
+export async function syncAllContactsToGoogleSheets(
+  userId: string,
+): Promise<{ success: boolean; message?: string; count?: number }> {
+  const me = await currentUser();
+  if (!me || me.effectiveId !== userId) {
+    return { success: false, message: 'No autorizado.' };
+  }
+
+  const userRec = await db.user.findUnique({
+    where: { id: userId },
+    select: { googleSheetsWebhookUrl: true, contactFieldsConfig: true },
+  });
+  const config = (userRec as { googleSheetsWebhookUrl?: string | null })?.googleSheetsWebhookUrl ?? null;
+  if (!config) {
+    return {
+      success: false,
+      message: 'Primero conecta tu Google Sheet (en la ficha de contacto, sección Google Sheets).',
+    };
+  }
+  const sheetId = extractSheetId(config) ?? config;
+
+  const fieldDefs = normalizeContactFieldsConfig(
+    (userRec as { contactFieldsConfig?: unknown })?.contactFieldsConfig,
+  )
+    .filter((f) => f.enabled)
+    .sort((a, b) => a.order - b.order);
+
+  const headers = ['Teléfono', 'Nombre', 'Asesor', ...fieldDefs.map((f) => f.label), 'Actualizado'];
+  const colEnd = columnLetter(headers.length);
+
+  // Contactos (sesiones) + valores de campos personalizados, en dos consultas.
+  const [sessions, externalData] = await Promise.all([
+    db.session.findMany({
+      where: { userId },
+      select: {
+        remoteJid: true,
+        remoteJidAlt: true,
+        pushName: true,
+        customName: true,
+        assignedAdvisorId: true,
+      },
+    }),
+    fieldDefs.length
+      ? db.externalClientData.findMany({ where: { userId }, select: { remoteJid: true, data: true } })
+      : Promise.resolve([] as { remoteJid: string; data: unknown }[]),
+  ]);
+
+  const advisorMap = await resolveAdvisorNames(
+    sessions.map((s) => s.assignedAdvisorId).filter((id): id is string => Boolean(id)),
+  );
+
+  // Índice de campos personalizados por remoteJid.
+  const dataByJid = new Map<string, Record<string, unknown>>();
+  for (const d of externalData) {
+    if (d?.remoteJid && d.data && typeof d.data === 'object') {
+      dataByJid.set(d.remoteJid, d.data as Record<string, unknown>);
+    }
+  }
+
+  const now = new Date().toLocaleString('es-CO');
+  // Fila por teléfono (dedup: el último contacto con ese teléfono gana).
+  const rowByPhone = new Map<string, string[]>();
+  for (const s of sessions) {
+    const base =
+      pickExplicitWhatsAppPhoneJid([s.remoteJid, s.remoteJidAlt]) || s.remoteJidAlt || s.remoteJid;
+    if (isGroupJid(base) || isBroadcastJid(base) || isStatusBroadcastJid(base)) continue;
+    const phone = fmtPhone(base);
+    if (!phone) continue;
+    const name = s.customName || s.pushName || '';
+    const advisor = s.assignedAdvisorId ? advisorMap.get(s.assignedAdvisorId) ?? '' : '';
+    const data = dataByJid.get(s.remoteJid) ?? (s.remoteJidAlt ? dataByJid.get(s.remoteJidAlt) : undefined) ?? {};
+    const custom = fieldDefs.map((f) => {
+      const v = (data as Record<string, unknown>)[f.key];
+      return v == null ? '' : String(v);
+    });
+    rowByPhone.set(phone, [phone, name, advisor, ...custom, now]);
+  }
+
+  if (rowByPhone.size === 0) {
+    return { success: false, message: 'No hay contactos para sincronizar.' };
+  }
+
+  try {
+    const auth = getAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // 1) Leer la hoja completa una sola vez.
+    const existing = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: `A:${colEnd}`,
+    });
+    const existingRows = existing.data.values ?? [];
+
+    // 2) Reconstruir la matriz: encabezados + filas existentes actualizadas en
+    //    su sitio + contactos nuevos al final. Preserva filas ajenas al CRM.
+    const pad = (r: string[]) => (r.length >= headers.length ? r.slice(0, headers.length) : [...r, ...Array(headers.length - r.length).fill('')]);
+    const written = new Set<string>();
+    const result: string[][] = [headers];
+
+    for (let i = 1; i < existingRows.length; i++) {
+      const phone = String(existingRows[i]?.[0] ?? '');
+      const updated = rowByPhone.get(phone);
+      if (updated) {
+        result.push(pad(updated));
+        written.add(phone);
+      } else {
+        result.push(pad(existingRows[i] as string[]));
+      }
+    }
+    rowByPhone.forEach((row, phone) => {
+      if (!written.has(phone)) result.push(pad(row));
+    });
+
+    // 3) Escribir todo de un golpe.
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: `A1:${colEnd}${result.length}`,
+      valueInputOption: 'RAW',
+      requestBody: { values: result },
+    });
+
+    return { success: true, message: `Se sincronizaron ${rowByPhone.size} contactos a Google Sheets.`, count: rowByPhone.size };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { success: false, message: `Error al sincronizar: ${msg}` };
+  }
+}
+
+/* ── Sincronización automática (opt-in, apagada por defecto) ─── */
+export async function getSheetsAutoSyncEnabled(userId: string): Promise<boolean> {
+  try {
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { sheetsAutoSyncEnabled: true } as any,
+    });
+    return Boolean((user as { sheetsAutoSyncEnabled?: boolean } | null)?.sheetsAutoSyncEnabled);
+  } catch {
+    return false;
+  }
+}
+
+export async function setSheetsAutoSyncEnabled(
+  userId: string,
+  enabled: boolean,
+): Promise<{ success: boolean; message?: string }> {
+  const me = await currentUser();
+  if (!me || me.effectiveId !== userId) return { success: false, message: 'No autorizado.' };
+  try {
+    await db.user.update({
+      where: { id: userId },
+      data: { sheetsAutoSyncEnabled: enabled } as any,
+    });
+    return { success: true };
+  } catch {
+    return { success: false, message: 'No se pudo guardar la preferencia.' };
   }
 }
