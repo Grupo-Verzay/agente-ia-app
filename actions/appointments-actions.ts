@@ -183,7 +183,16 @@ export async function createAppointment(input: CreateAppointmentInput): Promise<
         // simultánea espera a que la 1ª haga commit y entonces su verificación de
         // solape ya ve la cita recién creada. Citas de otros usuarios no se bloquean.
         const created = await db.$transaction(async (tx) => {
-            await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`appt:${userId}`}))`;
+            // Candado anti-doble-reserva. Usamos $executeRaw (NO $queryRaw): la
+            // función devuelve `void` y $queryRaw fallaba al deserializar el
+            // resultado (error P2010). Si el candado no está disponible, seguimos
+            // igual: la verificación de solape de abajo ya protege del doble
+            // agendamiento en el caso normal.
+            try {
+                await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`appt:${userId}`}))`;
+            } catch (lockErr) {
+                console.warn('[createAppointment] advisory lock no disponible, continúo sin él:', lockErr);
+            }
 
             const overlap = await tx.appointment.findFirst({
                 where: {

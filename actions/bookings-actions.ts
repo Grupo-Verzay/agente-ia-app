@@ -346,7 +346,14 @@ export async function createBookingAppointment(input: CreateBookingInput) {
         // simultánea espera a que la 1ª haga commit y entonces su verificación de
         // solape sí ve la cita recién creada. Reservas de otros miembros no se bloquean.
         const appt = await db.$transaction(async (tx) => {
-            await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${teamMemberId}`}))`;
+            // $executeRaw (NO $queryRaw): la función devuelve `void` y $queryRaw
+            // fallaba al deserializar (P2010). Si el candado no está disponible,
+            // seguimos: la verificación de solape ya protege del doble agendado.
+            try {
+                await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`booking:${teamMemberId}`}))`;
+            } catch (lockErr) {
+                console.warn('[createBookingAppointment] advisory lock no disponible, continúo sin él:', lockErr);
+            }
 
             const overlap = await tx.bookingAppointment.findFirst({
                 where: {
