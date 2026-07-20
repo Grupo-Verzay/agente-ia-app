@@ -1202,58 +1202,9 @@ export async function toggleAgentDisabled(userId: string, sessionId: number, age
   }
 }
 
-// Saludo con nombre SOLO si es válido; si no, saluda sin nombre (evita
-// "Hola *Você*", donde Você es un pushName basura de WhatsApp).
-const greetName = (name: string) => (name ? `Hola *${name}*,` : 'Hola,');
-
-const LEAD_STATUS_NOTIFICATION_MESSAGES: Partial<Record<LeadStatus, (name: string) => string>> = {
-  FRIO:       (name) => `👋 ${greetName(name)} gracias por contactarnos. Estamos revisando tu consulta y pronto nos comunicaremos contigo.`,
-  TIBIO:      (name) => `👋 ${greetName(name)} queremos mantenernos en contacto y ayudarte. ¿Tienes alguna pregunta sobre nuestros servicios?`,
-  CALIENTE:   (name) => `🔥 ${greetName(name)} tu solicitud ha captado nuestra atención. ¿Podemos conversar hoy sobre cómo podemos ayudarte?`,
-  FINALIZADO: (name) => `✅ ${greetName(name)} ha sido un placer atenderte. Gracias por confiar en nosotros. ¡Hasta la próxima!`,
-};
-
-async function sendLeadStatusNotification({
-  remoteJid,
-  pushName,
-  customName,
-  newStatus,
-  apiKeyUrl,
-  apiKeyValue,
-  instanceName,
-}: {
-  remoteJid: string;
-  pushName: string | null;
-  customName?: string | null;
-  newStatus: LeadStatus | null;
-  apiKeyUrl?: string | null;
-  apiKeyValue?: string | null;
-  instanceName?: string;
-}) {
-  if (!newStatus || newStatus === 'DESCARTADO') return;
-  if (!remoteJid || !apiKeyUrl || !apiKeyValue || !instanceName) return;
-
-  const messageFn = LEAD_STATUS_NOTIFICATION_MESSAGES[newStatus];
-  if (!messageFn) return;
-
-  // Nombre para saludar: prioriza el nombre editado a mano (customName) sobre el
-  // pushName; descarta basura ("Você"/"Voce"/vacío) → devuelve '' y se saluda sin
-  // nombre en vez de "Hola *Você*".
-  const { formatContactDisplayName } = await import('@/lib/contact-display-name');
-  const displayName = formatContactDisplayName(customName || pushName, '');
-
-  const { sendMessageWithHistoryAction } = await import('@/actions/chat-history/send-message-with-history-action');
-
-  await sendMessageWithHistoryAction({
-    instanceName,
-    remoteJid,
-    message: messageFn(displayName),
-    url: `https://${apiKeyUrl}/message/sendText/${encodeURIComponent(instanceName)}`,
-    apikey: apiKeyValue,
-    historyType: 'notification',
-    additionalKwargs: { source: 'LeadStatusChange', newStatus },
-  });
-}
+// Aquí vivían los mensajes automáticos que se enviaban al cliente en cada
+// cambio de estado del lead. Se eliminaron: el estado es una clasificación
+// interna del asesor y el contacto no debe recibir nada al moverla.
 
 export async function updateSessionLeadStatus(
   sessionId: number,
@@ -1324,21 +1275,14 @@ export async function updateSessionLeadStatus(
       });
     }
 
-    const currentInstance =
-      session.user?.instancias.find((item) => item.instanceName === session.instanceId) ??
-      session.user?.instancias.find((item) => item.instanceId === session.instanceId) ??
-      session.user?.instancias[0];
-
-    // Enviar notificación WhatsApp al contacto (no bloquea, falla silenciosamente)
-    void sendLeadStatusNotification({
-      remoteJid: session.remoteJid,
-      pushName: session.pushName,
-      customName: session.customName,
-      newStatus: leadStatus,
-      apiKeyUrl: session.user?.apiKey?.url,
-      apiKeyValue: session.user?.apiKey?.key,
-      instanceName: currentInstance?.instanceName,
-    }).catch(() => undefined);
+    // El cambio de estado es una clasificación INTERNA del asesor: mover una
+    // ficha a FRIO/TIBIO/CALIENTE/FINALIZADO no debe escribirle al cliente.
+    // Antes se le enviaba un mensaje automático por cada cambio ("tu solicitud
+    // ha captado nuestra atención", "ha sido un placer atenderte"...), lo que
+    // sorprendía al contacto y se sumaba a lo que el asesor ya estaba
+    // escribiendo. Si se quiere avisar al cliente, se hace con un flujo
+    // configurado a propósito (Ajustes → flujo por estado), no de forma
+    // implícita al arrastrar la tarjeta.
 
     // Ejecutar automaciones de etapa (fire-and-forget)
     if (leadStatus) {
