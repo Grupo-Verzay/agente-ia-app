@@ -21,4 +21,11 @@ export interface ScheduleInterface {
     instancePhone?: string | null
     prefillName?: string
     prefillPhone?: string
+    /**
+     * Días de la semana (0=domingo … 6=sábado) que el asesor tiene configurados
+     * en Disponibilidad. Sirve para apagarlos en el calendario: antes se podía
+     * elegir un sábado y solo al pasar al paso de Hora salía "No hay horarios
+     * disponibles", dejando al cliente sin salida.
+     */
+    availableWeekdays?: number[]
 };

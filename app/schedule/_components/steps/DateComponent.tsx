@@ -10,6 +10,8 @@ interface Props {
     setSelectedSlot: (slot: string | null) => void;
     setStep: (step: number) => void;
     minNoticeMinutes?: number;
+    /** Días con disponibilidad configurada (0=domingo … 6=sábado). */
+    availableWeekdays?: number[];
 }
 
 export const DateComponent = ({
@@ -19,8 +21,17 @@ export const DateComponent = ({
     setSelectedSlot,
     setStep,
     minNoticeMinutes = 0,
+    availableWeekdays,
 }: Props) => {
     const minDate = startOfDay(addMinutes(new Date(), minNoticeMinutes));
+
+    // Si el asesor configuró días concretos, apagamos el resto. Antes se podía
+    // elegir p.ej. un sábado y solo al llegar al paso de Hora aparecía "No hay
+    // horarios disponibles", sin decir por qué ni a dónde ir.
+    const sinDisponibilidad = (date: Date) =>
+        Array.isArray(availableWeekdays) &&
+        availableWeekdays.length > 0 &&
+        !availableWeekdays.includes(date.getDay());
 
     return (
         <Card className="border-muted/50">
@@ -52,7 +63,9 @@ export const DateComponent = ({
                             day_outside: "text-muted-foreground opacity-50",
                             day_disabled: "text-muted-foreground opacity-50 cursor-not-allowed",
                         }}
-                        disabled={(date) => isBefore(startOfDay(date), minDate)}
+                        disabled={(date) =>
+                            isBefore(startOfDay(date), minDate) || sinDisponibilidad(date)
+                        }
                     />
                 </div>
                 <div className="flex justify-between gap-2 w-full">

@@ -66,10 +66,16 @@ const SchedulePage = async ({ params, searchParams }: { params: { userId: string
         ? (resReminder.data as Reminders[]).filter((r) => r.isSchedule === true)
         : [];
 
-    const [countries, questions] = await Promise.all([
+    const [countries, questions, availability] = await Promise.all([
         getCountryCodes(),
         getActiveBookingQuestions(user.id),
+        db.userAvailability.findMany({
+            where: { userId: user.id },
+            select: { dayOfWeek: true },
+            distinct: ['dayOfWeek'],
+        }),
     ]);
+    const availableWeekdays = availability.map((a) => a.dayOfWeek);
 
     let instancePhone: string | null = null;
     const primaryInstance = user.instancias?.[0];
@@ -91,6 +97,7 @@ const SchedulePage = async ({ params, searchParams }: { params: { userId: string
         prefillName={searchParams.name}
         prefillPhone={searchParams.phone}
         questions={questions}
+        availableWeekdays={availableWeekdays}
     />
 
 };

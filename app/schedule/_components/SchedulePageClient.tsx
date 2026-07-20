@@ -63,7 +63,7 @@ interface SchedulePageClientProps extends ScheduleInterface {
 
 const FALLBACK_LOGO = "/assets/image/logo_app.png";
 
-export const SchedulePageClient = ({ user, reminders, countries, prefillName = '', prefillPhone = '', questions = [] }: SchedulePageClientProps) => {
+export const SchedulePageClient = ({ user, reminders, countries, prefillName = '', prefillPhone = '', questions = [], availableWeekdays = [] }: SchedulePageClientProps) => {
     const [step, setStep] = useState(0);
     // Logo del asesor con respaldo: cubre tanto string vacío ("") como fallos de
     // carga (404 / dominio no permitido), para que nunca se vea roto el alt.
@@ -480,6 +480,7 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                             setSelectedSlot={setSelectedSlot}
                             setStep={setStep}
                             minNoticeMinutes={user.minNoticeMinutes ?? 0}
+                            availableWeekdays={availableWeekdays}
                         />
                     )}
 
