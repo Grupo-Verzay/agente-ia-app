@@ -248,6 +248,71 @@ export async function listOwnerTasks(
   }));
 }
 
+export type OwnerLeadItem = {
+  name: string;
+  phone: string;
+  leadStatus: string | null;
+  tags: string[];
+};
+
+// Mapa flexible de palabras del dueño → estado del embudo (enum LeadStatus).
+const OWNER_LEAD_STATUS_MAP: Record<string, string> = {
+  frio: "FRIO",
+  frío: "FRIO",
+  tibio: "TIBIO",
+  caliente: "CALIENTE",
+  finalizado: "FINALIZADO",
+  ganado: "FINALIZADO",
+  cerrado: "FINALIZADO",
+  descartado: "DESCARTADO",
+  perdido: "DESCARTADO",
+};
+
+/**
+ * Lista los leads/contactos del dueño con su estado del embudo. Solo lectura.
+ * `status` (opcional): frío/tibio/caliente/finalizado/descartado (acepta sinónimos).
+ * Sin `status`, devuelve los más recientes de cualquier estado.
+ */
+export async function listOwnerLeads(
+  ownerId: string,
+  opts?: { status?: string; limit?: number },
+): Promise<OwnerLeadItem[]> {
+  const where: any = { userId: ownerId, NOT: { remoteJid: { endsWith: "@lid" } } };
+  const s = (opts?.status ?? "").trim().toLowerCase();
+  if (s && OWNER_LEAD_STATUS_MAP[s]) {
+    where.leadStatus = OWNER_LEAD_STATUS_MAP[s] as any;
+  }
+
+  const sessions = await db.session.findMany({
+    where,
+    orderBy: { updatedAt: "desc" },
+    take: Math.min(Math.max(opts?.limit ?? 50, 1), 100),
+    select: {
+      remoteJid: true,
+      pushName: true,
+      customName: true,
+      leadStatus: true,
+      sessionTags: { select: { tag: { select: { name: true } } } },
+    },
+  });
+
+  const seen = new Set<string>();
+  const out: OwnerLeadItem[] = [];
+  for (const ss of sessions) {
+    if (seen.has(ss.remoteJid)) continue;
+    seen.add(ss.remoteJid);
+    out.push({
+      name: ss.customName?.trim() || ss.pushName?.trim() || "Sin nombre",
+      phone: String(ss.remoteJid ?? "").split("@")[0].replace(/\D/g, ""),
+      leadStatus: ss.leadStatus ? String(ss.leadStatus) : null,
+      tags: (ss.sessionTags ?? [])
+        .map((t: any) => t?.tag?.name)
+        .filter((n: any): n is string => Boolean(n)),
+    });
+  }
+  return out;
+}
+
 // ── Fase 2 ──────────────────────────────────────────────────────────────────
 
 /** Verifica que la sesión (contacto) exista y pertenezca a la cuenta del dueño. */
