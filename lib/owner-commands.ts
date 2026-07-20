@@ -122,6 +122,66 @@ export async function getOwnerSummary(ownerId: string): Promise<OwnerSummary> {
   };
 }
 
+export type OwnerAppointmentItem = {
+  id: string;
+  clientName: string;
+  phone: string;
+  startTime: string;
+  service: string | null;
+  status: string;
+};
+
+/**
+ * Lista las citas del dueño con sus DETALLES (nombre del cliente, teléfono, hora,
+ * servicio, estado). Solo lectura. scope: "today" (por defecto) o "upcoming".
+ * El resumen (getOwnerSummary) solo devolvía el CONTEO; esto da los datos para que
+ * el dueño pueda ver/atender cada cita.
+ */
+export async function listOwnerAppointments(
+  ownerId: string,
+  opts?: { scope?: "today" | "upcoming"; limit?: number },
+): Promise<OwnerAppointmentItem[]> {
+  const now = new Date();
+  const scope = opts?.scope ?? "today";
+  const where =
+    scope === "upcoming"
+      ? { userId: ownerId, startTime: { gte: now } }
+      : {
+          userId: ownerId,
+          startTime: {
+            gte: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0),
+            lte: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999),
+          },
+        };
+
+  const rows = await db.appointment.findMany({
+    where,
+    orderBy: { startTime: "asc" },
+    take: Math.min(Math.max(opts?.limit ?? 50, 1), 100),
+    select: {
+      id: true,
+      clientName: true,
+      startTime: true,
+      status: true,
+      service: { select: { name: true } },
+      session: { select: { pushName: true, customName: true, remoteJid: true } },
+    },
+  });
+
+  return rows.map((r) => ({
+    id: r.id,
+    clientName:
+      r.clientName?.trim() ||
+      r.session?.customName?.trim() ||
+      r.session?.pushName?.trim() ||
+      "Sin nombre",
+    phone: String(r.session?.remoteJid ?? "").split("@")[0].replace(/\D/g, ""),
+    startTime: r.startTime.toISOString(),
+    service: r.service?.name ?? null,
+    status: String(r.status),
+  }));
+}
+
 // ── Fase 2 ──────────────────────────────────────────────────────────────────
 
 /** Verifica que la sesión (contacto) exista y pertenezca a la cuenta del dueño. */
