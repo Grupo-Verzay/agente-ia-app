@@ -28,6 +28,11 @@ export interface MissedCallReplyConfig {
 const DEFAULT_MISSED_CALL_TEXT =
   'Hola 👋 Te acabamos de *llamar* y no logramos comunicarnos. ¿Prefieres que te *devolvamos la llamada más tarde*, o que *sigamos la conversación por aquí?*\n\nLo que te resulte más cómodo; *quedamos atentos* a tu respuesta 🙌';
 
+// Anti-repetición: no reenviar el mensaje de "llamada perdida" al mismo contacto si
+// ya se le envió uno hace poco. Evita spamear al cliente cuando el asesor REINTENTA
+// la llamada (cada intento sin contestar disparaba otro mensaje). Ventana: 3 h.
+const MISSED_CALL_REPLY_COOLDOWN_MS = 3 * 60 * 60 * 1000;
+
 /** Lee la configuración de "mensaje al no contestar" de la cuenta. */
 export async function getMissedCallReplyConfig(): Promise<MissedCallReplyConfig> {
   const userId = await resolveCallAccountId();
@@ -89,6 +94,27 @@ export async function sendMissedOutgoingCallReply(
     if (!user?.missedCallReplyEnabled) return { sent: false };
     const text = (user.missedCallReplyText ?? '').trim();
     if (!text) return { sent: false };
+
+    // Anti-repetición (3 h): si ya se le envió ESTE mismo mensaje al contacto en la
+    // ventana, no lo reenviamos aunque el asesor reintente la llamada. Se comprueba
+    // por el saliente ya persistido en chat_messages (mismo texto + mismo número).
+    const cooldownCutoff = new Date(Date.now() - MISSED_CALL_REPLY_COOLDOWN_MS);
+    const recent = await db.$queryRaw<{ ok: number }[]>`
+      SELECT 1 AS ok FROM "chat_messages"
+      WHERE "userId" = ${userId}
+        AND "fromMe" = true
+        AND "content" = ${text}
+        AND "messageTimestamp" >= ${cooldownCutoff}
+        AND (
+          "remoteJid" LIKE ${`%${digits}%`}
+          OR "remoteJidAlt" LIKE ${`%${digits}%`}
+          OR "senderPn" LIKE ${`%${digits}%`}
+        )
+      LIMIT 1
+    `;
+    if (recent.length > 0) {
+      return { sent: false, message: 'Ya se envió un mensaje de llamada perdida a este contacto en las últimas 3 h.' };
+    }
 
     // Instancia de la cuenta (cualquier canal de WhatsApp).
     const inst =
