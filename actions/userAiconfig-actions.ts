@@ -406,12 +406,30 @@ export type UpsertUserAiConfigInput = {
   makeDefaultProvider?: boolean; // opcional: fija defaultProviderId y limpia model si no coincide
 };
 
+/**
+ * Valida el formato de la API key según el proveedor. Devuelve un mensaje claro de
+ * error si es inválida, o null si es válida. Evita que se guarde una URL, un teléfono
+ * u otro texto en lugar de la clave (eso causaba 401 silenciosos y degradaba el
+ * clasificador de leads sin que nadie se enterara hasta ver los logs).
+ */
+export function validateProviderApiKey(providerName: string, apiKey: string): string | null {
+  const key = (apiKey ?? '').trim();
+  if (!key) return 'La API key es obligatoria.';
+  if ((providerName ?? '').toLowerCase() === 'openai' && !key.startsWith('sk-')) {
+    return 'La API key de OpenAI debe empezar por "sk-". Verifica que pegaste la clave correcta (no una URL ni un teléfono).';
+  }
+  return null;
+}
+
 export async function upsertUserAiConfig(input: UpsertUserAiConfigInput): Promise<ActionResult<UserAiConfigDTO>> {
   const { userId, providerId, apiKey, isActive = true, temperature = 0, makeDefaultProvider } = input;
 
   try {
     await ensureUser(userId);
-    await ensureProvider(providerId);
+    const provider = await ensureProvider(providerId);
+
+    const keyError = validateProviderApiKey(provider.name, apiKey);
+    if (keyError) return { success: false, message: keyError };
 
     const cfg = await db.userAiConfig.upsert({
       where: { userId_providerId: { userId, providerId } },
@@ -459,7 +477,12 @@ export async function updateUserAiConfig(input: {
 
   try {
     await ensureUser(userId);
-    await ensureProvider(providerId);
+    const provider = await ensureProvider(providerId);
+
+    if (typeof apiKey === 'string') {
+      const keyError = validateProviderApiKey(provider.name, apiKey);
+      if (keyError) return { success: false, message: keyError };
+    }
 
     const exists = await db.userAiConfig.findUnique({
       where: { userId_providerId: { userId, providerId } },
