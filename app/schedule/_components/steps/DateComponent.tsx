@@ -33,12 +33,31 @@ export const DateComponent = ({
         availableWeekdays.length > 0 &&
         !availableWeekdays.includes(date.getDay());
 
+    // Aviso de la anticipación mínima. Sin él, el cliente solo ve los primeros
+    // días apagados, no entiende por qué y escribe al asesor preguntando
+    // ("no me permite avanzar", "indica hora incorrecta").
+    const avisoAnticipacion = (() => {
+        if (minNoticeMinutes <= 0) return null;
+        if (minNoticeMinutes % 1440 === 0) {
+            const d = minNoticeMinutes / 1440;
+            return `Las reuniones se agendan con al menos ${d} ${d === 1 ? 'día' : 'días'} de anticipación.`;
+        }
+        if (minNoticeMinutes % 60 === 0) {
+            const h = minNoticeMinutes / 60;
+            return `Las reuniones se agendan con al menos ${h} ${h === 1 ? 'hora' : 'horas'} de anticipación.`;
+        }
+        return `Las reuniones se agendan con al menos ${minNoticeMinutes} minutos de anticipación.`;
+    })();
+
     return (
         <Card className="border-muted/50">
             <CardHeader className="pb-2">
                 <CardTitle className="text-lg">Elige una fecha</CardTitle>
             </CardHeader>
             <CardContent className="p-4 flex flex-col gap-4">
+                {avisoAnticipacion && (
+                    <p className="text-sm text-muted-foreground">{avisoAnticipacion}</p>
+                )}
                 <div className="rounded-2xl border p-3 w-full">
                     <Calendar
                         mode="single"
