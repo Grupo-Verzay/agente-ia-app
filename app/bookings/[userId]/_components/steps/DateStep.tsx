@@ -1,4 +1,5 @@
 import { addMinutes, format, isBefore, startOfDay } from "date-fns";
+import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,9 @@ export function DateStep({ selectedDate, setSelectedDate, setSelectedDateYmd, se
                 <div className="rounded-2xl border p-3 w-full">
                     <Calendar
                         mode="single"
+                        // Misma razón que en la agenda de reuniones: la página
+                        // está en español y el calendario salía en inglés.
+                        locale={es}
                         selected={selectedDate}
                         onSelect={(d) => {
                             setSelectedDate(d || undefined);

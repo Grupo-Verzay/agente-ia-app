@@ -1,4 +1,5 @@
 import { addMinutes, format, isBefore, startOfDay } from "date-fns";
+import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,6 +62,9 @@ export const DateComponent = ({
                 <div className="rounded-2xl border p-3 w-full">
                     <Calendar
                         mode="single"
+                        // El resto de la página está en español; sin esto el
+                        // calendario salía en inglés (July, Su/Mo/Tu...).
+                        locale={es}
                         selected={selectedDate}
                         onSelect={(d) => {
                             setSelectedDate(d || undefined);
