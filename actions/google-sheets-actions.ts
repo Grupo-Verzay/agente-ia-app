@@ -392,3 +392,68 @@ export async function setSheetsAutoSyncEnabled(
     return { success: false, message: 'No se pudo guardar la preferencia.' };
   }
 }
+
+/**
+ * Sincroniza UN contacto a Google Sheets SOLO si la cuenta tiene activada la
+ * sincronización automática (opt-in). Pensada para llamarse (sin await crítico)
+ * desde las acciones que crean/modifican un lead: renombrar, asignar asesor,
+ * guardar datos, crear contacto. Nunca lanza: si algo falla, no rompe el flujo
+ * principal — el dueño siempre puede reintentar con el botón masivo.
+ */
+export async function autoSyncContactIfEnabled(userId: string, remoteJid: string): Promise<void> {
+  try {
+    if (!userId || !remoteJid) return;
+    const enabled = await getSheetsAutoSyncEnabled(userId);
+    if (!enabled) return;
+
+    // Necesita una hoja conectada; si no hay, no hace nada.
+    const cfg = await getGoogleSheetsConfig(userId);
+    if (!cfg) return;
+
+    const session = await db.session.findFirst({
+      where: { userId, OR: [{ remoteJid }, { remoteJidAlt: remoteJid }] },
+      select: {
+        remoteJid: true,
+        remoteJidAlt: true,
+        pushName: true,
+        customName: true,
+        assignedAdvisorId: true,
+      },
+    });
+    if (!session) return;
+
+    const base =
+      pickExplicitWhatsAppPhoneJid([session.remoteJid, session.remoteJidAlt]) ||
+      session.remoteJidAlt ||
+      session.remoteJid;
+    if (isGroupJid(base) || isBroadcastJid(base) || isStatusBroadcastJid(base)) return;
+    const phone = fmtPhone(base);
+    if (!phone) return;
+
+    const advisorMap = session.assignedAdvisorId
+      ? await resolveAdvisorNames([session.assignedAdvisorId])
+      : new Map<string, string>();
+    const advisor = session.assignedAdvisorId ? advisorMap.get(session.assignedAdvisorId) ?? '' : '';
+
+    // Campos personalizados del contacto (si el usuario los tiene).
+    const ext = await db.externalClientData.findFirst({
+      where: { userId, remoteJid: { in: [session.remoteJid, session.remoteJidAlt].filter(Boolean) as string[] } },
+      select: { data: true },
+    });
+    const fields: Record<string, string> = {};
+    if (ext?.data && typeof ext.data === 'object') {
+      for (const [k, v] of Object.entries(ext.data as Record<string, unknown>)) {
+        fields[k] = v == null ? '' : String(v);
+      }
+    }
+
+    await syncContactToGoogleSheets(userId, {
+      phone,
+      name: session.customName || session.pushName || '',
+      advisor,
+      ...fields,
+    });
+  } catch {
+    // Silencioso a propósito: la auto-sync nunca debe romper la acción principal.
+  }
+}
