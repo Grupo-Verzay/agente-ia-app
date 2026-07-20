@@ -52,7 +52,7 @@ jobs:
           # "curl -s" a secas: aunque Portainer respondiera 4xx/5xx el paso salía
           # verde y "parecía" desplegado. Ahora fallamos en rojo si no es 2xx.
           code=$(curl -sS -o /tmp/portainer_resp.txt -w "%{http_code}" \
-            -X POST "https://panel-n8n.ia-app.com/api/webhooks/d53ab5b0-8e6b-4be4-8d50-b14126123481")
+            -X POST "https://panel-n8n.ia-app.com/api/webhooks/5a2b0714-4033-4195-be8e-8b12ee89ba23")
           echo "Portainer respondió HTTP $code"
           echo "Cuerpo: $(cat /tmp/portainer_resp.txt)"
           if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
