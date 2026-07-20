@@ -24,6 +24,15 @@ interface Props {
 
 type CallState = 'connecting' | 'ringing' | 'in-call' | 'ended' | 'error';
 
+/**
+ * Cuánto dejamos sonar antes de darla por no contestada. Sin este tope el
+ * diálogo se quedaba en "Llamando…" indefinidamente: el sondeo de respuesta
+ * corre cada segundo y nada lo detenía si el contacto nunca atendía, así que
+ * el asesor tenía que adivinar cuándo colgar. WhatsApp corta alrededor del
+ * minuto; 45s es el punto habitual en que ya se sabe que no van a contestar.
+ */
+const RING_TIMEOUT_MS = 45_000;
+
 export function CallDialog({ open, onClose, phone, contactName, instanceType, instanceName }: Props) {
   const [state, setState] = useState<CallState>('connecting');
   const [seconds, setSeconds] = useState(0);
@@ -39,6 +48,10 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
   const callRef = useRef<{ provider: 'astra'; sid: string; callId: string } | { provider: 'meta'; callId: string } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const answerPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // true cuando la llamada se cerró por agotarse el tiempo de repique, para
+  // distinguir "no respondió" de un colgado normal en el texto del diálogo.
+  const [noAnswer, setNoAnswer] = useState(false);
   const cancelledRef = useRef(false);
   const secondsRef = useRef(0);
   const loggedRef = useRef(false);
@@ -125,6 +138,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
   const cleanup = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     if (answerPollRef.current) { clearInterval(answerPollRef.current); answerPollRef.current = null; }
+    if (ringTimeoutRef.current) { clearTimeout(ringTimeoutRef.current); ringTimeoutRef.current = null; }
     try { recorderRef.current?.stop(); } catch { /* ignore */ }
     recorderRef.current = null;
     try { audioCtxRef.current?.close(); } catch { /* ignore */ }
@@ -143,6 +157,23 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     callRef.current = null;
     cleanup();
   }, [cleanup, instanceName]);
+
+  /**
+   * Arranca la cuenta atrás de repique. Si se agota sin que el contacto
+   * conteste, cierra la llamada y deja el diálogo en "no respondió" con los
+   * botones de resultado, en vez de sonar para siempre.
+   */
+  const armRingTimeout = useCallback(() => {
+    if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
+    ringTimeoutRef.current = setTimeout(() => {
+      ringTimeoutRef.current = null;
+      // Si ya contestaron entre medias, no tocamos nada.
+      if (secondsRef.current > 0) return;
+      hangup();
+      setNoAnswer(true);
+      setState('ended');
+    }, RING_TIMEOUT_MS);
+  }, [hangup]);
 
   // Dispara la transcripción+resumen de la grabación. La grabación se finaliza
   // en el servidor al colgar, así que reintenta un par de veces con espera.
@@ -261,6 +292,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     setDisposition(null);
     setErrorMsg('');
     setMuted(false);
+    setNoAnswer(false);
 
     // 1) Crear la llamada en AstraCalls
     if (instanceType === 'meta') {
@@ -335,6 +367,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
 
         await pc.setRemoteDescription({ type: 'answer', sdp: sdpAnswer });
         setState('ringing');
+        armRingTimeout();
 
         answerPollRef.current = setInterval(() => {
           const cur = pcRef.current;
@@ -348,6 +381,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
             });
             if (answered) {
               if (answerPollRef.current) { clearInterval(answerPollRef.current); answerPollRef.current = null; }
+              if (ringTimeoutRef.current) { clearTimeout(ringTimeoutRef.current); ringTimeoutRef.current = null; }
               setState('in-call');
               startMetaRecording(); // graba la conversación (mic + remoto) para transcribir
               secondsRef.current = 0;
@@ -434,6 +468,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
       // Aún no es "en llamada": está sonando. El contador arranca cuando el otro
       // contesta, lo que detectamos en cuanto empieza a llegar audio (getStats).
       setState('ringing');
+      armRingTimeout();
       answerPollRef.current = setInterval(() => {
         const cur = pcRef.current;
         if (!cur) return;
@@ -446,6 +481,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
           });
           if (answered) {
             if (answerPollRef.current) { clearInterval(answerPollRef.current); answerPollRef.current = null; }
+            if (ringTimeoutRef.current) { clearTimeout(ringTimeoutRef.current); ringTimeoutRef.current = null; }
             setState('in-call');
             secondsRef.current = 0;
             setSeconds(0);
@@ -466,7 +502,7 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
       setState('error');
       cleanup();
     }
-  }, [phone, instanceType, instanceName, hangup, cleanup]);
+  }, [phone, instanceType, instanceName, hangup, cleanup, armRingTimeout]);
 
   useEffect(() => {
     if (!open) return;
@@ -531,7 +567,11 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
               </span>
             )}
             {state === 'in-call' && <span className="font-mono text-base text-green-600">{mmss}</span>}
-            {state === 'ended' && <span className="text-muted-foreground">Llamada finalizada</span>}
+            {state === 'ended' && (
+              <span className={noAnswer ? 'text-amber-600' : 'text-muted-foreground'}>
+                {noAnswer ? 'El contacto no respondió' : 'Llamada finalizada'}
+              </span>
+            )}
             {state === 'error' && <span className="block max-w-[260px] text-center text-xs text-destructive">{errorMsg}</span>}
           </div>
 
