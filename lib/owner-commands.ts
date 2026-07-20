@@ -313,6 +313,139 @@ export async function listOwnerLeads(
   return out;
 }
 
+export type OwnerConversationItem = {
+  name: string;
+  phone: string;
+  lastMessage: string;
+  lastAt: string;
+  needsReply: boolean;
+};
+
+/**
+ * Lista las conversaciones recientes del dueño. Solo lectura. scope "unanswered"
+ * (el último mensaje lo escribió el cliente y falta responder) o "recent" (todas,
+ * por defecto). Ordenadas por actividad reciente.
+ */
+export async function listOwnerConversations(
+  ownerId: string,
+  opts?: { scope?: "unanswered" | "recent"; limit?: number },
+): Promise<OwnerConversationItem[]> {
+  const where: any = { userId: ownerId };
+  if ((opts?.scope ?? "recent") === "unanswered") {
+    where.lastMessageFromMe = false;
+  }
+
+  const rows = await (db as any).chatConversation.findMany({
+    where,
+    orderBy: { lastMessageTimestamp: "desc" },
+    take: Math.min(Math.max(opts?.limit ?? 30, 1), 100),
+    select: {
+      pushName: true,
+      remoteJid: true,
+      lastMessageContent: true,
+      lastMessageFromMe: true,
+      lastMessageTimestamp: true,
+    },
+  });
+
+  const seen = new Set<string>();
+  const out: OwnerConversationItem[] = [];
+  for (const r of rows) {
+    const phone = String(r.remoteJid ?? "").split("@")[0].replace(/\D/g, "");
+    if (phone && seen.has(phone)) continue;
+    if (phone) seen.add(phone);
+    out.push({
+      name: r.pushName?.trim() || "Sin nombre",
+      phone,
+      lastMessage: String(r.lastMessageContent ?? "").slice(0, 160),
+      lastAt: r.lastMessageTimestamp ? r.lastMessageTimestamp.toISOString() : "",
+      needsReply: r.lastMessageFromMe === false,
+    });
+  }
+  return out;
+}
+
+export type OwnerProductItem = {
+  title: string;
+  price: string;
+  stock: number;
+  active: boolean;
+  category: string | null;
+  sku: string | null;
+};
+
+/**
+ * Lista los productos/catálogo del dueño (título, precio, stock, activo, categoría).
+ * Solo lectura. onlyActive: solo los publicados/activos.
+ */
+export async function listOwnerProducts(
+  ownerId: string,
+  opts?: { onlyActive?: boolean; limit?: number },
+): Promise<OwnerProductItem[]> {
+  const where: any = { userId: ownerId };
+  if (opts?.onlyActive) where.isActive = true;
+
+  const rows = await db.product.findMany({
+    where,
+    orderBy: [{ order: "asc" }, { title: "asc" }],
+    take: Math.min(Math.max(opts?.limit ?? 50, 1), 200),
+    select: { title: true, price: true, stock: true, isActive: true, category: true, sku: true },
+  });
+
+  return rows.map((r) => ({
+    title: r.title,
+    price: String(r.price),
+    stock: r.stock,
+    active: r.isActive,
+    category: r.category ?? null,
+    sku: r.sku ?? null,
+  }));
+}
+
+export type OwnerPaymentItem = {
+  type: string;
+  amount: string;
+  currency: string;
+  occurredAt: string;
+  title: string | null;
+  counterparty: string | null;
+};
+
+/**
+ * Lista los movimientos de finanzas del dueño (ventas/ingresos por defecto, o gastos).
+ * Solo lectura. Excluye anulados/eliminados.
+ */
+export async function listOwnerPayments(
+  ownerId: string,
+  opts?: { scope?: "income" | "expenses"; limit?: number },
+): Promise<OwnerPaymentItem[]> {
+  const where: any = { userId: ownerId, status: "ACTIVE" as any };
+  where.type = (opts?.scope === "expenses" ? "EXPENSE" : "SALE") as any;
+
+  const rows = await db.financeTransaction.findMany({
+    where,
+    orderBy: { occurredAt: "desc" },
+    take: Math.min(Math.max(opts?.limit ?? 30, 1), 100),
+    select: {
+      type: true,
+      amount: true,
+      currencyCode: true,
+      occurredAt: true,
+      title: true,
+      counterparty: true,
+    },
+  });
+
+  return rows.map((r) => ({
+    type: String(r.type),
+    amount: String(r.amount),
+    currency: r.currencyCode,
+    occurredAt: r.occurredAt.toISOString(),
+    title: r.title ?? null,
+    counterparty: r.counterparty ?? null,
+  }));
+}
+
 // ── Fase 2 ──────────────────────────────────────────────────────────────────
 
 /** Verifica que la sesión (contacto) exista y pertenezca a la cuenta del dueño. */
