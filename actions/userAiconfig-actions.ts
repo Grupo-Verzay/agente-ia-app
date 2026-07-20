@@ -5,6 +5,10 @@ import { db } from '@/lib/db';
 import { Prisma, AiModel, AiProvider, UserAiConfig, User } from '@prisma/client';
 import { currentUser } from '@/lib/auth';
 import { isAdminOrReseller } from '@/lib/rbac';
+// Validación de la API key en un módulo puro (sin 'use server'): un archivo
+// 'use server' solo puede exportar funciones async, y además la compartimos con
+// el formulario del cliente para tener una sola fuente de verdad.
+import { validateProviderApiKey } from '@/lib/ai-key-validation';
 
 /* ============================
    Tipos de respuesta y DTOs
@@ -405,21 +409,6 @@ export type UpsertUserAiConfigInput = {
   temperature?: number;          // 0–2, default 0
   makeDefaultProvider?: boolean; // opcional: fija defaultProviderId y limpia model si no coincide
 };
-
-/**
- * Valida el formato de la API key según el proveedor. Devuelve un mensaje claro de
- * error si es inválida, o null si es válida. Evita que se guarde una URL, un teléfono
- * u otro texto en lugar de la clave (eso causaba 401 silenciosos y degradaba el
- * clasificador de leads sin que nadie se enterara hasta ver los logs).
- */
-export function validateProviderApiKey(providerName: string, apiKey: string): string | null {
-  const key = (apiKey ?? '').trim();
-  if (!key) return 'La API key es obligatoria.';
-  if ((providerName ?? '').toLowerCase() === 'openai' && !key.startsWith('sk-')) {
-    return 'La API key de OpenAI debe empezar por "sk-". Verifica que pegaste la clave correcta (no una URL ni un teléfono).';
-  }
-  return null;
-}
 
 export async function upsertUserAiConfig(input: UpsertUserAiConfigInput): Promise<ActionResult<UserAiConfigDTO>> {
   const { userId, providerId, apiKey, isActive = true, temperature = 0, makeDefaultProvider } = input;
