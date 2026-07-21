@@ -264,7 +264,7 @@ export function FormEditorClient({ form: initialForm, userId }: Props) {
               </Button>
               <p className="text-sm font-semibold truncate min-w-0">{form.title}</p>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="toolbar-collapse flex items-center gap-3 shrink-0">
               {/* Toggle activo */}
               <div className="flex items-center gap-2">
                 <Switch
