@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { SafeImage } from '@/components/custom/SafeImage';
 import { cn } from '@/lib/utils';
 import type { MediaData } from './chat-message-types';
-import { MediaViewer } from './media-viewer';
+import { MediaViewer, useMediaGallery } from './media-viewer';
 
 interface MediaRendererProps {
   media: MediaData | undefined;
@@ -14,10 +14,19 @@ interface MediaRendererProps {
 
 export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({ media }) => {
   const [viewerOpen, setViewerOpen] = useState(false);
+  const gallery = useMediaGallery();
 
   if (!media) return null;
 
   const { type, url, mimeType, caption } = media;
+
+  // Imágenes y videos usan la galería compartida del chat (navegación
+  // anterior/siguiente estilo WhatsApp). Si por algún motivo no hay galería,
+  // se abre el visor local de este mensaje.
+  const openViewer = () => {
+    if ((type === 'image' || type === 'video') && gallery?.openByUrl(url)) return;
+    setViewerOpen(true);
+  };
   const baseStyle = 'my-1 rounded-md overflow-hidden border dark:border-gray-600';
   const audioDocStyle = 'w-full max-w-[350px]';
 
@@ -35,7 +44,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({ media }
             src={url}
             alt={caption || 'Imagen'}
             className="w-full h-auto object-cover max-h-[300px] cursor-zoom-in"
-            onClick={() => setViewerOpen(true)}
+            onClick={openViewer}
             loading="lazy"
             decoding="async"
           />
@@ -54,7 +63,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = React.memo(({ media }
               variant="ghost"
               size="icon"
               className="absolute top-2 right-2 h-7 w-7 bg-black/60 text-white hover:bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => setViewerOpen(true)}
+              onClick={openViewer}
               aria-label="Abrir en visor"
             >
               <Maximize2 className="h-3.5 w-3.5" />

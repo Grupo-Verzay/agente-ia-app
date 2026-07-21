@@ -9,7 +9,8 @@ import { MessageBubble } from './MessageBubble';
 import { InternalNoteBubble } from './InternalNoteBubble';
 import { ConversationDateBadge } from './ConversationDateBadge';
 import { getCalendarDayKey, formatConversationDateLabel } from './chat-message-utils';
-import type { UIBubble } from './chat-message-types';
+import { MediaGalleryProvider } from './media-viewer';
+import type { MediaData, UIBubble } from './chat-message-types';
 
 // Umbral ALTO a propósito: la virtualización usa alturas ESTIMADAS y, al
 // mezclarse con el auto-scroll, provoca un rebote continuo del scroll (arriba/
@@ -282,6 +283,18 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
 
   const fullList = useMemo(() => uiMessages, [uiMessages]);
 
+  // Galería del chat: todas las imágenes/videos cargados, en orden cronológico.
+  // Se construye desde uiMessages (la lista completa), NO desde los componentes
+  // montados, así la navegación anterior/siguiente cubre también los que están
+  // fuera de pantalla por la virtualización.
+  const galleryItems = useMemo<MediaData[]>(
+    () =>
+      uiMessages
+        .filter((m) => m.media && (m.media.type === 'image' || m.media.type === 'video') && m.media.url)
+        .map((m) => m.media as MediaData),
+    [uiMessages],
+  );
+
   const renderedList = useMemo(() => {
     const items: RenderedListItem[] = [];
     let previousDayKey = '';
@@ -377,6 +390,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   }
 
   return (
+    <MediaGalleryProvider items={galleryItems}>
     <div
       className="whatsapp-chat-background flex flex-1 flex-col overflow-y-auto overflow-x-hidden custom-scrollbar w-full"
       ref={listRef}
@@ -428,6 +442,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
         )}
       </div>
     </div>
+    </MediaGalleryProvider>
   );
 };
 

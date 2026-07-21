@@ -1,16 +1,22 @@
 'use client';
 
-import React, { useCallback } from 'react';
-import { Download } from 'lucide-react';
+import React, { useCallback, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import type { MediaData } from '../chat-message-types';
 import { getViewer } from './viewer-registry';
 
 interface MediaViewerProps {
-  media: MediaData;
+  /** Modo de un solo elemento (documento, audio, etc.). */
+  media?: MediaData;
+  /** Modo galería: lista completa navegable (imágenes/videos del chat). */
+  items?: MediaData[];
+  index?: number;
   open: boolean;
   onClose: () => void;
+  /** Navegar a otro índice de la galería (anterior/siguiente). */
+  onNavigate?: (index: number) => void;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -24,15 +30,33 @@ function isPdfMime(mimeType: string) {
   return mimeType === 'application/pdf' || mimeType.endsWith('/pdf');
 }
 
-export const MediaViewer: React.FC<MediaViewerProps> = ({ media, open, onClose }) => {
-  const { type, url, mimeType, caption } = media;
-  const ViewerComponent = getViewer(type);
+export const MediaViewer: React.FC<MediaViewerProps> = ({
+  media,
+  items,
+  index = 0,
+  open,
+  onClose,
+  onNavigate,
+}) => {
+  const list = items && items.length ? items : media ? [media] : [];
+  const total = list.length;
+  const safeIndex = Math.min(Math.max(index, 0), Math.max(total - 1, 0));
+  const active = list[safeIndex];
 
-  // Un documento SIN vista previa (no PDF) es solo una tarjeta con icono + botón:
-  // no debe abrir un modal gigante (90vw × 95vh) casi vacío, sino uno compacto.
-  const isDocumentCard = type === 'document' && !isPdfMime(mimeType);
+  const canNavigate = total > 1 && !!onNavigate;
+  const goTo = useCallback(
+    (next: number) => {
+      if (!onNavigate || total === 0) return;
+      onNavigate((next + total) % total); // wrap-around como WhatsApp
+    },
+    [onNavigate, total],
+  );
+  const goPrev = useCallback(() => goTo(safeIndex - 1), [goTo, safeIndex]);
+  const goNext = useCallback(() => goTo(safeIndex + 1), [goTo, safeIndex]);
 
   const handleDownload = useCallback(async () => {
+    if (!active) return;
+    const { url, mimeType, type } = active;
     try {
       const response = await fetch(url);
       const blob = await response.blob();
@@ -40,15 +64,32 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ media, open, onClose }
       const a = document.createElement('a');
       a.href = blobUrl;
       const ext = (blob.type || mimeType).split('/')[1]?.replace('jpeg', 'jpg') || 'bin';
-      a.download = `${type}_${Date.now()}.${ext}`;
+      a.download = active.caption?.trim() || `${type}_${safeIndex + 1}.${ext}`;
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
+      a.remove();
       URL.revokeObjectURL(blobUrl);
     } catch {
       window.open(url, '_blank');
     }
-  }, [url, mimeType, type]);
+  }, [active, safeIndex]);
+
+  // Navegación con teclado (← / →) mientras el visor está abierto.
+  useEffect(() => {
+    if (!open || !canNavigate) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); goPrev(); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); goNext(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, canNavigate, goPrev, goNext]);
+
+  if (!active) return null;
+
+  const { type, url, mimeType, caption } = active;
+  const ViewerComponent = getViewer(type);
+  const isDocumentCard = type === 'document' && !isPdfMime(mimeType);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -59,7 +100,7 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ media, open, onClose }
             : 'max-w-[95vw] sm:max-w-[90vw] max-h-[95vh] p-0 border-none flex flex-col overflow-hidden'
         }
       >
-        <DialogTitle className="sr-only text-muted ">
+        <DialogTitle className="sr-only">
           {caption || TYPE_LABELS[type] || 'Visor multimedia'}
         </DialogTitle>
 
@@ -74,6 +115,11 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ media, open, onClose }
               </span>
             )}
           </div>
+          {canNavigate && (
+            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+              {safeIndex + 1} / {total}
+            </span>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -85,10 +131,30 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ media, open, onClose }
           </Button>
         </div>
 
-        {/* Content — each viewer fills this area and manages its own internal layout.
-            Para la tarjeta de documento el alto es automático (modal compacto). */}
-        <div className={isDocumentCard ? 'overflow-hidden' : 'flex-1 min-h-0 overflow-hidden'}>
-          <ViewerComponent url={url} mimeType={mimeType} caption={caption} />
+        {/* Content — cada viewer llena esta área. En galería, flechas anterior/siguiente. */}
+        <div className={isDocumentCard ? 'relative overflow-hidden' : 'relative flex-1 min-h-0 overflow-hidden'}>
+          <ViewerComponent key={url} url={url} mimeType={mimeType} caption={caption} />
+
+          {canNavigate && (
+            <>
+              <button
+                type="button"
+                onClick={goPrev}
+                aria-label="Anterior"
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition-colors hover:bg-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+              <button
+                type="button"
+                onClick={goNext}
+                aria-label="Siguiente"
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition-colors hover:bg-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </button>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
