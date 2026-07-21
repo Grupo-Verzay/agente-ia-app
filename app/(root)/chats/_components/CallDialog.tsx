@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Phone, PhoneOff, Loader2, Mic, MicOff, Volume2, RotateCcw } from 'lucide-react';
+import { Phone, PhoneOff, Loader2, Mic, MicOff, Volume2, RotateCcw, Send } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ import { setCallDisposition } from '@/actions/calls-crm-actions';
 import { sendMissedOutgoingCallReply } from '@/actions/missed-call-reply-actions';
 import { processCallRecordingAction, processMetaCallRecordingAction } from '@/actions/calls-recording-actions';
 import { CALL_DISPOSITIONS } from '@/lib/call-dispositions';
+import { toast } from 'sonner';
 
 interface Props {
   open: boolean;
@@ -41,6 +42,9 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
   const [speakerOn, setSpeakerOn] = useState(false);
   const [disposition, setDisposition] = useState<string | null>(null);
   const [savingDisp, setSavingDisp] = useState(false);
+  // Mensaje "no contesté" al contacto: manual (lo decide el asesor con el botón).
+  const [missedSent, setMissedSent] = useState(false);
+  const [sendingMissed, setSendingMissed] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const micRef = useRef<MediaStream | null>(null);
@@ -59,8 +63,6 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
   const secondsRef = useRef(0);
   const loggedRef = useRef(false);
   const loggedIdRef = useRef<string | null>(null);
-  // Evita enviar el auto-mensaje de "no contestó" más de una vez por llamada.
-  const replySentRef = useRef(false);
   // sid/callId de AstraCalls (persisten tras colgar, para bajar la grabación)
   const astraMetaRef = useRef<{ sid: string; callId: string } | null>(null);
   const callLogMetaRef = useRef<{ astraSid?: string; astraCallId?: string; metaCallId?: string; provider?: string } | null>(null);
@@ -198,16 +200,25 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     setTimeout(() => { void tryProcess(); }, 1500);
   };
 
-  // Envía (una sola vez) el auto-mensaje al contacto cuando la llamada saliente
-  // no fue contestada. La propia acción respeta el on/off configurado por cuenta.
-  const maybeSendMissedReply = () => {
-    if (replySentRef.current) return;
-    // Solo si la llamada REALMENTE se colocó (el proveedor devolvió un callId).
-    // Si nunca salió (error al iniciar, número de llamadas no vinculado/conectado),
-    // NO enviamos el "te llamamos y no pudimos comunicarnos" — no hubo llamada.
-    if (!callLogMetaRef.current) return;
-    replySentRef.current = true;
-    void sendMissedOutgoingCallReply(phone);
+  // Envío MANUAL del mensaje "no contesté" al contacto: lo decide el asesor con
+  // un botón al terminar la llamada (antes se enviaba automático). Cuando llame
+  // la IA, ese envío sí será automático desde su propio flujo.
+  const handleSendMissedMsg = async () => {
+    if (sendingMissed || missedSent) return;
+    setSendingMissed(true);
+    try {
+      const res = await sendMissedOutgoingCallReply(phone, { force: true });
+      if (res.sent) {
+        setMissedSent(true);
+        toast.success('Mensaje enviado al contacto.');
+      } else {
+        toast.error(res.message || 'No se pudo enviar el mensaje.');
+      }
+    } catch {
+      toast.error('No se pudo enviar el mensaje.');
+    } finally {
+      setSendingMissed(false);
+    }
   };
 
   const handleClose = () => {
@@ -235,7 +246,6 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
           }
         }
       });
-      if (!answered && state !== 'error') maybeSendMissedReply();
     }
     hangup();
     onClose();
@@ -268,8 +278,6 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
       } else if (loggedIdRef.current) {
         await setCallDisposition(loggedIdRef.current, value);
       }
-      // Auto-mensaje al contacto si la llamada no se contestó (No contesta / Buzón).
-      if (value === 'no_contesta' || value === 'buzon') maybeSendMissedReply();
     } catch {
       /* best-effort */
     } finally {
@@ -285,7 +293,8 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
     secondsRef.current = 0;
     loggedRef.current = false;
     loggedIdRef.current = null;
-    replySentRef.current = false;
+    setMissedSent(false);
+    setSendingMissed(false);
     astraMetaRef.current = null;
     callLogMetaRef.current = null;
     metaRecordingRef.current = null;
@@ -653,6 +662,29 @@ export function CallDialog({ open, onClose, phone, contactName, instanceType, in
                   </button>
                 ))}
               </div>
+
+              {/* Enviar (manual) el mensaje de "no contesté" al contacto. Lo
+                  decide el asesor; no se envía solo en la llamada humana. */}
+              {state === 'ended' && (
+                <button
+                  type="button"
+                  onClick={() => void handleSendMissedMsg()}
+                  disabled={sendingMissed || missedSent}
+                  className={cn(
+                    'mt-3 flex w-full items-center justify-center gap-2 rounded-full border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60',
+                    missedSent
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40'
+                      : 'border-border bg-muted/40 text-foreground hover:bg-muted',
+                  )}
+                >
+                  {sendingMissed ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  {missedSent ? 'Mensaje enviado' : 'Enviar mensaje de que no contesté'}
+                </button>
+              )}
             </div>
           )}
 
