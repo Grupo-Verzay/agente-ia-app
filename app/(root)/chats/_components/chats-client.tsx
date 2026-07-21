@@ -43,6 +43,7 @@ import {
   buildWhatsAppJidCandidates,
   fmtPhone,
   extractWhatsAppDigits,
+  isLidJid,
   pickPreferredWhatsAppRemoteJid,
 } from "@/lib/whatsapp-jid";
 import { avatarSrcFor } from "@/lib/avatar";
@@ -764,6 +765,10 @@ export function ChatsClient({
         if (contactPush && !isBadContactName(contactPush)) return contactPush;
         const infoName = info?.contactName?.trim();
         if (infoName && !isBadContactName(infoName)) return infoName;
+        // Un @lid es un ID de privacidad, no un teléfono: nunca lo mostramos como
+        // "nombre" (antes salía el número largo 1834941897...). Si el JID es @lid
+        // y no tenemos nombre real, mostramos "Sin nombre".
+        if (isLidJid(selectedJid)) return "Sin nombre";
         return extractWhatsAppDigits(selectedJid) || selectedJid?.split("@")[0] || "Sin nombre";
       })(),
       avatarSrc: avatarSrcFor(currentContact?.profilePicUrl, selectedJid),
