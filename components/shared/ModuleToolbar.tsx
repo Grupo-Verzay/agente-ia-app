@@ -19,11 +19,14 @@ export function ModuleToolbar({ children, left, right, className }: ModuleToolba
   );
 
   // Siempre en una sola fila (también en móvil): el buscador ocupa el espacio
-  // disponible y las acciones (p. ej. "+ Crear") quedan ancladas a la derecha,
-  // alineadas con la barra de búsqueda. Antes se apilaban en <640px, lo que
-  // empujaba el botón de crear debajo del buscador.
+  // disponible y las acciones (p. ej. "+ Crear") quedan ancladas a la derecha.
+  // Usamos items-end para que las acciones queden alineadas con la LÍNEA del
+  // buscador cuando el lado izquierdo ocupa dos filas (p. ej. en Tareas o
+  // Recordatorios, donde arriba va el toggle Lista/Kanban y abajo el buscador);
+  // así el botón de crear no queda flotando a media altura. En toolbars de una
+  // sola fila el resultado es idéntico a centrado.
   return (
-    <div className={cn("flex flex-row items-center justify-between gap-2", className)}>
+    <div className={cn("flex flex-row items-end justify-between gap-2", className)}>
       {content}
     </div>
   );
