@@ -74,8 +74,14 @@ export async function saveMissedCallReplyConfig(
  */
 export async function sendMissedOutgoingCallReply(
   phone: string,
+  opts?: { force?: boolean },
 ): Promise<{ sent: boolean; message?: string }> {
   try {
+    // `force`: envío MANUAL pedido por un humano (botón en el diálogo de llamada).
+    // Ignora el on/off automático de la cuenta y usa el texto por defecto si no
+    // hay uno configurado. El envío AUTOMÁTICO (IA) sigue respetando el flag.
+    const force = opts?.force === true;
+
     const userId = await resolveCallAccountId();
     if (!userId) return { sent: false };
 
@@ -91,8 +97,8 @@ export async function sendMissedOutgoingCallReply(
       },
     });
 
-    if (!user?.missedCallReplyEnabled) return { sent: false };
-    const text = (user.missedCallReplyText ?? '').trim();
+    if (!force && !user?.missedCallReplyEnabled) return { sent: false };
+    const text = (user?.missedCallReplyText ?? '').trim() || (force ? DEFAULT_MISSED_CALL_TEXT : '');
     if (!text) return { sent: false };
 
     // Anti-repetición (3 h): si ya se le envió ESTE mismo mensaje al contacto en la
@@ -137,8 +143,8 @@ export async function sendMissedOutgoingCallReply(
     }
 
     // Evolution (WhatsApp no oficial): envío directo con las credenciales de la cuenta.
-    const baseUrl = user.apiKey?.url?.trim();
-    const apikey = user.apiKey?.key?.trim();
+    const baseUrl = user?.apiKey?.url?.trim();
+    const apikey = user?.apiKey?.key?.trim();
     if (!baseUrl || !apikey) return { sent: false, message: 'Sin credenciales de WhatsApp.' };
     const normalizedBase = /^https?:\/\//i.test(baseUrl)
       ? baseUrl.replace(/\/+$/, '')
