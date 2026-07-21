@@ -248,35 +248,36 @@ export function TasksClient({ userId, userName }: Props) {
         </div>
       </div>
 
-      {/* Header */}
-      <ModuleToolbar className="shrink-0">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <div className="flex gap-1 overflow-x-auto rounded-lg border border-border/60 bg-muted/30 p-1">
-            <button
-              type="button"
-              onClick={() => setView("list")}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
-                view === "list"
-                  ? "bg-background shadow-sm text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <List className="h-3.5 w-3.5" /> Lista
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("kanban")}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
-                view === "kanban"
-                  ? "bg-background shadow-sm text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Kanban className="h-3.5 w-3.5" /> Kanban
-            </button>
-          </div>
+      {/* Header: el selector de vista va en su propia fila para que el buscador
+          y las acciones ("+ Crear") queden SIEMPRE en la misma línea, alineados. */}
+      <div className="flex shrink-0 flex-col gap-2">
+        <div className="flex w-fit gap-1 overflow-x-auto rounded-lg border border-border/60 bg-muted/30 p-1">
+          <button
+            type="button"
+            onClick={() => setView("list")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
+              view === "list"
+                ? "bg-background shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <List className="h-3.5 w-3.5" /> Lista
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("kanban")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
+              view === "kanban"
+                ? "bg-background shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Kanban className="h-3.5 w-3.5" /> Kanban
+          </button>
+        </div>
+        <ModuleToolbar>
           <div className="relative w-full min-w-0 sm:w-64">
             <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -286,22 +287,22 @@ export function TasksClient({ userId, userName }: Props) {
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-        </div>
-        <div className="toolbar-collapse flex items-center gap-2">
-          <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => void load()} disabled={loading} title="Actualizar">
-            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-          </Button>
-          {view === "list" && done > 0 && (
-            <Button variant="outline" size="sm" onClick={() => setShowDone((v) => !v)} title={showDone ? "Ocultar completadas" : "Mostrar completadas"}>
-              {showDone ? <EyeOff className="mr-1.5 h-3.5 w-3.5" /> : <Eye className="mr-1.5 h-3.5 w-3.5" />}
-              Completadas ({done})
+          <div className="toolbar-collapse flex items-center gap-2">
+            <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => void load()} disabled={loading} title="Actualizar">
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
             </Button>
-          )}
-          <Button size="sm" onClick={() => setNewTaskOpen(true)}>
-            + Crear
-          </Button>
-        </div>
-      </ModuleToolbar>
+            {view === "list" && done > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setShowDone((v) => !v)} title={showDone ? "Ocultar completadas" : "Mostrar completadas"}>
+                {showDone ? <EyeOff className="mr-1.5 h-3.5 w-3.5" /> : <Eye className="mr-1.5 h-3.5 w-3.5" />}
+                Completadas ({done})
+              </Button>
+            )}
+            <Button size="sm" onClick={() => setNewTaskOpen(true)}>
+              + Crear
+            </Button>
+          </div>
+        </ModuleToolbar>
+      </div>
 
       {/* Content */}
       {loading ? (
