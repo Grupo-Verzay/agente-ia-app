@@ -22,6 +22,15 @@ export function isBroadcastJid(value?: string | null) {
   return normalized.endsWith(WHATSAPP_BROADCAST_JID_SUFFIX);
 }
 
+/**
+ * JID con esquema "LID" de WhatsApp (`@lid`): identificador de PRIVACIDAD, NO un
+ * teléfono. Sus dígitos parecen un número (15+) pero no lo son. El teléfono real
+ * viaja aparte (senderPn / remoteJidAlt @s.whatsapp.net).
+ */
+export function isLidJid(value?: string | null) {
+  return cleanValue(value).toLowerCase().endsWith(WHATSAPP_LID_JID_SUFFIX);
+}
+
 export function extractWhatsAppDigits(value?: string | null) {
   const raw = cleanValue(value);
 
@@ -107,6 +116,15 @@ export function buildWhatsAppJidCandidates(
     const canonical = normalizeWhatsAppConversationJid(raw);
     if (canonical) {
       candidates.add(canonical);
+    }
+
+    // Un @lid NO es un teléfono: sus dígitos son un ID de privacidad. Fabricar
+    // `<lidDigits>@s.whatsapp.net` producía un JID falso que jamás casa con la
+    // sesión real (guardada bajo el número) y podía casar con un contacto ajeno.
+    // Para un @lid solo conservamos su forma literal; el teléfono real llega
+    // aparte (senderPn / remoteJidAlt) como extraValue.
+    if (isLidJid(raw)) {
+      return;
     }
 
     const digits = extractWhatsAppDigits(raw);
