@@ -20,9 +20,17 @@ const TYPE_LABELS: Record<string, string> = {
   document: 'Documento',
 };
 
+function isPdfMime(mimeType: string) {
+  return mimeType === 'application/pdf' || mimeType.endsWith('/pdf');
+}
+
 export const MediaViewer: React.FC<MediaViewerProps> = ({ media, open, onClose }) => {
   const { type, url, mimeType, caption } = media;
   const ViewerComponent = getViewer(type);
+
+  // Un documento SIN vista previa (no PDF) es solo una tarjeta con icono + botón:
+  // no debe abrir un modal gigante (90vw × 95vh) casi vacío, sino uno compacto.
+  const isDocumentCard = type === 'document' && !isPdfMime(mimeType);
 
   const handleDownload = useCallback(async () => {
     try {
@@ -45,7 +53,11 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ media, open, onClose }
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
-        className="max-w-[95vw] sm:max-w-[90vw] max-h-[95vh] p-0 border-none flex flex-col overflow-hidden"
+        className={
+          isDocumentCard
+            ? 'max-w-[92vw] sm:max-w-sm p-0 flex flex-col overflow-hidden'
+            : 'max-w-[95vw] sm:max-w-[90vw] max-h-[95vh] p-0 border-none flex flex-col overflow-hidden'
+        }
       >
         <DialogTitle className="sr-only text-muted ">
           {caption || TYPE_LABELS[type] || 'Visor multimedia'}
@@ -73,8 +85,9 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ media, open, onClose }
           </Button>
         </div>
 
-        {/* Content — each viewer fills this area and manages its own internal layout */}
-        <div className="flex-1 min-h-0 overflow-hidden">
+        {/* Content — each viewer fills this area and manages its own internal layout.
+            Para la tarjeta de documento el alto es automático (modal compacto). */}
+        <div className={isDocumentCard ? 'overflow-hidden' : 'flex-1 min-h-0 overflow-hidden'}>
           <ViewerComponent url={url} mimeType={mimeType} caption={caption} />
         </div>
       </DialogContent>
