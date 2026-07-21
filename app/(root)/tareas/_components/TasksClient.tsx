@@ -277,7 +277,7 @@ export function TasksClient({ userId, userName }: Props) {
               <Kanban className="h-3.5 w-3.5" /> Kanban
             </button>
           </div>
-          <div className="relative w-64 shrink-0">
+          <div className="relative w-full min-w-0 sm:w-64">
             <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar tarea..."

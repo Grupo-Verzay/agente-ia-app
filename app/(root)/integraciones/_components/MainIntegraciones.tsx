@@ -219,7 +219,7 @@ export function MainIntegraciones({ initial }: { initial: UserIntegrationItem[] 
             {/* Toolbar */}
             <ModuleToolbar
                 left={
-                    <div className="relative w-72 shrink-0">
+                    <div className="relative w-full min-w-0 sm:w-72">
                         <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             placeholder="Buscar integración..."

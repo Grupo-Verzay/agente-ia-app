@@ -14,12 +14,16 @@ export function ModuleToolbar({ children, left, right, className }: ModuleToolba
   const content = children ?? (
     <>
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{left}</div>
-      <div className="flex items-center gap-2 sm:shrink-0">{right}</div>
+      <div className="flex shrink-0 items-center gap-2">{right}</div>
     </>
   );
 
+  // Siempre en una sola fila (también en móvil): el buscador ocupa el espacio
+  // disponible y las acciones (p. ej. "+ Crear") quedan ancladas a la derecha,
+  // alineadas con la barra de búsqueda. Antes se apilaban en <640px, lo que
+  // empujaba el botón de crear debajo del buscador.
   return (
-    <div className={cn("flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between", className)}>
+    <div className={cn("flex flex-row items-center justify-between gap-2", className)}>
       {content}
     </div>
   );
