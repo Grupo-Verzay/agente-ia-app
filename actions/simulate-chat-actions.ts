@@ -26,9 +26,13 @@ export async function simulateChatMessage(input: {
 
     const systemKey = process.env.OPENAI_SYSTEM_API_KEY ?? '';
     const aiClient = await resolveUserAiClient(user.effectiveId);
-    const apiKey = systemKey || aiClient.data?.apiKey;
+    // Limpiar caracteres inválidos (viñetas •, emojis, espacios, saltos de línea)
+    // que se cuelan al copiar la key: los headers HTTP solo admiten ASCII
+    // imprimible, y esos caracteres rompían el fetch con un TypeError de ByteString
+    // que se veía como "Error de red".
+    const apiKey = (systemKey || aiClient.data?.apiKey || '').trim().replace(/[^\x21-\x7E]/g, '');
     if (!apiKey) {
-        return { ok: false, error: 'No tienes una API Key de OpenAI configurada. Ve a Perfil → Api Key IA.' };
+        return { ok: false, error: 'No tienes una API Key de OpenAI configurada (o tiene caracteres inválidos). Ve a Perfil → Api Key IA.' };
     }
 
     try {
