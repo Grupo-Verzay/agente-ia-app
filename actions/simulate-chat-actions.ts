@@ -30,7 +30,8 @@ export async function simulateChatMessage(input: {
     // que se cuelan al copiar la key: los headers HTTP solo admiten ASCII
     // imprimible, y esos caracteres rompían el fetch con un TypeError de ByteString
     // que se veía como "Error de red".
-    const apiKey = (systemKey || aiClient.data?.apiKey || '').trim().replace(/[^\x21-\x7E]/g, '');
+    // Prioridad: la key propia del cliente; la del sistema solo como respaldo.
+    const apiKey = (aiClient.data?.apiKey || systemKey || '').trim().replace(/[^\x21-\x7E]/g, '');
     if (!apiKey) {
         return { ok: false, error: 'No tienes una API Key de OpenAI configurada (o tiene caracteres inválidos). Ve a Perfil → Api Key IA.' };
     }
