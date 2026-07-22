@@ -1,5 +1,6 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { DEFAULT_TRAINING_CHANNEL } from "@/lib/channel-training";
@@ -15,10 +16,17 @@ import { isAdminOrReseller } from "@/lib/rbac";
  * Asistente de "dar de alta el Agente IA" (primer arranque).
  *
  * Al registrarse y entrar por primera vez, el dueño configura su agente con un
- * paso a paso: datos del negocio + objetivo (plantilla). Esto reutiliza el
- * mismo entrenamiento (AgentPrompt.sections) que usa el editor y "IA Prompts",
- * así que no rompe ni duplica nada, y todo queda versionado (reversible).
+ * paso a paso: datos del negocio + objetivo (plantilla). Reutiliza el mismo
+ * entrenamiento (AgentPrompt.sections) que usa el editor y "IA Prompts", así
+ * que no rompe ni duplica nada, y todo queda versionado (reversible).
+ *
+ * IMPORTANTE: NO usa ninguna columna nueva en la BD. El estado se deriva de:
+ *   - ¿El agente ya tiene contenido? → ya está dado de alta (no mostrar).
+ *   - Cookie de "hacerlo después" → el dueño lo pospuso (no mostrar).
+ * Así evitamos migraciones y no rompemos consultas del usuario.
  */
+
+const DISMISS_COOKIE = "agent_onboarding_dismissed";
 
 // Objetivos del asistente → ids de plantilla existentes (agentTemplates.ts).
 const VALID_OBJECTIVES = new Set([
@@ -35,52 +43,49 @@ function ownerId(me: { effectiveId?: string | null; id: string }): string {
   return me.effectiveId ?? me.id;
 }
 
-/**
- * ¿Debe mostrarse el asistente de primer arranque?
- * Solo al dueño (no a asesores), solo si no lo completó y su agente aún no
- * tiene contenido (los usuarios existentes ya configurados NO lo ven).
- */
-export async function getAgentOnboardingState(): Promise<{ show: boolean; name?: string | null }> {
-  const me = await currentUser();
-  if (!me?.id) return { show: false };
-  // Los asesores / cuentas administradas no configuran el agente del dueño.
-  if ((me as { advisorRole?: string | null }).advisorRole) return { show: false };
-  // Administradores de la plataforma / revendedores no tienen su propio agente.
-  if (isAdminOrReseller((me as { role?: string | null }).role)) return { show: false };
-
-  const userId = ownerId(me);
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: { agentOnboardingDone: true, name: true } as any,
-  });
-  if ((user as { agentOnboardingDone?: boolean } | null)?.agentOnboardingDone) return { show: false };
-
-  // ¿Ya tiene un agente configurado? (defensa para cuentas previas a esta marca)
+/** ¿El dueño ya tiene un Agente IA con contenido configurado? */
+async function isAgentConfigured(userId: string): Promise<boolean> {
   const prompts = await db.agentPrompt.findMany({
     where: { userId },
     select: { businessName: true, status: true, sections: true },
   });
-  const configured = prompts.some((p) => {
+  return prompts.some((p) => {
     const hasBiz = !!(p.businessName && p.businessName.trim());
     const steps = (p.sections as any)?.training?.steps;
     const hasFlow = Array.isArray(steps) && steps.length > 0;
     return hasBiz || hasFlow || p.status === "published";
   });
-  if (configured) {
-    await db.user.update({ where: { id: userId }, data: { agentOnboardingDone: true } as any }).catch(() => {});
-    return { show: false };
-  }
-
-  return { show: true, name: (user as { name?: string } | null)?.name ?? null };
 }
 
-/** Marca el asistente como visto sin configurar ("hacerlo después"). */
-export async function dismissAgentOnboarding(): Promise<{ ok: boolean }> {
+/**
+ * ¿Debe mostrarse el asistente de primer arranque?
+ * Solo al dueño (no a asesores ni admins), solo si NO pospuso el asistente y su
+ * agente aún no tiene contenido.
+ */
+export async function getAgentOnboardingState(): Promise<{ show: boolean; name?: string | null }> {
   const me = await currentUser();
-  if (!me?.id) return { ok: false };
-  await db.user
-    .update({ where: { id: ownerId(me) }, data: { agentOnboardingDone: true } as any })
-    .catch(() => {});
+  if (!me?.id) return { show: false };
+  if ((me as { advisorRole?: string | null }).advisorRole) return { show: false };
+  if (isAdminOrReseller((me as { role?: string | null }).role)) return { show: false };
+
+  const cookieStore = await cookies();
+  if (cookieStore.get(DISMISS_COOKIE)?.value === "1") return { show: false };
+
+  const userId = ownerId(me);
+  if (await isAgentConfigured(userId)) return { show: false };
+
+  return { show: true, name: (me as { name?: string | null }).name ?? null };
+}
+
+/** Marca el asistente como pospuesto ("hacerlo después") vía cookie. */
+export async function dismissAgentOnboarding(): Promise<{ ok: boolean }> {
+  const cookieStore = await cookies();
+  cookieStore.set(DISMISS_COOKIE, "1", {
+    maxAge: 60 * 60 * 24 * 365, // 1 año
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+  });
   return { ok: true };
 }
 
@@ -98,8 +103,7 @@ export interface AgentOnboardingInput {
 
 /**
  * Da de alta el agente: guarda el negocio, aplica la plantilla del objetivo
- * (que trae el flujo/camino, FAQ y captura de datos) y publica. Deja el
- * onboarding como completado.
+ * (que trae el flujo/camino, FAQ y captura de datos) y publica.
  */
 export async function completeAgentOnboarding(
   input: AgentOnboardingInput,
@@ -137,7 +141,7 @@ export async function completeAgentOnboarding(
       where: { id: prompt.id },
       select: { version: true },
     });
-    const bizRes = await patchBusinessSection({
+    await patchBusinessSection({
       promptId: prompt.id,
       version: afterTemplate?.version ?? prompt.version,
       data: {
@@ -147,7 +151,6 @@ export async function completeAgentOnboarding(
         notas,
       },
     });
-    // Si hubo conflicto de versión, no es fatal: continuamos a publicar igual.
 
     // 4) Publicar (crea revisión + deja promptText compilado).
     const afterBiz = await db.agentPrompt.findUnique({
@@ -156,14 +159,21 @@ export async function completeAgentOnboarding(
     });
     await publishPrompt({
       promptId: prompt.id,
-      version: afterBiz?.version ?? (bizRes as any)?.data?.version ?? prompt.version + 1,
+      version: afterBiz?.version ?? prompt.version + 1,
       publishedBy: me.name ?? (me as { email?: string }).email ?? "Asistente",
       note: "Configuración inicial (asistente)",
       revalidate: "/ia",
     });
 
-    // 5) Onboarding completado.
-    await db.user.update({ where: { id: userId }, data: { agentOnboardingDone: true } as any });
+    // 5) Marcar como pospuesto/hecho vía cookie (el agente ya tiene contenido,
+    //    así que tampoco reaparecería por la verificación de "configurado").
+    const cookieStore = await cookies();
+    cookieStore.set(DISMISS_COOKIE, "1", {
+      maxAge: 60 * 60 * 24 * 365,
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+    });
 
     return { ok: true };
   } catch (e: any) {
