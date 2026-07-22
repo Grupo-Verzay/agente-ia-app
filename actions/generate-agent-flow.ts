@@ -27,17 +27,18 @@ import { randomUUID } from 'crypto';
 function sanitizeApiKey(
     raw: string | undefined | null,
 ): { ok: true; key: string } | { ok: false; error: string } {
-    const key = (raw ?? '').trim();
-    if (!key) {
+    const original = (raw ?? '').trim();
+    if (!original) {
         return { ok: false, error: 'No tienes una API Key de OpenAI configurada. Ve a Perfil → Api Key IA → Configurar.' };
     }
-    // ASCII imprimible sin espacios (0x21–0x7E). Cualquier otra cosa es un
-    // carácter inválido pegado por error al copiar la key.
-    if (!/^[\x21-\x7E]+$/.test(key)) {
-        return {
-            ok: false,
-            error: 'Tu API Key de OpenAI tiene caracteres inválidos (un espacio, una viñeta, un emoji o un símbolo pegado al copiarla). Cópiala de nuevo, completa, en Perfil → Api Key IA.',
-        };
+    // Los headers HTTP solo admiten ASCII imprimible (0x21–0x7E). En vez de
+    // reventar con el TypeError de ByteString, LIMPIAMOS cualquier carácter que
+    // se haya colado al copiar la key: espacios, saltos de línea, viñetas "•",
+    // emojis, comillas "tipográficas", etc. Una key válida de OpenAI (sk-...)
+    // sobrevive intacta; si el carácter era accidental, ahora la key funciona.
+    const key = original.replace(/[^\x21-\x7E]/g, '');
+    if (!key) {
+        return { ok: false, error: 'Tu API Key de OpenAI no es válida. Cópiala de nuevo, completa, en Perfil → Api Key IA.' };
     }
     return { ok: true, key };
 }
