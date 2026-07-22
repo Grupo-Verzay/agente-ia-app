@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import { DEFAULT_TRAINING_CHANNEL } from "@/lib/channel-training";
+import { BASE_TRAINING_AGENT_ID } from "@/lib/channel-training";
 import {
   getOrCreateChannelPrompt,
   patchBusinessSection,
@@ -43,18 +43,20 @@ function ownerId(me: { effectiveId?: string | null; id: string }): string {
   return me.effectiveId ?? me.id;
 }
 
-/** ¿El dueño ya tiene un Agente IA con contenido configurado? */
+/**
+ * ¿El Agente IA REAL (el prompt base de WhatsApp que atiende) ya está configurado?
+ * Mira exactamente el mismo prompt que lee el editor (agentId base), no "cualquiera".
+ */
 async function isAgentConfigured(userId: string): Promise<boolean> {
-  const prompts = await db.agentPrompt.findMany({
-    where: { userId },
+  const p = await db.agentPrompt.findFirst({
+    where: { userId, agentId: BASE_TRAINING_AGENT_ID },
     select: { businessName: true, status: true, sections: true },
   });
-  return prompts.some((p) => {
-    const hasBiz = !!(p.businessName && p.businessName.trim());
-    const steps = (p.sections as any)?.training?.steps;
-    const hasFlow = Array.isArray(steps) && steps.length > 0;
-    return hasBiz || hasFlow || p.status === "published";
-  });
+  if (!p) return false;
+  const hasBiz = !!(p.businessName && p.businessName.trim());
+  const steps = (p.sections as any)?.training?.steps;
+  const hasFlow = Array.isArray(steps) && steps.length > 0;
+  return hasBiz || hasFlow || p.status === "published";
 }
 
 /**
@@ -120,8 +122,11 @@ export async function completeAgentOnboarding(
       return { ok: false, error: "Objetivo no válido." };
     }
 
-    // 1) Prompt del canal WhatsApp (lo crea si no existe).
-    const prompt = await getOrCreateChannelPrompt({ userId, agentId: DEFAULT_TRAINING_CHANNEL });
+    // 1) Prompt base de WhatsApp — el MISMO que lee el editor (agentId base).
+    //    OJO: 'whatsapp' es el slug del tab, NO el agentId; el agentId real es
+    //    'system-prompt-ai' (BASE_TRAINING_AGENT_ID). Usar el slug crea un prompt
+    //    fantasma que ningún editor lee.
+    const prompt = await getOrCreateChannelPrompt({ userId, agentId: BASE_TRAINING_AGENT_ID });
 
     // 2) Aplicar la plantilla del objetivo (camino del cliente + FAQ + captura).
     const applied = await applyTemplateToPrompt({ promptId: prompt.id, templateId: input.objectiveId });
