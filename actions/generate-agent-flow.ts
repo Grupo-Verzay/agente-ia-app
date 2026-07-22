@@ -15,6 +15,33 @@ import {
 import { db } from '@/lib/db';
 import { randomUUID } from 'crypto';
 
+/**
+ * La API Key viaja en el header `Authorization: Bearer <key>`, y los headers HTTP
+ * solo admiten caracteres de 1 byte (Latin-1, 0–255). Si la key trae un carácter
+ * inválido —una viñeta "•", un emoji, una comilla "tipográfica" o un espacio raro
+ * pegado al copiarla— `fetch` lanza un TypeError de ByteString que se mostraba
+ * como el confuso "Error de red: Cannot convert argument to a ByteString...".
+ * Aquí la validamos (una key de OpenAI es ASCII imprimible sin espacios) y, si
+ * está mal, devolvemos un mensaje claro y accionable.
+ */
+function sanitizeApiKey(
+    raw: string | undefined | null,
+): { ok: true; key: string } | { ok: false; error: string } {
+    const key = (raw ?? '').trim();
+    if (!key) {
+        return { ok: false, error: 'No tienes una API Key de OpenAI configurada. Ve a Perfil → Api Key IA → Configurar.' };
+    }
+    // ASCII imprimible sin espacios (0x21–0x7E). Cualquier otra cosa es un
+    // carácter inválido pegado por error al copiar la key.
+    if (!/^[\x21-\x7E]+$/.test(key)) {
+        return {
+            ok: false,
+            error: 'Tu API Key de OpenAI tiene caracteres inválidos (un espacio, una viñeta, un emoji o un símbolo pegado al copiarla). Cópiala de nuevo, completa, en Perfil → Api Key IA.',
+        };
+    }
+    return { ok: true, key };
+}
+
 const CONSTRUCTOR_SYSTEM_PROMPT = `Eres un arquitecto de agentes conversacionales determinísticos para la plataforma Agente IA (agente.ia-app.com). Generas flujos blindados que ejecutan como reloj suizo y conversan como persona.
 
 🎯 DOCTRINA: Lógica de hierro, voz de humano. El motor jamás adivina. El usuario jamás lo nota.
@@ -385,10 +412,9 @@ export async function generateFlowSections(input: {
 
     const systemKey = process.env.OPENAI_SYSTEM_API_KEY ?? '';
     const aiClient = await resolveUserAiClient(user.effectiveId);
-    const apiKey = systemKey || aiClient.data?.apiKey;
-    if (!apiKey) {
-        return { ok: false, error: 'No tienes una API Key de OpenAI configurada. Ve a Perfil → Api Key IA → Configurar.' };
-    }
+    const keyCheck = sanitizeApiKey(systemKey || aiClient.data?.apiKey);
+    if (!keyCheck.ok) return { ok: false, error: keyCheck.error };
+    const apiKey = keyCheck.key;
 
     const base = `INFORMACIÓN DEL NEGOCIO — USA TODO SIN EXCEPCIÓN:\n\n${description.trim()}`;
 
@@ -572,10 +598,9 @@ export async function generateAgentFlow(input: {
     const systemKey = process.env.OPENAI_SYSTEM_API_KEY ?? '';
     const userId = user.effectiveId;
     const aiClient = await resolveUserAiClient(userId);
-    const apiKey = systemKey || aiClient.data?.apiKey;
-    if (!apiKey) {
-        return { success: false, error: 'No tienes una API Key de OpenAI configurada. Ve a Perfil → Api Key IA → Configurar.' };
-    }
+    const keyCheck = sanitizeApiKey(systemKey || aiClient.data?.apiKey);
+    if (!keyCheck.ok) return { success: false, error: keyCheck.error };
+    const apiKey = keyCheck.key;
 
     // Llamar a OpenAI con JSON mode
     let raw: string;
