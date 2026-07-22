@@ -363,34 +363,24 @@ export async function syncAllContactsToGoogleSheets(
   }
 }
 
-/* ── Sincronización automática (opt-in, apagada por defecto) ─── */
-export async function getSheetsAutoSyncEnabled(userId: string): Promise<boolean> {
-  try {
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: { sheetsAutoSyncEnabled: true } as any,
-    });
-    return Boolean((user as { sheetsAutoSyncEnabled?: boolean } | null)?.sheetsAutoSyncEnabled);
-  } catch {
-    return false;
-  }
+/* ── Sincronización automática (opt-in) ───────────────────────
+ * NOTA: la preferencia persistente requiere una columna dedicada en la BD
+ * (una migración aplicada por el backend). Hasta que exista, esta preferencia
+ * NO se persiste para no romper consultas del usuario. La sincronización manual
+ * (botón masivo) sigue funcionando normalmente.
+ */
+export async function getSheetsAutoSyncEnabled(_userId: string): Promise<boolean> {
+  return false;
 }
 
 export async function setSheetsAutoSyncEnabled(
-  userId: string,
-  enabled: boolean,
+  _userId: string,
+  _enabled: boolean,
 ): Promise<{ success: boolean; message?: string }> {
-  const me = await currentUser();
-  if (!me || me.effectiveId !== userId) return { success: false, message: 'No autorizado.' };
-  try {
-    await db.user.update({
-      where: { id: userId },
-      data: { sheetsAutoSyncEnabled: enabled } as any,
-    });
-    return { success: true };
-  } catch {
-    return { success: false, message: 'No se pudo guardar la preferencia.' };
-  }
+  return {
+    success: false,
+    message: 'La sincronización automática estará disponible en breve. Por ahora usa “Sincronizar a Google Sheets”.',
+  };
 }
 
 /**
