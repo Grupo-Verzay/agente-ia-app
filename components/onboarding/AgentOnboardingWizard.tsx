@@ -61,6 +61,17 @@ export function AgentOnboardingWizard() {
     };
   }, []);
 
+  // Permite relanzar el asistente a voluntad (ej. desde el checklist del Inicio),
+  // sin cambiar su comportamiento automático de primer arranque.
+  useEffect(() => {
+    const openOnDemand = () => {
+      setStep(0);
+      setOpen(true);
+    };
+    window.addEventListener("agent-onboarding:open", openOnDemand);
+    return () => window.removeEventListener("agent-onboarding:open", openOnDemand);
+  }, []);
+
   if (!open) return null;
 
   const objective = OBJECTIVES.find((o) => o.id === objectiveId) ?? OBJECTIVES[1];

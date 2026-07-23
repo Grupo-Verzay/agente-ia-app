@@ -11,6 +11,7 @@ import { useModuleStore } from '@/stores/modules/useModuleStore';
 import { resolveModuleItemDest } from '@/lib/canva-embed';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { ActivationChecklist } from '@/components/onboarding/ActivationChecklist';
 
 type HomeUser = {
   id: string;
@@ -194,6 +195,10 @@ export function MainHome({
           </div>
         </div>
       </section>
+
+      {/* Checklist de puesta en marcha (solo dueños de cuenta; se auto-oculta si
+          ya está EN VIVO o no aplica). */}
+      {!isAdminLike(user.role) && user.role !== 'reseller' && <ActivationChecklist />}
 
       <section className="space-y-4">
         <div className="flex items-center gap-2">
