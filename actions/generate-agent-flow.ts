@@ -413,7 +413,9 @@ export async function generateFlowSections(input: {
 
     const systemKey = process.env.OPENAI_SYSTEM_API_KEY ?? '';
     const aiClient = await resolveUserAiClient(user.effectiveId);
-    const keyCheck = sanitizeApiKey(systemKey || aiClient.data?.apiKey);
+    // Prioridad: la API Key propia del cliente; la del sistema solo como respaldo
+    // si el cliente no tiene una configurada.
+    const keyCheck = sanitizeApiKey(aiClient.data?.apiKey || systemKey);
     if (!keyCheck.ok) return { ok: false, error: keyCheck.error };
     const apiKey = keyCheck.key;
 
@@ -599,7 +601,9 @@ export async function generateAgentFlow(input: {
     const systemKey = process.env.OPENAI_SYSTEM_API_KEY ?? '';
     const userId = user.effectiveId;
     const aiClient = await resolveUserAiClient(userId);
-    const keyCheck = sanitizeApiKey(systemKey || aiClient.data?.apiKey);
+    // Prioridad: la API Key propia del cliente; la del sistema solo como respaldo
+    // si el cliente no tiene una configurada.
+    const keyCheck = sanitizeApiKey(aiClient.data?.apiKey || systemKey);
     if (!keyCheck.ok) return { success: false, error: keyCheck.error };
     const apiKey = keyCheck.key;
 
