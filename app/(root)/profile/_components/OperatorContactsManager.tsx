@@ -178,8 +178,7 @@ export function OperatorContactsManager({ userId }: Props) {
             </div>
 
             <p className="text-xs text-muted-foreground">
-                Cuando la IA no puede resolver, consulta a un operario por WhatsApp (desde la línea del negocio),
-                y al recibir su respuesta la reformula y se la envía al cliente.
+                Si la IA no puede resolver, consulta a un operario por WhatsApp y reenvía su respuesta al cliente.
             </p>
 
             {/* Lista */}

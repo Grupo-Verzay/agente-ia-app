@@ -817,21 +817,6 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                 </CardHeader>
                             </Card>
 
-                            {/* Puente con operario + Modo Dueño (dos columnas) */}
-                            <div className="grid gap-4 sm:grid-cols-2 items-start mb-4">
-                                <Card className="border-border">
-                                    <CardContent className="pt-4">
-                                        <OperatorContactsManager userId={userId} />
-                                    </CardContent>
-                                </Card>
-
-                                <Card className="border-border">
-                                    <CardContent className="pt-4">
-                                        <OwnerModeToggle userId={userId} />
-                                    </CardContent>
-                                </Card>
-                            </div>
-
                             <SectionTitle>Tiempos de respuesta</SectionTitle>
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <Card className="border-border">
@@ -940,6 +925,22 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                             onChange={(e) => handleChange("delSeguimiento", e.target.value)}
                                             onBlur={() => handleBlur("delSeguimiento")}
                                         />
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            {/* Funciones avanzadas (al final: uso menos frecuente) */}
+                            <SectionTitle>Funciones avanzadas</SectionTitle>
+                            <div className="grid gap-4 sm:grid-cols-2 items-stretch">
+                                <Card className="border-border h-full">
+                                    <CardContent className="pt-4 h-full">
+                                        <OperatorContactsManager userId={userId} />
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="border-border h-full">
+                                    <CardContent className="pt-4 h-full">
+                                        <OwnerModeToggle userId={userId} />
                                     </CardContent>
                                 </Card>
                             </div>

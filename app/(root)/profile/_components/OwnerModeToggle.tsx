@@ -72,10 +72,8 @@ export function OwnerModeToggle({ userId }: Props) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Escribe aquí el número de WhatsApp del dueño. La IA reconocerá los mensajes de
-        ESE número como órdenes y las ejecutará (reportes, tareas, recordatorios, enviar
-        mensajes a contactos, mover leads, etiquetar, asignar asesores y ajustar el
-        entrenamiento). Cualquier otro número se atiende como cliente normal.
+        Los mensajes de este número se tratan como órdenes de la IA (reportes, tareas,
+        mover leads, etiquetar y más). Los demás números se atienden como clientes.
       </p>
 
       {loading ? (
