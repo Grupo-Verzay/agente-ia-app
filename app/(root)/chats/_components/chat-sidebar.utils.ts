@@ -185,5 +185,15 @@ export function lastTextFrom(chat: ChatData): {
     }
   }
 
+  // Stub vacío: un mensaje de TEXTO que existe pero llega sin contenido es el
+  // caso típico de un mensaje que el cliente eliminó y WhatsApp devuelve vacío.
+  // Se muestra "Mensaje eliminado" en la vista previa de la lista, igual que ya
+  // se ve dentro del chat. Acotado a tipos de texto para no tocar imágenes,
+  // audios, encuestas, etc. (que tienen su propia vista previa).
+  const isTextType = !type || type === "conversation" || type === "extendedTextMessage";
+  if (msg && isTextType && !msg.conversation && !msg.extendedTextMessage?.text) {
+    text = "Mensaje eliminado";
+  }
+
   return { text, messageType: type, id, fromMe };
 }
