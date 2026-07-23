@@ -30,7 +30,9 @@ import { CallDialog } from './CallDialog';
 import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { TaskFormDialog } from './TaskFormDialog';
+import { MergeLidDialog } from './MergeLidDialog';
 import { cn } from '@/lib/utils';
+import { isLidJid } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 
 const PALETTE = ['bg-blue-500','bg-violet-500','bg-emerald-500','bg-amber-500','bg-rose-500','bg-cyan-500','bg-fuchsia-500'];
@@ -114,6 +116,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const [resolving, setResolving] = useState(false);
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
 
   const isAgent = !!advisorRole;
   const isOwnerLike = !advisorRole || advisorRole === 'administrador';
@@ -712,11 +715,29 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       )}
       </div>{/* end desktop flex-col */}
 
-      {!session && (
+      {!session && !(remoteJid && isLidJid(remoteJid)) && (
         <div className="md:hidden px-2 py-2 bg-amber-50/50 dark:bg-amber-950/20 border-t border-amber-200/50 dark:border-amber-800/30 text-xs text-amber-700 dark:text-amber-600">
           Sin sesión CRM sincronizada
         </div>
       )}
+
+      {remoteJid && isLidJid(remoteJid) && (
+        <div className="flex items-center justify-between gap-2 border-t border-amber-200/60 bg-amber-50/60 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/30 dark:bg-amber-950/20 dark:text-amber-400">
+          <span className="min-w-0">
+            Este chat usa un ID interno de WhatsApp. Si es un contacto duplicado, únelo con el real.
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 shrink-0"
+            onClick={() => setMergeOpen(true)}
+          >
+            Unir contacto
+          </Button>
+        </div>
+      )}
+
+      <MergeLidDialog open={mergeOpen} onOpenChange={setMergeOpen} lidJid={remoteJid ?? ''} />
 
       <TaskFormDialog
         open={taskDialogOpen}
