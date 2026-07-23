@@ -150,11 +150,24 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
         })();
     }, [selectedMember, selectedDateYmd, duration, timezone, effectiveNotice]);
 
+    // Quita el indicativo del número si el usuario lo repite (evita doble código).
+    const stripDial = (digits: string, code: string) => {
+        const dc = (code || '').replace(/\D/g, '');
+        return dc && digits.startsWith(dc) ? digits.slice(dc.length) : digits;
+    };
+
+    const handleAreaCodeChange = (code: string) => {
+        setAreaCode(code);
+        setPhone((prev) => stripDial(prev.replace(/\D/g, ''), code));
+    };
+
+    const handlePhoneChange = (value: string) => {
+        setPhone(stripDial(value.replace(/\D/g, ''), areaCode));
+    };
+
     const handlePhoneBlur = () => {
         if (!areaCode || !phone) return;
-        const codeDigits = areaCode.replace('+', '');
-        const digits = phone.replace(/\D/g, '');
-        if (digits.startsWith(codeDigits)) setPhone(digits.slice(codeDigits.length));
+        setPhone(stripDial(phone.replace(/\D/g, ''), areaCode));
     };
 
     const resetForm = () => {
@@ -362,8 +375,8 @@ export function BookingPageClient({ userId, team, countries, prefillName = '', p
                         canContinue={canContinue}
                         loading={loading}
                         setNameClient={setNameClient}
-                        setAreaCode={setAreaCode}
-                        setPhone={setPhone}
+                        setAreaCode={handleAreaCodeChange}
+                        setPhone={handlePhoneChange}
                         setStep={setStep}
                         backStep={hasForm ? FORM_STEP : 3}
                         onContinue={handleConfirm}
