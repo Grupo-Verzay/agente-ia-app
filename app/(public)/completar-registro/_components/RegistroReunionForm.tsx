@@ -316,11 +316,6 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
   /* ── Formulario de una sola pantalla (cliente y reseller) ── */
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-white">Activa tu cuenta 🚀</h2>
-          <p className="text-slate-400 mt-1 text-sm">Cuéntanos de tu negocio y activa tu agente.</p>
-        </div>
-
         {/* Fila 1: Nombre completo | Nombre del negocio */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">

@@ -15,7 +15,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   // Si viene de un reseller (?r=slug) usa su marca; si no, la de la plataforma.
   const branding = await getPublicBrandingBySlug(searchParams.r ?? '');
   return {
-    title: `Activa tu cuenta gratis | ${branding.brandName}`,
+    title: `Activa tu cuenta | ${branding.brandName}`,
     icons: { icon: branding.faviconUrl },
   };
 }
@@ -53,7 +53,7 @@ export default async function CompletarRegistroPage({ searchParams }: Props) {
         </Link>
         <div className="mt-2">
           <h1 className="text-2xl font-bold text-white sm:text-3xl">
-            {isReseller ? '🤝 Únete al programa de resellers' : '🚀 Activa tu cuenta gratis'}
+            {isReseller ? '🤝 Únete al programa de resellers' : '🚀 Activa tu cuenta'}
           </h1>
           <p className="mt-2 max-w-md text-sm text-slate-400">
             {isReseller
