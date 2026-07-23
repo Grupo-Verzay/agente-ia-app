@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Copy, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Copy, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
@@ -10,6 +10,7 @@ interface MessageContextMenuProps {
   isUserMessage: boolean;
   onCopy: () => void;
   onReact: (emoji: string) => void;
+  onEdit?: () => void;
   onDelete?: () => void;
 }
 
@@ -17,6 +18,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
   isUserMessage,
   onCopy,
   onReact,
+  onEdit,
   onDelete,
 }) => {
   const [open, setOpen] = useState(false);
@@ -74,6 +76,18 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
             <Copy className="w-3.5 h-3.5 text-muted-foreground" />
             Copiar
           </button>
+
+          {/* Editar (solo mensajes propios) */}
+          {onEdit && isUserMessage && (
+            <button
+              type="button"
+              onClick={() => { onEdit(); setOpen(false); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-accent transition-colors"
+            >
+              <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+              Editar
+            </button>
+          )}
 
           {/* Eliminar (solo admin) */}
           {onDelete && (

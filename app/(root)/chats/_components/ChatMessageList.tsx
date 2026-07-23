@@ -109,6 +109,7 @@ interface MessageRowProps {
   onCopyMessage?: (bubble: UIBubble) => void;
   onReactMessage?: (bubble: UIBubble, emoji: string) => void;
   onDeleteMessage?: (bubble: UIBubble) => void;
+  onEditMessage?: (bubble: UIBubble) => void;
   onDeleteNote?: (noteId: number) => Promise<void>;
 }
 
@@ -123,6 +124,7 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
   onCopyMessage,
   onReactMessage,
   onDeleteMessage,
+  onEditMessage,
   onDeleteNote,
 }) => {
   const wrapperClass = cn(
@@ -174,6 +176,7 @@ const MessageRowBase: React.FC<MessageRowProps> = ({
           onReply={onSetReplyTo ? () => onSetReplyTo(message) : undefined}
           onCopy={onCopyMessage ? () => onCopyMessage(message) : undefined}
           onReact={onReactMessage ? (emoji) => onReactMessage(message, emoji) : undefined}
+          onEdit={onEditMessage ? () => onEditMessage(message) : undefined}
           onDelete={onDeleteMessage ? () => onDeleteMessage(message) : undefined}
         />
       )}
@@ -187,6 +190,7 @@ function areMessageRowsEqual(prev: MessageRowProps, next: MessageRowProps) {
     prev.onCopyMessage !== next.onCopyMessage ||
     prev.onReactMessage !== next.onReactMessage ||
     prev.onDeleteMessage !== next.onDeleteMessage ||
+    prev.onEditMessage !== next.onEditMessage ||
     prev.onDeleteNote !== next.onDeleteNote ||
     prev.advisorName !== next.advisorName ||
     prev.callPhone !== next.callPhone ||
@@ -242,6 +246,7 @@ interface ChatMessageListProps {
   onCopyMessage?: (bubble: UIBubble) => void;
   onReactMessage?: (bubble: UIBubble, emoji: string) => void;
   onDeleteMessage?: (bubble: UIBubble) => void;
+  onEditMessage?: (bubble: UIBubble) => void;
   onDeleteNote?: (noteId: number) => Promise<void>;
   onLoadOlderMessages?: () => Promise<void>;
   canLoadOlderMessages?: boolean;
@@ -262,6 +267,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
   onCopyMessage,
   onReactMessage,
   onDeleteMessage,
+  onEditMessage,
   onDeleteNote,
   onLoadOlderMessages,
   canLoadOlderMessages,
@@ -433,6 +439,7 @@ const ChatMessageListBase: React.FC<ChatMessageListProps> = ({
               onCopyMessage={onCopyMessage}
               onReactMessage={onReactMessage}
               onDeleteMessage={onDeleteMessage}
+              onEditMessage={onEditMessage}
               onDeleteNote={onDeleteNote}
             />
           );
