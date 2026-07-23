@@ -17,6 +17,51 @@ function toPhoneJid(value: string): string {
 }
 
 /**
+ * Lista contactos reales (no @lid) de la misma línea/instancia para elegir con
+ * cuál unir el @lid, sin tener que escribir el número. Solo lectura.
+ */
+export async function listMergeCandidates(input: {
+  instanceName: string;
+  query?: string;
+  limit?: number;
+}): Promise<
+  { ok: true; items: { remoteJid: string; name: string }[] } | { ok: false; error: string }
+> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: 'No autenticado.' };
+  const userId = (user as any).effectiveId ?? user.id;
+  const q = (input.query ?? '').trim().toLowerCase();
+  const qDigits = q.replace(/\D/g, '');
+
+  try {
+    const rows: Array<{ remoteJid: string; pushName: string | null }> = await (
+      db as any
+    ).chatConversation.findMany({
+      where: {
+        userId,
+        instanceName: input.instanceName,
+        NOT: { remoteJid: { endsWith: '@lid' } },
+      },
+      select: { remoteJid: true, pushName: true },
+      orderBy: { lastMessageTimestamp: 'desc' },
+      take: 300,
+    });
+
+    let items = rows.map((r) => ({ remoteJid: r.remoteJid, name: (r.pushName || '').trim() }));
+    if (q) {
+      items = items.filter(
+        (it) =>
+          it.name.toLowerCase().includes(q) ||
+          (qDigits.length >= 3 && it.remoteJid.replace(/\D/g, '').includes(qDigits)),
+      );
+    }
+    return { ok: true, items: items.slice(0, input.limit ?? 30) };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? 'No se pudieron cargar los contactos.' };
+  }
+}
+
+/**
  * Une manualmente una conversación "fantasma" @lid con el contacto real:
  * - Guarda el mapeo permanente en `chat_lid_map` (userId, lid) -> número, para
  *   que el sistema lo reconozca PARA SIEMPRE (no se vuelve a partir).

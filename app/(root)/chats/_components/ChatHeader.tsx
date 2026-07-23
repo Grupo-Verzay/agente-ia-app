@@ -737,7 +737,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </div>
       )}
 
-      <MergeLidDialog open={mergeOpen} onOpenChange={setMergeOpen} lidJid={remoteJid ?? ''} />
+      <MergeLidDialog open={mergeOpen} onOpenChange={setMergeOpen} lidJid={remoteJid ?? ''} instanceName={instanceName} />
 
       <TaskFormDialog
         open={taskDialogOpen}
