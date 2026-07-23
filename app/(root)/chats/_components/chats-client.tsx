@@ -411,7 +411,13 @@ function dedupeAndSortChats(chats: ChatData[]) {
     .filter((chat) => {
       if (!chat.remoteJid) return false;
 
-      const identityCandidates = getChatIdentityCandidates(chat);
+      // Los chats 1-a-1 se deduplican POR INSTANCIA (línea): el mismo cliente que
+      // escribe a dos números distintos (p. ej. Atención por Meta y Ventas por
+      // Evolution) debe quedar como DOS conversaciones, no una. Solo los grupos
+      // (@g.us) se unifican entre líneas.
+      const isGroup = chat.remoteJid.endsWith("@g.us");
+      const scope = isGroup ? "" : `${chat.instanceName ?? ""}::`;
+      const identityCandidates = getChatIdentityCandidates(chat).map((c) => `${scope}${c}`);
       const messageKey = getChatMessageDuplicateKey(chat);
       if (
         identityCandidates.some((candidate) => seenIdentities.has(candidate)) ||
