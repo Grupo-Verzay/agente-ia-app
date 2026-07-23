@@ -23,6 +23,7 @@ import {
   sendTextMessage,
   sendReaction,
   deleteMessage,
+  editMessage,
 } from "./chat-actions";
 import { getExecutionNodesForWorkflow } from "./workflow-node-action";
 
@@ -963,4 +964,18 @@ export async function deleteMessageAction(
     return { success: false, message: "Solo los administradores pueden eliminar mensajes." };
   }
   return deleteMessage(context.apiKeyData, context.instanceName, remoteJid, messageId, fromMe);
+}
+
+export async function editMessageAction(
+  context: ChatActionContext,
+  remoteJid: string,
+  messageId: string,
+  newText: string,
+): Promise<{ success: boolean; message: string }> {
+  if (!hasReadyContext(context)) return { success: false, message: "Sin instancia configurada." };
+  const user = await requireCurrentUser();
+  if (user.role !== "admin" && user.role !== "super_admin") {
+    return { success: false, message: "Solo los administradores pueden editar mensajes." };
+  }
+  return editMessage(context.apiKeyData, context.instanceName, remoteJid, messageId, newText);
 }

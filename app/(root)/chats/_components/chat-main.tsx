@@ -15,7 +15,7 @@ import type { ChatQuickReplyOption, ChatToolActionResult, ChatWorkflowOption } f
 import type { ChatContactSessionSummary, LeadStatus, Session, SimpleTag } from '@/types/session';
 import type { AdvisorInfo } from '@/actions/team-actions';
 
-import { reactToMessageAction, deleteMessageAction } from '@/actions/chat-manual-actions';
+import { reactToMessageAction, deleteMessageAction, editMessageAction } from '@/actions/chat-manual-actions';
 import { generateSuggestedReplyAction } from '@/actions/ai-suggested-reply-action';
 import { getAiMessageContentsAction } from '@/actions/ai-message-contents-action';
 import { updateSessionLeadStatus } from '@/actions/session-action';
@@ -28,6 +28,7 @@ import {
 import { executeMacroAction } from '@/actions/macro-actions';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessageList } from './ChatMessageList';
+import { MessageEditDialog } from './MessageEditDialog';
 import { ChatInputBar } from './ChatInputBar';
 import type { MetaTemplateOption } from '@/actions/channel-chat-actions';
 import { Button } from '@/components/ui/button';
@@ -179,6 +180,9 @@ export const ChatMain: React.FC<ChatMainProps> = ({
   const [composeMediaList, setComposeMediaList] = useState<ComposeMedia[]>([]);
   const [replyTo, setReplyTo] = useState<UIBubble | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  // Edición optimista: id del mensaje -> nuevo texto (se aplica al render al vuelo).
+  const [editedContent, setEditedContent] = useState<Map<string, string>>(new Map());
+  const [editingBubble, setEditingBubble] = useState<UIBubble | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isContactEditorOpen, setIsContactEditorOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -365,10 +369,13 @@ export const ChatMain: React.FC<ChatMainProps> = ({
       if (aiTaggedIds?.has(b.id) && !bubble.sentByAi) {
         bubble = { ...bubble, sentByAi: true };
       }
+      if (editedContent.size > 0 && editedContent.has(b.id)) {
+        bubble = { ...bubble, content: editedContent.get(b.id)! };
+      }
       out.push(bubble);
     }
     return out;
-  }, [baseBubbles, mediaCacheTick, mediaCacheRef, deletedIds, aiTaggedIds]);
+  }, [baseBubbles, mediaCacheTick, mediaCacheRef, deletedIds, aiTaggedIds, editedContent]);
 
   /* ─── Load notes when session changes ─── */
   useEffect(() => {
@@ -802,6 +809,30 @@ export const ChatMain: React.FC<ChatMainProps> = ({
     }
   }, [info]);
 
+  const handleEditMessage = useCallback((bubble: UIBubble) => {
+    setEditingBubble(bubble);
+  }, []);
+
+  const handleSaveEdit = useCallback(async (newText: string) => {
+    const bubble = editingBubble;
+    if (!bubble || !info?.apiKeyData || !info.instanceName || !info.remoteJid) return;
+    const prevContent = bubble.content;
+    setEditedContent((prev) => new Map(prev).set(bubble.id, newText)); // optimista
+    setEditingBubble(null);
+    const result = await editMessageAction(
+      { apiKeyData: info.apiKeyData, instanceName: info.instanceName },
+      info.remoteJid,
+      bubble.id,
+      newText,
+    );
+    if (!result.success) {
+      setEditedContent((prev) => { const next = new Map(prev); next.set(bubble.id, prevContent); return next; });
+      toast.error(result.message);
+    } else {
+      toast.success('Mensaje editado.');
+    }
+  }, [editingBubble, info]);
+
   /* ─── Send ─── */
   const sendNow = useCallback(async () => {
     let payload: OutgoingMessagePayload | null = null;
@@ -1054,6 +1085,13 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         }}
       />
 
+      <MessageEditDialog
+        open={editingBubble !== null}
+        onOpenChange={(v) => { if (!v) setEditingBubble(null); }}
+        initialText={editingBubble?.content ?? ''}
+        onSave={handleSaveEdit}
+      />
+
       <ChatMessageList
         uiMessages={allMessages}
         loading={loading}
@@ -1063,6 +1101,7 @@ export const ChatMain: React.FC<ChatMainProps> = ({
         onCopyMessage={handleCopyMessage}
         onReactMessage={handleReactMessage}
         onDeleteMessage={!advisorRole || advisorRole === 'administrador' ? handleDeleteMessage : undefined}
+        onEditMessage={!advisorRole || advisorRole === 'administrador' ? handleEditMessage : undefined}
         onDeleteNote={handleDeleteNote}
         onLoadOlderMessages={onLoadOlderMessages}
         canLoadOlderMessages={canLoadOlderMessages}

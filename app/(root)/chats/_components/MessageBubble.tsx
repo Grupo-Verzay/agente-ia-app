@@ -85,6 +85,7 @@ interface MessageBubbleProps {
   onReply?: () => void;
   onCopy?: () => void;
   onReact?: (emoji: string) => void;
+  onEdit?: () => void;
   onDelete?: () => void;
 }
 
@@ -108,6 +109,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onReply,
   onCopy,
   onReact,
+  onEdit,
   onDelete,
 }) => {
   const [callOpen, setCallOpen] = useState(false);
@@ -294,6 +296,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       isUserMessage={isUserMessage}
       onCopy={onCopy}
       onReact={onReact}
+      onEdit={onEdit}
       onDelete={onDelete}
     />
   );

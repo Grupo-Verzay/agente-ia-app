@@ -1361,3 +1361,37 @@ export async function deleteMessage(
     return { success: false, message: err?.name === 'AbortError' ? 'Timeout.' : `Error de red: ${err?.message || String(e)}` };
   }
 }
+
+export async function editMessage(
+  apiKeyData: Pick<ApiKey, 'url' | 'key'>,
+  instanceName: string,
+  remoteJid: string,
+  messageId: string,
+  newText: string,
+): Promise<{ success: boolean; message: string }> {
+  const { url: baseUrlRaw, key } = apiKeyData;
+  if (!baseUrlRaw || !key || !instanceName) return { success: false, message: 'Parámetros faltantes.' };
+  const text = (newText ?? '').trim();
+  if (!text) return { success: false, message: 'El texto no puede estar vacío.' };
+  // Evolution API edita mensajes con POST /chat/updateMessage/{instance}.
+  const endpoint = `${normalizeBaseUrl(baseUrlRaw)}/chat/updateMessage/${encodeURIComponent(instanceName)}`;
+  const body = { number: remoteJid, text, key: { id: messageId, remoteJid, fromMe: true } };
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', apikey: key },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    const raw = await res.json().catch(() => null);
+    if (!res.ok) return { success: false, message: (raw?.message as string) || `Error ${res.status}` };
+    return { success: true, message: 'Mensaje editado.' };
+  } catch (e: unknown) {
+    clearTimeout(t);
+    const err = e as { name?: string; message?: string };
+    return { success: false, message: err?.name === 'AbortError' ? 'Timeout.' : `Error de red: ${err?.message || String(e)}` };
+  }
+}
