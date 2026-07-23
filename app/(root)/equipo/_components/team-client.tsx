@@ -147,13 +147,24 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
     setAutoAssignMaxChats(n);
   }
 
-  function handleMaxChatsBlur() {
+  function persistAutoAssign(maxChats: number) {
     setAutoAssignSaving(true);
-    saveAutoAssignSettings({ enabled: autoAssignEnabled, maxChats: autoAssignMaxChats }).then((res) => {
+    saveAutoAssignSettings({ enabled: autoAssignEnabled, maxChats }).then((res) => {
       if (!res.success) toast.error(res.message);
       else toast.success("Configuración guardada.");
       setAutoAssignSaving(false);
     });
+  }
+
+  function handleMaxChatsBlur() {
+    persistAutoAssign(autoAssignMaxChats);
+  }
+
+  // Ilimitado = 0 (sin tope). Al desmarcar, vuelve a un valor por defecto (5).
+  function handleUnlimitedToggle(checked: boolean) {
+    const next = checked ? 0 : 5;
+    setAutoAssignMaxChats(next);
+    persistAutoAssign(next);
   }
 
   function downloadCsv() {
@@ -327,11 +338,22 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                 type="number"
                 min={1}
                 max={500}
-                className="h-8 w-16 text-sm"
-                value={autoAssignMaxChats}
+                disabled={autoAssignMaxChats <= 0}
+                className="h-8 w-16 text-sm disabled:opacity-50"
+                value={autoAssignMaxChats <= 0 ? "" : autoAssignMaxChats}
+                placeholder="∞"
                 onChange={(e) => handleMaxChatsChange(e.target.value)}
                 onBlur={handleMaxChatsBlur}
               />
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 accent-emerald-600 cursor-pointer"
+                  checked={autoAssignMaxChats <= 0}
+                  onChange={(e) => handleUnlimitedToggle(e.target.checked)}
+                />
+                Ilimitado
+              </label>
             </div>
           )}
         </div>
@@ -475,14 +497,19 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                             <p className="text-sm font-medium leading-tight truncate">{advisor.name ?? advisor.email}</p>
                             {/* Barra de carga */}
                             {autoAssignEnabled && (() => {
-                              const loadPct = Math.min((advisor.activeCount / autoAssignMaxChats) * 100, 100);
+                              const unlimited = autoAssignMaxChats <= 0;
+                              const loadPct = unlimited ? 0 : Math.min((advisor.activeCount / autoAssignMaxChats) * 100, 100);
                               const loadColor = loadPct >= 80 ? "bg-red-500" : loadPct >= 50 ? "bg-amber-400" : "bg-emerald-400";
                               return (
                                 <div className="flex items-center gap-1.5">
-                                  <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
-                                    <div className={cn("h-full rounded-full transition-all", loadColor)} style={{ width: `${loadPct}%` }} />
-                                  </div>
-                                  <span className="text-[10px] text-muted-foreground tabular-nums">{advisor.activeCount}/{autoAssignMaxChats}</span>
+                                  {!unlimited && (
+                                    <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                                      <div className={cn("h-full rounded-full transition-all", loadColor)} style={{ width: `${loadPct}%` }} />
+                                    </div>
+                                  )}
+                                  <span className="text-[10px] text-muted-foreground tabular-nums">
+                                    {advisor.activeCount}/{unlimited ? "∞" : autoAssignMaxChats}
+                                  </span>
                                 </div>
                               );
                             })()}

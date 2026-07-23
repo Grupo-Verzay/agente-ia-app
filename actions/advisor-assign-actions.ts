@@ -137,7 +137,7 @@ export async function autoAssignUnassignedSessionsForOwner(
       LEFT JOIN load l ON l.id = m.id
       LEFT JOIN last_assign la ON la.id = m.id
       WHERE m.advisor_available = true
-        AND COALESCE(l.cnt, 0) < ${maxChats}
+        AND (${maxChats} <= 0 OR COALESCE(l.cnt, 0) < ${maxChats})
       ORDER BY la.last_at ASC NULLS FIRST, m.id ASC
       LIMIT 1
     `;
@@ -189,7 +189,8 @@ export async function assignSessionToAdvisor(
         AND s."userId" = ${auth.ownerId}
     `;
     const row = settings[0];
-    if (row && row.max_chats != null && row.current_count >= row.max_chats) {
+    // max_chats === 0 => capacidad ilimitada: no se avisa de límite.
+    if (row && row.max_chats != null && row.max_chats > 0 && row.current_count >= row.max_chats) {
       warning = `Este asesor ya tiene ${row.current_count} chats activos (límite: ${row.max_chats}).`;
     }
   }
