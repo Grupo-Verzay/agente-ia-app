@@ -102,13 +102,24 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
     const [openDialog, setOpenDialog] = useState(false);
     const canContinueStep3 = Boolean(nameClient.trim() && phone.trim() && areaCode && selectedService);
 
+    // Quita el indicativo del número si el usuario lo repite (evita doble código).
+    const stripDial = (digits: string, code: string) => {
+        const dc = (code || '').replace(/\D/g, '');
+        return dc && digits.startsWith(dc) ? digits.slice(dc.length) : digits;
+    };
+
+    const handleAreaCodeChange = (code: string) => {
+        setAreaCode(code);
+        setPhone((prev) => stripDial(prev.replace(/\D/g, ''), code));
+    };
+
+    const handlePhoneChange = (value: string) => {
+        setPhone(stripDial(value.replace(/\D/g, ''), areaCode));
+    };
+
     const handlePhoneBlur = () => {
         if (!areaCode || !phone) return;
-        const codeDigits = areaCode.replace('+', '');
-        const digits = phone.replace(/\D/g, '');
-        if (digits.startsWith(codeDigits)) {
-            setPhone(digits.slice(codeDigits.length));
-        }
+        setPhone(stripDial(phone.replace(/\D/g, ''), areaCode));
     };
 
     const mutationSeguimiento = useMutation({
@@ -519,8 +530,8 @@ export const SchedulePageClient = ({ user, reminders, countries, prefillName = '
                             canContinueStep2={canContinueStep3}
                             loading={loading}
                             setNameClient={setNameClient}
-                            setAreaCode={setAreaCode}
-                            setPhone={setPhone}
+                            setAreaCode={handleAreaCodeChange}
+                            setPhone={handlePhoneChange}
                             setStep={setStep}
                             onContinue={scheduleAndNotify}
                             onPhoneBlur={handlePhoneBlur}

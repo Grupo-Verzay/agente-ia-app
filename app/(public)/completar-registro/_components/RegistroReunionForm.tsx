@@ -189,6 +189,12 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
     mode: 'onTouched',
   });
 
+  // Quita el indicativo del número si el usuario lo repite (evita doble código).
+  const stripDial = (digits: string, code: string) => {
+    const dc = (code || '').replace(/\D/g, '');
+    return dc && digits.startsWith(dc) ? digits.slice(dc.length) : digits;
+  };
+
   const handleCountryChange = (code: string) => {
     setDialCode(code);
     const country = countries.find((c: any) =>
@@ -199,12 +205,14 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
       const tz = COUNTRY_TIMEZONES[country.name];
       if (tz) setSelectedTimezone(tz);
     }
-    const full = (code + localNumber.replace(/\D/g, '')).trim();
+    const clean = stripDial(localNumber.replace(/\D/g, ''), code);
+    setLocalNumber(clean);
+    const full = (code + clean).trim();
     setValue('contacto', full, { shouldValidate: !!full });
   };
 
   const handleLocalNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, '');
+    const digits = stripDial(e.target.value.replace(/\D/g, ''), dialCode);
     setLocalNumber(digits);
     const full = (dialCode + digits).trim();
     setValue('contacto', full, { shouldValidate: !!full });
