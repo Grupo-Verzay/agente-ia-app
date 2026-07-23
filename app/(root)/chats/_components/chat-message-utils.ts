@@ -279,6 +279,16 @@ export function toUIMessages(
       }
     }
 
+    // Un mensaje que quedó SIN contenido ni media ni llamada (un "stub" vacío)
+    // casi siempre es un mensaje que el CLIENTE eliminó y que WhatsApp/Evolution
+    // devuelve vacío al recargar el historial (sin el evento de borrado). En vez
+    // de una burbuja en blanco, lo mostramos como "Mensaje eliminado" con badge,
+    // para que quede el registro igual que cuando el evento sí llega.
+    const isEmptyDeletedStub = !content && !media && !kind && !call;
+    if (isEmptyDeletedStub) {
+      content = 'Mensaje eliminado';
+    }
+
     // Inyección de base64 desde caché
     const msgId = m.key?.id || m.id;
     if (msgId && base64Map.has(msgId) && media) {
@@ -316,8 +326,8 @@ export function toUIMessages(
       // El emparejamiento por texto de chat-main puede sumar más, pero nunca la quita.
       ...((m as any).sentByAi === true ? { sentByAi: true } : {}),
       // El cliente eliminó este mensaje ("eliminar para todos"); lo conservamos y
-      // el panel muestra el badge "Eliminado".
-      ...(m.clientDeleted === true ? { clientDeleted: true } : {}),
+      // el panel muestra el badge "Eliminado". También cuando llega como stub vacío.
+      ...(m.clientDeleted === true || isEmptyDeletedStub ? { clientDeleted: true } : {}),
     };
   });
 
