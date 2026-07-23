@@ -519,24 +519,15 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 <span className="text-3xl shrink-0">🤖</span>
                                 <div className="min-w-0 flex-1">
                                     <p className="text-sm font-semibold leading-tight">¡Configura tu Agente IA!</p>
-                                    <p className="text-xs text-muted-foreground">Te guiamos paso a paso para dejarlo listo, sin importar tu negocio.</p>
+                                    <p className="text-xs text-muted-foreground">Te guiamos paso a paso.</p>
                                 </div>
-                                <div className="flex gap-2 shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => window.dispatchEvent(new Event("agent-onboarding:open"))}
-                                        className="rounded-md bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-                                    >
-                                        ✦ Usar asistente
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setEmptyStateDismissed(true)}
-                                        className="rounded-md border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted"
-                                    >
-                                        Desde cero
-                                    </button>
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => window.dispatchEvent(new Event("agent-onboarding:open"))}
+                                    className="shrink-0 rounded-md bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                                >
+                                    ✦ Usar asistente
+                                </button>
                             </div>
                         )}
 
