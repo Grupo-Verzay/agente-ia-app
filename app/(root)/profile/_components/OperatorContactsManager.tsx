@@ -178,7 +178,7 @@ export function OperatorContactsManager({ userId }: Props) {
             </div>
 
             <p className="text-xs text-muted-foreground">
-                Si la IA no puede resolver, pasa la consulta a un operario por WhatsApp.
+                Si la IA no puede resolver, pasa la consulta a un operario.
             </p>
 
             {/* Lista */}
