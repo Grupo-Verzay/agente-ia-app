@@ -140,6 +140,7 @@ export function AgentOnboardingWizard() {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [published, setPublished] = useState(false);
+  const [prefill, setPrefill] = useState<{ objectiveId?: string; nombre?: string; ofrece?: string } | null>(null);
   const [form, setForm] = useState<Form>(initialForm);
 
   const patch = (p: Partial<Form>) => setForm((f) => ({ ...f, ...p }));
@@ -161,24 +162,38 @@ export function AgentOnboardingWizard() {
   // Abrir automáticamente en primer arranque, o por evento (relanzar).
   useEffect(() => {
     let cancel = false;
-    getAgentOnboardingState().then((s) => { if (!cancel && s.show) setOpen(true); }).catch(() => {});
+    getAgentOnboardingState().then((s) => {
+      if (cancel || !s.show) return;
+      if (s.prefill) setPrefill(s.prefill);
+      setOpen(true);
+    }).catch(() => {});
     const openOnDemand = () => setOpen(true);
     window.addEventListener("agent-onboarding:open", openOnDemand);
     return () => { cancel = true; window.removeEventListener("agent-onboarding:open", openOnDemand); };
   }, []);
 
-  // Auto-guardado: cargar borrador al abrir.
+  // Auto-guardado: cargar borrador al abrir; si no hay, usar la pre-carga del registro.
   useEffect(() => {
     if (!open || loaded) return;
+    let hadDraft = false;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
         const saved = JSON.parse(raw);
         setForm((f) => ({ ...f, ...saved, step: Math.min(4, Math.max(0, saved.step ?? 0)) }));
+        hadDraft = true;
       }
     } catch { /* noop */ }
+    if (!hadDraft && prefill) {
+      const validObj = OBJECTIVES.some((o) => o.id === prefill.objectiveId);
+      setForm((f) => ({
+        ...f,
+        objectiveId: validObj ? (prefill.objectiveId as string) : f.objectiveId,
+        biz: { ...f.biz, nombre: prefill.nombre || f.biz.nombre, ofrece: prefill.ofrece || f.biz.ofrece },
+      }));
+    }
     setLoaded(true);
-  }, [open, loaded]);
+  }, [open, loaded, prefill]);
 
   // Auto-guardado: persistir cambios.
   useEffect(() => {
