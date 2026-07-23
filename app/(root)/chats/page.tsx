@@ -40,6 +40,7 @@ import { getLinkedAccountsInstances, getMasterAccountInstances } from "@/actions
 import { assignSessionToAdvisor, takeSession, releaseSession, transferSession } from "@/actions/advisor-assign-actions";
 import { getTeamAdvisorInfos, type AdvisorInfo } from "@/actions/team-actions";
 import { ChatsClient, type InstanceActionSet } from "./_components/chats-client";
+import { applyLidMappingToChats, type LidPhoneMap } from "./_components/lid-mapping";
 import { buildWhatsAppJidCandidates, normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
 
 type InstanceHealth = {
@@ -175,6 +176,22 @@ function getChatMessageDuplicateKey(chat: ChatData) {
     chat.lastMessage?.key?.fromMe ? "1" : "0",
     chat.lastMessage?.messageType ?? "",
   ].join(":");
+}
+
+/** Carga el mapeo aprendido @lid -> número real del usuario (best-effort). */
+async function loadLidPhoneMap(userId: string): Promise<LidPhoneMap> {
+  try {
+    const rows = await db.$queryRaw<{ lid: string; remoteJid: string }[]>`
+      SELECT "lid", "remoteJid" FROM "chat_lid_map" WHERE "userId" = ${userId}
+    `;
+    const map: LidPhoneMap = {};
+    for (const r of rows) {
+      if (r.remoteJid && !r.remoteJid.toLowerCase().endsWith("@lid")) map[r.lid] = r.remoteJid;
+    }
+    return map;
+  } catch {
+    return {};
+  }
 }
 
 function dedupeChatsByIdentity(chats: ChatData[]) {
@@ -558,6 +575,17 @@ export default async function ChatsPage({
     ? normalizeWhatsAppConversationJid(searchParams.jid) || searchParams.jid
     : "";
 
+  // Aplicar el mapeo @lid->número aprendido a TODOS los chats (incluye los que
+  // llegan EN VIVO de Evolution), para que los @lid ya unidos se fusionen de
+  // forma estable con el contacto real y no reaparezcan como duplicados.
+  const lidPhoneMap = await loadLidPhoneMap(effectiveOwnerId);
+  if (chatsResult.success && Object.keys(lidPhoneMap).length > 0) {
+    chatsResult = {
+      ...chatsResult,
+      data: dedupeChatsByIdentity(applyLidMappingToChats(chatsResult.data, lidPhoneMap)),
+    };
+  }
+
   const initialSelectedChat =
     chatsResult.success && requestedJid
       ? chatsResult.data.find(
@@ -614,6 +642,7 @@ export default async function ChatsPage({
       initialSelectedJid={initialSelectedJid}
       initialMessages={initialMessages}
       instanceName={whatsappInstancia?.instanceName}
+      lidPhoneMap={lidPhoneMap}
       warmMessagesAction={warmMessagesAction}
       sendAnyAction={sendAnyAction}
       sendWorkflowAction={sendWorkflowAction}

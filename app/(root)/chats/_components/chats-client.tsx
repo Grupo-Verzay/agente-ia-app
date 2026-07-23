@@ -47,6 +47,7 @@ import {
   pickPreferredWhatsAppRemoteJid,
 } from "@/lib/whatsapp-jid";
 import { avatarSrcFor } from "@/lib/avatar";
+import { applyLidMappingToChats, type LidPhoneMap } from "./lid-mapping";
 import { idbGetChat, idbSetChat } from "./chat-idb";
 import type { OutgoingMessagePayload } from "./chat-main";
 import type {
@@ -308,12 +309,12 @@ function mapSessionToChatContactSummary(session: Session): ChatContactSessionSum
   };
 }
 
-function filterChatList(result: FetchChatsResult): FetchChatsResult {
+function filterChatList(result: FetchChatsResult, lidMap?: LidPhoneMap): FetchChatsResult {
   if (!result.success) return result;
 
   return {
     ...result,
-    data: dedupeAndSortChats(result.data).filter(
+    data: dedupeAndSortChats(result.data, lidMap).filter(
       (chat) => chat.remoteJid && chat.remoteJid !== "status@broadcast",
     ),
   };
@@ -403,10 +404,13 @@ function getChatMessageDuplicateKey(chat: ChatData) {
   ].join(":");
 }
 
-function dedupeAndSortChats(chats: ChatData[]) {
+function dedupeAndSortChats(chats: ChatData[], lidMap?: LidPhoneMap) {
   const seenIdentities = new Set<string>();
   const seenMessages = new Set<string>();
-  return [...chats]
+  // Canonicaliza los @lid con número conocido (incluye los que llegan en vivo)
+  // antes de deduplicar, para que se fusionen con el contacto real de forma
+  // estable y no reaparezcan.
+  return [...applyLidMappingToChats(chats, lidMap)]
     .sort((a, b) => getChatSortTimestamp(b) - getChatSortTimestamp(a))
     .filter((chat) => {
       if (!chat.remoteJid) return false;
@@ -442,6 +446,7 @@ interface ChatsClientProps {
   initialSelectedJid: string;
   initialMessages: EvolutionMessage[];
   instanceName?: string;
+  lidPhoneMap?: LidPhoneMap;
   warmMessagesAction: (
     remoteJid: string,
     opts?: { page?: number; pageSize?: number; remoteJidAliases?: string[]; localOnly?: boolean; localFirst?: boolean },
@@ -484,6 +489,7 @@ export function ChatsClient({
   initialChatSessions,
   initialSelectedJid,
   initialMessages,
+  lidPhoneMap,
   warmMessagesAction,
   sendAnyAction,
   sendWorkflowAction,
@@ -506,8 +512,8 @@ export function ChatsClient({
   quickReplies: initialQuickReplies,
 }: ChatsClientProps) {
   const normalizedInitialChatsResult = useMemo(
-    () => filterChatList(initialChatsResult),
-    [initialChatsResult],
+    () => filterChatList(initialChatsResult, lidPhoneMap),
+    [initialChatsResult, lidPhoneMap],
   );
 
   const disconnectedInstanceNames = useMemo(
@@ -925,14 +931,14 @@ export function ChatsClient({
     for (const r of results) {
       if (r.status === "fulfilled" && r.value.success) allChats.push(...r.value.data);
     }
-    return { success: true, message: "OK", data: dedupeAndSortChats(allChats) };
-  }, [instanceActionSets, refetchChatsAction]);
+    return { success: true, message: "OK", data: dedupeAndSortChats(allChats, lidPhoneMap) };
+  }, [instanceActionSets, refetchChatsAction, lidPhoneMap]);
 
   const refreshSidebarData = useCallback(async () => {
     const chatRefreshResult = await refetchAllInstances();
     if (!chatRefreshResult.success) return;
 
-    const filtered = filterChatList(chatRefreshResult);
+    const filtered = filterChatList(chatRefreshResult, lidPhoneMap);
     setCurrentChatsResult(filtered);
 
     if (filtered.success) {
@@ -2019,7 +2025,7 @@ export function ChatsClient({
 
       const result = await refetchAllInstances();
       if (result.success) {
-        const filtered = filterChatList(result);
+        const filtered = filterChatList(result, lidPhoneMap);
         setCurrentChatsResult(filtered);
         if (filtered.success) {
           await refreshChatSessions(filtered.data);
