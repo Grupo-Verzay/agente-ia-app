@@ -42,7 +42,6 @@ import { GenericDeleteDialog } from "@/components/shared/GenericDeleteDialog";
 import { deleteAgentPromptsByUserId } from "@/actions/prompt-actions";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { AgentMetricsPanel } from "./AgentMetricsPanel";
-import { TemplatePickerSheet } from "./TemplatePickerSheet";
 import { applyTemplateToPrompt } from "@/actions/apply-template-action";
 import { toast } from "sonner";
 import { AgentPromptChatDialog } from "./AgentPromptChatDialog";
@@ -476,9 +475,9 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent className="w-48" align="end">
                                     <DropdownMenuGroup>
-                                        <DropdownMenuItem onSelect={() => setShowTemplates(true)}>
+                                        <DropdownMenuItem onSelect={() => window.dispatchEvent(new Event("agent-onboarding:open"))}>
                                             <Layers className="mr-2 h-4 w-4" />
-                                            Plantillas por objetivo
+                                            Configurar con asistente
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onSelect={() => setShowMetrics(true)}>
                                             <BarChart2 className="mr-2 h-4 w-4" />
@@ -516,58 +515,27 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
 
                         {/* Empty state: ofrecer plantilla cuando el agente no tiene contenido */}
                         {isEmpty && (
-                            <div className="rounded-xl border bg-muted/30 px-4 py-3 mb-3">
-                                {/* Fila 1: ícono + título + botones */}
-                                <div className="flex items-center gap-3 flex-nowrap">
-                                    <span className="text-3xl shrink-0">🤖</span>
-                                    <p className="text-sm font-semibold leading-tight flex-1 min-w-0 truncate">¡Configura tu Agente IA!</p>
-                                    <div className="flex gap-2 shrink-0">
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowTemplates(true)}
-                                            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-                                        >
-                                            Elegir plantilla
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setEmptyStateDismissed(true)}
-                                            className="rounded-md border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted"
-                                        >
-                                            Desde cero
-                                        </button>
-                                    </div>
+                            <div className="rounded-xl border bg-muted/30 px-4 py-3 mb-3 flex items-center gap-3 flex-nowrap">
+                                <span className="text-3xl shrink-0">🤖</span>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold leading-tight">¡Configura tu Agente IA!</p>
+                                    <p className="text-xs text-muted-foreground">Te guiamos paso a paso para dejarlo listo, sin importar tu negocio.</p>
                                 </div>
-                                {/* Fila 2: descripción + chips */}
-                                <div className="mt-1.5">
-                                    <p className="text-xs text-muted-foreground pl-10">
-                                        Elige una plantilla por objetivo, o construye desde cero.
-                                    </p>
-                                    <div ref={chipsContainerRef} className="flex flex-nowrap justify-between mt-1.5 overflow-hidden">
-                                        {ALL_TEMPLATE_CHIPS.slice(0, visibleChipCount).map((c) => (
-                                            <button
-                                                key={c.templateId}
-                                                type="button"
-                                                disabled={!!applyingChip}
-                                                onClick={() => handleChipApply(c.templateId, c.label)}
-                                                className={cn(
-                                                    "rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed",
-                                                    c.color
-                                                )}
-                                            >
-                                                {applyingChip === c.label ? "..." : `${c.emoji} ${c.label}`}
-                                            </button>
-                                        ))}
-                                        {visibleChipCount < ALL_TEMPLATE_CHIPS.length && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowTemplates(true)}
-                                                className="rounded-full border border-dashed bg-background px-2 py-0.5 text-[10px] text-muted-foreground/70 hover:border-primary hover:text-primary transition-colors shrink-0"
-                                            >
-                                                +{ALL_TEMPLATE_CHIPS.length - visibleChipCount} más
-                                            </button>
-                                        )}
-                                    </div>
+                                <div className="flex gap-2 shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => window.dispatchEvent(new Event("agent-onboarding:open"))}
+                                        className="rounded-md bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                                    >
+                                        ✦ Usar asistente
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEmptyStateDismissed(true)}
+                                        className="rounded-md border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted"
+                                    >
+                                        Desde cero
+                                    </button>
                                 </div>
                             </div>
                         )}
@@ -723,14 +691,6 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
                 itemId={user.effectiveId ?? user.id}
                 mutationFn={() => deleteAgentPromptsByUserId(user.effectiveId ?? user.id)}
                 entityLabel="todo el auto prompt"
-            />
-
-            <TemplatePickerSheet
-                open={showTemplates}
-                onOpenChange={setShowTemplates}
-                promptId={promptMeta.id}
-                hasContent={!isEmpty}
-                onApplied={() => { setEmptyStateDismissed(false); router.refresh(); }}
             />
 
             <AgentMetricsPanel open={showMetrics} onOpenChange={setShowMetrics} />
