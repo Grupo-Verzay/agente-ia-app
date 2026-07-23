@@ -730,6 +730,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             <>
               <span className="min-w-0">¿Eliminar este chat duplicado? Quedará solo el contacto original.</span>
               <div className="flex shrink-0 items-center gap-2">
+                <Button size="sm" variant="outline" className="h-7" disabled={deletingLid} onClick={() => setConfirmDeleteLid(false)}>
+                  Cancelar
+                </Button>
                 <Button
                   size="sm"
                   variant="destructive"
@@ -750,9 +753,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   }}
                 >
                   {deletingLid ? 'Eliminando…' : 'Sí, eliminar'}
-                </Button>
-                <Button size="sm" variant="outline" className="h-7" disabled={deletingLid} onClick={() => setConfirmDeleteLid(false)}>
-                  Cancelar
                 </Button>
               </div>
             </>

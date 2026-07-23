@@ -59,6 +59,19 @@ export async function deleteLidChat(input: {
         DELETE FROM "chat_conversations" WHERE "userId" = ${userId} AND "remoteJid" = ${raw}
       `;
     }
+
+    // Marca de eliminado, para que la lista oculte este @lid aunque vuelva a
+    // llegar en vivo desde Evolution (best-effort; no rompe si falla).
+    try {
+      await (db as any).chatConversationPreference.upsert({
+        where: { userId_remoteJid: { userId, remoteJid: raw } },
+        update: { deletedAt: new Date(), pinnedAt: null, archivedAt: null },
+        create: { userId, remoteJid: raw, deletedAt: new Date() },
+      });
+    } catch {
+      /* no crítico */
+    }
+
     revalidatePath('/chats');
     return { ok: true };
   } catch (e: any) {
