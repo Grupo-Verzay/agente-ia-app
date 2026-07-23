@@ -4,31 +4,20 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { BASE_TRAINING_AGENT_ID } from "@/lib/channel-training";
-import {
-  getOrCreateChannelPrompt,
-  patchBusinessSection,
-  publishPrompt,
-} from "@/actions/system-prompt-actions";
-import { applyTemplateToPrompt } from "@/actions/apply-template-action";
+import { getOrCreateChannelPrompt, publishPrompt } from "@/actions/system-prompt-actions";
 import { isAdminOrReseller } from "@/lib/rbac";
 
 /**
  * Asistente de "dar de alta el Agente IA" (primer arranque).
  *
- * Al registrarse y entrar por primera vez, el dueño configura su agente con un
- * paso a paso: datos del negocio + objetivo (plantilla). Reutiliza el mismo
- * entrenamiento (AgentPrompt.sections) que usa el editor y "IA Prompts", así
- * que no rompe ni duplica nada, y todo queda versionado (reversible).
- *
- * IMPORTANTE: NO usa ninguna columna nueva en la BD. El estado se deriva de:
- *   - ¿El agente ya tiene contenido? → ya está dado de alta (no mostrar).
- *   - Cookie de "hacerlo después" → el dueño lo pospuso (no mostrar).
- * Así evitamos migraciones y no rompemos consultas del usuario.
+ * Guía al dueño en 5 pasos y guarda TODO en las mismas secciones que usa el
+ * editor (business, training, faq, products, extras, management), luego publica.
+ * No usa columnas nuevas en la BD: el estado se deriva de si el agente ya tiene
+ * contenido + una cookie de "hacerlo después".
  */
 
 const DISMISS_COOKIE = "agent_onboarding_dismissed";
 
-// Objetivos del asistente → ids de plantilla existentes (agentTemplates.ts).
 const VALID_OBJECTIVES = new Set([
   "venta-directa",
   "venta-consultiva",
@@ -37,6 +26,13 @@ const VALID_OBJECTIVES = new Set([
   "atencion-cliente",
   "pedidos-delivery",
 ]);
+
+// Subtipos válidos de captura de datos (management). Deben coincidir con el enum
+// de PromptElementSchema (agentAi.ts).
+const GESTION_SUBTYPES = new Set(["Solicitudes", "Pedidos", "Reclamos", "Reservas", "Citas"]);
+
+const clean = (s?: string | null) => (s ?? "").trim();
+const uid = () => crypto.randomUUID();
 
 /** La cuenta "efectiva" (dueña) del usuario actual. */
 function ownerId(me: { effectiveId?: string | null; id: string }): string {
@@ -61,8 +57,8 @@ async function isAgentConfigured(userId: string): Promise<boolean> {
 
 /**
  * ¿Debe mostrarse el asistente de primer arranque?
- * Solo al dueño (no a asesores ni admins), solo si NO pospuso el asistente y su
- * agente aún no tiene contenido.
+ * Solo al dueño (no asesores ni admins), solo si NO lo pospuso y su agente aún no
+ * tiene contenido.
  */
 export async function getAgentOnboardingState(): Promise<{ show: boolean; name?: string | null }> {
   const me = await currentUser();
@@ -83,7 +79,7 @@ export async function getAgentOnboardingState(): Promise<{ show: boolean; name?:
 export async function dismissAgentOnboarding(): Promise<{ ok: boolean }> {
   const cookieStore = await cookies();
   cookieStore.set(DISMISS_COOKIE, "1", {
-    maxAge: 60 * 60 * 24 * 365, // 1 año
+    maxAge: 60 * 60 * 24 * 365,
     path: "/",
     httpOnly: true,
     sameSite: "lax",
@@ -93,19 +89,30 @@ export async function dismissAgentOnboarding(): Promise<{ ok: boolean }> {
 
 export interface AgentOnboardingInput {
   business: {
-    nombre?: string;
-    sector?: string;
-    ofrece?: string;
-    horarios?: string;
-    pagos?: string;
-    tono?: string;
+    nombre: string;
+    sector: string;
+    ofrece: string;
+    ubicacion: string;
+    horario: string;
+    telefono: string;
+    sitio: string;
+    notas?: string;
   };
   objectiveId: string;
+  /** Camino del cliente (pasos base + adicionales) en orden. */
+  steps: { title: string; message: string }[];
+  faq: { q: string; a: string }[];
+  products: { name: string; desc: string }[];
+  /** Medios de pago (coma-separados). */
+  pagos: string;
+  extras?: string;
+  /** Tipos de gestión activados con sus campos a capturar. */
+  gestion?: { tipo: string; campos: string[] }[];
 }
 
 /**
- * Da de alta el agente: guarda el negocio, aplica la plantilla del objetivo
- * (que trae el flujo/camino, FAQ y captura de datos) y publica.
+ * Da de alta el agente: construye todas las secciones desde lo que llenó el
+ * cliente y publica el prompt base de WhatsApp (el que atiende de verdad).
  */
 export async function completeAgentOnboarding(
   input: AgentOnboardingInput,
@@ -116,62 +123,146 @@ export async function completeAgentOnboarding(
     if ((me as { advisorRole?: string | null }).advisorRole) {
       return { ok: false, error: "Solo el dueño de la cuenta puede configurar el agente." };
     }
-    const userId = ownerId(me);
-
     if (!VALID_OBJECTIVES.has(input.objectiveId)) {
       return { ok: false, error: "Objetivo no válido." };
     }
 
-    // 1) Prompt base de WhatsApp — el MISMO que lee el editor (agentId base).
-    //    OJO: 'whatsapp' es el slug del tab, NO el agentId; el agentId real es
-    //    'system-prompt-ai' (BASE_TRAINING_AGENT_ID). Usar el slug crea un prompt
-    //    fantasma que ningún editor lee.
+    const userId = ownerId(me);
+    const b = input.business ?? ({} as AgentOnboardingInput["business"]);
+    if (!clean(b.nombre)) return { ok: false, error: "Falta el nombre del negocio." };
+
+    // Prompt base de WhatsApp — el MISMO que lee el editor (agentId base).
     const prompt = await getOrCreateChannelPrompt({ userId, agentId: BASE_TRAINING_AGENT_ID });
 
-    // 2) Aplicar la plantilla del objetivo (camino del cliente + FAQ + captura).
-    const applied = await applyTemplateToPrompt({ promptId: prompt.id, templateId: input.objectiveId });
-    if (!applied.ok) return { ok: false, error: applied.error ?? "No se pudo aplicar la plantilla." };
+    // --- Construcción de secciones (mismo formato que el editor) ---
 
-    // 3) Guardar los datos del negocio (tras aplicar, la versión cambió).
-    const b = input.business ?? {};
+    // "¿Qué ofrece?" y "Medios de pago" no tienen campo propio en business: van en
+    // NOTAS ADICIONALES, que el composer emite como bloque para el agente.
     const notas = [
-      b.ofrece ? `Qué ofrece: ${b.ofrece}` : "",
-      b.pagos ? `Métodos de pago: ${b.pagos}` : "",
-      b.tono ? `Tono de comunicación: ${b.tono}` : "",
+      clean(b.ofrece) ? `Qué ofrecemos: ${clean(b.ofrece)}` : "",
+      clean(input.pagos) ? `Métodos de pago: ${clean(input.pagos)}` : "",
+      clean(b.notas),
     ]
       .filter(Boolean)
-      .join("\n");
+      .join("\n\n");
 
-    const afterTemplate = await db.agentPrompt.findUnique({
+    const business = {
+      nombre: clean(b.nombre),
+      sector: clean(b.sector),
+      ubicacion: clean(b.ubicacion),
+      horarios: clean(b.horario),
+      telefono: clean(b.telefono),
+      sitio: clean(b.sitio),
+      notas,
+    };
+
+    // Camino del cliente → training.steps (title = paso, mainMessage = lo que dice).
+    const training = {
+      steps: (input.steps ?? [])
+        .filter((s) => clean(s.title) || clean(s.message))
+        .map((s) => ({
+          id: uid(),
+          title: clean(s.title),
+          mainMessage: clean(s.message),
+          elements: [] as any[],
+        })),
+    };
+
+    // Preguntas frecuentes → faq.steps (title = pregunta, mainMessage = respuesta).
+    const faq = {
+      steps: (input.faq ?? [])
+        .filter((f) => clean(f.q))
+        .map((f) => ({
+          id: uid(),
+          title: clean(f.q),
+          mainMessage: clean(f.a),
+          elements: [] as any[],
+        })),
+    };
+
+    // Productos / servicios → products.steps (title = nombre, mainMessage = ficha).
+    const products = {
+      steps: (input.products ?? [])
+        .filter((p) => clean(p.name))
+        .map((p) => ({
+          id: uid(),
+          title: clean(p.name),
+          mainMessage: clean(p.desc) || clean(p.name),
+          elements: [] as any[],
+        })),
+    };
+
+    // Extras / información adicional → un step de extras (sin firma).
+    const extras = {
+      firmaEnabled: false,
+      firmaText: "",
+      firmaName: "",
+      steps: clean(input.extras)
+        ? [{ id: uid(), title: "Información adicional", mainMessage: clean(input.extras), elements: [] as any[] }]
+        : [],
+    };
+
+    // Gestión → management.steps con elementos captura_datos por tipo.
+    const management = {
+      steps: (input.gestion ?? [])
+        .filter((g) => GESTION_SUBTYPES.has(g.tipo))
+        .map((g) => {
+          if (g.tipo === "Citas") {
+            // Citas: el enlace de agendamiento se genera aparte; queda vacío aquí.
+            return {
+              id: uid(),
+              title: "Agendar cita",
+              mainMessage: "Agenda las citas del cliente.",
+              elements: [
+                { id: uid(), kind: "function", fn: "captura_datos", subtype: "Citas", prompt: "" },
+              ] as any[],
+            };
+          }
+          return {
+            id: uid(),
+            title: `Captura de ${g.tipo}`,
+            mainMessage: `Registra ${g.tipo.toLowerCase()} del cliente.`,
+            elements: [
+              {
+                id: uid(),
+                kind: "function",
+                fn: "captura_datos",
+                subtype: g.tipo,
+                fields: (g.campos ?? []).map((c) => clean(c)).filter(Boolean),
+              },
+            ] as any[],
+          };
+        }),
+    };
+
+    const existing = (prompt.sections ?? {}) as Record<string, any>;
+    const sections = { ...existing, business, training, faq, products, extras, management };
+
+    await db.agentPrompt.update({
       where: { id: prompt.id },
-      select: { version: true },
-    });
-    await patchBusinessSection({
-      promptId: prompt.id,
-      version: afterTemplate?.version ?? prompt.version,
       data: {
-        nombre: b.nombre ?? "",
-        sector: b.sector ?? "",
-        horarios: b.horarios ?? "",
-        notas,
+        sections: sections as any,
+        version: { increment: 1 },
+        businessName: business.nombre || null,
+        businessSector: business.sector || null,
       },
     });
 
-    // 4) Publicar (crea revisión + deja promptText compilado).
-    const afterBiz = await db.agentPrompt.findUnique({
+    // Publicar (compila el promptText + crea revisión).
+    const fresh = await db.agentPrompt.findUnique({
       where: { id: prompt.id },
       select: { version: true },
     });
-    await publishPrompt({
+    const pub = await publishPrompt({
       promptId: prompt.id,
-      version: afterBiz?.version ?? prompt.version + 1,
+      version: fresh?.version ?? prompt.version + 1,
       publishedBy: me.name ?? (me as { email?: string }).email ?? "Asistente",
       note: "Configuración inicial (asistente)",
       revalidate: "/ia",
     });
+    if (!pub.ok) return { ok: false, error: (pub as { error?: string }).error ?? "No se pudo publicar." };
 
-    // 5) Marcar como pospuesto/hecho vía cookie (el agente ya tiene contenido,
-    //    así que tampoco reaparecería por la verificación de "configurado").
+    // Marcar como hecho (cookie) — el agente ya tiene contenido igual.
     const cookieStore = await cookies();
     cookieStore.set(DISMISS_COOKIE, "1", {
       maxAge: 60 * 60 * 24 * 365,
