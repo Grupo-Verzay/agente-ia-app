@@ -515,16 +515,16 @@ export const MainAi = ({ flows, user, promptMeta, sections }: MainAiProps) => {
 
                         {/* Empty state: ofrecer plantilla cuando el agente no tiene contenido */}
                         {isEmpty && (
-                            <div className="rounded-xl border bg-muted/30 px-4 py-3 mb-3 flex items-center gap-3 flex-nowrap">
+                            <div className="mb-3 flex items-center gap-4 flex-nowrap rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-violet-500/10 px-5 py-4 shadow-sm">
                                 <span className="text-3xl shrink-0">🤖</span>
                                 <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-semibold leading-tight">¡Configura tu Agente IA!</p>
-                                    <p className="text-xs text-muted-foreground">Te guiamos paso a paso.</p>
+                                    <p className="text-base font-bold leading-tight">¡Configura tu Agente IA! ✨</p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">Te guiamos paso a paso — en minutos queda listo para responder.</p>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={() => window.dispatchEvent(new Event("agent-onboarding:open"))}
-                                    className="shrink-0 rounded-md bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                                    className="shrink-0 rounded-lg bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/30 transition hover:brightness-110"
                                 >
                                     ✦ Usar asistente
                                 </button>
