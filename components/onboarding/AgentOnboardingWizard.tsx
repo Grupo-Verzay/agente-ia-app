@@ -293,7 +293,7 @@ export function AgentOnboardingWizard() {
         </div>
 
         {published ? (
-          <SuccessScreen onConnect={() => router.push("/connection")} onLater={() => { setOpen(false); router.push("/ia"); }} />
+          <SuccessScreen onConnect={() => router.push("/profile")} onLater={() => { setOpen(false); router.push("/ia"); }} />
         ) : (
           <>
             {/* Progress */}
