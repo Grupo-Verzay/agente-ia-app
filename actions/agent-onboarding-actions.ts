@@ -256,7 +256,7 @@ export async function completeAgentOnboarding(
     const pub = await publishPrompt({
       promptId: prompt.id,
       version: fresh?.version ?? prompt.version + 1,
-      publishedBy: me.name ?? (me as { email?: string }).email ?? "Asistente",
+      publishedBy: userId, // FK a User.id (no el nombre)
       note: "Configuración inicial (asistente)",
       revalidate: "/ia",
     });
