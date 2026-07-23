@@ -437,10 +437,16 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
         </div>
 
         <p className="text-center text-xs text-slate-500">
-          Al crear tu cuenta aceptas los Términos y la Política de privacidad.
+          Al crear tu cuenta aceptas los{' '}
+          <span className="text-blue-400">Términos</span> y la{' '}
+          <span className="text-blue-400">Política de privacidad</span>.
         </p>
-        <p className="text-center text-xs text-slate-500">
-          🔒 Tus datos se guardan de forma segura · 7 días · Sin tarjeta de crédito
+        <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-slate-500">
+          🔒 Tus datos se guardan de forma segura ·
+          <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 font-semibold text-emerald-400">
+            7 días
+          </span>
+          · Sin tarjeta de crédito
         </p>
       </form>
   );
