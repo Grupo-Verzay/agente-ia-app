@@ -279,12 +279,19 @@ export function toUIMessages(
       }
     }
 
-    // Un mensaje que quedó SIN contenido ni media ni llamada (un "stub" vacío)
-    // casi siempre es un mensaje que el CLIENTE eliminó y que WhatsApp/Evolution
-    // devuelve vacío al recargar el historial (sin el evento de borrado). En vez
-    // de una burbuja en blanco, lo mostramos como "Mensaje eliminado" con badge,
-    // para que quede el registro igual que cuando el evento sí llega.
-    const isEmptyDeletedStub = !content && !media && !kind && !call;
+    // Un mensaje de TEXTO que quedó SIN contenido (un "stub" vacío) casi siempre
+    // es un mensaje que el CLIENTE eliminó y que WhatsApp/Evolution devuelve vacío
+    // al recargar el historial (sin el evento de borrado). En vez de una burbuja
+    // en blanco, lo mostramos como "Mensaje eliminado" con badge.
+    //
+    // IMPORTANTE: se ACOTA a tipos de texto (o desconocido). Un mensaje de media
+    // (audio/imagen/video/documento) puede llegar SIN url porque Evolution todavía
+    // no terminó de procesarlo: en ese caso NO está eliminado, solo está cargando,
+    // y marcarlo como "eliminado" hacía que el mensaje "no se viera" hasta que
+    // terminaba de sincronizar (varios minutos después).
+    const textLikeTypes = new Set(['conversation', 'extendedTextMessage']);
+    const isTextLike = !m.messageType || textLikeTypes.has(m.messageType);
+    const isEmptyDeletedStub = !content && !media && !kind && !call && isTextLike;
     if (isEmptyDeletedStub) {
       content = 'Mensaje eliminado';
     }
