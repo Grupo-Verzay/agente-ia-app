@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Crown, Loader2, Check } from "lucide-react";
+import { Crown, Loader2, Check, Pencil, X } from "lucide-react";
 import { getOwnerModeStatus, saveOwnerModeConfig } from "@/actions/owner-mode-actions";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface Props {
   userId: string;
@@ -18,6 +19,7 @@ export function OwnerModeToggle({ userId }: Props) {
   const [savedPhone, setSavedPhone] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     setLoading(true);
@@ -54,6 +56,7 @@ export function OwnerModeToggle({ userId }: Props) {
 
   const handleSavePhone = async () => {
     await persist(enabled, phone);
+    setEditing(false);
   };
 
   const phoneDirty = phone.replace(/\D/g, "") !== savedPhone.replace(/\D/g, "");
@@ -80,6 +83,27 @@ export function OwnerModeToggle({ userId }: Props) {
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
           Cargando...
         </div>
+      ) : savedPhone && !editing ? (
+        /* Fila-tarjeta del dueño guardado (mismo estilo que un operario) */
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-muted/30">
+          <Crown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">Dueño</p>
+            <p className="text-xs text-muted-foreground truncate">{savedPhone}</p>
+          </div>
+          <span className={cn("text-[11px] font-medium shrink-0", enabled ? "text-green-600" : "text-muted-foreground")}>
+            {enabled ? "Activo" : "Inactivo"}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-6 h-6 shrink-0 text-muted-foreground hover:text-primary"
+            onClick={() => setEditing(true)}
+            title="Editar número"
+          >
+            <Pencil className="w-3 h-3" />
+          </Button>
+        </div>
       ) : (
         <div className="flex items-center gap-2">
           <Input
@@ -100,6 +124,18 @@ export function OwnerModeToggle({ userId }: Props) {
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
             <span className="ml-1">Guardar</span>
           </Button>
+          {savedPhone && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8"
+              onClick={() => { setPhone(savedPhone); setEditing(false); }}
+              disabled={saving}
+              title="Cancelar"
+            >
+              <X className="w-3.5 h-3.5" />
+            </Button>
+          )}
         </div>
       )}
 
