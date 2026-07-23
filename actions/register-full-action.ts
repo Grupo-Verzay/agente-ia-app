@@ -13,6 +13,7 @@ import { sanitizeInstanceName } from "@/schema/connection";
 import { decodeApiKeyRef } from "@/lib/register-link";
 import { AGENT_TEMPLATES } from "@/app/(root)/ai/_components/helpers/agentTemplates";
 import { AGENT_PROMPT_IDS } from "@/lib/agent-prompt-ids";
+import { cookies } from "next/headers";
 
 /* ─────────────────────────────────────────
    Constants
@@ -554,19 +555,18 @@ export async function fullRegisterAction(
       }
     }
 
-    /* ── STEP 7c: AgentPrompt con plantilla según objetivo de ventas ── */
-    await db.agentPrompt.create({
-      data: {
-        userId,
-        agentId: AGENT_PROMPT_IDS.systemPromptAI,
-        status: "published",
-        version: 1,
-        businessName: company,
-        businessSector,
-        sections: buildRegistrationSections(company, businessSector, mainProduct, salesObjective, clienteIdeal ?? "", tono ?? "") as Prisma.InputJsonValue,
-        promptText: buildRegistrationPromptText(company, businessSector, mainProduct, salesObjective, clienteIdeal ?? "", tono ?? ""),
-      },
-    }).catch(() => null);
+    /* ── STEP 7c: NO se pre-configura el agente ──
+       El asistente de alta (5 pasos) lo configura cuando el usuario entra por
+       primera vez. Dejamos pre-cargado el objetivo/negocio del registro vía
+       cookie para que el asistente arranque con esos datos. */
+    try {
+      const cookieStore = await cookies();
+      cookieStore.set(
+        "agent_onboarding_prefill",
+        JSON.stringify({ objectiveId: salesObjective ?? "", nombre: company ?? "", ofrece: mainProduct ?? "" }),
+        { maxAge: 60 * 60 * 24 * 7, path: "/", httpOnly: true, sameSite: "lax" },
+      );
+    } catch { /* noop */ }
 
     /* ── STEP 8: Auto sign-in ── */
     await signIn("credentials", {

@@ -70,7 +70,17 @@ async function isAgentConfigured(userId: string): Promise<boolean> {
  * Solo al dueño (no asesores ni admins), solo si NO lo pospuso y su agente aún no
  * tiene contenido.
  */
-export async function getAgentOnboardingState(): Promise<{ show: boolean; name?: string | null }> {
+export interface OnboardingPrefill {
+  objectiveId?: string;
+  nombre?: string;
+  ofrece?: string;
+}
+
+export async function getAgentOnboardingState(): Promise<{
+  show: boolean;
+  name?: string | null;
+  prefill?: OnboardingPrefill | null;
+}> {
   const me = await currentUser();
   if (!me?.id) return { show: false };
   if ((me as { advisorRole?: string | null }).advisorRole) return { show: false };
@@ -82,7 +92,19 @@ export async function getAgentOnboardingState(): Promise<{ show: boolean; name?:
   const userId = ownerId(me);
   if (await isAgentConfigured(userId)) return { show: false };
 
-  return { show: true, name: (me as { name?: string | null }).name ?? null };
+  // Pre-carga desde el registro (objetivo/negocio) si existe.
+  let prefill: OnboardingPrefill | null = null;
+  const raw = cookieStore.get("agent_onboarding_prefill")?.value;
+  if (raw) {
+    try {
+      const p = JSON.parse(raw);
+      prefill = { objectiveId: p.objectiveId, nombre: p.nombre, ofrece: p.ofrece };
+    } catch {
+      /* noop */
+    }
+  }
+
+  return { show: true, name: (me as { name?: string | null }).name ?? null, prefill };
 }
 
 /** Marca el asistente como pospuesto ("hacerlo después") vía cookie. */
