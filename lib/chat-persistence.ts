@@ -649,22 +649,24 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
     const targetId: string | undefined =
       rawRec?.message?.protocolMessage?.key?.id ?? rawRec?.protocolMessage?.key?.id;
     if (targetId) {
-      const jids = Array.from(
-        new Set([normalizedRemoteJid, remoteJidAlt].filter(Boolean) as string[]),
-      );
+      // Se busca el mensaje original SOLO por su ID de WhatsApp (que es único a
+      // nivel global), sin exigir que el remoteJid coincida. Antes se filtraba
+      // también por remoteJid, pero en los mensajes RECIBIDOS el número guardado
+      // a veces difiere del que llega en el evento de borrado (caso @lid): el
+      // original no se encontraba y se perdía su texto, mostrando "Mensaje
+      // eliminado" en blanco. Marcando por ID se conserva el contenido igual que
+      // en los mensajes enviados.
       await db.$executeRaw`
         UPDATE "chat_messages" SET "deleted" = TRUE, "updatedAt" = NOW()
         WHERE "userId" = ${input.userId}
           AND "instanceName" = ${input.instanceName}
           AND "messageId" = ${targetId}
-          AND "remoteJid" IN (${Prisma.join(jids)})
       `.catch(() => {});
       await db.$executeRaw`
         UPDATE "chat_conversations" SET "lastMessageDeleted" = TRUE, "updatedAt" = NOW()
         WHERE "userId" = ${input.userId}
           AND "instanceName" = ${input.instanceName}
           AND "lastMessageId" = ${targetId}
-          AND "remoteJid" IN (${Prisma.join(jids)})
       `.catch(() => {});
     }
     return;
