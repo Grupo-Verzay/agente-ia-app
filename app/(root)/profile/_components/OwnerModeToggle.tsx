@@ -72,8 +72,7 @@ export function OwnerModeToggle({ userId }: Props) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Los mensajes de este número se tratan como órdenes de la IA (reportes, tareas,
-        mover leads, etiquetar y más). Los demás números se atienden como clientes.
+        Los mensajes de este número se toman como órdenes de la IA.
       </p>
 
       {loading ? (
