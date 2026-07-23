@@ -817,19 +817,20 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                 </CardHeader>
                             </Card>
 
-                            {/* Puente con operario */}
-                            <Card className="border-border mb-4">
-                                <CardContent className="pt-4">
-                                    <OperatorContactsManager userId={userId} />
-                                </CardContent>
-                            </Card>
+                            {/* Puente con operario + Modo Dueño (dos columnas) */}
+                            <div className="grid gap-4 sm:grid-cols-2 items-start mb-4">
+                                <Card className="border-border">
+                                    <CardContent className="pt-4">
+                                        <OperatorContactsManager userId={userId} />
+                                    </CardContent>
+                                </Card>
 
-                            {/* Modo Dueño por WhatsApp */}
-                            <Card className="border-border mb-4">
-                                <CardContent className="pt-4">
-                                    <OwnerModeToggle userId={userId} />
-                                </CardContent>
-                            </Card>
+                                <Card className="border-border">
+                                    <CardContent className="pt-4">
+                                        <OwnerModeToggle userId={userId} />
+                                    </CardContent>
+                                </Card>
+                            </div>
 
                             <SectionTitle>Tiempos de respuesta</SectionTitle>
                             <div className="grid gap-4 sm:grid-cols-2">
