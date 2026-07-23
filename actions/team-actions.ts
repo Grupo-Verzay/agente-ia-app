@@ -514,7 +514,9 @@ export async function saveAutoAssignSettings(input: {
   const owner = await requireOwner();
   if (!owner) return { success: false, message: "No autorizado." };
 
-  const maxChats = Math.max(1, Math.min(input.maxChats, 500));
+  // maxChats === 0 significa CAPACIDAD ILIMITADA (sin tope de chats por asesor).
+  // Cualquier otro valor se acota entre 1 y 500.
+  const maxChats = input.maxChats <= 0 ? 0 : Math.max(1, Math.min(input.maxChats, 500));
   await db.$executeRaw`
     UPDATE "User"
     SET auto_assign_enabled = ${input.enabled}, auto_assign_max_chats = ${maxChats}
