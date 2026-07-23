@@ -31,6 +31,16 @@ const VALID_OBJECTIVES = new Set([
 // de PromptElementSchema (agentAi.ts).
 const GESTION_SUBTYPES = new Set(["Solicitudes", "Pedidos", "Reclamos", "Reservas", "Citas"]);
 
+// Mensaje principal por subtipo (copiado de CAPTURA_MAIN_MESSAGES en agentAi.ts)
+// para que cada paso de gestión tenga contenido y la sección se renderice.
+const CAPTURA_MSG: Record<string, string> = {
+  Solicitudes: "Cuando un usuario exprese una solicitud, recopila todos los datos **uno a uno** o **en una sola toma si el usuario los da completos** de la siguiente manera:",
+  Reclamos: "Cuando un usuario exprese una queja o problema, debes recopilar los datos **uno a uno** o **en una sola toma si el usuario los da completos** de la siguiente manera:",
+  Pedidos: "Cuando un usuario exprese realizar un **pedido**, recopila todos los datos **uno a uno** o **en una sola toma si el usuario los da completos** de la siguiente manera:",
+  Reservas: "Cuando un usuario exprese una reserva, recopila todos los datos **uno a uno** o **en una sola toma si el usuario los da completos** de la siguiente manera:",
+  Citas: "Cuando un usuario exprese agendar una **cita**",
+};
+
 const clean = (s?: string | null) => (s ?? "").trim();
 const uid = () => crypto.randomUUID();
 
@@ -136,11 +146,10 @@ export async function completeAgentOnboarding(
 
     // --- Construcción de secciones (mismo formato que el editor) ---
 
-    // "¿Qué ofrece?" y "Medios de pago" no tienen campo propio en business: van en
-    // NOTAS ADICIONALES, que el composer emite como bloque para el agente.
+    // "¿Qué ofrece?" no tiene campo propio en business: va en NOTAS ADICIONALES.
+    // Los medios de pago van como pregunta frecuente (más abajo), que es su lugar.
     const notas = [
       clean(b.ofrece) ? `Qué ofrecemos: ${clean(b.ofrece)}` : "",
-      clean(input.pagos) ? `Métodos de pago: ${clean(input.pagos)}` : "",
       clean(b.notas),
     ]
       .filter(Boolean)
@@ -169,16 +178,14 @@ export async function completeAgentOnboarding(
     };
 
     // Preguntas frecuentes → faq.steps (title = pregunta, mainMessage = respuesta).
-    const faq = {
-      steps: (input.faq ?? [])
-        .filter((f) => clean(f.q))
-        .map((f) => ({
-          id: uid(),
-          title: clean(f.q),
-          mainMessage: clean(f.a),
-          elements: [] as any[],
-        })),
-    };
+    const faqSteps = (input.faq ?? [])
+      .filter((f) => clean(f.q))
+      .map((f) => ({ id: uid(), title: clean(f.q), mainMessage: clean(f.a), elements: [] as any[] }));
+    // Medios de pago → pregunta frecuente (visible + el agente la responde).
+    if (clean(input.pagos)) {
+      faqSteps.push({ id: uid(), title: "Medios de pago", mainMessage: `Aceptamos: ${clean(input.pagos)}.`, elements: [] as any[] });
+    }
+    const faq = { steps: faqSteps };
 
     // Productos / servicios → products.steps (title = nombre, mainMessage = ficha).
     const products = {
@@ -203,16 +210,18 @@ export async function completeAgentOnboarding(
     };
 
     // Gestión → management.steps con elementos captura_datos por tipo.
+    // Cada paso lleva su mensaje predefinido (CAPTURA_MSG) para que la sección
+    // aparezca aunque no tenga campos/enlace (ej. Citas), igual que el editor.
     const management = {
       steps: (input.gestion ?? [])
         .filter((g) => GESTION_SUBTYPES.has(g.tipo))
         .map((g) => {
           if (g.tipo === "Citas") {
-            // Citas: el enlace de agendamiento se genera aparte; queda vacío aquí.
+            // Citas: el enlace de agendamiento se configura aparte (queda vacío aquí).
             return {
               id: uid(),
-              title: "Agendar cita",
-              mainMessage: "Agenda las citas del cliente.",
+              title: "Citas",
+              mainMessage: CAPTURA_MSG.Citas,
               elements: [
                 { id: uid(), kind: "function", fn: "captura_datos", subtype: "Citas", prompt: "" },
               ] as any[],
@@ -220,14 +229,15 @@ export async function completeAgentOnboarding(
           }
           return {
             id: uid(),
-            title: `Captura de ${g.tipo}`,
-            mainMessage: `Registra ${g.tipo.toLowerCase()} del cliente.`,
+            title: g.tipo,
+            mainMessage: CAPTURA_MSG[g.tipo] ?? "",
             elements: [
               {
                 id: uid(),
                 kind: "function",
                 fn: "captura_datos",
                 subtype: g.tipo,
+                prompt: "por favor indicame los siguientes datos",
                 fields: (g.campos ?? []).map((c) => clean(c)).filter(Boolean),
               },
             ] as any[],
