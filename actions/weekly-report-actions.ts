@@ -3,7 +3,7 @@
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import { resolveSystemNotificationDispatcherForClient, sendViaWhatsAppDispatcher } from "@/actions/whatsapp-dispatcher";
+import { resolveSystemNotificationDispatcherForClient, resolveWhatsAppDispatcherLine, sendViaWhatsAppDispatcher } from "@/actions/whatsapp-dispatcher";
 import { normalizeChatHistoryRemoteJid } from "@/lib/chat-history/build-session-id";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -248,16 +248,22 @@ async function getUserDispatchConfig(userId: string) {
     });
     if (!user?.notificationNumber) return null;
 
-    // El reporte es una notificación del SISTEMA → sale por la "línea de la App":
-    // la del reseller/dueño si el cliente pertenece a uno (respeta white-label y
-    // NUNCA usa Verzay para clientes de reseller, aunque su línea esté sin conectar),
-    // o la de VERZAY (admin) para clientes directos. Combina AMBOS sistemas de
-    // vinculación (demoResellerId nuevo + tabla reseller vieja).
-    const sender = await resolveSystemNotificationDispatcherForClient({
-        clientUserId: userId,
-        ownerId: user.ownerId,
-        demoResellerId: user.demoResellerId,
+    // El reporte de un negocio sale por SU PROPIA línea de WhatsApp: es la cuenta
+    // del dueño la que le reporta a su equipo, no la de Verzay ni la del reseller.
+    // Solo si el dueño no tiene su propia instancia conectada caemos al enrutado
+    // de notificación del sistema (línea del reseller/dueño-máster o, para clientes
+    // directos, la línea oficial de Verzay como último recurso).
+    let sender = await resolveWhatsAppDispatcherLine({
+        ownerUserId: userId,
+        includeAdminFallback: false,
     });
+    if (!sender) {
+        sender = await resolveSystemNotificationDispatcherForClient({
+            clientUserId: userId,
+            ownerId: user.ownerId,
+            demoResellerId: user.demoResellerId,
+        });
+    }
     console.log("[weeklyReport] dispatch config:", JSON.stringify({
         notificationNumber: user.notificationNumber,
         senderInstance: sender?.instanceName ?? null,
