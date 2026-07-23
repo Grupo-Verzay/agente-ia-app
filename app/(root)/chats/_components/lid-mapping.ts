@@ -20,16 +20,12 @@ function normLidKey(value: string): string {
  */
 export function applyLidMappingToChats<
   T extends { remoteJid?: string; remoteJidAlt?: string | null },
->(chats: T[], lidMap: LidPhoneMap | undefined | null): T[] {
-  if (!lidMap || !chats?.length) return chats;
-  const keys = Object.keys(lidMap);
-  if (keys.length === 0) return chats;
-
-  return chats.map((chat) => {
-    const rj = chat.remoteJid ?? '';
-    if (!isLidJid(rj)) return chat;
-    const phone = lidMap[normLidKey(rj)];
-    if (!phone || phone === rj) return chat;
-    return { ...chat, remoteJid: phone, remoteJidAlt: chat.remoteJidAlt || rj };
-  });
+>(chats: T[], _lidMap: LidPhoneMap | undefined | null): T[] {
+  // TEMPORALMENTE DESACTIVADO. La canonicalización de @lid al número real hacía
+  // que un chat @lid compartiera el número con las otras líneas del mismo
+  // cliente, y así heredaba las marcas de ocultar/eliminar/archivar de esas
+  // líneas → los chats multi-línea DESAPARECÍAN. Se deja como no-op para
+  // restaurar la estabilidad. El arreglo correcto (marcas y dedup POR LÍNEA)
+  // se hará por separado; entonces se reactiva esta fusión de forma segura.
+  return chats;
 }
