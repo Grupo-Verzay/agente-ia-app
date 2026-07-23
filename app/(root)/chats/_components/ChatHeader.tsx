@@ -31,6 +31,7 @@ import { ChatAppointmentStatusButton } from './ChatAppointmentStatusButton';
 import { ChatReminderDialog } from './ChatReminderDialog';
 import { TaskFormDialog } from './TaskFormDialog';
 import { MergeLidDialog } from './MergeLidDialog';
+import { deleteLidChat } from '@/actions/merge-lid-contact';
 import { cn } from '@/lib/utils';
 import { isLidJid } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
@@ -117,6 +118,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [confirmDeleteLid, setConfirmDeleteLid] = useState(false);
+  const [deletingLid, setDeletingLid] = useState(false);
 
   const isAgent = !!advisorRole;
   const isOwnerLike = !advisorRole || advisorRole === 'administrador';
@@ -723,17 +726,51 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
       {remoteJid && isLidJid(remoteJid) && (
         <div className="flex items-center justify-between gap-2 border-t border-amber-200/60 bg-amber-50/60 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/30 dark:bg-amber-950/20 dark:text-amber-400">
-          <span className="min-w-0">
-            Este chat usa un ID interno de WhatsApp. Si es un contacto duplicado, únelo con el real.
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 shrink-0"
-            onClick={() => setMergeOpen(true)}
-          >
-            Unir contacto
-          </Button>
+          {confirmDeleteLid ? (
+            <>
+              <span className="min-w-0">¿Eliminar este chat duplicado? Quedará solo el contacto original.</span>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-7"
+                  disabled={deletingLid}
+                  onClick={async () => {
+                    setDeletingLid(true);
+                    try {
+                      const res = await deleteLidChat({ lidJid: remoteJid, instanceName });
+                      if (!res.ok) { toast.error(res.error); return; }
+                      toast.success('Chat eliminado.');
+                      setTimeout(() => window.location.reload(), 700);
+                    } catch {
+                      toast.error('No se pudo eliminar. Intenta de nuevo.');
+                    } finally {
+                      setDeletingLid(false);
+                    }
+                  }}
+                >
+                  {deletingLid ? 'Eliminando…' : 'Sí, eliminar'}
+                </Button>
+                <Button size="sm" variant="outline" className="h-7" disabled={deletingLid} onClick={() => setConfirmDeleteLid(false)}>
+                  Cancelar
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="min-w-0">
+                Este chat usa un ID interno de WhatsApp. Si es un contacto duplicado, únelo con el real.
+              </span>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button size="sm" variant="outline" className="h-7" onClick={() => setMergeOpen(true)}>
+                  Unir contacto
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 text-red-600 hover:text-red-700 dark:text-red-400" onClick={() => setConfirmDeleteLid(true)}>
+                  Eliminar
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       )}
 

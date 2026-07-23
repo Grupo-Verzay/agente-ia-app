@@ -16,6 +16,56 @@ function toPhoneJid(value: string): string {
   return digits ? `${digits}@s.whatsapp.net` : '';
 }
 
+function isLid(value: string): boolean {
+  return (value || '').trim().toLowerCase().endsWith('@lid');
+}
+
+/**
+ * Elimina SOLO la conversación @lid duplicada (y sus mensajes) de esa línea,
+ * cuando no se conoce el contacto real. Deja intacto el contacto original.
+ *
+ * Es quirúrgico a propósito: solo borra la fila cuyo remoteJid es EXACTAMENTE
+ * ese @lid en esa instancia — nunca toca el contacto real (que tiene otro
+ * remoteJid). Además se exige que sea un @lid, para no borrar un contacto normal.
+ */
+export async function deleteLidChat(input: {
+  lidJid: string;
+  instanceName?: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: 'No autenticado.' };
+  const userId = (user as any).effectiveId ?? user.id;
+  const raw = (input.lidJid || '').trim();
+
+  if (!isLid(raw)) {
+    return { ok: false, error: 'Solo se puede eliminar un chat con ID interno (@lid).' };
+  }
+
+  try {
+    if (input.instanceName) {
+      await db.$executeRaw`
+        DELETE FROM "chat_messages"
+        WHERE "userId" = ${userId} AND "instanceName" = ${input.instanceName} AND "remoteJid" = ${raw}
+      `;
+      await db.$executeRaw`
+        DELETE FROM "chat_conversations"
+        WHERE "userId" = ${userId} AND "instanceName" = ${input.instanceName} AND "remoteJid" = ${raw}
+      `;
+    } else {
+      await db.$executeRaw`
+        DELETE FROM "chat_messages" WHERE "userId" = ${userId} AND "remoteJid" = ${raw}
+      `;
+      await db.$executeRaw`
+        DELETE FROM "chat_conversations" WHERE "userId" = ${userId} AND "remoteJid" = ${raw}
+      `;
+    }
+    revalidatePath('/chats');
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? 'No se pudo eliminar el chat.' };
+  }
+}
+
 /**
  * Lista contactos reales (no @lid) de la misma línea/instancia para elegir con
  * cuál unir el @lid, sin tener que escribir el número. Solo lectura.
