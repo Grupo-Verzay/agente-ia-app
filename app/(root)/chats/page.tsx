@@ -186,7 +186,12 @@ function dedupeChatsByIdentity(chats: ChatData[]) {
     .filter((chat) => {
       if (!chat.remoteJid) return false;
 
-      const identityCandidates = getChatIdentityCandidates(chat);
+      // 1-a-1: deduplicar POR INSTANCIA (línea). El mismo cliente en dos números
+      // distintos (Atención por Meta, Ventas por Evolution) queda como DOS
+      // conversaciones. Los grupos (@g.us) sí se unifican entre líneas.
+      const isGroup = chat.remoteJid.endsWith("@g.us");
+      const scope = isGroup ? "" : `${chat.instanceName ?? ""}::`;
+      const identityCandidates = getChatIdentityCandidates(chat).map((c) => `${scope}${c}`);
       const messageKey = getChatMessageDuplicateKey(chat);
       if (
         identityCandidates.some((candidate) => seenIdentities.has(candidate)) ||
