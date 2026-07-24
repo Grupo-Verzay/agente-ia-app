@@ -208,8 +208,8 @@ Te avisamos cuando salga. ¡Gracias por tu compra! 🎉`,
     desc: "5 fases: conexión, preguntas, propuesta y cierre.",
     steps: [
       { t: "BIENVENIDA",
-        variable: "nombre",
-        condicion: "Responde con un nombre → guardar en silencio nombre → current_step = 2. No entrega nombre → pedirlo una vez más, sin repetir la bienvenida.",
+        variable: "nombre (opcional)",
+        condicion: "Captura el nombre si lo da. Si no lo da, se pregunta 1 vez más y luego se continúa igual — NO bloquear por el nombre.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 ¡Hola! 👋 Soy el asistente de *[NOMBRE_NEGOCIO]*.
 Para ayudarte mejor, ¿me compartes tu nombre?`,
@@ -244,7 +244,7 @@ Para ayudarte mejor, ¿me compartes tu nombre?
 - No entrega nombre → pedirlo una vez más, sin repetir la bienvenida.` },
       { t: "PREGUNTA 1",
         variable: "necesidad",
-        condicion: "Describe su necesidad → guardar en silencio necesidad → current_step = 3. Responde vago (\"info\", \"precios\") → repreguntar una vez pidiendo más detalle, sin avanzar.",
+        condicion: "Captura la necesidad. Si responde vago, repregunta MÁX. 1 vez pidiendo más detalle; luego avanza con lo que haya — no ciclar.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?`,
         main: `🔒 CONDICIÓN GATE: nombre != null AND necesidad == null
@@ -273,8 +273,8 @@ Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?
 - Describe su necesidad → guardar en silencio necesidad → current_step = 3
 - Responde vago ("info", "precios") → repreguntar una vez pidiendo más detalle, sin avanzar.` },
       { t: "PREGUNTA 2",
-        variable: "contexto",
-        condicion: "Responde plazo y/o presupuesto → guardar en silencio contexto → current_step = 4. Evade el presupuesto → registrar \"no definido\" → current_step = 4.",
+        variable: "contexto (opcional)",
+        condicion: "Captura plazo/presupuesto si lo da. Si lo evade, registra 'no definido' y avanza igual — no bloquear.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 Entiendo. ¿Para cuándo lo necesitas y manejas un presupuesto estimado?`,
         main: `🔒 CONDICIÓN GATE: necesidad != null AND contexto == null
@@ -304,8 +304,8 @@ Entiendo. ¿Para cuándo lo necesitas y manejas un presupuesto estimado?
 - Responde plazo y/o presupuesto → guardar en silencio contexto → current_step = 4
 - Evade el presupuesto → registrar "no definido" → current_step = 4` },
       { t: "PRESENTACIÓN",
-        variable: "presentacion_emitida, interes_confirmado",
-        condicion: "Confirma interés (sí / me interesa / dale) → interes_confirmado = true → current_step = 5. Plantea una objeción → emitir Regla/parámetro (3) → permanecer en current_step = 4. Pide más detalle → responder sin reejecutar → permanecer. Pide tiempo para pensarlo → interes_confirmado = true → current_step = 5.",
+        variable: "—",
+        condicion: "No captura datos del cliente. Avanza al cierre ante cualquier señal de interés (sí / dale / me interesa) o si pide tiempo. Ante una objeción, responde y permanece. No bloquear.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 Por lo que me cuentas, lo ideal para ti es *[SOLUCION]*.
 Encaja con tu caso porque *[JUSTIFICACION]*.
@@ -352,22 +352,22 @@ Entiendo perfectamente tu punto.
 - Pide más detalle → responder sin reejecutar el flujo → permanecer en current_step = 4
 - Pide tiempo para pensarlo → interes_confirmado = true → current_step = 5` },
       { t: "CIERRE (paso final)",
-        variable: "cierre_completado, correo",
-        condicion: "Entrega nombre y correo → ejecutar tool → emitir confirmación breve → cierre_completado = true → halt. Entrega solo parte → pedir únicamente lo faltante. Se niega a dar datos → cerrar sin ejecutar la tool.",
+        variable: "nombre (opcional)",
+        condicion: "Captura el nombre si lo da (opcional). Ejecuta la tool de registro/notificación y CIERRA SIEMPRE, con o sin nombre. Sin correo obligatorio.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 ¡Excelente decisión, *[NOMBRE]*!
-Para coordinar el siguiente paso, ¿me confirmas tu *nombre completo* y tu *correo*? 📩`,
+Para coordinar el siguiente paso, ¿me confirmas tu *nombre*? 📩`,
         main: `🔒 CONDICIÓN GATE: interes_confirmado == true AND cierre_completado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
 1º Ejecutar flujo 'CIERRE' ANTES de responder.
 2º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-3º Al recibir nombre y correo, ejecutar la tool de registro/notificación al asesor.
+3º Ejecutar la tool de registro/notificación al asesor (con el nombre, si el cliente lo dio).
 4º Guardar cierre_completado = true → halt.
 
 🚫 PROHIBIDO EN ESTE PASO:
 - Responder sin ejecutar primero el flujo 'CIERRE'.
-- Ejecutar la tool antes de capturar nombre y correo.
+- Bloquear el cierre si el cliente no da el nombre — el flujo debe CERRAR igual.
 - Solicitar datos que el cliente ya entregó.
 - Emitir cualquier mensaje después del cierre.
 
@@ -378,14 +378,14 @@ ELEMENTOS DEL PASO 5:
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 🤖 *[NOMBRE_AGENTE]*
 ¡Excelente decisión, *[NOMBRE]*!
-Para coordinar el siguiente paso, ¿me confirmas tu *nombre completo* y tu *correo*? 📩
+Para coordinar el siguiente paso, ¿me confirmas tu *nombre*? 📩
 
 (3) FUNCIÓN: Ejecuta la tool de registro/notificación al asesor
 
 (4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
-- Entrega nombre y correo → ejecutar tool → emitir confirmación breve → cierre_completado = true → halt
-- Entrega solo parte → pedir únicamente lo faltante, sin repetir el mensaje completo.
-- Se niega a dar datos → agradecer, dejar la puerta abierta y cerrar sin ejecutar la tool.
+- Da su nombre → guardar nombre → ejecutar tool → emitir confirmación breve → cierre_completado = true → halt
+- No da el nombre → ejecutar tool igual → emitir confirmación breve → cierre_completado = true → halt (el flujo continúa; el nombre es opcional)
+- El correo NO es obligatorio: solo se guarda si el cliente lo ofrece.
 
 (5) NOTA DE CONTROL (NO EMITIR):
 ⛔ FIN DEL FLUJO. PROHIBIDO emitir contenido adicional tras el cierre.` },
@@ -634,7 +634,7 @@ Por lo que me cuentas, lo mejor es que hables directo con un asesor.
 - Derivar sin haber calculado el score.
 - Tratar a un lead frío con presión de venta.
 - Descartar un lead frío sin ofrecerle material.
-- Ejecutar la tool antes de capturar nombre y correo.
+- Bloquear el cierre si el cliente no da el nombre — el flujo debe CERRAR igual.
 
 🔄 FUNCIÓN: Ejecuta la tool de registro/notificación al asesor.
 
