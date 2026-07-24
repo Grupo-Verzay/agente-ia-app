@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 import { db } from '@/lib/db';
-import { currentUser } from '@/lib/auth';
+import { getFinanceUser } from '@/lib/finance-user';
 
 import { FinanceMonthChart } from './_components/FinanceMonthChart';
 
@@ -77,11 +77,8 @@ export default async function FinanceHomePage({
 }: {
   searchParams?: { month?: string | string[] };
 }) {
-  // Usar la cuenta activa (respeta impersonación/cuenta seleccionada), igual que
-  // las sub-páginas de Finanzas (Ventas/Gastos) y a diferencia de la búsqueda por
-  // email, que resolvía siempre al usuario logueado y dejaba todo en $0 al ver la
-  // cuenta de otro.
-  const me = await currentUser();
+  // Finanzas es por cuenta del titular logueado (ver lib/finance-user).
+  const me = await getFinanceUser();
   if (!me?.id) return null;
 
   const selectedMonth = parseMonthParam(searchParams?.month);

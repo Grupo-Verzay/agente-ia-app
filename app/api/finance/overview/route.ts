@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { currentUser } from '@/lib/auth';
+import { getFinanceUser } from '@/lib/finance-user';
 import { db } from '@/lib/db';
 
 function startOfMonth(d: Date) {
@@ -34,10 +34,8 @@ function calcTotal(row: { amount?: unknown; extra?: unknown; discount?: unknown 
 }
 
 export async function GET(request: NextRequest) {
-  // Cuenta activa (respeta impersonación/cuenta seleccionada), igual que las
-  // sub-páginas de Finanzas. Antes se resolvía por email → siempre el usuario
-  // logueado, dejando las tarjetas en $0 al ver la cuenta de otro.
-  const me = await currentUser();
+  // Finanzas es por cuenta del titular logueado (ver lib/finance-user).
+  const me = await getFinanceUser();
   if (!me?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
