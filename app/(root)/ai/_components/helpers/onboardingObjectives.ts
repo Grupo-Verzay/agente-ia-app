@@ -11,7 +11,13 @@
 //  - main: instrucciones del sistema — equilibrado: objetivo + qué hace +
 //          cuándo aplica + cuándo avanza + una regla mínima. Corto pero sólido.
 
-export type ObjectiveStep = { t: string; ex: string; main: string };
+export type ObjectiveStep = {
+  t: string;      // título del paso (MAYÚSCULA)
+  ex: string;     // mensaje que dice el agente (editable)
+  main: string;   // instrucción principal (GATE + secuencia + prohibido + transición)
+  variable?: string;  // Motor de Flujo: variable que recoge el paso
+  condicion?: string; // Motor de Flujo: condición para avanzar
+};
 
 /**
  * Reemplaza las variables entre [corchetes] por los datos reales del negocio.
@@ -58,6 +64,8 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
     desc: "5 fases: ventas rápidas con foco en cerrar.",
     steps: [
       { t: "BIENVENIDA",
+        variable: "producto_interes",
+        condicion: "Menciona/pregunta un producto → guardar producto_interes → paso 3. Sin intención clara → paso 2.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 ¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
 ¿Qué producto te interesa?`,
@@ -85,6 +93,8 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
 - Escribe sin intención clara → current_step = 2
 - Saluda sin pedir nada → permanecer en current_step = 1, sin repetir la bienvenida.` },
       { t: "PRODUCTO DE INTERÉS",
+        variable: "producto_interes",
+        condicion: "Elige del catálogo → guardar producto_interes → paso 3. Fuera del catálogo → avisar y ofrecer la lista.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 Tenemos:
 1️⃣ *[CATEGORIA_1]*
@@ -105,6 +115,8 @@ Tenemos:
 - Nombra algo fuera del catálogo → emitir: "Ese no lo manejamos 😕 ¿Te interesa alguno de la lista?" → permanecer en current_step = 2
 - Otra cosa → repreguntar la lista una vez, sin avanzar.` },
       { t: "PRESENTACIÓN",
+        variable: "oferta_presentada",
+        condicion: "Confirma (sí / lo quiero) → paso 4. Pide otra opción → reiniciar producto → paso 2. Objeta precio → responder sin reejecutar.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 Te recomiendo *[PRODUCTO]*.
 ✅ *[BENEFICIO_1]*
@@ -135,6 +147,8 @@ Te recomiendo *[PRODUCTO]*.
 - Pide otra opción → producto_interes = null → oferta_presentada = false → current_step = 2
 - Objeta el precio o pregunta detalles → responder sin reejecutar el flujo → permanecer en current_step = 3` },
       { t: "CIERRE",
+        variable: "nombre, metodo_pago, datos_envio",
+        condicion: "Da el nombre → emitir 2ª pregunta (pago/envío). Elige pago/envío → datos_completos → paso 5. Falta algo → pedir solo lo faltante.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 ¡Perfecto! ¿A nombre de quién registro el pedido? 📝`,
         main: `🔒 CONDICIÓN GATE: oferta_presentada == true AND datos_completos == false
@@ -158,6 +172,8 @@ Gracias. ¿Cómo prefieres pagar y recibirlo?
 - Elige método de pago/envío → guardar metodo_pago y datos_envio → datos_completos = true → current_step = 5
 - Falta un dato → pedir únicamente lo faltante, sin repetir el mensaje completo.` },
       { t: "FINALIZACIÓN",
+        variable: "seguimiento_activado",
+        condicion: "Datos completos → ejecutar tool de registro/notificación → confirmar pedido → activar seguimiento → fin (halt).",
         ex: `🤖 *[NOMBRE_AGENTE]*
 ¡Listo, *[NOMBRE]*! Tu pedido quedó confirmado ✅
 🛍️ *[PRODUCTO]*
@@ -184,18 +200,157 @@ Te avisamos cuando salga. ¡Gracias por tu compra! 🎉`,
     id: "venta-consultiva", em: "🎯", title: "Venta Consultiva",
     desc: "6 fases: conexión, diagnóstico, propuesta, negociación y cierre.",
     steps: [
-      { t: "BIENVENIDA", ex: "¡Hola! Soy el asistente de [tu negocio]. ¿En qué puedo ayudarte hoy?",
-        main: "🎯 Recibir y abrir con confianza.\n• Saluda como asistente del negocio.\n• Si trae una intención clara, salta a ese paso.\n• Si no, haz UNA pregunta de apertura.\n📌 Un solo mensaje por turno; espera la respuesta.\n➡️ Cuando responda → PREGUNTA 1." },
-      { t: "PREGUNTA 1", ex: "Para orientarte mejor, ¿qué estás buscando resolver?",
-        main: "🎯 Descubrir qué quiere resolver.\n• Haz una pregunta abierta sobre su necesidad real.\n📌 Una pregunta a la vez.\n➡️ Cuando responda → PREGUNTA 2." },
-      { t: "PREGUNTA 2", ex: "¿Y para cuándo lo necesitas o qué presupuesto manejas?",
-        main: "🎯 Profundizar en el contexto.\n• Pregunta plazo, presupuesto o situación.\n📌 Una pregunta a la vez.\n➡️ Cuando responda → PRESENTACIÓN." },
-      { t: "PRESENTACIÓN", ex: "Según lo que me cuentas, esto es lo que te recomiendo…",
-        main: "🎯 Recomendar la solución ideal.\n• Según lo que contó, propón la opción y explica por qué encaja.\n📌 Personaliza con lo que dijo.\n➡️ Cuando reaccione → NEGOCIACIÓN." },
-      { t: "NEGOCIACIÓN", ex: "Entiendo tu duda. Mira el valor que obtienes y las opciones que tenemos…",
-        main: "🎯 Resolver objeciones sin presionar.\n• Escucha la duda, refuerza el valor y ofrece opciones.\n📌 Nunca presiones ni descalifiques.\n➡️ Cuando esté listo → FINALIZACIÓN." },
-      { t: "FINALIZACIÓN", ex: "¿Agendamos una cita? Déjame tu nombre y correo y coordinamos.",
-        main: "🎯 Cerrar o agendar.\n• Propón el siguiente paso (cita o compra).\n• Pide nombre y correo.\n✅ Fin del flujo." },
+      { t: "BIENVENIDA",
+        variable: "nombre",
+        condicion: "Da su nombre (o llega con intención clara) → guardar nombre → paso 2. Si no da nombre → pedirlo una vez más.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+¡Hola! 👋 Soy el asistente de *[NOMBRE_NEGOCIO]*.
+Para ayudarte mejor, ¿me compartes tu nombre?`,
+        main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
+🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Ejecutar el flujo 'BIENVENIDA' ANTES de responder.
+2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+3º Guardar bienvenida_enviada = true.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Formular preguntas propias o de confirmación.
+- Dar precios, planes o propuestas en este turno.
+- Ejecutar cualquier tool.
+- Repetir la bienvenida si bienvenida_enviada == true.
+
+🔄 FUNCIÓN: Ejecuta el flujo 'BIENVENIDA'.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Responde con un nombre → guardar nombre → current_step = 2
+- Llega con intención clara (pide info de un servicio concreto) → guardar nombre si lo da → current_step = 2
+- No entrega nombre → pedirlo una vez más, sin repetir la bienvenida.` },
+      { t: "PREGUNTA 1",
+        variable: "necesidad",
+        condicion: "Describe su necesidad → guardar necesidad → paso 3. Si responde vago → repreguntar una vez.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?`,
+        main: `🔒 CONDICIÓN GATE: nombre != null AND necesidad == null
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Ejecutar el flujo 'PREGUNTA_1', si existe.
+2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Presentar soluciones o precios antes de conocer la necesidad.
+- Hacer dos preguntas en el mismo mensaje.
+- Ejecutar tools de registro.
+
+🔄 FUNCIÓN: Ejecuta el flujo 'PREGUNTA_1' (si existe).
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Describe su necesidad → guardar necesidad → current_step = 3
+- Responde vago ("info", "precios") → repreguntar una vez pidiendo más detalle, sin avanzar.` },
+      { t: "PREGUNTA 2",
+        variable: "contexto",
+        condicion: "Da plazo y/o presupuesto (o lo evade = 'no definido') → guardar contexto → paso 4.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+Entiendo. ¿Para cuándo lo necesitas y manejas un presupuesto estimado?`,
+        main: `🔒 CONDICIÓN GATE: necesidad != null AND contexto == null
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Ejecutar el flujo 'PREGUNTA_2', si existe.
+2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Presentar la solución antes de capturar el contexto.
+- Hacer dos preguntas en el mismo mensaje.
+- Insistir en el presupuesto si el cliente lo evade.
+- Ejecutar tools de registro.
+
+🔄 FUNCIÓN: Ejecuta el flujo 'PREGUNTA_2' (si existe).
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Responde plazo y/o presupuesto → guardar contexto → current_step = 4
+- Evade el presupuesto → registrar "no definido" → current_step = 4` },
+      { t: "PRESENTACIÓN",
+        variable: "presentacion_emitida, interes_confirmado",
+        condicion: "Confirma interés → interes_confirmado → paso 6. Objeción/duda → paso 5. Pide detalle → responder sin reejecutar.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+Por lo que me cuentas, lo ideal para ti es *[SOLUCION]*.
+Encaja con tu caso porque *[JUSTIFICACION]*.
+💰 Inversión: *[PRECIO]*
+¿Qué te parece?`,
+        main: `🔒 CONDICIÓN GATE: contexto != null AND presentacion_emitida == false
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Ejecutar el flujo de solución correspondiente a la necesidad, si existe.
+2º Emitir ÚNICAMENTE el texto de "lo que dice el agente", como UN SOLO MENSAJE.
+3º Guardar presentacion_emitida = true.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Recomendar servicios fuera del catálogo o las tools.
+- Inventar precios, resultados o casos de éxito.
+- Fragmentar la propuesta en varios mensajes.
+- Reejecutar el flujo si presentacion_emitida == true.
+
+🔄 FUNCIÓN: Ejecuta el flujo de solución correspondiente (si existe).
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Confirma interés (sí / me interesa / dale) → interes_confirmado = true → current_step = 6
+- Plantea una objeción o duda → current_step = 5
+- Pide más detalle → responder sin reejecutar el flujo → permanecer en current_step = 4` },
+      { t: "NEGOCIACIÓN",
+        variable: "interes_confirmado",
+        condicion: "Resuelve la objeción y acepta → interes_confirmado → paso 6. Otra objeción → responder de nuevo. Pide tiempo → dejar puerta abierta → paso 6.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+Entiendo perfectamente tu punto.
+*[RESPUESTA_A_LA_OBJECION]*
+¿Te gustaría que avancemos con *[ALTERNATIVA]*?`,
+        main: `🔒 CONDICIÓN GATE: presentacion_emitida == true AND interes_confirmado == false
+💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Presionar o insistir si el cliente pide tiempo.
+- Ofrecer descuentos no autorizados.
+- Repetir la presentación completa.
+- Ejecutar tools de registro.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Se resuelve la objeción y acepta → interes_confirmado = true → current_step = 6
+- Plantea otra objeción → responder una vez más → permanecer en current_step = 5
+- Pide tiempo para pensarlo → ofrecer enviar información y dejar la puerta abierta → current_step = 6` },
+      { t: "FINALIZACIÓN",
+        variable: "cierre_completado, correo",
+        condicion: "Entrega nombre y correo → ejecutar tool de registro → confirmar → fin (halt). Entrega parte → pedir solo lo faltante. Se niega → cerrar sin tool.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+¡Excelente decisión, *[NOMBRE]*!
+Para coordinar el siguiente paso, ¿me confirmas tu *nombre completo* y tu *correo*? 📩`,
+        main: `🔒 CONDICIÓN GATE: presentacion_emitida == true AND cierre_completado == false
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+2º Al recibir nombre y correo, ejecutar la tool de registro/notificación al asesor.
+3º Guardar cierre_completado = true → halt.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Ejecutar la tool antes de capturar nombre y correo.
+- Solicitar datos que el cliente ya entregó.
+- Cerrar sin dejar definido el siguiente paso.
+- Emitir cualquier mensaje después del cierre.
+
+🔄 FUNCIÓN: Ejecuta la tool de registro/notificación al asesor.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Entrega nombre y correo → ejecutar tool → emitir confirmación breve → cierre_completado = true → halt
+- Entrega solo parte → pedir únicamente lo faltante, sin repetir el mensaje completo.
+- Se niega a dar datos → agradecer, dejar la puerta abierta y cerrar sin ejecutar la tool.
+
+⛔ FIN DEL FLUJO. PROHIBIDO emitir contenido adicional tras el cierre.` },
     ],
   },
   {

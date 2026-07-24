@@ -206,6 +206,9 @@ export async function completeAgentOnboarding(
             id: uid(),
             title: (def?.t ?? clean(s.title)).toUpperCase(),
             mainMessage: def?.main ?? says,
+            // Motor de Flujo: variable que recoge + condición para avanzar.
+            variableQueRecoge: def?.variable ?? "",
+            condicionParaAvanzar: def?.condicion ?? "",
             elements: says ? [{ id: uid(), kind: "text", text: says }] : ([] as any[]),
           };
         }),
