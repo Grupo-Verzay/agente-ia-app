@@ -1,5 +1,5 @@
 import AccessDenied from "@/app/AccessDenied";
-import { currentUser } from "@/lib/auth";
+import { getFinanceUser } from "@/lib/finance-user";
 import { getFinanceContacts } from "@/actions/finance-contacts-actions";
 import { getContactFieldConfig } from "@/actions/finance-contact-fields-actions";
 import { serializePrisma } from "@/lib/serialize-prisma";
@@ -15,7 +15,7 @@ export default async function ClientsPage({
 }: {
   searchParams?: { create?: string | string[] };
 }) {
-  const user = await currentUser();
+  const user = await getFinanceUser();
   if (!user?.id) return <AccessDenied />;
 
   const [listRes, fieldRes] = await Promise.all([

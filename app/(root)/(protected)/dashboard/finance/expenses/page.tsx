@@ -1,5 +1,5 @@
 import AccessDenied from "@/app/AccessDenied";
-import { currentUser } from "@/lib/auth";
+import { getFinanceUser } from "@/lib/finance-user";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -12,7 +12,7 @@ export default async function ExpensesPage({
 }: {
   searchParams?: { month?: string | string[]; create?: string | string[] };
 }) {
-  const user = await currentUser();
+  const user = await getFinanceUser();
   if (!user?.id) return <AccessDenied />;
 
   const [metaRes, listRes] = await Promise.all([
