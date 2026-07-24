@@ -294,12 +294,6 @@ export function OperatorContactsManager({ userId }: Props) {
                         ),
                     )}
 
-                    {operators.length === 0 && !showAddForm && (
-                        <p className="text-xs text-muted-foreground text-center py-1">
-                            Aún no hay operarios. Agrega al menos uno para activar el puente.
-                        </p>
-                    )}
-
                     {/* Add form */}
                     {showAddForm ? (
                         <div className="flex flex-col gap-2 px-3 py-2.5 rounded-lg border border-dashed border-primary/40 bg-primary/5">

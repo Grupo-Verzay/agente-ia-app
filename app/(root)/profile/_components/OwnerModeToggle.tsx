@@ -231,12 +231,6 @@ export function OwnerModeToggle({ userId }: Props) {
               Límite alcanzado ({MAX_OWNERS} personas máximo).
             </p>
           )}
-
-          {enabled && people.length === 0 && !showAddForm && (
-            <p className="text-xs text-amber-600 dark:text-amber-400">
-              Agrega al menos una persona para que el Modo Dueño funcione.
-            </p>
-          )}
         </div>
       )}
     </div>
