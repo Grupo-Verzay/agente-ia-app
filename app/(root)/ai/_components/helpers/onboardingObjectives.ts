@@ -357,48 +357,379 @@ Para coordinar el siguiente paso, ¿me confirmas tu *nombre completo* y tu *corr
     id: "agendamiento-citas", em: "📅", title: "Agendar citas",
     desc: "5 fases: ofrece horarios y reserva la cita.",
     steps: [
-      { t: "BIENVENIDA", ex: "¡Hola! Con gusto te agendo. ¿Qué servicio necesitas?",
-        main: "🎯 Recibir y ofrecer agendar.\n• Saluda y pregunta qué servicio necesita.\n• Si ya lo dijo, salta a DISPONIBILIDAD.\n📌 Un solo mensaje por turno; espera la respuesta.\n➡️ Cuando responda → SERVICIO." },
-      { t: "SERVICIO", ex: "¿Cuál de nuestros servicios quieres reservar?",
-        main: "🎯 Saber qué servicio quiere.\n• Pregunta cuál de los servicios desea reservar.\n➡️ Cuando lo elija → DISPONIBILIDAD." },
-      { t: "DISPONIBILIDAD", ex: "Tengo estos horarios disponibles: [días/horas]. ¿Cuál te viene bien?",
-        main: "🎯 Ofrecer horarios.\n• Muestra los horarios disponibles [días/horas] y pide que elija.\n➡️ Cuando elija → CONFIRMACIÓN." },
-      { t: "CONFIRMACIÓN", ex: "Listo, te agendo para [fecha/hora]. ¿Me confirmas tu nombre?",
-        main: "🎯 Agendar la cita.\n• Confirma fecha/hora y pide el nombre para la reserva.\n➡️ Cuando confirme → FINALIZACIÓN." },
-      { t: "FINALIZACIÓN", ex: "¡Cita confirmada! Te esperamos en [dirección]. Cualquier cambio, escríbeme.",
-        main: "🎯 Cerrar y recordar.\n• Confirma la cita: [fecha/hora] en [dirección].\n• Activa el recordatorio automático.\n✅ Fin del flujo." },
+      { t: "BIENVENIDA",
+        variable: "servicio",
+        condicion: "Menciona un servicio → guardar servicio → paso 3. Pide agendar sin decir servicio → paso 2. Reagendar/cancelar → derivar al flujo.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
+¿Qué servicio te gustaría agendar?`,
+        main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
+🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Ejecutar el flujo 'BIENVENIDA' ANTES de responder.
+2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+3º Guardar bienvenida_enviada = true.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Formular preguntas propias o de confirmación.
+- Ofrecer horarios en este turno.
+- Ejecutar cualquier tool.
+- Repetir la bienvenida si bienvenida_enviada == true.
+
+🔄 FUNCIÓN: Ejecuta el flujo 'BIENVENIDA'.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Menciona un servicio del catálogo → guardar servicio → current_step = 3
+- Pide agendar sin decir el servicio → current_step = 2
+- Pide reagendar o cancelar → derivar al flujo correspondiente.
+- Saluda sin pedir nada → permanecer en current_step = 1, sin repetir la bienvenida.` },
+      { t: "SERVICIO",
+        variable: "servicio",
+        condicion: "Elige del catálogo → guardar servicio → paso 3. Fuera del catálogo → avisar y ofrecer la lista.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+Estos son nuestros servicios:
+1️⃣ *[SERVICIO_1]*
+2️⃣ *[SERVICIO_2]*
+3️⃣ *[SERVICIO_3]*
+¿Cuál te interesa?`,
+        main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND servicio == null
+💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Inventar servicios fuera del catálogo o las tools.
+- Ofrecer horarios antes de definir el servicio.
+- Ejecutar tools de registro.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Elige una opción o nombra un servicio del catálogo → guardar servicio → current_step = 3
+- Nombra algo fuera del catálogo → emitir: "Ese servicio no lo manejamos 😕 ¿Te interesa alguno de la lista?" → permanecer en current_step = 2
+- Otra cosa → repreguntar la lista una vez, sin avanzar.` },
+      { t: "DISPONIBILIDAD",
+        variable: "fecha_hora",
+        condicion: "Elige un horario ofrecido → guardar fecha_hora → paso 4. Pide otro día → volver a consultar la fuente real.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+Para *[SERVICIO]* tengo estos horarios disponibles:
+1️⃣ *[HORARIO_1]*
+2️⃣ *[HORARIO_2]*
+3️⃣ *[HORARIO_3]*
+¿Cuál te queda mejor?`,
+        main: `🔒 CONDICIÓN GATE: servicio != null AND fecha_hora == null
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Consultar la disponibilidad real en la fuente conectada (Calendar, Calendly, Sheet o tool de agenda).
+2º Emitir ÚNICAMENTE el texto de "lo que dice el agente" con los horarios obtenidos.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- ⛔ Ofrecer horarios sin haberlos validado contra la fuente real.
+- Inventar disponibilidad, días u horarios.
+- Ofrecer fechas fuera del horario de atención definido.
+- Ejecutar tools de registro.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Elige un horario ofrecido → guardar fecha_hora → current_step = 4
+- Pide otro día u horario → volver a consultar la fuente real y ofrecer nuevas opciones → permanecer en current_step = 3
+- Ninguno le sirve → emitir: "Déjame revisar más opciones 🙏" → volver a consultar → permanecer en current_step = 3` },
+      { t: "CONFIRMACIÓN",
+        variable: "nombre, cita_confirmada",
+        condicion: "Da el nombre → crear la cita en la agenda → cita_confirmada → paso 5. Cambia de horario → volver a paso 3.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+Perfecto, reservo *[SERVICIO]* para el *[FECHA_HORA]*.
+¿A nombre de quién la registro? 📝`,
+        main: `🔒 CONDICIÓN GATE: fecha_hora != null AND cita_confirmada == false
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+2º Al recibir el nombre, crear la cita en la fuente de agenda conectada.
+3º Guardar cita_confirmada = true.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Confirmar la cita sin haber capturado el nombre.
+- Crear la cita sin escribirla en la fuente de agenda conectada.
+- Fragmentar la respuesta en varios mensajes.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Entrega el nombre → guardar nombre → crear la cita en la agenda → cita_confirmada = true → current_step = 5
+- No entrega el nombre → pedirlo una vez más, sin repetir la confirmación completa.
+- Cambia de horario → fecha_hora = null → current_step = 3` },
+      { t: "FINALIZACIÓN",
+        variable: "recordatorio_activado",
+        condicion: "Cita confirmada → ejecutar tool de registro → confirmar → activar recordatorio (24h y 1h antes) → fin (halt).",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+¡Listo, *[NOMBRE]*! Tu cita quedó confirmada ✅
+🗓️ *[SERVICIO]* — *[FECHA_HORA]*
+📍 *[DIRECCION]*
+Te enviaré un recordatorio antes de tu cita. ¡Te esperamos! 😊`,
+        main: `🔒 CONDICIÓN GATE: cita_confirmada == true AND recordatorio_activado == false
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Ejecutar la tool de registro/notificación de la cita.
+2º Emitir ÚNICAMENTE el texto de "lo que dice el agente", como UN SOLO MENSAJE.
+3º Activar el recordatorio automático (24 h antes y 1 h antes).
+4º Guardar recordatorio_activado = true → halt.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Emitir cualquier mensaje después de este.
+- Inventar dirección, sede o datos no definidos en el catálogo o las tools.
+- Fragmentar la confirmación en varios mensajes.
+
+⛔ FIN DEL FLUJO. Este es el último paso. PROHIBIDO avanzar a pasos posteriores o emitir contenido adicional.` },
     ],
   },
   {
     id: "calificacion-leads", em: "🧲", title: "Calificar leads",
     desc: "5 fases: detecta quién está listo para comprar.",
     steps: [
-      { t: "BIENVENIDA", ex: "¡Hola! Gracias por tu interés. ¿Me cuentas qué buscas?",
-        main: "🎯 Recibir e invitar a contar.\n• Saluda, agradece el interés y pregunta qué busca.\n📌 Un solo mensaje por turno; espera la respuesta.\n➡️ Cuando responda → CALIFICACIÓN." },
-      { t: "CALIFICACIÓN", ex: "¿Es para uso personal o para tu empresa?",
-        main: "🎯 Perfilar al lead.\n• Pregunta si es uso personal o empresa / tipo de necesidad.\n➡️ Cuando responda → URGENCIA." },
-      { t: "URGENCIA", ex: "¿Para cuándo lo necesitas?",
-        main: "🎯 Medir la urgencia.\n• Pregunta para cuándo lo necesita.\n➡️ Cuando responda → PRESUPUESTO." },
-      { t: "PRESUPUESTO", ex: "¿Tienes un presupuesto estimado en mente?",
-        main: "🎯 Presupuesto y decisión.\n• Pregunta si maneja un presupuesto y si es quien decide.\n➡️ Cuando responda → DERIVAR A ASESOR." },
-      { t: "DERIVAR A ASESOR", ex: "Te paso con un asesor que resolverá todo. ¿Tu nombre y correo?",
-        main: "🎯 Enrutar al asesor correcto.\n• Según el perfil, pásalo a un asesor.\n• Pide nombre y correo.\n✅ Fin del flujo." },
+      { t: "BIENVENIDA",
+        variable: "interes_declarado",
+        condicion: "Describe lo que busca → guardar interes_declarado → paso 2. Frase de campaña → guardar origen_campaña → paso 2.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+¡Hola! 👋 Gracias por tu interés en *[NOMBRE_NEGOCIO]*.
+Para orientarte mejor, ¿qué estás buscando?`,
+        main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
+🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Ejecutar el flujo 'BIENVENIDA' ANTES de responder.
+2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+3º Guardar bienvenida_enviada = true.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Formular preguntas propias o de confirmación.
+- Dar precios, planes o propuestas en este turno.
+- Ejecutar cualquier tool.
+- Repetir la bienvenida si bienvenida_enviada == true.
+
+🔄 FUNCIÓN: Ejecuta el flujo 'BIENVENIDA'.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Describe lo que busca → guardar interes_declarado → current_step = 2
+- Llega con frase clave de campaña → guardar origen_campaña → current_step = 2
+- Saluda sin explicar nada → permanecer en current_step = 1, sin repetir la bienvenida.` },
+      { t: "CALIFICACIÓN",
+        variable: "perfil_lead, score",
+        condicion: "Personal → perfil_lead='personal' (score +0). Empresa → perfil_lead='empresa' (score +1). → paso 3.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+¿Es para uso *personal* o para tu *empresa*?`,
+        main: `🔒 CONDICIÓN GATE: interes_declarado != null AND perfil_lead == null
+💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Dar precios o hacer venta dura antes de completar la calificación.
+- Hacer dos preguntas en el mismo mensaje.
+- Descartar al lead por su respuesta.
+- Ejecutar tools de registro.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Personal → perfil_lead = "personal" → score = score + 0 → current_step = 3
+- Empresa / negocio / equipo → perfil_lead = "empresa" → score = score + 1 → current_step = 3
+- Otra cosa → repreguntar: "¿*Personal* o para tu *empresa*? 🙏" (sin avanzar)` },
+      { t: "URGENCIA",
+        variable: "urgencia, score",
+        condicion: "Urgente → urgencia='alta' (score +1). Meses → 'media' (+0). Explorando → 'baja' (-1). → paso 4.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+¿Para cuándo lo necesitas?
+1️⃣ *Lo antes posible*
+2️⃣ *En 1 a 3 meses*
+3️⃣ *Solo estoy explorando*`,
+        main: `🔒 CONDICIÓN GATE: perfil_lead != null AND urgencia == null
+💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Presionar si el lead indica que solo está explorando.
+- Hacer dos preguntas en el mismo mensaje.
+- Ejecutar tools de registro.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Opción 1 o "urgente" / "ya" / "esta semana" → urgencia = "alta" → score = score + 1 → current_step = 4
+- Opción 2 o plazo de meses → urgencia = "media" → score = score + 0 → current_step = 4
+- Opción 3 o "explorando" / "solo viendo" → urgencia = "baja" → score = score - 1 → current_step = 4
+- Otra cosa → repreguntar: "¿1️⃣, 2️⃣ o 3️⃣? 🙏" (sin avanzar)` },
+      { t: "PRESUPUESTO",
+        variable: "calificacion_completa, score",
+        condicion: "Rango + decide → score +2. Rango, decide otro → +1. Sin presupuesto → -1. Evade 2 veces → 'no definido'. → paso 5.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+Para recomendarte la mejor opción, ¿manejas un presupuesto estimado? ¿Y la decisión la tomas tú o alguien más?`,
+        main: `🔒 CONDICIÓN GATE: urgencia != null AND calificacion_completa == false
+💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Insistir en el presupuesto si el lead lo evade dos veces.
+- Descartar al lead por no tener presupuesto definido.
+- Hacer dos preguntas en el mismo mensaje.
+- Ejecutar tools de registro.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Da un rango + es quien decide → score = score + 2 → calificacion_completa = true → current_step = 5
+- Da un rango pero decide otro → score = score + 1 → calificacion_completa = true → current_step = 5
+- No tiene presupuesto definido → score = score - 1 → calificacion_completa = true → current_step = 5
+- Evade dos veces → registrar "no definido" → calificacion_completa = true → current_step = 5` },
+      { t: "DERIVAR A ASESOR",
+        variable: "lead_derivado, correo",
+        condicion: "Clasificar por score (CALIENTE ≥3 / TIBIO 0-2 / FRÍO <0), capturar nombre y correo, ejecutar tool → fin (halt).",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+Por lo que me cuentas, lo mejor es que hables directo con un asesor.
+¿Me confirmas tu *nombre completo* y tu *correo* para coordinarlo hoy mismo? 📩`,
+        main: `🔒 CONDICIÓN GATE: calificacion_completa == true AND lead_derivado == false
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Clasificar el lead según el score acumulado.
+2º Emitir el texto correspondiente al segmento.
+3º Capturar nombre y correo.
+4º Ejecutar la tool de registro/notificación al asesor.
+5º Guardar lead_derivado = true → halt.
+
+🗂️ CLASIFICACIÓN POR SCORE (elige el mensaje):
+• CALIENTE → score >= 3 → usa el mensaje de "lo que dice el agente".
+• TIBIO → score entre 0 y 2 → "Te propongo una demo corta para que veas cómo funciona. ¿Me compartes tu *nombre* y *correo* para enviarte la información? 📩"
+• FRÍO → score < 0 → "Perfecto, sin compromiso. Déjame tu *nombre* y *correo* y te envío material útil para cuando estés listo. 📩"
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Derivar sin haber calculado el score.
+- Tratar a un lead frío con presión de venta.
+- Descartar un lead frío sin ofrecerle material.
+- Ejecutar la tool antes de capturar nombre y correo.
+
+🔄 FUNCIÓN: Ejecuta la tool de registro/notificación al asesor.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Entrega nombre y correo → ejecutar tool → emitir confirmación breve → lead_derivado = true → halt
+- Entrega solo parte → pedir únicamente lo faltante, sin repetir el mensaje completo.
+- Se niega a dar datos → agradecer, dejar la puerta abierta y cerrar sin ejecutar la tool.
+
+⛔ FIN DEL FLUJO. PROHIBIDO emitir contenido adicional tras la derivación.` },
     ],
   },
   {
     id: "atencion-cliente", em: "🎧", title: "Atención / soporte",
     desc: "5 fases: resuelve dudas, solicitudes y reclamos.",
     steps: [
-      { t: "BIENVENIDA", ex: "¡Hola! Soy soporte de [tu negocio]. ¿En qué te ayudo?",
-        main: "🎯 Recibir y ofrecer ayuda.\n• Saluda como soporte del negocio y pregunta en qué ayudas.\n📌 Un solo mensaje por turno; espera la respuesta.\n➡️ Cuando responda → IDENTIFICACIÓN." },
-      { t: "IDENTIFICACIÓN", ex: "Para ubicar tu caso, ¿me das tu nombre o número de pedido?",
-        main: "🎯 Ubicar el caso.\n• Pide nombre o número de pedido/servicio.\n➡️ Cuando lo dé → VALIDACIÓN." },
-      { t: "VALIDACIÓN", ex: "Déjame revisar… un momento por favor.",
-        main: "🎯 Revisar la información.\n• Confirma los datos y avisa que estás revisando.\n➡️ Cuando revises → RESOLUCIÓN." },
-      { t: "RESOLUCIÓN", ex: "Esto es lo que encontré / así lo solucionamos: […]",
-        main: "🎯 Resolver.\n• Da la solución o los pasos a seguir, con claridad.\n➡️ Cuando resuelvas → CIERRE." },
-      { t: "CIERRE", ex: "¿Quedó resuelto? ¿Algo más en lo que pueda ayudarte?",
-        main: "🎯 Cerrar.\n• Confirma si quedó resuelto y ofrece ayuda adicional.\n✅ Fin del flujo." },
+      { t: "BIENVENIDA",
+        variable: "motivo_consulta",
+        condicion: "Describe duda/solicitud/reclamo → guardar motivo_consulta → paso 2. Tono molesto → caso_sensible=true → paso 2.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+¡Hola! 👋 Soporte de *[NOMBRE_NEGOCIO]*.
+¿En qué puedo ayudarte hoy?`,
+        main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
+🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Ejecutar el flujo 'BIENVENIDA' ANTES de responder.
+2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+3º Guardar bienvenida_enviada = true.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Formular preguntas propias o de confirmación.
+- Dar soluciones o diagnósticos en este turno.
+- Ejecutar cualquier tool.
+- Repetir la bienvenida si bienvenida_enviada == true.
+
+🔄 FUNCIÓN: Ejecuta el flujo 'BIENVENIDA'.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Describe una duda, solicitud o reclamo → guardar motivo_consulta → current_step = 2
+- El tono es molesto o de reclamo → guardar caso_sensible = true → current_step = 2
+- Saluda sin explicar nada → permanecer en current_step = 1, sin repetir la bienvenida.` },
+      { t: "IDENTIFICACIÓN",
+        variable: "datos_caso",
+        condicion: "Entrega los datos → guardar datos_caso → paso 3. Entrega parte → pedir solo lo faltante. Si caso_sensible → una frase de empatía primero.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+Para ubicar tu caso, ¿me compartes tu *nombre* y tu *número de pedido o servicio*? 📋`,
+        main: `🔒 CONDICIÓN GATE: motivo_consulta != null AND datos_caso == null
+💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Dar información sensible antes de identificar el caso.
+- Pedir más datos de los necesarios para ubicar el caso.
+- Adelantar la solución sin haber identificado el caso.
+- Ejecutar tools de registro.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Entrega los datos → guardar datos_caso → current_step = 3
+- Entrega solo parte → pedir únicamente lo faltante, sin repetir la pregunta completa.
+- No tiene número de pedido → aceptar nombre + fecha aproximada → current_step = 3
+- Si caso_sensible == true → anteponer una sola frase de empatía antes de pedir los datos.` },
+      { t: "VALIDACIÓN",
+        variable: "estado_caso, caso_validado",
+        condicion: "Caso encontrado → guardar estado_caso → paso 4. No encontrado → repreguntar el dato (tras 2 intentos → 'requiere_humano').",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+Gracias, ya tengo tu caso. Estoy revisando la información, dame un momento. 🔎`,
+        main: `🔒 CONDICIÓN GATE: datos_caso != null AND caso_validado == false
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Consultar el caso en la fuente disponible (base de conocimiento, Sheet, CRM o tool de consulta).
+2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+3º Guardar caso_validado = true.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Inventar el estado del caso, plazos o historial.
+- Prometer soluciones antes de confirmar la información.
+- Ejecutar tools de registro o notificación.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Caso encontrado → guardar estado_caso → current_step = 4
+- Caso NO encontrado → emitir: "No encuentro ese registro 😕 ¿Me confirmas el dato?" → permanecer en current_step = 3
+- Tras 2 intentos sin encontrarlo → current_step = 4 con estado_caso = "requiere_humano"` },
+      { t: "RESOLUCIÓN",
+        variable: "solucion_entregada",
+        condicion: "Solución entregada o caso escalado → paso 5. Pide más detalle → responder sin reejecutar el flujo.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+Esto es lo que encontré: *[ESTADO_O_SOLUCIÓN]*
+Pasos a seguir: *[PASOS]*`,
+        main: `🔒 CONDICIÓN GATE: caso_validado == true AND solucion_entregada == false
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Ejecutar el flujo de resolución correspondiente al caso, si existe.
+2º Emitir ÚNICAMENTE el texto de "lo que dice el agente" (o el de caso escalado, según corresponda).
+3º Guardar solucion_entregada = true.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Inventar soluciones, plazos o compromisos no definidos.
+- Repetir una solución que el usuario ya dijo haber intentado.
+- Fragmentar la respuesta en varios mensajes.
+- Ejecutar tools de registro.
+
+🔄 FUNCIÓN: Ejecuta el flujo de resolución correspondiente (si existe).
+
+📌 CASO SIN SOLUCIÓN (escalado): "Tu caso necesita revisión de un especialista. Ya lo escalé al área encargada y te contactarán en *[PLAZO]*. 🙏"
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Solución entregada → current_step = 5
+- Caso escalado (estado_caso == "requiere_humano") → current_step = 5
+- Usuario pide más detalle → responder sin reejecutar el flujo → permanecer en current_step = 4` },
+      { t: "CIERRE",
+        variable: "caso_cerrado",
+        condicion: "Confirma resuelto → caso_cerrado → despedida → fin (halt). NO resuelto → volver a paso 4. Caso nuevo → reiniciar en paso 2.",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+¿Esto resuelve tu solicitud? ¿Puedo ayudarte con algo más? 😊`,
+        main: `🔒 CONDICIÓN GATE: solucion_entregada == true AND caso_cerrado == false
+💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Cerrar el caso sin confirmar si el usuario quedó conforme.
+- Insistir con la encuesta si el usuario no responde.
+- Emitir cualquier mensaje después del cierre.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Confirma que quedó resuelto → guardar caso_cerrado = true → emitir despedida breve → halt
+- Dice que NO quedó resuelto → solucion_entregada = false → current_step = 4
+- Plantea un caso nuevo → reiniciar desde current_step = 2 con nuevo motivo_consulta
+
+⛔ FIN DEL FLUJO al confirmarse el cierre. PROHIBIDO emitir contenido adicional.` },
     ],
   },
   {
