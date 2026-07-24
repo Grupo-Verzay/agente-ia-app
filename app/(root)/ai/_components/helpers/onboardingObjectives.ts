@@ -274,7 +274,7 @@ Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?
 - Tras repreguntar 1 vez sin respuesta clara → guardar necesidad = "no definida" → current_step = 3` },
       { t: "PREGUNTA 2",
         variable: "contexto (opcional)",
-        condicion: "Captura plazo/presupuesto si lo da. Si lo evade, registra 'no definido' y avanza igual — no bloquear.",
+        condicion: "Captura plazo/presupuesto si lo da. Si lo evade, guarda contexto = 'no definido' y avanza igual — no bloquear.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 Entiendo. ¿Para cuándo lo necesitas y manejas un presupuesto estimado?`,
         main: `🔒 CONDICIÓN GATE: necesidad != null AND contexto == null
@@ -301,7 +301,7 @@ Entiendo. ¿Para cuándo lo necesitas y manejas un presupuesto estimado?
 
 (3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
 - Responde plazo y/o presupuesto → guardar en silencio contexto → current_step = 4
-- Evade el presupuesto → registrar "no definido" → current_step = 4` },
+- Evade el presupuesto → guardar contexto = "no definido" → current_step = 4` },
       { t: "PRESENTACIÓN",
         variable: "—",
         condicion: "No captura datos del cliente. Avanza al cierre ante cualquier señal de interés (sí / dale / me interesa) o si pide tiempo. Ante una objeción, responde y permanece. No bloquear.",
