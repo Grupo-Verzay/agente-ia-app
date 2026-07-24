@@ -636,14 +636,14 @@ Te enviaré un recordatorio antes de tu cita. ¡Te esperamos! 😊
     steps: [
       { t: "BIENVENIDA",
         variable: "interes_declarado",
-        condicion: "Describe lo que busca → guardar interes_declarado → paso 2. Frase de campaña → guardar origen_campaña → paso 2.",
+        condicion: "Captura lo que busca. Si solo saluda, repregunta 1 vez; luego guarda interes_declarado = \"no definido\" y avanza — no bloquear.",
         ex: `¡Hola! 👋 Gracias por tu interés en *[NOMBRE_NEGOCIO]*.
 Para orientarte mejor, ¿qué estás buscando?`,
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
 2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
 3º Guardar bienvenida_enviada = true.
 
@@ -655,18 +655,29 @@ Para orientarte mejor, ¿qué estás buscando?`,
 - Ejecutar cualquier tool.
 - Repetir la bienvenida si bienvenida_enviada == true.
 
-🔄 FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual.
+ELEMENTOS DEL PASO 1:
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Describe lo que busca → guardar interes_declarado → current_step = 2
-- Llega con frase clave de campaña → guardar origen_campaña → current_step = 2
-- Saluda sin explicar nada → permanecer en current_step = 1, sin repetir la bienvenida.` },
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+¡Hola! 👋 Gracias por tu interés en *[NOMBRE_NEGOCIO]*.
+Para orientarte mejor, ¿qué estás buscando?
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Describe lo que busca → guardar en silencio interes_declarado → current_step = 2
+- Saluda sin explicar nada → pedirlo una vez más, sin repetir la bienvenida.
+- Tras repreguntar 1 vez sin describir → guardar interes_declarado = "no definido" → current_step = 2` },
       { t: "CALIFICACIÓN",
-        variable: "perfil_lead, score",
-        condicion: "Personal → perfil_lead='personal' (score +0). Empresa → perfil_lead='empresa' (score +1). → paso 3.",
+        variable: "perfil",
+        condicion: "Captura si es personal o empresa (suma al score). Si no responde claro, repregunta 1 vez y avanza — no ciclar.",
         ex: `¿Es para uso *personal* o para tu *empresa*?`,
-        main: `🔒 CONDICIÓN GATE: interes_declarado != null AND perfil_lead == null
-💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+        main: `🔒 CONDICIÓN GATE: interes_declarado != null AND perfil == null
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+2º Si existe el flujo 'CALIFICACION', ejecutarlo; si NO existe, continuar igual.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
 - Dar precios o hacer venta dura antes de completar la calificación.
@@ -674,36 +685,63 @@ Para orientarte mejor, ¿qué estás buscando?`,
 - Descartar al lead por su respuesta.
 - Ejecutar tools de registro.
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Personal → perfil_lead = "personal" → score = score + 0 → current_step = 3
-- Empresa / negocio / equipo → perfil_lead = "empresa" → score = score + 1 → current_step = 3
-- Otra cosa → repreguntar: "¿*Personal* o para tu *empresa*? 🙏" (sin avanzar)` },
+ELEMENTOS DEL PASO 2:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'CALIFICACION' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+¿Es para uso *personal* o para tu *empresa*?
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Personal → guardar perfil = "personal" → score = score + 0 → current_step = 3
+- Empresa / negocio / equipo → guardar perfil = "empresa" → score = score + 1 → current_step = 3
+- Tras repreguntar 1 vez sin definir → guardar perfil = "no definido" → current_step = 3` },
       { t: "URGENCIA",
-        variable: "urgencia, score",
-        condicion: "Urgente → urgencia='alta' (score +1). Meses → 'media' (+0). Explorando → 'baja' (-1). → paso 4.",
+        variable: "urgencia",
+        condicion: "Captura la urgencia (ajusta el score). Si no responde claro, repregunta 1 vez y avanza — no ciclar.",
         ex: `¿Para cuándo lo necesitas?
 1️⃣ *Lo antes posible*
 2️⃣ *En 1 a 3 meses*
 3️⃣ *Solo estoy explorando*`,
-        main: `🔒 CONDICIÓN GATE: perfil_lead != null AND urgencia == null
-💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+        main: `🔒 CONDICIÓN GATE: perfil != null AND urgencia == null
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+2º Si existe el flujo 'URGENCIA', ejecutarlo; si NO existe, continuar igual.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
 - Presionar si el lead indica que solo está explorando.
 - Hacer dos preguntas en el mismo mensaje.
 - Ejecutar tools de registro.
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Opción 1 o "urgente" / "ya" / "esta semana" → urgencia = "alta" → score = score + 1 → current_step = 4
-- Opción 2 o plazo de meses → urgencia = "media" → score = score + 0 → current_step = 4
-- Opción 3 o "explorando" / "solo viendo" → urgencia = "baja" → score = score - 1 → current_step = 4
-- Otra cosa → repreguntar: "¿1️⃣, 2️⃣ o 3️⃣? 🙏" (sin avanzar)` },
+ELEMENTOS DEL PASO 3:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'URGENCIA' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+¿Para cuándo lo necesitas?
+1️⃣ *Lo antes posible*
+2️⃣ *En 1 a 3 meses*
+3️⃣ *Solo estoy explorando*
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Opción 1 o "urgente" / "ya" / "esta semana" → guardar urgencia = "alta" → score = score + 1 → current_step = 4
+- Opción 2 o plazo de meses → guardar urgencia = "media" → score = score + 0 → current_step = 4
+- Opción 3 o "explorando" → guardar urgencia = "baja" → score = score - 1 → current_step = 4
+- Tras repreguntar 1 vez sin definir → guardar urgencia = "no definida" → current_step = 4` },
       { t: "PRESUPUESTO",
-        variable: "calificacion_completa, score",
-        condicion: "Rango + decide → score +2. Rango, decide otro → +1. Sin presupuesto → -1. Evade 2 veces → 'no definido'. → paso 5.",
+        variable: "—",
+        condicion: "Ajusta el score según presupuesto y autoridad. Si lo evade, registra \"no definido\" y avanza igual — no bloquear.",
         ex: `Para recomendarte la mejor opción, ¿manejas un presupuesto estimado? ¿Y la decisión la tomas tú o alguien más?`,
         main: `🔒 CONDICIÓN GATE: urgencia != null AND calificacion_completa == false
-💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+2º Si existe el flujo 'PRESUPUESTO', ejecutarlo; si NO existe, continuar igual.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
 - Insistir en el presupuesto si el lead lo evade dos veces.
@@ -711,43 +749,67 @@ Para orientarte mejor, ¿qué estás buscando?`,
 - Hacer dos preguntas en el mismo mensaje.
 - Ejecutar tools de registro.
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Da un rango + es quien decide → score = score + 2 → calificacion_completa = true → current_step = 5
-- Da un rango pero decide otro → score = score + 1 → calificacion_completa = true → current_step = 5
-- No tiene presupuesto definido → score = score - 1 → calificacion_completa = true → current_step = 5
-- Evade dos veces → registrar "no definido" → calificacion_completa = true → current_step = 5` },
-      { t: "DERIVAR A ASESOR (paso final)",
-        variable: "lead_derivado, correo",
-        condicion: "Clasificar por score (CALIENTE ≥3 / TIBIO 0-2 / FRÍO <0), capturar nombre y correo, ejecutar tool → fin (halt).",
+ELEMENTOS DEL PASO 4:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'PRESUPUESTO' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+Para recomendarte la mejor opción, ¿manejas un presupuesto estimado? ¿Y la decisión la tomas tú o alguien más?
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Da un rango + es quien decide → score = score + 2 → guardar calificacion_completa = true → current_step = 5
+- Da un rango pero decide otro → score = score + 1 → guardar calificacion_completa = true → current_step = 5
+- No tiene presupuesto definido → score = score - 1 → guardar calificacion_completa = true → current_step = 5
+- Evade dos veces → registrar "no definido" → guardar calificacion_completa = true → current_step = 5` },
+      { t: "DERIVAR (paso final)",
+        variable: "nombre (opcional), correo (opcional)",
+        condicion: "Clasifica por score (caliente/tibio/frío), emite el mensaje del segmento, ejecuta la tool y CIERRA SIEMPRE, con o sin datos. Fin del flujo.",
         ex: `Por lo que me cuentas, lo mejor es que hables directo con un asesor.
-¿Me confirmas tu *nombre completo* y tu *correo* para coordinarlo hoy mismo? 📩`,
+¿Me confirmas tu *nombre* y tu *correo* para coordinarlo hoy mismo? 📩`,
         main: `🔒 CONDICIÓN GATE: calificacion_completa == true AND lead_derivado == false
+📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
 1º Clasificar el lead según el score acumulado.
-2º Emitir el texto correspondiente al segmento.
-3º Capturar nombre y correo.
+2º Emitir ÚNICAMENTE el texto de la Regla/parámetro correspondiente al segmento (2), (3) o (4).
+3º Si existe el flujo 'DERIVAR', ejecutarlo; si NO existe, continuar igual.
 4º Ejecutar la tool de registro/notificación al asesor.
 5º Guardar lead_derivado = true → halt.
 
-🗂️ CLASIFICACIÓN POR SCORE (elige el mensaje):
-• CALIENTE → score >= 3 → usa el mensaje de "lo que dice el agente".
-• TIBIO → score entre 0 y 2 → "Te propongo una demo corta para que veas cómo funciona. ¿Me compartes tu *nombre* y *correo* para enviarte la información? 📩"
-• FRÍO → score < 0 → "Perfecto, sin compromiso. Déjame tu *nombre* y *correo* y te envío material útil para cuando estés listo. 📩"
+🗂️ CLASIFICACIÓN POR SCORE:
+- CALIENTE → score >= 3 → Regla/parámetro (2)
+- TIBIO → score entre 0 y 2 → Regla/parámetro (3)
+- FRÍO → score < 0 → Regla/parámetro (4)
 
 🚫 PROHIBIDO EN ESTE PASO:
 - Derivar sin haber calculado el score.
 - Tratar a un lead frío con presión de venta.
 - Descartar un lead frío sin ofrecerle material.
-- Bloquear el cierre si el cliente no da el nombre — el flujo debe CERRAR igual.
+- Bloquear el cierre si el cliente no da nombre/correo — el flujo debe CERRAR igual.
 
-🔄 FUNCIÓN: Ejecuta la tool de registro/notificación al asesor.
+ELEMENTOS DEL PASO 5:
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Entrega nombre y correo → ejecutar tool → emitir confirmación breve → lead_derivado = true → halt
-- Entrega solo parte → pedir únicamente lo faltante, sin repetir el mensaje completo.
-- Se niega a dar datos → agradecer, dejar la puerta abierta y cerrar sin ejecutar la tool.
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'DERIVAR' si existe; si no, continúa igual
 
+(2) REGLA/PARÁMETRO — LEAD CALIENTE — TEXTO ÚNICO (un solo mensaje):
+Por lo que me cuentas, lo mejor es que hables directo con un asesor.
+¿Me confirmas tu *nombre* y tu *correo* para coordinarlo hoy mismo? 📩
+
+(3) REGLA/PARÁMETRO — LEAD TIBIO — TEXTO ÚNICO (un solo mensaje):
+Te propongo una demo corta para que veas cómo funciona.
+¿Me compartes tu *nombre* y *correo* para enviarte la información? 📩
+
+(4) REGLA/PARÁMETRO — LEAD FRÍO — TEXTO ÚNICO (un solo mensaje):
+Perfecto, sin compromiso.
+Déjame tu *nombre* y *correo* y te envío material útil para cuando estés listo. 📩
+
+(5) FUNCIÓN: Ejecuta la tool de registro/notificación al asesor
+
+(6) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Entrega nombre y correo → guardar → ejecutar tool → emitir confirmación breve → lead_derivado = true → halt
+- Entrega solo parte o nada → ejecutar tool igual con lo que haya → lead_derivado = true → halt (nombre y correo son opcionales)
+
+(7) NOTA DE CONTROL (NO EMITIR):
 ⛔ FIN DEL FLUJO. PROHIBIDO emitir contenido adicional tras la derivación.` },
     ],
   },
