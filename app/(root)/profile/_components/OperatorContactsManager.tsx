@@ -169,23 +169,29 @@ export function OperatorContactsManager({ userId }: Props) {
     const canAddMore = operators.length < MAX_OPERATORS;
 
     return (
-        <div className="space-y-3">
+        <div className="flex flex-col h-full">
             {/* Header + toggle */}
-            <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                    <Headset className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <div className="flex items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <Headset className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">
                         Puente con operario
                     </span>
+                    {operators.length > 0 && (
+                        <span className="ml-1 shrink-0 rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary">
+                            {operators.length}
+                        </span>
+                    )}
                 </div>
                 <Switch checked={enabled} onCheckedChange={handleToggleEnabled} disabled={savingEnabled} />
             </div>
 
-            <p className="text-xs text-muted-foreground">
+            <p className="mt-2 text-xs text-muted-foreground shrink-0">
                 Si la IA no puede resolver, pasa la consulta a un operario.
             </p>
 
-            {/* Lista */}
+            {/* Lista con scroll interno: la tarjeta mantiene su altura */}
+            <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1">
             {loading ? (
                 <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -364,6 +370,7 @@ export function OperatorContactsManager({ userId }: Props) {
                     )}
                 </div>
             )}
+            </div>
         </div>
     );
 }
