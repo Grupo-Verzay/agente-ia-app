@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -8,7 +8,7 @@ import {
   dismissAgentOnboarding,
   completeAgentOnboarding,
 } from "@/actions/agent-onboarding-actions";
-import { ONBOARDING_OBJECTIVES, type OnboardingObjective } from "@/app/(root)/ai/_components/helpers/onboardingObjectives";
+import { ONBOARDING_OBJECTIVES, fillBusinessVars, type OnboardingObjective } from "@/app/(root)/ai/_components/helpers/onboardingObjectives";
 
 /**
  * Asistente de primer arranque (5 pasos). Aparece cuando el dueño entra por
@@ -90,12 +90,18 @@ export function AgentOnboardingWizard() {
   const curMsgs = form.msgs[form.objectiveId] ?? [];
   const curExtra = form.extra[form.objectiveId] ?? [];
 
-  const setMsg = (i: number, v: string) =>
+  // Pasos que el dueño editó a mano: dejan de auto-rellenarse con las variables
+  // del negocio (para no pisar su texto personalizado).
+  const touchedMsgs = useRef<Set<string>>(new Set());
+
+  const setMsg = (i: number, v: string) => {
+    touchedMsgs.current.add(`${form.objectiveId}:${i}`);
     setForm((f) => {
       const arr = [...(f.msgs[f.objectiveId] ?? [])];
       arr[i] = v;
       return { ...f, msgs: { ...f.msgs, [f.objectiveId]: arr } };
     });
+  };
   const setExtra = (next: { title: string; msg: string }[]) =>
     setForm((f) => ({ ...f, extra: { ...f.extra, [f.objectiveId]: next } }));
 
@@ -147,9 +153,34 @@ export function AgentOnboardingWizard() {
       if (existing && existing.length > 0) return f;
       const objDef = OBJECTIVES.find((o) => o.id === f.objectiveId);
       if (!objDef) return f;
-      return { ...f, msgs: { ...f.msgs, [f.objectiveId]: objDef.steps.map((s) => s.ex) } };
+      // Pre-llena con el ejemplo y ya reemplaza [tu negocio], [dirección]… con
+      // los datos que el dueño puso.
+      return { ...f, msgs: { ...f.msgs, [f.objectiveId]: objDef.steps.map((s) => fillBusinessVars(s.ex, f.biz)) } };
     });
   }, [loaded, form.objectiveId]);
+
+  // Al cambiar los datos del negocio (nombre, dirección, horarios), re-aplica las
+  // variables en los pasos que el dueño NO ha editado a mano. Así "toma" el nuevo
+  // valor sin pisar lo personalizado.
+  useEffect(() => {
+    if (!loaded) return;
+    setForm((f) => {
+      const objDef = OBJECTIVES.find((o) => o.id === f.objectiveId);
+      const cur = f.msgs[f.objectiveId];
+      if (!objDef || !cur) return f;
+      let changed = false;
+      const next = cur.map((v, i) => {
+        if (touchedMsgs.current.has(`${f.objectiveId}:${i}`)) return v;
+        const step = objDef.steps[i];
+        if (!step) return v;
+        const filled = fillBusinessVars(step.ex, f.biz);
+        if (filled !== v) changed = true;
+        return filled;
+      });
+      if (!changed) return f;
+      return { ...f, msgs: { ...f.msgs, [f.objectiveId]: next } };
+    });
+  }, [loaded, form.biz.nombre, form.biz.ubicacion, form.biz.horario]);
 
   // Auto-guardado: persistir cambios.
   useEffect(() => {

@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { BASE_TRAINING_AGENT_ID } from "@/lib/channel-training";
-import { ONBOARDING_OBJECTIVES } from "@/app/(root)/ai/_components/helpers/onboardingObjectives";
+import { ONBOARDING_OBJECTIVES, fillBusinessVars } from "@/app/(root)/ai/_components/helpers/onboardingObjectives";
 import { getOrCreateChannelPrompt, publishPrompt } from "@/actions/system-prompt-actions";
 import { isAdminOrReseller } from "@/lib/rbac";
 
@@ -200,7 +200,8 @@ export async function completeAgentOnboarding(
         .filter((s) => clean(s.title) || clean(s.message))
         .map((s, i) => {
           const def = objectiveSteps[i];
-          const says = clean(s.message);
+          // Reemplaza [tu negocio], [dirección]… con los datos reales del negocio.
+          const says = fillBusinessVars(clean(s.message), b);
           return {
             id: uid(),
             title: (def?.t ?? clean(s.title)).toUpperCase(),

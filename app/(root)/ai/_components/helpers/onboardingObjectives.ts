@@ -12,6 +12,37 @@
 //          cuándo aplica + cuándo avanza + una regla mínima. Corto pero sólido.
 
 export type ObjectiveStep = { t: string; ex: string; main: string };
+
+/**
+ * Reemplaza las variables entre [corchetes] por los datos reales del negocio.
+ * Solo sustituye la variable si el dato existe; si no, deja el [placeholder]
+ * para que quede claro qué falta. Nunca toca texto personalizado por el dueño
+ * (solo reemplaza el token exacto). Las variables de tiempo de conversación
+ * ([fecha/hora], [monto], [tiempo estimado]…) se dejan intactas: las llena el
+ * agente al hablar con el cliente.
+ */
+export function fillBusinessVars(
+  text: string,
+  biz: { nombre?: string; ubicacion?: string; horario?: string } | null | undefined,
+): string {
+  if (!text || !biz) return text;
+  const map: Record<string, string | undefined> = {
+    "[tu negocio]": biz.nombre,
+    "[el negocio]": biz.nombre,
+    "[nombre del negocio]": biz.nombre,
+    "[dirección]": biz.ubicacion,
+    "[direccion]": biz.ubicacion,
+    "[días/horas]": biz.horario,
+    "[dias/horas]": biz.horario,
+    "[horarios]": biz.horario,
+  };
+  let out = text;
+  for (const [token, value] of Object.entries(map)) {
+    const v = (value ?? "").trim();
+    if (v) out = out.split(token).join(v);
+  }
+  return out;
+}
 export type OnboardingObjective = {
   id: string;
   em: string;
