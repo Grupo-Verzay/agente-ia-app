@@ -243,7 +243,7 @@ Para ayudarte mejor, ¿me compartes tu nombre?
 - No entrega nombre → pedirlo una vez más, sin repetir la bienvenida.` },
       { t: "PREGUNTA 1",
         variable: "necesidad",
-        condicion: "Captura la necesidad. Si responde vago, repregunta MÁX. 1 vez pidiendo más detalle; luego avanza con lo que haya — no ciclar.",
+        condicion: "Captura la necesidad. Si responde vago, repregunta MÁX. 1 vez; luego guarda necesidad = \"no definida\" y avanza — no ciclar.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?`,
         main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND necesidad == null
@@ -270,7 +270,8 @@ Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?
 
 (3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
 - Describe su necesidad → guardar en silencio necesidad → current_step = 3
-- Responde vago ("info", "precios") → repreguntar una vez pidiendo más detalle, sin avanzar.` },
+- Responde vago ("info", "precios") → repreguntar una vez pidiendo más detalle.
+- Tras repreguntar 1 vez sin respuesta clara → guardar necesidad = "no definida" → current_step = 3` },
       { t: "PREGUNTA 2",
         variable: "contexto (opcional)",
         condicion: "Captura plazo/presupuesto si lo da. Si lo evade, registra 'no definido' y avanza igual — no bloquear.",
@@ -353,7 +354,7 @@ Entiendo perfectamente tu punto.
         condicion: "Captura el nombre si lo da (opcional). Ejecuta la tool de registro/notificación y CIERRA SIEMPRE, con o sin nombre. Sin correo obligatorio.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 ¡Excelente decisión, *[NOMBRE]*!
-Para coordinar el siguiente paso, ¿me confirmas tu *nombre*? 📩`,
+Un asesor te contacta en breve. 📩`,
         main: `🔒 CONDICIÓN GATE: interes_confirmado == true AND cierre_completado == false
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
@@ -372,16 +373,15 @@ ELEMENTOS DEL PASO 5:
 
 (1) FUNCIÓN (opcional): Ejecuta el flujo 'CIERRE' si existe; si no, continúa igual
 
-(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
-🤖 *[NOMBRE_AGENTE]*
-¡Excelente decisión, *[NOMBRE]*!
-Para coordinar el siguiente paso, ¿me confirmas tu *nombre*? 📩
+(2) REGLA/PARÁMETRO — MENSAJE CONDICIONAL (según si ya se tiene el nombre):
+- Si nombre != null → 🤖 *[NOMBRE_AGENTE]*  ¡Excelente decisión, *[NOMBRE]*! Un asesor te contacta en breve. 📩
+- Si nombre == null → 🤖 *[NOMBRE_AGENTE]*  ¡Excelente decisión! Para coordinar, ¿me confirmas tu *nombre*? 📩
 
 (3) FUNCIÓN: Ejecuta la tool de registro/notificación al asesor
 
 (4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
-- Da su nombre → guardar nombre → ejecutar tool → emitir confirmación breve → cierre_completado = true → halt
-- No da el nombre → ejecutar tool igual → emitir confirmación breve → cierre_completado = true → halt (el flujo continúa; el nombre es opcional)
+- Si ya se tiene el nombre (nombre != null) → emitir el mensaje "nombre != null" → ejecutar tool → cierre_completado = true → halt
+- Si nombre == null → emitir el mensaje "nombre == null" (pide el nombre) → capturarlo si lo da → ejecutar tool igual → cierre_completado = true → halt (el flujo continúa; el nombre es opcional)
 - El correo NO es obligatorio: solo se guarda si el cliente lo ofrece.
 
 (5) NOTA DE CONTROL (NO EMITIR):
