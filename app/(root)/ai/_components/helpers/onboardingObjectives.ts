@@ -57,6 +57,33 @@ export function fillBusinessVars(
   return out;
 }
 
+// ── Modo de arranque del paso BIENVENIDA (lo elige el dueño en el alta) ──
+// El contenido trae por defecto el bloque "inteligente"; si el dueño elige
+// "obligatorio", se reemplaza ese bloque en el paso BIENVENIDA. El texto debe
+// coincidir EXACTO con el insertado en cada BIENVENIDA para poder sustituirlo.
+export const ARRANQUE_INTELIGENTE = `✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
+- Analiza el primer mensaje del usuario:
+   • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según la TRANSICIÓN), sin ejecutar BIENVENIDA.
+   • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo (BIENVENIDA).`;
+
+export const ARRANQUE_OBLIGATORIO = `✅ LÓGICA DE EJECUCIÓN — MODO OBLIGATORIO:
+- Ejecutar SIEMPRE la SECUENCIA de abajo (BIENVENIDA), sin importar el mensaje.
+- Ignorar la intención del primer mensaje (no saltar de paso).`;
+
+export type ArranqueMode = "inteligente" | "obligatorio";
+
+/**
+ * Ajusta el paso BIENVENIDA al modo de arranque elegido por el dueño.
+ * El contenido viene con el modo "inteligente" por defecto; si se elige
+ * "obligatorio", se sustituye ese único bloque. No toca ningún otro paso.
+ */
+export function applyArranqueMode(main: string, mode: ArranqueMode | undefined): string {
+  if (mode === "obligatorio" && main.includes(ARRANQUE_INTELIGENTE)) {
+    return main.replace(ARRANQUE_INTELIGENTE, ARRANQUE_OBLIGATORIO);
+  }
+  return main;
+}
+
 export type OnboardingObjective = {
   id: string;
   em: string;
@@ -78,9 +105,14 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
+✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
+- Analiza el primer mensaje del usuario:
+   • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según la TRANSICIÓN), sin ejecutar BIENVENIDA.
+   • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo (BIENVENIDA).
+
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'BIENVENIDA' (produce la respuesta de este paso).
+2º Si el flujo 'BIENVENIDA' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 3º Guardar bienvenida_enviada = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -93,7 +125,7 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
 
 ELEMENTOS DEL PASO 1:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'BIENVENIDA'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 ¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
@@ -113,8 +145,8 @@ ELEMENTOS DEL PASO 1:
         main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND producto_interes == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'CATALOGO', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'CATALOGO' (produce la respuesta de este paso).
+2º Si el flujo 'CATALOGO' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
@@ -126,7 +158,7 @@ ELEMENTOS DEL PASO 1:
 
 ELEMENTOS DEL PASO 2:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'CATALOGO' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'CATALOGO'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 Tenemos:
@@ -151,7 +183,7 @@ Tenemos:
         main: `🔒 CONDICIÓN GATE: producto_interes != null AND compra_confirmada == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Si existe el flujo 'PRESENTACION', ejecutarlo; si NO existe, continuar igual (la instrucción va primero).
+1º Ejecutar SIEMPRE el flujo 'PRESENTACION'; si NO está disponible, continuar con la instrucción (la instrucción va primero).
 2º Si oferta_presentada == false → emitir Regla/parámetro (2) → guardar oferta_presentada = true.
 3º Si oferta_presentada == true y el cliente objeta → emitir Regla/parámetro (3), sin reejecutar el flujo.
 
@@ -167,7 +199,7 @@ Tenemos:
 
 ELEMENTOS DEL PASO 3:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'PRESENTACION' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'PRESENTACION'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — PRESENTACIÓN — TEXTO ÚNICO (un solo mensaje):
 Te recomiendo *[PRODUCTO]*.
@@ -194,8 +226,8 @@ Entiendo tu punto.
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'CIERRE', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'CIERRE' (produce la respuesta de este paso).
+2º Si el flujo 'CIERRE' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 3º Tras recibir el nombre, emitir Regla/parámetro (3).
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -208,7 +240,7 @@ Entiendo tu punto.
 
 ELEMENTOS DEL PASO 4:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'CIERRE' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'CIERRE'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 ¡Perfecto! ¿A nombre de quién registro el pedido? 📝
@@ -236,8 +268,8 @@ Te avisamos cuando salga. ¡Gracias por tu compra! 🎉`,
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2), como UN SOLO MENSAJE.
-2º Si existe el flujo 'CONFIRMACION', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'CONFIRMACION' (produce la respuesta de este paso).
+2º Si el flujo 'CONFIRMACION' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)), como UN SOLO MENSAJE.
 3º Ejecutar la tool de registro/notificación del pedido.
 4º Guardar pedido_confirmado = true → halt.
 
@@ -249,7 +281,7 @@ Te avisamos cuando salga. ¡Gracias por tu compra! 🎉`,
 
 ELEMENTOS DEL PASO 5:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'CONFIRMACION' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'CONFIRMACION'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 ¡Listo, *[NOMBRE]*! Tu pedido quedó confirmado ✅
@@ -280,9 +312,14 @@ Para ayudarte mejor, ¿me compartes tu nombre?`,
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
+✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
+- Analiza el primer mensaje del usuario:
+   • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según la TRANSICIÓN), sin ejecutar BIENVENIDA.
+   • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo (BIENVENIDA).
+
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'BIENVENIDA' (produce la respuesta de este paso).
+2º Si el flujo 'BIENVENIDA' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 3º Guardar bienvenida_enviada = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -295,7 +332,7 @@ Para ayudarte mejor, ¿me compartes tu nombre?`,
 
 ELEMENTOS DEL PASO 1:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'BIENVENIDA'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 ¡Hola! 👋 Soy el asistente de *[NOMBRE_NEGOCIO]*.
@@ -312,8 +349,8 @@ Para ayudarte mejor, ¿me compartes tu nombre?
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'PREGUNTA 1', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'PREGUNTA 1' (produce la respuesta de este paso).
+2º Si el flujo 'PREGUNTA 1' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
@@ -324,7 +361,7 @@ Para ayudarte mejor, ¿me compartes tu nombre?
 
 ELEMENTOS DEL PASO 2:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'PREGUNTA 1' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'PREGUNTA 1'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?
@@ -340,8 +377,8 @@ Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?
         main: `🔒 CONDICIÓN GATE: necesidad != null AND contexto == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'PREGUNTA 2', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'PREGUNTA 2' (produce la respuesta de este paso).
+2º Si el flujo 'PREGUNTA 2' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
@@ -353,7 +390,7 @@ Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?
 
 ELEMENTOS DEL PASO 3:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'PREGUNTA 2' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'PREGUNTA 2'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 Entiendo. ¿Para cuándo lo necesitas y manejas un presupuesto estimado?
@@ -371,7 +408,7 @@ Encaja con tu caso porque *[JUSTIFICACION]*.
         main: `🔒 CONDICIÓN GATE: contexto != null AND interes_confirmado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Si existe el flujo 'PRESENTACION', ejecutarlo; si NO existe, continuar igual (la instrucción va primero).
+1º Ejecutar SIEMPRE el flujo 'PRESENTACION'; si NO está disponible, continuar con la instrucción (la instrucción va primero).
 2º Si presentacion_emitida == false → emitir Regla/parámetro (2) → guardar presentacion_emitida = true.
 3º Si presentacion_emitida == true y el cliente objeta → emitir Regla/parámetro (3), sin reejecutar el flujo.
 
@@ -387,7 +424,7 @@ Encaja con tu caso porque *[JUSTIFICACION]*.
 
 ELEMENTOS DEL PASO 4:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'PRESENTACION' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'PRESENTACION'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — PRESENTACIÓN — TEXTO ÚNICO (un solo mensaje):
 Por lo que me cuentas, lo ideal para ti es *[SOLUCION]*.
@@ -414,8 +451,8 @@ Un asesor te contacta en breve. 📩`,
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'CIERRE', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'CIERRE' (produce la respuesta de este paso).
+2º Si el flujo 'CIERRE' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 3º Ejecutar la tool de registro/notificación al asesor (con el nombre, si el cliente lo dio).
 4º Guardar cierre_completado = true → halt.
 
@@ -426,7 +463,7 @@ Un asesor te contacta en breve. 📩`,
 
 ELEMENTOS DEL PASO 5:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'CIERRE' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'CIERRE'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — MENSAJE CONDICIONAL (según si ya se tiene el nombre):
 - Si nombre != null → ¡Excelente decisión, *[NOMBRE]*! Un asesor te contacta en breve. 📩
@@ -455,9 +492,14 @@ ELEMENTOS DEL PASO 5:
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
+✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
+- Analiza el primer mensaje del usuario:
+   • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según la TRANSICIÓN), sin ejecutar BIENVENIDA.
+   • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo (BIENVENIDA).
+
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'BIENVENIDA' (produce la respuesta de este paso).
+2º Si el flujo 'BIENVENIDA' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 3º Guardar bienvenida_enviada = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -470,7 +512,7 @@ ELEMENTOS DEL PASO 5:
 
 ELEMENTOS DEL PASO 1:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'BIENVENIDA'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 ¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
@@ -490,8 +532,8 @@ ELEMENTOS DEL PASO 1:
         main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND servicio == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'SERVICIO', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'SERVICIO' (produce la respuesta de este paso).
+2º Si el flujo 'SERVICIO' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
@@ -503,7 +545,7 @@ ELEMENTOS DEL PASO 1:
 
 ELEMENTOS DEL PASO 2:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'SERVICIO' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'SERVICIO'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 Estos son nuestros servicios:
@@ -527,7 +569,7 @@ Estos son nuestros servicios:
         main: `🔒 CONDICIÓN GATE: servicio != null AND fecha_hora == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Si existe el flujo 'DISPONIBILIDAD', ejecutarlo; si NO existe, continuar igual (la instrucción va primero).
+1º Ejecutar SIEMPRE el flujo 'DISPONIBILIDAD'; si NO está disponible, continuar con la instrucción (la instrucción va primero).
 2º Consultar la disponibilidad real en la tool de agenda (Calendar/Calendly/Sheet), si está conectada.
 3º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2) con los horarios obtenidos.
 
@@ -541,7 +583,7 @@ Estos son nuestros servicios:
 
 ELEMENTOS DEL PASO 3:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'DISPONIBILIDAD' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'DISPONIBILIDAD'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 Para *[SERVICIO]* tengo estos horarios disponibles:
@@ -563,8 +605,8 @@ Para *[SERVICIO]* tengo estos horarios disponibles:
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'CONFIRMACION', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'CONFIRMACION' (produce la respuesta de este paso).
+2º Si el flujo 'CONFIRMACION' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 3º Al recibir el nombre, crear la cita en la tool de agenda (si está conectada).
 4º Guardar cita_confirmada = true.
 
@@ -577,7 +619,7 @@ Para *[SERVICIO]* tengo estos horarios disponibles:
 
 ELEMENTOS DEL PASO 4:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'CONFIRMACION' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'CONFIRMACION'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 Perfecto, reservo *[SERVICIO]* para el *[FECHA_HORA]*.
@@ -598,8 +640,8 @@ Te enviaré un recordatorio antes de tu cita. ¡Te esperamos! 😊`,
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2), como UN SOLO MENSAJE.
-2º Si existe el flujo 'FINALIZACION', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'FINALIZACION' (produce la respuesta de este paso).
+2º Si el flujo 'FINALIZACION' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)), como UN SOLO MENSAJE.
 3º Ejecutar la tool de registro/notificación de la cita.
 4º Activar el recordatorio automático (24 h antes y 1 h antes).
 5º Guardar recordatorio_activado = true → halt.
@@ -612,7 +654,7 @@ Te enviaré un recordatorio antes de tu cita. ¡Te esperamos! 😊`,
 
 ELEMENTOS DEL PASO 5:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'FINALIZACION' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'FINALIZACION'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 ¡Listo, *[NOMBRE]*! Tu cita quedó confirmada ✅
@@ -642,9 +684,14 @@ Para orientarte mejor, ¿qué estás buscando?`,
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
+✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
+- Analiza el primer mensaje del usuario:
+   • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según la TRANSICIÓN), sin ejecutar BIENVENIDA.
+   • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo (BIENVENIDA).
+
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'BIENVENIDA' (produce la respuesta de este paso).
+2º Si el flujo 'BIENVENIDA' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 3º Guardar bienvenida_enviada = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -657,7 +704,7 @@ Para orientarte mejor, ¿qué estás buscando?`,
 
 ELEMENTOS DEL PASO 1:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'BIENVENIDA'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 ¡Hola! 👋 Gracias por tu interés en *[NOMBRE_NEGOCIO]*.
@@ -674,8 +721,8 @@ Para orientarte mejor, ¿qué estás buscando?
         main: `🔒 CONDICIÓN GATE: interes_declarado != null AND perfil == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'CALIFICACION', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'CALIFICACION' (produce la respuesta de este paso).
+2º Si el flujo 'CALIFICACION' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
@@ -687,7 +734,7 @@ Para orientarte mejor, ¿qué estás buscando?
 
 ELEMENTOS DEL PASO 2:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'CALIFICACION' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'CALIFICACION'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 ¿Es para uso *personal* o para tu *empresa*?
@@ -706,8 +753,8 @@ ELEMENTOS DEL PASO 2:
         main: `🔒 CONDICIÓN GATE: perfil != null AND urgencia == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'URGENCIA', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'URGENCIA' (produce la respuesta de este paso).
+2º Si el flujo 'URGENCIA' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
@@ -718,7 +765,7 @@ ELEMENTOS DEL PASO 2:
 
 ELEMENTOS DEL PASO 3:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'URGENCIA' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'URGENCIA'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 ¿Para cuándo lo necesitas?
@@ -738,8 +785,8 @@ ELEMENTOS DEL PASO 3:
         main: `🔒 CONDICIÓN GATE: urgencia != null AND calificacion_completa == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'PRESUPUESTO', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'PRESUPUESTO' (produce la respuesta de este paso).
+2º Si el flujo 'PRESUPUESTO' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
@@ -751,7 +798,7 @@ ELEMENTOS DEL PASO 3:
 
 ELEMENTOS DEL PASO 4:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'PRESUPUESTO' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'PRESUPUESTO'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 Para recomendarte la mejor opción, ¿manejas un presupuesto estimado? ¿Y la decisión la tomas tú o alguien más?
@@ -772,7 +819,7 @@ Para recomendarte la mejor opción, ¿manejas un presupuesto estimado? ¿Y la de
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
 1º Clasificar el lead según el score acumulado.
 2º Emitir ÚNICAMENTE el texto de la Regla/parámetro correspondiente al segmento (2), (3) o (4).
-3º Si existe el flujo 'DERIVAR', ejecutarlo; si NO existe, continuar igual.
+3º Ejecutar SIEMPRE el flujo 'DERIVAR'; si NO está disponible, continuar con la instrucción.
 4º Ejecutar la tool de registro/notificación al asesor.
 5º Guardar lead_derivado = true → halt.
 
@@ -789,7 +836,7 @@ Para recomendarte la mejor opción, ¿manejas un presupuesto estimado? ¿Y la de
 
 ELEMENTOS DEL PASO 5:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'DERIVAR' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'DERIVAR'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — LEAD CALIENTE — TEXTO ÚNICO (un solo mensaje):
 Por lo que me cuentas, lo mejor es que hables directo con un asesor.
@@ -825,9 +872,14 @@ Déjame tu *nombre* y *correo* y te envío material útil para cuando estés lis
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
+✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
+- Analiza el primer mensaje del usuario:
+   • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según la TRANSICIÓN), sin ejecutar BIENVENIDA.
+   • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo (BIENVENIDA).
+
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'BIENVENIDA' (produce la respuesta de este paso).
+2º Si el flujo 'BIENVENIDA' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 3º Guardar bienvenida_enviada = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -840,7 +892,7 @@ Déjame tu *nombre* y *correo* y te envío material útil para cuando estés lis
 
 ELEMENTOS DEL PASO 1:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'BIENVENIDA'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 ¡Hola! 👋 Soporte de *[NOMBRE_NEGOCIO]*.
@@ -859,8 +911,8 @@ ELEMENTOS DEL PASO 1:
 📝 PLACEHOLDER: si caso_sensible == true → anteponer UNA sola frase de empatía antes del texto (ej: "Lamento el inconveniente.").
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'IDENTIFICACION', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'IDENTIFICACION' (produce la respuesta de este paso).
+2º Si el flujo 'IDENTIFICACION' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
@@ -872,7 +924,7 @@ ELEMENTOS DEL PASO 1:
 
 ELEMENTOS DEL PASO 2:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'IDENTIFICACION' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'IDENTIFICACION'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 Para ubicar tu caso, ¿me compartes tu *nombre* y tu *número de pedido o servicio*? 📋
@@ -889,7 +941,7 @@ Para ubicar tu caso, ¿me compartes tu *nombre* y tu *número de pedido o servic
         main: `🔒 CONDICIÓN GATE: datos_caso != null AND caso_validado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Si existe el flujo 'VALIDACION', ejecutarlo; si NO existe, continuar igual (la instrucción va primero).
+1º Ejecutar SIEMPRE el flujo 'VALIDACION'; si NO está disponible, continuar con la instrucción (la instrucción va primero).
 2º Consultar el caso en la fuente disponible (base de conocimiento, Sheet, CRM o tool de consulta).
 3º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
 4º Guardar caso_validado = true.
@@ -903,7 +955,7 @@ Para ubicar tu caso, ¿me compartes tu *nombre* y tu *número de pedido o servic
 
 ELEMENTOS DEL PASO 3:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'VALIDACION' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'VALIDACION'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 Gracias, ya tengo tu caso. Estoy revisando la información, dame un momento. 🔎
@@ -920,7 +972,7 @@ Pasos a seguir: *[PASOS]*`,
         main: `🔒 CONDICIÓN GATE: caso_validado == true AND solucion_entregada == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Si existe el flujo 'RESOLUCION', ejecutarlo; si NO existe, continuar igual (la instrucción va primero).
+1º Ejecutar SIEMPRE el flujo 'RESOLUCION'; si NO está disponible, continuar con la instrucción (la instrucción va primero).
 2º Emitir Regla/parámetro (2) si hay solución, o Regla/parámetro (3) si el caso requiere humano.
 3º Guardar solucion_entregada = true.
 
@@ -934,7 +986,7 @@ Pasos a seguir: *[PASOS]*`,
 
 ELEMENTOS DEL PASO 4:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'RESOLUCION' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'RESOLUCION'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — CASO CON SOLUCIÓN — TEXTO ÚNICO (un solo mensaje):
 Esto es lo que encontré: *[ESTADO_O_SOLUCIÓN]*
@@ -954,8 +1006,8 @@ Tu caso necesita revisión de un especialista. Ya lo escalé al área encargada 
         main: `🔒 CONDICIÓN GATE: solucion_entregada == true AND caso_cerrado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'CIERRE', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'CIERRE' (produce la respuesta de este paso).
+2º Si el flujo 'CIERRE' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 3º Guardar caso_cerrado = true → halt.
 
 🚫 PROHIBIDO EN ESTE PASO:
@@ -965,7 +1017,7 @@ Tu caso necesita revisión de un especialista. Ya lo escalé al área encargada 
 
 ELEMENTOS DEL PASO 5:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'CIERRE' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'CIERRE'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 ¿Esto resuelve tu solicitud? ¿Puedo ayudarte con algo más? 😊
@@ -992,9 +1044,14 @@ ELEMENTOS DEL PASO 5:
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
+✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
+- Analiza el primer mensaje del usuario:
+   • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según la TRANSICIÓN), sin ejecutar BIENVENIDA.
+   • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo (BIENVENIDA).
+
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'BIENVENIDA' (produce la respuesta de este paso).
+2º Si el flujo 'BIENVENIDA' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 3º Guardar bienvenida_enviada = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -1007,7 +1064,7 @@ ELEMENTOS DEL PASO 5:
 
 ELEMENTOS DEL PASO 1:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'BIENVENIDA'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 ¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
@@ -1024,7 +1081,7 @@ ELEMENTOS DEL PASO 1:
         main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND carrito_cerrado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Si existe el flujo del producto/categoría mencionado, ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo del producto/categoría mencionado; si NO está disponible, continuar con la instrucción.
 2º Validar disponibilidad ANTES de agregar al carrito (si hay catálogo/tool).
 3º Agregar el ítem al carrito (producto + cantidad + precio).
 4º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
@@ -1039,7 +1096,7 @@ ELEMENTOS DEL PASO 1:
 
 ELEMENTOS DEL PASO 2:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo del producto correspondiente si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo del producto correspondiente. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 Listo, agregué *[PRODUCTO]* a tu pedido.
@@ -1057,8 +1114,8 @@ Si es delivery, indícame tu dirección con un punto de referencia. 📍`,
         main: `🔒 CONDICIÓN GATE: carrito_cerrado == true AND datos_entrega == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'ENTREGA', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'ENTREGA' (produce la respuesta de este paso).
+2º Si el flujo 'ENTREGA' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
@@ -1070,7 +1127,7 @@ Si es delivery, indícame tu dirección con un punto de referencia. 📍`,
 
 ELEMENTOS DEL PASO 3:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'ENTREGA' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'ENTREGA'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 ¿Es para *delivery* o lo *recoges en el local*?
@@ -1093,8 +1150,8 @@ Si es delivery, indícame tu dirección con un punto de referencia. 📍
         main: `🔒 CONDICIÓN GATE: datos_entrega != null AND metodo_pago == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2), como UN SOLO MENSAJE.
-2º Si existe el flujo 'RESUMEN', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'RESUMEN' (produce la respuesta de este paso).
+2º Si el flujo 'RESUMEN' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)), como UN SOLO MENSAJE.
 3º Tras confirmar el resumen, emitir Regla/parámetro (3) con los métodos de pago.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -1108,7 +1165,7 @@ Si es delivery, indícame tu dirección con un punto de referencia. 📍
 
 ELEMENTOS DEL PASO 4:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'RESUMEN' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'RESUMEN'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — RESUMEN — TEXTO ÚNICO (un solo mensaje):
 Este es tu pedido:
@@ -1140,8 +1197,8 @@ Te avisamos cuando salga tu pedido. ¡Gracias por tu compra! 🛵`,
         main: `🔒 CONDICIÓN GATE: metodo_pago != null AND pedido_confirmado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2), como UN SOLO MENSAJE.
-2º Si existe el flujo 'CONFIRMACION', ejecutarlo; si NO existe, continuar igual.
+1º Ejecutar SIEMPRE el flujo 'CONFIRMACION' (produce la respuesta de este paso).
+2º Si el flujo 'CONFIRMACION' NO está disponible → emitir el texto por defecto (Regla/parámetro (2)), como UN SOLO MENSAJE.
 3º Ejecutar la tool de registro/notificación del pedido.
 4º Activar el seguimiento programado: "en preparación" → "en camino" → "entregado".
 5º Guardar pedido_confirmado = true → halt.
@@ -1154,7 +1211,7 @@ Te avisamos cuando salga tu pedido. ¡Gracias por tu compra! 🛵`,
 
 ELEMENTOS DEL PASO 5:
 
-(1) FUNCIÓN (opcional): Ejecuta el flujo 'CONFIRMACION' si existe; si no, continúa igual
+(1) FUNCIÓN — OBLIGATORIA: Ejecuta SIEMPRE el flujo 'CONFIRMACION'. Si NO está disponible → emitir el texto por defecto (Regla/parámetro (2)).
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 ¡Pedido confirmado! 🎉

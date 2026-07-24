@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { BASE_TRAINING_AGENT_ID } from "@/lib/channel-training";
-import { ONBOARDING_OBJECTIVES, fillBusinessVars } from "@/app/(root)/ai/_components/helpers/onboardingObjectives";
+import { ONBOARDING_OBJECTIVES, fillBusinessVars, applyArranqueMode, type ArranqueMode } from "@/app/(root)/ai/_components/helpers/onboardingObjectives";
 import { getOrCreateChannelPrompt, publishPrompt } from "@/actions/system-prompt-actions";
 import { isAdminOrReseller } from "@/lib/rbac";
 
@@ -132,6 +132,8 @@ export interface AgentOnboardingInput {
     notas?: string;
   };
   objectiveId: string;
+  /** Modo de arranque del paso BIENVENIDA (por defecto "inteligente"). */
+  arranqueMode?: ArranqueMode;
   /** Camino del cliente (pasos base + adicionales) en orden. */
   steps: { title: string; message: string }[];
   faq: { q: string; a: string }[];
@@ -208,7 +210,10 @@ export async function completeAgentOnboarding(
             // " (paso final)" en el último). Solo se fuerza mayúscula en los
             // pasos EXTRA que el usuario agregó a mano.
             title: def?.t ?? clean(s.title).toUpperCase(),
-            mainMessage: def?.main ?? says,
+            // El paso BIENVENIDA trae el modo "inteligente" por defecto; si el
+            // dueño eligió "obligatorio", se sustituye ese bloque. Los demás
+            // pasos no lo contienen, así que quedan intactos.
+            mainMessage: def ? applyArranqueMode(def.main, input.arranqueMode) : says,
             // Motor de Flujo: variable que recoge + condición para avanzar.
             variableQueRecoge: def?.variable ?? "",
             condicionParaAvanzar: def?.condicion ?? "",
