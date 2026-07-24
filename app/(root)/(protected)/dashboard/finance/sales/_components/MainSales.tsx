@@ -61,6 +61,9 @@ type ContactOption = { id: number; pushName?: string | null; remoteJid: string }
 
 type Props = {
   userId: string;
+  /** Cuenta del catálogo de productos y contactos (cuenta operativa/effectiveId).
+   *  Puede diferir de userId (la cuenta del dinero). Si no se pasa, usa userId. */
+  catalogUserId?: string;
   accounts: FinAccount[];
   categories: FinCategory[];
   currencies: FinCurrency[];
@@ -199,6 +202,7 @@ function EmptyBox({ text }: { text: string }) {
 
 export default function MainSales({
   userId,
+  catalogUserId,
   accounts,
   categories,
   currencies,
@@ -208,6 +212,8 @@ export default function MainSales({
   initialMonth,
   autoOpenCreate = false,
 }: Props) {
+  // Cuenta para el catálogo de productos y contactos (operativa); el dinero usa userId.
+  const catUserId = catalogUserId ?? userId;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -253,7 +259,7 @@ export default function MainSales({
         setProductLoading(true);
         try {
           const res = await listProducts({
-            userId,
+            userId: catUserId,
             q: productQuery.trim(),
             page: 1,
             perPage: 30,
@@ -269,7 +275,7 @@ export default function MainSales({
     }, 300);
 
     return () => clearTimeout(t);
-  }, [productOpen, productQuery, userId]);
+  }, [productOpen, productQuery, catUserId]);
 
   const [contactOpen, setContactOpen] = useState(false);
   const [contactQuery, setContactQuery] = useState('');
@@ -283,7 +289,7 @@ export default function MainSales({
       void (async () => {
         setContactLoading(true);
         try {
-          const res = await searchSessionsByUserId(userId, contactQuery.trim());
+          const res = await searchSessionsByUserId(catUserId, contactQuery.trim());
           if (!res?.success) return toast.error(res?.message || 'No se pudieron cargar contactos');
           setContactOptions(res.data || []);
         } catch (e) {
@@ -295,7 +301,7 @@ export default function MainSales({
     }, 300);
 
     return () => clearTimeout(t);
-  }, [contactOpen, contactQuery, userId]);
+  }, [contactOpen, contactQuery, catUserId]);
 
   const defaultAccountId = useMemo(
     () => accounts.find((a) => a.isDefault)?.id || accounts[0]?.id || '',

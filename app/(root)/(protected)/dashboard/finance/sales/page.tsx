@@ -46,6 +46,7 @@ export default async function SalesPage({
   return (
     <MainSales
       userId={user.id}
+      catalogUserId={opScopeId}
       accounts={meta.accounts}
       categories={meta.categories}
       currencies={meta.currencies}
