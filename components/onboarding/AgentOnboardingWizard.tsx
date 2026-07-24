@@ -8,7 +8,7 @@ import {
   dismissAgentOnboarding,
   completeAgentOnboarding,
 } from "@/actions/agent-onboarding-actions";
-import { ONBOARDING_OBJECTIVES, fillBusinessVars, type OnboardingObjective } from "@/app/(root)/ai/_components/helpers/onboardingObjectives";
+import { ONBOARDING_OBJECTIVES, fillBusinessVars, type OnboardingObjective, type ArranqueMode } from "@/app/(root)/ai/_components/helpers/onboardingObjectives";
 
 /**
  * Asistente de primer arranque (5 pasos). Aparece cuando el dueño entra por
@@ -33,6 +33,7 @@ type Form = {
   step: number;
   biz: Biz;
   objectiveId: string;
+  arranqueMode: ArranqueMode;
   msgs: Record<string, string[]>;
   extra: Record<string, { title: string; msg: string }[]>;
   faq: { q: string; a: string }[];
@@ -49,6 +50,7 @@ const initialForm = (): Form => ({
   step: 0,
   biz: { nombre: "", sector: "", ofrece: "", ubicacion: "", horario: "", telefono: "", sitio: "", notas: "" },
   objectiveId: "venta-consultiva",
+  arranqueMode: "inteligente",
   msgs: {},
   extra: {},
   faq: [{ q: "", a: "" }],
@@ -243,6 +245,7 @@ export function AgentOnboardingWizard() {
     const res = await completeAgentOnboarding({
       business: { ...form.biz },
       objectiveId: form.objectiveId,
+      arranqueMode: form.arranqueMode,
       steps,
       faq: form.faq.filter((f) => f.q.trim()),
       products: form.products.filter((p) => p.name.trim()),
@@ -324,6 +327,25 @@ export function AgentOnboardingWizard() {
                         {o.id === form.objectiveId && <span className="absolute right-2.5 top-2.5 grid h-5 w-5 place-items-center rounded-full bg-primary text-xs text-primary-foreground">✓</span>}
                       </button>
                     ))}
+                  </div>
+
+                  {/* Modo de arranque: cómo reacciona el agente al PRIMER mensaje */}
+                  <div className="mt-5 rounded-xl border border-border bg-muted/30 p-3.5">
+                    <p className="text-sm font-bold">¿Cómo arranca el agente?</p>
+                    <p className="mt-0.5 mb-3 text-xs text-muted-foreground">Cómo reacciona al primer mensaje del cliente.</p>
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      {([
+                        { id: "inteligente", em: "🧠", t: "Inteligente", d: "Si el cliente ya dice qué quiere, va directo. Si no, saluda." },
+                        { id: "obligatorio", em: "👋", t: "Siempre saluda", d: "Siempre saluda primero, sin importar el mensaje." },
+                      ] as { id: ArranqueMode; em: string; t: string; d: string }[]).map((m) => (
+                        <button key={m.id} type="button" onClick={() => patch({ arranqueMode: m.id })}
+                          className={`relative rounded-xl border p-3 text-left transition-all ${m.id === form.arranqueMode ? "border-primary bg-primary/5" : "border-border bg-background hover:border-primary/60"}`}>
+                          <div className="flex items-center gap-2 text-sm font-bold"><span className="text-base">{m.em}</span>{m.t}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">{m.d}</div>
+                          {m.id === form.arranqueMode && <span className="absolute right-2.5 top-2.5 grid h-5 w-5 place-items-center rounded-full bg-primary text-xs text-primary-foreground">✓</span>}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </>
               )}
