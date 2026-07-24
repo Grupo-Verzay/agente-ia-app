@@ -169,7 +169,7 @@ export function OperatorContactsManager({ userId }: Props) {
     const canAddMore = operators.length < MAX_OPERATORS;
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col">
             {/* Header + toggle */}
             <div className="flex items-center justify-between gap-2 shrink-0">
                 <div className="flex items-center gap-1.5 min-w-0">
@@ -190,8 +190,8 @@ export function OperatorContactsManager({ userId }: Props) {
                 Si la IA no puede resolver, pasa la consulta a un operario.
             </p>
 
-            {/* Lista con scroll interno: la tarjeta mantiene su altura */}
-            <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1">
+            {/* Lista con scroll interno: crece hasta un tope y luego hace scroll */}
+            <div className="mt-3 max-h-[220px] overflow-y-auto pr-1">
             {loading ? (
                 <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
