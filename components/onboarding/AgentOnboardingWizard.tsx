@@ -295,7 +295,7 @@ export function AgentOnboardingWizard() {
         </div>
 
         {published ? (
-          <SuccessScreen onConnect={() => router.push("/profile")} onLater={() => { setOpen(false); router.push("/ia"); }} />
+          <SuccessScreen onConnect={() => { setOpen(false); router.push("/profile"); }} onLater={() => { setOpen(false); router.push("/ia"); }} />
         ) : (
           <>
             {/* Progress */}
