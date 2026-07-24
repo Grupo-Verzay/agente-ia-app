@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -8,6 +8,7 @@ import {
   dismissAgentOnboarding,
   completeAgentOnboarding,
 } from "@/actions/agent-onboarding-actions";
+import { ONBOARDING_OBJECTIVES, fillBusinessVars, type OnboardingObjective } from "@/app/(root)/ai/_components/helpers/onboardingObjectives";
 
 /**
  * Asistente de primer arranque (5 pasos). Aparece cuando el dueño entra por
@@ -16,70 +17,9 @@ import {
  * Guarda TODO en las mismas secciones que el editor (ver completeAgentOnboarding).
  */
 
-type Objective = { id: string; em: string; title: string; desc: string; steps: { t: string; ex: string }[] };
+type Objective = OnboardingObjective;
 
-const OBJECTIVES: Objective[] = [
-  {
-    id: "venta-directa", em: "⚡", title: "Venta Directa", desc: "5 fases: ventas rápidas con foco en cerrar.",
-    steps: [
-      { t: "Bienvenida", ex: "¡Hola! 👋 Gracias por escribir a [tu negocio]. ¿Qué te interesa?" },
-      { t: "Producto de interés", ex: "¿Qué producto o servicio buscas? Te doy los detalles." },
-      { t: "Presentación", ex: "Te muestro las opciones, precios y beneficios." },
-      { t: "Cierre", ex: "¿Te lo aparto? Para cerrar necesito tu nombre y forma de pago." },
-      { t: "Finalización", ex: "¡Gracias por tu compra! Cualquier duda, escríbeme por aquí." },
-    ],
-  },
-  {
-    id: "venta-consultiva", em: "🎯", title: "Venta Consultiva", desc: "5 fases: conexión, diagnóstico, propuesta y cierre.",
-    steps: [
-      { t: "Bienvenida", ex: "¡Hola! Soy el asistente de [tu negocio]. ¿En qué puedo ayudarte hoy?" },
-      { t: "Pregunta 1", ex: "Para orientarte mejor, ¿qué estás buscando resolver?" },
-      { t: "Pregunta 2", ex: "¿Y para cuándo lo necesitas o qué presupuesto manejas?" },
-      { t: "Presentación", ex: "Según lo que me cuentas, esto es lo que te recomiendo…" },
-      { t: "Finalización", ex: "¿Agendamos una cita? Déjame tu nombre y correo y coordinamos." },
-    ],
-  },
-  {
-    id: "agendamiento-citas", em: "📅", title: "Agendar citas", desc: "5 fases: ofrece horarios y reserva la cita.",
-    steps: [
-      { t: "Bienvenida", ex: "¡Hola! Con gusto te agendo. ¿Qué servicio necesitas?" },
-      { t: "Servicio", ex: "¿Cuál de nuestros servicios quieres reservar?" },
-      { t: "Disponibilidad", ex: "Tengo estos horarios disponibles: [días/horas]. ¿Cuál te viene bien?" },
-      { t: "Confirmación", ex: "Listo, te agendo para [fecha/hora]. ¿Me confirmas tu nombre?" },
-      { t: "Finalización", ex: "¡Cita confirmada! Te esperamos en [dirección]. Cualquier cambio, escríbeme." },
-    ],
-  },
-  {
-    id: "calificacion-leads", em: "🧲", title: "Calificar leads", desc: "5 fases: detecta quién está listo para comprar.",
-    steps: [
-      { t: "Bienvenida", ex: "¡Hola! Gracias por tu interés. ¿Me cuentas qué buscas?" },
-      { t: "Calificación", ex: "¿Es para uso personal o para tu empresa?" },
-      { t: "Urgencia", ex: "¿Para cuándo lo necesitas?" },
-      { t: "Presupuesto", ex: "¿Tienes un presupuesto estimado en mente?" },
-      { t: "Derivar a asesor", ex: "Te paso con un asesor que resolverá todo. ¿Tu nombre y correo?" },
-    ],
-  },
-  {
-    id: "atencion-cliente", em: "🎧", title: "Atención / soporte", desc: "5 fases: resuelve dudas, solicitudes y reclamos.",
-    steps: [
-      { t: "Bienvenida", ex: "¡Hola! Soy soporte de [tu negocio]. ¿En qué te ayudo?" },
-      { t: "Identificación", ex: "Para ubicar tu caso, ¿me das tu nombre o número de pedido?" },
-      { t: "Validación", ex: "Déjame revisar… un momento por favor." },
-      { t: "Resolución", ex: "Esto es lo que encontré / así lo solucionamos: […]" },
-      { t: "Cierre", ex: "¿Quedó resuelto? ¿Algo más en lo que pueda ayudarte?" },
-    ],
-  },
-  {
-    id: "pedidos-delivery", em: "🛵", title: "Pedidos / Delivery", desc: "5 fases: arma el pedido, entrega y cobra.",
-    steps: [
-      { t: "Bienvenida", ex: "¡Hola! ¿Qué te gustaría pedir hoy?" },
-      { t: "Pedido", ex: "Anoto tu pedido. ¿Deseas agregar algo más?" },
-      { t: "Datos de entrega", ex: "¿A qué dirección o zona lo enviamos? Así calculo el envío." },
-      { t: "Resumen", ex: "Tu pedido: […]. Productos [monto] + envío [monto] = Total [monto]. ¿Confirmas?" },
-      { t: "Pago", ex: "Para confirmar, ¿cómo prefieres pagar? [contra entrega / transferencia…]" },
-    ],
-  },
-];
+const OBJECTIVES = ONBOARDING_OBJECTIVES;
 
 const STEP_TITLES = ["Tu negocio", "Objetivo del agente", "Camino del cliente", "Preguntas y productos", "Revisar y activar"];
 const GEST = ["Solicitudes", "Pedidos", "Reclamos", "Reservas", "Citas"] as const;
@@ -150,12 +90,18 @@ export function AgentOnboardingWizard() {
   const curMsgs = form.msgs[form.objectiveId] ?? [];
   const curExtra = form.extra[form.objectiveId] ?? [];
 
-  const setMsg = (i: number, v: string) =>
+  // Pasos que el dueño editó a mano: dejan de auto-rellenarse con las variables
+  // del negocio (para no pisar su texto personalizado).
+  const touchedMsgs = useRef<Set<string>>(new Set());
+
+  const setMsg = (i: number, v: string) => {
+    touchedMsgs.current.add(`${form.objectiveId}:${i}`);
     setForm((f) => {
       const arr = [...(f.msgs[f.objectiveId] ?? [])];
       arr[i] = v;
       return { ...f, msgs: { ...f.msgs, [f.objectiveId]: arr } };
     });
+  };
   const setExtra = (next: { title: string; msg: string }[]) =>
     setForm((f) => ({ ...f, extra: { ...f.extra, [f.objectiveId]: next } }));
 
@@ -194,6 +140,47 @@ export function AgentOnboardingWizard() {
     }
     setLoaded(true);
   }, [open, loaded, prefill]);
+
+  // Inyectar el contenido del embudo: al elegir un objetivo, cada paso arranca
+  // con su ejemplo YA escrito en el campo (antes venían inyectados por las
+  // plantillas; con el formato nuevo salían vacíos). Solo pre-llena cuando ese
+  // objetivo aún no tiene mensajes, así NUNCA pisa el borrador ni lo que el
+  // usuario ya editó (incluidos los que dejó vacíos a propósito).
+  useEffect(() => {
+    if (!loaded) return;
+    setForm((f) => {
+      const existing = f.msgs[f.objectiveId];
+      if (existing && existing.length > 0) return f;
+      const objDef = OBJECTIVES.find((o) => o.id === f.objectiveId);
+      if (!objDef) return f;
+      // Pre-llena con el ejemplo y ya reemplaza [tu negocio], [dirección]… con
+      // los datos que el dueño puso.
+      return { ...f, msgs: { ...f.msgs, [f.objectiveId]: objDef.steps.map((s) => fillBusinessVars(s.ex, f.biz)) } };
+    });
+  }, [loaded, form.objectiveId]);
+
+  // Al cambiar los datos del negocio (nombre, dirección, horarios), re-aplica las
+  // variables en los pasos que el dueño NO ha editado a mano. Así "toma" el nuevo
+  // valor sin pisar lo personalizado.
+  useEffect(() => {
+    if (!loaded) return;
+    setForm((f) => {
+      const objDef = OBJECTIVES.find((o) => o.id === f.objectiveId);
+      const cur = f.msgs[f.objectiveId];
+      if (!objDef || !cur) return f;
+      let changed = false;
+      const next = cur.map((v, i) => {
+        if (touchedMsgs.current.has(`${f.objectiveId}:${i}`)) return v;
+        const step = objDef.steps[i];
+        if (!step) return v;
+        const filled = fillBusinessVars(step.ex, f.biz);
+        if (filled !== v) changed = true;
+        return filled;
+      });
+      if (!changed) return f;
+      return { ...f, msgs: { ...f.msgs, [f.objectiveId]: next } };
+    });
+  }, [loaded, form.biz.nombre, form.biz.ubicacion, form.biz.horario]);
 
   // Auto-guardado: persistir cambios.
   useEffect(() => {
