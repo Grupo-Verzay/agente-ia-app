@@ -931,15 +931,15 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
 
                             {/* Funciones avanzadas (al final: uso menos frecuente) */}
                             <SectionTitle>Funciones avanzadas</SectionTitle>
-                            <div className="grid gap-4 sm:grid-cols-2 items-stretch">
-                                <Card className="border-border flex flex-col">
-                                    <CardContent className="pt-4 flex-1">
+                            <div className="grid gap-4 sm:grid-cols-2 items-start">
+                                <Card className="border-border">
+                                    <CardContent className="pt-4">
                                         <OperatorContactsManager userId={userId} />
                                     </CardContent>
                                 </Card>
 
-                                <Card className="border-border flex flex-col">
-                                    <CardContent className="pt-4 flex-1">
+                                <Card className="border-border">
+                                    <CardContent className="pt-4">
                                         <OwnerModeToggle userId={userId} />
                                     </CardContent>
                                 </Card>
