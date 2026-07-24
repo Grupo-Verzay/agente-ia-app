@@ -195,6 +195,22 @@ export function AgentOnboardingWizard() {
     setLoaded(true);
   }, [open, loaded, prefill]);
 
+  // Inyectar el contenido del embudo: al elegir un objetivo, cada paso arranca
+  // con su ejemplo YA escrito en el campo (antes venían inyectados por las
+  // plantillas; con el formato nuevo salían vacíos). Solo pre-llena cuando ese
+  // objetivo aún no tiene mensajes, así NUNCA pisa el borrador ni lo que el
+  // usuario ya editó (incluidos los que dejó vacíos a propósito).
+  useEffect(() => {
+    if (!loaded) return;
+    setForm((f) => {
+      const existing = f.msgs[f.objectiveId];
+      if (existing && existing.length > 0) return f;
+      const objDef = OBJECTIVES.find((o) => o.id === f.objectiveId);
+      if (!objDef) return f;
+      return { ...f, msgs: { ...f.msgs, [f.objectiveId]: objDef.steps.map((s) => s.ex) } };
+    });
+  }, [loaded, form.objectiveId]);
+
   // Auto-guardado: persistir cambios.
   useEffect(() => {
     if (!loaded) return;
