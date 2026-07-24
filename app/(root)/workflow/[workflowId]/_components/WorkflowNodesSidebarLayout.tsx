@@ -5,12 +5,13 @@ import { WorkflowSidebar } from "./WorkflowSidebar";
 import { useWorkflowEditorShell } from "./WorkflowEditorShellProvider";
 
 export function WorkflowNodesSidebarLayout() {
-    const { totalNodes, seguimientoNodes, createNode } = useWorkflowEditorShell();
+    const { totalNodes, seguimientoNodes, createNode, lockedFeatures } = useWorkflowEditorShell();
 
     return (
         <WorkflowSidebar
             totalNodes={totalNodes}
             seguimientoNodes={seguimientoNodes}
+            lockedFeatures={lockedFeatures}
             onCreateNode={(action) => {
                 const ok = createNode(action);
                 if (!ok) {
