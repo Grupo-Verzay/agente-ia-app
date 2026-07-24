@@ -46,7 +46,9 @@ export function OwnerModeToggle({ userId }: Props) {
     if (result.success) {
       setEnabled(result.enabled);
       setPeople(result.people);
-      setShowAddForm(result.people.length === 0);
+      // Compacto por defecto: el botón "Agregar persona" abre el formulario y
+      // se cierra al guardar/cancelar.
+      setShowAddForm(false);
     }
     setLoading(false);
   }, [userId]);
@@ -209,12 +211,10 @@ export function OwnerModeToggle({ userId }: Props) {
                   {saving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
                   Guardar
                 </Button>
-                {people.length > 0 && (
-                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancelAdd} disabled={saving}>
-                    <X className="w-3 h-3 mr-1" />
-                    Cancelar
-                  </Button>
-                )}
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancelAdd} disabled={saving}>
+                  <X className="w-3 h-3 mr-1" />
+                  Cancelar
+                </Button>
               </div>
             </div>
           ) : (

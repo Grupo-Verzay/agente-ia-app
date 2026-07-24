@@ -52,9 +52,9 @@ export function OperatorContactsManager({ userId }: Props) {
             const list = result.data ?? [];
             setOperators(list);
             setEnabled(!!result.bridgeEnabled);
-            // Sin operarios: mostramos el formulario directo (como el Modo dueño),
-            // en vez del botón grande "Agregar operario".
-            setShowAddForm(list.length === 0);
+            // Compacto por defecto: se muestra el botón "Agregar operario"; el
+            // formulario se abre al hacer clic y se cierra al guardar/cancelar.
+            setShowAddForm(false);
         }
         setLoading(false);
     }, [userId]);
@@ -343,12 +343,10 @@ export function OperatorContactsManager({ userId }: Props) {
                                     {saving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
                                     Guardar
                                 </Button>
-                                {operators.length > 0 && (
-                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancelAdd} disabled={saving}>
-                                        <X className="w-3 h-3 mr-1" />
-                                        Cancelar
-                                    </Button>
-                                )}
+                                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancelAdd} disabled={saving}>
+                                    <X className="w-3 h-3 mr-1" />
+                                    Cancelar
+                                </Button>
                             </div>
                         </div>
                     ) : (
