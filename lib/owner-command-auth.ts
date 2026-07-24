@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
+import { parseOwnerPeople } from "@/lib/owner-contacts";
 
 /**
  * Autenticación e identidad para el "Modo Dueño por WhatsApp".
@@ -86,9 +87,13 @@ export async function resolveOwnerCommand(params: {
     return { ok: false, reason: "El Modo Dueño no está activado para esta cuenta." };
   }
 
-  // Número dedicado del dueño; si está vacío, cae al número de notificación.
-  const ownerNumber = account.ownerModePhone || account.notificationNumber;
-  if (!phonesMatch(params.ownerPhone, ownerNumber)) {
+  // Lista de personas autorizadas (dueño/socio/admin). Si está vacía, cae al
+  // número de notificación del titular.
+  const people = parseOwnerPeople(account.ownerModePhone);
+  const match = people.find((p) => phonesMatch(params.ownerPhone, p.phone));
+  const fallbackOk = people.length === 0 && phonesMatch(params.ownerPhone, account.notificationNumber);
+
+  if (!match && !fallbackOk) {
     return {
       ok: false,
       reason: "El número no está autorizado para administrar esta cuenta.",
@@ -97,7 +102,7 @@ export async function resolveOwnerCommand(params: {
 
   return {
     ok: true,
-    owner: { ownerId: account.id, name: account.name, role: account.role },
+    owner: { ownerId: account.id, name: match?.name ?? account.name, role: account.role },
   };
 }
 
