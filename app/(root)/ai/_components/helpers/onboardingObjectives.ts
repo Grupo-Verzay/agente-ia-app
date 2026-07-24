@@ -209,7 +209,7 @@ Te avisamos cuando salga. ¡Gracias por tu compra! 🎉`,
     steps: [
       { t: "BIENVENIDA",
         variable: "nombre",
-        condicion: "Da su nombre (o llega con intención clara) → guardar nombre → paso 2. Si no da nombre → pedirlo una vez más.",
+        condicion: "Responde con un nombre → guardar nombre → paso 2. No entrega nombre → pedirlo una vez más.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 ¡Hola! 👋 Soy el asistente de *[NOMBRE_NEGOCIO]*.
 Para ayudarte mejor, ¿me compartes tu nombre?`,
@@ -224,6 +224,7 @@ Para ayudarte mejor, ¿me compartes tu nombre?`,
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
+- Responder sin ejecutar primero el flujo 'BIENVENIDA'.
 - Formular preguntas propias o de confirmación.
 - Dar precios, planes o propuestas en este turno.
 - Ejecutar cualquier tool.
@@ -233,27 +234,27 @@ Para ayudarte mejor, ¿me compartes tu nombre?`,
 
 ➡️ TRANSICIÓN (NO EMITIR):
 - Responde con un nombre → guardar nombre → current_step = 2
-- Llega con intención clara (pide info de un servicio concreto) → guardar nombre si lo da → current_step = 2
 - No entrega nombre → pedirlo una vez más, sin repetir la bienvenida.` },
       { t: "PREGUNTA 1",
         variable: "necesidad",
-        condicion: "Describe su necesidad → guardar necesidad → paso 3. Si responde vago → repreguntar una vez.",
+        condicion: "Describe su necesidad → guardar necesidad → paso 3. Responde vago → repreguntar una vez.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?`,
         main: `🔒 CONDICIÓN GATE: nombre != null AND necesidad == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar el flujo 'PREGUNTA_1', si existe.
+1º Ejecutar el flujo 'PREGUNTA 1' ANTES de responder.
 2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
+- Responder sin ejecutar primero el flujo 'PREGUNTA 1'.
 - Presentar soluciones o precios antes de conocer la necesidad.
 - Hacer dos preguntas en el mismo mensaje.
 - Ejecutar tools de registro.
 
-🔄 FUNCIÓN: Ejecuta el flujo 'PREGUNTA_1' (si existe).
+🔄 FUNCIÓN: Ejecuta el flujo 'PREGUNTA 1'.
 
 ➡️ TRANSICIÓN (NO EMITIR):
 - Describe su necesidad → guardar necesidad → current_step = 3
@@ -266,78 +267,86 @@ Entiendo. ¿Para cuándo lo necesitas y manejas un presupuesto estimado?`,
         main: `🔒 CONDICIÓN GATE: necesidad != null AND contexto == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar el flujo 'PREGUNTA_2', si existe.
+1º Ejecutar el flujo 'PREGUNTA 2' ANTES de responder.
 2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
+- Responder sin ejecutar primero el flujo 'PREGUNTA 2'.
 - Presentar la solución antes de capturar el contexto.
 - Hacer dos preguntas en el mismo mensaje.
 - Insistir en el presupuesto si el cliente lo evade.
 - Ejecutar tools de registro.
 
-🔄 FUNCIÓN: Ejecuta el flujo 'PREGUNTA_2' (si existe).
+🔄 FUNCIÓN: Ejecuta el flujo 'PREGUNTA 2'.
 
 ➡️ TRANSICIÓN (NO EMITIR):
 - Responde plazo y/o presupuesto → guardar contexto → current_step = 4
 - Evade el presupuesto → registrar "no definido" → current_step = 4` },
       { t: "PRESENTACIÓN",
         variable: "presentacion_emitida, interes_confirmado",
-        condicion: "Confirma interés → interes_confirmado → paso 5. Objeción/duda → resolver en el cierre. Pide detalle → responder sin reejecutar.",
+        condicion: "Confirma interés o pide tiempo → interes_confirmado → paso 5. Objeción → emitir mensaje de negociación → permanecer. Pide detalle → responder sin reejecutar.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 Por lo que me cuentas, lo ideal para ti es *[SOLUCION]*.
 Encaja con tu caso porque *[JUSTIFICACION]*.
 💰 Inversión: *[PRECIO]*
 ¿Qué te parece?`,
-        main: `🔒 CONDICIÓN GATE: contexto != null AND presentacion_emitida == false
+        main: `🔒 CONDICIÓN GATE: contexto != null AND interes_confirmado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar el flujo de solución correspondiente a la necesidad, si existe.
-2º Emitir ÚNICAMENTE el texto de "lo que dice el agente", como UN SOLO MENSAJE.
-3º Guardar presentacion_emitida = true.
+1º Ejecutar el flujo 'PRESENTACION' ANTES de responder.
+2º Si presentacion_emitida == false → emitir el texto de "lo que dice el agente" → guardar presentacion_emitida = true.
+3º Si presentacion_emitida == true y el cliente objeta → emitir el MENSAJE DE NEGOCIACIÓN (abajo), sin reejecutar el flujo.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
+- Responder sin ejecutar primero el flujo 'PRESENTACION'.
 - Recomendar servicios fuera del catálogo o las tools.
 - Inventar precios, resultados o casos de éxito.
 - Fragmentar la propuesta en varios mensajes.
+- Repetir la presentación completa al responder una objeción.
+- Presionar si el cliente pide tiempo. Ofrecer descuentos no autorizados.
 - Reejecutar el flujo si presentacion_emitida == true.
 
-🔄 FUNCIÓN: Ejecuta el flujo de solución correspondiente (si existe).
+🔄 FUNCIÓN: Ejecuta el flujo 'PRESENTACION'.
+
+💬 MENSAJE DE NEGOCIACIÓN (para responder una objeción):
+🤖 *[NOMBRE_AGENTE]*
+Entiendo perfectamente tu punto.
+*[RESPUESTA_A_LA_OBJECION]*
+¿Te gustaría que avancemos con *[ALTERNATIVA]*?
 
 ➡️ TRANSICIÓN (NO EMITIR):
 - Confirma interés (sí / me interesa / dale) → interes_confirmado = true → current_step = 5
-- Plantea una objeción o duda → current_step = 5 (se resuelve en el cierre)
-- Pide más detalle → responder sin reejecutar el flujo → permanecer en current_step = 4` },
+- Plantea una objeción → emitir el MENSAJE DE NEGOCIACIÓN → permanecer en current_step = 4
+- Pide más detalle → responder sin reejecutar el flujo → permanecer en current_step = 4
+- Pide tiempo para pensarlo → interes_confirmado = true → current_step = 5` },
       { t: "CIERRE (paso final)",
-        variable: "interes_confirmado, cierre_completado, correo",
-        condicion: "Si hay objeción → resolver reforzando el valor, sin presionar. Entrega nombre y correo → ejecutar tool → fin (halt). Se niega → cerrar sin tool.",
+        variable: "cierre_completado, correo",
+        condicion: "Entrega nombre y correo → ejecutar tool → fin (halt). Entrega parte → pedir solo lo faltante. Se niega → cerrar sin tool.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 ¡Excelente decisión, *[NOMBRE]*!
 Para coordinar el siguiente paso, ¿me confirmas tu *nombre completo* y tu *correo*? 📩`,
-        main: `🔒 CONDICIÓN GATE: presentacion_emitida == true AND cierre_completado == false
+        main: `🔒 CONDICIÓN GATE: interes_confirmado == true AND cierre_completado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Si el cliente trae una objeción, resolverla reforzando el valor, sin presionar ni ofrecer descuentos no autorizados.
+1º Ejecutar el flujo 'CIERRE' ANTES de responder.
 2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
 3º Al recibir nombre y correo, ejecutar la tool de registro/notificación al asesor.
 4º Guardar cierre_completado = true → halt.
 
 🚫 PROHIBIDO EN ESTE PASO:
-- Presionar o insistir si el cliente pide tiempo.
-- Ofrecer descuentos no autorizados.
+- Responder sin ejecutar primero el flujo 'CIERRE'.
 - Ejecutar la tool antes de capturar nombre y correo.
 - Solicitar datos que el cliente ya entregó.
 - Emitir cualquier mensaje después del cierre.
 
-🔄 FUNCIÓN: Ejecuta la tool de registro/notificación al asesor.
+🔄 FUNCIÓN: Ejecuta el flujo 'CIERRE' y luego la tool de registro/notificación al asesor.
 
 ➡️ TRANSICIÓN (NO EMITIR):
-- Resuelve la objeción y acepta → interes_confirmado = true.
-- Pide tiempo para pensarlo → ofrecer enviar información y dejar la puerta abierta.
-- Entrega nombre y correo → ejecutar tool → emitir confirmación breve → cierre_completado = true → halt.
+- Entrega nombre y correo → ejecutar tool → emitir confirmación breve → cierre_completado = true → halt
 - Entrega solo parte → pedir únicamente lo faltante, sin repetir el mensaje completo.
 - Se niega a dar datos → agradecer, dejar la puerta abierta y cerrar sin ejecutar la tool.
 
