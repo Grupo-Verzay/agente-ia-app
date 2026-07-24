@@ -143,7 +143,7 @@ export function OwnerModeToggle({ userId }: Props) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Estas personas (dueño, socio, administrador…) pueden dar órdenes a la IA desde su WhatsApp.
+        Los mensajes de este número se toman como órdenes de la IA.
       </p>
 
       {loading ? (
