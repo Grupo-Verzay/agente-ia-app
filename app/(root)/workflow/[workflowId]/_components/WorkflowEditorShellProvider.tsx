@@ -11,12 +11,22 @@ type Ctx = {
     registerCreateNode: (fn: (action: Action) => void) => void;
     clearCreateNode: () => void;
     createNode: (action: Action) => boolean;
+
+    /** featureKeys que el plan del dueño NO puede usar (candado 🔒 en la paleta). */
+    lockedFeatures: Set<string>;
 };
 
 const WorkflowEditorShellContext = createContext<Ctx | null>(null);
 
-export function WorkflowEditorShellProvider({ children }: { children: React.ReactNode }) {
+export function WorkflowEditorShellProvider({
+    children,
+    lockedFeatures = [],
+}: {
+    children: React.ReactNode;
+    lockedFeatures?: string[];
+}) {
     const createNodeRef = useRef<null | ((action: Action) => void)>(null);
+    const lockedSet = useMemo(() => new Set(lockedFeatures), [lockedFeatures]);
 
     const [totalNodes, setTotalNodes] = useState(0);
     const [seguimientoNodes, setSeguimientoNodes] = useState(0);
@@ -48,8 +58,9 @@ export function WorkflowEditorShellProvider({ children }: { children: React.Reac
             registerCreateNode,
             clearCreateNode,
             createNode,
+            lockedFeatures: lockedSet,
         }),
-        [totalNodes, seguimientoNodes, setCounts, registerCreateNode, clearCreateNode, createNode]
+        [totalNodes, seguimientoNodes, setCounts, registerCreateNode, clearCreateNode, createNode, lockedSet]
     );
 
     return (

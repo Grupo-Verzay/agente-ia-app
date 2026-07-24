@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, X } from 'lucide-react';
+import { Lock, Plus, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,7 +49,9 @@ function SidebarSectionLabel({ label }: { label: string }) {
     );
 }
 
-export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode }: PropsWorkflowSidebar) {
+export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode, lockedFeatures }: PropsWorkflowSidebar) {
+    const locked = lockedFeatures ?? new Set<string>();
+    const isLocked = (action: Action) => locked.has(action.type);
     const { setOpen, setOpenMobile, isMobile } = useSidebar();
     const closeSidebar = () => (isMobile ? setOpenMobile(false) : setOpen(false));
 
@@ -74,6 +76,13 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode }: 
     }, [qLower]);
 
     const validateCanCreate = (action: Action) => {
+        if (isLocked(action)) {
+            toast.error('Esta función no está incluida en tu plan. Mejora tu plan para usarla.', {
+                id: 'sidebar-feature-locked',
+            });
+            return false;
+        }
+
         if (reachedTotalLimit) {
             toast.error(`Este flujo ya alcanzó el límite de ${MAX_NODES_PER_WORKFLOW} nodos.`, {
                 id: 'sidebar-create-limit',
@@ -117,17 +126,20 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode }: 
 
     const renderTile = (action: Action, disabled: boolean, seguimiento = false) => {
         const Icon = action.icon;
+        const featureLocked = isLocked(action);
+        const blocked = disabled || featureLocked;
 
         return (
             <Button
                 key={action.type}
                 type="button"
                 variant={'outline'}
-                disabled={disabled}
-                draggable={!disabled}
+                disabled={blocked}
+                draggable={!blocked}
                 onDragStart={(evt) => onDragStart(evt, action)}
                 onDragEnd={() => closeSidebar()}
                 onClick={() => onClickCreate(action)}
+                title={featureLocked ? 'No incluido en tu plan' : undefined}
                 className={`flex justify-start w-full ${
                     seguimiento
                         ? 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-950/50'
@@ -136,6 +148,7 @@ export function WorkflowSidebar({ totalNodes, seguimientoNodes, onCreateNode }: 
             >
                 <Icon className={`h-4 w-4 ${action.iconClassName ?? ''}`} />
                 <span className="truncate">{action.label}</span>
+                {featureLocked && <Lock className="ml-auto h-3.5 w-3.5 text-muted-foreground" />}
             </Button>
         );
     };

@@ -12,6 +12,7 @@ import {
 } from "@/types/workflow";
 import { WorkflowNode } from "@prisma/client";
 import { redirect } from "next/navigation";
+import { checkWorkflowFeatureAllowed } from "@/actions/workflow-feature-access-actions";
 
 export async function createNode(form: createNodeflowSchemaType) {
   const user = await currentUser();
@@ -27,6 +28,10 @@ export async function createNode(form: createNodeflowSchemaType) {
     success: false,
     message: "Datos del formulario inválidos."
   };
+
+  // Candado por plan: la pieza debe estar habilitada para el plan del usuario.
+  const featErr = await checkWorkflowFeatureAllowed(data.tipo, user);
+  if (featErr) return { success: false, message: featErr };
 
   const totalNodes = await db.workflowNode.count({
     where: { workflowId: data.workflowId },
@@ -578,6 +583,10 @@ export async function updateWorkflowNodePosition(input: UpdateNodePositionInput)
 export async function createNodeFromCanvas(form: createNodeflowSchemaType & { posX: number; posY: number }) {
   const user = await currentUser();
   if (!user) return { success: false, message: 'Usuario no autenticado.' };
+
+  // Candado por plan: la pieza debe estar habilitada para el plan del usuario.
+  const featErr = await checkWorkflowFeatureAllowed(form.tipo, user);
+  if (featErr) return { success: false, message: featErr };
 
   const totalNodes = await db.workflowNode.count({ where: { workflowId: form.workflowId } });
   if (totalNodes >= MAX_NODES_PER_WORKFLOW) return {

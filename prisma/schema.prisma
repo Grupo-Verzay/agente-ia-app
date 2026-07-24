@@ -1173,6 +1173,20 @@ model WorkflowNode {
   @@index([workflowId])
 }
 
+// Control de acceso por plan de cada pieza del creador de flujos. La tabla la
+// crea y administra el BACKEND (migración workflow_feature_access). Aquí solo
+// se replica el modelo para que el cliente Prisma del frontend pueda leerla y
+// escribirla; el frontend NO corre migraciones.
+model WorkflowFeatureAccess {
+  id           String   @id @default(uuid())
+  featureKey   String   @unique @map("feature_key")
+  allowedPlans Plan[]   @map("allowed_plans")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("workflow_feature_access")
+}
+
 model AiModel {
   id           String     @id @default(uuid())
   providerId   String

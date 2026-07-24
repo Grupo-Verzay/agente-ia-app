@@ -147,6 +147,8 @@ export type PropsWorkflowSidebar = {
   totalNodes: number;
   seguimientoNodes: number;
   onCreateNode: (action: Action) => void;
+  /** featureKeys bloqueadas por el plan del dueño (se muestran con 🔒). */
+  lockedFeatures?: Set<string>;
 };
 // Tipo combinado para ActionType
 export type ActionType = BaseActionType | SeguimientoActionType;
