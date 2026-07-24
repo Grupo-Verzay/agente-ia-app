@@ -3,13 +3,17 @@
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { parseOwnerPeople, serializeOwnerPeople, type OwnerPerson } from "@/lib/owner-contacts";
 
 /**
- * Activación del "Modo Dueño por WhatsApp" por cuenta (opt-in).
+ * "Modo Dueño por WhatsApp" por cuenta (opt-in).
+ *
+ * Ahora admite VARIAS personas (dueño, socio, administrador…), cada una con
+ * nombre + número + cargo. Para no tocar la base de datos, la lista se guarda
+ * como JSON en el campo existente `User.ownerModePhone` (ver lib/owner-contacts).
  *
  * El interruptor vive en el panel autenticado: para encenderlo hay que estar
- * logueado como el titular (o un admin), lo que funciona como segundo factor
- * de la activación — sin necesidad de correo ni PIN.
+ * logueado como el titular (o un admin), lo que funciona como segundo factor.
  */
 
 async function assertCanManage(targetUserId: string): Promise<void> {
@@ -21,13 +25,15 @@ async function assertCanManage(targetUserId: string): Promise<void> {
   }
 }
 
-export async function getOwnerModeStatus(userId: string): Promise<{
+export type OwnerModeStatus = {
   success: boolean;
   enabled: boolean;
-  ownerPhone?: string;
+  people: OwnerPerson[];
   notificationNumber?: string;
-}> {
-  if (!userId) return { success: false, enabled: false };
+};
+
+export async function getOwnerModeStatus(userId: string): Promise<OwnerModeStatus> {
+  if (!userId) return { success: false, enabled: false, people: [] };
   try {
     await assertCanManage(userId);
     const user = await db.user.findUnique({
@@ -37,48 +43,65 @@ export async function getOwnerModeStatus(userId: string): Promise<{
     return {
       success: true,
       enabled: !!user?.ownerModeEnabled,
-      ownerPhone: user?.ownerModePhone ?? "",
+      people: parseOwnerPeople(user?.ownerModePhone),
       notificationNumber: user?.notificationNumber ?? "",
     };
   } catch {
-    return { success: false, enabled: false };
+    return { success: false, enabled: false, people: [] };
   }
 }
 
-/**
- * Guarda la configuración del Modo Dueño: activar/desactivar y el número
- * dedicado del dueño (solo dígitos). Un número vacío borra el dedicado (cae al
- * número de notificación).
- */
-export async function saveOwnerModeConfig(
+/** Activa/desactiva el Modo Dueño (sin tocar la lista de personas). */
+export async function setOwnerModeEnabled(
   userId: string,
   enabled: boolean,
-  ownerPhone: string,
 ): Promise<{ success: boolean; message: string }> {
   if (!userId) return { success: false, message: "userId requerido." };
-
   try {
     await assertCanManage(userId);
   } catch {
     return { success: false, message: "No autorizado." };
   }
+  try {
+    await db.user.update({ where: { id: userId }, data: { ownerModeEnabled: enabled } });
+    revalidatePath("/profile");
+    return { success: true, message: enabled ? "Modo Dueño activado." : "Modo Dueño desactivado." };
+  } catch {
+    return { success: false, message: "Error al guardar." };
+  }
+}
 
-  const digits = (ownerPhone ?? "").replace(/\D/g, "");
-  if (enabled && digits && digits.length < 7) {
-    return { success: false, message: "El número del dueño no es válido (mínimo 7 dígitos)." };
+/** Reemplaza la lista completa de personas del Modo Dueño. */
+export async function saveOwnerPeople(
+  userId: string,
+  people: OwnerPerson[],
+): Promise<{ success: boolean; message: string; people: OwnerPerson[] }> {
+  if (!userId) return { success: false, message: "userId requerido.", people: [] };
+  try {
+    await assertCanManage(userId);
+  } catch {
+    return { success: false, message: "No autorizado.", people: [] };
   }
 
+  // Validación básica de cada persona.
+  for (const p of people) {
+    const digits = (p.phone ?? "").replace(/\D/g, "");
+    if (digits.length < 7) {
+      return { success: false, message: "Cada persona necesita un número válido (mínimo 7 dígitos).", people: [] };
+    }
+    if (!(p.name ?? "").trim()) {
+      return { success: false, message: "Cada persona necesita un nombre.", people: [] };
+    }
+  }
+
+  const serialized = serializeOwnerPeople(people);
+  const saved = parseOwnerPeople(serialized);
+
   try {
-    await db.user.update({
-      where: { id: userId },
-      data: { ownerModeEnabled: enabled, ownerModePhone: digits || null },
-    });
+    await db.user.update({ where: { id: userId }, data: { ownerModePhone: serialized } });
     revalidatePath("/profile");
-    return {
-      success: true,
-      message: enabled ? "Modo Dueño activado." : "Modo Dueño desactivado.",
-    };
+    return { success: true, message: "Guardado.", people: saved };
   } catch {
-    return { success: false, message: "Error al guardar la configuración." };
+    return { success: false, message: "Error al guardar.", people: [] };
   }
 }

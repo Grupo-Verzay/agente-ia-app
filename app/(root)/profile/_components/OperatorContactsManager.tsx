@@ -49,8 +49,12 @@ export function OperatorContactsManager({ userId }: Props) {
         setLoading(true);
         const result = await getOperatorContacts(userId);
         if (result.success) {
-            setOperators(result.data ?? []);
+            const list = result.data ?? [];
+            setOperators(list);
             setEnabled(!!result.bridgeEnabled);
+            // Compacto por defecto: se muestra el botón "Agregar operario"; el
+            // formulario se abre al hacer clic y se cierra al guardar/cancelar.
+            setShowAddForm(false);
         }
         setLoading(false);
     }, [userId]);
@@ -165,24 +169,29 @@ export function OperatorContactsManager({ userId }: Props) {
     const canAddMore = operators.length < MAX_OPERATORS;
 
     return (
-        <div className="space-y-3">
+        <div className="flex flex-col">
             {/* Header + toggle */}
-            <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                    <Headset className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <div className="flex items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <Headset className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">
                         Puente con operario
                     </span>
+                    {operators.length > 0 && (
+                        <span className="ml-1 shrink-0 rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary">
+                            {operators.length}
+                        </span>
+                    )}
                 </div>
                 <Switch checked={enabled} onCheckedChange={handleToggleEnabled} disabled={savingEnabled} />
             </div>
 
-            <p className="text-xs text-muted-foreground">
-                Cuando la IA no puede resolver, consulta a un operario por WhatsApp (desde la línea del negocio),
-                y al recibir su respuesta la reformula y se la envía al cliente.
+            <p className="mt-2 text-xs text-muted-foreground shrink-0">
+                Si la IA no puede resolver, pasa la consulta a un operario.
             </p>
 
-            {/* Lista */}
+            {/* Lista con scroll interno: crece hasta un tope y luego hace scroll */}
+            <div className="mt-3 max-h-[220px] overflow-y-auto pr-1">
             {loading ? (
                 <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -291,12 +300,6 @@ export function OperatorContactsManager({ userId }: Props) {
                         ),
                     )}
 
-                    {operators.length === 0 && !showAddForm && (
-                        <p className="text-xs text-muted-foreground text-center py-1">
-                            Aún no hay operarios. Agrega al menos uno para activar el puente.
-                        </p>
-                    )}
-
                     {/* Add form */}
                     {showAddForm ? (
                         <div className="flex flex-col gap-2 px-3 py-2.5 rounded-lg border border-dashed border-primary/40 bg-primary/5">
@@ -338,7 +341,7 @@ export function OperatorContactsManager({ userId }: Props) {
                             <div className="flex gap-2">
                                 <Button size="sm" className="h-7 text-xs flex-1" onClick={handleAdd} disabled={saving || !newName.trim() || !newPhone.trim()}>
                                     {saving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
-                                    Agregar
+                                    Guardar
                                 </Button>
                                 <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancelAdd} disabled={saving}>
                                     <X className="w-3 h-3 mr-1" />
@@ -367,6 +370,7 @@ export function OperatorContactsManager({ userId }: Props) {
                     )}
                 </div>
             )}
+            </div>
         </div>
     );
 }

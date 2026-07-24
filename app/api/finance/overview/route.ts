@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { auth } from '@/auth';
+import { currentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 
 function startOfMonth(d: Date) {
@@ -34,19 +34,12 @@ function calcTotal(row: { amount?: unknown; extra?: unknown; discount?: unknown 
 }
 
 export async function GET(request: NextRequest) {
-  const session = await auth();
-  const email = session?.user?.email;
-  if (!email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const me = await db.user.findUnique({
-    where: { email },
-    select: { id: true, preferredCurrencyCode: true },
-  });
-
+  // Cuenta activa (respeta impersonación/cuenta seleccionada), igual que las
+  // sub-páginas de Finanzas. Antes se resolvía por email → siempre el usuario
+  // logueado, dejando las tarjetas en $0 al ver la cuenta de otro.
+  const me = await currentUser();
   if (!me?.id) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const selectedMonth = parseMonthParam(request.nextUrl.searchParams.get('month'));
