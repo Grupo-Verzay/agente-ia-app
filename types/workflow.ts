@@ -6,11 +6,8 @@ export enum WorkflowStatus {
 export const MAX_NODES_PER_WORKFLOW = 50;
 export const MAX_SEGUIMIENTOS_PER_WORKFLOW = 50;
 
-// Un solo creador de flujos: todo abre en el editor visual (/workflow).
-// Se conserva el parámetro isPro por compatibilidad con las llamadas
-// existentes, pero ya no cambia la ruta.
-export function getWorkflowEditorPath(workflowId: string, _isPro = false) {
-  return `/workflow/${workflowId}`;
+export function getWorkflowEditorPath(workflowId: string, isPro = false) {
+  return isPro ? `/workflow/${workflowId}` : `/flow/${workflowId}`;
 }
 
 export type UpdateNodePositionInput = {
