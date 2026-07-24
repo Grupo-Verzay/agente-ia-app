@@ -1,5 +1,6 @@
 import AccessDenied from "@/app/AccessDenied";
 import { getFinanceUser } from "@/lib/finance-user";
+import { currentUser } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -17,11 +18,18 @@ export default async function SalesPage({
   const user = await getFinanceUser();
   if (!user?.id) return <AccessDenied />;
 
+  // Dinero (cuentas, ventas, categorías) → cuenta del titular (finance-user).
+  // Catálogo de productos y contactos → cuenta operativa (la misma de /products
+  // y del CRM, resuelta por effectiveId), para que la venta liste los productos
+  // reales y no los de otra cuenta.
+  const auth = await currentUser();
+  const opScopeId = auth?.effectiveId ?? auth?.id ?? user.id;
+
   const [metaRes, listRes, productsRes, sessionsRes] = await Promise.all([
     getSalesMeta(user.id),
     getAllSales(user.id),
-    listProducts({ userId: user.id, q: "", page: 1, perPage: 50, onlyActive: true }),
-    getSessionsByUserId(user.id, 0, 30, true),
+    listProducts({ userId: opScopeId, q: "", page: 1, perPage: 50, onlyActive: true }),
+    getSessionsByUserId(opScopeId, 0, 30, true),
   ]);
 
   if (!metaRes.success) return <div className="p-6 text-sm text-red-500">{metaRes.message}</div>;
