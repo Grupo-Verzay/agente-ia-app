@@ -49,8 +49,12 @@ export function OperatorContactsManager({ userId }: Props) {
         setLoading(true);
         const result = await getOperatorContacts(userId);
         if (result.success) {
-            setOperators(result.data ?? []);
+            const list = result.data ?? [];
+            setOperators(list);
             setEnabled(!!result.bridgeEnabled);
+            // Sin operarios: mostramos el formulario directo (como el Modo dueño),
+            // en vez del botón grande "Agregar operario".
+            setShowAddForm(list.length === 0);
         }
         setLoading(false);
     }, [userId]);
@@ -337,12 +341,14 @@ export function OperatorContactsManager({ userId }: Props) {
                             <div className="flex gap-2">
                                 <Button size="sm" className="h-7 text-xs flex-1" onClick={handleAdd} disabled={saving || !newName.trim() || !newPhone.trim()}>
                                     {saving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
-                                    Agregar
+                                    Guardar
                                 </Button>
-                                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancelAdd} disabled={saving}>
-                                    <X className="w-3 h-3 mr-1" />
-                                    Cancelar
-                                </Button>
+                                {operators.length > 0 && (
+                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancelAdd} disabled={saving}>
+                                        <X className="w-3 h-3 mr-1" />
+                                        Cancelar
+                                    </Button>
+                                )}
                             </div>
                         </div>
                     ) : (
