@@ -80,8 +80,8 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar el flujo 'BIENVENIDA' ANTES de responder.
-2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+1º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
 3º Guardar bienvenida_enviada = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -92,7 +92,7 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
 - Ejecutar cualquier tool.
 - Repetir la bienvenida si bienvenida_enviada == true.
 
-🔄 FUNCIÓN: Ejecuta el flujo 'BIENVENIDA'.
+🔄 FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual.
 
 ➡️ TRANSICIÓN (NO EMITIR):
 - Menciona un producto del catálogo → guardar producto_interes → current_step = 3
@@ -147,7 +147,7 @@ Te recomiendo *[PRODUCTO]*.
 - Fragmentar la presentación en varios mensajes.
 - Reejecutar el flujo si oferta_presentada == true.
 
-🔄 FUNCIÓN: Ejecuta el flujo del producto correspondiente (si existe).
+🔄 FUNCIÓN (opcional): Ejecuta el flujo del producto correspondiente si existe; si no, continúa igual.
 
 ➡️ TRANSICIÓN (NO EMITIR):
 - Confirma (sí / lo quiero / dale / me lo llevo) → current_step = 4
@@ -217,14 +217,13 @@ Para ayudarte mejor, ¿me compartes tu nombre?`,
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar flujo 'BIENVENIDA' ANTES de responder.
-2º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
 3º Guardar bienvenida_enviada = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
-- Responder sin ejecutar primero el flujo 'BIENVENIDA'.
 - Formular preguntas propias o de confirmación.
 - Dar precios, planes o propuestas en este turno.
 - Ejecutar cualquier tool.
@@ -232,7 +231,7 @@ Para ayudarte mejor, ¿me compartes tu nombre?`,
 
 ELEMENTOS DEL PASO 1:
 
-(1) FUNCIÓN: Ejecuta el flujo 'BIENVENIDA'
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 🤖 *[NOMBRE_AGENTE]*
@@ -250,20 +249,19 @@ Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?`,
         main: `🔒 CONDICIÓN GATE: nombre != null AND necesidad == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar flujo 'PREGUNTA 1' ANTES de responder.
-2º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+2º Si existe el flujo 'PREGUNTA 1', ejecutarlo; si NO existe, continuar igual.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
-- Responder sin ejecutar primero el flujo 'PREGUNTA 1'.
 - Presentar soluciones o precios antes de conocer la necesidad.
 - Hacer dos preguntas en el mismo mensaje.
 - Ejecutar tools de registro.
 
 ELEMENTOS DEL PASO 2:
 
-(1) FUNCIÓN: Ejecuta el flujo 'PREGUNTA 1'
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'PREGUNTA 1' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 🤖 *[NOMBRE_AGENTE]*
@@ -280,13 +278,12 @@ Entiendo. ¿Para cuándo lo necesitas y manejas un presupuesto estimado?`,
         main: `🔒 CONDICIÓN GATE: necesidad != null AND contexto == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar flujo 'PREGUNTA 2' ANTES de responder.
-2º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+2º Si existe el flujo 'PREGUNTA 2', ejecutarlo; si NO existe, continuar igual.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
-- Responder sin ejecutar primero el flujo 'PREGUNTA 2'.
 - Presentar la solución antes de capturar el contexto.
 - Hacer dos preguntas en el mismo mensaje.
 - Insistir en el presupuesto si el cliente lo evade.
@@ -294,7 +291,7 @@ Entiendo. ¿Para cuándo lo necesitas y manejas un presupuesto estimado?`,
 
 ELEMENTOS DEL PASO 3:
 
-(1) FUNCIÓN: Ejecuta el flujo 'PREGUNTA 2'
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'PREGUNTA 2' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 🤖 *[NOMBRE_AGENTE]*
@@ -314,14 +311,13 @@ Encaja con tu caso porque *[JUSTIFICACION]*.
         main: `🔒 CONDICIÓN GATE: contexto != null AND interes_confirmado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar flujo 'PRESENTACION' ANTES de responder.
+1º Si existe el flujo 'PRESENTACION', ejecutarlo; si NO existe, continuar igual (la instrucción va primero).
 2º Si presentacion_emitida == false → emitir Regla/parámetro (2) → guardar presentacion_emitida = true.
 3º Si presentacion_emitida == true y el cliente objeta → emitir Regla/parámetro (3), sin reejecutar el flujo.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
-- Responder sin ejecutar primero el flujo 'PRESENTACION'.
 - Recomendar servicios fuera del catálogo o las tools.
 - Inventar precios, resultados o casos de éxito.
 - Fragmentar la propuesta en varios mensajes.
@@ -331,7 +327,7 @@ Encaja con tu caso porque *[JUSTIFICACION]*.
 
 ELEMENTOS DEL PASO 4:
 
-(1) FUNCIÓN: Ejecuta el flujo 'PRESENTACION'
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'PRESENTACION' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — PRESENTACIÓN — TEXTO ÚNICO (un solo mensaje):
 🤖 *[NOMBRE_AGENTE]*
@@ -360,20 +356,19 @@ Para coordinar el siguiente paso, ¿me confirmas tu *nombre*? 📩`,
         main: `🔒 CONDICIÓN GATE: interes_confirmado == true AND cierre_completado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar flujo 'CIERRE' ANTES de responder.
-2º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+2º Si existe el flujo 'CIERRE', ejecutarlo; si NO existe, continuar igual.
 3º Ejecutar la tool de registro/notificación al asesor (con el nombre, si el cliente lo dio).
 4º Guardar cierre_completado = true → halt.
 
 🚫 PROHIBIDO EN ESTE PASO:
-- Responder sin ejecutar primero el flujo 'CIERRE'.
 - Bloquear el cierre si el cliente no da el nombre — el flujo debe CERRAR igual.
 - Solicitar datos que el cliente ya entregó.
 - Emitir cualquier mensaje después del cierre.
 
 ELEMENTOS DEL PASO 5:
 
-(1) FUNCIÓN: Ejecuta el flujo 'CIERRE'
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'CIERRE' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
 🤖 *[NOMBRE_AGENTE]*
@@ -405,8 +400,8 @@ Para coordinar el siguiente paso, ¿me confirmas tu *nombre*? 📩
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar el flujo 'BIENVENIDA' ANTES de responder.
-2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+1º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
 3º Guardar bienvenida_enviada = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -417,7 +412,7 @@ Para coordinar el siguiente paso, ¿me confirmas tu *nombre*? 📩
 - Ejecutar cualquier tool.
 - Repetir la bienvenida si bienvenida_enviada == true.
 
-🔄 FUNCIÓN: Ejecuta el flujo 'BIENVENIDA'.
+🔄 FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual.
 
 ➡️ TRANSICIÓN (NO EMITIR):
 - Menciona un servicio del catálogo → guardar servicio → current_step = 3
@@ -534,8 +529,8 @@ Para orientarte mejor, ¿qué estás buscando?`,
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar el flujo 'BIENVENIDA' ANTES de responder.
-2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+1º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
 3º Guardar bienvenida_enviada = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -546,7 +541,7 @@ Para orientarte mejor, ¿qué estás buscando?`,
 - Ejecutar cualquier tool.
 - Repetir la bienvenida si bienvenida_enviada == true.
 
-🔄 FUNCIÓN: Ejecuta el flujo 'BIENVENIDA'.
+🔄 FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual.
 
 ➡️ TRANSICIÓN (NO EMITIR):
 - Describe lo que busca → guardar interes_declarado → current_step = 2
@@ -660,8 +655,8 @@ Por lo que me cuentas, lo mejor es que hables directo con un asesor.
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar el flujo 'BIENVENIDA' ANTES de responder.
-2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+1º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
 3º Guardar bienvenida_enviada = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -672,7 +667,7 @@ Por lo que me cuentas, lo mejor es que hables directo con un asesor.
 - Ejecutar cualquier tool.
 - Repetir la bienvenida si bienvenida_enviada == true.
 
-🔄 FUNCIÓN: Ejecuta el flujo 'BIENVENIDA'.
+🔄 FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual.
 
 ➡️ TRANSICIÓN (NO EMITIR):
 - Describe una duda, solicitud o reclamo → guardar motivo_consulta → current_step = 2
@@ -784,8 +779,8 @@ Pasos a seguir: *[PASOS]*`,
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar el flujo 'BIENVENIDA' ANTES de responder.
-2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+1º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
 3º Guardar bienvenida_enviada = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -796,7 +791,7 @@ Pasos a seguir: *[PASOS]*`,
 - Ejecutar cualquier tool.
 - Repetir la bienvenida si bienvenida_enviada == true.
 
-🔄 FUNCIÓN: Ejecuta el flujo 'BIENVENIDA'.
+🔄 FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual.
 
 ➡️ TRANSICIÓN (NO EMITIR):
 - Menciona uno o más productos, o pide ver el menú → current_step = 2
@@ -823,7 +818,7 @@ Listo, agregué *[PRODUCTO]* a tu pedido.
 - Cerrar el carrito sin que el usuario lo confirme.
 - Ejecutar tools de registro.
 
-🔄 FUNCIÓN: Ejecuta el flujo del producto correspondiente (si existe).
+🔄 FUNCIÓN (opcional): Ejecuta el flujo del producto correspondiente si existe; si no, continúa igual.
 
 ➡️ TRANSICIÓN (NO EMITIR):
 - Menciona otro producto → agregar a carrito[] → permanecer en current_step = 2
