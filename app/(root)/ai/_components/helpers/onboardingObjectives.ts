@@ -819,14 +819,14 @@ Déjame tu *nombre* y *correo* y te envío material útil para cuando estés lis
     steps: [
       { t: "BIENVENIDA",
         variable: "motivo_consulta",
-        condicion: "Describe duda/solicitud/reclamo → guardar motivo_consulta → paso 2. Tono molesto → caso_sensible=true → paso 2.",
+        condicion: "Captura el motivo. Si el tono es molesto, marca caso_sensible. Si solo saluda, repregunta 1 vez y avanza — no bloquear.",
         ex: `¡Hola! 👋 Soporte de *[NOMBRE_NEGOCIO]*.
 ¿En qué puedo ayudarte hoy?`,
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
 2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
 3º Guardar bienvenida_enviada = true.
 
@@ -838,18 +838,31 @@ Déjame tu *nombre* y *correo* y te envío material útil para cuando estés lis
 - Ejecutar cualquier tool.
 - Repetir la bienvenida si bienvenida_enviada == true.
 
-🔄 FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual.
+ELEMENTOS DEL PASO 1:
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Describe una duda, solicitud o reclamo → guardar motivo_consulta → current_step = 2
-- El tono es molesto o de reclamo → guardar caso_sensible = true → current_step = 2
-- Saluda sin explicar nada → permanecer en current_step = 1, sin repetir la bienvenida.` },
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+¡Hola! 👋 Soporte de *[NOMBRE_NEGOCIO]*.
+¿En qué puedo ayudarte hoy?
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Describe una duda, solicitud o reclamo → guardar en silencio motivo_consulta → current_step = 2
+- Si el tono es molesto o de reclamo → guardar caso_sensible = true → current_step = 2
+- Saluda sin explicar nada → pedirlo una vez más, sin repetir la bienvenida.
+- Tras repreguntar 1 vez sin describir → guardar motivo_consulta = "no definido" → current_step = 2` },
       { t: "IDENTIFICACIÓN",
         variable: "datos_caso",
-        condicion: "Entrega los datos → guardar datos_caso → paso 3. Entrega parte → pedir solo lo faltante. Si caso_sensible → una frase de empatía primero.",
+        condicion: "Captura nombre + número de pedido/servicio. Si no lo tiene, acepta nombre + fecha o marca \"sin identificar\" y avanza — no bloquear.",
         ex: `Para ubicar tu caso, ¿me compartes tu *nombre* y tu *número de pedido o servicio*? 📋`,
         main: `🔒 CONDICIÓN GATE: motivo_consulta != null AND datos_caso == null
-💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+📝 PLACEHOLDER: si caso_sensible == true → anteponer UNA sola frase de empatía antes del texto (ej: "Lamento el inconveniente.").
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+2º Si existe el flujo 'IDENTIFICACION', ejecutarlo; si NO existe, continuar igual.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
 - Dar información sensible antes de identificar el caso.
@@ -857,21 +870,29 @@ Déjame tu *nombre* y *correo* y te envío material útil para cuando estés lis
 - Adelantar la solución sin haber identificado el caso.
 - Ejecutar tools de registro.
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Entrega los datos → guardar datos_caso → current_step = 3
+ELEMENTOS DEL PASO 2:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'IDENTIFICACION' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+Para ubicar tu caso, ¿me compartes tu *nombre* y tu *número de pedido o servicio*? 📋
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Entrega los datos → guardar en silencio datos_caso → current_step = 3
 - Entrega solo parte → pedir únicamente lo faltante, sin repetir la pregunta completa.
-- No tiene número de pedido → aceptar nombre + fecha aproximada → current_step = 3
-- Si caso_sensible == true → anteponer una sola frase de empatía antes de pedir los datos.` },
+- No tiene número de pedido → aceptar nombre + fecha aproximada → guardar datos_caso → current_step = 3
+- Tras pedir 1 vez sin dar datos → guardar datos_caso = "sin identificar" → current_step = 3` },
       { t: "VALIDACIÓN",
-        variable: "estado_caso, caso_validado",
-        condicion: "Caso encontrado → guardar estado_caso → paso 4. No encontrado → repreguntar el dato (tras 2 intentos → 'requiere_humano').",
+        variable: "—",
+        condicion: "Consulta el caso en la fuente. Si lo encuentra, guarda su estado. Si no, tras 2 intentos lo marca \"requiere_humano\" y avanza — no bloquear.",
         ex: `Gracias, ya tengo tu caso. Estoy revisando la información, dame un momento. 🔎`,
         main: `🔒 CONDICIÓN GATE: datos_caso != null AND caso_validado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Consultar el caso en la fuente disponible (base de conocimiento, Sheet, CRM o tool de consulta).
-2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
-3º Guardar caso_validado = true.
+1º Si existe el flujo 'VALIDACION', ejecutarlo; si NO existe, continuar igual (la instrucción va primero).
+2º Consultar el caso en la fuente disponible (base de conocimiento, Sheet, CRM o tool de consulta).
+3º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+4º Guardar caso_validado = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
@@ -880,20 +901,27 @@ Déjame tu *nombre* y *correo* y te envío material útil para cuando estés lis
 - Prometer soluciones antes de confirmar la información.
 - Ejecutar tools de registro o notificación.
 
-➡️ TRANSICIÓN (NO EMITIR):
+ELEMENTOS DEL PASO 3:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'VALIDACION' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+Gracias, ya tengo tu caso. Estoy revisando la información, dame un momento. 🔎
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
 - Caso encontrado → guardar estado_caso → current_step = 4
-- Caso NO encontrado → emitir: "No encuentro ese registro 😕 ¿Me confirmas el dato?" → permanecer en current_step = 3
-- Tras 2 intentos sin encontrarlo → current_step = 4 con estado_caso = "requiere_humano"` },
+- Caso NO encontrado → emitir: "No encuentro ese registro 😕 ¿Me confirmas el dato?" → repreguntar una vez.
+- Tras 2 intentos sin encontrarlo → guardar estado_caso = "requiere_humano" → current_step = 4` },
       { t: "RESOLUCIÓN",
-        variable: "solucion_entregada",
-        condicion: "Solución entregada o caso escalado → paso 5. Pide más detalle → responder sin reejecutar el flujo.",
+        variable: "—",
+        condicion: "Entrega la solución o escala al humano. Si pide más detalle, responde sin reejecutar y avanza al cierre — no bloquear.",
         ex: `Esto es lo que encontré: *[ESTADO_O_SOLUCIÓN]*
 Pasos a seguir: *[PASOS]*`,
         main: `🔒 CONDICIÓN GATE: caso_validado == true AND solucion_entregada == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar el flujo de resolución correspondiente al caso, si existe.
-2º Emitir ÚNICAMENTE el texto de "lo que dice el agente" (o el de caso escalado, según corresponda).
+1º Si existe el flujo 'RESOLUCION', ejecutarlo; si NO existe, continuar igual (la instrucción va primero).
+2º Emitir Regla/parámetro (2) si hay solución, o Regla/parámetro (3) si el caso requiere humano.
 3º Guardar solucion_entregada = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
@@ -904,31 +932,51 @@ Pasos a seguir: *[PASOS]*`,
 - Fragmentar la respuesta en varios mensajes.
 - Ejecutar tools de registro.
 
-🔄 FUNCIÓN: Ejecuta el flujo de resolución correspondiente (si existe).
+ELEMENTOS DEL PASO 4:
 
-📌 CASO SIN SOLUCIÓN (escalado): "Tu caso necesita revisión de un especialista. Ya lo escalé al área encargada y te contactarán en *[PLAZO]*. 🙏"
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'RESOLUCION' si existe; si no, continúa igual
 
-➡️ TRANSICIÓN (NO EMITIR):
+(2) REGLA/PARÁMETRO — CASO CON SOLUCIÓN — TEXTO ÚNICO (un solo mensaje):
+Esto es lo que encontré: *[ESTADO_O_SOLUCIÓN]*
+Pasos a seguir: *[PASOS]*
+
+(3) REGLA/PARÁMETRO — CASO SIN SOLUCIÓN — TEXTO ÚNICO (un solo mensaje):
+Tu caso necesita revisión de un especialista. Ya lo escalé al área encargada y te contactarán en *[PLAZO]*. 🙏
+
+(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
 - Solución entregada → current_step = 5
 - Caso escalado (estado_caso == "requiere_humano") → current_step = 5
 - Usuario pide más detalle → responder sin reejecutar el flujo → permanecer en current_step = 4` },
       { t: "CIERRE (paso final)",
-        variable: "caso_cerrado",
-        condicion: "Confirma resuelto → caso_cerrado → despedida → fin (halt). NO resuelto → volver a paso 4. Caso nuevo → reiniciar en paso 2.",
+        variable: "—",
+        condicion: "Confirma si quedó resuelto. Si no, vuelve a Resolución. Si plantea otro caso, reinicia en Identificación. Cierra siempre. Fin del flujo.",
         ex: `¿Esto resuelve tu solicitud? ¿Puedo ayudarte con algo más? 😊`,
         main: `🔒 CONDICIÓN GATE: solucion_entregada == true AND caso_cerrado == false
-💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+2º Si existe el flujo 'CIERRE', ejecutarlo; si NO existe, continuar igual.
+3º Guardar caso_cerrado = true → halt.
 
 🚫 PROHIBIDO EN ESTE PASO:
 - Cerrar el caso sin confirmar si el usuario quedó conforme.
 - Insistir con la encuesta si el usuario no responde.
 - Emitir cualquier mensaje después del cierre.
 
-➡️ TRANSICIÓN (NO EMITIR):
+ELEMENTOS DEL PASO 5:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'CIERRE' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+¿Esto resuelve tu solicitud? ¿Puedo ayudarte con algo más? 😊
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
 - Confirma que quedó resuelto → guardar caso_cerrado = true → emitir despedida breve → halt
 - Dice que NO quedó resuelto → solucion_entregada = false → current_step = 4
 - Plantea un caso nuevo → reiniciar desde current_step = 2 con nuevo motivo_consulta
+- No responde tras la pregunta → guardar caso_cerrado = true → halt (no insistir)
 
+(4) NOTA DE CONTROL (NO EMITIR):
 ⛔ FIN DEL FLUJO al confirmarse el cierre. PROHIBIDO emitir contenido adicional.` },
     ],
   },
