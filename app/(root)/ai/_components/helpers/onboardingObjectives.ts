@@ -30,6 +30,7 @@ export function fillBusinessVars(
     "[tu negocio]": biz.nombre,
     "[el negocio]": biz.nombre,
     "[nombre del negocio]": biz.nombre,
+    "[NOMBRE_NEGOCIO]": biz.nombre,
     "[dirección]": biz.ubicacion,
     "[direccion]": biz.ubicacion,
     "[días/horas]": biz.horario,
@@ -56,16 +57,127 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
     id: "venta-directa", em: "⚡", title: "Venta Directa",
     desc: "5 fases: ventas rápidas con foco en cerrar.",
     steps: [
-      { t: "BIENVENIDA", ex: "¡Hola! 👋 Gracias por escribir a [tu negocio]. ¿Qué te interesa?",
-        main: "🎯 Recibir al cliente y abrir la conversación.\n• Saluda cálido con el nombre del negocio.\n• Si ya trae una intención clara (producto, precio, cita), salta directo a ese paso.\n• Si no, haz UNA sola pregunta de apertura.\n📌 Un solo mensaje por turno; espera la respuesta.\n➡️ Cuando responda → PRODUCTO DE INTERÉS." },
-      { t: "PRODUCTO DE INTERÉS", ex: "¿Qué producto o servicio buscas? Te doy los detalles.",
-        main: "🎯 Saber qué producto o servicio busca.\n• Pregunta solo lo necesario para entender su necesidad.\n• No des precios aún si falta contexto.\n📌 Aplica tras la bienvenida.\n➡️ Cuando quede claro → PRESENTACIÓN." },
-      { t: "PRESENTACIÓN", ex: "Te muestro las opciones, precios y beneficios.",
-        main: "🎯 Presentar la mejor opción.\n• Muestra producto, precio y 2-3 beneficios clave.\n• Claro y sin abrumar.\n📌 Aplica cuando ya sabes qué busca.\n➡️ Cuando muestre interés o una duda → CIERRE." },
-      { t: "CIERRE", ex: "¿Te lo aparto? Para cerrar necesito tu nombre y forma de pago.",
-        main: "🎯 Cerrar la venta y capturar datos.\n• Invita a concretar.\n• Pide uno a la vez: nombre completo, luego método de pago/envío.\n📌 No repitas datos que el cliente ya dio.\n➡️ Cuando confirme la compra → FINALIZACIÓN." },
-      { t: "FINALIZACIÓN", ex: "¡Gracias por tu compra! Cualquier duda, escríbeme por aquí.",
-        main: "🎯 Confirmar y fidelizar.\n• Confirma el pedido: producto + total + entrega.\n• Agradece y activa el seguimiento postventa.\n✅ Fin del flujo." },
+      { t: "BIENVENIDA",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
+¿Qué producto te interesa?`,
+        main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
+🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Ejecutar el flujo 'BIENVENIDA' ANTES de responder.
+2º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+3º Guardar bienvenida_enviada = true.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Formular preguntas propias o de confirmación.
+- Dar precios en este turno.
+- Ejecutar cualquier tool.
+- Repetir la bienvenida si bienvenida_enviada == true.
+
+🔄 FUNCIÓN: Ejecuta el flujo 'BIENVENIDA'.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Menciona un producto del catálogo → guardar producto_interes → current_step = 3
+- Pregunta por precio de un producto concreto → guardar producto_interes → current_step = 3
+- Escribe sin intención clara → current_step = 2
+- Saluda sin pedir nada → permanecer en current_step = 1, sin repetir la bienvenida.` },
+      { t: "PRODUCTO DE INTERÉS",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+Tenemos:
+1️⃣ *[CATEGORIA_1]*
+2️⃣ *[CATEGORIA_2]*
+3️⃣ *[CATEGORIA_3]*
+¿Cuál te interesa?`,
+        main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND producto_interes == null
+💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Dar precios antes de identificar el producto.
+- Inventar productos o categorías fuera del catálogo o las tools.
+- Hacer dos preguntas en el mismo mensaje.
+- Ejecutar tools de registro.
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Elige una opción o nombra un producto del catálogo → guardar producto_interes → current_step = 3
+- Nombra algo fuera del catálogo → emitir: "Ese no lo manejamos 😕 ¿Te interesa alguno de la lista?" → permanecer en current_step = 2
+- Otra cosa → repreguntar la lista una vez, sin avanzar.` },
+      { t: "PRESENTACIÓN",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+Te recomiendo *[PRODUCTO]*.
+✅ *[BENEFICIO_1]*
+✅ *[BENEFICIO_2]*
+✅ *[BENEFICIO_3]*
+💰 *[PRECIO]*
+¿Te lo llevas?`,
+        main: `🔒 CONDICIÓN GATE: producto_interes != null AND oferta_presentada == false
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Ejecutar el flujo del producto correspondiente, si existe.
+2º Validar disponibilidad y precio en el catálogo o las tools.
+3º Emitir ÚNICAMENTE el texto de "lo que dice el agente", como UN SOLO MENSAJE.
+4º Guardar oferta_presentada = true.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Inventar precios, stock o características.
+- Presentar más de una opción a la vez si abruma.
+- Fragmentar la presentación en varios mensajes.
+- Reejecutar el flujo si oferta_presentada == true.
+
+🔄 FUNCIÓN: Ejecuta el flujo del producto correspondiente (si existe).
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Confirma (sí / lo quiero / dale / me lo llevo) → current_step = 4
+- Pide otra opción → producto_interes = null → oferta_presentada = false → current_step = 2
+- Objeta el precio o pregunta detalles → responder sin reejecutar el flujo → permanecer en current_step = 3` },
+      { t: "CIERRE",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+¡Perfecto! ¿A nombre de quién registro el pedido? 📝`,
+        main: `🔒 CONDICIÓN GATE: oferta_presentada == true AND datos_completos == false
+💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Pedir todos los datos en un solo mensaje.
+- Solicitar datos que el cliente ya entregó.
+- Ofrecer métodos de pago o envío no habilitados por el negocio.
+- Ejecutar tools de registro.
+
+💬 SEGUNDA PREGUNTA (tras recibir el nombre):
+🤖 *[NOMBRE_AGENTE]*
+Gracias. ¿Cómo prefieres pagar y recibirlo?
+1️⃣ *[METODO_1]*
+2️⃣ *[METODO_2]*
+3️⃣ *[METODO_3]*
+
+➡️ TRANSICIÓN (NO EMITIR):
+- Entrega el nombre → guardar nombre → emitir la SEGUNDA PREGUNTA → permanecer en current_step = 4
+- Elige método de pago/envío → guardar metodo_pago y datos_envio → datos_completos = true → current_step = 5
+- Falta un dato → pedir únicamente lo faltante, sin repetir el mensaje completo.` },
+      { t: "FINALIZACIÓN",
+        ex: `🤖 *[NOMBRE_AGENTE]*
+¡Listo, *[NOMBRE]*! Tu pedido quedó confirmado ✅
+🛍️ *[PRODUCTO]*
+💰 Total: *[TOTAL]*
+🚚 Entrega: *[TIEMPO_ENTREGA]*
+Te avisamos cuando salga. ¡Gracias por tu compra! 🎉`,
+        main: `🔒 CONDICIÓN GATE: datos_completos == true AND seguimiento_activado == false
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Ejecutar la tool de registro/notificación del pedido.
+2º Emitir ÚNICAMENTE el texto de "lo que dice el agente", como UN SOLO MENSAJE.
+3º Activar el seguimiento postventa programado.
+4º Guardar seguimiento_activado = true → halt.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Emitir cualquier mensaje después de este.
+- Inventar tiempos de entrega no definidos en el catálogo o las tools.
+- Fragmentar la confirmación en varios mensajes.
+
+⛔ FIN DEL FLUJO. Este es el último paso. PROHIBIDO avanzar a pasos posteriores o emitir contenido adicional.` },
     ],
   },
   {
