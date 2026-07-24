@@ -148,7 +148,9 @@ const InputSuffix = ({
 // ── Tab content wrapper (consistent inner padding + scroll) ───────────────────
 const TabPanel = ({ children }: { children: React.ReactNode }) => (
     <ScrollArea className="h-full">
-        <div className="p-4 space-y-4 pb-6">{children}</div>
+        {/* Sin padding lateral: el contenido queda alineado al borde, igual que
+            la cabecera y las pestañas (patrón del resto de la app). */}
+        <div className="py-4 space-y-4 pb-6">{children}</div>
     </ScrollArea>
 );
 
