@@ -16,9 +16,12 @@ interface UserWorkflowsProps {
     isPro: boolean;
     triggers?: IntentTrigger[];
     showSummary?: boolean;
+    /** Muestra TODOS los flujos (sin filtrar por isPro). Se usa en el creador
+     *  unificado (/workflow), donde conviven los flujos antiguos y los nuevos. */
+    includeAll?: boolean;
 }
 
-export async function UserWorkflows({ userId, isPro, triggers = [], showSummary = false }: UserWorkflowsProps) {
+export async function UserWorkflows({ userId, isPro, triggers = [], showSummary = false, includeAll = false }: UserWorkflowsProps) {
     const resWorkflow = await getWorkFlowByUser(userId);
 
     if (!hasWorkflow(resWorkflow)) {
@@ -32,7 +35,7 @@ export async function UserWorkflows({ userId, isPro, triggers = [], showSummary 
     }
 
     const workflows = resWorkflow.data;
-    const visibleWorkflows = workflows.filter(workflow => workflow.isPro === isPro);
+    const visibleWorkflows = includeAll ? workflows : workflows.filter(workflow => workflow.isPro === isPro);
     const flowTypeCounts = visibleWorkflows.reduce(
         (counts, workflow) => {
             if (workflow.triggerOnNewSession) {

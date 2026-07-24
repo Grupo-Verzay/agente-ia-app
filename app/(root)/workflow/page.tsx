@@ -29,7 +29,7 @@ const WorkflowPage = async () => {
   return (
     <div className="flex h-full flex-col">
       <Suspense fallback={<UserWorkFlowSkeleton />}>
-        <UserWorkflows userId={user.effectiveId} isPro={true} triggers={triggers} showSummary />
+        <UserWorkflows userId={user.effectiveId} isPro={true} includeAll triggers={triggers} showSummary />
       </Suspense>
     </div>
   );
