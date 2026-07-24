@@ -204,8 +204,14 @@ export async function completeAgentOnboarding(
           const says = fillBusinessVars(clean(s.message), b);
           return {
             id: uid(),
-            title: (def?.t ?? clean(s.title)).toUpperCase(),
+            // El título del embudo ya viene con el formato correcto (MAYÚSCULA y
+            // " (paso final)" en el último). Solo se fuerza mayúscula en los
+            // pasos EXTRA que el usuario agregó a mano.
+            title: def?.t ?? clean(s.title).toUpperCase(),
             mainMessage: def?.main ?? says,
+            // Motor de Flujo: variable que recoge + condición para avanzar.
+            variableQueRecoge: def?.variable ?? "",
+            condicionParaAvanzar: def?.condicion ?? "",
             elements: says ? [{ id: uid(), kind: "text", text: says }] : ([] as any[]),
           };
         }),
