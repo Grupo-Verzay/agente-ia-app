@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { BASE_TRAINING_AGENT_ID } from "@/lib/channel-training";
+import { ONBOARDING_OBJECTIVES } from "@/app/(root)/ai/_components/helpers/onboardingObjectives";
 import { getOrCreateChannelPrompt, publishPrompt } from "@/actions/system-prompt-actions";
 import { isAdminOrReseller } from "@/lib/rbac";
 
@@ -187,16 +188,26 @@ export async function completeAgentOnboarding(
       notas,
     };
 
-    // Camino del cliente → training.steps (title = paso, mainMessage = lo que dice).
+    // Camino del cliente → training.steps.
+    // Se INYECTA el contenido del embudo en "instrucciones del sistema"
+    // (mainMessage / Objetivo-respuesta principal), igual que al aplicar una
+    // plantilla; lo que el dueño escribió ("lo que dice el agente") va como
+    // elemento de texto. Los pasos EXTRA que agregó el usuario (más allá de los
+    // del embudo) conservan lo que escribió.
+    const objectiveSteps = ONBOARDING_OBJECTIVES.find((o) => o.id === input.objectiveId)?.steps ?? [];
     const training = {
       steps: (input.steps ?? [])
         .filter((s) => clean(s.title) || clean(s.message))
-        .map((s) => ({
-          id: uid(),
-          title: clean(s.title),
-          mainMessage: clean(s.message),
-          elements: [] as any[],
-        })),
+        .map((s, i) => {
+          const def = objectiveSteps[i];
+          const says = clean(s.message);
+          return {
+            id: uid(),
+            title: (def?.t ?? clean(s.title)).toUpperCase(),
+            mainMessage: def?.main ?? says,
+            elements: says ? [{ id: uid(), kind: "text", text: says }] : ([] as any[]),
+          };
+        }),
     };
 
     // Preguntas frecuentes → faq.steps (title = pregunta, mainMessage = respuesta).
