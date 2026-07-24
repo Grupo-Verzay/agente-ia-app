@@ -448,15 +448,15 @@ ELEMENTOS DEL PASO 5:
     desc: "5 fases: ofrece horarios y reserva la cita.",
     steps: [
       { t: "BIENVENIDA",
-        variable: "servicio",
-        condicion: "Menciona un servicio → guardar servicio → paso 3. Pide agendar sin decir servicio → paso 2. Reagendar/cancelar → derivar al flujo.",
+        variable: "servicio (opcional en este paso)",
+        condicion: "Si nombra un servicio del catálogo, va directo al paso 3. Si no, va al paso 2 para mostrarle las opciones — NO bloquear.",
         ex: `¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
 ¿Qué servicio te gustaría agendar?`,
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
 2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
 3º Guardar bienvenida_enviada = true.
 
@@ -468,36 +468,57 @@ ELEMENTOS DEL PASO 5:
 - Ejecutar cualquier tool.
 - Repetir la bienvenida si bienvenida_enviada == true.
 
-🔄 FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual.
+ELEMENTOS DEL PASO 1:
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Menciona un servicio del catálogo → guardar servicio → current_step = 3
-- Pide agendar sin decir el servicio → current_step = 2
-- Pide reagendar o cancelar → derivar al flujo correspondiente.
-- Saluda sin pedir nada → permanecer en current_step = 1, sin repetir la bienvenida.` },
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
+¿Qué servicio te gustaría agendar?
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Menciona un servicio del catálogo → guardar en silencio servicio → current_step = 3
+- Pide agendar sin decir el servicio → current_step = 2` },
       { t: "SERVICIO",
         variable: "servicio",
-        condicion: "Elige del catálogo → guardar servicio → paso 3. Fuera del catálogo → avisar y ofrecer la lista.",
+        condicion: "Captura el servicio. Si no elige, repregunta MÁX. 1 vez; luego guarda servicio = \"no definido\" y avanza — no ciclar.",
         ex: `Estos son nuestros servicios:
 1️⃣ *[SERVICIO_1]*
 2️⃣ *[SERVICIO_2]*
 3️⃣ *[SERVICIO_3]*
 ¿Cuál te interesa?`,
         main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND servicio == null
-💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+2º Si existe el flujo 'SERVICIO', ejecutarlo; si NO existe, continuar igual.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
 - Inventar servicios fuera del catálogo o las tools.
 - Ofrecer horarios antes de definir el servicio.
+- Hacer dos preguntas en el mismo mensaje.
 - Ejecutar tools de registro.
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Elige una opción o nombra un servicio del catálogo → guardar servicio → current_step = 3
-- Nombra algo fuera del catálogo → emitir: "Ese servicio no lo manejamos 😕 ¿Te interesa alguno de la lista?" → permanecer en current_step = 2
-- Otra cosa → repreguntar la lista una vez, sin avanzar.` },
+ELEMENTOS DEL PASO 2:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'SERVICIO' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+Estos son nuestros servicios:
+1️⃣ *[SERVICIO_1]*
+2️⃣ *[SERVICIO_2]*
+3️⃣ *[SERVICIO_3]*
+¿Cuál te interesa?
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Elige una opción o nombra un servicio del catálogo → guardar en silencio servicio → current_step = 3
+- Nombra algo fuera del catálogo → emitir: "Ese servicio no lo manejamos 😕 ¿Te interesa alguno de la lista?" → repreguntar una vez.
+- Tras repreguntar 1 vez sin elegir → guardar servicio = "no definido" → current_step = 3 (un asesor confirmará el servicio)` },
       { t: "DISPONIBILIDAD",
         variable: "fecha_hora",
-        condicion: "Elige un horario ofrecido → guardar fecha_hora → paso 4. Pide otro día → volver a consultar la fuente real.",
+        condicion: "Ofrece solo horarios reales de la agenda. Captura el elegido. Si ninguno le sirve, un asesor coordina (fecha_hora = \"por coordinar\") y avanza — no bloquear.",
         ex: `Para *[SERVICIO]* tengo estos horarios disponibles:
 1️⃣ *[HORARIO_1]*
 2️⃣ *[HORARIO_2]*
@@ -506,65 +527,107 @@ ELEMENTOS DEL PASO 5:
         main: `🔒 CONDICIÓN GATE: servicio != null AND fecha_hora == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Consultar la disponibilidad real en la fuente conectada (Calendar, Calendly, Sheet o tool de agenda).
-2º Emitir ÚNICAMENTE el texto de "lo que dice el agente" con los horarios obtenidos.
+1º Si existe el flujo 'DISPONIBILIDAD', ejecutarlo; si NO existe, continuar igual (la instrucción va primero).
+2º Consultar la disponibilidad real en la tool de agenda (Calendar/Calendly/Sheet), si está conectada.
+3º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2) con los horarios obtenidos.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
-- ⛔ Ofrecer horarios sin haberlos validado contra la fuente real.
+- Ofrecer horarios sin haberlos validado contra la fuente real (si hay tool conectada).
 - Inventar disponibilidad, días u horarios.
 - Ofrecer fechas fuera del horario de atención definido.
 - Ejecutar tools de registro.
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Elige un horario ofrecido → guardar fecha_hora → current_step = 4
-- Pide otro día u horario → volver a consultar la fuente real y ofrecer nuevas opciones → permanecer en current_step = 3
-- Ninguno le sirve → emitir: "Déjame revisar más opciones 🙏" → volver a consultar → permanecer en current_step = 3` },
+ELEMENTOS DEL PASO 3:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'DISPONIBILIDAD' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+Para *[SERVICIO]* tengo estos horarios disponibles:
+1️⃣ *[HORARIO_1]*
+2️⃣ *[HORARIO_2]*
+3️⃣ *[HORARIO_3]*
+¿Cuál te queda mejor?
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Elige un horario ofrecido → guardar en silencio fecha_hora → current_step = 4
+- Pide otro día u horario → volver a consultar la agenda y ofrecer nuevas opciones → permanecer en current_step = 3
+- Tras repreguntar 1 vez sin elegir → emitir: "Déjame que un asesor coordine el horario contigo 🙏" → guardar fecha_hora = "por coordinar" → current_step = 4` },
       { t: "CONFIRMACIÓN",
-        variable: "nombre, cita_confirmada",
-        condicion: "Da el nombre → crear la cita en la agenda → cita_confirmada → paso 5. Cambia de horario → volver a paso 3.",
+        variable: "nombre (opcional)",
+        condicion: "Confirma el horario y crea la cita. El nombre es opcional: si no lo da, crea la cita igual y avanza — no bloquear.",
         ex: `Perfecto, reservo *[SERVICIO]* para el *[FECHA_HORA]*.
 ¿A nombre de quién la registro? 📝`,
         main: `🔒 CONDICIÓN GATE: fecha_hora != null AND cita_confirmada == false
+📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
-2º Al recibir el nombre, crear la cita en la fuente de agenda conectada.
-3º Guardar cita_confirmada = true.
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+2º Si existe el flujo 'CONFIRMACION', ejecutarlo; si NO existe, continuar igual.
+3º Al recibir el nombre, crear la cita en la tool de agenda (si está conectada).
+4º Guardar cita_confirmada = true.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
-- Confirmar la cita sin haber capturado el nombre.
-- Crear la cita sin escribirla en la fuente de agenda conectada.
+- Bloquear la confirmación si el cliente no da el nombre — el flujo debe continuar.
+- Solicitar datos que el cliente ya entregó.
 - Fragmentar la respuesta en varios mensajes.
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Entrega el nombre → guardar nombre → crear la cita en la agenda → cita_confirmada = true → current_step = 5
-- No entrega el nombre → pedirlo una vez más, sin repetir la confirmación completa.
+ELEMENTOS DEL PASO 4:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'CONFIRMACION' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+Perfecto, reservo *[SERVICIO]* para el *[FECHA_HORA]*.
+¿A nombre de quién la registro? 📝
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Entrega el nombre → guardar en silencio nombre → crear la cita en la agenda → cita_confirmada = true → current_step = 5
+- No entrega el nombre tras pedirlo 1 vez → crear la cita igual → cita_confirmada = true → current_step = 5 (el nombre es opcional)
 - Cambia de horario → fecha_hora = null → current_step = 3` },
-      { t: "CIERRE (paso final)",
-        variable: "recordatorio_activado",
-        condicion: "Cita confirmada → ejecutar tool de registro → confirmar → activar recordatorio (24h y 1h antes) → fin (halt).",
+      { t: "FINALIZACIÓN (paso final)",
+        variable: "—",
+        condicion: "Ejecuta la tool de registro/notificación, activa el recordatorio (24 h y 1 h antes) y CIERRA SIEMPRE. Fin del flujo.",
         ex: `¡Listo, *[NOMBRE]*! Tu cita quedó confirmada ✅
 🗓️ *[SERVICIO]* — *[FECHA_HORA]*
 📍 *[DIRECCION]*
 Te enviaré un recordatorio antes de tu cita. ¡Te esperamos! 😊`,
         main: `🔒 CONDICIÓN GATE: cita_confirmada == true AND recordatorio_activado == false
+📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar la tool de registro/notificación de la cita.
-2º Emitir ÚNICAMENTE el texto de "lo que dice el agente", como UN SOLO MENSAJE.
-3º Activar el recordatorio automático (24 h antes y 1 h antes).
-4º Guardar recordatorio_activado = true → halt.
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2), como UN SOLO MENSAJE.
+2º Si existe el flujo 'FINALIZACION', ejecutarlo; si NO existe, continuar igual.
+3º Ejecutar la tool de registro/notificación de la cita.
+4º Activar el recordatorio automático (24 h antes y 1 h antes).
+5º Guardar recordatorio_activado = true → halt.
 
 🚫 PROHIBIDO EN ESTE PASO:
-- Emitir cualquier mensaje después de este.
+- Bloquear el cierre si falta el nombre — el flujo debe CERRAR igual.
 - Inventar dirección, sede o datos no definidos en el catálogo o las tools.
 - Fragmentar la confirmación en varios mensajes.
+- Emitir cualquier mensaje después del cierre.
 
-⛔ FIN DEL FLUJO. Este es el último paso. PROHIBIDO avanzar a pasos posteriores o emitir contenido adicional.` },
+ELEMENTOS DEL PASO 5:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'FINALIZACION' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+¡Listo, *[NOMBRE]*! Tu cita quedó confirmada ✅
+🗓️ *[SERVICIO]* — *[FECHA_HORA]*
+📍 *[DIRECCION]*
+Te enviaré un recordatorio antes de tu cita. ¡Te esperamos! 😊
+
+(3) FUNCIÓN: Ejecuta la tool de registro/notificación de la cita
+
+(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Emitir la confirmación → ejecutar tool → activar recordatorio → recordatorio_activado = true → halt
+- Si fecha_hora == "por coordinar" → notificar al asesor para que agende el horario con el cliente.
+
+(5) NOTA DE CONTROL (NO EMITIR):
+⛔ FIN DEL FLUJO. PROHIBIDO emitir contenido adicional tras el cierre.` },
     ],
   },
   {
