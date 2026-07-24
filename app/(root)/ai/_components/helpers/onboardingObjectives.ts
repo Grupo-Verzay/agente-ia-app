@@ -246,7 +246,8 @@ Para ayudarte mejor, ¿me compartes tu nombre?
         condicion: "Captura la necesidad. Si responde vago, repregunta MÁX. 1 vez pidiendo más detalle; luego avanza con lo que haya — no ciclar.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?`,
-        main: `🔒 CONDICIÓN GATE: nombre != null AND necesidad == null
+        main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND necesidad == null
+📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
 1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
@@ -354,6 +355,7 @@ Entiendo perfectamente tu punto.
 ¡Excelente decisión, *[NOMBRE]*!
 Para coordinar el siguiente paso, ¿me confirmas tu *nombre*? 📩`,
         main: `🔒 CONDICIÓN GATE: interes_confirmado == true AND cierre_completado == false
+📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
 1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
