@@ -71,8 +71,8 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
     desc: "5 fases: ventas rápidas con foco en cerrar.",
     steps: [
       { t: "BIENVENIDA",
-        variable: "producto_interes",
-        condicion: "Menciona/pregunta un producto → guardar producto_interes → paso 3. Sin intención clara → paso 2.",
+        variable: "producto_interes (opcional en este paso)",
+        condicion: "Si nombra un producto del catálogo, va directo al paso 3. Si no, va al paso 2 para mostrarle las opciones — NO bloquear.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 ¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
 ¿Qué producto te interesa?`,
@@ -80,7 +80,7 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
 2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
 3º Guardar bienvenida_enviada = true.
 
@@ -92,16 +92,21 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
 - Ejecutar cualquier tool.
 - Repetir la bienvenida si bienvenida_enviada == true.
 
-🔄 FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual.
+ELEMENTOS DEL PASO 1:
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Menciona un producto del catálogo → guardar producto_interes → current_step = 3
-- Pregunta por precio de un producto concreto → guardar producto_interes → current_step = 3
-- Escribe sin intención clara → current_step = 2
-- Saluda sin pedir nada → permanecer en current_step = 1, sin repetir la bienvenida.` },
-      { t: "PRODUCTO INTERÉS",
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+🤖 *[NOMBRE_AGENTE]*
+¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
+¿Qué producto te interesa?
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Menciona un producto del catálogo → guardar en silencio producto_interes → current_step = 3
+- Escribe sin intención clara o pide ver opciones → current_step = 2` },
+      { t: "CATALOGO",
         variable: "producto_interes",
-        condicion: "Elige del catálogo → guardar producto_interes → paso 3. Fuera del catálogo → avisar y ofrecer la lista.",
+        condicion: "Captura el producto. Si no elige, repregunta MÁX. 1 vez; luego guarda producto_interes = \"no definido\" y avanza presentando el más vendido — no ciclar.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 Tenemos:
 1️⃣ *[CATEGORIA_1]*
@@ -109,7 +114,12 @@ Tenemos:
 3️⃣ *[CATEGORIA_3]*
 ¿Cuál te interesa?`,
         main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND producto_interes == null
-💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+2º Si existe el flujo 'CATALOGO', ejecutarlo; si NO existe, continuar igual.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
 - Dar precios antes de identificar el producto.
@@ -117,13 +127,25 @@ Tenemos:
 - Hacer dos preguntas en el mismo mensaje.
 - Ejecutar tools de registro.
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Elige una opción o nombra un producto del catálogo → guardar producto_interes → current_step = 3
-- Nombra algo fuera del catálogo → emitir: "Ese no lo manejamos 😕 ¿Te interesa alguno de la lista?" → permanecer en current_step = 2
-- Otra cosa → repreguntar la lista una vez, sin avanzar.` },
+ELEMENTOS DEL PASO 2:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'CATALOGO' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+🤖 *[NOMBRE_AGENTE]*
+Tenemos:
+1️⃣ *[CATEGORIA_1]*
+2️⃣ *[CATEGORIA_2]*
+3️⃣ *[CATEGORIA_3]*
+¿Cuál te interesa?
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Elige una opción o nombra un producto del catálogo → guardar en silencio producto_interes → current_step = 3
+- Nombra algo fuera del catálogo → emitir: "Ese no lo manejamos 😕 ¿Te interesa alguno de la lista?" → repreguntar una vez.
+- Tras repreguntar 1 vez sin elegir → guardar producto_interes = "no definido" → current_step = 3 (se le presenta el más vendido)` },
       { t: "PRESENTACIÓN",
-        variable: "oferta_presentada",
-        condicion: "Confirma (sí / lo quiero) → paso 4. Pide otra opción → reiniciar producto → paso 2. Objeta precio → responder sin reejecutar.",
+        variable: "—",
+        condicion: "Avanza al cierre ante cualquier señal de compra (sí / dale / lo quiero). Ante una objeción, responde y permanece. Si pide otra opción, vuelve al catálogo. No bloquear.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 Te recomiendo *[PRODUCTO]*.
 ✅ *[BENEFICIO_1]*
@@ -131,13 +153,12 @@ Te recomiendo *[PRODUCTO]*.
 ✅ *[BENEFICIO_3]*
 💰 *[PRECIO]*
 ¿Te lo llevas?`,
-        main: `🔒 CONDICIÓN GATE: producto_interes != null AND oferta_presentada == false
+        main: `🔒 CONDICIÓN GATE: producto_interes != null AND compra_confirmada == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar el flujo del producto correspondiente, si existe.
-2º Validar disponibilidad y precio en el catálogo o las tools.
-3º Emitir ÚNICAMENTE el texto de "lo que dice el agente", como UN SOLO MENSAJE.
-4º Guardar oferta_presentada = true.
+1º Si existe el flujo 'PRESENTACION', ejecutarlo; si NO existe, continuar igual (la instrucción va primero).
+2º Si oferta_presentada == false → emitir Regla/parámetro (2) → guardar oferta_presentada = true.
+3º Si oferta_presentada == true y el cliente objeta → emitir Regla/parámetro (3), sin reejecutar el flujo.
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
@@ -145,21 +166,47 @@ Te recomiendo *[PRODUCTO]*.
 - Inventar precios, stock o características.
 - Presentar más de una opción a la vez si abruma.
 - Fragmentar la presentación en varios mensajes.
+- Repetir la presentación completa al responder una objeción.
+- Ofrecer descuentos no autorizados.
 - Reejecutar el flujo si oferta_presentada == true.
 
-🔄 FUNCIÓN (opcional): Ejecuta el flujo del producto correspondiente si existe; si no, continúa igual.
+ELEMENTOS DEL PASO 3:
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Confirma (sí / lo quiero / dale / me lo llevo) → current_step = 4
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'PRESENTACION' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — PRESENTACIÓN — TEXTO ÚNICO (un solo mensaje):
+🤖 *[NOMBRE_AGENTE]*
+Te recomiendo *[PRODUCTO]*.
+✅ *[BENEFICIO_1]*
+✅ *[BENEFICIO_2]*
+✅ *[BENEFICIO_3]*
+💰 *[PRECIO]*
+¿Te lo llevas?
+
+(3) REGLA/PARÁMETRO — OBJECIÓN — TEXTO ÚNICO (un solo mensaje):
+🤖 *[NOMBRE_AGENTE]*
+Entiendo tu punto.
+*[RESPUESTA_A_LA_OBJECION]*
+¿Te gustaría que avancemos con *[ALTERNATIVA]*?
+
+(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Confirma (sí / lo quiero / dale / me lo llevo) → compra_confirmada = true → current_step = 4
 - Pide otra opción → producto_interes = null → oferta_presentada = false → current_step = 2
-- Objeta el precio o pregunta detalles → responder sin reejecutar el flujo → permanecer en current_step = 3` },
-      { t: "TOMA PEDIDO",
-        variable: "nombre, metodo_pago, datos_envio",
-        condicion: "Da el nombre → emitir 2ª pregunta (pago/envío). Elige pago/envío → datos_completos → paso 5. Falta algo → pedir solo lo faltante.",
+- Objeta el precio o pide detalles → emitir Regla/parámetro (3) → permanecer en current_step = 3` },
+      { t: "CIERRE",
+        variable: "nombre (opcional), metodo_pago",
+        condicion: "Pide un dato a la vez. El nombre es opcional. Si no elige método de pago, repregunta MÁX. 1 vez, guarda \"por definir\" y avanza — no bloquear.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 ¡Perfecto! ¿A nombre de quién registro el pedido? 📝`,
-        main: `🔒 CONDICIÓN GATE: oferta_presentada == true AND datos_completos == false
-💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+        main: `🔒 CONDICIÓN GATE: compra_confirmada == true AND datos_completos == false
+📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+2º Si existe el flujo 'CIERRE', ejecutarlo; si NO existe, continuar igual.
+3º Tras recibir el nombre, emitir Regla/parámetro (3).
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
 - Pedir todos los datos en un solo mensaje.
@@ -167,40 +214,70 @@ Te recomiendo *[PRODUCTO]*.
 - Ofrecer métodos de pago o envío no habilitados por el negocio.
 - Ejecutar tools de registro.
 
-💬 SEGUNDA PREGUNTA (tras recibir el nombre):
+ELEMENTOS DEL PASO 4:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'CIERRE' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+🤖 *[NOMBRE_AGENTE]*
+¡Perfecto! ¿A nombre de quién registro el pedido? 📝
+
+(3) REGLA/PARÁMETRO — SEGUNDA PREGUNTA (tras el nombre) — TEXTO ÚNICO:
 🤖 *[NOMBRE_AGENTE]*
 Gracias. ¿Cómo prefieres pagar y recibirlo?
 1️⃣ *[METODO_1]*
 2️⃣ *[METODO_2]*
 3️⃣ *[METODO_3]*
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Entrega el nombre → guardar nombre → emitir la SEGUNDA PREGUNTA → permanecer en current_step = 4
-- Elige método de pago/envío → guardar metodo_pago y datos_envio → datos_completos = true → current_step = 5
-- Falta un dato → pedir únicamente lo faltante, sin repetir el mensaje completo.` },
-      { t: "RESUME (paso final)",
-        variable: "seguimiento_activado",
-        condicion: "Datos completos → ejecutar tool de registro/notificación → confirmar pedido → activar seguimiento → fin (halt).",
+(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Entrega el nombre → guardar en silencio nombre → emitir Regla/parámetro (3) → permanecer en current_step = 4
+- No entrega el nombre tras pedirlo 1 vez → emitir igual Regla/parámetro (3) → permanecer en current_step = 4 (el nombre es opcional)
+- Elige método de pago/envío → guardar metodo_pago → datos_completos = true → current_step = 5
+- No elige método tras repreguntar 1 vez → guardar metodo_pago = "por definir" → datos_completos = true → current_step = 5` },
+      { t: "CONFIRMACIÓN (paso final)",
+        variable: "—",
+        condicion: "Ejecuta la tool de registro/notificación y CIERRA SIEMPRE. Fin del flujo.",
         ex: `🤖 *[NOMBRE_AGENTE]*
 ¡Listo, *[NOMBRE]*! Tu pedido quedó confirmado ✅
 🛍️ *[PRODUCTO]*
 💰 Total: *[TOTAL]*
 🚚 Entrega: *[TIEMPO_ENTREGA]*
 Te avisamos cuando salga. ¡Gracias por tu compra! 🎉`,
-        main: `🔒 CONDICIÓN GATE: datos_completos == true AND seguimiento_activado == false
+        main: `🔒 CONDICIÓN GATE: datos_completos == true AND pedido_confirmado == false
+📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar la tool de registro/notificación del pedido.
-2º Emitir ÚNICAMENTE el texto de "lo que dice el agente", como UN SOLO MENSAJE.
-3º Activar el seguimiento postventa programado.
-4º Guardar seguimiento_activado = true → halt.
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2), como UN SOLO MENSAJE.
+2º Si existe el flujo 'CONFIRMACION', ejecutarlo; si NO existe, continuar igual.
+3º Ejecutar la tool de registro/notificación del pedido.
+4º Guardar pedido_confirmado = true → halt.
 
 🚫 PROHIBIDO EN ESTE PASO:
-- Emitir cualquier mensaje después de este.
+- Bloquear el cierre si falta el nombre o el método de pago — el flujo debe CERRAR igual.
 - Inventar tiempos de entrega no definidos en el catálogo o las tools.
 - Fragmentar la confirmación en varios mensajes.
+- Emitir cualquier mensaje después del cierre.
 
-⛔ FIN DEL FLUJO. Este es el último paso. PROHIBIDO avanzar a pasos posteriores o emitir contenido adicional.` },
+ELEMENTOS DEL PASO 5:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'CONFIRMACION' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+🤖 *[NOMBRE_AGENTE]*
+¡Listo, *[NOMBRE]*! Tu pedido quedó confirmado ✅
+🛍️ *[PRODUCTO]*
+💰 Total: *[TOTAL]*
+🚚 Entrega: *[TIEMPO_ENTREGA]*
+Te avisamos cuando salga. ¡Gracias por tu compra! 🎉
+
+(3) FUNCIÓN: Ejecuta la tool de registro/notificación del pedido
+
+(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Emitir la confirmación → ejecutar tool → pedido_confirmado = true → halt
+- Si metodo_pago == "por definir" → notificar al asesor para que coordine el pago.
+
+(5) NOTA DE CONTROL (NO EMITIR):
+⛔ FIN DEL FLUJO. PROHIBIDO emitir contenido adicional tras el cierre.` },
     ],
   },
   {
