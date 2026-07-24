@@ -73,8 +73,7 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
       { t: "BIENVENIDA",
         variable: "producto_interes (opcional en este paso)",
         condicion: "Si nombra un producto del catálogo, va directo al paso 3. Si no, va al paso 2 para mostrarle las opciones — NO bloquear.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
+        ex: `¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
 ¿Qué producto te interesa?`,
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
@@ -97,7 +96,6 @@ ELEMENTOS DEL PASO 1:
 (1) FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
-🤖 *[NOMBRE_AGENTE]*
 ¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
 ¿Qué producto te interesa?
 
@@ -107,8 +105,7 @@ ELEMENTOS DEL PASO 1:
       { t: "CATALOGO",
         variable: "producto_interes",
         condicion: "Captura el producto. Si no elige, repregunta MÁX. 1 vez; luego guarda producto_interes = \"no definido\" y avanza presentando el más vendido — no ciclar.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Tenemos:
+        ex: `Tenemos:
 1️⃣ *[CATEGORIA_1]*
 2️⃣ *[CATEGORIA_2]*
 3️⃣ *[CATEGORIA_3]*
@@ -132,7 +129,6 @@ ELEMENTOS DEL PASO 2:
 (1) FUNCIÓN (opcional): Ejecuta el flujo 'CATALOGO' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
-🤖 *[NOMBRE_AGENTE]*
 Tenemos:
 1️⃣ *[CATEGORIA_1]*
 2️⃣ *[CATEGORIA_2]*
@@ -146,8 +142,7 @@ Tenemos:
       { t: "PRESENTACIÓN",
         variable: "—",
         condicion: "Avanza al cierre ante cualquier señal de compra (sí / dale / lo quiero). Ante una objeción, responde y permanece. Si pide otra opción, vuelve al catálogo. No bloquear.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Te recomiendo *[PRODUCTO]*.
+        ex: `Te recomiendo *[PRODUCTO]*.
 ✅ *[BENEFICIO_1]*
 ✅ *[BENEFICIO_2]*
 ✅ *[BENEFICIO_3]*
@@ -175,7 +170,6 @@ ELEMENTOS DEL PASO 3:
 (1) FUNCIÓN (opcional): Ejecuta el flujo 'PRESENTACION' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — PRESENTACIÓN — TEXTO ÚNICO (un solo mensaje):
-🤖 *[NOMBRE_AGENTE]*
 Te recomiendo *[PRODUCTO]*.
 ✅ *[BENEFICIO_1]*
 ✅ *[BENEFICIO_2]*
@@ -184,7 +178,6 @@ Te recomiendo *[PRODUCTO]*.
 ¿Te lo llevas?
 
 (3) REGLA/PARÁMETRO — OBJECIÓN — TEXTO ÚNICO (un solo mensaje):
-🤖 *[NOMBRE_AGENTE]*
 Entiendo tu punto.
 *[RESPUESTA_A_LA_OBJECION]*
 ¿Te gustaría que avancemos con *[ALTERNATIVA]*?
@@ -196,8 +189,7 @@ Entiendo tu punto.
       { t: "CIERRE",
         variable: "nombre (opcional), metodo_pago",
         condicion: "Pide un dato a la vez. El nombre es opcional. Si no elige método de pago, repregunta MÁX. 1 vez, guarda \"por definir\" y avanza — no bloquear.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¡Perfecto! ¿A nombre de quién registro el pedido? 📝`,
+        ex: `¡Perfecto! ¿A nombre de quién registro el pedido? 📝`,
         main: `🔒 CONDICIÓN GATE: compra_confirmada == true AND datos_completos == false
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
@@ -219,11 +211,9 @@ ELEMENTOS DEL PASO 4:
 (1) FUNCIÓN (opcional): Ejecuta el flujo 'CIERRE' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
-🤖 *[NOMBRE_AGENTE]*
 ¡Perfecto! ¿A nombre de quién registro el pedido? 📝
 
 (3) REGLA/PARÁMETRO — SEGUNDA PREGUNTA (tras el nombre) — TEXTO ÚNICO:
-🤖 *[NOMBRE_AGENTE]*
 Gracias. ¿Cómo prefieres pagar y recibirlo?
 1️⃣ *[METODO_1]*
 2️⃣ *[METODO_2]*
@@ -237,8 +227,7 @@ Gracias. ¿Cómo prefieres pagar y recibirlo?
       { t: "CONFIRMACIÓN (paso final)",
         variable: "—",
         condicion: "Ejecuta la tool de registro/notificación y CIERRA SIEMPRE. Fin del flujo.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¡Listo, *[NOMBRE]*! Tu pedido quedó confirmado ✅
+        ex: `¡Listo, *[NOMBRE]*! Tu pedido quedó confirmado ✅
 🛍️ *[PRODUCTO]*
 💰 Total: *[TOTAL]*
 🚚 Entrega: *[TIEMPO_ENTREGA]*
@@ -263,7 +252,6 @@ ELEMENTOS DEL PASO 5:
 (1) FUNCIÓN (opcional): Ejecuta el flujo 'CONFIRMACION' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
-🤖 *[NOMBRE_AGENTE]*
 ¡Listo, *[NOMBRE]*! Tu pedido quedó confirmado ✅
 🛍️ *[PRODUCTO]*
 💰 Total: *[TOTAL]*
@@ -287,8 +275,7 @@ Te avisamos cuando salga. ¡Gracias por tu compra! 🎉
       { t: "BIENVENIDA",
         variable: "nombre (opcional)",
         condicion: "Captura el nombre si lo da. Si no lo da, se pregunta 1 vez más y luego se continúa igual — NO bloquear por el nombre.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¡Hola! 👋 Soy el asistente de *[NOMBRE_NEGOCIO]*.
+        ex: `¡Hola! 👋 Soy el asistente de *[NOMBRE_NEGOCIO]*.
 Para ayudarte mejor, ¿me compartes tu nombre?`,
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
@@ -311,7 +298,6 @@ ELEMENTOS DEL PASO 1:
 (1) FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
-🤖 *[NOMBRE_AGENTE]*
 ¡Hola! 👋 Soy el asistente de *[NOMBRE_NEGOCIO]*.
 Para ayudarte mejor, ¿me compartes tu nombre?
 
@@ -321,8 +307,7 @@ Para ayudarte mejor, ¿me compartes tu nombre?
       { t: "PREGUNTA 1",
         variable: "necesidad",
         condicion: "Captura la necesidad. Si responde vago, repregunta MÁX. 1 vez; luego guarda necesidad = \"no definida\" y avanza — no ciclar.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?`,
+        ex: `Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?`,
         main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND necesidad == null
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
@@ -342,7 +327,6 @@ ELEMENTOS DEL PASO 2:
 (1) FUNCIÓN (opcional): Ejecuta el flujo 'PREGUNTA 1' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
-🤖 *[NOMBRE_AGENTE]*
 Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?
 
 (3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
@@ -352,8 +336,7 @@ Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?
       { t: "PREGUNTA 2",
         variable: "contexto (opcional)",
         condicion: "Captura plazo/presupuesto si lo da. Si lo evade, guarda contexto = 'no definido' y avanza igual — no bloquear.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Entiendo. ¿Para cuándo lo necesitas y manejas un presupuesto estimado?`,
+        ex: `Entiendo. ¿Para cuándo lo necesitas y manejas un presupuesto estimado?`,
         main: `🔒 CONDICIÓN GATE: necesidad != null AND contexto == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -373,7 +356,6 @@ ELEMENTOS DEL PASO 3:
 (1) FUNCIÓN (opcional): Ejecuta el flujo 'PREGUNTA 2' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
-🤖 *[NOMBRE_AGENTE]*
 Entiendo. ¿Para cuándo lo necesitas y manejas un presupuesto estimado?
 
 (3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
@@ -382,8 +364,7 @@ Entiendo. ¿Para cuándo lo necesitas y manejas un presupuesto estimado?
       { t: "PRESENTACIÓN",
         variable: "—",
         condicion: "No captura datos del cliente. Avanza al cierre ante cualquier señal de interés (sí / dale / me interesa) o si pide tiempo. Ante una objeción, responde y permanece. No bloquear.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Por lo que me cuentas, lo ideal para ti es *[SOLUCION]*.
+        ex: `Por lo que me cuentas, lo ideal para ti es *[SOLUCION]*.
 Encaja con tu caso porque *[JUSTIFICACION]*.
 💰 Inversión: *[PRECIO]*
 ¿Qué te parece?`,
@@ -409,14 +390,12 @@ ELEMENTOS DEL PASO 4:
 (1) FUNCIÓN (opcional): Ejecuta el flujo 'PRESENTACION' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — PRESENTACIÓN — TEXTO ÚNICO (un solo mensaje):
-🤖 *[NOMBRE_AGENTE]*
 Por lo que me cuentas, lo ideal para ti es *[SOLUCION]*.
 Encaja con tu caso porque *[JUSTIFICACION]*.
 💰 Inversión: *[PRECIO]*
 ¿Qué te parece?
 
 (3) REGLA/PARÁMETRO — NEGOCIACIÓN — TEXTO ÚNICO (un solo mensaje):
-🤖 *[NOMBRE_AGENTE]*
 Entiendo perfectamente tu punto.
 *[RESPUESTA_A_LA_OBJECION]*
 ¿Te gustaría que avancemos con *[ALTERNATIVA]*?
@@ -429,8 +408,7 @@ Entiendo perfectamente tu punto.
       { t: "CIERRE (paso final)",
         variable: "nombre (opcional)",
         condicion: "Captura el nombre si lo da (opcional). Ejecuta la tool de registro/notificación y CIERRA SIEMPRE, con o sin nombre. Sin correo obligatorio.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¡Excelente decisión, *[NOMBRE]*!
+        ex: `¡Excelente decisión, *[NOMBRE]*!
 Un asesor te contacta en breve. 📩`,
         main: `🔒 CONDICIÓN GATE: interes_confirmado == true AND cierre_completado == false
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
@@ -451,8 +429,8 @@ ELEMENTOS DEL PASO 5:
 (1) FUNCIÓN (opcional): Ejecuta el flujo 'CIERRE' si existe; si no, continúa igual
 
 (2) REGLA/PARÁMETRO — MENSAJE CONDICIONAL (según si ya se tiene el nombre):
-- Si nombre != null → 🤖 *[NOMBRE_AGENTE]*  ¡Excelente decisión, *[NOMBRE]*! Un asesor te contacta en breve. 📩
-- Si nombre == null → 🤖 *[NOMBRE_AGENTE]*  ¡Excelente decisión! Para coordinar, ¿me confirmas tu *nombre*? 📩
+- Si nombre != null → ¡Excelente decisión, *[NOMBRE]*! Un asesor te contacta en breve. 📩
+- Si nombre == null → ¡Excelente decisión! Para coordinar, ¿me confirmas tu *nombre*? 📩
 
 (3) FUNCIÓN: Ejecuta la tool de registro/notificación al asesor
 
@@ -472,8 +450,7 @@ ELEMENTOS DEL PASO 5:
       { t: "BIENVENIDA",
         variable: "servicio",
         condicion: "Menciona un servicio → guardar servicio → paso 3. Pide agendar sin decir servicio → paso 2. Reagendar/cancelar → derivar al flujo.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
+        ex: `¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
 ¿Qué servicio te gustaría agendar?`,
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
@@ -501,8 +478,7 @@ ELEMENTOS DEL PASO 5:
       { t: "SERVICIO",
         variable: "servicio",
         condicion: "Elige del catálogo → guardar servicio → paso 3. Fuera del catálogo → avisar y ofrecer la lista.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Estos son nuestros servicios:
+        ex: `Estos son nuestros servicios:
 1️⃣ *[SERVICIO_1]*
 2️⃣ *[SERVICIO_2]*
 3️⃣ *[SERVICIO_3]*
@@ -522,8 +498,7 @@ Estos son nuestros servicios:
       { t: "DISPONIBILIDAD",
         variable: "fecha_hora",
         condicion: "Elige un horario ofrecido → guardar fecha_hora → paso 4. Pide otro día → volver a consultar la fuente real.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Para *[SERVICIO]* tengo estos horarios disponibles:
+        ex: `Para *[SERVICIO]* tengo estos horarios disponibles:
 1️⃣ *[HORARIO_1]*
 2️⃣ *[HORARIO_2]*
 3️⃣ *[HORARIO_3]*
@@ -549,8 +524,7 @@ Para *[SERVICIO]* tengo estos horarios disponibles:
       { t: "CONFIRMACIÓN",
         variable: "nombre, cita_confirmada",
         condicion: "Da el nombre → crear la cita en la agenda → cita_confirmada → paso 5. Cambia de horario → volver a paso 3.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Perfecto, reservo *[SERVICIO]* para el *[FECHA_HORA]*.
+        ex: `Perfecto, reservo *[SERVICIO]* para el *[FECHA_HORA]*.
 ¿A nombre de quién la registro? 📝`,
         main: `🔒 CONDICIÓN GATE: fecha_hora != null AND cita_confirmada == false
 
@@ -573,8 +547,7 @@ Perfecto, reservo *[SERVICIO]* para el *[FECHA_HORA]*.
       { t: "CIERRE (paso final)",
         variable: "recordatorio_activado",
         condicion: "Cita confirmada → ejecutar tool de registro → confirmar → activar recordatorio (24h y 1h antes) → fin (halt).",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¡Listo, *[NOMBRE]*! Tu cita quedó confirmada ✅
+        ex: `¡Listo, *[NOMBRE]*! Tu cita quedó confirmada ✅
 🗓️ *[SERVICIO]* — *[FECHA_HORA]*
 📍 *[DIRECCION]*
 Te enviaré un recordatorio antes de tu cita. ¡Te esperamos! 😊`,
@@ -601,8 +574,7 @@ Te enviaré un recordatorio antes de tu cita. ¡Te esperamos! 😊`,
       { t: "BIENVENIDA",
         variable: "interes_declarado",
         condicion: "Describe lo que busca → guardar interes_declarado → paso 2. Frase de campaña → guardar origen_campaña → paso 2.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¡Hola! 👋 Gracias por tu interés en *[NOMBRE_NEGOCIO]*.
+        ex: `¡Hola! 👋 Gracias por tu interés en *[NOMBRE_NEGOCIO]*.
 Para orientarte mejor, ¿qué estás buscando?`,
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
@@ -629,8 +601,7 @@ Para orientarte mejor, ¿qué estás buscando?`,
       { t: "CALIFICACIÓN",
         variable: "perfil_lead, score",
         condicion: "Personal → perfil_lead='personal' (score +0). Empresa → perfil_lead='empresa' (score +1). → paso 3.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¿Es para uso *personal* o para tu *empresa*?`,
+        ex: `¿Es para uso *personal* o para tu *empresa*?`,
         main: `🔒 CONDICIÓN GATE: interes_declarado != null AND perfil_lead == null
 💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
 
@@ -647,8 +618,7 @@ Para orientarte mejor, ¿qué estás buscando?`,
       { t: "URGENCIA",
         variable: "urgencia, score",
         condicion: "Urgente → urgencia='alta' (score +1). Meses → 'media' (+0). Explorando → 'baja' (-1). → paso 4.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¿Para cuándo lo necesitas?
+        ex: `¿Para cuándo lo necesitas?
 1️⃣ *Lo antes posible*
 2️⃣ *En 1 a 3 meses*
 3️⃣ *Solo estoy explorando*`,
@@ -668,8 +638,7 @@ Para orientarte mejor, ¿qué estás buscando?`,
       { t: "PRESUPUESTO",
         variable: "calificacion_completa, score",
         condicion: "Rango + decide → score +2. Rango, decide otro → +1. Sin presupuesto → -1. Evade 2 veces → 'no definido'. → paso 5.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Para recomendarte la mejor opción, ¿manejas un presupuesto estimado? ¿Y la decisión la tomas tú o alguien más?`,
+        ex: `Para recomendarte la mejor opción, ¿manejas un presupuesto estimado? ¿Y la decisión la tomas tú o alguien más?`,
         main: `🔒 CONDICIÓN GATE: urgencia != null AND calificacion_completa == false
 💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
 
@@ -687,8 +656,7 @@ Para recomendarte la mejor opción, ¿manejas un presupuesto estimado? ¿Y la de
       { t: "DERIVAR A ASESOR (paso final)",
         variable: "lead_derivado, correo",
         condicion: "Clasificar por score (CALIENTE ≥3 / TIBIO 0-2 / FRÍO <0), capturar nombre y correo, ejecutar tool → fin (halt).",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Por lo que me cuentas, lo mejor es que hables directo con un asesor.
+        ex: `Por lo que me cuentas, lo mejor es que hables directo con un asesor.
 ¿Me confirmas tu *nombre completo* y tu *correo* para coordinarlo hoy mismo? 📩`,
         main: `🔒 CONDICIÓN GATE: calificacion_completa == true AND lead_derivado == false
 
@@ -727,8 +695,7 @@ Por lo que me cuentas, lo mejor es que hables directo con un asesor.
       { t: "BIENVENIDA",
         variable: "motivo_consulta",
         condicion: "Describe duda/solicitud/reclamo → guardar motivo_consulta → paso 2. Tono molesto → caso_sensible=true → paso 2.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¡Hola! 👋 Soporte de *[NOMBRE_NEGOCIO]*.
+        ex: `¡Hola! 👋 Soporte de *[NOMBRE_NEGOCIO]*.
 ¿En qué puedo ayudarte hoy?`,
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
@@ -755,8 +722,7 @@ Por lo que me cuentas, lo mejor es que hables directo con un asesor.
       { t: "IDENTIFICACIÓN",
         variable: "datos_caso",
         condicion: "Entrega los datos → guardar datos_caso → paso 3. Entrega parte → pedir solo lo faltante. Si caso_sensible → una frase de empatía primero.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Para ubicar tu caso, ¿me compartes tu *nombre* y tu *número de pedido o servicio*? 📋`,
+        ex: `Para ubicar tu caso, ¿me compartes tu *nombre* y tu *número de pedido o servicio*? 📋`,
         main: `🔒 CONDICIÓN GATE: motivo_consulta != null AND datos_caso == null
 💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
 
@@ -774,8 +740,7 @@ Para ubicar tu caso, ¿me compartes tu *nombre* y tu *número de pedido o servic
       { t: "VALIDACIÓN",
         variable: "estado_caso, caso_validado",
         condicion: "Caso encontrado → guardar estado_caso → paso 4. No encontrado → repreguntar el dato (tras 2 intentos → 'requiere_humano').",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Gracias, ya tengo tu caso. Estoy revisando la información, dame un momento. 🔎`,
+        ex: `Gracias, ya tengo tu caso. Estoy revisando la información, dame un momento. 🔎`,
         main: `🔒 CONDICIÓN GATE: datos_caso != null AND caso_validado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -797,8 +762,7 @@ Gracias, ya tengo tu caso. Estoy revisando la información, dame un momento. �
       { t: "RESOLUCIÓN",
         variable: "solucion_entregada",
         condicion: "Solución entregada o caso escalado → paso 5. Pide más detalle → responder sin reejecutar el flujo.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Esto es lo que encontré: *[ESTADO_O_SOLUCIÓN]*
+        ex: `Esto es lo que encontré: *[ESTADO_O_SOLUCIÓN]*
 Pasos a seguir: *[PASOS]*`,
         main: `🔒 CONDICIÓN GATE: caso_validado == true AND solucion_entregada == false
 
@@ -826,8 +790,7 @@ Pasos a seguir: *[PASOS]*`,
       { t: "CIERRE (paso final)",
         variable: "caso_cerrado",
         condicion: "Confirma resuelto → caso_cerrado → despedida → fin (halt). NO resuelto → volver a paso 4. Caso nuevo → reiniciar en paso 2.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¿Esto resuelve tu solicitud? ¿Puedo ayudarte con algo más? 😊`,
+        ex: `¿Esto resuelve tu solicitud? ¿Puedo ayudarte con algo más? 😊`,
         main: `🔒 CONDICIÓN GATE: solucion_entregada == true AND caso_cerrado == false
 💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
 
@@ -851,8 +814,7 @@ Pasos a seguir: *[PASOS]*`,
       { t: "BIENVENIDA",
         variable: "carrito",
         condicion: "Menciona productos o pide el menú → paso 2. Saluda sin pedir → permanecer sin repetir la bienvenida.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
+        ex: `¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
 ¿Qué te gustaría pedir hoy?`,
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
@@ -878,8 +840,7 @@ Pasos a seguir: *[PASOS]*`,
       { t: "PEDIDO",
         variable: "carrito, carrito_cerrado",
         condicion: "Agrega productos al carrito (validando disponibilidad). 'Es todo' → carrito_cerrado → paso 3.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Listo, agregué *[PRODUCTO]* a tu pedido.
+        ex: `Listo, agregué *[PRODUCTO]* a tu pedido.
 ¿Deseas agregar algo más o cerramos el pedido?`,
         main: `🔒 CONDICIÓN GATE: current_step == 2 AND carrito_cerrado == false
 
@@ -907,8 +868,7 @@ Listo, agregué *[PRODUCTO]* a tu pedido.
       { t: "DATOS ENTREGA",
         variable: "datos_entrega, costo_envio",
         condicion: "Recoge → datos_entrega='local'. Delivery + dirección → validar zona → costo_envio → paso 4.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¿Es para *delivery* o lo *recoges en el local*?
+        ex: `¿Es para *delivery* o lo *recoges en el local*?
 Si es delivery, indícame tu dirección con un punto de referencia. 📍`,
         main: `🔒 CONDICIÓN GATE: carrito_cerrado == true AND datos_entrega == null
 💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
@@ -928,8 +888,7 @@ Si es delivery, indícame tu dirección con un punto de referencia. 📍`,
       { t: "RESUMEN",
         variable: "resumen_confirmado",
         condicion: "Confirma → resumen_confirmado → paso 5. Agrega producto → volver a paso 2. Cambia algo → actualizar y reemitir.",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-Este es tu pedido:
+        ex: `Este es tu pedido:
 🛒 *[LISTA_PRODUCTOS_CON_PRECIO]*
 🚚 Envío: *[COSTO_ENVIO]*
 💰 *Total: [TOTAL]*
@@ -952,8 +911,7 @@ Este es tu pedido:
       { t: "PAGO (paso final)",
         variable: "metodo_pago, seguimiento_activado",
         condicion: "Elige método → emitir sus datos → ejecutar tool de registro → confirmar pedido → activar seguimiento → fin (halt).",
-        ex: `🤖 *[NOMBRE_AGENTE]*
-¿Cómo prefieres pagar?
+        ex: `¿Cómo prefieres pagar?
 1️⃣ *[METODO_1]*
 2️⃣ *[METODO_2]*
 3️⃣ *[METODO_3]*`,
