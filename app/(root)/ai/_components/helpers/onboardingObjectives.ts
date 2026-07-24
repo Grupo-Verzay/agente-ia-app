@@ -985,15 +985,15 @@ ELEMENTOS DEL PASO 5:
     desc: "5 fases: arma el pedido, entrega y cobra.",
     steps: [
       { t: "BIENVENIDA",
-        variable: "carrito",
-        condicion: "Menciona productos o pide el menú → paso 2. Saluda sin pedir → permanecer sin repetir la bienvenida.",
+        variable: "—",
+        condicion: "Si menciona productos o pide el menú, va al paso 2. Si solo saluda, repregunta 1 vez y avanza — no bloquear.",
         ex: `¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
 ¿Qué te gustaría pedir hoy?`,
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
 2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
 3º Guardar bienvenida_enviada = true.
 
@@ -1005,114 +1005,173 @@ ELEMENTOS DEL PASO 5:
 - Ejecutar cualquier tool.
 - Repetir la bienvenida si bienvenida_enviada == true.
 
-🔄 FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual.
+ELEMENTOS DEL PASO 1:
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Menciona uno o más productos, o pide ver el menú → current_step = 2
-- Saluda sin pedir nada → permanecer en current_step = 1, sin repetir la bienvenida.` },
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'BIENVENIDA' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
+¿Qué te gustaría pedir hoy?
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Menciona uno o más productos, o pide ver el menú → guardar en silencio lo mencionado → current_step = 2
+- Saluda sin pedir nada → pedirlo una vez más, sin repetir la bienvenida.` },
       { t: "PEDIDO",
-        variable: "carrito, carrito_cerrado",
-        condicion: "Agrega productos al carrito (validando disponibilidad). 'Es todo' → carrito_cerrado → paso 3.",
+        variable: "—",
+        condicion: "Suma productos al carrito uno por uno. Cierra el carrito solo cuando el cliente confirma. Este paso puede repetirse en loop — no ciclar sin avanzar al confirmar.",
         ex: `Listo, agregué *[PRODUCTO]* a tu pedido.
 ¿Deseas agregar algo más o cerramos el pedido?`,
-        main: `🔒 CONDICIÓN GATE: current_step == 2 AND carrito_cerrado == false
+        main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND carrito_cerrado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Ejecutar el flujo del producto/categoría mencionado, si existe.
-2º Validar disponibilidad ANTES de agregar al carrito.
-3º Agregar el ítem a carrito[] (producto + cantidad + precio).
-4º Emitir ÚNICAMENTE el texto de "lo que dice el agente".
+1º Si existe el flujo del producto/categoría mencionado, ejecutarlo; si NO existe, continuar igual.
+2º Validar disponibilidad ANTES de agregar al carrito (si hay catálogo/tool).
+3º Agregar el ítem al carrito (producto + cantidad + precio).
+4º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
 
 ⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
 - Agregar productos sin validar disponibilidad.
-- Inventar productos, precios o extras fuera del catálogo/tool.
+- Inventar productos, precios o extras fuera del catálogo o las tools.
 - Cerrar el carrito sin que el usuario lo confirme.
 - Ejecutar tools de registro.
 
-🔄 FUNCIÓN (opcional): Ejecuta el flujo del producto correspondiente si existe; si no, continúa igual.
+ELEMENTOS DEL PASO 2:
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Menciona otro producto → agregar a carrito[] → permanecer en current_step = 2
-- Dice "es todo" / "cerrar" / "nada más" / "ya" → carrito_cerrado = true → current_step = 3
-- Pide ver el menú → emitir catálogo → permanecer en current_step = 2
-- Otra cosa → repreguntar: "¿Agregas algo más o cerramos el pedido? 🙏" (sin avanzar)` },
-      { t: "DATOS ENTREGA",
-        variable: "datos_entrega, costo_envio",
-        condicion: "Recoge → datos_entrega='local'. Delivery + dirección → validar zona → costo_envio → paso 4.",
+(1) FUNCIÓN (opcional): Ejecuta el flujo del producto correspondiente si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+Listo, agregué *[PRODUCTO]* a tu pedido.
+¿Deseas agregar algo más o cerramos el pedido?
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Menciona otro producto → agregar al carrito → permanecer en current_step = 2
+- Dice "es todo" / "cerrar" / "nada más" / "ya" → guardar carrito_cerrado = true → current_step = 3
+- Pide ver el menú → emitir catálogo → permanecer en current_step = 2` },
+      { t: "ENTREGA",
+        variable: "datos_entrega",
+        condicion: "Define modalidad y captura dirección si es delivery. Valida cobertura antes de avanzar. Si la zona no está cubierta, ofrece recoger — no bloquear.",
         ex: `¿Es para *delivery* o lo *recoges en el local*?
 Si es delivery, indícame tu dirección con un punto de referencia. 📍`,
         main: `🔒 CONDICIÓN GATE: carrito_cerrado == true AND datos_entrega == null
-💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente". Esperar respuesta.
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
+2º Si existe el flujo 'ENTREGA', ejecutarlo; si NO existe, continuar igual.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
-- Confirmar entrega a una zona sin validar cobertura real.
-- Inventar costos de envío fuera del catálogo/tool.
+- Confirmar entrega a una zona sin validar cobertura real (si hay tool).
+- Inventar costos de envío fuera del catálogo o las tools.
 - Pedir dirección si el usuario eligió recoger en el local.
 - Ejecutar tools de registro.
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Elige recoger → datos_entrega = "local" → costo_envio = 0 → current_step = 4
+ELEMENTOS DEL PASO 3:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'ENTREGA' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+¿Es para *delivery* o lo *recoges en el local*?
+Si es delivery, indícame tu dirección con un punto de referencia. 📍
+
+(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Elige recoger → guardar datos_entrega = "local" → costo_envio = 0 → current_step = 4
 - Elige delivery + entrega dirección → validar zona:
-   • Zona cubierta → datos_entrega = <dirección> + costo_envio = <valor> → current_step = 4
-   • Zona NO cubierta → emitir: "Por ahora no llegamos a esa zona 😔 ¿Prefieres recogerlo en el local?" → permanecer en current_step = 3
+   - Zona cubierta → guardar datos_entrega = dirección + costo_envio → current_step = 4
+   - Zona NO cubierta → emitir: "Por ahora no llegamos a esa zona 😔 ¿Prefieres recogerlo en el local?" → permanecer en current_step = 3
 - Elige delivery sin dirección → pedir solo la dirección, sin repetir la pregunta completa.` },
-      { t: "RESUMEN",
-        variable: "resumen_confirmado",
-        condicion: "Confirma → resumen_confirmado → paso 5. Agrega producto → volver a paso 2. Cambia algo → actualizar y reemitir.",
+      { t: "RESUMEN Y PAGO",
+        variable: "metodo_pago",
+        condicion: "Muestra el resumen con total, confirma y captura método de pago. Si agrega producto, reabre el carrito. Si no elige pago, \"por definir\" y avanza — no bloquear.",
         ex: `Este es tu pedido:
 🛒 *[LISTA_PRODUCTOS_CON_PRECIO]*
 🚚 Envío: *[COSTO_ENVIO]*
 💰 *Total: [TOTAL]*
 ¿Confirmamos tu pedido?`,
-        main: `🔒 CONDICIÓN GATE: datos_entrega != null AND resumen_confirmado == false
-💬 EMIT SALIDA LITERAL: Emitir ÚNICAMENTE el texto de "lo que dice el agente", como UN SOLO MENSAJE. Esperar respuesta.
+        main: `🔒 CONDICIÓN GATE: datos_entrega != null AND metodo_pago == null
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2), como UN SOLO MENSAJE.
+2º Si existe el flujo 'RESUMEN', ejecutarlo; si NO existe, continuar igual.
+3º Tras confirmar el resumen, emitir Regla/parámetro (3) con los métodos de pago.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
 
 🚫 PROHIBIDO EN ESTE PASO:
 - Fragmentar el resumen en varios mensajes.
-- Modificar el carrito sin que el usuario lo pida.
-- Insistir con el complemento más de una vez.
-- Inventar promociones o combos fuera del catálogo/tool.
-- Ejecutar tools de registro.
-
-➡️ TRANSICIÓN (NO EMITIR):
-- Confirma (sí / dale / correcto / listo / ok) → resumen_confirmado = true → current_step = 5
-- Agrega un producto → carrito_cerrado = false → current_step = 2
-- Quita o cambia un producto → actualizar carrito[] → reemitir el resumen actualizado → permanecer en current_step = 4
-- Otra cosa → repreguntar: "¿Confirmamos tu pedido? 🙏" (sin avanzar)` },
-      { t: "PAGO (paso final)",
-        variable: "metodo_pago, seguimiento_activado",
-        condicion: "Elige método → emitir sus datos → ejecutar tool de registro → confirmar pedido → activar seguimiento → fin (halt).",
-        ex: `¿Cómo prefieres pagar?
-1️⃣ *[METODO_1]*
-2️⃣ *[METODO_2]*
-3️⃣ *[METODO_3]*`,
-        main: `🔒 CONDICIÓN GATE: resumen_confirmado == true AND seguimiento_activado == false
-
-✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Preguntar el método de pago (texto de "lo que dice el agente"). Esperar la elección.
-2º Al elegir, emitir los datos del método elegido ([DATOS_METODO_1/2/3]) y guardar metodo_pago.
-3º Ejecutar la tool de registro/notificación del pedido.
-4º Emitir la confirmación final (un solo mensaje), reemplazando las variables por sus valores capturados:
-   "¡Pedido confirmado, [NOMBRE]! 🎉 🛒 [LISTA_PRODUCTOS] 💰 Total: [TOTAL] ⏱️ Tiempo estimado: [TIEMPO_ENTREGA] 📍 Entrega en: [DATOS_ENTREGA]. Te avisamos cuando salga tu pedido. ¡Gracias por tu compra! 🛵"
-5º Activar triggers: "en preparación" → "en camino" → "entregado" → encuesta.
-6º Guardar seguimiento_activado = true → halt.
-
-🚫 PROHIBIDO EN ESTE PASO:
 - Ofrecer métodos de pago no habilitados por el negocio.
 - Emitir datos bancarios antes de que el usuario elija su opción.
-- Emitir cualquier mensaje después de la confirmación.
-- Emitir nombres de variables como texto literal — usar SIEMPRE el valor capturado.
-- Inventar tiempos de entrega no definidos en el catálogo/tool.
+- Inventar promociones o combos fuera del catálogo o las tools.
+- Ejecutar tools de registro.
 
-🔄 FUNCIÓN: Ejecuta la tool de registro/notificación del pedido.
+ELEMENTOS DEL PASO 4:
 
-➡️ TRANSICIÓN (NO EMITIR):
-- Elige una opción (1-3) → guardar metodo_pago → emitir sus datos → ejecutar tool → emitir confirmación final → activar seguimiento → seguimiento_activado = true → halt
-- No elige → repreguntar una vez, sin avanzar.
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'RESUMEN' si existe; si no, continúa igual
 
-⛔ FIN DEL FLUJO. Este es el último paso. PROHIBIDO avanzar a pasos posteriores o emitir contenido adicional.` },
+(2) REGLA/PARÁMETRO — RESUMEN — TEXTO ÚNICO (un solo mensaje):
+Este es tu pedido:
+🛒 *[LISTA_PRODUCTOS_CON_PRECIO]*
+🚚 Envío: *[COSTO_ENVIO]*
+💰 *Total: [TOTAL]*
+¿Confirmamos tu pedido?
+
+(3) REGLA/PARÁMETRO — PAGO — TEXTO ÚNICO (un solo mensaje):
+¿Cómo prefieres pagar?
+1️⃣ *[METODO_1]*
+2️⃣ *[METODO_2]*
+3️⃣ *[METODO_3]*
+
+(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Confirma el resumen → emitir Regla/parámetro (3) → permanecer en current_step = 4
+- Agrega un producto → carrito_cerrado = false → current_step = 2
+- Elige método de pago → guardar metodo_pago → emitir sus datos → current_step = 5
+- No elige método tras repreguntar 1 vez → guardar metodo_pago = "por definir" → current_step = 5` },
+      { t: "CONFIRMACIÓN (paso final)",
+        variable: "—",
+        condicion: "Ejecuta la tool de registro/notificación, activa el seguimiento y CIERRA SIEMPRE. Fin del flujo.",
+        ex: `¡Pedido confirmado! 🎉
+🛒 *[LISTA_PRODUCTOS]*
+💰 Total: *[TOTAL]*
+⏱️ Tiempo estimado: *[TIEMPO_ENTREGA]*
+📍 Entrega en: *[DATOS_ENTREGA]*
+Te avisamos cuando salga tu pedido. ¡Gracias por tu compra! 🛵`,
+        main: `🔒 CONDICIÓN GATE: metodo_pago != null AND pedido_confirmado == false
+
+✅ SECUENCIA OBLIGATORIA (orden estricto):
+1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2), como UN SOLO MENSAJE.
+2º Si existe el flujo 'CONFIRMACION', ejecutarlo; si NO existe, continuar igual.
+3º Ejecutar la tool de registro/notificación del pedido.
+4º Activar el seguimiento programado: "en preparación" → "en camino" → "entregado".
+5º Guardar pedido_confirmado = true → halt.
+
+🚫 PROHIBIDO EN ESTE PASO:
+- Bloquear el cierre si falta algún dato opcional — el flujo debe CERRAR igual.
+- Inventar tiempos de entrega no definidos en el catálogo o las tools.
+- Fragmentar la confirmación en varios mensajes.
+- Emitir cualquier mensaje después del cierre.
+
+ELEMENTOS DEL PASO 5:
+
+(1) FUNCIÓN (opcional): Ejecuta el flujo 'CONFIRMACION' si existe; si no, continúa igual
+
+(2) REGLA/PARÁMETRO — TEXTO ÚNICO (un solo mensaje):
+¡Pedido confirmado! 🎉
+🛒 *[LISTA_PRODUCTOS]*
+💰 Total: *[TOTAL]*
+⏱️ Tiempo estimado: *[TIEMPO_ENTREGA]*
+📍 Entrega en: *[DATOS_ENTREGA]*
+Te avisamos cuando salga tu pedido. ¡Gracias por tu compra! 🛵
+
+(3) FUNCIÓN: Ejecuta la tool de registro/notificación del pedido
+
+(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Emitir la confirmación → ejecutar tool → activar seguimiento → pedido_confirmado = true → halt
+- Si metodo_pago == "por definir" → notificar al asesor para que coordine el pago.
+
+(5) NOTA DE CONTROL (NO EMITIR):
+⛔ FIN DEL FLUJO. PROHIBIDO emitir contenido adicional tras el cierre.` },
     ],
   },
 ];
