@@ -491,6 +491,33 @@ export function WorkflowCanvas({
     });
   }, [registerCreateNode, screenToFlowPosition, createFromItem]);
 
+  // Reacomoda el contenido cuando cambia el ANCHO del canvas (al abrir/cerrar
+  // el menú lateral izquierdo). Sin esto, el flujo se corría a la derecha y el
+  // "+" para agregar acciones se salía de vista. Solo reacciona al ancho para
+  // no reencuadrar al hacer scroll o cambios de alto.
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+
+    let raf = 0;
+    let lastW = el.clientWidth;
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      if (w === lastW) return;
+      lastW = w;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        rfRef.current?.fitView({ padding: 0.28, duration: 200, maxZoom: 1 });
+      });
+    });
+
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
   // conectar edges
   const onConnect: OnConnect = useCallback(
     async (params) => {
