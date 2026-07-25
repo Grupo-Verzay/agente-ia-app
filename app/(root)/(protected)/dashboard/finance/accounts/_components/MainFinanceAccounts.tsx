@@ -503,21 +503,9 @@ export default function MainFinanceAccounts({
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-3">
       <Card className="border-border flex-1 min-h-0 flex flex-col">
         <CardHeader className="py-3 flex-1 min-h-0">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-sm">Cuentas</CardTitle>
-              <Badge variant="secondary" className="h-6 text-[11px]">
-                {rows.length} cuentas
-              </Badge>
-            </div>
-
-            <Button size="sm" onClick={openCreate} disabled={isPending} className="h-9 bg-blue-600 hover:bg-blue-700 text-white">
-              + Nueva cuenta
-            </Button>
-          </div>
-
+          {/* Sin título "Cuentas": el botón "+ Nueva cuenta" va en la barra de la tabla. */}
           {/* Filtros */}
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
@@ -603,6 +591,11 @@ export default function MainFinanceAccounts({
               if (!applyRangeValidation()) return;
               openLedger(row);
             }}
+            toolbarExtra={
+              <Button size="sm" onClick={openCreate} disabled={isPending} className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
+                + Nueva cuenta
+              </Button>
+            }
           />
         </CardContent>
       </Card>

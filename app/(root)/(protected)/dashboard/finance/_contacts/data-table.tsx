@@ -82,7 +82,6 @@ export function DataTable<TData, TValue>({
             className="h-8 w-72 text-sm"
           />
           <div className="flex items-center gap-2">
-            {toolbarRight}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="h-8 px-2 text-sm">
@@ -105,6 +104,7 @@ export function DataTable<TData, TValue>({
                   ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            {toolbarRight}
           </div>
         </div>
       </div>

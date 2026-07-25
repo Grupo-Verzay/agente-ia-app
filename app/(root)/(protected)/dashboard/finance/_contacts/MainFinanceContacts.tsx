@@ -331,40 +331,39 @@ export default function MainFinanceContacts({ userId, kind, contacts, fields, au
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-3">
       <Card className="border-border flex-1 min-h-0 flex flex-col">
         <CardHeader className="py-3 flex-1 min-h-0 flex flex-col">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-sm">{labels.plural}</CardTitle>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setBuilderOpen(true)}
-                disabled={isPending}
-                className="h-9"
-              >
-                <SlidersHorizontal className="mr-1.5 h-4 w-4" /> Configurar campos
-              </Button>
-              <Button
-                size="sm"
-                onClick={openCreate}
-                disabled={isPending}
-                className="h-9 bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                + Nuevo {labels.singular.toLowerCase()}
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-2 flex-1 min-h-0">
+          {/* Sin título: los botones "Configurar campos" y "+ Nuevo…" van en la
+              barra de la tabla, junto a Columnas. */}
+          <div className="flex-1 min-h-0">
             <DataTable
               columns={columns}
               data={rows}
               searchKey="name"
               searchPlaceholder={`Buscar ${labels.plural.toLowerCase()}...`}
               onRowClick={openEdit}
+              toolbarRight={
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setBuilderOpen(true)}
+                    disabled={isPending}
+                    className="h-8"
+                  >
+                    <SlidersHorizontal className="mr-1.5 h-4 w-4" /> Configurar campos
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={openCreate}
+                    disabled={isPending}
+                    className="h-8 bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    + Nuevo {labels.singular.toLowerCase()}
+                  </Button>
+                </>
+              }
             />
           </div>
         </CardHeader>
-        <CardContent className="pt-0" />
       </Card>
 
       {/* Modal Crear/Editar */}
