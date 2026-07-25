@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Lock, Plus } from 'lucide-react';
 
 import {
     Popover,
@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { Action, nodeActions, accionActions, seguimientoActions, automationActions } from '@/types/workflow-node';
 import { MAX_NODES_PER_WORKFLOW, MAX_SEGUIMIENTOS_PER_WORKFLOW } from '@/types/workflow';
 import { useAddNode } from './WorkflowAddNodeContext';
+import { useWorkflowEditorShell } from './WorkflowEditorShellProvider';
 
 function SectionDivider({ label }: { label: string }) {
     return (
@@ -29,17 +30,21 @@ function ActionRow({
     action,
     onPick,
     seguimiento,
+    locked,
 }: {
     action: Action;
     onPick: (a: Action) => void;
     seguimiento?: boolean;
+    locked?: boolean;
 }) {
     const Icon = action.icon;
     return (
         <Button
             type="button"
             variant="outline"
+            disabled={locked}
             onClick={() => onPick(action)}
+            title={locked ? 'No incluido en tu plan' : undefined}
             className={cn(
                 'flex w-full items-center justify-start gap-2 text-sm',
                 seguimiento && 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-950/50'
@@ -47,6 +52,7 @@ function ActionRow({
         >
             <Icon className={`h-4 w-4 ${action.iconClassName ?? ''}`} />
             <span className="truncate">{action.label}</span>
+            {locked && <Lock className="ml-auto h-3.5 w-3.5 text-muted-foreground" />}
         </Button>
     );
 }
@@ -63,6 +69,8 @@ export function InlineAddNode({
     seguimientoNodes: number;
 }) {
     const addNode = useAddNode();
+    const { lockedFeatures } = useWorkflowEditorShell();
+    const isLocked = (a: Action) => lockedFeatures.has(a.type);
     const [open, setOpen] = useState(false);
 
     if (!addNode) return null;
@@ -108,22 +116,22 @@ export function InlineAddNode({
                         <div className="flex flex-col gap-2">
                             <SectionDivider label="Nodos" />
                             {nodeActions.map((action) => (
-                                <ActionRow key={action.type} action={action} onPick={pick} />
+                                <ActionRow key={action.type} action={action} onPick={pick} locked={isLocked(action)} />
                             ))}
 
                             <SectionDivider label="Acciones" />
                             {accionActions.map((action) => (
-                                <ActionRow key={action.type} action={action} onPick={pick} />
+                                <ActionRow key={action.type} action={action} onPick={pick} locked={isLocked(action)} />
                             ))}
 
                             <SectionDivider label="Automatizaciones" />
                             {automationActions.map((action) => (
-                                <ActionRow key={action.type} action={action} onPick={pick} />
+                                <ActionRow key={action.type} action={action} onPick={pick} locked={isLocked(action)} />
                             ))}
 
                             <SectionDivider label="Seguimientos" />
                             {seguimientoActions.map((action) => (
-                                <ActionRow key={action.type} action={action} onPick={pick} seguimiento />
+                                <ActionRow key={action.type} action={action} onPick={pick} seguimiento locked={isLocked(action)} />
                             ))}
                         </div>
                     </div>
