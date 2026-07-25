@@ -75,7 +75,7 @@ export function WorkflowFeaturesAdmin({ initial }: { initial: FeatureAccessMap }
   };
 
   return (
-    <div className="mx-auto w-full max-w-4xl p-4 sm:p-6">
+    <div className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto p-4 sm:p-6">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight">Funciones del creador de flujos por plan</h1>
