@@ -16,7 +16,6 @@ import { isAdminOrReseller } from "@/lib/rbac";
 
 import { WorkflowEditorShellProvider } from "./_components/WorkflowEditorShellProvider";
 import { WorkflowNodesSidebarLayout } from "./_components/WorkflowNodesSidebarLayout";
-import { WorkflowNodesSidebarTrigger } from "./_components/WorkflowNodesSidebarTrigger";
 import { WorkflowEditorClient } from "./_components";
 
 const CustomWorkflow = async ({ params }: { params: { workflowId: string } }) => {
@@ -47,9 +46,6 @@ const CustomWorkflow = async ({ params }: { params: { workflowId: string } }) =>
           style={{ '--sidebar-width': '20rem' } as CSSProperties}
         >
           <div className="relative w-full h-full overflow-hidden">
-            <div className="absolute right-3 top-3 z-[70]">
-              <WorkflowNodesSidebarTrigger />
-            </div>
             <ReactFlowProvider>
               <WorkflowEditorClient
                 nodesDB={nodes}
