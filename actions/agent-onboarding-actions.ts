@@ -152,7 +152,17 @@ export interface AgentOnboardingInput {
  * encuentra el flujo en vez de caer al texto por defecto.
  *
  * Cada flujo es un único nodo de mensaje (sin conexiones: el motor visual lo
- * ejecuta igual como nodo inicial). El primero (BIENVENIDA) arranca la sesión.
+ * ejecuta igual como nodo inicial). El primero (BIENVENIDA) arranca la sesión
+ * (triggerOnNewSession) y saluda solo al inicio.
+ *
+ * Avance por los pasos: se deja `isFunnelStep=false` a propósito. El backend
+ * tiene un motor de embudo LINEAL (isFunnelStep=true) que ejecuta los pasos en
+ * orden fijo, uno por mensaje, SIN respetar los GATES del prompt. Como los
+ * embudos están diseñados con GATES y saltos condicionales (el paso a ejecutar
+ * depende de lo que diga el cliente), el avance lo maneja la IA vía la tool
+ * "Ejecutar_Flujos" (que ejecuta el flujo por nombre cuando el prompt lo pide),
+ * respetando los pasos declarados y la elección del cliente.
+ *
  * Se reemplaza cualquier flujo previo con el mismo nombre (p. ej. el BIENVENIDA
  * básico del registro) para dejar el contenido del embudo. No bloquea el alta
  * si algo falla.
@@ -179,7 +189,9 @@ async function createFunnelWorkflows(
           status: "active",
           isPro: true,
           order: i,
-          isFunnelStep: true,
+          // false a propósito: el avance lo maneja la IA por los GATES del
+          // prompt (tool Ejecutar_Flujos), no el motor lineal del backend.
+          isFunnelStep: false,
           triggerOnNewSession: i === 0, // solo BIENVENIDA arranca la sesión
         },
       });
