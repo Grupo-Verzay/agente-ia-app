@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   ArrowRight, Loader2, CheckCircle2,
-  Eye, EyeOff, Lock, Mail, User, Phone, Target,
+  Eye, EyeOff, Lock, Mail, User, Phone,
 } from 'lucide-react';
 import { CountryCodeSelect } from '@/components/custom/CountryCodeSelect';
 import { Button } from '@/components/ui/button';
@@ -135,7 +135,7 @@ const schema = z.object({
   asesores:       z.string().optional().default(''),
   procesoVentas:  z.string().optional().default(''),
   urgencia:       z.string().optional().default(''),
-  salesObjective: z.string().min(1, 'Selecciona un objetivo de ventas'),
+  salesObjective: z.string().optional().default(''),
   tono:           z.string().optional().default(''),
   mainProduct:    z.string().optional().default(''),
   clienteIdeal:   z.string().optional().default(''),
@@ -145,16 +145,6 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
-
-/* ─── Objetivos de venta (embudos) ─── */
-const SALES_OBJECTIVES = [
-  { value: 'venta-directa', label: '⚡ Venta directa' },
-  { value: 'venta-consultiva', label: '🎯 Venta consultiva' },
-  { value: 'agendamiento-citas', label: '📅 Agendar citas' },
-  { value: 'calificacion-leads', label: '🧲 Calificar leads' },
-  { value: 'atencion-cliente', label: '🎧 Atención al cliente' },
-  { value: 'pedidos-delivery', label: '🛵 Pedidos / Delivery' },
-] as const;
 
 /* ─── Shared field components ─── */
 function TextField({ label, name, placeholder, register, error }: {
@@ -427,27 +417,6 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
             <p className="text-xs text-slate-500">Recibirá notificaciones de tu cuenta.</p>
             {errors.contacto && <p className="text-xs text-red-400">{errors.contacto.message}</p>}
           </div>
-        </div>
-
-        {/* Objetivo de ventas (embudo) */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-semibold text-slate-200">
-            Objetivo de ventas <span className="text-red-400">*</span>
-          </label>
-          <div className="relative">
-            <Target className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <select
-              {...register('salesObjective')}
-              defaultValue=""
-              className="w-full appearance-none rounded-lg border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [&>option]:bg-slate-800 [&>option]:text-white"
-            >
-              <option value="" disabled>Selecciona un objetivo…</option>
-              {SALES_OBJECTIVES.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-          {errors.salesObjective && <p className="text-xs text-red-400">{errors.salesObjective.message}</p>}
         </div>
 
         {/* Botones uniformes */}
