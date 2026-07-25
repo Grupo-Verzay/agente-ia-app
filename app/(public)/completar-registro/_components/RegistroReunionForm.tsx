@@ -265,7 +265,11 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
       return;
     }
 
-    setSuccessData({ email: values.email, whatsappUrl: result.whatsappUrl });
+    // La cuenta se creó y la sesión ya quedó iniciada (signIn en el server
+    // action). Entramos directo a la app: allí aparece el flujo "Da de alta tu
+    // Agente IA" para configurar el agente. Navegación dura para que la petición
+    // lleve la cookie de sesión recién creada.
+    window.location.href = "/profile";
   };
 
   if (successData) {
