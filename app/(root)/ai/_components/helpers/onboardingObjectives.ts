@@ -92,6 +92,41 @@ export type OnboardingObjective = {
   steps: ObjectiveStep[];
 };
 
+/**
+ * Nombre EXACTO del flujo que el prompt manda ejecutar en un paso.
+ * Se toma del elemento (1) del `main` ("Ejecuta SIEMPRE el flujo 'X'"). Cuando
+ * el paso no fija un nombre (p. ej. Pedidos → "el flujo del producto
+ * correspondiente"), se usa el título del paso sin el sufijo " (paso final)".
+ */
+export function stepFlowName(step: ObjectiveStep): string {
+  const m = step.main.match(/flujo\s+'([^']+)'/);
+  if (m) return m[1].trim();
+  return step.t.replace(/\s*\(paso final\)\s*/i, "").trim();
+}
+
+/**
+ * Flujos a crear automáticamente en /workflow para un embudo: el nombre exacto
+ * que usa el prompt y el mensaje por defecto de cada paso (con las variables del
+ * negocio ya reemplazadas). Se deduplica por nombre por si un embudo repitiera
+ * uno.
+ */
+export function objectiveFlows(
+  objectiveId: string,
+  biz?: { nombre?: string; ubicacion?: string; horario?: string } | null,
+): { name: string; message: string }[] {
+  const obj = ONBOARDING_OBJECTIVES.find((o) => o.id === objectiveId);
+  if (!obj) return [];
+  const seen = new Set<string>();
+  const flows: { name: string; message: string }[] = [];
+  for (const step of obj.steps) {
+    const name = stepFlowName(step);
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    flows.push({ name, message: fillBusinessVars(step.ex, biz) });
+  }
+  return flows;
+}
+
 export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
   {
     id: "venta-directa", em: "⚡", title: "Venta Directa",
