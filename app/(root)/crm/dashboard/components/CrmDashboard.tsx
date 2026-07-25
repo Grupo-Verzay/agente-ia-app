@@ -324,7 +324,17 @@ export const CrmDashboard = ({
                                     color="#3B82F6"
                                 />
                             </div>
-                            {/* Tarjeta "Ingresos totales" retirada del CRM: los ingresos van en Finanzas. */}
+                            {/* Cuarta tarjeta: Conversiones (leads finalizados). Reemplaza a
+                                "Ingresos totales", que va en Finanzas. */}
+                            <div className="min-w-0 sm:flex-1">
+                                <MetricCard
+                                    icon={<CheckCheck className="h-4 w-4" />}
+                                    label="Conversiones"
+                                    value={analyticsLoading ? "…" : (a?.leadStatusCounts.FINALIZADO ?? 0)}
+                                    helper="leads finalizados"
+                                    color="#8B5CF6"
+                                />
+                            </div>
                         </>
                     )}
                 </div>
