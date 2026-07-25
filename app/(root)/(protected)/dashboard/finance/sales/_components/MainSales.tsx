@@ -232,8 +232,10 @@ export default function MainSales({
     setDetailRow(null);
   };
 
-  const [tab, setTab] = useState<'month' | 'total'>('month');
-  const selectedMonthDate = useMemo(() => parseMonthValue(initialMonth), [initialMonth]);
+  // Por defecto mostramos TODAS las ventas (Total); el filtro por mes queda oculto.
+  const [tab, setTab] = useState<'month' | 'total'>('total');
+  const [selectedMonthDate, setSelectedMonthDate] = useState(() => parseMonthValue(initialMonth));
+  const monthInputVal = `${selectedMonthDate.getFullYear()}-${String(selectedMonthDate.getMonth() + 1).padStart(2, '0')}`;
   const selectedMonthLabel = useMemo(
     () => selectedMonthDate.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }),
     [selectedMonthDate],
@@ -649,27 +651,8 @@ export default function MainSales({
                 Eliminar / Columnas. */}
 
             <Tabs value={tab} onValueChange={(v) => setTab(v as 'month' | 'total')} className="flex flex-col flex-1 min-h-0">
-              <TabsList className="h-9 w-full justify-start gap-6 rounded-none bg-transparent p-0">
-                <TabsTrigger
-                  value="month"
-                  className="rounded-none border-b-2 border-transparent px-0 text-sm data-[state=active]:border-primary data-[state=active]:text-primary"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <CalendarDays className="h-4 w-4" />
-                    <span className="capitalize">{selectedMonthLabel}</span>
-                  </span>
-                </TabsTrigger>
-
-                <TabsTrigger
-                  value="total"
-                  className="rounded-none border-b-2 border-transparent px-0 text-sm data-[state=active]:border-primary data-[state=active]:text-primary"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Layers className="h-4 w-4" />
-                    Total
-                  </span>
-                </TabsTrigger>
-              </TabsList>
+              {/* Sin barra de tabs: por defecto se ven TODAS; el filtro por mes
+                  se elige con el botón de calendario en la barra de la tabla. */}
 
               <TabsContent value="month" className="mt-0 flex-1 min-h-0">
                 <DataTable
@@ -685,9 +668,36 @@ export default function MainSales({
                   deleteBusy={isPending}
                   entityLabel="venta"
                   toolbarExtra={
-                    <Button size="sm" onClick={openCreate} disabled={isPending} className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
-                      + Nueva venta
-                    </Button>
+                    <>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-8 px-2 text-sm" title="Filtrar por mes">
+                            <CalendarDays className="h-4 w-4" />
+                            {tab === 'month' && <span className="ml-1 capitalize hidden sm:inline">{selectedMonthLabel}</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-3" align="end">
+                          <div className="flex flex-col gap-2">
+                            <p className="text-xs font-medium text-muted-foreground">Filtrar por mes</p>
+                            <input
+                              type="month"
+                              value={monthInputVal}
+                              onChange={(e) => {
+                                const [y, m] = e.target.value.split('-').map(Number);
+                                if (y && m) { setSelectedMonthDate(new Date(y, m - 1, 1)); setTab('month'); }
+                              }}
+                              className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                            />
+                            <Button variant="ghost" size="sm" className="h-7 justify-start text-xs" onClick={() => setTab('total')}>
+                              Ver todas
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <Button size="sm" onClick={openCreate} disabled={isPending} className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
+                        + Nueva venta
+                      </Button>
+                    </>
                   }
                 />
               </TabsContent>
@@ -706,16 +716,41 @@ export default function MainSales({
                   deleteBusy={isPending}
                   entityLabel="venta"
                   toolbarExtra={
-                    <Button size="sm" onClick={openCreate} disabled={isPending} className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
-                      + Nueva venta
-                    </Button>
+                    <>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-8 px-2 text-sm" title="Filtrar por mes">
+                            <CalendarDays className="h-4 w-4" />
+                            {tab === 'month' && <span className="ml-1 capitalize hidden sm:inline">{selectedMonthLabel}</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-3" align="end">
+                          <div className="flex flex-col gap-2">
+                            <p className="text-xs font-medium text-muted-foreground">Filtrar por mes</p>
+                            <input
+                              type="month"
+                              value={monthInputVal}
+                              onChange={(e) => {
+                                const [y, m] = e.target.value.split('-').map(Number);
+                                if (y && m) { setSelectedMonthDate(new Date(y, m - 1, 1)); setTab('month'); }
+                              }}
+                              className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                            />
+                            <Button variant="ghost" size="sm" className="h-7 justify-start text-xs" onClick={() => setTab('total')}>
+                              Ver todas
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <Button size="sm" onClick={openCreate} disabled={isPending} className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
+                        + Nueva venta
+                      </Button>
+                    </>
                   }
                 />
               </TabsContent>
             </Tabs>
           </CardHeader>
-
-          <CardContent className="pt-0" />
         </Card>
 
 {/* Modal Detalle (MEJORADO) */}
