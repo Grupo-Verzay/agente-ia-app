@@ -45,8 +45,11 @@ export const fullRegisterSchema = object({
     .max(100, "El rubro no puede superar 100 caracteres.")
     .optional()
     .default(""),
-  salesObjective: string({ required_error: "Selecciona un objetivo de ventas" })
-    .min(1, "Selecciona un objetivo de ventas."),
+  // El objetivo de ventas NO se pide en el registro: se elige en el flujo de
+  // alta del agente ("Da de alta tu Agente IA") una vez creada la cuenta.
+  salesObjective: string()
+    .optional()
+    .default(""),
   mainProduct: string()
     .max(500, "El producto no puede superar 500 caracteres.")
     .optional()
