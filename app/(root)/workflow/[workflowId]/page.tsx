@@ -39,13 +39,14 @@ const CustomWorkflow = async ({ params }: { params: { workflowId: string } }) =>
   const defaultOpen = cookieStore.get("workflow_sidebar_state")?.value === "true";
 
   return (
-    <div className="flex w-full h-full overflow-hidden">
+    <div className="flex w-full min-w-0 h-full overflow-hidden">
       <WorkflowEditorShellProvider lockedFeatures={lockedFeatures}>
         <SidebarProvider
           defaultOpen={defaultOpen}
+          className="min-w-0"
           style={{ '--sidebar-width': '20rem' } as CSSProperties}
         >
-          <div className="relative w-full h-full overflow-hidden">
+          <div className="relative w-full min-w-0 h-full overflow-hidden">
             <ReactFlowProvider>
               <WorkflowEditorClient
                 nodesDB={nodes}
