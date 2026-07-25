@@ -502,7 +502,7 @@ export default function MainFinanceAccounts({
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-3">
       <Card className="border-border flex-1 min-h-0 flex flex-col">
-        <CardHeader className="py-3 flex-1 min-h-0">
+        <CardHeader className="py-3 shrink-0">
           {/* Sin título "Cuentas": el botón "+ Nueva cuenta" va en la barra de la tabla. */}
           {/* Filtros */}
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -572,15 +572,11 @@ export default function MainFinanceAccounts({
               ) : null}
             </div>
 
-            <Badge variant="outline" className="h-8 text-[11px]">
-              {rangeMode === 'all'
-                ? 'Filtrando: Todo'
-                : `Filtrando: ${dateFrom} → ${dateTo}`}
-            </Badge>
+            {/* Badge "Filtrando: …" oculto para una vista más limpia. */}
           </div>
         </CardHeader>
 
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 flex-1 min-h-0 flex flex-col">
           <DataTable
             columns={columns}
             data={rows}

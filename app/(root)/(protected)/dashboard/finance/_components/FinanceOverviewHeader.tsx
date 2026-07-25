@@ -115,13 +115,6 @@ export function FinanceOverviewHeader() {
     <div className="sticky top-0 z-50 space-y-1 border-b bg-background px-1 py-1 shadow-sm">
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <FinanceStatCard
-          href="/dashboard/finance/accounts"
-          title="Balance"
-          value={values.balance}
-          icon={<Wallet className="h-4 w-4" />}
-          color="#3B82F6"
-        />
-        <FinanceStatCard
           href={`/dashboard/finance/sales?month=${selectedMonthValue}`}
           title="Ingresos"
           value={values.sales}
@@ -134,6 +127,13 @@ export function FinanceOverviewHeader() {
           value={values.expenses}
           icon={<TrendingDown className="h-4 w-4" />}
           color="#EF4444"
+        />
+        <FinanceStatCard
+          href="/dashboard/finance/accounts"
+          title="Balance"
+          value={values.balance}
+          icon={<Wallet className="h-4 w-4" />}
+          color="#3B82F6"
         />
         <FinanceStatCard
           href={`/dashboard/finance/accounts?month=${selectedMonthValue}`}
