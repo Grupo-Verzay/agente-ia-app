@@ -643,19 +643,12 @@ export default function MainSales({
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-3">
         <Card className="border-border flex-1 min-h-0 flex flex-col">
           <CardHeader className="py-3 flex-1 min-h-0">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm">Ventas</CardTitle>
+            {/* Se ocultan el título "Ventas" (ya estamos en Ventas) y el resumen
+                "Total mes / Acumulado" (la info está en las tarjetas superiores).
+                El botón "+ Nueva venta" va en la barra de la tabla, junto a
+                Eliminar / Columnas. */}
 
-              <Button size="sm" onClick={openCreate} disabled={isPending} className="h-9 bg-blue-600 hover:bg-blue-700 text-white">
-                + Nueva venta
-              </Button>
-            </div>
-
-            {/* Resumen "Total mes / Acumulado" oculto: la info ya está en las
-                tarjetas superiores (Ingresos/Balance) y así la lista tiene más
-                espacio. */}
-
-            <Tabs value={tab} onValueChange={(v) => setTab(v as 'month' | 'total')} className="mt-2 flex flex-col flex-1 min-h-0">
+            <Tabs value={tab} onValueChange={(v) => setTab(v as 'month' | 'total')} className="flex flex-col flex-1 min-h-0">
               <TabsList className="h-9 w-full justify-start gap-6 rounded-none bg-transparent p-0">
                 <TabsTrigger
                   value="month"
@@ -691,6 +684,11 @@ export default function MainSales({
                   onDeleteAll={onDeleteAll}
                   deleteBusy={isPending}
                   entityLabel="venta"
+                  toolbarExtra={
+                    <Button size="sm" onClick={openCreate} disabled={isPending} className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
+                      + Nueva venta
+                    </Button>
+                  }
                 />
               </TabsContent>
 
@@ -707,6 +705,11 @@ export default function MainSales({
                   onDeleteAll={onDeleteAll}
                   deleteBusy={isPending}
                   entityLabel="venta"
+                  toolbarExtra={
+                    <Button size="sm" onClick={openCreate} disabled={isPending} className="h-8 bg-blue-600 hover:bg-blue-700 text-white">
+                      + Nueva venta
+                    </Button>
+                  }
                 />
               </TabsContent>
             </Tabs>
