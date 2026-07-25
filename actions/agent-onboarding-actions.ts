@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { BASE_TRAINING_AGENT_ID } from "@/lib/channel-training";
-import { ONBOARDING_OBJECTIVES, fillBusinessVars, applyArranqueMode, type ArranqueMode } from "@/app/(root)/ai/_components/helpers/onboardingObjectives";
+import { ONBOARDING_OBJECTIVES, fillBusinessVars, applyArranqueMode, objectiveFlows, type ArranqueMode } from "@/app/(root)/ai/_components/helpers/onboardingObjectives";
 import { getOrCreateChannelPrompt, publishPrompt } from "@/actions/system-prompt-actions";
 import { isAdminOrReseller } from "@/lib/rbac";
 
@@ -143,6 +143,58 @@ export interface AgentOnboardingInput {
   extras?: string;
   /** Tipos de gestión activados con sus campos a capturar. */
   gestion?: { tipo: string; campos: string[] }[];
+}
+
+/**
+ * Crea automáticamente en /workflow (creador visual, isPro=true) los flujos del
+ * embudo elegido, con el nombre EXACTO que menciona el prompt y el texto por
+ * defecto de cada paso, listos para editar. Así "Ejecuta SIEMPRE el flujo 'X'"
+ * encuentra el flujo en vez de caer al texto por defecto.
+ *
+ * Cada flujo es un único nodo de mensaje (sin conexiones: el motor visual lo
+ * ejecuta igual como nodo inicial). El primero (BIENVENIDA) arranca la sesión.
+ * Se reemplaza cualquier flujo previo con el mismo nombre (p. ej. el BIENVENIDA
+ * básico del registro) para dejar el contenido del embudo. No bloquea el alta
+ * si algo falla.
+ */
+async function createFunnelWorkflows(
+  userId: string,
+  objectiveId: string,
+  biz: { nombre?: string; ubicacion?: string; horario?: string },
+): Promise<void> {
+  const flows = objectiveFlows(objectiveId, biz);
+  if (flows.length === 0) return;
+
+  await db.$transaction(async (tx) => {
+    for (let i = 0; i < flows.length; i++) {
+      const { name, message } = flows[i];
+      // name + userId es único: borra el previo (si existe) y recrea con el
+      // contenido del embudo.
+      await tx.workflow.deleteMany({ where: { userId, name } });
+      const wf = await tx.workflow.create({
+        data: {
+          userId,
+          name,
+          definition: "{}",
+          status: "active",
+          isPro: true,
+          order: i,
+          isFunnelStep: true,
+          triggerOnNewSession: i === 0, // solo BIENVENIDA arranca la sesión
+        },
+      });
+      await tx.workflowNode.create({
+        data: {
+          workflowId: wf.id,
+          tipo: "message",
+          message: message || name,
+          order: 1,
+          posX: 100,
+          posY: 100,
+        },
+      });
+    }
+  });
 }
 
 /**
@@ -316,6 +368,18 @@ export async function completeAgentOnboarding(
       revalidate: "/ia",
     });
     if (!pub.ok) return { ok: false, error: (pub as { error?: string }).error ?? "No se pudo publicar." };
+
+    // Crear los flujos del embudo en /workflow (nombre exacto del prompt +
+    // texto por defecto), listos para editar. No bloquea el alta si falla.
+    try {
+      await createFunnelWorkflows(userId, input.objectiveId, {
+        nombre: business.nombre,
+        ubicacion: business.ubicacion,
+        horario: business.horarios,
+      });
+    } catch (e) {
+      console.warn("[completeAgentOnboarding] no se pudieron crear los flujos del embudo:", e);
+    }
 
     // Marcar como hecho (cookie) — el agente ya tiene contenido igual.
     const cookieStore = await cookies();
