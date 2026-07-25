@@ -31,10 +31,13 @@ export type ExpenseRow = {
 };
 
 function iso(d: string | Date) {
+    // La fecha se guarda como date-only en UTC (medianoche). Se formatea en UTC
+    // para no correrla un día por la zona horaria (ej. Colombia UTC-5 mostraba
+    // el 1 de julio como 30 de junio).
     const date = typeof d === 'string' ? new Date(d) : d;
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
+    const yyyy = date.getUTCFullYear();
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(date.getUTCDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
 }
 

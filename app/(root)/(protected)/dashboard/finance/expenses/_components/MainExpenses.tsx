@@ -76,15 +76,17 @@ type DraftAttachment = {
 };
 
 const toISODate = (d: Date | string) => {
+  // Date-only en UTC (coincide con el guardado y el display), para no correr
+  // la fecha un día por la zona horaria.
   const date = typeof d === 'string' ? new Date(d) : d;
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
+  const yyyy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(date.getUTCDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
 };
 
 function isSameMonth(date: Date, base: Date) {
-  return date.getFullYear() === base.getFullYear() && date.getMonth() === base.getMonth();
+  return date.getUTCFullYear() === base.getUTCFullYear() && date.getUTCMonth() === base.getUTCMonth();
 }
 
 function parseMonthValue(value?: string) {
