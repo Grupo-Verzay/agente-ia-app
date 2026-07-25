@@ -77,12 +77,58 @@ function isUniqueError(e: any, fields?: string[]) {
    LECTURAS (para tu UI)
 ============================ */
 
-const ALLOWED_MODELS = ['gpt-4o-mini', 'gemini-2.5-flash'];
+const ALLOWED_MODELS = [
+  'gpt-4o-mini',
+  'gpt-5-mini',
+  'gemini-2.5-flash',
+  'gemini-3.1-flash-lite',
+];
 const MODEL_DISPLAY: Record<string, string> = { 'gemini-2.5-flash': 'gemini-2.0-flash' };
+
+/**
+ * Modelos nuevos que se quieren ofrecer además de los que ya venían sembrados.
+ * El `name` es el identificador real que se le pasa al proveedor (OpenAI/Google),
+ * por eso no llevan remapeo en MODEL_DISPLAY. El backend ya los soporta: el factory
+ * pasa el modelo tal cual (y trata gpt-5* como reasoning, sin temperature).
+ */
+const EXTRA_CATALOG_MODELS: Array<{ provider: string; name: string }> = [
+  { provider: 'openai', name: 'gpt-5-mini' },
+  { provider: 'google', name: 'gemini-3.1-flash-lite' },
+];
+
+// Evita repetir los upserts en cada carga: basta una vez por proceso.
+let catalogEnsured = false;
+
+/**
+ * Asegura que los modelos nuevos existan en la BD. Es idempotente (upsert sobre
+ * la clave única providerId+name) y no requiere migración: solo inserta filas de
+ * catálogo si faltan. Si el proveedor no existe todavía, se omite sin romper.
+ */
+async function ensureCatalogModels(): Promise<void> {
+  if (catalogEnsured) return;
+  try {
+    for (const extra of EXTRA_CATALOG_MODELS) {
+      const provider = await db.aiProvider.findUnique({
+        where: { name: extra.provider },
+        select: { id: true },
+      });
+      if (!provider) continue;
+      await db.aiModel.upsert({
+        where: { providerId_name: { providerId: provider.id, name: extra.name } },
+        update: {},
+        create: { providerId: provider.id, name: extra.name },
+      });
+    }
+    catalogEnsured = true;
+  } catch (err) {
+    console.error('ensureCatalogModels error:', err);
+  }
+}
 
 /** Proveedores con sus modelos */
 export async function listAiProvidersWithModels(): Promise<ActionResult<ProviderWithModels[]>> {
   noStore();
+  await ensureCatalogModels();
   const providers = await db.aiProvider.findMany({
     include: { models: { where: { name: { in: ALLOWED_MODELS } } } },
     orderBy: { name: 'asc' },
