@@ -97,7 +97,7 @@ export function buildExpenseColumns(opts: {
                 const amt = Number(row.original.amount);
                 return (
                     <div className="text-right tabular-nums">
-                        {isNaN(amt) ? '—' : amt.toFixed(2)} {row.original.currencyCode}
+                        {isNaN(amt) ? '—' : amt.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {row.original.currencyCode}
                     </div>
                 );
             },

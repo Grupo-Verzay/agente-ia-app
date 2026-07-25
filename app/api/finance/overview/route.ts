@@ -40,16 +40,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const selectedMonth = parseMonthParam(request.nextUrl.searchParams.get('month'));
-  const from = startOfMonth(selectedMonth);
-  const to = startOfNextMonth(selectedMonth);
   const currencyCode = me.preferredCurrencyCode || 'COP';
 
+  // Totales de TODO el tiempo (Balance/Ingresos/Gastos/Transacciones), para que
+  // coincidan con las listas de Ventas/Gastos (que muestran todo por defecto).
   const txs = await db.financeTransaction.findMany({
     where: {
       userId: me.id,
       status: { not: 'DELETED' },
-      occurredAt: { gte: from, lt: to },
       type: { in: ['SALE', 'EXPENSE'] },
     },
     select: {
