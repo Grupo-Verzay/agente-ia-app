@@ -47,7 +47,7 @@ const CustomWorkflow = async ({ params }: { params: { workflowId: string } }) =>
           style={{ '--sidebar-width': '20rem' } as CSSProperties}
         >
           <div className="relative w-full h-full overflow-hidden">
-            <div className="absolute right-0 top-0 z-50">
+            <div className="absolute right-3 top-3 z-[70]">
               <WorkflowNodesSidebarTrigger />
             </div>
             <ReactFlowProvider>
