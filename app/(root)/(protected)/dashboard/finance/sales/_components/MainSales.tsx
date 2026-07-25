@@ -651,39 +651,9 @@ export default function MainSales({
               </Button>
             </div>
 
-            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <div className="flex items-center justify-between rounded-xl border bg-muted/10 px-3 py-2 hover:bg-muted/20">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-background">
-                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="leading-tight">
-                    <p className="text-[11px] text-muted-foreground">Total mes</p>
-                    <p className="text-sm font-medium capitalize">{selectedMonthLabel}</p>
-                  </div>
-                </div>
-                <div className="text-right leading-tight">
-                  <p className="text-[11px] text-muted-foreground">Monto</p>
-                  <p className="text-sm font-semibold">{monthTotalText}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between rounded-xl border bg-muted/10 px-3 py-2 hover:bg-muted/20">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg border bg-background">
-                    <Layers className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="leading-tight">
-                    <p className="text-[11px] text-muted-foreground">Total</p>
-                    <p className="text-sm font-medium">Acumulado</p>
-                  </div>
-                </div>
-                <div className="text-right leading-tight">
-                  <p className="text-[11px] text-muted-foreground">Monto</p>
-                  <p className="text-sm font-semibold">{grandTotalText}</p>
-                </div>
-              </div>
-            </div>
+            {/* Resumen "Total mes / Acumulado" oculto: la info ya está en las
+                tarjetas superiores (Ingresos/Balance) y así la lista tiene más
+                espacio. */}
 
             <Tabs value={tab} onValueChange={(v) => setTab(v as 'month' | 'total')} className="mt-2 flex flex-col flex-1 min-h-0">
               <TabsList className="h-9 w-full justify-start gap-6 rounded-none bg-transparent p-0">
