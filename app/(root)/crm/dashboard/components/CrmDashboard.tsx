@@ -324,15 +324,7 @@ export const CrmDashboard = ({
                                     color="#3B82F6"
                                 />
                             </div>
-                            <div className="min-w-0 sm:flex-1">
-                                <MetricCard
-                                    icon={<Wallet className="h-4 w-4" />}
-                                    label="Ingresos totales"
-                                    value={analyticsLoading ? "…" : (a?.sales.total ? `$${a.sales.totalRevenue.toLocaleString("es-ES", { minimumFractionDigits: 2 })}` : "—")}
-                                    helper={a?.sales.total ? `${a.sales.total} ventas` : "sin ventas registradas"}
-                                    color="#8B5CF6"
-                                />
-                            </div>
+                            {/* Tarjeta "Ingresos totales" retirada del CRM: los ingresos van en Finanzas. */}
                         </>
                     )}
                 </div>
