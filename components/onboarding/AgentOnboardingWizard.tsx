@@ -110,11 +110,25 @@ export function AgentOnboardingWizard() {
   // Abrir automáticamente en primer arranque, o por evento (relanzar).
   useEffect(() => {
     let cancel = false;
+    // Señal explícita del registro (`?alta_agente=1`): abre SIEMPRE el asistente
+    // al entrar por primera vez, sin depender del auto-abrir por estado (que en
+    // algunos flujos —cuentas demo de reseller— no lo mostraba). Se limpia el
+    // parámetro para que un refresh no lo vuelva a forzar.
+    const forced =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("alta_agente") === "1";
+    if (forced) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("alta_agente");
+        window.history.replaceState({}, "", url.toString());
+      } catch { /* noop */ }
+    }
     getAgentOnboardingState().then((s) => {
-      if (cancel || !s.show) return;
+      if (cancel) return;
       if (s.prefill) setPrefill(s.prefill);
-      setOpen(true);
-    }).catch(() => {});
+      if (s.show || forced) setOpen(true);
+    }).catch(() => { if (!cancel && forced) setOpen(true); });
     const openOnDemand = () => setOpen(true);
     window.addEventListener("agent-onboarding:open", openOnDemand);
     return () => { cancel = true; window.removeEventListener("agent-onboarding:open", openOnDemand); };
