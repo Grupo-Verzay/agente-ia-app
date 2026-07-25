@@ -54,6 +54,8 @@ type DataTableProps<TData, TValue> = {
   onDeleteAll?: () => void | Promise<void>;
   deleteBusy?: boolean;
   entityLabel?: string; // singular, ej. "venta"
+  /** Acción extra al final de la barra (ej. botón "+ Nueva venta"). */
+  toolbarExtra?: React.ReactNode;
 };
 
 export function DataTable<TData, TValue>({
@@ -68,6 +70,7 @@ export function DataTable<TData, TValue>({
   onDeleteAll,
   deleteBusy = false,
   entityLabel = 'registro',
+  toolbarExtra,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
@@ -197,6 +200,7 @@ export function DataTable<TData, TValue>({
                   ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            {toolbarExtra}
           </div>
         </div>
       </div>
