@@ -35,6 +35,7 @@ import {
 import { CustomNodeData, PaletteItem, PropsWorkflowCanvas, Action } from '@/types/workflow-node';
 import { CustomEdge, CustomNode } from '.';
 import { WorkflowAddNodeProvider, AddNodeFn } from './WorkflowAddNodeContext';
+import { WorkflowNodesSidebarTrigger } from './WorkflowNodesSidebarTrigger';
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -602,6 +603,12 @@ export function WorkflowCanvas({
             <LayoutGrid className="h-4 w-4" />
             <span className="text-xs font-medium">Ordenar</span>
           </Button>
+        </Panel>
+
+        {/* Botón para abrir la paleta de nodos. Anclado al canvas (Panel) para
+            que no lo tape ni empuje el menú lateral izquierdo. */}
+        <Panel position="top-right">
+          <WorkflowNodesSidebarTrigger />
         </Panel>
       </ReactFlow>
     </div>
