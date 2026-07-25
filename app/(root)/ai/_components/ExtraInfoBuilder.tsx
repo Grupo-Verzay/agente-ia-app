@@ -464,14 +464,14 @@ export function ExtraInfoBuilder({
                                                                     <Input
                                                                         value={step.title ?? ""}
                                                                         onChange={(e) => updateTitle(step.id, e.target.value)}
-                                                                        className="h-7 text-sm w-1/2"
+                                                                        className="h-7 text-sm w-1/2 uppercase"
                                                                         placeholder="Título del extra"
                                                                         onClick={(e) => e.stopPropagation()}
                                                                     />
                                                                 ) : (
                                                                     <button
                                                                         type="button"
-                                                                        className="flex-1 text-left text-sm font-medium truncate hover:text-foreground transition-colors"
+                                                                        className="flex-1 text-left text-sm font-medium truncate uppercase hover:text-foreground transition-colors"
                                                                         onClick={() => toggleItem(step.id)}
                                                                     >
                                                                         {step.title || <span className="text-muted-foreground italic">Sin título</span>}

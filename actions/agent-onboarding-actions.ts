@@ -289,10 +289,10 @@ export async function completeAgentOnboarding(
     // Preguntas frecuentes → faq.steps (title = pregunta, mainMessage = respuesta).
     const faqSteps = (input.faq ?? [])
       .filter((f) => clean(f.q))
-      .map((f) => ({ id: uid(), title: clean(f.q), mainMessage: clean(f.a), elements: [] as any[] }));
+      .map((f) => ({ id: uid(), title: clean(f.q).toUpperCase(), mainMessage: clean(f.a), elements: [] as any[] }));
     // Medios de pago → pregunta frecuente (visible + el agente la responde).
     if (clean(input.pagos)) {
-      faqSteps.push({ id: uid(), title: "Medios de pago", mainMessage: `Aceptamos: ${clean(input.pagos)}.`, elements: [] as any[] });
+      faqSteps.push({ id: uid(), title: "MEDIOS DE PAGO", mainMessage: `Aceptamos: ${clean(input.pagos)}.`, elements: [] as any[] });
     }
     const faq = { steps: faqSteps };
 
@@ -302,7 +302,7 @@ export async function completeAgentOnboarding(
         .filter((p) => clean(p.name))
         .map((p) => ({
           id: uid(),
-          title: clean(p.name),
+          title: clean(p.name).toUpperCase(),
           mainMessage: clean(p.desc) || clean(p.name),
           elements: [] as any[],
         })),
@@ -314,7 +314,7 @@ export async function completeAgentOnboarding(
       firmaText: "",
       firmaName: "",
       steps: clean(input.extras)
-        ? [{ id: uid(), title: "Información adicional", mainMessage: clean(input.extras), elements: [] as any[] }]
+        ? [{ id: uid(), title: "INFORMACIÓN ADICIONAL", mainMessage: clean(input.extras), elements: [] as any[] }]
         : [],
     };
 
@@ -329,7 +329,7 @@ export async function completeAgentOnboarding(
             // Citas: el enlace de agendamiento se configura aparte (queda vacío aquí).
             return {
               id: uid(),
-              title: "Citas",
+              title: "CITAS",
               mainMessage: CAPTURA_MSG.Citas,
               elements: [
                 { id: uid(), kind: "function", fn: "captura_datos", subtype: "Citas", prompt: "" },
@@ -338,7 +338,7 @@ export async function completeAgentOnboarding(
           }
           return {
             id: uid(),
-            title: g.tipo,
+            title: g.tipo.toUpperCase(),
             mainMessage: CAPTURA_MSG[g.tipo] ?? "",
             elements: [
               {

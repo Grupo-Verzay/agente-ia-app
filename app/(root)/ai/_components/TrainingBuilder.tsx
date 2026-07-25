@@ -606,7 +606,7 @@ export function TrainingBuilder({
 
                                 {/* Título */}
                                 {lockWelcome ? (
-                                  <span className="text-sm font-semibold truncate">
+                                  <span className="text-sm font-semibold truncate uppercase">
                                     {step.title}
                                   </span>
                                 ) : isExpanded ? (
@@ -614,14 +614,14 @@ export function TrainingBuilder({
                                     id={step.id}
                                     value={step.title}
                                     onChange={(e) => updateStepTitle(step.id, e.target.value)}
-                                    className="h-7 text-sm w-1/2"
+                                    className="h-7 text-sm w-1/2 uppercase"
                                     placeholder="Título del paso"
                                     onClick={(e) => e.stopPropagation()}
                                   />
                                 ) : (
                                   <button
                                     type="button"
-                                    className="flex-1 text-left text-sm font-medium truncate hover:text-foreground transition-colors"
+                                    className="flex-1 text-left text-sm font-medium truncate uppercase hover:text-foreground transition-colors"
                                     onClick={() => toggleStep(step.id)}
                                   >
                                     {step.title || (
