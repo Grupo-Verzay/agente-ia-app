@@ -266,10 +266,11 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
     }
 
     // La cuenta se creó y la sesión ya quedó iniciada (signIn en el server
-    // action). Entramos directo a la app: allí aparece el flujo "Da de alta tu
-    // Agente IA" para configurar el agente. Navegación dura para que la petición
-    // lleve la cookie de sesión recién creada.
-    window.location.href = "/profile";
+    // action). Entramos directo a la app con la señal `alta_agente=1` para abrir
+    // SIEMPRE el asistente "Da de alta tu Agente IA" (sin depender del auto-abrir,
+    // que en algunos flujos —p. ej. cuentas demo de reseller— no aparecía).
+    // Navegación dura para que la petición lleve la cookie de sesión recién creada.
+    window.location.href = "/profile?alta_agente=1";
   };
 
   if (successData) {
