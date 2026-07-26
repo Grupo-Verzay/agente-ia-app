@@ -1,26 +1,25 @@
-import { auth } from "@/auth";
-import { db } from "@/lib/db";
+import { currentUser } from "@/lib/auth";
 
 /**
  * Cuenta a la que pertenece la sección Finanzas.
  *
- * Finanzas es SIEMPRE "por cuenta": debe mostrar los datos del titular logueado
- * (sus cuentas, ventas, gastos), no de una cuenta que se esté navegando por
- * impersonación / "cuenta activa". Por eso se resuelve por el email de la sesión
- * (estable ante impersonación), igual que la página de Cuentas.
+ * Finanzas escopa por la CUENTA QUE SE ESTÁ VIENDO (`effectiveId`), igual que el
+ * resto del sistema (productos, CRM, chats). Eso resuelve bien los dos casos:
+ *
+ * - Asesor / sub-usuario: `effectiveId` es el id del DUEÑO, así que ve el dinero
+ *   de la cuenta original y no una contabilidad partida por asesor.
+ * - Admin o reseller que administra otras cuentas: al cambiarse a una de ellas,
+ *   `effectiveId` es esa cuenta, así que ve las finanzas de esa cuenta y no las
+ *   suyas.
  *
  * Usar este helper en TODAS las pantallas/acciones de Finanzas para que todas
- * escopen por la misma cuenta y no mezclen datos (p. ej. cuentas reales en una
- * pantalla y de demo en otra).
+ * escopen por la misma cuenta y no mezclen datos (p. ej. cuentas de una cuenta
+ * en una pantalla y de otra en la siguiente).
  */
 export async function getFinanceUser(): Promise<{ id: string; preferredCurrencyCode: string | null } | null> {
-  const session = await auth();
-  const email = session?.user?.email;
-  if (!email) return null;
+  const user = await currentUser();
+  if (!user) return null;
 
-  const me = await db.user.findUnique({
-    where: { email },
-    select: { id: true, preferredCurrencyCode: true },
-  });
-  return me?.id ? { id: me.id, preferredCurrencyCode: me.preferredCurrencyCode } : null;
+  const id = user.effectiveId ?? user.id;
+  return id ? { id, preferredCurrencyCode: user.preferredCurrencyCode } : null;
 }
