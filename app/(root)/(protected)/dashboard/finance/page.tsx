@@ -7,6 +7,7 @@ import { db } from '@/lib/db';
 import { getFinanceUser } from '@/lib/finance-user';
 
 import { FinanceMonthChart } from './_components/FinanceMonthChart';
+import { WipeFinanceButton } from './_components/WipeFinanceButton';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -91,6 +92,14 @@ export default async function FinanceHomePage({
     orderBy: { code: 'asc' },
     select: { code: true, symbol: true, decimals: true },
   });
+
+  // Nombre de la cuenta activa: se muestra al vaciar para no hacerlo en la que
+  // no es (Finanzas escopa por la cuenta que se está viendo).
+  const account = await db.user.findUnique({
+    where: { id: me.id },
+    select: { name: true, company: true, email: true },
+  });
+  const accountLabel = account?.company || account?.name || account?.email || null;
 
   const preferredCode = me.preferredCurrencyCode || 'COP';
   const preferredMeta = currencies.find((c) => c.code === preferredCode);
@@ -212,6 +221,10 @@ const annualRows = Array.from({ length: 12 }, (_, index) => {
           />
         </CardContent>
       </Card>
+
+      <div className="flex justify-end pt-1">
+        <WipeFinanceButton accountLabel={accountLabel} />
+      </div>
     </div>
   );
 }
