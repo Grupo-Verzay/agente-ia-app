@@ -2035,17 +2035,24 @@ export function ChatsClient({
       timer = setTimeout(loop, listInterval);
     };
 
-    if (normalizedInitialChatsResult.success) {
-      timer = setTimeout(() => {
-        void loop();
-      }, INITIAL_CHAT_SYNC_DELAY_MS);
-    }
+    // El refresco arranca SIEMPRE, también cuando la carga inicial falló.
+    //
+    // Antes se condicionaba al éxito, y eso dejaba el peor caso sin salida: si
+    // Evolution no respondía al abrir la pantalla, la lista se quedaba vacía y
+    // ya no se volvía a intentar. La única forma de recuperarse era recargar a
+    // mano, justo cuando el servicio ya había vuelto.
+    //
+    // Es también lo que permite que la pantalla deje de esperar a Evolution para
+    // dibujarse: si no llega a tiempo, este ciclo la completa en cuanto pueda.
+    timer = setTimeout(() => {
+      void loop();
+    }, INITIAL_CHAT_SYNC_DELAY_MS);
 
     return () => {
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-  }, [normalizedInitialChatsResult.success, refetchAllInstances, refreshChatSessions]);
+  }, [refetchAllInstances, refreshChatSessions]);
 
   useEffect(() => {
     if (pollingRef.current) {

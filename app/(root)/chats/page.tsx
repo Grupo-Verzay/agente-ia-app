@@ -88,6 +88,16 @@ async function settle<T>(promise: Promise<T>): Promise<T | null> {
 // fetch al backend en CADA carga de Chats (page es force-dynamic); sin cache ni
 // timeout, un backend lento colgaba toda la carga de la bandeja. Un TTL corto es
 // seguro: solo decide la ruta de fetch (Baileys vs Evolution), ambas válidas.
+/**
+ * Lo máximo que la pantalla espera a Evolution antes de dibujarse.
+ *
+ * Solo aplica a las cuentas sin historial guardado, que son las únicas que
+ * dependen de esa respuesta para tener algo que mostrar. Cuatro segundos dan
+ * margen de sobra a un servidor sano y evitan que uno enfermo deje la pantalla
+ * en blanco: lo que no llegue a tiempo lo trae el refresco del cliente.
+ */
+const ESPERA_EVOLUTION_RENDER_MS = 4_000;
+
 const BAILEYS_RUNTIME_TTL_MS = 20_000;
 const BAILEYS_RUNTIME_TIMEOUT_MS = 2_000;
 const baileysRuntimeStatusCache = new Map<string, { open: boolean; at: number }>();
@@ -535,11 +545,21 @@ export default async function ChatsPage({
       data: persistedInitialChats,
     };
   } else {
+    // Solo se llega aquí cuando la cuenta no tiene historial guardado, así que
+    // esta petición es lo único que hay entre el usuario y la pantalla: mientras
+    // no responda, se ve la pantalla de carga. Con Evolution caído eso eran 15
+    // segundos en blanco.
+    //
+    // Se recorta a 4 segundos. Si Evolution responde, se aprovecha igual; si no,
+    // la pantalla aparece y el refresco automático del cliente trae los chats en
+    // cuanto Evolution vuelva, sin que nadie tenga que recargar.
     const allFetchResults = await Promise.allSettled(
       fetchPlans.map((plan) =>
         plan.isBaileys
           ? fetchChatsFromBaileys(plan.instancia.instanceName)
-          : fetchChatsFromEvolution(apiKey!, plan.instancia.instanceName),
+          : fetchChatsFromEvolution(apiKey!, plan.instancia.instanceName, {
+              timeoutMs: ESPERA_EVOLUTION_RENDER_MS,
+            }),
       ),
     );
 
