@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { updateLeadPushNameAction } from "@/actions/registro-action";
 import { ContactEditDialog } from "@/app/(root)/chats/_components/ContactEditDialog";
-import { getDisplayNombreFromRegistro } from "../../helpers";
+import { getDisplayNombreFromRegistro } from "../../helpers/getDisplayNombreFromRegistro";
 import type { RegistroWithSession } from "@/types/session";
 
 export function CrmRecordNameCell({

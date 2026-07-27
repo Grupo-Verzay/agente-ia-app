@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx'
 import { toast } from 'sonner'
 
 interface ExportToExcelOptions {
@@ -7,7 +6,11 @@ interface ExportToExcelOptions {
     sheetName?: string
 }
 
-export const exportToExcel = ({ data, filename = 'export.xlsx', sheetName = 'Hoja1' }: ExportToExcelOptions) => {
+// La librería de hojas de cálculo pesa unos 400 kB y solo hace falta al pulsar
+// Exportar. Se pide en ese momento, no al abrir la pantalla: quien nunca exporta
+// no la descarga nunca. El aviso de "Procesando" ya estaba, así que la espera de
+// la descarga queda cubierta por él.
+export const exportToExcel = async ({ data, filename = 'export.xlsx', sheetName = 'Hoja1' }: ExportToExcelOptions) => {
     // if (!data || !Array.isArray(data) || data.length === 0) {
     //     toast.error('No hay datos para exportar.')
     //     return
@@ -21,6 +24,7 @@ export const exportToExcel = ({ data, filename = 'export.xlsx', sheetName = 'Hoj
     toast.loading('Procesando archivo Excel...', { id: toastId })
 
     try {
+        const XLSX = await import('xlsx')
         const worksheet = XLSX.utils.table_to_sheet(table)
         const workbook = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)

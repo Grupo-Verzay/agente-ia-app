@@ -10,10 +10,8 @@ import { cn } from "@/lib/utils";
 import type { RegistroWithSession, TipoRegistro } from "@/types/session";
 import { CrmFollowUpSummaryBadge } from "../CrmFollowUpSummaryBadge";
 import { formatFecha, getTipoLabel } from "../../../helpers";
-import {
-    getDisplayNombreFromRegistro,
-    getDisplayWhatsappFromSession,
-} from "../../helpers";
+import { getDisplayNombreFromRegistro } from "../../helpers/getDisplayNombreFromRegistro";
+import { getDisplayWhatsappFromSession } from "../../helpers/getDisplayWhatsappFromSession";
 import { CRM_TAB_COLORS } from "./constants";
 
 import { CrmRecordDetailCell } from "./CrmRecordDetailCell";

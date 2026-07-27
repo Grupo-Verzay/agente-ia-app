@@ -22,10 +22,8 @@ import {
 import type { RegistroWithSession } from "@/types/session";
 import { toast } from "sonner";
 import { CrmConfirmActionDialog } from "../CrmConfirmActionDialog";
-import {
-  getDisplayNombreFromRegistro,
-  getDisplayWhatsappFromSession,
-} from "../../helpers";
+import { getDisplayNombreFromRegistro } from "../../helpers/getDisplayNombreFromRegistro";
+import { getDisplayWhatsappFromSession } from "../../helpers/getDisplayWhatsappFromSession";
 
 export function CrmRecordActionsCell({
   registro,

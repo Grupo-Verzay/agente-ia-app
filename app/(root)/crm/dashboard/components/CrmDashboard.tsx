@@ -1,5 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type RefObject } from "react";
 import useSWR from "swr";
@@ -31,7 +33,13 @@ import { MetricCard } from "./MetricCard";
 import { CrmGlobalActionsMenu } from "./CrmGlobalActionsMenu";
 import type { DashboardStats } from "./MainDashboard";
 import { CrmRecordsSection } from "./records-table/CrmRecordsSection";
-import { AnalyticsView } from "./AnalyticsView";
+// La vista de analítica es una de las pestañas del CRM y es la única que dibuja
+// gráficas: la librería pesa 343 kB. Se carga cuando se abre esa pestaña, no al
+// entrar al CRM, así que kanban, registros, llamadas y reportes dejan de pagarla.
+const AnalyticsView = dynamic(
+    () => import("./AnalyticsView").then((m) => m.AnalyticsView),
+    { ssr: false },
+);
 import { KanbanBoard } from "../../kanban/_components/KanbanBoard";
 import { WeeklyReportsView, type ReportStats } from "./WeeklyReportsView";
 import { CallsCrmClient } from "../../llamadas/_components/CallsCrmClient";

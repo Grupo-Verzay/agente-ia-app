@@ -181,11 +181,11 @@ export const BulkActionsDropdown: React.FC<BulkActionsDropdownProps> = ({
                         Exportar
                     </DropdownMenuLabel>
                     <DropdownMenuItem
-                        onClick={() => exportToExcel({
+                        onClick={() => { void exportToExcel({
                             // data: table.getFilteredRowModel().rows.map(row => row.original),
                             filename: 'clientes.xlsx',
                             sheetName: 'Clientes'
-                        })}
+                        }); }}
                         className="text-green-600 hover:bg-green-50 dark:hover:bg-green-900/40"
                     >
                         <FileDown className="mr-2 h-4 w-4" />

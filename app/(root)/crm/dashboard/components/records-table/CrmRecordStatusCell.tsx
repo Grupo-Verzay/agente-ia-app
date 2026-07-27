@@ -8,7 +8,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import type { RegistroWithSession } from "@/types/session";
-import { getEstadoOptions } from "../../helpers";
+import { getEstadoOptions } from "../../helpers/getEstadoOptions";
 
 export function CrmRecordStatusCell({
     registro,
