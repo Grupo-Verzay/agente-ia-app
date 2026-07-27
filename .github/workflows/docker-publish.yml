@@ -60,15 +60,30 @@ jobs:
             echo "::error::Falta el secret PORTAINER_WEBHOOK_URL (Settings -> Secrets and variables -> Actions). El redespliegue NO ocurrió."
             exit 1
           fi
+          # Se le dice a Portainer QUÉ versión desplegar, con ?tag=<commit>.
+          #
+          # Sin esto, el webhook redespliega la imagen que el servicio ya tiene
+          # anotada, y Swarm la guarda fijada a un digest concreto: el servicio se
+          # reiniciaba y volvía a levantar EXACTAMENTE el mismo código. De ahí que
+          # cada cambio hubiera que ponerlo a mano en Portainer.
+          #
+          # Cada compilación publica también la imagen etiquetada con su commit
+          # (ver el paso de build), así que basta con nombrarla aquí.
+          if printf '%s' "$PORTAINER_WEBHOOK_URL" | grep -q '?'; then
+            URL_DESPLIEGUE="$PORTAINER_WEBHOOK_URL&tag=${{ github.sha }}"
+          else
+            URL_DESPLIEGUE="$PORTAINER_WEBHOOK_URL?tag=${{ github.sha }}"
+          fi
+
           # Guardamos el cuerpo y capturamos el código HTTP. Antes usábamos
           # "curl -s" a secas: aunque Portainer respondiera 4xx/5xx el paso salía
           # verde y "parecía" desplegado. Ahora fallamos en rojo si no es 2xx.
           code=$(curl -sS -o /tmp/portainer_resp.txt -w "%{http_code}" \
-            -X POST "$PORTAINER_WEBHOOK_URL")
+            -X POST "$URL_DESPLIEGUE")
           echo "Portainer respondió HTTP $code"
           echo "Cuerpo: $(cat /tmp/portainer_resp.txt)"
           if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
             echo "::error::El webhook de Portainer falló (HTTP $code). El redespliegue NO ocurrió."
             exit 1
           fi
-          echo "Webhook de Portainer aceptado (HTTP $code)."
+          echo "Webhook de Portainer aceptado (HTTP $code). Desplegando ${{ github.sha }}."
