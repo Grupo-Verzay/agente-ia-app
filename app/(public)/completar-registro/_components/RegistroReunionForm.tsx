@@ -8,6 +8,7 @@ import {
   ArrowRight, Loader2, CheckCircle2,
   Eye, EyeOff, Lock, Mail, User, Phone,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { CountryCodeSelect } from '@/components/custom/CountryCodeSelect';
 import { Button } from '@/components/ui/button';
 import { submitRegistroReunion, type RegistroReunionPayload } from '@/actions/registro-reunion-actions';
@@ -156,13 +157,16 @@ function TextField({ label, name, placeholder, register, error }: {
       <label className="text-sm font-semibold text-slate-200">
         {label} <span className="text-red-400">*</span>
       </label>
+      {/* El aviso va DENTRO del campo (placeholder en rojo), no debajo. */}
       <input
         {...register(name)}
         type="text"
-        placeholder={placeholder}
-        className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        placeholder={error ?? placeholder}
+        className={cn(
+          "w-full rounded-lg border bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500",
+          error ? "border-red-500/60 placeholder:text-red-400" : "border-white/10 placeholder:text-slate-500",
+        )}
       />
-      {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );
 }
@@ -332,12 +336,14 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
               <input
                 {...register('nombre')}
                 type="text"
-                placeholder="Juan Pérez"
+                placeholder={errors.nombre?.message ?? 'Juan Pérez'}
                 autoFocus
-                className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className={cn(
+                  "w-full rounded-lg border bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500",
+                  errors.nombre ? "border-red-500/60 placeholder:text-red-400" : "border-white/10 placeholder:text-slate-500",
+                )}
               />
             </div>
-            {errors.nombre && <p className="text-xs text-red-400">{errors.nombre.message}</p>}
           </div>
 
           <TextField
@@ -360,11 +366,13 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
               <input
                 {...register('email')}
                 type="email"
-                placeholder="tu@empresa.com"
-                className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                placeholder={errors.email?.message ?? 'tu@empresa.com'}
+                className={cn(
+                  "w-full rounded-lg border bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500",
+                  errors.email ? "border-red-500/60 placeholder:text-red-400" : "border-white/10 placeholder:text-slate-500",
+                )}
               />
             </div>
-            {errors.email && <p className="text-xs text-red-400">{errors.email.message}</p>}
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -376,8 +384,11 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
               <input
                 {...register('password')}
                 type={showPassword ? 'text' : 'password'}
-                placeholder="Mínimo 6 caracteres"
-                className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 pl-9 pr-10 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                placeholder={errors.password?.message ?? 'Mínimo 6 caracteres'}
+                className={cn(
+                  "w-full rounded-lg border bg-white/5 py-2.5 pl-9 pr-10 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500",
+                  errors.password ? "border-red-500/60 placeholder:text-red-400" : "border-white/10 placeholder:text-slate-500",
+                )}
               />
               <button
                 type="button"
@@ -388,7 +399,6 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            {errors.password && <p className="text-xs text-red-400">{errors.password.message}</p>}
           </div>
         </div>
 
@@ -398,9 +408,8 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
             <label className="text-sm font-semibold text-slate-200">
               País <span className="text-red-400">*</span>
             </label>
-            <CountryCodeSelect countries={countries} value={dialCode} onChange={handleCountryChange} placeholder="Selecciona un país" />
+            <CountryCodeSelect countries={countries} value={dialCode} onChange={handleCountryChange} placeholder={errors.pais ? 'Obligatorio' : 'Selecciona un país'} />
             <input type="hidden" {...register('pais')} />
-            {errors.pais && <p className="text-xs text-red-400">{errors.pais.message}</p>}
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-slate-200">
@@ -413,12 +422,14 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
                 onChange={handleLocalNumberChange}
                 type="tel"
                 inputMode="numeric"
-                placeholder="Número WhatsApp"
-                className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                placeholder={errors.contacto?.message ?? 'Número WhatsApp'}
+                className={cn(
+                  "w-full rounded-lg border bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500",
+                  errors.contacto ? "border-red-500/60 placeholder:text-red-400" : "border-white/10 placeholder:text-slate-500",
+                )}
               />
             </div>
             <input type="hidden" {...register('contacto')} />
-            {errors.contacto && <p className="text-xs text-red-400">{errors.contacto.message}</p>}
           </div>
         </div>
 
