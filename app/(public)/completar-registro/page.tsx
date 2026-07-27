@@ -55,11 +55,11 @@ export default async function CompletarRegistroPage({ searchParams }: Props) {
           <h1 className="text-2xl font-bold text-white sm:text-3xl">
             {isReseller ? '🤝 Únete al programa de resellers' : '🚀 Activa tu cuenta'}
           </h1>
-          <p className="mt-2 max-w-md text-sm text-slate-400">
-            {isReseller
-              ? 'Cuéntanos sobre tu agencia o negocio para configurar tu cuenta de reseller.'
-              : 'Cuéntanos sobre tu negocio para configurar tu agente.'}
-          </p>
+          {isReseller && (
+            <p className="mt-2 max-w-md text-sm text-slate-400">
+              Cuéntanos sobre tu agencia o negocio para configurar tu cuenta de reseller.
+            </p>
+          )}
         </div>
       </div>
 
@@ -68,12 +68,6 @@ export default async function CompletarRegistroPage({ searchParams }: Props) {
         <RegistroReunionForm resellerSlug={resellerSlug} resellerSheetsUrl={resellerSheetsUrl} resellerFormName={resellerFormName} countries={countries} isReseller={isReseller} />
       </div>
 
-      <p className="mt-6 text-xs text-slate-600">
-        ¿Ya tienes cuenta?{' '}
-        <Link href="/login" className="text-slate-400 underline underline-offset-2 hover:text-white">
-          Iniciar sesión
-        </Link>
-      </p>
     </div>
   );
 }
