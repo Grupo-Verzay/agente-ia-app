@@ -405,9 +405,12 @@ interface Props {
   stats: StatData[] | null;
   showAssistanceIA?: boolean;
   showAssistanceHUMANO?: boolean;
+  showBillingMonthly?: boolean;
+  showBillingQuarterly?: boolean;
+  showBillingYearly?: boolean;
 }
 
-export function ResellerLandingClient({ plans, businessName, slug, whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats, showAssistanceIA = true, showAssistanceHUMANO = true }: Props) {
+export function ResellerLandingClient({ plans, businessName, slug, whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats, showAssistanceIA = true, showAssistanceHUMANO = true, showBillingMonthly = true, showBillingQuarterly = true, showBillingYearly = true }: Props) {
   // Un tipo se muestra solo si el reseller lo habilitó (flag de su landing) y hay
   // al menos un plan de ese tipo. Si solo queda uno, no se muestra el selector IA/Humana.
   const hasIA = showAssistanceIA && plans.some((p) => p.assistanceType === "IA");
@@ -417,8 +420,24 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
   if (hasHumano) availableTypes.push("HUMANO");
   const showAssistanceToggle = availableTypes.length > 1;
 
+  // Periodos de facturación habilitados por el reseller. Si desactiva todos, se
+  // usa mensual como respaldo (la sección de precios no puede quedar sin precio).
+  const availablePeriods: BillingPeriod[] = [];
+  if (showBillingMonthly) availablePeriods.push("monthly");
+  if (showBillingQuarterly) availablePeriods.push("quarterly");
+  if (showBillingYearly) availablePeriods.push("yearly");
+  if (availablePeriods.length === 0) availablePeriods.push("monthly");
+  const showBillingToggle = availablePeriods.length > 1;
+  // Preferencia por defecto: anual → trimestral → mensual (el primero habilitado).
+  const defaultPeriod: BillingPeriod =
+    availablePeriods.includes("yearly") ? "yearly"
+      : availablePeriods.includes("quarterly") ? "quarterly"
+        : "monthly";
+
   const [assistanceType, setAssistanceType] = useState<AssistanceType>(hasIA ? "IA" : "HUMANO");
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("yearly");
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(defaultPeriod);
+  // Periodo efectivo: si el elegido se deshabilitó, cae al disponible.
+  const effectivePeriod: BillingPeriod = availablePeriods.includes(billingPeriod) ? billingPeriod : defaultPeriod;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
@@ -475,7 +494,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
               <Button variant="ghost" size="sm" className="text-slate-300 hover:bg-white/10 hover:text-white">Iniciar sesión</Button>
             </Link>
             <Link href={`/completar-registro?r=${slug}`}>
-              <Button size="sm" className={cn("text-white", brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500")}>Comenzar gratis</Button>
+              <Button size="sm" className={cn("text-white", brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500")}>Crear mi Agente IA</Button>
             </Link>
           </div>
           <button className="p-2 text-slate-400 sm:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -492,7 +511,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
                 <Button variant="outline" size="sm" className="w-full border-white/20 bg-transparent text-white hover:bg-white/10">Iniciar sesión</Button>
               </Link>
               <Link href={`/completar-registro?r=${slug}`} className="flex-1">
-                <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-500">Registrarse</Button>
+                <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-500">Crear mi Agente IA</Button>
               </Link>
             </div>
           </div>
@@ -520,7 +539,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:flex-nowrap">
                 <Link href={`/completar-registro?r=${slug}`}>
                   <Button size="lg" className={cn("w-full gap-2 px-8 text-white md:w-auto", brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500")}>
-                    Comenzar gratis <ArrowRight className="h-4 w-4" />
+                    Crear mi Agente IA <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
                 <a href="#pricing">
@@ -537,7 +556,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
                 )}
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                {["Sin tarjeta de crédito", "Cancela cuando quieras", "Soporte incluido"].map((t) => (
+                {["Configuración automática", "Sin conocimientos técnicos", "Automatiza tu atención 24/7"].map((t) => (
                   <span key={t} className="flex items-center gap-1 text-xs text-slate-500">
                     <Check className="h-3 w-3 text-green-500" /> {t}
                   </span>
@@ -783,15 +802,19 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Planes y Precios</h2>
               <p className="mt-2 text-slate-400">Sin contratos. Cancela cuando quieras.</p>
-              <div className="mt-4 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
-                {([["monthly","Mensual",null],["quarterly","Trimestral","−14%"],["yearly","Anual","−22%"]] as [BillingPeriod,string,string|null][]).map(([p,label,badge]) => (
-                  <button key={p} onClick={() => setBillingPeriod(p)}
-                    className={cn("flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-all", billingPeriod === p ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white")}>
-                    {label}
-                    {badge && <span className={cn("rounded-full px-1.5 py-px text-[9px] font-bold", billingPeriod === p ? "bg-green-400/20 text-green-300" : "bg-green-500/15 text-green-500")}>{badge}</span>}
-                  </button>
-                ))}
-              </div>
+              {showBillingToggle && (
+                <div className="mt-4 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
+                  {([["monthly","Mensual",null],["quarterly","Trimestral","−14%"],["yearly","Anual","−22%"]] as [BillingPeriod,string,string|null][])
+                    .filter(([p]) => availablePeriods.includes(p))
+                    .map(([p,label,badge]) => (
+                    <button key={p} onClick={() => setBillingPeriod(p)}
+                      className={cn("flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-all", effectivePeriod === p ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white")}>
+                      {label}
+                      {badge && <span className={cn("rounded-full px-1.5 py-px text-[9px] font-bold", effectivePeriod === p ? "bg-green-400/20 text-green-300" : "bg-green-500/15 text-green-500")}>{badge}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
               {showAssistanceToggle && (
                 <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
                   <button onClick={() => setAssistanceType("IA")} className={cn("flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-all", effectiveType === "IA" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
@@ -809,7 +832,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {visiblePlans.map((plan) => (
-                  <PlanCard key={plan.id} plan={plan} assistanceType={effectiveType} billingPeriod={billingPeriod} whatsapp={waNumber} resellerSlug={slug} brand={brand} />
+                  <PlanCard key={plan.id} plan={plan} assistanceType={effectiveType} billingPeriod={effectivePeriod} whatsapp={waNumber} resellerSlug={slug} brand={brand} />
                 ))}
               </div>
             )}
@@ -859,7 +882,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
               <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Link href={`/completar-registro?r=${slug}`}>
                   <Button size="lg" className="gap-2 bg-blue-600 px-10 text-white hover:bg-blue-500">
-                    Crear cuenta gratis <ArrowRight className="h-4 w-4" />
+                    Crear mi Agente IA <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
                 <Link href="/login">
@@ -867,7 +890,7 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
                 </Link>
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
-                {["Sin tarjeta de crédito", "Cancela cuando quieras", "Soporte incluido"].map((t) => (
+                {["Configuración automática", "Sin conocimientos técnicos", "Automatiza tu atención 24/7"].map((t) => (
                   <span key={t} className="flex items-center gap-1 text-xs text-slate-500"><ShieldCheck className="h-3 w-3 text-green-500" /> {t}</span>
                 ))}
               </div>
