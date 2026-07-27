@@ -629,6 +629,24 @@ export default async function ChatsPage({
   const __tFin = performance.now();
   const __total = __tFin - __t0;
   if (__total > 3000) {
+    // Latencia de ida y vuelta a la base de datos. `SELECT 1` no toca ninguna
+    // tabla ni índice: lo que mide es el camino hasta el servidor, no el
+    // trabajo de la consulta. Si sale en pocos milisegundos, el tiempo se va
+    // en las consultas; si sale alto, se va en la red, y multiplicado por las
+    // ~25-35 consultas que hace esta página explica el resto del retraso.
+    // Se toma el mejor de tres intentos para no medir un pico aislado.
+    let __pingMin = Number.POSITIVE_INFINITY;
+    try {
+      for (let i = 0; i < 3; i++) {
+        const __tPing = performance.now();
+        await db.$queryRaw`SELECT 1`;
+        __pingMin = Math.min(__pingMin, performance.now() - __tPing);
+      }
+    } catch {
+      // Si el ping falla no se pierde el resto del diagnóstico.
+    }
+    const __ping = Number.isFinite(__pingMin) ? `${Math.round(__pingMin)}ms` : "n/d";
+
     console.error(
       `[PERF] ChatsPage ${Math.round(__total)}ms ` +
         `${__mark("fase1", __t0, __tFase1)} ` +
@@ -636,6 +654,7 @@ export default async function ChatsPage({
         `${__mark("bandeja", __tRuntime, __tBandeja)} ` +
         `(bandejaTotal=${Math.round(__msBandejaTotal)}ms prefs=${Math.round(__msPrefs)}ms asesores=${Math.round(__msAsesores)}ms) ` +
         `${__mark("resto", __tBandeja, __tFin)} ` +
+        `pingBD=${__ping} ` +
         `instancias=${instancias.length} cuentas=${allSessionUserIds.length}`,
     );
   }
