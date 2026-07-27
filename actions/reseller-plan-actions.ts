@@ -49,9 +49,6 @@ export type ResellerProfileData = {
   stats: StatData[] | null;
   showAssistanceIA: boolean;
   showAssistanceHUMANO: boolean;
-  showBillingMonthly: boolean;
-  showBillingQuarterly: boolean;
-  showBillingYearly: boolean;
 };
 
 function mapPlan(p: {
@@ -98,7 +95,7 @@ export async function getMyResellerPlans(): Promise<{
     const [resellerRow, resellerUser] = await Promise.all([
       db.reseller.findFirst({
         where: { resellerid: user.id },
-        select: { slug: true, businessName: true, sheetsUrl: true, primaryColor: true, bgColor: true, headline: true, subheadline: true, logoUrl: true, instagram: true, facebook: true, videoUrl: true, ctaHeadline: true, ctaSubtitle: true, testimonials: true, stats: true, showAssistanceIA: true, showAssistanceHUMANO: true, showBillingMonthly: true, showBillingQuarterly: true, showBillingYearly: true },
+        select: { slug: true, businessName: true, sheetsUrl: true, primaryColor: true, bgColor: true, headline: true, subheadline: true, logoUrl: true, instagram: true, facebook: true, videoUrl: true, ctaHeadline: true, ctaSubtitle: true, testimonials: true, stats: true, showAssistanceIA: true, showAssistanceHUMANO: true },
       }),
       db.user.findUnique({
         where: { id: user.id },
@@ -129,9 +126,6 @@ export async function getMyResellerPlans(): Promise<{
             stats: Array.isArray(resellerRow.stats) ? (resellerRow.stats as StatData[]) : null,
             showAssistanceIA: resellerRow.showAssistanceIA ?? true,
             showAssistanceHUMANO: resellerRow.showAssistanceHUMANO ?? true,
-            showBillingMonthly: resellerRow.showBillingMonthly ?? true,
-            showBillingQuarterly: resellerRow.showBillingQuarterly ?? true,
-            showBillingYearly: resellerRow.showBillingYearly ?? true,
           }
         : null,
     };
@@ -239,9 +233,6 @@ export async function updateResellerProfile(data: {
   stats?: StatData[];
   showAssistanceIA?: boolean;
   showAssistanceHUMANO?: boolean;
-  showBillingMonthly?: boolean;
-  showBillingQuarterly?: boolean;
-  showBillingYearly?: boolean;
 }) {
   try {
     const user = await currentUser();
@@ -269,9 +260,6 @@ export async function updateResellerProfile(data: {
       stats: data.stats ?? null,
       showAssistanceIA: data.showAssistanceIA ?? true,
       showAssistanceHUMANO: data.showAssistanceHUMANO ?? true,
-      showBillingMonthly: data.showBillingMonthly ?? true,
-      showBillingQuarterly: data.showBillingQuarterly ?? true,
-      showBillingYearly: data.showBillingYearly ?? true,
     };
 
     const existing = await db.reseller.findFirst({ where: { resellerid: user.id } });
@@ -376,16 +364,13 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
   stats: StatData[] | null;
   showAssistanceIA: boolean;
   showAssistanceHUMANO: boolean;
-  showBillingMonthly: boolean;
-  showBillingQuarterly: boolean;
-  showBillingYearly: boolean;
   faviconUrl: string | null;
 }> {
-  const EMPTY_EXTRA = { primaryColor: null, bgColor: null, headline: null, subheadline: null, logoUrl: null, instagram: null, facebook: null, videoUrl: null, ctaHeadline: null, ctaSubtitle: null, testimonials: null, stats: null, showAssistanceIA: true, showAssistanceHUMANO: true, showBillingMonthly: true, showBillingQuarterly: true, showBillingYearly: true, faviconUrl: null };
+  const EMPTY_EXTRA = { primaryColor: null, bgColor: null, headline: null, subheadline: null, logoUrl: null, instagram: null, facebook: null, videoUrl: null, ctaHeadline: null, ctaSubtitle: null, testimonials: null, stats: null, showAssistanceIA: true, showAssistanceHUMANO: true, faviconUrl: null };
   try {
     const resellerRow = await db.reseller.findFirst({
       where: { slug },
-      select: { resellerid: true, businessName: true, primaryColor: true, bgColor: true, headline: true, subheadline: true, logoUrl: true, instagram: true, facebook: true, videoUrl: true, ctaHeadline: true, ctaSubtitle: true, testimonials: true, stats: true, showAssistanceIA: true, showAssistanceHUMANO: true, showBillingMonthly: true, showBillingQuarterly: true, showBillingYearly: true },
+      select: { resellerid: true, businessName: true, primaryColor: true, bgColor: true, headline: true, subheadline: true, logoUrl: true, instagram: true, facebook: true, videoUrl: true, ctaHeadline: true, ctaSubtitle: true, testimonials: true, stats: true, showAssistanceIA: true, showAssistanceHUMANO: true },
     });
     if (!resellerRow?.resellerid) {
       return { success: false, plans: [], businessName: null, resellerUserId: null, whatsappNumber: null, meetingUrl: null, ...EMPTY_EXTRA };
@@ -473,9 +458,6 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
       stats: Array.isArray(resellerRow.stats) ? (resellerRow.stats as StatData[]) : null,
       showAssistanceIA: resellerRow.showAssistanceIA ?? true,
       showAssistanceHUMANO: resellerRow.showAssistanceHUMANO ?? true,
-      showBillingMonthly: resellerRow.showBillingMonthly ?? true,
-      showBillingQuarterly: resellerRow.showBillingQuarterly ?? true,
-      showBillingYearly: resellerRow.showBillingYearly ?? true,
       faviconUrl: resellerUser?.faviconUrl ?? null,
     };
   } catch (e) {

@@ -53,9 +53,6 @@ export default async function ResellerLandingPage({ params }: Props) {
       stats={result.stats}
       showAssistanceIA={result.showAssistanceIA}
       showAssistanceHUMANO={result.showAssistanceHUMANO}
-      showBillingMonthly={result.showBillingMonthly}
-      showBillingQuarterly={result.showBillingQuarterly}
-      showBillingYearly={result.showBillingYearly}
     />
   );
 }
