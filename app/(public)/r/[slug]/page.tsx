@@ -56,6 +56,7 @@ export default async function ResellerLandingPage({ params }: Props) {
       showBillingMonthly={result.showBillingMonthly}
       showBillingQuarterly={result.showBillingQuarterly}
       showBillingYearly={result.showBillingYearly}
+      showCreateAgentCta={result.showCreateAgentCta}
     />
   );
 }

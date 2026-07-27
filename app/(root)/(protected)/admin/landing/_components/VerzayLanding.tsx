@@ -49,6 +49,9 @@ export function VerzayLanding() {
   const [showAssistanceIA, setShowAssistanceIA] = useState(true);
   const [showAssistanceHUMANO, setShowAssistanceHUMANO] = useState(true);
   const [showFreeTrial, setShowFreeTrial] = useState(true);
+  const [showBillingMonthly, setShowBillingMonthly] = useState(true);
+  const [showBillingQuarterly, setShowBillingQuarterly] = useState(true);
+  const [showBillingYearly, setShowBillingYearly] = useState(true);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basicos: true, identidad: false, hero: false, redes: false,
     video: false, cta: false, stats: false, testimonios: false, planes: false,
@@ -91,6 +94,9 @@ export function VerzayLanding() {
       setShowAssistanceIA(cfg.showAssistanceIA ?? true);
       setShowAssistanceHUMANO(cfg.showAssistanceHUMANO ?? true);
       setShowFreeTrial(cfg.showFreeTrial ?? true);
+      setShowBillingMonthly(cfg.showBillingMonthly ?? true);
+      setShowBillingQuarterly(cfg.showBillingQuarterly ?? true);
+      setShowBillingYearly(cfg.showBillingYearly ?? true);
       setLoading(false);
     });
   }, []);
@@ -119,6 +125,9 @@ export function VerzayLanding() {
       showAssistanceIA,
       showAssistanceHUMANO,
       showFreeTrial,
+      showBillingMonthly,
+      showBillingQuarterly,
+      showBillingYearly,
     });
     if (res.success) toast.success(res.message);
     else toast.error(res.message);
@@ -149,6 +158,9 @@ export function VerzayLanding() {
       showAssistanceIA,
       showAssistanceHUMANO,
       showFreeTrial,
+      showBillingMonthly,
+      showBillingQuarterly,
+      showBillingYearly,
     });
     if (res.success) toast.success(res.message);
     else toast.error(res.message);
@@ -348,8 +360,8 @@ export function VerzayLanding() {
                     </div>
                     <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
                       <div>
-                        <Label className="text-sm">Mostrar prueba gratis</Label>
-                        <p className="text-xs text-muted-foreground">Botones «Comenzar gratis» / «Crear cuenta gratis» que llevan al registro.</p>
+                        <Label className="text-sm">Mostrar botón «Crear mi Agente IA»</Label>
+                        <p className="text-xs text-muted-foreground">Botones que llevan al registro. Desactívalo para ocultarlos de la landing.</p>
                       </div>
                       <Switch checked={showFreeTrial} onCheckedChange={setShowFreeTrial} />
                     </div>
@@ -512,6 +524,29 @@ export function VerzayLanding() {
                       <Label className="text-sm">Mostrar Asistencia Humana</Label>
                       <Switch checked={showAssistanceHUMANO} onCheckedChange={setShowAssistanceHUMANO} />
                     </div>
+
+                    <p className="pt-2 text-xs text-muted-foreground">
+                      Periodos de pago que quieres ofrecer. Si dejas solo uno activo, el selector
+                      (Mensual / Trimestral / Anual) no aparece y se muestran esos precios directamente.
+                    </p>
+                    <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                      <Label className="text-sm">Mostrar plan Mensual</Label>
+                      <Switch checked={showBillingMonthly} onCheckedChange={setShowBillingMonthly} />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                      <Label className="text-sm">Mostrar plan Trimestral</Label>
+                      <Switch checked={showBillingQuarterly} onCheckedChange={setShowBillingQuarterly} />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                      <Label className="text-sm">Mostrar plan Anual</Label>
+                      <Switch checked={showBillingYearly} onCheckedChange={setShowBillingYearly} />
+                    </div>
+                    {!showBillingMonthly && !showBillingQuarterly && !showBillingYearly && (
+                      <p className="text-xs text-amber-500">
+                        Debes dejar al menos un periodo activo. Si los desactivas todos, la landing
+                        mostrará los precios mensuales.
+                      </p>
+                    )}
                   </div>
                 </div>
 

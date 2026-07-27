@@ -1613,6 +1613,8 @@ model Reseller {
   showBillingMonthly             Boolean  @default(true)
   showBillingQuarterly           Boolean  @default(true)
   showBillingYearly              Boolean  @default(true)
+  // Botón "Crear mi Agente IA" (registro gratuito) en su landing.
+  showCreateAgentCta             Boolean  @default(true)
   createdAt                      DateTime @default(now())
   updatedAt                      DateTime @updatedAt
   theme                          ThemeApp @default(Default)
@@ -1648,6 +1650,13 @@ model SiteConfig {
   showAssistanceIA       Boolean  @default(true)
   showAssistanceHUMANO   Boolean  @default(true)
   showFreeTrial          Boolean  @default(true)
+  // Periodos de facturación visibles en la landing. Las columnas se crearon
+  // directamente en la BD (el dueño de las migraciones es el backend api-webhook,
+  // ver docs/db-migrations-ownership.md); aquí solo se declaran.
+  // El botón "Crear mi Agente IA" se controla con showFreeTrial (ya existente).
+  showBillingMonthly     Boolean  @default(true)
+  showBillingQuarterly   Boolean  @default(true)
+  showBillingYearly      Boolean  @default(true)
   // Overrides de los mensajes de cobro de la plataforma (Verzay). Vacío = texto
   // estándar por defecto. Placeholders: {empresa} {fecha} {dias} {precio} {plan} {link}
   billingMsgReminder     String?
