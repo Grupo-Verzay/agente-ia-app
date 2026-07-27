@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { Breadcrumbs } from "@/components/custom";
+import { Breadcrumbs } from "@/components/custom/Breadcrumbs";
 import { themeClass } from "@/types/generic";
 
 type Props = {

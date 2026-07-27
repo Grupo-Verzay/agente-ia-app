@@ -12,7 +12,7 @@ import { SafeImage } from '@/components/custom/SafeImage';
 import { AttachmentMenu } from './attachment-menu';
 import { ChatAutomationPicker } from './ChatAutomationPicker';
 import { TemplatePickerDialog } from './TemplatePickerDialog';
-import { SwitchStatus } from '../../sessions/_components';
+import { SwitchStatus } from '../../sessions/_components/SwitchStatus';
 import type { MetaTemplateOption } from '@/actions/channel-chat-actions';
 import { cn } from '@/lib/utils';
 import { formatSecs } from './chat-message-utils';

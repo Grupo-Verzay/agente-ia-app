@@ -7,7 +7,7 @@ import { getSessionsByUserId } from "@/actions/session-action"
 import { getWorkFlowByUser } from "@/actions/workflow-actions"
 import { getInstancesByUserId } from "@/actions/instances-actions"
 import { MainReminders } from "../reminders/_components"
-import { UnderConstruction } from "@/components/custom";
+import { UnderConstruction } from "@/components/custom/UnderConstruction";
 
 function hasApiKey(result: { data?: ApiKey | null }): result is { data: ApiKey } {
   return !!result.data

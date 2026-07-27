@@ -1,4 +1,4 @@
-import { UnderConstruction } from "@/components/custom";
+import { UnderConstruction } from "@/components/custom/UnderConstruction";
 import { MainTemplate } from "../(protected)/admin/templates/_components";
 import { currentUser } from "@/lib/auth";
 import { User } from "@prisma/client";

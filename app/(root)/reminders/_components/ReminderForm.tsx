@@ -25,7 +25,9 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { DateTimePicker, SelectComboBox, SelectWorkflowBox } from "@/components/custom"
+import { DateTimePicker } from "@/components/custom/DateTimePicker"
+import { SelectComboBox } from "@/components/custom/SelectComboBox"
+import { SelectWorkflowBox } from "@/components/custom/SelectWorkflowBox"
 import { createReminder, getRemindersByUserId, updateReminder } from "@/actions/reminders-actions"
 import { useReminderDialogStore } from "@/stores"
 import { LeadCreateForm } from "../../sessions/_components"

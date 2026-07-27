@@ -12,14 +12,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { SwitchStatus } from '../../sessions/_components';
+import { SwitchStatus } from '../../sessions/_components/SwitchStatus';
 import { initialFromName } from './chat-message-utils';
 import type { ChatHeader as ChatHeaderData } from './chat-message-types';
 import type { Session, SimpleTag } from '@/types/session';
 import type { AdvisorInfo } from '@/actions/team-actions';
 import { AdvisorAssignBadge } from './AdvisorAssignBadge';
 import { MacrosMenu } from './MacrosMenu';
-import { SessionTagsCombobox } from '../../tags/components';
+import { SessionTagsCombobox } from '../../tags/components/SessionTagsCombobox';
 import { LeadStatusSelect } from './LeadStatusSelect';
 import { resolveSession } from '@/actions/advisor-assign-actions';
 import { addSessionParticipantAction } from '@/actions/collab-actions';

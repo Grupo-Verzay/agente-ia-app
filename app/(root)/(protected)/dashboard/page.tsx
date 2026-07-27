@@ -1,4 +1,4 @@
-import { UnderConstruction } from "@/components/custom";
+import { UnderConstruction } from "@/components/custom/UnderConstruction";
 
 export default async function DashboardPage() {
 
