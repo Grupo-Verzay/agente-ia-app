@@ -101,7 +101,12 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
       COUNT(s.id) FILTER (WHERE s.status = true)::int AS "activeCount",
       MAX(s."updatedAt") AS "lastActivity"
     FROM dedup d
-    LEFT JOIN "Session" s ON s.assigned_advisor_id = d.id
+    -- Acotado a ESTA cuenta: sin el filtro por s."userId" se contaban las
+    -- sesiones del asesor en todas las cuentas, así que una cuenta asociada
+    -- aparecía con el mismo total repetido en cada cuenta donde figura.
+    LEFT JOIN "Session" s
+      ON s.assigned_advisor_id = d.id
+     AND s."userId" = ${owner.id}
     GROUP BY d.id, d.name, d.email, d.role, d.advisor_available
     ORDER BY d.name ASC
   `;
@@ -113,6 +118,44 @@ export async function getTeamAdvisors(): Promise<ActionResult<AdvisorRow[]>> {
       lastActivity: row.lastActivity ? String(row.lastActivity) : null,
     })),
   };
+}
+
+/**
+ * Devuelve a "Sin asignar" las conversaciones que tiene un asesor EN ESTA
+ * CUENTA. Sirve para deshacer un reparto que no correspondía (p. ej. leads que
+ * la auto-asignación mandó a una cuenta asociada que no es asesor).
+ *
+ * Acotado por s."userId" = cuenta actual: si ese asesor también es titular de su
+ * propia cuenta, sus leads allí NO se tocan. Solo suelta la asignación; no borra
+ * la sesión ni su historial, así que se puede volver a asignar cuando se quiera.
+ */
+export async function releaseAdvisorSessions(advisorId: string): Promise<ActionResult<{ released: number }>> {
+  const owner = await requireOwner();
+  if (!owner) return { success: false, message: "No autorizado." };
+
+  const belongs = await findAdvisorRaw(advisorId, owner.id);
+  if (!belongs) return { success: false, message: "Asesor no encontrado." };
+
+  try {
+    const released = await db.$executeRaw`
+      UPDATE "Session"
+      SET assigned_advisor_id = NULL
+      WHERE assigned_advisor_id = ${advisorId}
+        AND "userId" = ${owner.id}
+    `;
+
+    return {
+      success: true,
+      data: { released },
+      message:
+        released > 0
+          ? `Se devolvieron ${released} conversaciones a "Sin asignar".`
+          : "Ese asesor no tenía conversaciones asignadas en esta cuenta.",
+    };
+  } catch (error) {
+    console.error("releaseAdvisorSessions error:", error);
+    return { success: false, message: "No se pudieron liberar las conversaciones." };
+  }
 }
 
 export async function updateAdvisorRole(advisorId: string, role: "agente" | "administrador"): Promise<ActionResult> {
