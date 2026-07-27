@@ -30,6 +30,8 @@ type PersistedChatMessageRow = {
 
 type InboxRow = {
   sessionId: number;
+  /** Id de la conversación, usado para traer su JSON solo en las filas finales. */
+  convId: number | null;
   userId: string;
   remoteJid: string;
   remoteJidAlt: string | null;
@@ -1063,7 +1065,7 @@ async function loadPersistedInboxChats(
         c."remoteJidAlt" AS c_alt, c."senderPn" AS c_sender, c."pushName" AS c_push,
         c."lastMessageId" AS c_msg_id, c."lastMessageFromMe" AS c_from_me,
         c."lastMessageType" AS c_msg_type, c."lastMessageContent" AS c_content,
-        c."lastMessageMediaUrl" AS c_media, c."lastMessageRaw" AS c_raw,
+        c."lastMessageMediaUrl" AS c_media,
         c."lastMessageTimestamp" AS c_ts, c."lastMessageDeleted" AS c_deleted,
         c."updatedAt" AS c_updated
       FROM "chat_conversations" c
@@ -1116,7 +1118,7 @@ async function loadPersistedInboxChats(
       -- Cada conversación con su sesión emparejada (o NULL): cubre "c con s" y "c sin s"
       SELECT
         c.c_id, c.c_user, c.c_instance, c.c_instance_type, c.c_jid, c.c_alt, c.c_sender,
-        c.c_push, c.c_msg_id, c.c_from_me, c.c_msg_type, c.c_content, c.c_media, c.c_raw,
+        c.c_push, c.c_msg_id, c.c_from_me, c.c_msg_type, c.c_content, c.c_media,
         c.c_ts, c.c_deleted, c.c_updated,
         s.s_id, s.s_user, s.s_instance, s.s_jid, s.s_alt, s.s_push, s.s_updated
       FROM conv c
@@ -1132,7 +1134,7 @@ async function loadPersistedInboxChats(
         NULL::text AS c_alt, NULL::text AS c_sender, NULL::text AS c_push,
         NULL::text AS c_msg_id, NULL::boolean AS c_from_me,
         NULL::text AS c_msg_type, NULL::text AS c_content,
-        NULL::text AS c_media, NULL::jsonb AS c_raw,
+        NULL::text AS c_media,
         NULL::timestamp(3) AS c_ts, NULL::boolean AS c_deleted,
         NULL::timestamp(3) AS c_updated,
         s.s_id, s.s_user, s.s_instance, s.s_jid, s.s_alt, s.s_push, s.s_updated
@@ -1146,6 +1148,9 @@ async function loadPersistedInboxChats(
         COALESCE(m.c_jid, m.s_jid)
       )
         COALESCE(m.s_id, m.c_id) AS "sessionId",
+        -- Se conserva el id de la conversación para poder traer su JSON al final,
+        -- una vez recortado a las filas que de verdad se devuelven.
+        m.c_id AS "convId",
         COALESCE(m.c_user, m.s_user) AS "userId",
         COALESCE(m.c_jid, m.s_jid) AS "remoteJid",
         COALESCE(m.c_alt, m.s_alt) AS "remoteJidAlt",
@@ -1157,7 +1162,6 @@ async function loadPersistedInboxChats(
         m.c_msg_type AS "messageType",
         m.c_content AS "content",
         m.c_media AS "mediaUrl",
-        m.c_raw AS "raw",
         m.c_ts AS "messageTimestamp",
         m.c_deleted AS "lastMessageDeleted",
         COALESCE(m.s_updated, m.c_updated) AS "sessionUpdatedAt"
@@ -1180,10 +1184,21 @@ async function loadPersistedInboxChats(
         -- recientemente actualizada, luego el id mayor.
         m.s_updated DESC NULLS LAST, m.s_id DESC NULLS LAST
     )
-    SELECT *
-    FROM inbox_rows
-    ORDER BY COALESCE("messageTimestamp", "sessionUpdatedAt") DESC
-    LIMIT ${params.take ?? 300}
+    -- El JSON del último mensaje (lastMessageRaw) se trae AQUÍ, ya recortado a
+    -- las filas que se devuelven. Antes viajaba dentro del CTE y por tanto se
+    -- arrastraba por todos los cruces, el DISTINCT ON y el ordenamiento: esa
+    -- columna promedia ~18 KB por fila y la tabla ocupa 105 MB para 5.902 filas,
+    -- así que se movían ~100 MB por consulta para acabar usando 300 filas.
+    -- Mismas filas y mismo orden; solo cambia CUÁNDO se lee la columna pesada.
+    SELECT ir.*, c."lastMessageRaw" AS "raw"
+    FROM (
+      SELECT *
+      FROM inbox_rows
+      ORDER BY COALESCE("messageTimestamp", "sessionUpdatedAt") DESC
+      LIMIT ${params.take ?? 300}
+    ) ir
+    LEFT JOIN "chat_conversations" c ON c."id" = ir."convId"
+    ORDER BY COALESCE(ir."messageTimestamp", ir."sessionUpdatedAt") DESC
   `;
   const __ms = performance.now() - __t0;
 
