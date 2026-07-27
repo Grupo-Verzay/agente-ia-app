@@ -128,9 +128,9 @@ const COUNTRY_TIMEZONES: Record<string, string> = {
 };
 /* ─── Schema ─── */
 const schema = z.object({
-  pais:           z.string().min(1, 'Selecciona un país'),
-  contacto:       z.string().min(5, 'Ingresa un número de contacto válido'),
-  nombreNegocio:  z.string().min(2, 'Ingresa el nombre de tu negocio'),
+  pais:           z.string().min(1, 'Obligatorio'),
+  contacto:       z.string().min(5, 'Obligatorio'),
+  nombreNegocio:  z.string().min(2, 'Obligatorio'),
   mensajesAlDia:  z.string().optional().default(''),
   asesores:       z.string().optional().default(''),
   procesoVentas:  z.string().optional().default(''),
@@ -139,9 +139,9 @@ const schema = z.object({
   tono:           z.string().optional().default(''),
   mainProduct:    z.string().optional().default(''),
   clienteIdeal:   z.string().optional().default(''),
-  nombre:         z.string().min(2, 'El nombre debe tener al menos 2 caracteres.').max(64),
-  email:          z.string().email('Ingresa un correo electrónico válido.'),
-  password:       z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.').max(32),
+  nombre:         z.string().min(2, 'Obligatorio').max(64),
+  email:          z.string().email('Obligatorio'),
+  password:       z.string().min(6, 'Obligatorio').max(32),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -399,7 +399,6 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
               País <span className="text-red-400">*</span>
             </label>
             <CountryCodeSelect countries={countries} value={dialCode} onChange={handleCountryChange} placeholder="Selecciona un país" />
-            <p className="text-xs text-slate-500">Ej.: Rep. Dominicana: +1809, +1829, +1849.</p>
             <input type="hidden" {...register('pais')} />
             {errors.pais && <p className="text-xs text-red-400">{errors.pais.message}</p>}
           </div>
@@ -414,12 +413,11 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
                 onChange={handleLocalNumberChange}
                 type="tel"
                 inputMode="numeric"
-                placeholder="Número local"
+                placeholder="Número WhatsApp"
                 className="w-full rounded-lg border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <input type="hidden" {...register('contacto')} />
-            <p className="text-xs text-slate-500">Recibirá notificaciones de tu cuenta.</p>
             {errors.contacto && <p className="text-xs text-red-400">{errors.contacto.message}</p>}
           </div>
         </div>
