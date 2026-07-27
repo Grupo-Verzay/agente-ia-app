@@ -1607,6 +1607,12 @@ model Reseller {
   // Controla qué tipos de asistencia se muestran en la sección de precios de su landing.
   showAssistanceIA               Boolean  @default(true)
   showAssistanceHUMANO           Boolean  @default(true)
+  // Periodos de facturación que se ofrecen en su landing. Las columnas se crearon
+  // directamente en la BD (el dueño de las migraciones es el backend api-webhook,
+  // ver docs/db-migrations-ownership.md); aquí solo se declaran para el cliente.
+  showBillingMonthly             Boolean  @default(true)
+  showBillingQuarterly           Boolean  @default(true)
+  showBillingYearly              Boolean  @default(true)
   createdAt                      DateTime @default(now())
   updatedAt                      DateTime @updatedAt
   theme                          ThemeApp @default(Default)
