@@ -563,10 +563,10 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
                   </a>
                 )}
               </div>
-              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 sm:flex-nowrap">
                 {["Configuración automática", "Sin conocimientos técnicos", "Automatiza tu atención 24/7"].map((t) => (
-                  <span key={t} className="flex items-center gap-1 text-xs text-slate-500">
-                    <Check className="h-3 w-3 text-green-500" /> {t}
+                  <span key={t} className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-slate-500">
+                    <Check className="h-3 w-3 shrink-0 text-green-500" /> {t}
                   </span>
                 ))}
               </div>
@@ -899,9 +899,9 @@ export function ResellerLandingClient({ plans, businessName, slug, whatsappNumbe
                   <Button size="lg" variant="ghost" className="text-slate-300 hover:bg-white/10 hover:text-white">Ya tengo cuenta →</Button>
                 </Link>
               </div>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 sm:flex-nowrap">
                 {["Configuración automática", "Sin conocimientos técnicos", "Automatiza tu atención 24/7"].map((t) => (
-                  <span key={t} className="flex items-center gap-1 text-xs text-slate-500"><ShieldCheck className="h-3 w-3 text-green-500" /> {t}</span>
+                  <span key={t} className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-slate-500"><ShieldCheck className="h-3 w-3 shrink-0 text-green-500" /> {t}</span>
                 ))}
               </div>
             </div>

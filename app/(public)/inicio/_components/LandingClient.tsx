@@ -365,10 +365,10 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                 )}
               </div>
               {/* Trust badges */}
-              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 sm:flex-nowrap">
                 {["Configuración automática", "Sin conocimientos técnicos", "Automatiza tu atención 24/7"].map((t) => (
-                  <span key={t} className="flex items-center gap-1 text-xs text-slate-500">
-                    <Check className="h-3 w-3 text-green-500" /> {t}
+                  <span key={t} className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-slate-500">
+                    <Check className="h-3 w-3 shrink-0 text-green-500" /> {t}
                   </span>
                 ))}
               </div>
@@ -812,10 +812,10 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                 </Link>
               </div>
               {showFreeTrial && (
-                <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 sm:flex-nowrap">
                   {["Configuración automática", "Sin conocimientos técnicos", "Automatiza tu atención 24/7"].map((t) => (
-                    <span key={t} className="flex items-center gap-1 text-xs text-slate-500">
-                      <ShieldCheck className="h-3 w-3 text-green-500" /> {t}
+                    <span key={t} className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs text-slate-500">
+                      <ShieldCheck className="h-3 w-3 shrink-0 text-green-500" /> {t}
                     </span>
                   ))}
                 </div>
