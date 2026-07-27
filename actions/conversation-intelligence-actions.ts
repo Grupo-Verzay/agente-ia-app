@@ -152,7 +152,11 @@ ${context.trim() || "Sin contexto"}`;
       raw = result.choices[0]?.message?.content ?? "{}";
     }
 
-    const prediction = JSON.parse(raw) as AdvisorCommitmentPrediction;
+    // El proveedor puede devolver cadena VACÍA (no null), y entonces el ?? de
+    // arriba no aplica y JSON.parse revienta. Se trata como "sin compromiso".
+    const prediction = (raw.trim()
+      ? JSON.parse(raw)
+      : {}) as AdvisorCommitmentPrediction;
     const dueDate = prediction.dueDate ? new Date(prediction.dueDate) : null;
     const validKinds = new Set<DetectedCommitment["kind"]>(["task", "reminder", "appointment"]);
     const validTypes = new Set<DetectedCommitment["type"]>([
@@ -182,7 +186,14 @@ ${context.trim() || "Sin contexto"}`;
     };
     return { success: true, commitment };
   } catch (error) {
-    console.error("[predictAdvisorCommitmentAction]", error);
+    // Se identifica la CUENTA y el final de su key: cuando el proveedor rechaza
+    // las credenciales, el error solo trae la key enmascarada y no había forma
+    // de saber a qué cuenta corregirle la configuración.
+    const keyTail = cfg.apiKey ? `…${cfg.apiKey.slice(-4)}` : "sin key";
+    console.error(
+      `[predictAdvisorCommitmentAction] cuenta=${ownerId} proveedor=${cfg.provider} key=${keyTail}`,
+      error,
+    );
     return { success: false, commitment: null };
   }
 }
