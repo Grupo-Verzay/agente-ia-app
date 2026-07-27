@@ -656,8 +656,11 @@ export async function fetchChatsFromEvolution(
   const baseURL = normalizeBaseUrl(baseUrlRaw);
   const endpoint = `${baseURL}/chat/findChats/${encodeURIComponent(instanceName)}`;
   const ctrl = new AbortController();
-  // const timeoutMs = options?.timeoutMs ?? 2000;
-  const timeoutMs = 15000;
+  // Vuelve a respetarse `timeoutMs`. Estaba fijado a 15 s ignorando la opción, y
+  // ese tope se paga entero cuando Evolution no responde. Sigue siendo 15 s por
+  // defecto (los refrescos en segundo plano pueden esperar), pero quien bloquea
+  // una pantalla puede pedir menos.
+  const timeoutMs = options?.timeoutMs ?? 15000;
 
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
 
