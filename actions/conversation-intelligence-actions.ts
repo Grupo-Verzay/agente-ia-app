@@ -35,6 +35,28 @@ type IntelligenceResult = {
 const AI_AUTH_BACKOFF_MS = 30 * 60_000;
 const aiAuthRejectedAt = new Map<string, number>();
 
+/**
+ * Nombre legible de una cuenta, para el registro.
+ *
+ * El identificador por sí solo no sirve de nada a quien lee los logs: hay que
+ * ir a buscarlo a la base para saber de quién se trata. Como esto solo se llama
+ * al anotar un rechazo de credenciales —una vez cada media hora por cuenta como
+ * mucho— la consulta no pesa. Si falla, se devuelve el identificador y el
+ * registro sale igual.
+ */
+async function nombreDeCuenta(userId: string): Promise<string> {
+  try {
+    const u = await db.user.findUnique({
+      where: { id: userId },
+      select: { company: true, name: true, email: true },
+    });
+    const etiqueta = u?.company?.trim() || u?.name?.trim() || u?.email?.trim();
+    return etiqueta ? `${etiqueta} (${userId})` : userId;
+  } catch {
+    return userId;
+  }
+}
+
 /** ¿El proveedor rechazó las credenciales de esta cuenta hace poco? */
 function isAiAuthBlocked(userId: string): boolean {
   const at = aiAuthRejectedAt.get(userId);
@@ -123,8 +145,9 @@ ${conversation}`;
     if (!isAiAuthError(error)) throw error;
     aiAuthRejectedAt.set(userId, Date.now());
     console.error(
-      `[analyzeConversation] credenciales rechazadas: cuenta=${userId} proveedor=${cfg.provider}. ` +
-        `Se deja de intentar ${Math.round(AI_AUTH_BACKOFF_MS / 60_000)} min en esta cuenta.`,
+      `[analyzeConversation] credenciales rechazadas: cuenta=${await nombreDeCuenta(userId)} ` +
+        `proveedor=${cfg.provider}. Se deja de intentar ` +
+        `${Math.round(AI_AUTH_BACKOFF_MS / 60_000)} min en esta cuenta.`,
     );
     return null;
   }
@@ -250,7 +273,8 @@ ${context.trim() || "Sin contexto"}`;
       // línea clara, en vez de repetir el error con cada mensaje.
       aiAuthRejectedAt.set(ownerId, Date.now());
       console.error(
-        `[predictAdvisorCommitmentAction] credenciales rechazadas: cuenta=${ownerId} ` +
+        `[predictAdvisorCommitmentAction] credenciales rechazadas: ` +
+          `cuenta=${await nombreDeCuenta(ownerId)} ` +
           `proveedor=${cfg.provider} key=${keyTail}. Se deja de intentar ` +
           `${Math.round(AI_AUTH_BACKOFF_MS / 60_000)} min en esta cuenta.`,
       );
