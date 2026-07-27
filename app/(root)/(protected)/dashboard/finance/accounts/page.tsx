@@ -3,7 +3,7 @@
 import MainFinanceAccounts from "./_components/MainFinanceAccounts";
 
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
+import { getFinanceUser } from "@/lib/finance-user";
 
 import { getFinanceAccounts } from "@/actions/finance-accounts-actions";
 import { getAllSales } from "@/actions/finance-sales-actions";
@@ -15,16 +15,11 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function FinanceAccountsPage() {
-  const session = await auth();
-  const email = session?.user?.email;
-  if (!email) return null;
-
-  // usar ID real del usuario en BD (evita FK)
-  const me = await db.user.findUnique({
-    where: { email },
-    select: { id: true },
-  });
-
+  // Misma resolución que el resto de Finanzas: la cuenta que se está viendo.
+  // Esta página resolvía por email, así que al administrar otra cuenta listaba
+  // las cuentas propias mientras los diálogos de venta y gasto mostraban las de
+  // la cuenta activa: dos listas distintas en la misma pantalla.
+  const me = await getFinanceUser();
   if (!me?.id) return null;
 
   // monedas directo (sin getSalesMeta)
