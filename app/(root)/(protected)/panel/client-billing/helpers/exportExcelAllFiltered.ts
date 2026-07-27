@@ -1,4 +1,3 @@
-import * as XLSX from "xlsx";
 import type { Table } from "@tanstack/react-table";
 
 import type { ClientRow } from "@/types/billing";
@@ -10,7 +9,10 @@ export const COLUMNS_LABELS = Object.fromEntries(
     DICTIONARY_COLS.map((col) => [col.key, col.label])
 );
 
-export function exportExcelAllFiltered(
+// La librería de hojas de cálculo pesa 270 kB y solo hace falta al pulsar
+// "Exportar". Se pide en ese momento, no al abrir la pantalla: quien nunca
+// exporta no la descarga nunca.
+export async function exportExcelAllFiltered(
     table: Table<ClientRow>,
     opts?: {
         fileNamePrefix?: string;
@@ -19,6 +21,7 @@ export function exportExcelAllFiltered(
     }
 ) {
     try {
+        const XLSX = await import("xlsx");
         const exclude = new Set([...(opts?.excludeColumnIds ?? ["actions"])]);
 
         // Columnas visibles (excepto acciones)

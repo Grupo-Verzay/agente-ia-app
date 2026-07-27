@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { Download, Loader2, Sparkles, TrendingUp, Users, CheckCheck, Send, ChevronDown, ChevronUp, RefreshCw, Trash2 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -263,7 +262,10 @@ export function WeeklyReportsView({ onStatsLoaded }: { onStatsLoaded?: (s: Repor
         setReports((prev) => prev.filter((r) => r.id !== id));
     };
 
-    const handleExport = () => {
+    // La librería de hojas de cálculo se pide al pulsar Exportar, no al abrir la
+    // pantalla.
+    const handleExport = async () => {
+        const XLSX = await import('xlsx');
         const rows = reports.map((r) => ({
             Período: fmtPeriod(r.periodStart, r.periodEnd),
             'Total leads': r.metrics.totalLeads,

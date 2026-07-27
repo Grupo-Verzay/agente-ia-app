@@ -9,7 +9,7 @@ import { LoadingProgress } from "@/components/shared/LoadingProgress";
 import { LeadsManagement } from "./LeadsManagement";
 import { getSessionsByUserIdToCRM } from "@/actions/session-action";
 import { SessionWithRegistrosAndTags, SimpleTag } from "@/types/session";
-import { FilterSessionTypes } from "../../sessions/_components";
+import { FilterSessionTypes } from "../../sessions/_components/FilterLeadsByStats";
 
 type MainCrmProps = {
   userId: string;

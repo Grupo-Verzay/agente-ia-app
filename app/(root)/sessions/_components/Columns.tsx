@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { deleteReminderByInstanceUserRemote } from "@/actions/seguimientos-actions";
-import { SessionTagsCombobox } from "../../tags/components";
+import { SessionTagsCombobox } from "../../tags/components/SessionTagsCombobox";
 import { Session, SimpleTag } from "@/types/session";
 import { SwitchAgentDisabled } from "./SwitchAgentDisabled";
 import dynamic from "next/dynamic";

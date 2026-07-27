@@ -128,7 +128,7 @@ export function CrmExportDialog({
             if (onExport) {
                 onExport(registros, options);
             } else {
-                exportRegistrosToExcel(registros, options);
+                await exportRegistrosToExcel(registros, options);
             }
 
             toast.success(

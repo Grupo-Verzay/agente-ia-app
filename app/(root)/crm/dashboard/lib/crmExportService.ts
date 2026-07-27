@@ -6,7 +6,6 @@
  * beyond the file download itself.
  */
 
-import * as XLSX from "xlsx";
 
 import type { RegistroWithSession } from "@/types/session";
 import { getDisplayNombreFromRegistro } from "../helpers/getDisplayNombreFromRegistro";
@@ -100,11 +99,14 @@ function isWithinDateRange(
 
 // ─── Main export function ────────────────────────────────────────────────────
 
-export function exportRegistrosToExcel(
+// La librería de hojas de cálculo pesa 270 kB y solo hace falta al exportar. Se
+// pide en ese momento, no al abrir el CRM: quien nunca exporta no la descarga.
+export async function exportRegistrosToExcel(
     registros: RegistroWithSession[],
     options: CrmExportOptions,
     filename = "crm-registros"
-): void {
+): Promise<void> {
+    const XLSX = await import("xlsx");
     const { columns, limit, dateFrom, dateTo } = options;
 
     if (columns.length === 0) {
