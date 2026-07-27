@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, Loader2, Table2 } from "lucide-react";
+import { Plus, Trash2, KeyRound, UserCheck, LayoutGrid, Bot, Users, Download, MoreHorizontal, UserPlus, UserMinus, Loader2, Table2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +63,7 @@ import {
   getAdvisorModuleIds,
   saveAdvisorModules,
   saveAutoAssignSettings,
+  releaseAdvisorSessions,
 } from "@/actions/team-actions";
 import { resetAllLinkedAccounts } from "@/actions/linked-account-actions";
 import { bulkAutoAssign } from "@/actions/advisor-assign-actions";
@@ -201,6 +202,7 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
   const [deleteTarget, setDeleteTarget] = useState<AdvisorRow | null>(null);
   const [modulesForm, setModulesForm] = useState<ModulesForm | null>(null);
   const [resetLinksOpen, setResetLinksOpen] = useState(false);
+  const [releaseTarget, setReleaseTarget] = useState<AdvisorRow | null>(null);
 
   async function refreshAdvisors() {
     const list = await safeInvoke("refreshAdvisors", () => getTeamAdvisors());
@@ -279,6 +281,18 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
       toast.success(res.message ?? "Asesor eliminado.");
       setAdvisors((prev) => prev.filter((a) => a.id !== deleteTarget.id));
       setDeleteTarget(null);
+    });
+  }
+
+  function handleRelease() {
+    if (!releaseTarget) return;
+    const advisorId = releaseTarget.id;
+    startTransition(async () => {
+      const res = await releaseAdvisorSessions(advisorId);
+      if (!res.success) { toast.error(res.message); return; }
+      toast.success(res.message ?? "Leads devueltos.");
+      setReleaseTarget(null);
+      await refreshAdvisors();
     });
   }
 
@@ -585,6 +599,14 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
+                              disabled={advisor.assignedCount === 0}
+                              onClick={() => setReleaseTarget(advisor)}
+                            >
+                              <UserMinus className="w-4 h-4 mr-2" />
+                              Devolver leads a Sin asignar
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
                               onClick={() => setDeleteTarget(advisor)}
                             >
@@ -810,6 +832,27 @@ export function TeamClient({ userId, initialAdvisors, ownerModules, initialAutoA
               disabled={isPending}
             >
               Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Devolver leads a "Sin asignar" */}
+      <AlertDialog open={Boolean(releaseTarget)} onOpenChange={(open) => !open && setReleaseTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Devolver los leads a Sin asignar?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Las <strong>{releaseTarget?.assignedCount ?? 0}</strong> conversaciones que{" "}
+              <strong>{releaseTarget?.name ?? releaseTarget?.email}</strong> tiene en esta cuenta quedarán
+              sin asesor, listas para repartir de nuevo. Solo afecta a esta cuenta y no borra nada: las
+              conversaciones y su historial se mantienen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRelease} disabled={isPending}>
+              Devolver leads
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
