@@ -428,11 +428,19 @@ export default async function ChatsPage({
   // cronometra cada una por separado para saber cuál manda.
   let __msPrefs = 0;
   let __msAsesores = 0;
+  let __msBandejaTotal = 0;
   const [persistedInitialChats, initialPreferencesResult, initialAdvisorsResult] = await Promise.all([
-    getPersistedInboxChats({
-      userIds: allSessionUserIds,
-      instanceNames: instancias.map((inst) => inst.instanceName),
-    }),
+    (async () => {
+      const t = performance.now();
+      try {
+        return await getPersistedInboxChats({
+          userIds: allSessionUserIds,
+          instanceNames: instancias.map((inst) => inst.instanceName),
+        });
+      } finally {
+        __msBandejaTotal = performance.now() - t;
+      }
+    })(),
     (async () => {
       const t = performance.now();
       try {
@@ -626,7 +634,7 @@ export default async function ChatsPage({
         `${__mark("fase1", __t0, __tFase1)} ` +
         `${__mark("estadoInstancias", __tFase1, __tRuntime)} ` +
         `${__mark("bandeja", __tRuntime, __tBandeja)} ` +
-        `(prefs=${Math.round(__msPrefs)}ms asesores=${Math.round(__msAsesores)}ms) ` +
+        `(bandejaTotal=${Math.round(__msBandejaTotal)}ms prefs=${Math.round(__msPrefs)}ms asesores=${Math.round(__msAsesores)}ms) ` +
         `${__mark("resto", __tBandeja, __tFin)} ` +
         `instancias=${instancias.length} cuentas=${allSessionUserIds.length}`,
     );
