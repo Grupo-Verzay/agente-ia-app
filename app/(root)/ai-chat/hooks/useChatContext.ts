@@ -1,7 +1,7 @@
 "use client";
 
 import { AppContextSnapshot } from "@/types/ai-assistence-chat";
-import { breadcrumbLabels } from "@/components/custom";
+import { breadcrumbLabels } from "@/components/custom/Breadcrumbs";
 import { useChatStore } from "@/stores/ai-chat/useChatStore";
 import { usePathname, useParams, useSearchParams } from "next/navigation";
 import { resolveCopilotMode } from "../copilot";

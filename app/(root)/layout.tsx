@@ -13,7 +13,7 @@ import type { ThemeApp } from "@prisma/client";
 
 import AppInitializer from "@/components/custom/AppInitializer";
 import AppSkeleton from "@/components/custom/AppSkeleton";
-import { Breadcrumbs } from "@/components/custom";
+import { Breadcrumbs } from "@/components/custom/Breadcrumbs";
 import { PanelAwareTabNav } from "@/components/custom/PanelAwareTabNav";
 import BillingLockScreen from "@/components/shared/BillingLockScreen";
 import { LockedRouteGuard } from "@/components/shared/LockedRouteGuard";

@@ -1,6 +1,7 @@
 'use client';
 
-import { SwitchStatus, SwitchAgentDisabled } from '../../sessions/_components';
+import { SwitchStatus } from '../../sessions/_components/SwitchStatus';
+import { SwitchAgentDisabled } from '../../sessions/_components/SwitchAgentDisabled';
 import type { Session } from '@/types/session';
 
 type ChatSessionActionsProps = {

@@ -1,13 +1,23 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
 import { useCallback, useEffect, useState } from "react";
 import { CalendarClock } from "lucide-react";
 
 import { getRemindersByRemoteJid } from "@/actions/reminders-actions";
 import { getAppointmentsBySession } from "@/actions/appointments-actions";
 import type { Session } from "@/types/session";
-import { ChatRegistrosSheet } from "./ChatRegistrosSheet";
+
 import { readBadgeCount, writeBadgeCount } from "./chat-badge-cache";
+
+// El panel de registros arrastra las tablas y tarjetas del CRM, que son con
+// diferencia lo más pesado de esta pantalla. Se carga solo cuando el usuario lo
+// abre: hasta entonces no se descarga, y la bandeja no paga su peso.
+const ChatRegistrosSheet = dynamic(
+  () => import("./ChatRegistrosSheet").then((m) => m.ChatRegistrosSheet),
+  { ssr: false },
+);
 
 export function ChatSeguimientosBadges({
   session,

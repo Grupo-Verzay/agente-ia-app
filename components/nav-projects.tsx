@@ -6,7 +6,7 @@ import {
     SidebarMenu,
     SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { CreditsWidget } from "./custom"
+import { CreditsWidget } from "./custom/CreditsWidget"
 import { User } from "@prisma/client"
 
 export function NavProjects({ user }: { user: User }) {

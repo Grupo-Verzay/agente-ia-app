@@ -48,7 +48,7 @@ import type {
   OutgoingMessagePayload,
   UIBubble,
 } from './chat-message-types';
-import { getDisplayWhatsappFromSession } from '../../crm/dashboard/helpers';
+import { getDisplayWhatsappFromSession } from '../../crm/dashboard/helpers/getDisplayWhatsappFromSession';
 import { extractWhatsAppDigits, fmtPhone } from '@/lib/whatsapp-jid';
 import { useModuleStore } from '@/stores/modules/useModuleStore';
 import IframeRenderer from '@/components/custom/IframeRenderer';

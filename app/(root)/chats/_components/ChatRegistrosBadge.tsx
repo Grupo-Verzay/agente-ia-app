@@ -1,5 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
 import { useCallback, useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import type { Registro, TipoRegistro } from "@prisma/client";
@@ -16,7 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
-import { ChatRegistrosSheet } from "./ChatRegistrosSheet";
+
 import { readBadgeCount, writeBadgeCount } from "./chat-badge-cache";
 import { loadRegistrosSnapshot } from "./chat-registros-cache";
 import type { SimpleTag } from "@/types/session";
@@ -32,6 +34,14 @@ const TIPO_LABELS: Record<TipoRegistro, string> = {
   RESERVA: "Reservas",
   PRODUCTO: "Productos",
 };
+
+// El panel de registros arrastra las tablas y tarjetas del CRM, que son con
+// diferencia lo más pesado de esta pantalla. Se carga solo cuando el usuario lo
+// abre: hasta entonces no se descarga, y la bandeja no paga su peso.
+const ChatRegistrosSheet = dynamic(
+  () => import("./ChatRegistrosSheet").then((m) => m.ChatRegistrosSheet),
+  { ssr: false },
+);
 
 export function ChatRegistrosBadge({
   sessionId,

@@ -1,4 +1,4 @@
-﻿import { UnderConstruction } from "@/components/custom"
+﻿import { UnderConstruction } from "@/components/custom/UnderConstruction"
 import { currentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { ApiKey, Instancia, PromptInstance } from "@prisma/client";
