@@ -140,6 +140,17 @@ export async function createProduct(raw: unknown) {
 
         return product;
     } catch (error) {
+        // El código duplicado es un caso esperable (dos pestañas, doble clic o
+        // una carrera con otra creación), no un fallo del sistema: se devuelve
+        // el mismo mensaje que la comprobación previa para que el formulario
+        // señale el campo en vez de mostrar un error genérico de render.
+        if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === "P2002"
+        ) {
+            throw new Error("El SKU ya está registrado");
+        }
+
         // Capturamos cualquier error inesperado de la base de datos
         console.error("Error al crear el producto:", error);
         throw new Error("Hubo un error al crear el producto");
@@ -162,10 +173,23 @@ export async function updateProduct(id: string, raw: unknown) {
     };
 
     // 3️⃣ Ejecutar el update limpio
-    const product = await db.product.update({
-        where: { id },
-        data: updatedData,
-    });
+    let product;
+    try {
+        product = await db.product.update({
+            where: { id },
+            data: updatedData,
+        });
+    } catch (error) {
+        // Mismo caso que al crear: cambiar el código a uno que ya usa otro
+        // producto de la cuenta es un error del usuario, no del sistema.
+        if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === "P2002"
+        ) {
+            throw new Error("El SKU ya está registrado");
+        }
+        throw error;
+    }
 
     revalidatePath("/products");
     revalidatePath("/catalogo", "layout");

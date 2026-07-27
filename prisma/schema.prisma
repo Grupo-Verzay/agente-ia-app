@@ -249,7 +249,7 @@ model Product {
   description     String?
   price           Decimal          @db.Decimal(65, 2)
   comparePrice    Decimal?         @db.Decimal(65, 2)
-  sku             String?          @unique
+  sku             String?
   stock           Int              @default(0)
   isActive        Boolean          @default(true)
   images          String[]
@@ -261,6 +261,9 @@ model Product {
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   cotizacionItems CotizacionItem[]
 
+  // El código es único POR CUENTA: antes era único global y el código de un
+  // cliente quedaba reservado para toda la plataforma.
+  @@unique([userId, sku], map: "Product_userId_sku_key")
   @@index([userId, order])
   @@index([userId, title])
 }
