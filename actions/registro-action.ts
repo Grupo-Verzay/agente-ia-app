@@ -886,23 +886,34 @@ export async function getCrmDashboardStatsByUserId(
             ...(fechaWhere ? { fecha: fechaWhere } : {}),
         };
 
-        // 1) total registros
-        const totalRegistros = await db.registro.count({
-            where: registroWhere,
-        });
+        // Ventana de los últimos 7 días (incluye hoy), necesaria para la gráfica.
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        start.setDate(start.getDate() - 6);
 
-        // 2) leads con movimientos (distinct sessionId)
-        const leadsConMovimientos = await db.registro.groupBy({
-            by: ["sessionId"],
-            where: registroWhere,
-        });
+        // Las cuatro consultas son independientes entre sí y antes se ejecutaban
+        // una tras otra, sumando sus tiempos sin motivo.
+        const [totalRegistros, leadsConMovimientos, byTipo, last7] = await Promise.all([
+            // 1) total registros
+            db.registro.count({ where: registroWhere }),
 
-        // 3) conteo por tipo
-        const byTipo = await db.registro.groupBy({
-            by: ["tipo"],
-            where: registroWhere,
-            _count: { _all: true },
-        });
+            // 2) leads con movimientos (distinct sessionId)
+            db.registro.groupBy({ by: ["sessionId"], where: registroWhere }),
+
+            // 3) conteo por tipo
+            db.registro.groupBy({
+                by: ["tipo"],
+                where: registroWhere,
+                _count: { _all: true },
+            }),
+
+            // 4) últimos 7 días
+            db.registro.findMany({
+                where: { session: { userId }, fecha: { gte: start } },
+                select: { fecha: true },
+                orderBy: { fecha: "asc" },
+            }),
+        ]);
 
         const countsByTipo = {
             REPORTE: 0,
@@ -918,17 +929,6 @@ export async function getCrmDashboardStatsByUserId(
             const tipo = row.tipo as TipoRegistro;
             countsByTipo[tipo] = row._count._all;
         }
-
-        // 4) últimos 7 días
-        const start = new Date();
-        start.setHours(0, 0, 0, 0);
-        start.setDate(start.getDate() - 6); // incluye hoy (7 días)
-
-        const last7 = await db.registro.findMany({
-            where: { session: { userId }, fecha: { gte: start } },
-            select: { fecha: true },
-            orderBy: { fecha: "asc" },
-        });
 
         // mapa yyyy-MM-dd => count
         const daysMap = new Map<string, number>();
@@ -953,20 +953,6 @@ export async function getCrmDashboardStatsByUserId(
             cantidad: count,
         }));
 
-        const sessions = await db.session.findMany({
-            where: { userId },
-            select: { remoteJid: true, instanceId: true },
-            take: 5000,
-        });
-
-        const uniqueSessionsMap = new Map<string, { remoteJid: string; instanceId: string }>();
-        for (const session of sessions) {
-            const key = buildSessionFollowUpKey(session.remoteJid, session.instanceId);
-            if (!key) continue;
-            uniqueSessionsMap.set(key, session);
-        }
-        const uniqueSessions = Array.from(uniqueSessionsMap.values());
-
         const crmFollowUps = {
             total: 0,
             active: 0,
@@ -978,15 +964,24 @@ export async function getCrmDashboardStatsByUserId(
             skipped: 0,
         };
 
-        if (uniqueSessions.length) {
+        {
+            // Antes esto traía hasta 5.000 sesiones del usuario y armaba un OR con
+            // un par (remoteJid, instanceId) por cada una: 3.190 ms medidos, una
+            // consulta que ningún índice podía resolver, y en cada apertura del CRM
+            // y cada cambio de filtro.
+            //
+            // El seguimiento ya guarda el userId del dueño —lo copia de la misma
+            // sesión de la que saca remoteJid e instanceId (ver
+            // crm-follow-up-planner)—, así que ese OR reconstruía a mano lo que ya
+            // está en una columna con índice (userId, status).
+            //
+            // Nota: el tope de 5.000 hacía que una cuenta con más sesiones (la mayor
+            // ronda las 5.190) contara de menos sin avisar. Al filtrar por userId ese
+            // recorte desaparece, así que sus totales pueden subir ligeramente: es la
+            // cifra correcta, no un cambio de criterio.
             const crmFollowUpCounts = await db.crmFollowUp.groupBy({
                 by: ["status"],
-                where: {
-                    OR: uniqueSessions.map((session) => ({
-                        remoteJid: session.remoteJid,
-                        instanceId: session.instanceId,
-                    })),
-                },
+                where: { userId },
                 _count: { _all: true },
             });
 
