@@ -30,6 +30,34 @@ function authHeaders(): Record<string, string> {
   };
 }
 
+/**
+ * fetch con tope de tiempo para las LECTURAS al backend de Baileys.
+ *
+ * Sin esto, una instancia caída o que no responde deja el `await fetch` colgado
+ * indefinidamente: como estas lecturas ocurren al renderizar /chats en el
+ * servidor, la página entera se queda en "Cargando conversaciones" y nunca
+ * termina. Con el tope, la llamada falla rápido y la pantalla cae en su
+ * respaldo (el historial local ya persistido).
+ *
+ * Solo para lecturas: en un envío, cortar por tiempo podría dar por fallido un
+ * mensaje que sí salió y provocar que se reenvíe duplicado.
+ */
+const READ_TIMEOUT_MS = 15000;
+
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit = {},
+  timeoutMs = READ_TIMEOUT_MS,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function mediaFallbackLabel(payload: BaileysOutgoingPayload) {
   const mediatype = String(payload.mediatype ?? 'media');
   if (mediatype === 'image') return '🖼️ Imagen';
@@ -41,7 +69,7 @@ function mediaFallbackLabel(payload: BaileysOutgoingPayload) {
 
 export async function fetchChatsFromBaileys(instanceName: string): Promise<FetchChatsResult> {
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `${backendUrl()}/whatsapp/baileys/chats/${encodeURIComponent(instanceName)}`,
       { headers: authHeaders(), cache: 'no-store' },
     );
@@ -168,7 +196,7 @@ export async function findMessagesFromBaileys(
     if (opts?.before) params.set('before', opts.before);
 
     const url = `${backendUrl()}/whatsapp/baileys/messages/${encodeURIComponent(instanceName)}/${encodeURIComponent(remoteJid)}?${params}`;
-    const res = await fetch(url, { headers: authHeaders(), cache: 'no-store' });
+    const res = await fetchWithTimeout(url, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) return { success: false, message: `Error ${res.status} al cargar mensajes.` };
 
     const json = await res.json();
