@@ -50,6 +50,9 @@ export function MiLanding() {
   ]);
   const [showAssistanceIA, setShowAssistanceIA] = useState(true);
   const [showAssistanceHUMANO, setShowAssistanceHUMANO] = useState(true);
+  const [showBillingMonthly, setShowBillingMonthly] = useState(true);
+  const [showBillingQuarterly, setShowBillingQuarterly] = useState(true);
+  const [showBillingYearly, setShowBillingYearly] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basicos: true, identidad: false, hero: false, redes: false,
@@ -82,6 +85,9 @@ export function MiLanding() {
         if (res.profile?.stats?.length) setStatInputs(res.profile.stats);
         setShowAssistanceIA(res.profile?.showAssistanceIA ?? true);
         setShowAssistanceHUMANO(res.profile?.showAssistanceHUMANO ?? true);
+        setShowBillingMonthly(res.profile?.showBillingMonthly ?? true);
+        setShowBillingQuarterly(res.profile?.showBillingQuarterly ?? true);
+        setShowBillingYearly(res.profile?.showBillingYearly ?? true);
       }
     } finally {
       setLoading(false);
@@ -113,6 +119,9 @@ export function MiLanding() {
       stats: statInputs,
       showAssistanceIA,
       showAssistanceHUMANO,
+      showBillingMonthly,
+      showBillingQuarterly,
+      showBillingYearly,
     });
     if (res.success) {
       toast.success(res.message);
@@ -360,6 +369,29 @@ export function MiLanding() {
                 <Label className="text-sm">Mostrar Asistencia Humana</Label>
                 <Switch checked={showAssistanceHUMANO} onCheckedChange={setShowAssistanceHUMANO} />
               </div>
+
+              <p className="pt-2 text-sm text-muted-foreground">
+                Periodos de pago que quieres ofrecer. Si dejas solo uno activo, el selector
+                (Mensual / Trimestral / Anual) no aparece y se muestran esos precios directamente.
+              </p>
+              <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+                <Label className="text-sm">Mostrar plan Mensual</Label>
+                <Switch checked={showBillingMonthly} onCheckedChange={setShowBillingMonthly} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+                <Label className="text-sm">Mostrar plan Trimestral</Label>
+                <Switch checked={showBillingQuarterly} onCheckedChange={setShowBillingQuarterly} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+                <Label className="text-sm">Mostrar plan Anual</Label>
+                <Switch checked={showBillingYearly} onCheckedChange={setShowBillingYearly} />
+              </div>
+              {!showBillingMonthly && !showBillingQuarterly && !showBillingYearly && (
+                <p className="text-xs text-amber-500">
+                  Debes dejar al menos un periodo activo. Si los desactivas todos, tu landing
+                  mostrará los precios mensuales.
+                </p>
+              )}
             </div>
           </div>
 
