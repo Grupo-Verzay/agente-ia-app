@@ -228,6 +228,14 @@ export default async function ChatsPage({
 }: {
   searchParams?: { jid?: string; instance?: string };
 }) {
+  // Tiempos por fase del render. La consulta de la bandeja ya se mide aparte
+  // ([PERF] getPersistedInboxChats) y sale en 0,5-2,6s, así que cuando la
+  // pantalla tarda mucho más el cuello de botella está en otra fase: estos
+  // marcadores dicen en cuál, sin tener que adivinar.
+  const __t0 = performance.now();
+  const __mark = (label: string, from: number, to: number) =>
+    `${label}=${Math.round(to - from)}ms`;
+
   const user = await settle(currentUser());
   if (!user) redirect("/login");
   // Si el usuario es asesor (tiene ownerId), usa los recursos del dueno
@@ -258,6 +266,8 @@ export default async function ChatsPage({
     settle(getLinkedAccountsInstances(effectiveOwnerId)),
     settle(getMasterAccountInstances(user.sessionUserId ?? user.id)),
   ]);
+
+  const __tFase1 = performance.now();
 
   const ownInstancias = resInstancias && hasInstancias(resInstancias) ? resInstancias.data : [];
   const sessionUserInstancias =
@@ -299,6 +309,8 @@ export default async function ChatsPage({
         open: await isBaileysRuntimeOpen(inst.instanceName),
       })),
   );
+  const __tRuntime = performance.now();
+
   for (const check of baileysRuntimeChecks) {
     if (check.status === "fulfilled" && check.value.open) {
       baileysRuntimeNames.add(check.value.instanceName);
@@ -420,6 +432,8 @@ export default async function ChatsPage({
     getChatConversationPreferencesByUserId(effectiveOwnerId),
     getTeamAdvisorInfos(),
   ]);
+  const __tBandeja = performance.now();
+
   const initialAdvisors = withCurrentUserAdvisor(
     initialAdvisorsResult.success ? initialAdvisorsResult.data ?? [] : [],
     user,
@@ -584,6 +598,19 @@ export default async function ChatsPage({
       ...chatsResult,
       data: dedupeChatsByIdentity(applyLidMappingToChats(chatsResult.data, lidPhoneMap)),
     };
+  }
+
+  const __tFin = performance.now();
+  const __total = __tFin - __t0;
+  if (__total > 3000) {
+    console.error(
+      `[PERF] ChatsPage ${Math.round(__total)}ms ` +
+        `${__mark("fase1", __t0, __tFase1)} ` +
+        `${__mark("estadoInstancias", __tFase1, __tRuntime)} ` +
+        `${__mark("bandeja", __tRuntime, __tBandeja)} ` +
+        `${__mark("resto", __tBandeja, __tFin)} ` +
+        `instancias=${instancias.length} cuentas=${allSessionUserIds.length}`,
+    );
   }
 
   const initialSelectedChat =
