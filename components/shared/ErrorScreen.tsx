@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { hardReload } from "@/lib/hard-reload";
 
 type ErrorScreenProps = {
     error?: unknown;
@@ -102,7 +103,7 @@ export default function ErrorScreen({
             setReloadIn((s) => (s === null ? null : Math.max(0, s - 1)));
         }, 1000);
         const timer = setTimeout(() => {
-            window.location.reload();
+            hardReload();
         }, AUTO_RELOAD_MS);
 
         return () => {
