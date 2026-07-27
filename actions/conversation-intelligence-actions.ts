@@ -18,6 +18,40 @@ type IntelligenceResult = {
   clientPromises?: Array<{ title?: string; dueDate?: string }>;
 };
 
+/**
+ * Cuentas cuyas credenciales rechazó el proveedor, con el momento del rechazo.
+ *
+ * Hay clientes que no usan IA: atienden con asesores humanos y las
+ * automatizaciones de los embudos. Si su configuración quedó con una clave
+ * inválida —por ejemplo pegando la URL del proveedor en lugar de la clave—, cada
+ * mensaje que enviaba un asesor llamaba a OpenAI, esperaba el 401 y lo
+ * registraba: latencia en cada envío y un log lleno de un error que no se va a
+ * resolver solo.
+ *
+ * Tras un rechazo se deja de intentar durante un rato en ESA cuenta. Así una
+ * cuenta mal configurada no penaliza a las demás, y en cuanto se corrija la
+ * clave vuelve a funcionar sin desplegar nada (como mucho, tras la espera).
+ */
+const AI_AUTH_BACKOFF_MS = 30 * 60_000;
+const aiAuthRejectedAt = new Map<string, number>();
+
+/** ¿El proveedor rechazó las credenciales de esta cuenta hace poco? */
+function isAiAuthBlocked(userId: string): boolean {
+  const at = aiAuthRejectedAt.get(userId);
+  if (at === undefined) return false;
+  if (Date.now() - at < AI_AUTH_BACKOFF_MS) return true;
+  aiAuthRejectedAt.delete(userId);
+  return false;
+}
+
+/** ¿El error es un rechazo de credenciales y no un fallo puntual del servicio? */
+function isAiAuthError(error: unknown): boolean {
+  const err = error as { status?: number; code?: string; message?: string };
+  if (err?.status === 401 || err?.status === 403) return true;
+  if (err?.code === 'invalid_api_key') return true;
+  return /api key/i.test(String(err?.message ?? ''));
+}
+
 async function getAiConfig(userId: string) {
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -43,6 +77,8 @@ async function getAiConfig(userId: string) {
 }
 
 async function analyzeConversation(userId: string, conversation: string): Promise<IntelligenceResult | null> {
+  if (isAiAuthBlocked(userId)) return null;
+
   const cfg = await getAiConfig(userId);
   if (!cfg) return null;
   const prompt = `Analiza esta conversación comercial. Devuelve SOLO JSON:
@@ -60,26 +96,39 @@ CONVERSACIÓN:
 ${conversation}`;
 
   let raw = "{}";
-  if (cfg.provider === "google") {
-    const { GoogleGenAI } = await import("@google/genai");
-    const ai = new GoogleGenAI({ apiKey: cfg.apiKey });
-    const result = await ai.models.generateContent({
-      model: cfg.model,
-      contents: prompt,
-      config: { responseMimeType: "application/json", temperature: 0.1 },
-    });
-    raw = result.text ?? "{}";
-  } else {
-    const OpenAI = (await import("openai")).default;
-    const client = new OpenAI({ apiKey: cfg.apiKey });
-    const result = await client.chat.completions.create({
-      model: cfg.model,
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 900,
-    });
-    raw = result.choices[0]?.message?.content ?? "{}";
+  try {
+    if (cfg.provider === "google") {
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey: cfg.apiKey });
+      const result = await ai.models.generateContent({
+        model: cfg.model,
+        contents: prompt,
+        config: { responseMimeType: "application/json", temperature: 0.1 },
+      });
+      raw = result.text ?? "{}";
+    } else {
+      const OpenAI = (await import("openai")).default;
+      const client = new OpenAI({ apiKey: cfg.apiKey });
+      const result = await client.chat.completions.create({
+        model: cfg.model,
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+        max_completion_tokens: 900,
+      });
+      raw = result.choices[0]?.message?.content ?? "{}";
+    }
+  } catch (error) {
+    // Solo se absorbe el rechazo de credenciales, que no se arregla
+    // reintentando; el resto de fallos siguen propagándose como hasta ahora.
+    if (!isAiAuthError(error)) throw error;
+    aiAuthRejectedAt.set(userId, Date.now());
+    console.error(
+      `[analyzeConversation] credenciales rechazadas: cuenta=${userId} proveedor=${cfg.provider}. ` +
+        `Se deja de intentar ${Math.round(AI_AUTH_BACKOFF_MS / 60_000)} min en esta cuenta.`,
+    );
+    return null;
   }
+
   try {
     return JSON.parse(raw) as IntelligenceResult;
   } catch {
@@ -103,6 +152,10 @@ export async function predictAdvisorCommitmentAction(text: string, context = "")
   if (localCommitment) return { success: true, commitment: localCommitment };
 
   const ownerId = user.ownerId ?? user.id;
+  // La cuenta ya fue rechazada por el proveedor hace poco: no se vuelve a
+  // intentar. La detección local (detectCommitment, arriba) sigue funcionando.
+  if (isAiAuthBlocked(ownerId)) return { success: true, commitment: null };
+
   const cfg = await getAiConfig(ownerId);
   if (!cfg) return { success: true, commitment: null };
 
@@ -190,6 +243,20 @@ ${context.trim() || "Sin contexto"}`;
     // las credenciales, el error solo trae la key enmascarada y no había forma
     // de saber a qué cuenta corregirle la configuración.
     const keyTail = cfg.apiKey ? `…${cfg.apiKey.slice(-4)}` : "sin key";
+
+    if (isAiAuthError(error)) {
+      // Credenciales inválidas: no se arregla reintentando. Se anota la cuenta
+      // para dejar de llamar al proveedor durante un rato y se registra UNA
+      // línea clara, en vez de repetir el error con cada mensaje.
+      aiAuthRejectedAt.set(ownerId, Date.now());
+      console.error(
+        `[predictAdvisorCommitmentAction] credenciales rechazadas: cuenta=${ownerId} ` +
+          `proveedor=${cfg.provider} key=${keyTail}. Se deja de intentar ` +
+          `${Math.round(AI_AUTH_BACKOFF_MS / 60_000)} min en esta cuenta.`,
+      );
+      return { success: false, commitment: null };
+    }
+
     console.error(
       `[predictAdvisorCommitmentAction] cuenta=${ownerId} proveedor=${cfg.provider} key=${keyTail}`,
       error,
