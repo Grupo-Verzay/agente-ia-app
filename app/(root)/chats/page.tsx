@@ -670,23 +670,25 @@ export default async function ChatsPage({
   const __tFin = performance.now();
   const __total = __tFin - __t0;
   clearInterval(__lagTimer);
-  if (__total > 3000) {
+  // Umbral de 2 segundos, no de 3: las cargas que interesan ahora se estaban
+  // quedando justo por debajo (2.4-2.9s) y no llegaban a registrarse, que es
+  // precisamente donde viven `pingCarga` y `lagJS`. Una pantalla que tarda dos
+  // segundos ya es una pantalla lenta.
+  if (__total > 2000) {
     // Latencia de ida y vuelta a la base de datos, ya en reposo: la página
     // terminó, así que esto mide el camino hasta el servidor sin la carga
     // encima. Comparado con `pingCarga` (el mismo SELECT 1 pedido al empezar)
     // dice si la petición estuvo esperando o si la base de datos está lejos.
-    // Se toma el mejor de tres intentos para no medir un pico aislado.
-    let __pingMin = Number.POSITIVE_INFINITY;
+    // Basta una medición: ya sabemos que la red no es el problema (3-25 ms), y
+    // al bajar el umbral esto se ejecuta en muchas más cargas.
+    let __ping = "n/d";
     try {
-      for (let i = 0; i < 3; i++) {
-        const __tPing = performance.now();
-        await db.$queryRaw`SELECT 1`;
-        __pingMin = Math.min(__pingMin, performance.now() - __tPing);
-      }
+      const __tPing = performance.now();
+      await db.$queryRaw`SELECT 1`;
+      __ping = `${Math.round(performance.now() - __tPing)}ms`;
     } catch {
       // Si el ping falla no se pierde el resto del diagnóstico.
     }
-    const __ping = Number.isFinite(__pingMin) ? `${Math.round(__pingMin)}ms` : "n/d";
     const __carga = await __pingCarga;
 
     console.error(
