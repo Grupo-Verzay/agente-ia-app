@@ -58,7 +58,7 @@ export default async function CompletarRegistroPage({ searchParams }: Props) {
           <p className="mt-2 max-w-md text-sm text-slate-400">
             {isReseller
               ? 'Cuéntanos sobre tu agencia o negocio para configurar tu cuenta de reseller.'
-              : 'Cuéntanos sobre tu negocio para que tu agente esté listo desde el primer día.'}
+              : 'Cuéntanos sobre tu negocio para configurar tu agente.'}
           </p>
         </div>
       </div>
