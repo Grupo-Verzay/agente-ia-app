@@ -34,7 +34,7 @@ import {
     type CrmFollowUpRuleConfig,
 } from "@/lib/crm-follow-up-rules";
 import { cn, SERVER_TIME_ZONE } from "@/lib/utils";
-import { getLeadStatusLabel } from "../../dashboard/helpers";
+import { getLeadStatusLabel } from "../../dashboard/helpers/leadStatus";
 import { LoadingState } from "./LoadingState";
 import { CrmWizardStep, CrmWizardStepper } from "./CrmWizardStepper";
 import { CrmFollowUpMediaLibrary } from "./CrmFollowUpMediaLibrary";

@@ -1,6 +1,6 @@
 import { ESTADOS_POR_TIPO } from "@/types/registro";
 import type { CrmFollowUpStatus } from "@/types/session";
-import { LEAD_STATUS_FILTER_OPTIONS } from "../../helpers";
+import { LEAD_STATUS_FILTER_OPTIONS } from "../../helpers/leadStatus";
 
 import type { CrmDashboardTab, CrmTableColumnId } from "./types";
 
