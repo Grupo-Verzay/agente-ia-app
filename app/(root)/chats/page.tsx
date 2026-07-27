@@ -246,49 +246,8 @@ export default async function ChatsPage({
   const __mark = (label: string, from: number, to: number) =>
     `${label}=${Math.round(to - from)}ms`;
 
-  // La consulta de la bandeja, medida sobre una copia con el mismo volumen de
-  // datos que producción, tarda 33 ms. Aquí se registra en 3.000. La diferencia
-  // no está en la base de datos, así que hay que medir la ESPERA, y para eso hay
-  // que medirla mientras la página trabaja, no cuando ya terminó.
-  //
-  // Dos sondas que se lanzan a la vez que el render y separan las dos causas
-  // posibles:
-  //
-  // - `pingCarga`: un SELECT 1 pedido al empezar. Si tarda, es que la petición
-  //   estuvo esperando una conexión libre del pool (Prisma abre unas pocas por
-  //   proceso, y esta página lanza decenas de consultas).
-  // - `lagJS`: cuánto se retrasa un temporizador de 50 ms. Si se dispara, el
-  //   proceso de Node estaba ocupado y ninguna respuesta podía atenderse a
-  //   tiempo, aunque la base de datos estuviera libre.
-  //
-  // Una u otra apunta a soluciones distintas (subir el pool o repartir la carga
-  // en más réplicas), y hasta ahora no había forma de distinguirlas.
-  const __pingCarga = (async () => {
-    const desde = performance.now();
-    try {
-      await db.$queryRaw`SELECT 1`;
-      return performance.now() - desde;
-    } catch {
-      return -1;
-    }
-  })();
-
-  let __lagMax = 0;
-  const __lagTimer = setInterval(() => {
-    const esperado = performance.now() + 50;
-    setTimeout(() => {
-      __lagMax = Math.max(__lagMax, performance.now() - esperado);
-    }, 50);
-  }, 50);
-  __lagTimer.unref?.();
-
   const user = await settle(currentUser());
-  if (!user) {
-    // `redirect` lanza, así que el temporizador de la sonda no llegaría a
-    // detenerse por el camino normal.
-    clearInterval(__lagTimer);
-    redirect("/login");
-  }
+  if (!user) redirect("/login");
   // Si el usuario es asesor (tiene ownerId), usa los recursos del dueno
   const effectiveOwnerId = user.ownerId ?? user.id;
   const ownerApiKeyId =
@@ -689,28 +648,7 @@ export default async function ChatsPage({
 
   const __tFin = performance.now();
   const __total = __tFin - __t0;
-  clearInterval(__lagTimer);
-  // Umbral de 2 segundos, no de 3: las cargas que interesan ahora se estaban
-  // quedando justo por debajo (2.4-2.9s) y no llegaban a registrarse, que es
-  // precisamente donde viven `pingCarga` y `lagJS`. Una pantalla que tarda dos
-  // segundos ya es una pantalla lenta.
   if (__total > 2000) {
-    // Latencia de ida y vuelta a la base de datos, ya en reposo: la página
-    // terminó, así que esto mide el camino hasta el servidor sin la carga
-    // encima. Comparado con `pingCarga` (el mismo SELECT 1 pedido al empezar)
-    // dice si la petición estuvo esperando o si la base de datos está lejos.
-    // Basta una medición: ya sabemos que la red no es el problema (3-25 ms), y
-    // al bajar el umbral esto se ejecuta en muchas más cargas.
-    let __ping = "n/d";
-    try {
-      const __tPing = performance.now();
-      await db.$queryRaw`SELECT 1`;
-      __ping = `${Math.round(performance.now() - __tPing)}ms`;
-    } catch {
-      // Si el ping falla no se pierde el resto del diagnóstico.
-    }
-    const __carga = await __pingCarga;
-
     console.error(
       `[PERF] ChatsPage ${Math.round(__total)}ms ` +
         `${__mark("fase1", __t0, __tFase1)} ` +
@@ -718,9 +656,6 @@ export default async function ChatsPage({
         `${__mark("bandeja", __tRuntime, __tBandeja)} ` +
         `(bandejaTotal=${Math.round(__msBandejaTotal)}ms prefs=${Math.round(__msPrefs)}ms asesores=${Math.round(__msAsesores)}ms) ` +
         `${__mark("resto", __tBandeja, __tFin)} ` +
-        `pingBD=${__ping} ` +
-        `pingCarga=${__carga < 0 ? "n/d" : `${Math.round(__carga)}ms`} ` +
-        `lagJS=${Math.round(__lagMax)}ms ` +
         `instancias=${instancias.length} cuentas=${allSessionUserIds.length}`,
     );
   }
