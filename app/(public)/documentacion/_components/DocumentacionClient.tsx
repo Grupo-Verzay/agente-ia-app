@@ -235,7 +235,7 @@ export function DocumentacionClient({
             </Link>
             <Link href="/completar-registro">
               <Button size="sm" className={cn("text-white", brandBtn)} style={brandStyle}>
-                Comenzar gratis
+                Crear mi Agente IA
               </Button>
             </Link>
           </div>
@@ -263,7 +263,7 @@ export function DocumentacionClient({
               </Link>
               <Link href="/completar-registro" className="flex-1">
                 <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-500" style={brandStyle}>
-                  Registrarse
+                  Crear mi Agente IA
                 </Button>
               </Link>
             </div>
@@ -735,7 +735,7 @@ export function DocumentacionClient({
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link href="/completar-registro">
                 <Button className={cn("text-white", brandBtn)} style={brandStyle}>
-                  Comenzar gratis <ArrowRight className="ml-1 h-4 w-4" />
+                  Crear mi Agente IA <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
               </Link>
               {meetingUrl && (

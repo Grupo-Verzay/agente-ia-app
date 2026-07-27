@@ -274,7 +274,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
             </Link>
             {showFreeTrial && (
               <Link href="/completar-registro">
-                <Button size="sm" className={cn("text-white", brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500")}>Comenzar gratis</Button>
+                <Button size="sm" className={cn("text-white", brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500")}>Crear mi Agente IA</Button>
               </Link>
             )}
           </div>
@@ -293,7 +293,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
               </Link>
               {showFreeTrial && (
                 <Link href="/completar-registro" className="flex-1">
-                  <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-500">Registrarse</Button>
+                  <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-500">Crear mi Agente IA</Button>
                 </Link>
               )}
             </div>
@@ -331,7 +331,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                 {showFreeTrial && (
                   <Link href="/completar-registro">
                     <Button size="lg" className={cn("w-full gap-2 px-8 text-white md:w-auto", brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500")}>
-                      Comenzar gratis <ArrowRight className="h-4 w-4" />
+                      Crear mi Agente IA <ArrowRight className="h-4 w-4" />
                     </Button>
                   </Link>
                 )}
@@ -350,7 +350,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
               </div>
               {/* Trust badges */}
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                {["Sin tarjeta de crédito", "Cancela cuando quieras", "Soporte incluido"].map((t) => (
+                {["Configuración automática", "Sin conocimientos técnicos", "Automatiza tu atención 24/7"].map((t) => (
                   <span key={t} className="flex items-center gap-1 text-xs text-slate-500">
                     <Check className="h-3 w-3 text-green-500" /> {t}
                   </span>
@@ -781,7 +781,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                 {showFreeTrial && (
                   <Link href="/completar-registro">
                     <Button size="lg" className="gap-2 bg-blue-600 px-10 text-white hover:bg-blue-500">
-                      Crear cuenta gratis <ArrowRight className="h-4 w-4" />
+                      Crear mi Agente IA <ArrowRight className="h-4 w-4" />
                     </Button>
                   </Link>
                 )}
@@ -793,7 +793,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
               </div>
               {showFreeTrial && (
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
-                  {["Sin tarjeta de crédito", "Cancela cuando quieras", "Soporte incluido"].map((t) => (
+                  {["Configuración automática", "Sin conocimientos técnicos", "Automatiza tu atención 24/7"].map((t) => (
                     <span key={t} className="flex items-center gap-1 text-xs text-slate-500">
                       <ShieldCheck className="h-3 w-3 text-green-500" /> {t}
                     </span>
