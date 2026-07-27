@@ -6,7 +6,7 @@ import {
   getLeadStatusLabel,
   LEAD_STATUS_BADGE_CLASSNAMES,
   LEAD_STATUS_DOT_CLASSNAMES,
-} from "../../helpers";
+} from "../../helpers/leadStatus";
 
 export function LeadStatusBadge({
   status,

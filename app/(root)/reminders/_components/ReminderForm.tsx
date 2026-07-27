@@ -30,7 +30,7 @@ import { SelectComboBox } from "@/components/custom/SelectComboBox"
 import { SelectWorkflowBox } from "@/components/custom/SelectWorkflowBox"
 import { createReminder, getRemindersByUserId, updateReminder } from "@/actions/reminders-actions"
 import { useReminderDialogStore } from "@/stores"
-import { LeadCreateForm } from "../../sessions/_components"
+import { LeadCreateForm } from "../../sessions/_components/LeadCreateForm"
 import { Card } from "@/components/ui/card"
 import { FileAudio, FileText, ImageIcon, Paperclip, Trash2, Video } from "lucide-react"
 
