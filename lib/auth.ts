@@ -1,4 +1,5 @@
 // lib/auth.ts
+import { cache } from "react";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { isAdminLike, isAdminOrReseller } from "@/lib/rbac";
@@ -45,7 +46,27 @@ type AccountRole = "agente" | "administrador";
 
 const userCache = new WeakMap<Request, Promise<CurrentUser | null>>();
 
-export async function currentUser(request?: Request): Promise<CurrentUser | null> {
+/**
+ * Usuario de la petición actual, memoizado.
+ *
+ * Se llama desde 335 puntos del código y cada llamada cuesta entre 2 y 4
+ * consultas (sesión, usuario real, usuario efectivo y, según el caso, las
+ * credenciales del dueño o la tabla de cuentas vinculadas). Dentro de una misma
+ * petición se repetía varias veces —el layout, la página y cada Server Action
+ * que participa—, multiplicando ese coste sin que nada cambiara entre llamadas.
+ *
+ * `cache()` de React deduplica por petición: la primera llamada consulta y las
+ * demás reciben el mismo resultado. Ya existía un caché por objeto `Request`,
+ * pero exigía pasarlo y casi ningún llamador lo hacía.
+ *
+ * Es seguro respecto al cambio de cuenta: las cookies que deciden la cuenta
+ * activa (`impersonate_user_id`, `active_account_id`) no cambian a mitad de una
+ * petición, y las acciones que las escriben devuelven inmediatamente sin volver
+ * a leer el usuario, así que la siguiente petición ya ve la cuenta nueva.
+ */
+export const currentUser = cache(_currentUser);
+
+async function _currentUser(request?: Request): Promise<CurrentUser | null> {
     if (request && userCache.has(request)) {
         return userCache.get(request)!;
     }

@@ -117,9 +117,45 @@ export default async function RootGroupLayout({
 
     if (!user) return <AppSkeleton />;
 
-    const [onReseller, siteConfig] = await Promise.all([
+    // Todo lo que sigue depende solo de `user`, no unas de otras, y antes se
+    // pedía en cascada: cada consulta esperaba a la anterior sin necesitarla, y
+    // el layout se ejecuta en TODAS las páginas protegidas. Se piden juntas.
+    const [
+        onReseller,
+        siteConfig,
+        allModulesRes,
+        navPrefs,
+        userIntegrationsResult,
+        panelModule,
+        resellerModule,
+    ] = await Promise.all([
         getResellerProfileForUser(user.id),
         getSiteConfig(),
+        getAllModules(),
+        (async (): Promise<UserNavPref[]> => {
+            try {
+                return await db.$queryRaw<UserNavPref[]>`
+                    SELECT "moduleId", "displayLabel", "isHidden", "sortOrder"
+                    FROM "UserNavPreference"
+                    WHERE "userId" = ${user!.id}
+                    ORDER BY "sortOrder" ASC
+                `;
+            } catch {
+                // tabla aún no existe — primera vez
+                return [];
+            }
+        })(),
+        getUserIntegrations(),
+        db.module.findFirst({
+            where: { route: { in: ["/panel", "/admin"] } },
+            include: { moduleItems: { orderBy: { createdAt: "asc" } } },
+        }),
+        user.role === 'reseller'
+            ? db.module.findFirst({
+                where: { route: "/reseller-panel" },
+                include: { moduleItems: { orderBy: { createdAt: "asc" } } },
+            })
+            : Promise.resolve(null),
     ]);
 
     // Logo abajo: del reseller asignado, o del platform (SiteConfig)
@@ -135,7 +171,7 @@ export default async function RootGroupLayout({
         initialTheme = (freshUser?.theme as ThemeApp) ?? 'Default';
     }
 
-    const allModules = (await getAllModules()).data ?? [];
+    const allModules = allModulesRes.data ?? [];
 
     if (allModules.length === 0) return <AppSkeleton />;
 
@@ -187,33 +223,7 @@ export default async function RootGroupLayout({
         ]
         : [];
 
-    let navPrefs: UserNavPref[] = [];
-    try {
-        navPrefs = await db.$queryRaw<UserNavPref[]>`
-            SELECT "moduleId", "displayLabel", "isHidden", "sortOrder"
-            FROM "UserNavPreference"
-            WHERE "userId" = ${user!.id}
-            ORDER BY "sortOrder" ASC
-        `;
-    } catch {
-        // tabla aún no existe — primera vez
-    }
-
-    const userIntegrationsResult = await getUserIntegrations();
     const userIntegrations = userIntegrationsResult.data;
-
-    const [panelModule, resellerModule] = await Promise.all([
-        db.module.findFirst({
-            where: { route: { in: ["/panel", "/admin"] } },
-            include: { moduleItems: { orderBy: { createdAt: "asc" } } },
-        }),
-        user.role === 'reseller'
-            ? db.module.findFirst({
-                where: { route: "/reseller-panel" },
-                include: { moduleItems: { orderBy: { createdAt: "asc" } } },
-              })
-            : Promise.resolve(null),
-    ]);
     // Pestañas del panel según rol (misma lógica que panel/layout.tsx). El reseller
     // ve las pestañas de SU panel (/reseller-panel), NO las de super admin
     // (Módulos/Prompt/Resellers/Monitoreo VPS/Plantillas). Sin esto, en rutas fuera
