@@ -32,6 +32,9 @@ export type SiteConfigData = {
   showAssistanceIA: boolean;
   showAssistanceHUMANO: boolean;
   showFreeTrial: boolean;
+  showBillingMonthly: boolean;
+  showBillingQuarterly: boolean;
+  showBillingYearly: boolean;
 };
 
 const EMPTY: SiteConfigData = {
@@ -46,6 +49,9 @@ const EMPTY: SiteConfigData = {
   showAssistanceIA: true,
   showAssistanceHUMANO: true,
   showFreeTrial: true,
+  showBillingMonthly: true,
+  showBillingQuarterly: true,
+  showBillingYearly: true,
 };
 
 const SITE_CONFIG_TAG = "site-config";
@@ -81,6 +87,9 @@ const getSiteConfigCached = unstable_cache(
       showAssistanceIA: c.showAssistanceIA ?? true,
       showAssistanceHUMANO: c.showAssistanceHUMANO ?? true,
       showFreeTrial: c.showFreeTrial ?? true,
+      showBillingMonthly: c.showBillingMonthly ?? true,
+      showBillingQuarterly: c.showBillingQuarterly ?? true,
+      showBillingYearly: c.showBillingYearly ?? true,
     };
   } catch {
     return EMPTY;
@@ -251,6 +260,9 @@ export async function updateSiteConfig(data: SiteConfigData): Promise<{ success:
       showAssistanceIA: data.showAssistanceIA ?? true,
       showAssistanceHUMANO: data.showAssistanceHUMANO ?? true,
       showFreeTrial: data.showFreeTrial ?? true,
+      showBillingMonthly: data.showBillingMonthly ?? true,
+      showBillingQuarterly: data.showBillingQuarterly ?? true,
+      showBillingYearly: data.showBillingYearly ?? true,
     };
     await db.siteConfig.upsert({
       where: { id: 1 },

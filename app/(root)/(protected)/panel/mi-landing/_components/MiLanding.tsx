@@ -53,6 +53,7 @@ export function MiLanding() {
   const [showBillingMonthly, setShowBillingMonthly] = useState(true);
   const [showBillingQuarterly, setShowBillingQuarterly] = useState(true);
   const [showBillingYearly, setShowBillingYearly] = useState(true);
+  const [showCreateAgentCta, setShowCreateAgentCta] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basicos: true, identidad: false, hero: false, redes: false,
@@ -88,6 +89,7 @@ export function MiLanding() {
         setShowBillingMonthly(res.profile?.showBillingMonthly ?? true);
         setShowBillingQuarterly(res.profile?.showBillingQuarterly ?? true);
         setShowBillingYearly(res.profile?.showBillingYearly ?? true);
+        setShowCreateAgentCta(res.profile?.showCreateAgentCta ?? true);
       }
     } finally {
       setLoading(false);
@@ -122,6 +124,7 @@ export function MiLanding() {
       showBillingMonthly,
       showBillingQuarterly,
       showBillingYearly,
+      showCreateAgentCta,
     });
     if (res.success) {
       toast.success(res.message);
@@ -368,6 +371,14 @@ export function MiLanding() {
               <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
                 <Label className="text-sm">Mostrar Asistencia Humana</Label>
                 <Switch checked={showAssistanceHUMANO} onCheckedChange={setShowAssistanceHUMANO} />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+                <div>
+                  <Label className="text-sm">Mostrar botón «Crear mi Agente IA»</Label>
+                  <p className="text-xs text-muted-foreground">Botones que llevan al registro. Desactívalo para ocultarlos de tu landing.</p>
+                </div>
+                <Switch checked={showCreateAgentCta} onCheckedChange={setShowCreateAgentCta} />
               </div>
 
               <p className="pt-2 text-sm text-muted-foreground">

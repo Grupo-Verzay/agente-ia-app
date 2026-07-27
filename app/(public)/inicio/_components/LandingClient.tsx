@@ -198,15 +198,31 @@ interface LandingClientProps {
   showAssistanceHUMANO?: boolean;
   /** Muestra los CTA de prueba gratis (registro). Si es false, se ocultan. */
   showFreeTrial?: boolean;
+  /** Periodos de pago ofrecidos. Si solo queda uno, no se muestra el selector. */
+  showBillingMonthly?: boolean;
+  showBillingQuarterly?: boolean;
+  showBillingYearly?: boolean;
   /** Modo embebido (dentro de la app): oculta navbar, footer y botón de WhatsApp. */
   embed?: boolean;
 }
 
-export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats, showAssistanceIA = true, showAssistanceHUMANO = true, showFreeTrial = true, embed = false }: LandingClientProps = {}) {
+export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColor, headline, subheadline, logoUrl, instagram, facebook, videoUrl, ctaHeadline, ctaSubtitle, testimonials, stats, showAssistanceIA = true, showAssistanceHUMANO = true, showFreeTrial = true, showBillingMonthly = true, showBillingQuarterly = true, showBillingYearly = true, embed = false }: LandingClientProps = {}) {
   const [plans, setPlans]                   = useState<SubscriptionPlanItem[]>([]);
   const [plansLoading, setPlansLoading]     = useState(true);
   const [assistanceType, setAssistanceType] = useState<AssistanceType>(showAssistanceIA ? "IA" : "HUMANO");
-  const [billingPeriod, setBillingPeriod]   = useState<BillingPeriod>("yearly");
+  // Periodos habilitados. Si se desactivan todos, se usa mensual como respaldo.
+  const availablePeriods: BillingPeriod[] = [];
+  if (showBillingMonthly) availablePeriods.push("monthly");
+  if (showBillingQuarterly) availablePeriods.push("quarterly");
+  if (showBillingYearly) availablePeriods.push("yearly");
+  if (availablePeriods.length === 0) availablePeriods.push("monthly");
+  const showBillingToggle = availablePeriods.length > 1;
+  const defaultPeriod: BillingPeriod =
+    availablePeriods.includes("yearly") ? "yearly"
+      : availablePeriods.includes("quarterly") ? "quarterly"
+        : "monthly";
+
+  const [billingPeriod, setBillingPeriod]   = useState<BillingPeriod>(defaultPeriod);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openFaq, setOpenFaq]               = useState<number | null>(null);
   const [modalPlan, setModalPlan]           = useState<{ plan: SubscriptionPlanItem; checkoutUrl: string | null } | null>(null);
@@ -631,13 +647,16 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
               <h2 className="text-2xl font-bold text-white sm:text-3xl">Planes y Precios</h2>
               <p className="mt-2 text-slate-400">Sin contratos. Cancela cuando quieras.</p>
 
-              {/* Billing period toggle */}
+              {/* Billing period toggle — solo si hay más de un periodo habilitado */}
+              {showBillingToggle && (
               <div className="mt-4 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
                 {([
                   { value: "monthly",   label: "Mensual",    badge: null      },
                   { value: "quarterly", label: "Trimestral", badge: "−14.5%"  },
                   { value: "yearly",    label: "Anual",      badge: "−22.5%"  },
-                ] as { value: BillingPeriod; label: string; badge: string | null }[]).map((opt) => (
+                ] as { value: BillingPeriod; label: string; badge: string | null }[])
+                  .filter((opt) => availablePeriods.includes(opt.value))
+                  .map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() => setBillingPeriod(opt.value)}
@@ -660,6 +679,7 @@ export function LandingClient({ whatsappNumber, meetingUrl, primaryColor, bgColo
                   </button>
                 ))}
               </div>
+              )}
 
               {/* Assistance toggle — solo visible si ambos tipos tienen planes activos */}
               {showIA && showHUMANO && (
