@@ -1607,11 +1607,6 @@ model Reseller {
   // Controla qué tipos de asistencia se muestran en la sección de precios de su landing.
   showAssistanceIA               Boolean  @default(true)
   showAssistanceHUMANO           Boolean  @default(true)
-  // Controla qué periodos de facturación se ofrecen en su landing (mensual /
-  // trimestral / anual). Si solo queda uno activo, el selector no se muestra.
-  showBillingMonthly             Boolean  @default(true)
-  showBillingQuarterly           Boolean  @default(true)
-  showBillingYearly              Boolean  @default(true)
   createdAt                      DateTime @default(now())
   updatedAt                      DateTime @updatedAt
   theme                          ThemeApp @default(Default)
