@@ -941,11 +941,59 @@ export async function getPersistedMessages(params: {
   });
 }
 
+/**
+ * JIDs cuyo ÚLTIMO mensaje fue eliminado por el cliente, para pintar el
+ * marcador "🚫 Mensaje eliminado" en la lista.
+ *
+ * Antes esto se sacaba de getPersistedInboxChats, que arma toda la bandeja
+ * (cruza conversaciones con sesiones y ordena) y tarda entre 0,5s y 6s. Para un
+ * marcador visual basta leer la columna, que ya trae la marca: es una consulta
+ * directa sobre chat_conversations, cubierta por su índice de (userId,
+ * instanceName, remoteJid) y con muy pocas filas.
+ */
+export async function getDeletedLastMessageJids(params: {
+  userIds: string[];
+  instanceName?: string | null;
+}): Promise<Array<{ remoteJid: string; remoteJidAlt: string | null; senderPn: string | null }>> {
+  const userIds = params.userIds.filter(Boolean);
+  if (!userIds.length) return [];
+
+  return readWithTablesFallback(async () =>
+    db.$queryRaw<Array<{ remoteJid: string; remoteJidAlt: string | null; senderPn: string | null }>>`
+      SELECT "remoteJid", "remoteJidAlt", "senderPn"
+      FROM "chat_conversations"
+      WHERE "userId" IN (${Prisma.join(userIds)})
+        AND "lastMessageDeleted" = TRUE
+        ${params.instanceName ? Prisma.sql`AND "instanceName" = ${params.instanceName}` : Prisma.empty}
+    `,
+  );
+}
+
 function getChatTimestamp(chat: ChatData) {
   return (
     chat.lastMessage?.messageTimestamp ??
     (chat.updatedAt ? Math.floor(new Date(chat.updatedAt).getTime() / 1000) : 0)
   );
+}
+
+/**
+ * Caché muy corta de la bandeja, compartida por proceso.
+ *
+ * Armar la bandeja cuesta entre 0,5s y 6s, y se rehacía ENTERA en cada visita a
+ * Chats: salir a otra sección y volver pagaba el precio completo otra vez. Se
+ * guarda la promesa (no el resultado) para que, además, varias cargas
+ * simultáneas de la misma cuenta compartan una sola consulta en vez de lanzar
+ * una cada una, que es lo que disparaba los tiempos cuando había concurrencia.
+ *
+ * La ventana es deliberadamente corta: la lista se refresca en vivo desde el
+ * cliente al montar, así que un mensaje que llegue dentro de esos segundos
+ * aparece igual sin esperar a que caduque.
+ */
+const INBOX_CACHE_TTL_MS = 10_000;
+const inboxCache = new Map<string, { at: number; rows: Promise<ChatData[]> }>();
+
+function inboxCacheKey(userIds: string[], instanceNames: string[] | undefined, take?: number) {
+  return JSON.stringify([[...userIds].sort(), [...(instanceNames ?? [])].sort(), take ?? 300]);
 }
 
 export async function getPersistedInboxChats(params: {
@@ -956,6 +1004,35 @@ export async function getPersistedInboxChats(params: {
   const userIds = params.userIds.filter(Boolean);
   if (!userIds.length) return [];
 
+  const key = inboxCacheKey(userIds, params.instanceNames, params.take);
+  const now = Date.now();
+
+  const cached = inboxCache.get(key);
+  if (cached && now - cached.at < INBOX_CACHE_TTL_MS) return cached.rows;
+
+  // Limpieza de entradas caducadas: el mapa crece con cada combinación de
+  // cuentas/instancias y sin esto se quedarían todas en memoria.
+  for (const [k, v] of Array.from(inboxCache.entries())) {
+    if (now - v.at >= INBOX_CACHE_TTL_MS) inboxCache.delete(k);
+  }
+
+  const rows = loadPersistedInboxChats(params, userIds);
+  inboxCache.set(key, { at: now, rows });
+  // Si la consulta falla no se deja el error cacheado: la siguiente visita
+  // reintenta en vez de arrastrar el fallo durante toda la ventana.
+  rows.catch(() => inboxCache.delete(key));
+  return rows;
+}
+
+/** Invalida la bandeja cacheada. Se llama tras cambiarla (borrar, archivar…). */
+export function invalidatePersistedInboxCache(): void {
+  inboxCache.clear();
+}
+
+async function loadPersistedInboxChats(
+  params: { userIds: string[]; instanceNames?: string[]; take?: number },
+  userIds: string[],
+): Promise<ChatData[]> {
   return readWithTablesFallback(async () => {
   const __t0 = performance.now();
   // Mapa instanceId -> instanceName resuelto UNA sola vez por llamada. Antes esto

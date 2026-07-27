@@ -10,6 +10,7 @@ import { buildChatHistorySessionId } from "@/lib/chat-history/build-session-id";
 import { saveChatHistoryMessage } from "@/lib/chat-history/chat-history.helper";
 import { buildWhatsAppJidCandidates } from "@/lib/whatsapp-jid";
 import {
+  getDeletedLastMessageJids,
   getPersistedInboxChats,
   getPersistedMessages,
   persistChatMessage,
@@ -521,13 +522,15 @@ export async function refetchChatsManualAction(
   const DELETED_LAST_MESSAGE_MARK = "🚫 Mensaje eliminado";
   if (result.success && readUserIds.length) {
     try {
-      const persisted = await getPersistedInboxChats({
+      // Solo se necesitan los JIDs con la marca, no la bandeja entera: armarla
+      // cruza conversaciones con sesiones y cuesta segundos, y esto corre en
+      // cada refresco de la lista.
+      const deleted = await getDeletedLastMessageJids({
         userIds: readUserIds,
-        instanceNames: [context.instanceName],
+        instanceName: context.instanceName,
       });
       const deletedJids = new Set<string>();
-      for (const p of persisted) {
-        if (p.lastMessage?.message?.conversation !== DELETED_LAST_MESSAGE_MARK) continue;
+      for (const p of deleted) {
         for (const cand of buildWhatsAppJidCandidates(p.remoteJid, [p.remoteJidAlt, p.senderPn])) {
           deletedJids.add(cand);
         }
