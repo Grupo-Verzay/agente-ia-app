@@ -38,7 +38,7 @@ import {
     Zap,
 } from "lucide-react";
 import { UserWithPausar } from "@/lib/types";
-import { BrandSelector } from "../../../../components/custom";
+import { BrandSelector } from "../../../../components/custom/BrandSelector";
 import { updatePlatformLogoUrl, updatePlatformFaviconUrl, updatePlatformBrandName } from "@/actions/admin/site-config-actions";
 import { useResellerStore } from "@/stores/resellers/resellerStore";
 import { Role } from "@prisma/client";

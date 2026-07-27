@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { getEstadoOptions } from "../dashboard/helpers";
+import { getEstadoOptions } from "../dashboard/helpers/getEstadoOptions";
 import { updateRegistroEstado } from "@/actions/registro-action";
 import { toast } from "sonner";
 

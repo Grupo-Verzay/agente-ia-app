@@ -1,7 +1,7 @@
 // app/(dashboard)/crm/dashboard/page.tsx
 import { currentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { MainCrmRules } from "./components";
+import { MainCrmRules } from "./components/MainCrmRules";
 
 const CrmRulesPage = async () => {
     const user = await currentUser();

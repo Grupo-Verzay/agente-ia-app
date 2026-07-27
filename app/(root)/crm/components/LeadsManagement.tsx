@@ -15,14 +15,17 @@ import {
 } from "@/types/session";
 
 import { Registro, Session } from "@prisma/client";
-import { BulkActionsDropdown, FilterLeadsByStats, FilterSessionTypes, SessionStatsInterface, SwitchStatus } from "../../sessions/_components";
+import { BulkActionsDropdown } from "../../sessions/_components/BulkActionsDropdown";
+import { FilterLeadsByStats, FilterSessionTypes, type SessionStatsInterface } from "../../sessions/_components/FilterLeadsByStats";
+import { SwitchStatus } from "../../sessions/_components/SwitchStatus";
 import { clearAllHistory } from "@/actions/n8n-chat-historial-action";
 import { activateAllSessions, cleanupJunkSessions, deactivateAllSessions, deleteAllSessions, getSessionsCountByUserId } from "@/actions/session-action";
 import { deleteSeguimientosByInstanceName } from "@/actions/seguimientos-actions";
 import { syncAllContactsToGoogleSheets } from "@/actions/google-sheets-actions";
 import { useRouter } from "next/navigation";
 import { ActionsCell } from "../../sessions/_components/Columns";
-import { SessionTagsCombobox, TagFilterBar } from "../../tags/components";
+import { SessionTagsCombobox } from "../../tags/components/SessionTagsCombobox";
+import { TagFilterBar } from "../../tags/components/TagFilterBar";
 import { ResumeCard } from "./ResumeCard";
 import { RegistrosTable } from "./RegistrosTable";
 import { formatFecha, getTipoLabel } from "../helpers";

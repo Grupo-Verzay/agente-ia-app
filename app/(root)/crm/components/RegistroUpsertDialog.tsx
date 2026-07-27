@@ -17,7 +17,7 @@ import {
 
 import { createRegistro, updateRegistro } from "@/actions/registro-action";
 import { toast } from "sonner";
-import { getEstadoOptions } from "../dashboard/helpers";
+import { getEstadoOptions } from "../dashboard/helpers/getEstadoOptions";
 
 type Mode = "create" | "edit";
 

@@ -781,7 +781,7 @@ export function BillingCrmClient({
                                         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                                         <DropdownMenuSeparator />
 
-                                        <DropdownMenuItem onClick={() => exportExcelAllFiltered(table)}>
+                                        <DropdownMenuItem onClick={() => { void exportExcelAllFiltered(table); }}>
                                             Exportar Excel
                                         </DropdownMenuItem>
                                         <DropdownMenuSeparator />
