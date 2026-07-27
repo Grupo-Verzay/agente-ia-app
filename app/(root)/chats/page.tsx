@@ -424,13 +424,31 @@ export default async function ChatsPage({
   let instanceActionSets: InstanceActionSet[] = [];
   // Bandeja local + preferencias en paralelo (independientes) para acelerar la
   // carga inicial de Chats.
+  // Las tres corren en paralelo, así que la fase dura lo que la más lenta. Se
+  // cronometra cada una por separado para saber cuál manda.
+  let __msPrefs = 0;
+  let __msAsesores = 0;
   const [persistedInitialChats, initialPreferencesResult, initialAdvisorsResult] = await Promise.all([
     getPersistedInboxChats({
       userIds: allSessionUserIds,
       instanceNames: instancias.map((inst) => inst.instanceName),
     }),
-    getChatConversationPreferencesByUserId(effectiveOwnerId),
-    getTeamAdvisorInfos(),
+    (async () => {
+      const t = performance.now();
+      try {
+        return await getChatConversationPreferencesByUserId(effectiveOwnerId);
+      } finally {
+        __msPrefs = performance.now() - t;
+      }
+    })(),
+    (async () => {
+      const t = performance.now();
+      try {
+        return await getTeamAdvisorInfos();
+      } finally {
+        __msAsesores = performance.now() - t;
+      }
+    })(),
   ]);
   const __tBandeja = performance.now();
 
@@ -608,6 +626,7 @@ export default async function ChatsPage({
         `${__mark("fase1", __t0, __tFase1)} ` +
         `${__mark("estadoInstancias", __tFase1, __tRuntime)} ` +
         `${__mark("bandeja", __tRuntime, __tBandeja)} ` +
+        `(prefs=${Math.round(__msPrefs)}ms asesores=${Math.round(__msAsesores)}ms) ` +
         `${__mark("resto", __tBandeja, __tFin)} ` +
         `instancias=${instancias.length} cuentas=${allSessionUserIds.length}`,
     );
