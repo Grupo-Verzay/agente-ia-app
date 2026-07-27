@@ -924,7 +924,11 @@ export async function getPersistedInboxChats(params: {
 }): Promise<ChatData[]> {
   const userIds = params.userIds.filter(Boolean);
   if (!userIds.length) return [];
+  // Se mide aparte: la creación de tablas está memoizada por proceso, pero la
+  // PRIMERA llamada tras arrancar sí paga el coste y no entraba en el cronómetro.
+  const __tEnsure = performance.now();
   await ensureChatMessagesTable();
+  const __msEnsure = performance.now() - __tEnsure;
 
   const __t0 = performance.now();
   // Mapa instanceId -> instanceName resuelto UNA sola vez por llamada. Antes esto
@@ -1078,9 +1082,22 @@ export async function getPersistedInboxChats(params: {
     LIMIT ${params.take ?? 300}
   `;
   const __ms = performance.now() - __t0;
-  if (__ms > 500) console.error(`[PERF] getPersistedInboxChats ${Math.round(__ms)}ms accounts=${userIds.length} rows=${rows.length}`);
 
-  return rows
+  // El armado de los chats (parsear el JSON de cada mensaje y ordenar) también
+  // se mide: es trabajo por fila y hasta ahora quedaba fuera del cronómetro.
+  const __tMap = performance.now();
+  const chats = rows
     .map(inboxRowToChat)
     .sort((a, b) => getChatTimestamp(b) - getChatTimestamp(a));
+  const __msMap = performance.now() - __tMap;
+
+  if (__ms + __msMap + __msEnsure > 500) {
+    console.error(
+      `[PERF] getPersistedInboxChats consulta=${Math.round(__ms)}ms ` +
+        `armado=${Math.round(__msMap)}ms tablas=${Math.round(__msEnsure)}ms ` +
+        `accounts=${userIds.length} rows=${rows.length}`,
+    );
+  }
+
+  return chats;
 }
