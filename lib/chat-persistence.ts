@@ -1321,10 +1321,46 @@ async function loadPersistedInboxChats(
     console.error(
       `[PERF] getPersistedInboxChats consulta=${Math.round(__ms)}ms ` +
         `armado=${Math.round(__msMap)}ms ` +
-        `accounts=${userIds.length} rows=${rows.length}`,
+        `accounts=${userIds.length} rows=${rows.length}` +
+        `${await medirTamanoBandeja(userIds, __ms)}`,
     );
   }
 
   return chats;
   });
+}
+
+/**
+ * Tamaño del conjunto sobre el que trabaja la bandeja.
+ *
+ * La consulta devuelve 300 filas, pero para elegirlas cruza TODAS las
+ * conversaciones con TODAS las sesiones de la cuenta. Saber cuántas son
+ * distingue dos problemas con soluciones opuestas: si son pocas, sobra trabajo
+ * en el plan; si son muchas, hay que recortar el conjunto antes de cruzarlo.
+ *
+ * Son dos conteos por índice en un solo viaje, y solo se piden cuando la
+ * consulta ya fue claramente lenta y como mucho una vez cada cinco minutos, para
+ * que el diagnóstico no se convierta él mismo en carga.
+ */
+const TAMANO_UMBRAL_MS = 1500;
+const TAMANO_INTERVALO_MS = 5 * 60_000;
+let tamanoMedidoEn = 0;
+
+async function medirTamanoBandeja(userIds: string[], ms: number): Promise<string> {
+  if (ms < TAMANO_UMBRAL_MS) return '';
+  const ahora = Date.now();
+  if (ahora - tamanoMedidoEn < TAMANO_INTERVALO_MS) return '';
+  tamanoMedidoEn = ahora;
+
+  try {
+    const [tamano] = await db.$queryRaw<{ convs: bigint; sesiones: bigint }[]>`
+      SELECT
+        (SELECT count(*) FROM "chat_conversations" WHERE "userId" IN (${Prisma.join(userIds)})) AS convs,
+        (SELECT count(*) FROM "Session" WHERE "userId" IN (${Prisma.join(userIds)})) AS sesiones
+    `;
+    return ` convs=${tamano?.convs ?? '?'} sesiones=${tamano?.sesiones ?? '?'}`;
+  } catch {
+    // El diagnóstico nunca debe estropear la carga que está midiendo.
+    return '';
+  }
 }
