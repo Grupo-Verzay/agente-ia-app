@@ -1,6 +1,6 @@
-import { db } from '@/lib/db';
-import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
+
+import { getFinanceUser } from '@/lib/finance-user';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -11,14 +11,11 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default async function FinanceSettingsPage() {
-  const session = await auth();
-  const email = session?.user?.email;
-  if (!email) redirect('/login');
-
-  const me = await db.user.findUnique({
-    where: { email },
-    select: { id: true, preferredCurrencyCode: true },
-  });
+  // Misma resolución que el resto de Finanzas: la cuenta que se está viendo.
+  // Resolvía por email, así que al administrar otra cuenta se mostraba y editaba
+  // la moneda propia y no la de esa cuenta, pese a que el resto de pantallas de
+  // Finanzas ya formatean sus importes con la de la cuenta activa.
+  const me = await getFinanceUser();
   if (!me?.id) redirect('/login');
 
   const currenciesRes = await getFinanceCurrencies();

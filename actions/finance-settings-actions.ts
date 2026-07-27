@@ -1,7 +1,7 @@
 ﻿'use server';
 
 import { db } from '@/lib/db';
-import { auth } from '@/auth';
+import { getFinanceUser } from '@/lib/finance-user';
 
 type OperationResponse<T = unknown> = {
   success: boolean;
@@ -29,15 +29,8 @@ export async function getUserFinanceSettings(): Promise<
   OperationResponse<{ userId: string; preferredCurrencyCode: string }>
 > {
   try {
-    const session = await auth();
-    const email = session?.user?.email;
-    if (!email) return { success: false, message: 'No autenticado.' };
-
-    const me = await db.user.findUnique({
-      where: { email },
-      select: { id: true, preferredCurrencyCode: true },
-    });
-
+    // Cuenta que se está viendo, igual que el resto de Finanzas.
+    const me = await getFinanceUser();
     if (!me?.id) return { success: false, message: 'Usuario no encontrado.' };
 
     return {
@@ -55,9 +48,11 @@ export async function updatePreferredCurrencyCode(
   preferredCurrencyCode: string
 ): Promise<OperationResponse> {
   try {
-    const session = await auth();
-    const email = session?.user?.email;
-    if (!email) return { success: false, message: 'No autenticado.' };
+    // Se escribe sobre la cuenta que se está viendo. Antes se resolvía por
+    // email, así que administrando otra cuenta se cambiaba la moneda de la
+    // PROPIA en lugar de la de esa cuenta, sin aviso alguno.
+    const me = await getFinanceUser();
+    if (!me?.id) return { success: false, message: 'No autenticado.' };
 
     const currency = await db.financeCurrency.findUnique({
       where: { code: preferredCurrencyCode },
@@ -67,7 +62,7 @@ export async function updatePreferredCurrencyCode(
     if (!currency) return { success: false, message: 'Moneda inválida.' };
 
     await db.user.update({
-      where: { email },
+      where: { id: me.id },
       data: { preferredCurrencyCode },
     });
 
