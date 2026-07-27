@@ -998,6 +998,80 @@ function inboxCacheKey(userIds: string[], instanceNames: string[] | undefined, t
   return JSON.stringify([[...userIds].sort(), [...(instanceNames ?? [])].sort(), take ?? 300]);
 }
 
+/**
+ * Longitud a partir de la cual un texto dentro de `message` se considera un
+ * adjunto codificado y no contenido: las miniaturas y sidecars en base64 pasan
+ * de largo de este umbral, y ningún texto real de vista previa se acerca (la
+ * lista recorta el suyo a pocas decenas de caracteres).
+ */
+const RAW_BLOB_MIN_LENGTH = 512;
+
+/** Campos de texto que se conservan aunque sean largos: son contenido, no adjuntos. */
+const RAW_TEXT_KEYS = ['conversation', 'text', 'caption', 'title', 'description'];
+
+/**
+ * `lastMessageRaw` sin los adjuntos en base64, para la bandeja.
+ *
+ * Conserva todo el JSON tal cual salvo dos cosas, ambas inútiles en la lista de
+ * chats y responsables de casi todo su peso:
+ *
+ * - dentro de `message`, los textos largos que no son contenido (miniaturas
+ *   `jpegThumbnail`, `streamingSidecar`, la onda del audio…);
+ * - el mensaje citado (`contextInfo.quotedMessage`), que es otro mensaje entero
+ *   con sus propios adjuntos.
+ *
+ * El filtro es por forma, no por lista de tipos de mensaje: así cubre también
+ * los tipos que WhatsApp añada más adelante sin tener que enumerarlos.
+ */
+/** Columna sin recortar: el comportamiento anterior, usado como red de seguridad. */
+const RAW_COMPLETO_SQL = Prisma.sql`c."lastMessageRaw"`;
+
+/** Se apaga si el recorte falla una vez, para no reintentarlo en cada carga. */
+let slimRawDisponible = true;
+
+const SLIM_RAW_SQL = Prisma.sql`
+  CASE
+    WHEN c."lastMessageRaw" IS NULL
+      OR jsonb_typeof(c."lastMessageRaw") <> 'object'
+      OR NOT jsonb_exists(c."lastMessageRaw", 'message')
+      OR jsonb_typeof(c."lastMessageRaw" -> 'message') <> 'object'
+    THEN c."lastMessageRaw"
+    ELSE (c."lastMessageRaw" - 'message'::text) || jsonb_build_object(
+      'message',
+      COALESCE(
+        (
+          SELECT jsonb_object_agg(
+            tipo.clave,
+            CASE
+              WHEN jsonb_typeof(tipo.valor) <> 'object' THEN tipo.valor
+              ELSE COALESCE(
+                (
+                  SELECT jsonb_object_agg(
+                    campo.clave,
+                    CASE
+                      WHEN campo.clave = 'contextInfo'
+                        AND jsonb_typeof(campo.valor) = 'object'
+                        THEN campo.valor - 'quotedMessage'::text
+                      ELSE campo.valor
+                    END
+                  )
+                  FROM jsonb_each(tipo.valor) AS campo(clave, valor)
+                  WHERE jsonb_typeof(campo.valor) <> 'string'
+                     OR length(campo.valor #>> '{}'::text[]) <= ${RAW_BLOB_MIN_LENGTH}
+                     OR campo.clave IN (${Prisma.join(RAW_TEXT_KEYS)})
+                ),
+                '{}'::jsonb
+              )
+            END
+          )
+          FROM jsonb_each(c."lastMessageRaw" -> 'message') AS tipo(clave, valor)
+        ),
+        '{}'::jsonb
+      )
+    )
+  END
+`;
+
 export async function getPersistedInboxChats(params: {
   userIds: string[];
   instanceNames?: string[];
@@ -1057,7 +1131,7 @@ async function loadPersistedInboxChats(
   // ORs + EXISTS que obligaba a un nested-loop cuadrático. Mismas columnas, mismo
   // DISTINCT ON y mismo orden que antes → mismos resultados (verificado con un
   // dataset de equivalencia: todas las reglas, multi-match, Meta, aislamiento).
-  const rows = await db.$queryRaw<InboxRow[]>`
+  const consultarBandeja = (rawExpr: Prisma.Sql) => db.$queryRaw<InboxRow[]>`
     WITH conv AS (
       SELECT
         c."id" AS c_id, c."userId" AS c_user, c."instanceName" AS c_instance,
@@ -1190,7 +1264,17 @@ async function loadPersistedInboxChats(
     -- columna promedia ~18 KB por fila y la tabla ocupa 105 MB para 5.902 filas,
     -- así que se movían ~100 MB por consulta para acabar usando 300 filas.
     -- Mismas filas y mismo orden; solo cambia CUÁNDO se lee la columna pesada.
-    SELECT ir.*, c."lastMessageRaw" AS "raw"
+    --
+    -- Y se trae ADELGAZADO. Lo que engorda ese JSON son los adjuntos en base64
+    -- que WhatsApp mete dentro de "message" (miniaturas jpegThumbnail, el
+    -- streamingSidecar de vídeo/audio, la onda del audio) y el mensaje citado
+    -- dentro de contextInfo. La bandeja NO usa nada de eso: de "message" solo
+    -- lee el texto, audioMessage.ptt, el emoji de la reacción, el cuerpo de la
+    -- respuesta interactiva y los datos de llamada: todos campos cortos.
+    -- Esos megabytes no aparecen en un EXPLAIN (que no envía resultados), pero sí
+    -- se pagan al descomprimirlos, mandarlos por la red y convertirlos a objetos
+    -- JavaScript, y eran la mayor parte del tiempo de esta consulta.
+    SELECT ir.*, ${rawExpr} AS "raw"
     FROM (
       SELECT *
       FROM inbox_rows
@@ -1200,6 +1284,29 @@ async function loadPersistedInboxChats(
     LEFT JOIN "chat_conversations" c ON c."id" = ir."convId"
     ORDER BY COALESCE(ir."messageTimestamp", ir."sessionUpdatedAt") DESC
   `;
+
+  // El adelgazado del JSON es una optimización, no un requisito: si el motor lo
+  // rechazara, la bandeja debe seguir cargando. Ante un fallo se repite la
+  // consulta con la columna completa (el comportamiento anterior) y se deja de
+  // intentar la versión ligera hasta el próximo reinicio, para no pagar dos
+  // consultas en cada carga.
+  let rows: InboxRow[];
+  if (slimRawDisponible) {
+    try {
+      rows = await consultarBandeja(SLIM_RAW_SQL);
+    } catch (error) {
+      if (isMissingTableError(error)) throw error;
+      slimRawDisponible = false;
+      console.error(
+        '[chat-persistence] la bandeja no pudo recortar lastMessageRaw; se usa la columna completa.',
+        error,
+      );
+      rows = await consultarBandeja(RAW_COMPLETO_SQL);
+    }
+  } else {
+    rows = await consultarBandeja(RAW_COMPLETO_SQL);
+  }
+
   const __ms = performance.now() - __t0;
 
   // El armado de los chats (parsear el JSON de cada mensaje y ordenar) también
