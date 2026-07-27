@@ -2,6 +2,7 @@
 
 import React from "react";
 import ErrorScreen, { ErrorReportPayload } from "./shared/ErrorScreen";
+import { hardReload } from "@/lib/hard-reload";
 
 type State = {
     hasError: boolean;
@@ -57,14 +58,16 @@ export default class ErrorBoundary extends React.Component<Props, State> {
         } catch {
             // Silencio: es best-effort
         } finally {
-            // Fuerza recarga
-            window.location.reload();
+            // Fuerza recarga pidiendo el documento al servidor (ver hardReload).
+            hardReload();
         }
     }
 
     private handleRetry = () => {
-        // Estrategia simple: recargar. Si prefieres, puedes intentar un soft-retry de la vista.
-        window.location.reload();
+        // Recarga pidiendo el HTML de nuevo al servidor: si el error vino de un
+        // desfase de versión, un reload normal puede devolver el documento viejo
+        // desde caché y volver a fallar igual.
+        hardReload();
     };
 
     private handleHome = () => {

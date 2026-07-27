@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 
+import { cleanCacheBustParam, hardReload } from "@/lib/hard-reload";
+
 // Solo auto-recargamos una vez cada MIN_GAP_MS para NO caer en un bucle de recargas
 // si el error fuese por un bug real (no un desfase de versión). Si vuelve a fallar
 // enseguida, ya no recarga y se muestra el error.
@@ -40,13 +42,17 @@ function recover() {
         await Promise.all(regs.map((r) => r.unregister()));
       }
     } finally {
-      window.location.reload();
+      hardReload();
     }
   })();
 }
 
 export function ChunkRecovery() {
   useEffect(() => {
+    // Si venimos de una recuperación, la carga fue bien: se limpia el parámetro
+    // para que no quede a la vista ni se propague al compartir el enlace.
+    cleanCacheBustParam();
+
     const onRejection = (e: PromiseRejectionEvent) => {
       if (isRecoverable(String(e?.reason?.message || ""), String(e?.reason?.name || ""))) recover();
     };
