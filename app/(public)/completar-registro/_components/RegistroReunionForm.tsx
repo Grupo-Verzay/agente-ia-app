@@ -312,7 +312,7 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
         </div>
 
         <p className="text-xs text-slate-500">
-          {isReseller ? 'Panel de reseller · Soporte dedicado incluido' : '🔒 Tus datos se guardan de forma segura · 7 días · Sin tarjeta de crédito'}
+          {isReseller ? 'Panel de reseller · Soporte dedicado incluido' : '🔒 Tus datos se guardan de forma segura · 7 días'}
         </p>
       </div>
     );
@@ -451,7 +451,6 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
           <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 font-semibold text-emerald-400">
             7 días
           </span>
-          · Sin tarjeta de crédito
         </p>
       </form>
   );
