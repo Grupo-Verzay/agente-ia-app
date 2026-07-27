@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 import { currentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { buildWhatsAppJidCandidates, normalizeWhatsAppConversationJid } from "@/lib/whatsapp-jid";
+import { invalidatePersistedInboxCache } from "@/lib/chat-persistence";
 import type {
   ChatConversationPreference,
   ChatConversationPreferenceMap,
@@ -131,6 +132,8 @@ async function upsertPreference(
     },
   });
 
+  invalidatePersistedInboxCache();
+
   revalidatePath("/chats");
 
   return mapPreference(preference);
@@ -231,6 +234,8 @@ async function hardDeleteLocalChat(userId: string, remoteJid: string) {
     });
     deletedPreferenceRow = mapPreference(preference);
   });
+
+  invalidatePersistedInboxCache();
 
   revalidatePath("/chats");
   return deletedPreferenceRow ?? deletedPreference(normalizedRemoteJid);
