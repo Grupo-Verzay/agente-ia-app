@@ -66,6 +66,35 @@ export type PersistChatMessageInput = {
 
 let ensureTablePromise: Promise<void> | null = null;
 
+/** ¿El error es "la tabla no existe" (Postgres 42P01)? */
+function isMissingTableError(error: unknown): boolean {
+  const code = (error as { code?: string })?.code;
+  if (code === '42P01') return true;
+  return /relation .* does not exist/i.test(String((error as Error)?.message ?? ''));
+}
+
+/**
+ * Ejecuta una LECTURA sin pagar el coste de verificar el esquema.
+ *
+ * `ensureChatMessagesTable` lanza 17 sentencias DDL en serie y tarda ~6,8s
+ * contra la base de datos remota; hacerlo antes de cada lectura era la mitad del
+ * tiempo de carga de Chats, y se pagaba aunque las tablas ya existieran (que es
+ * siempre, salvo en una instalación nueva).
+ *
+ * Las tablas las crean la ruta de ESCRITURA y el backend, así que la lectura no
+ * necesita garantizarlas. Solo si la tabla no existe todavía se crean y se
+ * reintenta una vez: así una instalación nueva sigue funcionando.
+ */
+async function readWithTablesFallback<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (!isMissingTableError(error)) throw error;
+    await ensureChatMessagesTable();
+    return run();
+  }
+}
+
 function ensureChatMessagesTable() {
   ensureTablePromise ??= (async () => {
     await db.$executeRaw`
@@ -847,10 +876,11 @@ export async function getPersistedMessages(params: {
   take?: number;
   skip?: number;
 }) {
-  await ensureChatMessagesTable();
   const userIds = Array.from(new Set((params.userIds ?? []).filter(Boolean)));
   if (!userIds.length) return [];
   const candidates = buildWhatsAppJidCandidates(params.remoteJid, params.aliases ?? []);
+
+  return readWithTablesFallback(async () => {
   const __t0 = performance.now();
   const rows = await db.$queryRaw<PersistedChatMessageRow[]>`
     WITH matched AS (
@@ -908,6 +938,7 @@ export async function getPersistedMessages(params: {
   if (__ms > 500) console.error(`[PERF] getPersistedMessages ${Math.round(__ms)}ms accounts=${userIds.length} rows=${rows.length}`);
 
   return rows.map(persistedRowToEvolutionMessage);
+  });
 }
 
 function getChatTimestamp(chat: ChatData) {
@@ -924,12 +955,8 @@ export async function getPersistedInboxChats(params: {
 }): Promise<ChatData[]> {
   const userIds = params.userIds.filter(Boolean);
   if (!userIds.length) return [];
-  // Se mide aparte: la creación de tablas está memoizada por proceso, pero la
-  // PRIMERA llamada tras arrancar sí paga el coste y no entraba en el cronómetro.
-  const __tEnsure = performance.now();
-  await ensureChatMessagesTable();
-  const __msEnsure = performance.now() - __tEnsure;
 
+  return readWithTablesFallback(async () => {
   const __t0 = performance.now();
   // Mapa instanceId -> instanceName resuelto UNA sola vez por llamada. Antes esto
   // vivía como un EXISTS correlacionado contra "Instancias" DENTRO del JOIN, y se
@@ -1091,13 +1118,14 @@ export async function getPersistedInboxChats(params: {
     .sort((a, b) => getChatTimestamp(b) - getChatTimestamp(a));
   const __msMap = performance.now() - __tMap;
 
-  if (__ms + __msMap + __msEnsure > 500) {
+  if (__ms + __msMap > 500) {
     console.error(
       `[PERF] getPersistedInboxChats consulta=${Math.round(__ms)}ms ` +
-        `armado=${Math.round(__msMap)}ms tablas=${Math.round(__msEnsure)}ms ` +
+        `armado=${Math.round(__msMap)}ms ` +
         `accounts=${userIds.length} rows=${rows.length}`,
     );
   }
 
   return chats;
+  });
 }
