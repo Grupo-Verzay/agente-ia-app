@@ -357,21 +357,6 @@ function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
     .find(Boolean);
 }
 
-/**
- * ¿Los dos JID identifican al mismo contacto?
- *
- * Un mismo contacto llega con variantes equivalentes (@lid y su número real), y
- * compararlas como texto plano las da por distintas.
- */
-function mismoContacto(a?: string | null, b?: string | null) {
-  const uno = (a ?? "").trim();
-  const otro = (b ?? "").trim();
-  if (!uno || !otro) return uno === otro;
-  if (uno === otro) return true;
-  const candidatos = new Set(buildWhatsAppJidCandidates(uno));
-  return buildWhatsAppJidCandidates(otro).some((c) => candidatos.has(c));
-}
-
 function resolveSendRemoteJid(selectedJid: string, contact?: ChatData) {
   const selected = selectedJid.trim();
   if (!selected) return selected;
@@ -392,15 +377,24 @@ function resolveSendRemoteJid(selectedJid: string, contact?: ChatData) {
   ]) || selected;
 }
 
+/**
+ * Una conversación eliminada vuelve a la lista en cuanto hay CUALQUIER mensaje
+ * posterior al borrado, lo escriba el contacto o lo escribamos nosotros.
+ *
+ * Antes solo revivía si el último mensaje era ENTRANTE, y eso la hacía
+ * desaparecer sola: el contacto escribía (volvía a la lista), el asesor
+ * respondía, y con esa respuesta el último mensaje pasaba a ser saliente → la
+ * conversación se ocultaba otra vez en el siguiente refresco, incluso con el
+ * chat abierto, hasta que el contacto volviera a escribir. Una conversación en
+ * la que se acaba de responder está viva por definición.
+ */
 function isChatDeletedByPreference(chat: ChatData, preference?: ChatConversationPreference) {
   if (!preference?.deletedAt) return false;
 
   const deletedAtMs = new Date(preference.deletedAt).getTime();
   const lastMessageMs = (chat.lastMessage?.messageTimestamp ?? 0) * 1000;
-  const revivedByIncomingMessage =
-    lastMessageMs > deletedAtMs && chat.lastMessage?.key?.fromMe === false;
 
-  return !revivedByIncomingMessage;
+  return !(lastMessageMs > deletedAtMs);
 }
 
 function chatMatchesAnyJid(chat: ChatData, jids: Set<string>) {
@@ -667,87 +661,43 @@ export function ChatsClient({
         if (!isLocalOptimisticMessage(message)) {
           const content = getMessageContentForDedupe(message);
           const timestamp = message.messageTimestamp ?? 0;
-          for (const [key, existing] of Array.from(map.entries())) {
-            if (!isLocalOptimisticMessage(existing)) continue;
+          // Burbujas provisionales pendientes, de la más antigua a la más nueva:
+          // así, con varios envíos seguidos, cada mensaje real reemplaza a la que
+          // le corresponde por orden y no a una cualquiera.
+          const provisionales = Array.from(map.entries())
+            .filter(([, existing]) => isLocalOptimisticMessage(existing))
+            .sort((a, b) => (a[1].messageTimestamp ?? 0) - (b[1].messageTimestamp ?? 0));
 
-            // DIAGNÓSTICO TEMPORAL. Retirar cuando se localice la causa del
-            // duplicado de burbujas: dice QUÉ condición impide unir la burbuja
-            // provisional con el mensaje real, en vez de dejar que falle en
-            // silencio. Solo se escribe cuando hay una provisional en juego, así
-            // que no ensucia la consola en el uso normal.
-            const motivoNoUne =
-              existing.key?.fromMe !== message.key?.fromMe ? "remitente distinto"
-              : !mismoContacto(existing.key?.remoteJid, message.key?.remoteJid) ? "contacto distinto"
-              : Math.abs((existing.messageTimestamp ?? 0) - timestamp) > 180 ? "fuera de la ventana de tiempo"
-              : null;
-            if (motivoNoUne) {
-              console.warn("[DIAG burbuja] no se une:", motivoNoUne, {
-                provisional: {
-                  id: existing.key?.id ?? existing.id,
-                  jid: existing.key?.remoteJid,
-                  tipo: existing.messageType,
-                  ts: existing.messageTimestamp,
-                  fromMe: existing.key?.fromMe,
-                },
-                real: {
-                  id: message.key?.id ?? message.id,
-                  jid: message.key?.remoteJid,
-                  tipo: message.messageType,
-                  ts: message.messageTimestamp,
-                  fromMe: message.key?.fromMe,
-                },
-              });
-            }
-
+          for (const [key, existing] of provisionales) {
             if (existing.key?.fromMe !== message.key?.fromMe) continue;
-            // Los dos JID se comparan por EQUIVALENCIA, no carácter a carácter.
-            //
-            // La burbuja optimista se crea con el JID seleccionado, pero el envío
-            // usa `resolveSendRemoteJid`, que puede devolver otra variante del
-            // mismo contacto (@lid frente al número real). WhatsApp devuelve el
-            // mensaje con la suya. Comparando las cadenas tal cual, esas dos
-            // variantes no casaban, la optimista no se retiraba y quedaban DOS
-            // burbujas del mismo envío hasta recargar la página.
-            //
-            // `buildWhatsAppJidCandidates` es la misma función que ya usa el resto
-            // de la pantalla para dar por equivalentes esas variantes.
-            if (!mismoContacto(existing.key?.remoteJid, message.key?.remoteJid)) continue;
             if (Math.abs((existing.messageTimestamp ?? 0) - timestamp) > 180) continue;
-            // Media (imagen/audio/video/doc): la mayoría va sin caption, así que el
-            // texto NO sirve para emparejar. Basta con que sea el MISMO tipo de media
-            // dentro de la ventana temporal para reemplazar la burbuja optimista por la
-            // real; si no, quedaban dos (el "cuadro" optimista + el real). Solo se
-            // empareja así cuando la optimista aún NO tiene id de servidor (local-) o es
-            // exactamente este mensaje, para no borrar OTRA media en vuelo (envíos
-            // seguidos) que se deduplica por su propio id.
-            const existingId = String(existing.key?.id ?? existing.id ?? "");
-            const canMatchByMedia =
-              existingId.startsWith("local-") || existingId === String(message.key?.id ?? "");
-            const bothSameMedia =
-              canMatchByMedia &&
+            // NO se comparan los JID. Esta lista es SIEMPRE la del chat abierto, así
+            // que una burbuja provisional que esté aquí es por fuerza de este mismo
+            // contacto. Comparar los JID solo podía fallar: la provisional se crea
+            // con el JID seleccionado y el envío usa `resolveSendRemoteJid`, que
+            // puede devolver otra variante (@lid frente al número real), y WhatsApp
+            // devuelve el mensaje con la suya. Cuando no casaban, la provisional no
+            // se retiraba y quedaban DOS burbujas del mismo envío hasta recargar.
+            //
+            // Por lo mismo tampoco se exige que el tipo de media sea idéntico: una
+            // imagen puede volver como documento (y al revés) según cómo la trate
+            // WhatsApp. Basta con que ambas sean media.
+            const ambasSonMedia =
               OPTIMISTIC_MEDIA_TYPES.has(existing.messageType ?? "") &&
-              existing.messageType === message.messageType;
+              OPTIMISTIC_MEDIA_TYPES.has(message.messageType ?? "");
             // La firma del asesor se antepone en el servidor ("<firma>\n<texto>"),
-            // así que el mensaje real puede terminar en el texto optimista precedido
-            // de un salto de línea. Se acepta ese caso para no dejar la burbuja
-            // optimista duplicada mientras se envía.
+            // así que el mensaje real puede terminar en el texto provisional
+            // precedido de un salto de línea. Se acepta ese caso.
             const optimisticContent = getMessageContentForDedupe(existing);
             const contentMatches =
               optimisticContent === content ||
               (optimisticContent.length > 0 && content.endsWith(`\n${optimisticContent}`));
-            if (!bothSameMedia && !contentMatches) {
-              // DIAGNÓSTICO TEMPORAL: pasó los filtros de remitente, contacto y
-              // tiempo, pero ni el tipo de media ni el texto coinciden. Aquí es
-              // donde se queda el duplicado.
-              console.warn("[DIAG burbuja] no se une: ni media ni texto coinciden", {
-                provisional: { id: existing.key?.id ?? existing.id, tipo: existing.messageType, texto: optimisticContent.slice(0, 60) },
-                real: { id: message.key?.id ?? message.id, tipo: message.messageType, texto: content.slice(0, 60) },
-                canMatchByMedia,
-                tipoEnLista: OPTIMISTIC_MEDIA_TYPES.has(existing.messageType ?? ""),
-              });
-              continue;
-            }
+            if (!ambasSonMedia && !contentMatches) continue;
             map.delete(key);
+            // Un mensaje real consume UNA sola provisional. Sin este corte, al
+            // enviar dos imágenes seguidas la primera respuesta borraba las dos
+            // burbujas provisionales y la segunda volvía a duplicarse.
+            break;
           }
         }
         map.set(getMessageKey(message), message);
@@ -758,31 +708,6 @@ export function ChatsClient({
         return getMessageKey(b).localeCompare(getMessageKey(a));
       });
 
-      // DIAGNÓSTICO TEMPORAL. Las dos burbujas repetidas llevan doble check y la
-      // misma hora, así que NINGUNA es la provisional: son dos registros reales
-      // del mismo envío con identificadores distintos. Esto los saca a la luz
-      // —los dos identificadores, su origen y su hora— que es lo único que falta
-      // para poder unirlos sin arriesgarse a colapsar dos envíos de verdad
-      // repetidos. Se retira en cuanto esté localizado.
-      const porHuella = new Map<string, EvolutionMessage[]>();
-      for (const m of resultado) {
-        if (!m.key?.fromMe) continue;
-        const huella = `${m.messageType ?? ""}|${m.messageTimestamp ?? 0}`;
-        porHuella.set(huella, [...(porHuella.get(huella) ?? []), m]);
-      }
-      for (const [huella, grupo] of Array.from(porHuella.entries())) {
-        if (grupo.length < 2) continue;
-        console.warn("[DIAG duplicado] mismo envío en varias burbujas:", huella,
-          grupo.map((m) => ({
-            clave: getMessageKey(m),
-            id: m.key?.id ?? m.id,
-            jid: m.key?.remoteJid,
-            estado: m.status,
-            provisional: isLocalOptimisticMessage(m),
-            texto: getMessageContentForDedupe(m).slice(0, 40),
-          })));
-      }
-
       return resultado;
     },
     [getMessageKey],
@@ -790,15 +715,6 @@ export function ChatsClient({
 
   const contacts = useMemo(() => {
     if (!currentChatsResult.success) return [];
-    // DIAGNÓSTICO TEMPORAL: si la lista trae la conversación pero no llega a
-    // pintarse, la quita uno de los filtros de abajo (rol de asesor / asignación).
-    if (typeof window !== "undefined") {
-      (window as unknown as { __diagChats?: unknown }).__diagChats = currentChatsResult.data.map((c) => ({
-        jid: c.remoteJid,
-        nombre: c.pushName,
-        instancia: c.instanceName,
-      }));
-    }
     const all = currentChatsResult.data.filter(
       (chat) => chat.remoteJid && chat.remoteJid !== "status@broadcast",
     );
