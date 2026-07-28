@@ -718,6 +718,30 @@ export async function deleteUser(id: string) {
     }
 
     await db.$transaction(async (tx) => {
+      // Asesores de esta cuenta. Se borran ANTES que ella porque la relación
+      // asesor→cuenta madre no está en cascada: al borrar la madre, Prisma les
+      // dejaba el vínculo en nulo y los asesores sobrevivían convertidos en
+      // cuentas principales sueltas. Aparecían luego en Clientes y en Finanzas
+      // como cuentas de nadie, sin servicio ni fecha de cobro.
+      //
+      // Se borran con tx.user.delete uno a uno, no con deleteMany, para que se
+      // dispare el borrado en cascada de TODO lo suyo (sesiones, mensajes,
+      // etiquetas). Un deleteMany masivo se saltaría esas cascadas y dejaría el
+      // rastro que precisamente estamos limpiando.
+      currentStep = "delete_advisors";
+      const asesores = await tx.user.findMany({
+        where: { ownerId: id },
+        select: { id: true },
+      });
+      for (const asesor of asesores) {
+        await tx.promptInstance.deleteMany({ where: { userId: asesor.id } });
+        await tx.reminders.deleteMany({ where: { userId: asesor.id } });
+        await tx.appointment.deleteMany({ where: { userId: asesor.id } });
+        await tx.service.deleteMany({ where: { userId: asesor.id } });
+        await tx.reseller.deleteMany({ where: { userId: asesor.id } });
+        await tx.user.delete({ where: { id: asesor.id } });
+      }
+
       currentStep = "load_user";
       const user = await tx.user.findUnique({
         where: { id },
