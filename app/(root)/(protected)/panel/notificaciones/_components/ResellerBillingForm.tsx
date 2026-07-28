@@ -8,14 +8,15 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { ExpandableTextarea } from '@/components/shared/ExpandableTextarea'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { getAvailableInstances, sendTrialTestMessage } from '@/actions/trial-followup-actions'
 import {
   saveResellerBillingConfig,
   type ResellerBillingConfigData,
 } from '@/actions/billing/reseller-billing-actions'
 import { cleanInstanceDisplayName } from '@/lib/instance-display-name'
-import { CreditCard, MessageCircle, RefreshCw, Send, Pencil, ListChecks } from 'lucide-react'
+import { CreditCard, MessageCircle, RefreshCw, Send, Pencil, ListChecks, Check, ChevronsUpDown } from 'lucide-react'
 
 interface Props {
   initial: ResellerBillingConfigData
@@ -31,6 +32,9 @@ const MSGS: { key: MsgKey; label: string; hint: string }[] = [
   { key: 'msgDeleted', label: 'Cuenta eliminada', hint: 'Al dar de baja la cuenta (30 días)' },
 ]
 
+// Valores de ejemplo para la vista previa Y para el envío de prueba. Los dos
+// tienen que salir del MISMO sitio: si la prueba se manda con otra sustitución
+// —o sin ninguna— el mensaje que llega al teléfono no es el que se está viendo.
 const SAMPLE = {
   nombre: 'María',
   empresa: 'Acme',
@@ -38,6 +42,7 @@ const SAMPLE = {
   dias: '3',
   precio: '$120.000 COP',
   plan: '*Plan* Agente IA',
+  licencia: 'Licencia hasta 15/07/2026',
   link: 'https://pago.tudominio.com',
 }
 const fillVars = (text: string) =>
@@ -48,6 +53,7 @@ const fillVars = (text: string) =>
     .replace(/\{dias\}/gi, SAMPLE.dias)
     .replace(/\{precio\}/gi, SAMPLE.precio)
     .replace(/\{plan\}/gi, SAMPLE.plan)
+    .replace(/\{licencia\}/gi, SAMPLE.licencia)
     .replace(/\{link\}/gi, SAMPLE.link)
 
 export function ResellerBillingForm({ initial }: Props) {
@@ -58,6 +64,10 @@ export function ResellerBillingForm({ initial }: Props) {
   const [instances, setInstances] = useState<{ name: string; status: string }[]>([])
   const [loadingInstances, setLoadingInstances] = useState(false)
   const [manualInstance, setManualInstance] = useState(false)
+  const [instancePickerOpen, setInstancePickerOpen] = useState(false)
+
+  const connectedInstancesCount = instances.filter((i) => i.status === 'open').length
+  const selectedInstanceStatus = instances.find((i) => i.name === form.instanceName)?.status
 
   const loadInstances = async () => {
     setLoadingInstances(true)
@@ -103,7 +113,10 @@ export function ResellerBillingForm({ initial }: Props) {
     const message = form[key]?.trim()
     if (!message) { toast.error('Escribe el mensaje primero'); return }
     setTesting(key)
-    const res = await sendTrialTestMessage(message, form.instanceName ?? '')
+    // Se envía YA sustituido, igual que la vista previa. Antes se mandaba la
+    // plantilla en crudo y al teléfono llegaba "{empresa}", "{fecha}", "{precio}"
+    // tal cual, que no es lo que se estaba viendo en pantalla.
+    const res = await sendTrialTestMessage(fillVars(message), form.instanceName ?? '')
     setTesting(null)
     if (res.success) toast.success(res.message)
     else toast.error(res.message)
@@ -123,7 +136,7 @@ export function ResellerBillingForm({ initial }: Props) {
               <CardDescription className="mt-1 text-xs">
                 Recordatorios, suspensión y baja por falta de pago para TUS clientes, según la fecha de cobro que defines en Finanzas.
                 Vienen con los <b>mismos mensajes que usa Verzay</b>. Edítalos si quieres personalizarlos.
-                Placeholders: <code className="bg-muted px-1 rounded text-[11px]">{'{empresa} {fecha} {dias} {precio} {plan} {link}'}</code>.
+                Placeholders: <code className="bg-muted px-1 rounded text-[11px]">{'{empresa} {fecha} {dias} {precio} {plan} {licencia} {link}'}</code>.
               </CardDescription>
             </div>
             <Switch checked={form.enabled} onCheckedChange={(v) => setForm(f => ({ ...f, enabled: v }))} />
@@ -149,26 +162,60 @@ export function ResellerBillingForm({ initial }: Props) {
               />
             ) : (
               <div className="flex items-center gap-2">
-                <Select
-                  value={form.instanceName ?? ''}
-                  onValueChange={(v) => setForm(f => ({ ...f, instanceName: v }))}
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder={loadingInstances ? 'Cargando...' : 'Selecciona tu instancia'}>
-                      {form.instanceName ? cleanInstanceDisplayName(form.instanceName) : undefined}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {instances.map((i) => (
-                      <SelectItem key={i.name} value={i.name} textValue={cleanInstanceDisplayName(i.name)}>
-                        <span className="flex items-center gap-2">
-                          <span className={`h-2 w-2 rounded-full ${i.status === 'open' ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
-                          {cleanInstanceDisplayName(i.name)}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* Buscador: con muchas instancias, una lista desplegable obliga a
+                    recorrerla entera. Aquí se escribe y se filtra, y el encabezado
+                    dice cuántas hay y cuántas están conectadas. */}
+                <Popover open={instancePickerOpen} onOpenChange={setInstancePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={instancePickerOpen}
+                      className="flex-1 justify-between font-normal"
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        {form.instanceName ? (
+                          <>
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${selectedInstanceStatus === 'open' ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+                            {cleanInstanceDisplayName(form.instanceName)}
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            {loadingInstances ? 'Cargando...' : 'Selecciona tu instancia'}
+                          </span>
+                        )}
+                      </span>
+                      <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-[--radix-popover-trigger-width] p-0">
+                    <Command>
+                      <CommandInput placeholder="Buscar instancia..." />
+                      <CommandList>
+                        <CommandEmpty>Ninguna instancia con ese nombre.</CommandEmpty>
+                        <CommandGroup
+                          heading={`${instances.length} instancia${instances.length === 1 ? '' : 's'} · ${connectedInstancesCount} conectada${connectedInstancesCount === 1 ? '' : 's'}`}
+                        >
+                          {instances.map((i) => (
+                            <CommandItem
+                              key={i.name}
+                              value={cleanInstanceDisplayName(i.name)}
+                              onSelect={() => {
+                                setForm(f => ({ ...f, instanceName: i.name }))
+                                setInstancePickerOpen(false)
+                              }}
+                            >
+                              <span className={`mr-2 h-2 w-2 shrink-0 rounded-full ${i.status === 'open' ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+                              <span className="truncate">{cleanInstanceDisplayName(i.name)}</span>
+                              {form.instanceName === i.name && <Check className="ml-auto h-4 w-4 shrink-0" />}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 <Button type="button" variant="outline" size="icon" onClick={loadInstances} disabled={loadingInstances} title="Recargar">
                   <RefreshCw className={`h-4 w-4 ${loadingInstances ? 'animate-spin' : ''}`} />
                 </Button>
