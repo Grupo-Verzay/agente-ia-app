@@ -32,6 +32,9 @@ const MSGS: { key: MsgKey; label: string; hint: string }[] = [
   { key: 'msgDeleted', label: 'Cuenta eliminada', hint: 'Al dar de baja la cuenta (30 días)' },
 ]
 
+// Valores de ejemplo para la vista previa Y para el envío de prueba. Los dos
+// tienen que salir del MISMO sitio: si la prueba se manda con otra sustitución
+// —o sin ninguna— el mensaje que llega al teléfono no es el que se está viendo.
 const SAMPLE = {
   nombre: 'María',
   empresa: 'Acme',
@@ -39,6 +42,7 @@ const SAMPLE = {
   dias: '3',
   precio: '$120.000 COP',
   plan: '*Plan* Agente IA',
+  licencia: 'Licencia hasta 15/07/2026',
   link: 'https://pago.tudominio.com',
 }
 const fillVars = (text: string) =>
@@ -49,6 +53,7 @@ const fillVars = (text: string) =>
     .replace(/\{dias\}/gi, SAMPLE.dias)
     .replace(/\{precio\}/gi, SAMPLE.precio)
     .replace(/\{plan\}/gi, SAMPLE.plan)
+    .replace(/\{licencia\}/gi, SAMPLE.licencia)
     .replace(/\{link\}/gi, SAMPLE.link)
 
 export function ResellerBillingForm({ initial }: Props) {
@@ -108,7 +113,10 @@ export function ResellerBillingForm({ initial }: Props) {
     const message = form[key]?.trim()
     if (!message) { toast.error('Escribe el mensaje primero'); return }
     setTesting(key)
-    const res = await sendTrialTestMessage(message, form.instanceName ?? '')
+    // Se envía YA sustituido, igual que la vista previa. Antes se mandaba la
+    // plantilla en crudo y al teléfono llegaba "{empresa}", "{fecha}", "{precio}"
+    // tal cual, que no es lo que se estaba viendo en pantalla.
+    const res = await sendTrialTestMessage(fillVars(message), form.instanceName ?? '')
     setTesting(null)
     if (res.success) toast.success(res.message)
     else toast.error(res.message)
@@ -128,7 +136,7 @@ export function ResellerBillingForm({ initial }: Props) {
               <CardDescription className="mt-1 text-xs">
                 Recordatorios, suspensión y baja por falta de pago para TUS clientes, según la fecha de cobro que defines en Finanzas.
                 Vienen con los <b>mismos mensajes que usa Verzay</b>. Edítalos si quieres personalizarlos.
-                Placeholders: <code className="bg-muted px-1 rounded text-[11px]">{'{empresa} {fecha} {dias} {precio} {plan} {link}'}</code>.
+                Placeholders: <code className="bg-muted px-1 rounded text-[11px]">{'{empresa} {fecha} {dias} {precio} {plan} {licencia} {link}'}</code>.
               </CardDescription>
             </div>
             <Switch checked={form.enabled} onCheckedChange={(v) => setForm(f => ({ ...f, enabled: v }))} />
