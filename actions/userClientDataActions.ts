@@ -128,6 +128,10 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
         pausar: true,
         aiConfigs: true,
         instancias: { select: { instanceName: true, instanceType: true } },
+        // Clave de Evolution de la CUENTA. Hace falta aparte del token de la
+        // instancia: no todas las rutas de Evolution aceptan el mismo. Ver más
+        // abajo, en la consulta del estado de conexión.
+        apiKey: { select: { key: true } },
       },
       orderBy: { name: "asc" },
     });
@@ -157,17 +161,6 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
               const base = `https://${resDataApi.url}`;
               const instancia = encodeURIComponent(resDataApi.instanceName);
 
-              // Las dos consultas son independientes: en paralelo para no sumar
-              // una espera por cliente a una pantalla que ya recorre a todos.
-              const [respWebhook, respConexion] = await Promise.all([
-                fetch(`${base}/webhook/find/${instancia}`, { method: 'GET', headers: cabeceras, cache: 'no-store' }),
-                fetch(`${base}/instance/connectionState/${instancia}`, { method: 'GET', headers: cabeceras, cache: 'no-store' }),
-              ]);
-
-              /* instance status */
-              const result = await respWebhook.json();
-              isEvoEnabled = result?.enabled ?? false;
-
               // El estado del QR se consulta SIEMPRE. Antes solo se miraba
               // cuando el robot estaba apagado, así que con el robot encendido
               // la columna salía verde sin haber comprobado nada: clientes
@@ -178,9 +171,40 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
               // QR: pedirlo es una operación de conexión, no una consulta, y
               // hacerla contra todas las líneas sanas cada vez que se abre la
               // pantalla es tocar lo que no está roto.
-              const estado = respConexion.ok
-                ? await respConexion.json().catch(() => null)
-                : null;
+              //
+              // Se prueban DOS credenciales, en este orden: la clave de la cuenta
+              // y el token de la instancia. `/webhook/find` acepta el token, pero
+              // las rutas `/instance/*` pueden exigir la clave de la cuenta, y
+              // usar la equivocada devuelve un rechazo indistinguible de "línea
+              // caída": líneas sanas salían en rojo. Solo si NINGUNA credencial
+              // obtiene respuesta se da por desconectada.
+              const credenciales = Array.from(
+                new Set([user.apiKey?.key, resDataApi.key].filter(Boolean) as string[]),
+              );
+
+              const pedirEstado = async () => {
+                for (const credencial of credenciales) {
+                  const resp = await fetch(`${base}/instance/connectionState/${instancia}`, {
+                    method: 'GET',
+                    headers: { apikey: credencial },
+                    cache: 'no-store',
+                  });
+                  if (resp.ok) return resp.json().catch(() => null);
+                }
+                return null;
+              };
+
+              // Independientes entre sí: en paralelo para no sumar una espera por
+              // cliente a una pantalla que ya los recorre a todos.
+              const [respWebhook, estado] = await Promise.all([
+                fetch(`${base}/webhook/find/${instancia}`, { method: 'GET', headers: cabeceras, cache: 'no-store' }),
+                pedirEstado(),
+              ]);
+
+              /* instance status */
+              const result = await respWebhook.json();
+              isEvoEnabled = result?.enabled ?? false;
+
               const conexion = String(
                 estado?.instance?.state ?? estado?.state ?? estado?.connectionState ?? '',
               ).toLowerCase();
