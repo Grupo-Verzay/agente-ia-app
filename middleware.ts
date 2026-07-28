@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { auth } from '@/auth';
+// Instancia ligera, sin Prisma ni bcrypt: ver auth.middleware.ts. Este archivo
+// corre en cada petición y aquí solo hace falta leer el token de la cookie.
+import { auth } from '@/auth.middleware';
 const publicRoutes = ["/", "/prices", "/inicio", "/completar-registro"];
 const authRoutes = ["/login", "/register"];
 const apiAuthPrefix = "/api/auth";
