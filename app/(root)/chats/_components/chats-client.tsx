@@ -954,18 +954,52 @@ export function ChatsClient({
     if (!instanceActionSets?.length) return refetchChatsAction();
     const results = await Promise.allSettled(instanceActionSets.map((s) => s.refetchChats()));
     const allChats: ChatData[] = [];
+    let algunaRespondio = false;
     for (const r of results) {
-      if (r.status === "fulfilled" && r.value.success) allChats.push(...r.value.data);
+      if (r.status === "fulfilled" && r.value.success) {
+        algunaRespondio = true;
+        allChats.push(...r.value.data);
+      }
+    }
+    // Si NINGUNA instancia respondió, esto no es "cero chats": es que no se pudo
+    // preguntar. Devolverlo como éxito vaciaba la barra lateral cada vez que
+    // Evolution daba timeout, que es justo cuando menos conviene.
+    if (!algunaRespondio) {
+      return { success: false, message: "Ninguna instancia respondió." };
     }
     return { success: true, message: "OK", data: dedupeAndSortChats(allChats, lidPhoneMap) };
   }, [instanceActionSets, refetchChatsAction, lidPhoneMap]);
+
+  /**
+   * Aplica la lista recién traída SIN perder los chats que no vinieron en ella.
+   *
+   * El refresco reemplazaba la lista entera por lo que devolviera Evolution. Todo
+   * lo que Evolution no incluyera en ese momento —porque falló, dio timeout o
+   * sencillamente no lo trajo— desaparecía de la barra lateral aunque estuviera
+   * guardado en nuestra base, y no volvía hasta que el contacto escribiera otra
+   * vez.
+   *
+   * Se fusiona con lo que ya había. `dedupeAndSortChats` ordena por fecha y se
+   * queda con la primera aparición de cada contacto, así que la versión más
+   * reciente gana y la anterior solo sobrevive si nadie la actualizó.
+   */
+  const aplicarChatsFrescos = useCallback((frescos: FetchChatsResult) => {
+    if (!frescos.success) return;
+    setCurrentChatsResult((previo) => {
+      if (!previo.success) return frescos;
+      return {
+        ...frescos,
+        data: dedupeAndSortChats([...frescos.data, ...previo.data], lidPhoneMap),
+      };
+    });
+  }, [lidPhoneMap]);
 
   const refreshSidebarData = useCallback(async () => {
     const chatRefreshResult = await refetchAllInstances();
     if (!chatRefreshResult.success) return;
 
     const filtered = filterChatList(chatRefreshResult, lidPhoneMap);
-    setCurrentChatsResult(filtered);
+    aplicarChatsFrescos(filtered);
 
     if (filtered.success) {
       await refreshChatSessions(filtered.data);
@@ -2052,7 +2086,7 @@ export function ChatsClient({
       const result = await refetchAllInstances();
       if (result.success) {
         const filtered = filterChatList(result, lidPhoneMap);
-        setCurrentChatsResult(filtered);
+        aplicarChatsFrescos(filtered);
         if (filtered.success) {
           await refreshChatSessions(filtered.data);
         }
