@@ -6,6 +6,7 @@ import { isAdmin } from '@/lib/rbac'
 import {
   resolveSystemNotificationInstanceName,
   resolveWhatsAppDispatcherLine,
+  resolveWhatsAppDispatcherLineByInstanceName,
   sendViaWhatsAppDispatcher,
 } from '@/actions/whatsapp-dispatcher'
 
@@ -229,12 +230,39 @@ export async function sendTrialTestMessage(
   }
 
   const preview = text.replace(/\{nombre\}/gi, user.name?.split(' ')[0] || 'amigo')
-  const preferredInstanceName = (instanceName || await resolveSystemNotificationInstanceName()).trim()
-  const dispatcher = await resolveWhatsAppDispatcherLine({
-    ownerUserId: instanceName ? user.id : null,
-    preferredInstanceName,
-    includeAdminFallback: true,
-  })
+  const elegida = instanceName?.trim()
+
+  // Cuando se elige una instancia en el desplegable, se envía POR ESA o no se
+  // envía. Antes se buscaba solo entre las instancias de la cuenta actual: al
+  // elegir la de otra cuenta —el desplegable las ofrece todas— no se encontraba
+  // y se caía, sin decir nada, a la primera línea propia. El aviso seguía
+  // diciendo "enviado", pero por una línea que nadie eligió, así que la prueba
+  // medía algo distinto de lo que se estaba probando.
+  let dispatcher = null as Awaited<ReturnType<typeof resolveWhatsAppDispatcherLine>>
+
+  if (elegida) {
+    // El desplegable ya limita lo que cada quien puede ver (las suyas y las de
+    // sus clientes; todas si es admin). Se comprueba contra esa misma lista para
+    // que nadie envíe por una línea que no le corresponde.
+    const permitidas = await getAvailableInstances()
+    if (!permitidas.success || !permitidas.data.some((i) => i.name === elegida)) {
+      return { success: false, message: `No tienes acceso a la instancia "${elegida}".` }
+    }
+
+    dispatcher = await resolveWhatsAppDispatcherLineByInstanceName(elegida)
+    if (!dispatcher) {
+      return {
+        success: false,
+        message: `La instancia "${elegida}" no está conectada o no puede enviar WhatsApp. Elige otra.`,
+      }
+    }
+  } else {
+    dispatcher = await resolveWhatsAppDispatcherLine({
+      ownerUserId: null,
+      preferredInstanceName: (await resolveSystemNotificationInstanceName()).trim(),
+      includeAdminFallback: true,
+    })
+  }
 
   if (!dispatcher) {
     return { success: false, message: 'No se encontro una linea de WhatsApp conectada para enviar la prueba.' }
@@ -266,7 +294,15 @@ export async function sendTrialTestMessage(
         message: `${dispatcher.instanceName} aceptó el envío pero WhatsApp no devolvió identificador: el mensaje no salió. Revisa la conexión de esa línea o prueba con otra.`,
       }
     }
-    return { success: true, message: `Mensaje de prueba enviado a ${phone} por ${dispatcher.instanceName}` }
+    // Se nombra el CANAL además de la instancia. Dos filas distintas pueden
+    // llamarse igual —la misma línea deja una fila por cada canal por el que
+    // pasó— y el nombre solo no distingue por cuál salió realmente el mensaje.
+    // Cuando el aviso dice "enviado" y no llega nada, esto es lo primero que hay
+    // que saber, y hasta ahora había que ir a buscarlo a la base de datos.
+    return {
+      success: true,
+      message: `Mensaje de prueba enviado a ${phone} por ${dispatcher.instanceName} (canal: ${dispatcher.provider})`,
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     return { success: false, message: `Error al enviar: ${message}` }
