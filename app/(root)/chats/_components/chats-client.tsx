@@ -752,11 +752,38 @@ export function ChatsClient({
         }
         map.set(getMessageKey(message), message);
       }
-      return Array.from(map.values()).sort((a, b) => {
+      const resultado = Array.from(map.values()).sort((a, b) => {
         const tsDiff = (b.messageTimestamp ?? 0) - (a.messageTimestamp ?? 0);
         if (tsDiff !== 0) return tsDiff;
         return getMessageKey(b).localeCompare(getMessageKey(a));
       });
+
+      // DIAGNÓSTICO TEMPORAL. Las dos burbujas repetidas llevan doble check y la
+      // misma hora, así que NINGUNA es la provisional: son dos registros reales
+      // del mismo envío con identificadores distintos. Esto los saca a la luz
+      // —los dos identificadores, su origen y su hora— que es lo único que falta
+      // para poder unirlos sin arriesgarse a colapsar dos envíos de verdad
+      // repetidos. Se retira en cuanto esté localizado.
+      const porHuella = new Map<string, EvolutionMessage[]>();
+      for (const m of resultado) {
+        if (!m.key?.fromMe) continue;
+        const huella = `${m.messageType ?? ""}|${m.messageTimestamp ?? 0}`;
+        porHuella.set(huella, [...(porHuella.get(huella) ?? []), m]);
+      }
+      for (const [huella, grupo] of Array.from(porHuella.entries())) {
+        if (grupo.length < 2) continue;
+        console.warn("[DIAG duplicado] mismo envío en varias burbujas:", huella,
+          grupo.map((m) => ({
+            clave: getMessageKey(m),
+            id: m.key?.id ?? m.id,
+            jid: m.key?.remoteJid,
+            estado: m.status,
+            provisional: isLocalOptimisticMessage(m),
+            texto: getMessageContentForDedupe(m).slice(0, 40),
+          })));
+      }
+
+      return resultado;
     },
     [getMessageKey],
   );
