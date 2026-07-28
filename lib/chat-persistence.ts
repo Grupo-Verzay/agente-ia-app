@@ -238,7 +238,7 @@ function ensureChatMessagesTable() {
       SELECT DISTINCT ON ("userId", "instanceName", "remoteJid")
         "userId", "instanceName", "instanceType", "remoteJid", "remoteJidAlt", "senderPn",
         "pushName", "messageId", "fromMe", "messageType",
-        "content", "mediaUrl", "raw", "messageTimestamp", NOW(), NOW()
+        "content", "mediaUrl", ${recortarRawSql(Prisma.sql`"raw"`)}, "messageTimestamp", NOW(), NOW()
       FROM "chat_messages"
       WHERE NOT (
         "messageType" IN ('conversation', 'extendedTextMessage')
@@ -769,7 +769,7 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
       ${input.userId}, ${input.instanceName}, ${input.instanceType ?? null}, ${normalizedRemoteJid},
       ${remoteJidAlt}, ${input.senderPn ?? null}, ${input.pushName ?? null},
       ${messageId}, ${input.fromMe}, ${input.messageType ?? 'conversation'},
-      ${input.content ?? null}, ${input.mediaUrl ?? null}, ${input.raw ?? Prisma.JsonNull},
+      ${input.content ?? null}, ${input.mediaUrl ?? null}, ${recortarRawParaBandeja(input.raw)},
       ${messageTimestamp}, NOW(), NOW()
     )
     ON CONFLICT ("userId", "instanceName", "remoteJid")
@@ -1029,14 +1029,75 @@ const RAW_COMPLETO_SQL = Prisma.sql`c."lastMessageRaw"`;
 /** Se apaga si el recorte falla una vez, para no reintentarlo en cada carga. */
 let slimRawDisponible = true;
 
-const SLIM_RAW_SQL = Prisma.sql`
+/**
+ * Mismo recorte que `recortarRawSql`, pero en JavaScript, para aplicarlo al
+ * GUARDAR.
+ *
+ * Recortar solo al leer evitaba mover los adjuntos por la red, pero seguían
+ * guardándose: `chat_conversations` creció un 70 % (105 → 179 MB) con apenas 312
+ * filas más. Aplicándolo también aquí, cada fila nueva nace pequeña y la tabla
+ * deja de engordar.
+ *
+ * El criterio es el mismo —por forma, no por lista de tipos de mensaje— para que
+ * lo guardado y lo leído coincidan: fuera los textos largos que no son contenido
+ * (miniaturas, sidecars, la onda del audio) y fuera el mensaje citado.
+ *
+ * Solo afecta a `chat_conversations`, que alimenta la vista previa de la lista.
+ * El mensaje completo se conserva intacto en `chat_messages`, que es de donde se
+ * lee la conversación abierta.
+ */
+function recortarRawParaBandeja(raw: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
+  if (raw === null || raw === undefined) return Prisma.JsonNull;
+  if (typeof raw !== 'object' || Array.isArray(raw)) return raw as Prisma.InputJsonValue;
+
+  const objeto = raw as Record<string, unknown>;
+  const message = objeto.message;
+  if (!message || typeof message !== 'object' || Array.isArray(message)) {
+    return raw as Prisma.InputJsonValue;
+  }
+
+  const esContenido = (clave: string) => RAW_TEXT_KEYS.includes(clave);
+  const messageRecortado: Record<string, unknown> = {};
+
+  for (const [tipo, valor] of Object.entries(message as Record<string, unknown>)) {
+    if (!valor || typeof valor !== 'object' || Array.isArray(valor)) {
+      messageRecortado[tipo] = valor;
+      continue;
+    }
+
+    const campos: Record<string, unknown> = {};
+    for (const [campo, contenido] of Object.entries(valor as Record<string, unknown>)) {
+      if (
+        typeof contenido === 'string' &&
+        contenido.length > RAW_BLOB_MIN_LENGTH &&
+        !esContenido(campo)
+      ) {
+        continue;
+      }
+
+      if (campo === 'contextInfo' && contenido && typeof contenido === 'object' && !Array.isArray(contenido)) {
+        const { quotedMessage: _descartado, ...resto } = contenido as Record<string, unknown>;
+        campos[campo] = resto;
+        continue;
+      }
+
+      campos[campo] = contenido;
+    }
+    messageRecortado[tipo] = campos;
+  }
+
+  return { ...objeto, message: messageRecortado } as Prisma.InputJsonValue;
+}
+
+function recortarRawSql(col: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`
   CASE
-    WHEN c."lastMessageRaw" IS NULL
-      OR jsonb_typeof(c."lastMessageRaw") <> 'object'
-      OR NOT jsonb_exists(c."lastMessageRaw", 'message')
-      OR jsonb_typeof(c."lastMessageRaw" -> 'message') <> 'object'
-    THEN c."lastMessageRaw"
-    ELSE (c."lastMessageRaw" - 'message'::text) || jsonb_build_object(
+    WHEN ${col} IS NULL
+      OR jsonb_typeof(${col}) <> 'object'
+      OR NOT jsonb_exists(${col}, 'message')
+      OR jsonb_typeof(${col} -> 'message') <> 'object'
+    THEN ${col}
+    ELSE (${col} - 'message'::text) || jsonb_build_object(
       'message',
       COALESCE(
         (
@@ -1064,13 +1125,14 @@ const SLIM_RAW_SQL = Prisma.sql`
               )
             END
           )
-          FROM jsonb_each(c."lastMessageRaw" -> 'message') AS tipo(clave, valor)
+          FROM jsonb_each(${col} -> 'message') AS tipo(clave, valor)
         ),
         '{}'::jsonb
       )
     )
   END
 `;
+}
 
 export async function getPersistedInboxChats(params: {
   userIds: string[];
@@ -1293,7 +1355,7 @@ async function loadPersistedInboxChats(
   let rows: InboxRow[];
   if (slimRawDisponible) {
     try {
-      rows = await consultarBandeja(SLIM_RAW_SQL);
+      rows = await consultarBandeja(recortarRawSql(Prisma.sql`c."lastMessageRaw"`));
     } catch (error) {
       if (isMissingTableError(error)) throw error;
       slimRawDisponible = false;
