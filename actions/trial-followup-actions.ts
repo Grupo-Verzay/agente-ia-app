@@ -266,7 +266,15 @@ export async function sendTrialTestMessage(
         message: `${dispatcher.instanceName} aceptó el envío pero WhatsApp no devolvió identificador: el mensaje no salió. Revisa la conexión de esa línea o prueba con otra.`,
       }
     }
-    return { success: true, message: `Mensaje de prueba enviado a ${phone} por ${dispatcher.instanceName}` }
+    // Se nombra el CANAL además de la instancia. Dos filas distintas pueden
+    // llamarse igual —la misma línea deja una fila por cada canal por el que
+    // pasó— y el nombre solo no distingue por cuál salió realmente el mensaje.
+    // Cuando el aviso dice "enviado" y no llega nada, esto es lo primero que hay
+    // que saber, y hasta ahora había que ir a buscarlo a la base de datos.
+    return {
+      success: true,
+      message: `Mensaje de prueba enviado a ${phone} por ${dispatcher.instanceName} (canal: ${dispatcher.provider})`,
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     return { success: false, message: `Error al enviar: ${message}` }
