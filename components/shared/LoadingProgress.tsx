@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 interface LoadingProgressProps {
     label?: string;
+    /** Segunda línea, opcional. Sin ella solo se muestra el título. */
     description?: string;
     /** 0–100. Si no envías value, funciona como loader infinito */
     value?: number;
@@ -15,7 +16,10 @@ interface LoadingProgressProps {
 
 export const LoadingProgress: React.FC<LoadingProgressProps> = ({
     label = "Cargando...",
-    description = "Estamos preparando todo para ti.",
+    // Sin valor por defecto: una segunda línea que promete un tiempo concreto
+    // ("suele tardar solo unos segundos") hace que la espera PAREZCA más larga
+    // en cuanto la pantalla carga rápido. Quien la necesite, que la pase.
+    description,
     value,
     fullscreen = false,
 }) => {
@@ -68,37 +72,36 @@ export const LoadingProgress: React.FC<LoadingProgressProps> = ({
                 {/* Texto */}
                 <div className="mt-2 flex flex-col items-center gap-1 text-center">
                     <p className="font-semibold text-foreground">{label}</p>
-                    <p className="max-w-xs text-sm text-muted-foreground">
-                        {description}
-                    </p>
+                    {description ? (
+                        <p className="max-w-xs text-sm text-muted-foreground">
+                            {description}
+                        </p>
+                    ) : null}
                 </div>
 
-                {/* Barra de progreso */}
-                <div className="mt-4 w-full space-y-2">
-                    <div className="relative h-2 w-full overflow-hidden rounded-full bg-primary/10">
-                        <div
-                            className={cn(
-                                "h-full rounded-full bg-gradient-to-r from-primary via-primary/80 to-primary/40",
-                                clampedValue === undefined &&
-                                "animate-[shimmer_1.4s_ease-in-out_infinite]"
-                            )}
-                            style={
-                                clampedValue === undefined
-                                    ? { width: "45%" } // loader infinito
-                                    : { width: `${clampedValue}%` }
-                            }
-                        />
-                    </div>
+                {/* Barra de progreso: SOLO cuando hay un porcentaje real.
+                    Sin `value` la barra se dibujaba al 45 % con una animación de
+                    vaivén, fingiendo un avance que nadie estaba midiendo. En una
+                    pantalla que carga en menos de dos segundos eso no informa de
+                    nada y además da la sensación de que falta mucho. El círculo
+                    y el título ya dicen lo único cierto: que está cargando. */}
+                {clampedValue !== undefined && (
+                    <div className="mt-4 w-full space-y-2">
+                        <div className="relative h-2 w-full overflow-hidden rounded-full bg-primary/10">
+                            <div
+                                className="h-full rounded-full bg-gradient-to-r from-primary via-primary/80 to-primary/40"
+                                style={{ width: `${clampedValue}%` }}
+                            />
+                        </div>
 
-                    {clampedValue !== undefined && (
                         <div className="flex items-center justify-between text-sm text-muted-foreground">
                             <span>Progreso</span>
                             <span className="font-medium text-primary">
                                 {Math.round(clampedValue)}%
                             </span>
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
         </div>
     );
