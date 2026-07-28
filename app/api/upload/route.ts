@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Readable } from 'stream';
 import { minioClient } from '@/lib/minio';
 import { randomUUID } from 'crypto';
 
@@ -17,8 +18,6 @@ export async function POST(req: Request) {
   }
 
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
     const nameFormatted = file.name.replaceAll(' ', '_');
     const bucketName = process.env.S3_BUCKET_NAME || 'verzay-media';
     
@@ -28,8 +27,8 @@ export async function POST(req: Request) {
     await minioClient.putObject(
       bucketName,
       filePath,
-      buffer,
-      buffer.length,
+      Readable.fromWeb(file.stream() as never),
+      file.size,
       { 'Content-Type': file.type }
     );
 

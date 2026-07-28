@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Readable } from 'stream';
 import { minioClient } from '@/lib/minio';
 import { nanoid } from 'nanoid';
 import path from 'path';
@@ -36,9 +37,8 @@ export async function POST(req: NextRequest) {
 
     const ext = path.extname(file.name) || '';
     const safeName = `formularios/${nanoid()}${ext}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
 
-    await minioClient.putObject(BUCKET, safeName, buffer, buffer.length, {
+    await minioClient.putObject(BUCKET, safeName, Readable.fromWeb(file.stream() as never), file.size, {
       'Content-Type': file.type,
     });
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Readable } from 'stream';
 import { minioClient } from '@/lib/minio';
 import { randomUUID } from 'crypto';
 
@@ -18,15 +19,13 @@ export async function POST(req: Request) {
   //  carpeta dedicada a recibos
   const filePath = `finance/receipts/${randomUUID()}-${nameFormatted}`;
 
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
 
   try {
     await minioClient.putObject(
       bucketName,
       filePath,
-      buffer,
-      buffer.length,
+      Readable.fromWeb(file.stream() as never),
+      file.size,
       { 'Content-Type': file.type }
     );
 
