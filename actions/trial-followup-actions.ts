@@ -254,6 +254,18 @@ export async function sendTrialTestMessage(
     if (!result.success) {
       return { success: false, message: result.message }
     }
+    // Que la línea responda 2xx NO prueba que WhatsApp aceptara el mensaje. La
+    // única señal de que sí salió es el identificador que devuelve WhatsApp; sin
+    // él, la línea se tragó el envío (típico de una sesión vinculada que quedó a
+    // medias). Decir "enviado" en ese caso manda a buscar el fallo al lugar
+    // equivocado, así que se avisa en vez de dar un OK que no está comprobado.
+    const messageId = (result as { messageId?: string }).messageId
+    if (dispatcher.provider !== 'baileys' && dispatcher.provider !== 'meta' && !messageId) {
+      return {
+        success: false,
+        message: `${dispatcher.instanceName} aceptó el envío pero WhatsApp no devolvió identificador: el mensaje no salió. Revisa la conexión de esa línea o prueba con otra.`,
+      }
+    }
     return { success: true, message: `Mensaje de prueba enviado a ${phone} por ${dispatcher.instanceName}` }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
