@@ -30,6 +30,7 @@ import { onTokensToCredits } from "@/utils/onTokensToCredits"
 import { setUserConnectionType } from "@/actions/instances-actions"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { ApiKeyCapacitySelect } from "./ApiKeyCapacitySelect"
 interface Props {
   openEditDialog: boolean
   setOpenEditDialog: (open: boolean) => void
@@ -178,20 +179,13 @@ export const EditDialog = ({
     switch (id) {
       case 'apiKeyId':
         return (
-          <Select name={id} defaultValue={defaultValue?.toString() ?? ""} disabled={readOnly}>
-            <SelectTrigger>
-              <SelectValue placeholder={label ?? "Selecciona una API Key"} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {apikeys.map(({ id, url }) => (
-                  <SelectItem key={id} value={id}>
-                    {url}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <ApiKeyCapacitySelect
+            apikeys={apikeys}
+            name={id}
+            defaultValue={defaultValue?.toString() ?? ""}
+            disabled={readOnly}
+            placeholder={label ?? "Selecciona una API Key"}
+          />
         )
 
       case 'role':

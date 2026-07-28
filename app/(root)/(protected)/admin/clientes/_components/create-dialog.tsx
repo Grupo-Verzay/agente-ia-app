@@ -27,6 +27,7 @@ import { ApiKey, Role } from "@prisma/client";
 import { userSchema, UserFormValues } from "@/schema/user";
 import { Country } from "@/components/custom/CountryCodeSelect";
 import { toast } from "sonner";
+import { ApiKeyCapacitySelect } from "./ApiKeyCapacitySelect";
 
 const ROLES = Object.values(Role);
 const ROLE_LABELS: Record<Role, string> = {
@@ -217,18 +218,10 @@ export const CreateDialog = ({
               {/* Evo Api */}
               <div className="flex flex-col gap-1">
                 <Label className="text-xs font-semibold text-foreground">Evo Api</Label>
-                <Select onValueChange={(v) => setValue("apiKeyId", v)} defaultValue="">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona una API Key" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {apikeys.map(({ id, url }) => (
-                        <SelectItem key={id} value={id}>{url}</SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                <ApiKeyCapacitySelect
+                  apikeys={apikeys}
+                  onChange={(v) => setValue("apiKeyId", v)}
+                />
                 {errors.apiKeyId && <p className="text-xs text-destructive">{errors.apiKeyId.message}</p>}
               </div>
 
