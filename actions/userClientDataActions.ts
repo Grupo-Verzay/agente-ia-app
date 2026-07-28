@@ -142,10 +142,7 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
     const enrichedUsers: ClientInterface[] = await Promise.all(
       users.map(async (user): Promise<ClientInterface> => {
         // qrStatus === true significa DESCONECTADO (así lo leen la tabla, los
-        // contadores y el filtro). Un cliente sin credenciales de Evolution no
-        // tiene línea que comprobar: no es "caído", así que no se cuenta como
-        // tal ni ensucia la lista de a quién hay que escribirle.
-        let qrStatus = false;
+        // contadores y el filtro).
         let isEvoEnabled = false;
         let reseller: User | null = null;
         let credits: IaCredit | null = null;
@@ -158,6 +155,18 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
           const tipo = String(i.instanceType ?? 'Whatsapp').trim().toLowerCase();
           return Boolean(i.instanceName) && (tipo === 'whatsapp' || tipo === 'evolution');
         });
+
+        // Un cliente que aún NO ha creado su línea no está conectado. Salía en
+        // verde porque, al no haber nada que consultar, se saltaba la
+        // comprobación y se quedaba con el valor inicial: contaba como conectado
+        // sin tener siquiera instancia. Y es justo a quien hay que escribirle,
+        // porque no ha terminado de configurarse.
+        //
+        // Los que sí tienen línea pero de otro canal (Baileys, Meta, Telegram) se
+        // quedan fuera de la cuenta: no son QR y no se pueden comprobar desde
+        // aquí, así que ni verde ni rojo — no inventamos un estado.
+        const tieneOtroCanal = user.instancias.length > lineasEvolution.length;
+        let qrStatus = lineasEvolution.length === 0 ? !tieneOtroCanal : true;
 
         const baseEvolution = (() => {
           const url = (user.apiKey?.url ?? '').trim().replace(/\/+$/, '');
