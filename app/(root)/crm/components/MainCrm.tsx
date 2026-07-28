@@ -103,7 +103,6 @@ export const MainCrm = ({ userId, allTags }: MainCrmProps) => {
       <LoadingProgress
         fullscreen
         label="Cargando leads"
-        description="Esto suele tardar solo unos segundos..."
       />
     );
   }
@@ -144,7 +143,6 @@ export const MainCrm = ({ userId, allTags }: MainCrmProps) => {
           <LoadingProgress
             fullscreen={false}
             label="Cargando más leads..."
-            description="Esto suele tardar solo unos segundos..."
           />
         </div>
       )}

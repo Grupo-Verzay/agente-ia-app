@@ -235,7 +235,6 @@ export const MainDashboard = ({
       <LoadingProgress
         fullscreen
         label="Cargando registros"
-        description="Esto suele tardar solo unos segundos..."
       />
     );
   }

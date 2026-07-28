@@ -11,7 +11,6 @@ export default function Loading() {
       <div className="flex flex-1 items-center justify-center p-6">
         <LoadingProgress
           label="Cargando conversaciones"
-          description="Esto suele tardar solo unos segundos..."
         />
       </div>
     </div>
