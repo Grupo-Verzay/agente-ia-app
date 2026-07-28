@@ -9,6 +9,7 @@ import { listMetaTemplates, sendMetaTemplate } from "./channel-chat-actions";
 import { ClientResponse, DISCONNECT_COOLDOWN_MS, EVO_FETCH_TIMEOUT_MS, GenerateQrInterface, getDayKeyBogota, getEvoCache, isApiConnected, isWhatsappLike, QRCodeResponse } from "@/types/evo-api";
 import { assertUserCanUseApp } from "./billing/helpers/app-access-guard";
 import { cleanInstanceDisplayName } from "@/lib/instance-display-name";
+import { assertApiKeyHasCapacity } from "./admin/evolution-capacity";
 
 const QR_DISCONNECTION_MESSAGE =
   "📵 El WhatsApp esta *desvinculado* del Agente.\n\n" +
@@ -401,6 +402,15 @@ export async function createInstance(data: FormData) {
         throw new Error("El usuario no tiene una ApiKey asignada.");
       }
 
+      // Cupo del servidor. Se comprueba AQUÍ, justo antes de crear, porque este
+      // es el punto donde se ocupa el sitio de verdad: cualquier aviso anterior
+      // (el desplegable del formulario) puede haberse quedado viejo. Si el
+      // servidor no responde no se bloquea; ver evolution-capacity.ts.
+      const cupo = await assertApiKeyHasCapacity(user.apiKey.id);
+      if (!cupo.ok) {
+        return { success: false, message: cupo.message };
+      }
+
       const { key: apiKey, url: serverUrl } = user.apiKey;
 
       const options = {
@@ -783,6 +793,14 @@ export async function createInstanceInternal(
 
       if (!user || !user.apiKey) {
         return { success: false, message: "El usuario no tiene una ApiKey asignada." };
+      }
+
+      // Mismo guardia de cupo que en createInstance: son dos caminos distintos
+      // para crear una instancia y el límite tiene que valer en los dos, o el que
+      // se deje sin comprobar acaba siendo la vía por la que se pasa de largo.
+      const cupo = await assertApiKeyHasCapacity(user.apiKey.id);
+      if (!cupo.ok) {
+        return { success: false, message: cupo.message };
       }
 
       const { key: apiKey, url: serverUrl } = user.apiKey;
