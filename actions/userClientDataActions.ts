@@ -3,7 +3,7 @@
 import { db } from '@/lib/db';
 import { UserWithPausar } from '@/lib/types';
 import { IaCredit, Pausar, Prisma, User } from '@prisma/client';
-import { generateQRCode, getDataApi } from "@/actions/api-action";
+import { getDataApi } from "@/actions/api-action";
 import { ClientInterface } from "@/lib/types";
 import { revalidatePath } from 'next/cache';
 import { getIaCreditByUser } from './actions-ia-credits';
@@ -134,36 +134,57 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
 
     const enrichedUsers: ClientInterface[] = await Promise.all(
       users.map(async (user): Promise<ClientInterface> => {
+        // qrStatus === true significa DESCONECTADO (así lo leen la tabla, los
+        // contadores y el filtro). Un cliente sin credenciales de Evolution no
+        // tiene línea que comprobar: no es "caído", así que no se cuenta como
+        // tal ni ensucia la lista de a quién hay que escribirle.
         let qrStatus = false;
         let isEvoEnabled = false;
         let reseller: User | null = null;
         let credits: IaCredit | null = null;
 
         if (user.apiKeyId) {
+          // Con credenciales sí hay algo que comprobar, y hasta comprobarlo se
+          // da por DESCONECTADO: si la consulta falla, el cliente aparece en la
+          // lista de revisar en vez de darse por bueno sin haber mirado.
+          qrStatus = true;
           try {
             const dataApi = await getDataApi(user.id, user.apiKeyId);
             const resDataApi = dataApi?.data;
 
             if (resDataApi?.url && resDataApi?.instanceName && resDataApi?.key) {
-              const responseInstanceStatus = await fetch(`https://${resDataApi.url}/webhook/find/${resDataApi.instanceName}`, {
-                method: "GET",
-                headers: {
-                  apikey: resDataApi.key,
-                },
-              });
+              const cabeceras = { apikey: resDataApi.key };
+              const base = `https://${resDataApi.url}`;
+              const instancia = encodeURIComponent(resDataApi.instanceName);
 
+              // Las dos consultas son independientes: en paralelo para no sumar
+              // una espera por cliente a una pantalla que ya recorre a todos.
+              const [respWebhook, respConexion] = await Promise.all([
+                fetch(`${base}/webhook/find/${instancia}`, { method: 'GET', headers: cabeceras, cache: 'no-store' }),
+                fetch(`${base}/instance/connectionState/${instancia}`, { method: 'GET', headers: cabeceras, cache: 'no-store' }),
+              ]);
 
               /* instance status */
-              const result = await responseInstanceStatus.json();
+              const result = await respWebhook.json();
               isEvoEnabled = result?.enabled ?? false;
 
-              if (!isEvoEnabled) {
-                const responseQrStatus = await generateQRCode({ instanceName: resDataApi?.instanceName, userId: user.id });
-
-                /* qr status */
-                const resQrStatus = !!responseQrStatus.qr; //si genera QR significa que el usuario se desconectó de whatsapp
-                qrStatus = resQrStatus;
-              }
+              // El estado del QR se consulta SIEMPRE. Antes solo se miraba
+              // cuando el robot estaba apagado, así que con el robot encendido
+              // la columna salía verde sin haber comprobado nada: clientes
+              // desconectados se veían como conectados y quedaban fuera del
+              // filtro, que es justo para lo que sirve esa columna.
+              //
+              // Y se pregunta por el estado de la conexión en vez de pedir un
+              // QR: pedirlo es una operación de conexión, no una consulta, y
+              // hacerla contra todas las líneas sanas cada vez que se abre la
+              // pantalla es tocar lo que no está roto.
+              const estado = respConexion.ok
+                ? await respConexion.json().catch(() => null)
+                : null;
+              const conexion = String(
+                estado?.instance?.state ?? estado?.state ?? estado?.connectionState ?? '',
+              ).toLowerCase();
+              qrStatus = conexion !== 'open';
             }
 
 
