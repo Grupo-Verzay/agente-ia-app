@@ -212,6 +212,24 @@ function ensureChatMessagesTable() {
       "session_user_alt",
       Prisma.sql`CREATE INDEX CONCURRENTLY IF NOT EXISTS "session_user_remotejidalt_idx" ON "Session" ("userId", "remoteJidAlt") WHERE "remoteJidAlt" IS NOT NULL`
     );
+    // Abrir una conversación busca sus mensajes por tres columnas: remoteJid,
+    // remoteJidAlt y senderPn. Para las dos últimas solo había índice CON el
+    // nombre de instancia, así que cuando la llamada no lo trae —canales del
+    // store unificado, conversaciones sin instancia resuelta— esas dos ramas
+    // recorrían la tabla entera: 325 MB, medidos en 7 segundos para devolver
+    // CERO mensajes.
+    //
+    // Parciales, porque la mayoría de filas tienen ambas columnas vacías: el
+    // índice ocupa una fracción y sirve exactamente para las filas que se
+    // buscan.
+    await bestEffortIndex(
+      "chat_messages_user_alt",
+      Prisma.sql`CREATE INDEX CONCURRENTLY IF NOT EXISTS "chat_messages_user_alt_ts_idx" ON "chat_messages" ("userId", "remoteJidAlt", "messageTimestamp" DESC) WHERE "remoteJidAlt" IS NOT NULL`
+    );
+    await bestEffortIndex(
+      "chat_messages_user_sender",
+      Prisma.sql`CREATE INDEX CONCURRENTLY IF NOT EXISTS "chat_messages_user_sender_ts_idx" ON "chat_messages" ("userId", "senderPn", "messageTimestamp" DESC) WHERE "senderPn" IS NOT NULL`
+    );
     await db.$executeRaw`
       DELETE FROM "chat_messages"
       WHERE "messageType" = 'reactionMessage'
