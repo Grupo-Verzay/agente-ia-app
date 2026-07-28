@@ -669,6 +669,36 @@ export function ChatsClient({
           const timestamp = message.messageTimestamp ?? 0;
           for (const [key, existing] of Array.from(map.entries())) {
             if (!isLocalOptimisticMessage(existing)) continue;
+
+            // DIAGNÓSTICO TEMPORAL. Retirar cuando se localice la causa del
+            // duplicado de burbujas: dice QUÉ condición impide unir la burbuja
+            // provisional con el mensaje real, en vez de dejar que falle en
+            // silencio. Solo se escribe cuando hay una provisional en juego, así
+            // que no ensucia la consola en el uso normal.
+            const motivoNoUne =
+              existing.key?.fromMe !== message.key?.fromMe ? "remitente distinto"
+              : !mismoContacto(existing.key?.remoteJid, message.key?.remoteJid) ? "contacto distinto"
+              : Math.abs((existing.messageTimestamp ?? 0) - timestamp) > 180 ? "fuera de la ventana de tiempo"
+              : null;
+            if (motivoNoUne) {
+              console.warn("[DIAG burbuja] no se une:", motivoNoUne, {
+                provisional: {
+                  id: existing.key?.id ?? existing.id,
+                  jid: existing.key?.remoteJid,
+                  tipo: existing.messageType,
+                  ts: existing.messageTimestamp,
+                  fromMe: existing.key?.fromMe,
+                },
+                real: {
+                  id: message.key?.id ?? message.id,
+                  jid: message.key?.remoteJid,
+                  tipo: message.messageType,
+                  ts: message.messageTimestamp,
+                  fromMe: message.key?.fromMe,
+                },
+              });
+            }
+
             if (existing.key?.fromMe !== message.key?.fromMe) continue;
             // Los dos JID se comparan por EQUIVALENCIA, no carácter a carácter.
             //
@@ -705,7 +735,18 @@ export function ChatsClient({
             const contentMatches =
               optimisticContent === content ||
               (optimisticContent.length > 0 && content.endsWith(`\n${optimisticContent}`));
-            if (!bothSameMedia && !contentMatches) continue;
+            if (!bothSameMedia && !contentMatches) {
+              // DIAGNÓSTICO TEMPORAL: pasó los filtros de remitente, contacto y
+              // tiempo, pero ni el tipo de media ni el texto coinciden. Aquí es
+              // donde se queda el duplicado.
+              console.warn("[DIAG burbuja] no se une: ni media ni texto coinciden", {
+                provisional: { id: existing.key?.id ?? existing.id, tipo: existing.messageType, texto: optimisticContent.slice(0, 60) },
+                real: { id: message.key?.id ?? message.id, tipo: message.messageType, texto: content.slice(0, 60) },
+                canMatchByMedia,
+                tipoEnLista: OPTIMISTIC_MEDIA_TYPES.has(existing.messageType ?? ""),
+              });
+              continue;
+            }
             map.delete(key);
           }
         }
@@ -722,6 +763,15 @@ export function ChatsClient({
 
   const contacts = useMemo(() => {
     if (!currentChatsResult.success) return [];
+    // DIAGNÓSTICO TEMPORAL: si la lista trae la conversación pero no llega a
+    // pintarse, la quita uno de los filtros de abajo (rol de asesor / asignación).
+    if (typeof window !== "undefined") {
+      (window as unknown as { __diagChats?: unknown }).__diagChats = currentChatsResult.data.map((c) => ({
+        jid: c.remoteJid,
+        nombre: c.pushName,
+        instancia: c.instanceName,
+      }));
+    }
     const all = currentChatsResult.data.filter(
       (chat) => chat.remoteJid && chat.remoteJid !== "status@broadcast",
     );
@@ -987,10 +1037,23 @@ export function ChatsClient({
     if (!frescos.success) return;
     setCurrentChatsResult((previo) => {
       if (!previo.success) return frescos;
-      return {
-        ...frescos,
-        data: dedupeAndSortChats([...frescos.data, ...previo.data], lidPhoneMap),
-      };
+      const fusionados = dedupeAndSortChats([...frescos.data, ...previo.data], lidPhoneMap);
+
+      // DIAGNÓSTICO TEMPORAL. Retirar cuando se localice la causa de los chats
+      // que desaparecen de la lista: dice QUÉ conversaciones estaban y ya no,
+      // para saber si las quita la fusión, el deduplicado o un filtro posterior.
+      const antes = new Set(previo.data.map((c) => c.remoteJid));
+      const despues = new Set(fusionados.map((c) => c.remoteJid));
+      const perdidos = Array.from(antes).filter((jid) => !despues.has(jid));
+      if (perdidos.length > 0) {
+        console.warn("[DIAG lista] desaparecen tras fusionar:", perdidos, {
+          previos: previo.data.length,
+          frescos: frescos.data.length,
+          fusionados: fusionados.length,
+        });
+      }
+
+      return { ...frescos, data: fusionados };
     });
   }, [lidPhoneMap]);
 
