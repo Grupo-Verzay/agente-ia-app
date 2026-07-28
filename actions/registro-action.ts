@@ -810,15 +810,17 @@ export async function getRegistrosByUserId(
             });
         }
 
+        // Se trae la sesión de cada registro, pero NO todos los registros de esa
+        // sesión.
+        //
+        // El `include: { registros: true }` anidado hacía que, por cada fila de la
+        // página, se leyera además la lista completa de registros de su sesión: la
+        // auditoría midió 12.920 filas recorridas para devolver 4. Y nadie las
+        // usaba — el tipo con el que se consume esto (`RegistroWithSession`)
+        // declara `session: Session`, sin `registros` dentro.
         const registros = await db.registro.findMany({
             where: { AND: whereClauses },
-            include: {
-                session: {
-                    include: {
-                        registros: true,
-                    },
-                },
-            },
+            include: { session: true },
             orderBy: { fecha: "desc" },
             skip,
             take,
