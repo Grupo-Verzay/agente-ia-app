@@ -357,6 +357,21 @@ function getSessionForChat(chat: ChatData, sessions: ChatContactSessionMap) {
     .find(Boolean);
 }
 
+/**
+ * ¿Los dos JID identifican al mismo contacto?
+ *
+ * Un mismo contacto llega con variantes equivalentes (@lid y su número real), y
+ * compararlas como texto plano las da por distintas.
+ */
+function mismoContacto(a?: string | null, b?: string | null) {
+  const uno = (a ?? "").trim();
+  const otro = (b ?? "").trim();
+  if (!uno || !otro) return uno === otro;
+  if (uno === otro) return true;
+  const candidatos = new Set(buildWhatsAppJidCandidates(uno));
+  return buildWhatsAppJidCandidates(otro).some((c) => candidatos.has(c));
+}
+
 function resolveSendRemoteJid(selectedJid: string, contact?: ChatData) {
   const selected = selectedJid.trim();
   if (!selected) return selected;
@@ -655,7 +670,18 @@ export function ChatsClient({
           for (const [key, existing] of Array.from(map.entries())) {
             if (!isLocalOptimisticMessage(existing)) continue;
             if (existing.key?.fromMe !== message.key?.fromMe) continue;
-            if ((existing.key?.remoteJid ?? "") !== (message.key?.remoteJid ?? "")) continue;
+            // Los dos JID se comparan por EQUIVALENCIA, no carácter a carácter.
+            //
+            // La burbuja optimista se crea con el JID seleccionado, pero el envío
+            // usa `resolveSendRemoteJid`, que puede devolver otra variante del
+            // mismo contacto (@lid frente al número real). WhatsApp devuelve el
+            // mensaje con la suya. Comparando las cadenas tal cual, esas dos
+            // variantes no casaban, la optimista no se retiraba y quedaban DOS
+            // burbujas del mismo envío hasta recargar la página.
+            //
+            // `buildWhatsAppJidCandidates` es la misma función que ya usa el resto
+            // de la pantalla para dar por equivalentes esas variantes.
+            if (!mismoContacto(existing.key?.remoteJid, message.key?.remoteJid)) continue;
             if (Math.abs((existing.messageTimestamp ?? 0) - timestamp) > 180) continue;
             // Media (imagen/audio/video/doc): la mayoría va sin caption, así que el
             // texto NO sirve para emparejar. Basta con que sea el MISMO tipo de media
