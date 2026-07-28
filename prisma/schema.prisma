@@ -89,22 +89,22 @@ model ApiKey {
 }
 
 model Appointment {
-  id           String               @id @default(uuid())
-  userId       String
-  sessionId    Int
-  clientName   String?
-  startTime    DateTime
-  endTime      DateTime
-  timezone     String
-  status       AppointmentStatus    @default(PENDIENTE)
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  serviceId    String?
-  googleEventId String?             @map("google_event_id")
-  service      Service?             @relation(fields: [serviceId], references: [id])
-  session      Session              @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  formResponse BookingFormResponse?
+  id            String               @id @default(uuid())
+  userId        String
+  sessionId     Int
+  clientName    String?
+  startTime     DateTime
+  endTime       DateTime
+  timezone      String
+  status        AppointmentStatus    @default(PENDIENTE)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  serviceId     String?
+  googleEventId String?              @map("google_event_id")
+  service       Service?             @relation(fields: [serviceId], references: [id])
+  session       Session              @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  formResponse  BookingFormResponse?
 
   @@index([userId, startTime])
   @@index([sessionId])
@@ -1629,45 +1629,55 @@ model Reseller {
 }
 
 model SiteConfig {
-  id                     Int      @id @default(1)
-  whatsappNumber         String?
-  meetingUrl             String?
-  sheetsUrl              String?
-  primaryColor           String?
-  bgColor                String?
-  headline               String?
-  subheadline            String?
-  logoUrl                String?
-  faviconUrl             String?
-  brandName              String?
-  instagram              String?
-  facebook               String?
-  videoUrl               String?
-  ctaHeadline            String?
-  ctaSubtitle            String?
-  testimonials           Json?
-  stats                  Json?
-  resellerWhatsappNumber String?
-  resellerLogoUrl        String?
-  resellerMeetingUrl     String?
-  showAssistanceIA       Boolean  @default(true)
-  showAssistanceHUMANO   Boolean  @default(true)
-  showFreeTrial          Boolean  @default(true)
+  id                      Int      @id @default(1)
+  whatsappNumber          String?
+  meetingUrl              String?
+  sheetsUrl               String?
+  primaryColor            String?
+  bgColor                 String?
+  headline                String?
+  subheadline             String?
+  logoUrl                 String?
+  faviconUrl              String?
+  brandName               String?
+  instagram               String?
+  facebook                String?
+  videoUrl                String?
+  ctaHeadline             String?
+  ctaSubtitle             String?
+  testimonials            Json?
+  stats                   Json?
+  resellerWhatsappNumber  String?
+  resellerLogoUrl         String?
+  resellerMeetingUrl      String?
+  showAssistanceIA        Boolean  @default(true)
+  showAssistanceHUMANO    Boolean  @default(true)
+  showFreeTrial           Boolean  @default(true)
   // Periodos de facturación visibles en la landing. Las columnas se crearon
   // directamente en la BD (el dueño de las migraciones es el backend api-webhook,
   // ver docs/db-migrations-ownership.md); aquí solo se declaran.
   // El botón "Crear mi Agente IA" se controla con showFreeTrial (ya existente).
-  showBillingMonthly     Boolean  @default(true)
-  showBillingQuarterly   Boolean  @default(true)
-  showBillingYearly      Boolean  @default(true)
+  showBillingMonthly      Boolean  @default(true)
+  showBillingQuarterly    Boolean  @default(true)
+  showBillingYearly       Boolean  @default(true)
   // Overrides de los mensajes de cobro de la plataforma (Verzay). Vacío = texto
   // estándar por defecto. Placeholders: {empresa} {fecha} {dias} {precio} {plan} {link}
-  billingMsgReminder     String?
-  billingMsgDueToday     String?
-  billingMsgOverdue      String?
-  billingMsgSuspended    String?
-  billingMsgDeleted      String?
-  updatedAt              DateTime @updatedAt
+  billingMsgReminder      String?
+  billingMsgDueToday      String?
+  billingMsgOverdue       String?
+  billingMsgSuspended     String?
+  billingMsgDeleted       String?
+  // Aviso de "WhatsApp desvinculado". Antes estaba fijo en el backend; ahora se
+  // edita desde el panel. Las columnas las crea api-webhook (dueño de las
+  // migraciones); aquí solo se declaran. NULL / true = comportamiento de siempre.
+  connectionAlertEnabled  Boolean  @default(true)
+  /// Horarios en HH:MM separados por coma. NULL = 09:00,13:00,17:00.
+  connectionAlertSlots    String?
+  /// Texto del aviso. NULL = el texto por defecto del backend.
+  connectionAlertMessage  String?
+  /// Instancia que lo emite. NULL = la del dueño de cada cliente.
+  connectionAlertInstance String?
+  updatedAt               DateTime @updatedAt
 
   @@map("site_config")
 }
