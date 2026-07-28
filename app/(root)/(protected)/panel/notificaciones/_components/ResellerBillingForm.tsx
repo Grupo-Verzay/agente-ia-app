@@ -8,14 +8,15 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { ExpandableTextarea } from '@/components/shared/ExpandableTextarea'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { getAvailableInstances, sendTrialTestMessage } from '@/actions/trial-followup-actions'
 import {
   saveResellerBillingConfig,
   type ResellerBillingConfigData,
 } from '@/actions/billing/reseller-billing-actions'
 import { cleanInstanceDisplayName } from '@/lib/instance-display-name'
-import { CreditCard, MessageCircle, RefreshCw, Send, Pencil, ListChecks } from 'lucide-react'
+import { CreditCard, MessageCircle, RefreshCw, Send, Pencil, ListChecks, Check, ChevronsUpDown } from 'lucide-react'
 
 interface Props {
   initial: ResellerBillingConfigData
@@ -58,6 +59,10 @@ export function ResellerBillingForm({ initial }: Props) {
   const [instances, setInstances] = useState<{ name: string; status: string }[]>([])
   const [loadingInstances, setLoadingInstances] = useState(false)
   const [manualInstance, setManualInstance] = useState(false)
+  const [instancePickerOpen, setInstancePickerOpen] = useState(false)
+
+  const connectedInstancesCount = instances.filter((i) => i.status === 'open').length
+  const selectedInstanceStatus = instances.find((i) => i.name === form.instanceName)?.status
 
   const loadInstances = async () => {
     setLoadingInstances(true)
@@ -149,26 +154,60 @@ export function ResellerBillingForm({ initial }: Props) {
               />
             ) : (
               <div className="flex items-center gap-2">
-                <Select
-                  value={form.instanceName ?? ''}
-                  onValueChange={(v) => setForm(f => ({ ...f, instanceName: v }))}
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder={loadingInstances ? 'Cargando...' : 'Selecciona tu instancia'}>
-                      {form.instanceName ? cleanInstanceDisplayName(form.instanceName) : undefined}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {instances.map((i) => (
-                      <SelectItem key={i.name} value={i.name} textValue={cleanInstanceDisplayName(i.name)}>
-                        <span className="flex items-center gap-2">
-                          <span className={`h-2 w-2 rounded-full ${i.status === 'open' ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
-                          {cleanInstanceDisplayName(i.name)}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* Buscador: con muchas instancias, una lista desplegable obliga a
+                    recorrerla entera. Aquí se escribe y se filtra, y el encabezado
+                    dice cuántas hay y cuántas están conectadas. */}
+                <Popover open={instancePickerOpen} onOpenChange={setInstancePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={instancePickerOpen}
+                      className="flex-1 justify-between font-normal"
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        {form.instanceName ? (
+                          <>
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${selectedInstanceStatus === 'open' ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+                            {cleanInstanceDisplayName(form.instanceName)}
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            {loadingInstances ? 'Cargando...' : 'Selecciona tu instancia'}
+                          </span>
+                        )}
+                      </span>
+                      <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-[--radix-popover-trigger-width] p-0">
+                    <Command>
+                      <CommandInput placeholder="Buscar instancia..." />
+                      <CommandList>
+                        <CommandEmpty>Ninguna instancia con ese nombre.</CommandEmpty>
+                        <CommandGroup
+                          heading={`${instances.length} instancia${instances.length === 1 ? '' : 's'} · ${connectedInstancesCount} conectada${connectedInstancesCount === 1 ? '' : 's'}`}
+                        >
+                          {instances.map((i) => (
+                            <CommandItem
+                              key={i.name}
+                              value={cleanInstanceDisplayName(i.name)}
+                              onSelect={() => {
+                                setForm(f => ({ ...f, instanceName: i.name }))
+                                setInstancePickerOpen(false)
+                              }}
+                            >
+                              <span className={`mr-2 h-2 w-2 shrink-0 rounded-full ${i.status === 'open' ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+                              <span className="truncate">{cleanInstanceDisplayName(i.name)}</span>
+                              {form.instanceName === i.name && <Check className="ml-auto h-4 w-4 shrink-0" />}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 <Button type="button" variant="outline" size="icon" onClick={loadInstances} disabled={loadingInstances} title="Recargar">
                   <RefreshCw className={`h-4 w-4 ${loadingInstances ? 'animate-spin' : ''}`} />
                 </Button>
