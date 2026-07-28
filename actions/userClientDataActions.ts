@@ -3,7 +3,6 @@
 import { db } from '@/lib/db';
 import { UserWithPausar } from '@/lib/types';
 import { IaCredit, Pausar, Prisma, User } from '@prisma/client';
-import { getDataApi } from "@/actions/api-action";
 import { ClientInterface } from "@/lib/types";
 import { revalidatePath } from 'next/cache';
 import { getIaCreditByUser } from './actions-ia-credits';
@@ -127,11 +126,15 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
       include: {
         pausar: true,
         aiConfigs: true,
-        instancias: { select: { instanceName: true, instanceType: true } },
-        // Clave de Evolution de la CUENTA. Hace falta aparte del token de la
-        // instancia: no todas las rutas de Evolution aceptan el mismo. Ver más
-        // abajo, en la consulta del estado de conexión.
-        apiKey: { select: { key: true } },
+        // TODAS las instancias, con su token. El estado se comprueba sobre estas
+        // y no sobre la que devuelve getDataApi: aquella usa findFirst sin orden
+        // ni filtro de tipo, así que con más de una fila podía devolver la de
+        // Telegram, o una vieja, cuyo nombre no existe en Evolution — y una
+        // consulta a un nombre inexistente es indistinguible de una línea caída.
+        instancias: { select: { instanceName: true, instanceType: true, instanceId: true } },
+        // Credenciales de Evolution de la CUENTA. La clave hace falta aparte del
+        // token de la instancia: no todas las rutas aceptan el mismo.
+        apiKey: { select: { url: true, key: true } },
       },
       orderBy: { name: "asc" },
     });
@@ -147,75 +150,78 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
         let reseller: User | null = null;
         let credits: IaCredit | null = null;
 
-        if (user.apiKeyId) {
-          // Con credenciales sí hay algo que comprobar, y hasta comprobarlo se
-          // da por DESCONECTADO: si la consulta falla, el cliente aparece en la
-          // lista de revisar en vez de darse por bueno sin haber mirado.
+        // Solo las líneas que se comprueban contra Evolution. Baileys mantiene la
+        // sesión dentro del backend y Meta/Telegram no son QR: preguntarle a
+        // Evolution por ellas devuelve "no existe", que aquí se leería como línea
+        // caída. Lo que no se puede comprobar no se marca en rojo.
+        const lineasEvolution = user.instancias.filter((i) => {
+          const tipo = String(i.instanceType ?? 'Whatsapp').trim().toLowerCase();
+          return Boolean(i.instanceName) && (tipo === 'whatsapp' || tipo === 'evolution');
+        });
+
+        const baseEvolution = (() => {
+          const url = (user.apiKey?.url ?? '').trim().replace(/\/+$/, '');
+          if (!url) return '';
+          return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+        })();
+
+        if (baseEvolution && lineasEvolution.length > 0) {
+          // Hay algo que comprobar, y hasta comprobarlo se da por DESCONECTADO:
+          // si la consulta falla, el cliente aparece en la lista de revisar en
+          // vez de darse por bueno sin haber mirado.
           qrStatus = true;
           try {
-            const dataApi = await getDataApi(user.id, user.apiKeyId);
-            const resDataApi = dataApi?.data;
-
-            if (resDataApi?.url && resDataApi?.instanceName && resDataApi?.key) {
-              const cabeceras = { apikey: resDataApi.key };
-              const base = `https://${resDataApi.url}`;
-              const instancia = encodeURIComponent(resDataApi.instanceName);
-
-              // El estado del QR se consulta SIEMPRE. Antes solo se miraba
-              // cuando el robot estaba apagado, así que con el robot encendido
-              // la columna salía verde sin haber comprobado nada: clientes
-              // desconectados se veían como conectados y quedaban fuera del
-              // filtro, que es justo para lo que sirve esa columna.
-              //
-              // Y se pregunta por el estado de la conexión en vez de pedir un
-              // QR: pedirlo es una operación de conexión, no una consulta, y
-              // hacerla contra todas las líneas sanas cada vez que se abre la
-              // pantalla es tocar lo que no está roto.
-              //
-              // Se prueban DOS credenciales, en este orden: la clave de la cuenta
-              // y el token de la instancia. `/webhook/find` acepta el token, pero
-              // las rutas `/instance/*` pueden exigir la clave de la cuenta, y
-              // usar la equivocada devuelve un rechazo indistinguible de "línea
-              // caída": líneas sanas salían en rojo. Solo si NINGUNA credencial
-              // obtiene respuesta se da por desconectada.
+            // El estado se consulta SIEMPRE. Antes solo se miraba con el robot
+            // apagado, así que con el robot encendido la columna salía verde sin
+            // haber comprobado nada: clientes caídos quedaban fuera del filtro,
+            // que es justo para lo que sirve esa columna.
+            //
+            // Se pregunta por el estado de la conexión en vez de pedir un QR:
+            // pedirlo es una operación de conexión, no una consulta, y hacerla
+            // contra todas las líneas sanas cada vez que se abre la pantalla es
+            // tocar lo que no está roto.
+            //
+            // Se prueban DOS credenciales: la clave de la cuenta y el token de la
+            // instancia. `/webhook/find` acepta el token, pero las rutas
+            // `/instance/*` pueden exigir la de la cuenta, y usar la equivocada
+            // devuelve un rechazo indistinguible de "línea caída".
+            const consultar = async (ruta: string, tokenInstancia: string) => {
               const credenciales = Array.from(
-                new Set([user.apiKey?.key, resDataApi.key].filter(Boolean) as string[]),
+                new Set([user.apiKey?.key, tokenInstancia].filter(Boolean) as string[]),
               );
+              for (const credencial of credenciales) {
+                const resp = await fetch(`${baseEvolution}${ruta}`, {
+                  method: 'GET',
+                  headers: { apikey: credencial },
+                  cache: 'no-store',
+                }).catch(() => null);
+                if (resp?.ok) return resp.json().catch(() => null);
+              }
+              return null;
+            };
 
-              const pedirEstado = async () => {
-                for (const credencial of credenciales) {
-                  const resp = await fetch(`${base}/instance/connectionState/${instancia}`, {
-                    method: 'GET',
-                    headers: { apikey: credencial },
-                    cache: 'no-store',
-                  });
-                  if (resp.ok) return resp.json().catch(() => null);
-                }
-                return null;
-              };
+            const resultados = await Promise.all(
+              lineasEvolution.map(async (linea) => {
+                const nombre = encodeURIComponent(linea.instanceName as string);
+                const [webhook, estado] = await Promise.all([
+                  consultar(`/webhook/find/${nombre}`, linea.instanceId),
+                  consultar(`/instance/connectionState/${nombre}`, linea.instanceId),
+                ]);
+                const conexion = String(
+                  estado?.instance?.state ?? estado?.state ?? estado?.connectionState ?? '',
+                ).toLowerCase();
+                return { conectada: conexion === 'open', robot: webhook?.enabled === true };
+              }),
+            );
 
-              // Independientes entre sí: en paralelo para no sumar una espera por
-              // cliente a una pantalla que ya los recorre a todos.
-              const [respWebhook, estado] = await Promise.all([
-                fetch(`${base}/webhook/find/${instancia}`, { method: 'GET', headers: cabeceras, cache: 'no-store' }),
-                pedirEstado(),
-              ]);
-
-              /* instance status */
-              const result = await respWebhook.json();
-              isEvoEnabled = result?.enabled ?? false;
-
-              const conexion = String(
-                estado?.instance?.state ?? estado?.state ?? estado?.connectionState ?? '',
-              ).toLowerCase();
-              qrStatus = conexion !== 'open';
-            }
-
-
+            // Con varias líneas basta con que UNA esté bien: el cliente está
+            // operando. Marcarlo en rojo por una instancia vieja que quedó suelta
+            // lo metería en la lista de a quién escribirle sin motivo.
+            qrStatus = !resultados.some((r) => r.conectada);
+            isEvoEnabled = resultados.some((r) => r.robot);
           } catch (error) {
-            console.warn(`No se pudo obtener isEvoEnabled para el usuario ${user.id}`, error);
+            console.warn(`No se pudo comprobar el estado de las líneas del usuario ${user.id}`, error);
           }
-
         }
 
         // Buscar reseller asociado
