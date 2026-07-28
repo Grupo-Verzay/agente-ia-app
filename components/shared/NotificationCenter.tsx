@@ -182,7 +182,21 @@ export function NotificationCenter() {
       });
     };
     void poll();
-    const id = window.setInterval(poll, 20000);
+
+    // No se consulta con la pestaña en segundo plano.
+    //
+    // Esto son tres peticiones por minuto y por pestaña abierta, y los asesores
+    // dejan la app abierta todo el día detrás de otras ventanas. Lo que trae
+    // esta consulta es la lista de menciones que se ve en la campana: si nadie
+    // la está mirando, no hay nada que refrescar.
+    //
+    // Al volver a la pestaña se consulta de inmediato —ya lo hacía el listener
+    // de abajo—, así que no se pierde ninguna mención: solo se deja de
+    // preguntar mientras no hay quien lo lea.
+    const id = window.setInterval(() => {
+      if (document.hidden) return;
+      void poll();
+    }, 20000);
     const onVis = () => { if (!document.hidden) void poll(); };
     document.addEventListener("visibilitychange", onVis);
     return () => {
