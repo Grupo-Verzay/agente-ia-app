@@ -3,104 +3,23 @@
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { isAdminOrReseller } from "@/lib/rbac";
+import {
+  contarInstancias,
+  elegirServidorConCupo,
+  leerOcupacionServidores,
+  type EvolutionServerCapacity,
+} from "@/lib/evolution-capacity";
 
 /**
- * Cupo de instancias por servidor de Evolution.
+ * Cupo de instancias por servidor de Evolution, para el panel.
  *
- * Hay varios servidores y cada cliente se cuelga de uno (su ApiKey). Hasta ahora
- * el servidor se elegía a mano en un desplegable que solo mostraba la URL, sin
- * decir cuántas instancias tenía ya: se seguía llenando el mismo hasta que
- * empezaba a ir mal, y el aviso llegaba en forma de clientes con la línea caída.
- *
- * El límite se mide sobre el TOTAL de instancias del servidor, no sobre las
- * conectadas. Una instancia existe y ocupa su sitio aunque esté desconectada en
- * ese momento; contar solo las conectadas dejaría crear de más justo cuando hay
- * líneas caídas, y al reconectarse todas el servidor quedaría por encima del
- * límite sin que nadie hubiera hecho nada mal.
+ * La lógica vive en lib/evolution-capacity.ts porque también la necesita el
+ * registro público, donde todavía no hay sesión que comprobar. Aquí solo se le
+ * pone la puerta.
  */
 
-const LIMITE_POR_DEFECTO = 20;
+export type { EvolutionServerCapacity };
 
-/** Se puede subir o bajar sin desplegar; si el valor no es válido, 20. */
-function limitePorServidor(): number {
-  const crudo = Number(process.env.EVOLUTION_MAX_INSTANCES);
-  return Number.isFinite(crudo) && crudo > 0 ? Math.floor(crudo) : LIMITE_POR_DEFECTO;
-}
-
-export interface EvolutionServerCapacity {
-  apiKeyId: string;
-  url: string;
-  /** Instancias que existen en el servidor. null = no se pudo consultar. */
-  total: number | null;
-  /** De esas, cuántas están conectadas. Informativo. */
-  conectadas: number | null;
-  limite: number;
-  lleno: boolean;
-  /** Por qué no se pudo consultar, si es el caso. */
-  error?: string;
-}
-
-function normalizeBaseUrl(url: string | null | undefined): string {
-  const valor = (url ?? "").trim().replace(/\/+$/, "");
-  if (!valor) return "";
-  return /^https?:\/\//i.test(valor) ? valor : `https://${valor}`;
-}
-
-async function contarInstancias(apiKey: { id: string; url: string; key: string }): Promise<EvolutionServerCapacity> {
-  const limite = limitePorServidor();
-  const base = normalizeBaseUrl(apiKey.url);
-
-  const sinDatos = (error: string): EvolutionServerCapacity => ({
-    apiKeyId: apiKey.id,
-    url: apiKey.url,
-    total: null,
-    conectadas: null,
-    limite,
-    // Un servidor que no responde NO se da por lleno: bloquear por no poder
-    // contar dejaría sin poder crear nada durante una caída pasajera. Se marca
-    // como desconocido y quien decida lo hace con esa información delante.
-    lleno: false,
-    error,
-  });
-
-  if (!base) return sinDatos("Sin URL configurada.");
-
-  try {
-    const respuesta = await fetch(`${base}/instance/fetchInstances`, {
-      method: "GET",
-      headers: { apikey: apiKey.key, Accept: "application/json" },
-      cache: "no-store",
-      signal: AbortSignal.timeout(8000),
-    });
-
-    if (!respuesta.ok) return sinDatos(`Evolution respondió ${respuesta.status}.`);
-
-    const datos = await respuesta.json().catch(() => null);
-    if (!Array.isArray(datos)) return sinDatos("Respuesta inesperada de Evolution.");
-
-    const conectadas = datos.filter(
-      (i: any) => String(i?.connectionStatus ?? i?.instance?.status ?? "").toLowerCase() === "open",
-    ).length;
-
-    return {
-      apiKeyId: apiKey.id,
-      url: apiKey.url,
-      total: datos.length,
-      conectadas,
-      limite,
-      lleno: datos.length >= limite,
-    };
-  } catch (error) {
-    return sinDatos(error instanceof Error ? error.message : String(error));
-  }
-}
-
-/**
- * Ocupación de todos los servidores, en el orden en que se crearon.
- *
- * Se consultan en paralelo: son seis llamadas independientes y en serie
- * añadirían una espera visible al abrir el formulario de un cliente.
- */
 export async function getEvolutionCapacity(): Promise<{
   success: boolean;
   message: string;
@@ -111,45 +30,27 @@ export async function getEvolutionCapacity(): Promise<{
     return { success: false, message: "No autorizado", data: [] };
   }
 
-  const apiKeys = await db.apiKey.findMany({
-    select: { id: true, url: true, key: true },
-    orderBy: { createdAt: "asc" },
-  });
-
-  const data = await Promise.all(apiKeys.map((apiKey) => contarInstancias(apiKey)));
-  return { success: true, message: "Ocupación obtenida", data };
+  return { success: true, message: "Ocupación obtenida", data: await leerOcupacionServidores() };
 }
 
-/**
- * Primer servidor con cupo, en orden de creación.
- *
- * "En orden" y no "el más vacío" a propósito: llenar de uno en uno mantiene los
- * servidores viejos a plena carga y los nuevos libres, que es lo que permite
- * apagar o migrar uno entero sin tocar a todos los clientes. Repartir a partes
- * iguales dejaría los seis a medias y ninguno prescindible.
- *
- * Los que no se pudieron consultar se saltan: elegir uno a ciegas es como
- * elegirlo a mano, que es justo lo que esto viene a evitar.
- */
 export async function pickApiKeyWithCapacity(): Promise<{
   success: boolean;
   message: string;
   apiKeyId?: string;
 }> {
-  const { success, data } = await getEvolutionCapacity();
-  if (!success) return { success: false, message: "No autorizado" };
-
-  const disponible = data.find((s) => s.total !== null && !s.lleno);
-  if (disponible) {
-    return { success: true, message: `Asignado a ${disponible.url}`, apiKeyId: disponible.apiKeyId };
+  const user = await currentUser();
+  if (!user || !isAdminOrReseller(user.role)) {
+    return { success: false, message: "No autorizado" };
   }
 
-  const sinRespuesta = data.filter((s) => s.total === null).length;
+  const elegido = await elegirServidorConCupo();
+  if (elegido.apiKeyId) {
+    return { success: true, message: `Asignado a ${elegido.url}`, apiKeyId: elegido.apiKeyId };
+  }
+
   return {
     success: false,
-    message: sinRespuesta
-      ? `Todos los servidores están al límite y ${sinRespuesta} no respondieron. Revisa antes de crear.`
-      : "Todos los servidores están al límite. Añade uno nuevo antes de crear más instancias.",
+    message: `${elegido.motivo} Añade uno nuevo antes de crear más instancias.`,
   };
 }
 

@@ -14,6 +14,7 @@ import { decodeApiKeyRef } from "@/lib/register-link";
 import { AGENT_TEMPLATES } from "@/app/(root)/ai/_components/helpers/agentTemplates";
 import { AGENT_PROMPT_IDS } from "@/lib/agent-prompt-ids";
 import { cookies } from "next/headers";
+import { elegirServidorConCupo } from "@/lib/evolution-capacity";
 
 /* ─────────────────────────────────────────
    Constants
@@ -305,9 +306,22 @@ export async function fullRegisterAction(
 
   const passwordHash = await bcrypt.hash(password, LENGTH_PASSWORD_HASH);
 
-  /* ── Resolve which ApiKey to assign — prefer the ref from the URL ── */
+  /* ── Resolve which ApiKey to assign ──
+   *
+   * Orden: el enlace de registro manda (un reseller reparte los suyos por ahí),
+   * y si no trae ninguno se elige el PRIMER servidor con cupo.
+   *
+   * Antes se caía siempre en un servidor fijo escrito en el código. Con varios
+   * servidores eso significa que todo el registro web se amontona en el mismo
+   * hasta llenarlo, mientras los demás quedan vacíos — y llenarlo no da un error
+   * claro, da clientes con la línea caída.
+   *
+   * Si ninguno tiene cupo se usa el de siempre: quedarse sin poder registrar es
+   * peor que pasarse de uno, y el aviso de que hay que añadir servidor ya lo da
+   * el panel. */
   const requestedApiKeyId = apiKeyRef ? decodeApiKeyRef(apiKeyRef) : null;
-  const targetApiKeyId = requestedApiKeyId ?? DEFAULT_API_KEY_ID;
+  const conCupo = requestedApiKeyId ? null : await elegirServidorConCupo().catch(() => null);
+  const targetApiKeyId = requestedApiKeyId ?? conCupo?.apiKeyId ?? DEFAULT_API_KEY_ID;
 
   const apiKeyExists = await db.apiKey
     .findUnique({ where: { id: targetApiKeyId }, select: { id: true } })
