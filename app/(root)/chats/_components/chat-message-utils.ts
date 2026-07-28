@@ -98,6 +98,68 @@ function getInteractiveResponseText(messageData: Record<string, any>, isUser: bo
   return bodyText || 'Respuesta interactiva de WhatsApp';
 }
 
+/**
+ * Teléfonos de una vCard.
+ *
+ * WhatsApp los escribe con prefijos y etiquetas —`item1.TEL;waid=584244319513:+58
+ * 424-4319513`— y puede haber varios. Se prefiere el `waid`, que es el número tal
+ * como WhatsApp lo identifica y por tanto el que sirve para escribirle; si no
+ * está, se usa el valor visible, que es el que el contacto tenía guardado.
+ */
+function extraerTelefonosDeVcard(vcard: string): string[] {
+  const telefonos: string[] = [];
+
+  for (const linea of vcard.split(/\r?\n/)) {
+    if (!/^item\d*\.?TEL|^TEL/i.test(linea.trim())) continue;
+
+    const waid = /waid=(\d+)/i.exec(linea)?.[1];
+    if (waid) {
+      telefonos.push(`+${waid}`);
+      continue;
+    }
+
+    const visible = linea.slice(linea.indexOf(':') + 1).trim();
+    if (visible) telefonos.push(visible);
+  }
+
+  return Array.from(new Set(telefonos));
+}
+
+/**
+ * Tarjeta de contacto legible: nombre y teléfono, en vez de "[Mensaje
+ * contactMessage]".
+ *
+ * Se muestra tal cual como texto y no como una tarjeta con botones a propósito:
+ * lo que hace falta es poder LEER y copiar el número sin salir de la App. Un
+ * botón de "escribirle" abriría una conversación nueva desde una línea que puede
+ * no ser la correcta, y eso ya dio problemas antes.
+ *
+ * Si la vCard no llegó (los adjuntos largos se recortan al guardarlos), queda al
+ * menos el nombre, que es más que lo que había.
+ */
+function formatContactMessage(messageData: Record<string, any>): string {
+  const contactos: Array<{ displayName?: string; vcard?: string }> =
+    messageData?.contactsArrayMessage?.contacts ??
+    (messageData?.contactMessage ? [messageData.contactMessage] : []);
+
+  const lineas = contactos
+    .map((contacto) => {
+      const nombre = String(contacto?.displayName ?? '').trim();
+      const telefonos = typeof contacto?.vcard === 'string'
+        ? extraerTelefonosDeVcard(contacto.vcard)
+        : [];
+
+      if (nombre && telefonos.length) return `👤 ${nombre}\n${telefonos.join('\n')}`;
+      if (nombre) return `👤 ${nombre}`;
+      if (telefonos.length) return `👤 ${telefonos.join('\n')}`;
+      return '';
+    })
+    .filter(Boolean);
+
+  if (!lineas.length) return '👤 Contacto compartido';
+  return lineas.join('\n\n');
+}
+
 function normalizeMessageLabel(text: string): string {
   const value = text.trim();
   const normalized = value.toLowerCase();
@@ -230,6 +292,12 @@ export function toUIMessages(
         break;
       case 'interactiveResponseMessage':
         content = getInteractiveResponseText(messageData as Record<string, any>, isUser);
+        break;
+      // Tarjetas de contacto. Salían como "[Mensaje contactMessage]", que no dice
+      // ni quién es ni su teléfono: para usarlo había que abrir WhatsApp aparte.
+      case 'contactMessage':
+      case 'contactsArrayMessage':
+        content = formatContactMessage(messageData as Record<string, any>);
         break;
       case 'stickerMessage':
       case 'lottieStickerMessage': {

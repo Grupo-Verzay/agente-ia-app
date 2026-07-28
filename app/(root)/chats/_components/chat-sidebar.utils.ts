@@ -123,6 +123,8 @@ export function lastTextFrom(chat: ChatData): {
     "reactionMessage",
     "interactiveResponseMessage",
     "meta_call",
+    "contactMessage",
+    "contactsArrayMessage",
   ]);
   let text = "";
 
@@ -148,6 +150,21 @@ export function lastTextFrom(chat: ChatData): {
       case "locationMessage":
         text = "📍 Ubicación";
         break;
+      // En la lista solo cabe una línea, así que aquí va el NOMBRE del contacto y
+      // no su teléfono: es lo que permite reconocer la conversación de un vistazo.
+      // El número completo está en la burbuja, al abrir el chat.
+      case "contactMessage":
+      case "contactsArrayMessage": {
+        const contactos = (msg as Record<string, any>)?.contactsArrayMessage?.contacts;
+        const nombre =
+          (msg as Record<string, any>)?.contactMessage?.displayName ??
+          contactos?.[0]?.displayName;
+        const extra = Array.isArray(contactos) && contactos.length > 1
+          ? ` y ${contactos.length - 1} más`
+          : "";
+        text = nombre ? `👤 ${String(nombre).trim()}${extra}` : "👤 Contacto";
+        break;
+      }
       case "stickerMessage":
       case "lottieStickerMessage":
         text = "🏷️ Sticker";
