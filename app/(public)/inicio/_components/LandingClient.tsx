@@ -957,7 +957,7 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, onOpenD
           <h3 className="font-bold text-white">{plan.name || PLAN_LABELS[plan.plan] || plan.plan}</h3>
           <Badge variant="outline" className="border-white/20 text-[10px] text-slate-400">
             {assistanceType === "IA"
-              ? <span className="flex items-center gap-1"><Zap className="h-2.5 w-2.5" />Asistencia con IA</span>
+              ? <span className="flex items-center gap-1"><Zap className="h-2.5 w-2.5" />Asistencia IA</span>
               : <span className="flex items-center gap-1"><Users className="h-2.5 w-2.5" />Asistencia humana</span>}
           </Badge>
         </div>

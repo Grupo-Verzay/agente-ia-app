@@ -172,7 +172,7 @@ export function MisPlanes() {
                       <CardHeader className="pb-2 pt-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <CardTitle className="text-sm">{PLAN_LABELS[plan]}</CardTitle>
+                            <CardTitle className="text-sm">{rp?.name?.trim() || PLAN_LABELS[plan]}</CardTitle>
                             {isCustomized && (
                               <Badge variant="outline" className="text-[10px] h-4 px-1 border-primary/50 text-primary">
                                 Personalizado
