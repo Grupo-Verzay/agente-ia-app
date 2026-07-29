@@ -314,11 +314,19 @@ export async function confirmPaymentInternal(
         }
     }
 
-    // 2.b. Validación de monto para comprobantes automáticos (WhatsApp).
-    // Solo renovamos automáticamente si el monto coincide con el precio
-    // configurado del cliente. Los pagos por pasarela traen el monto exacto y
-    // los MANUAL los decide el admin, así que solo se valida el comprobante.
-    if (source === "WHATSAPP_RECEIPT" && billing?.price != null) {
+    // 2.b. Validación de monto para TODO pago automático.
+    //
+    // Antes solo se validaba el comprobante de WhatsApp, dando por hecho que un
+    // pago por pasarela "trae el monto exacto". Eso vale cuando el enlace lo
+    // genera la App con el precio del cliente dentro, pero NO cuando el cobro
+    // vive en una tienda abierta —WooCommerce— donde el comprador elige el
+    // producto: ahí nada impide pagar el de menor importe y renovar igual un
+    // plan caro. Sin esta comprobación, el precio de la renovación lo decide el
+    // cliente.
+    //
+    // MANUAL se queda fuera a propósito: ahí el importe lo decide un
+    // administrador, que es quien puede aceptar un pago parcial o un ajuste.
+    if (source !== "MANUAL" && billing?.price != null) {
         const amountCheck = checkReceiptAmountMatches({
             paidAmount: amount,
             paidCurrency: currencyCode,
