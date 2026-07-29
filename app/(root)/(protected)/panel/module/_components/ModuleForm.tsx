@@ -12,7 +12,7 @@ import { FormModuleSchema, FormModuleValues, iconMap } from "@/schema/module"
 import { GripVertical, Trash2, Lock } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { navigationRoutes } from "@/lib/navigation-routes"
-import { PLAN_LABELS, PLANS } from "@/types/plans"
+import { PLAN_LEVEL_LABELS, PLANS } from "@/types/plans"
 import { Label } from "@/components/ui/label"
 import {
     DndContext,
@@ -132,7 +132,7 @@ function SortableSubmodule({
                                         : 'border-muted-foreground/20 text-muted-foreground/40 hover:border-muted-foreground/50 hover:text-muted-foreground'
                                         }`}
                                 >
-                                    {PLAN_LABELS[plan]}
+                                    {PLAN_LEVEL_LABELS[plan]}
                                 </button>
                             )
                         })}
@@ -312,7 +312,7 @@ export const ModuleForm = ({
                             const isLocked = locked.includes(plan);
                             return (
                                 <div key={plan} className="flex items-center justify-between px-3 py-2">
-                                    <span className="text-sm capitalize">{PLAN_LABELS[plan]}</span>
+                                    <span className="text-sm capitalize">{PLAN_LEVEL_LABELS[plan]}</span>
                                     <div className="flex items-center">
                                         <div className="w-16 flex justify-center">
                                             <Checkbox
