@@ -191,6 +191,12 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
         });
         if (skipToday) continue;
 
+        // Tres hitos y solo tres: 3 días antes, el día del vencimiento y 3 días
+        // vencido. El aviso de vencido salía CUALQUIER día en negativo, así que
+        // el cliente recibía uno el día 1, otro el 2, otro el 3, y así hasta la
+        // suspensión. Cuatro o cinco mensajes de cobro seguidos no cobran más
+        // rápido: se leen como spam y acaban silenciando la línea, que es justo
+        // lo contrario de lo que se busca.
         let template: BillingTemplateType | null = null;
         let textOverride: string | null = null;
         if (days === 3) {
@@ -199,7 +205,7 @@ export async function runResellerBillingForAll(now: Date = new Date()): Promise<
         } else if (days === 0) {
           template = 'DUE_TODAY';
           textOverride = cfg.msgDueToday;
-        } else if (days < 0) {
+        } else if (days === -3) {
           template = 'EXPIRED';
           textOverride = cfg.msgOverdue;
         }
