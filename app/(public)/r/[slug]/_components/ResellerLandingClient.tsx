@@ -326,7 +326,7 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsapp, resellerSlug,
       )}
       <div className="mb-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-bold text-white">{PLAN_LABELS[plan.plan] ?? plan.plan}</h3>
+          <h3 className="font-bold text-white">{plan.name?.trim() || PLAN_LABELS[plan.plan] || plan.plan}</h3>
           <Badge variant="outline" className="border-white/20 text-[10px] text-slate-400">
             {assistanceType === "IA"
               ? <span className="flex items-center gap-1"><Zap className="h-2.5 w-2.5" />IA</span>

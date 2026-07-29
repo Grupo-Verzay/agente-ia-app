@@ -33,7 +33,8 @@ export function PlanDetailModal({ plan, checkoutUrl, onClose }: Props) {
   const [detail, setDetail] = useState<PlanDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const gradient = PLAN_GRADIENTS[plan.plan] ?? "from-blue-500 to-blue-600";
-  const planLabel = PLAN_LABELS[plan.plan] ?? plan.plan;
+  // El nombre guardado manda sobre la etiqueta fija (ver PlanesMain).
+  const planLabel = plan.name?.trim() || PLAN_LABELS[plan.plan] || plan.plan;
 
   useEffect(() => {
     let cancelled = false;
