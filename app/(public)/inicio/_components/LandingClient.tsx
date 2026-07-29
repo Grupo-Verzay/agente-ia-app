@@ -922,12 +922,17 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, onOpenD
   plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod;
   whatsappNumber?: string | null; onOpenDetail: (checkoutUrl: string | null) => void;
 }) {
-  const isCustom = plan.plan === "personalizado";
   const price = billingPeriod === "monthly"
     ? plan.priceUSD
     : billingPeriod === "quarterly"
     ? (plan.priceQuarterly ?? plan.priceUSD)
     : (plan.priceYearly ?? plan.priceUSD);
+  // "A consultar / Contactar" se decide por si el plan TIENE precio, no por su
+  // identificador interno. Antes estaba clavado a `personalizado`, asi que ese
+  // plan salia siempre como "agencias / a consultar" pasara lo que pasara en el
+  // panel. Ahora, con precio se muestra como plan normal; sin precio (0) queda
+  // como tarjeta de contacto. Cada marca lo decide desde Panel > Planes.
+  const isCustom = !(Number(price) > 0);
   const checkoutUrl = billingPeriod === "monthly"
     ? plan.checkoutUrlMonthly
     : billingPeriod === "quarterly"

@@ -295,13 +295,14 @@ function AnimatedCounter({ to, suffix = "", prefix = "", decimals = 0 }: { to: n
 function ResellerPlanCard({ plan, packSize }: {
   plan: SubscriptionPlanItem; packSize: PackSize;
 }) {
-  const isCustom = plan.plan === "personalizado";
   const pack = PACK_OPTIONS.find((p) => p.value === packSize)!;
   const price = packSize === "pack5"
     ? plan.priceUSD
     : packSize === "pack10"
     ? (plan.priceQuarterly ?? plan.priceUSD)
     : (plan.priceYearly ?? plan.priceUSD);
+  // "A consultar" segun si hay precio, no segun el plan interno. Ver LandingClient.
+  const isCustom = !(Number(price) > 0);
   const checkoutUrl = packSize === "pack5"
     ? plan.checkoutUrlMonthly
     : packSize === "pack10"
