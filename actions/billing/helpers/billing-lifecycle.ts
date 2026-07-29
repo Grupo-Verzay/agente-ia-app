@@ -7,7 +7,6 @@ import {
     AccessStatus,
     BillingTemplateType,
     SOON_DAYS_BILLING,
-    OVERDUE_DAYS_BILLING,
 } from "@/types/billing";
 
 export type BillingLifecycleLike = {
@@ -70,13 +69,21 @@ export function getBillingDaysRemaining(
     return Math.round((dueUtcMidnight - currentUtcMidnight) / 86400000);
 }
 
+/**
+ * Hitos en los que se avisa. Son TRES y solo tres: 3 días antes, el día del
+ * vencimiento y 3 días vencido.
+ *
+ * Antes el aviso de vencido salía CADA día en negativo hasta el tope, así que un
+ * cliente recibía uno el día 1, otro el 2, otro el 3... Cuatro o cinco mensajes
+ * de cobro seguidos no cobran más rápido: se leen como spam y acaban silenciando
+ * la línea, que es justo lo contrario de lo que se busca.
+ */
 export function pickBillingReminderTemplate(
     daysRemaining: number | null
 ): BillingTemplateType | null {
     if (daysRemaining === SOON_DAYS_BILLING) return "REMINDER_3D";
     if (daysRemaining === 0) return "DUE_TODAY";
-    // Solo notificar hasta OVERDUE_DAYS_BILLING días vencido; después silencio
-    if (typeof daysRemaining === "number" && daysRemaining < 0 && daysRemaining >= -OVERDUE_DAYS_BILLING) return "EXPIRED";
+    if (daysRemaining === -SOON_DAYS_BILLING) return "EXPIRED";
     return null;
 }
 

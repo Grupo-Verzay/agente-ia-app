@@ -47,15 +47,21 @@ export function normalizeWhatsAppJid(value: string) {
 }
 
 /**
- * Decide qué plantilla usar para los hitos fijos del cron:
+ * Decide qué plantilla usar para los hitos fijos del cron. Son TRES y solo tres:
  * - 3 días antes => REMINDER_3D
  * - día de vencimiento => DUE_TODAY
- * - vencido desde cualquier día => EXPIRED
+ * - 3 días vencido => EXPIRED
+ *
+ * El aviso de vencido salía CUALQUIER día en negativo, así que un cliente
+ * recibía uno el día 1, otro el 2, otro el 3, y así hasta la suspensión. Cuatro
+ * o cinco mensajes de cobro seguidos no cobran más rápido: molestan, se leen
+ * como spam y acaban silenciando la línea, que es justo lo contrario de lo que
+ * se busca.
  */
 export function pickTemplate(daysRemaining: number | null): BillingTemplateType | null {
     if (daysRemaining === SOON_DAYS_BILLING) return "REMINDER_3D";
     if (daysRemaining === 0) return "DUE_TODAY";
-    if (typeof daysRemaining === "number" && daysRemaining < 0) return "EXPIRED";
+    if (daysRemaining === -SOON_DAYS_BILLING) return "EXPIRED";
     return null;
 }
 
