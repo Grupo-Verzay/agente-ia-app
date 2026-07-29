@@ -118,8 +118,10 @@ export async function getOwnIaCredits(): Promise<{
 
 export async function getIaCreditByUser(userId: string): Promise<IaCreditResponse> {
   try {
-    const me = await currentUser();
-    if (!me || !isAdminLike(me.role)) {
+    // Mismo criterio que para escribirlos: si un reseller puede poner el tope de
+    // sus clientes, tiene que poder leerlo. Sin esto vería 0 y al guardar
+    // machacaría el valor real con ceros.
+    if (!(await puedeGestionarCreditos(userId))) {
       return { success: false, message: 'No autorizado' };
     }
 
@@ -140,6 +142,32 @@ export async function getIaCreditByUser(userId: string): Promise<IaCreditRespons
   }
 }
 
+/**
+ * ¿Puede esta persona tocar los créditos de esta cuenta?
+ *
+ * Admin y super_admin, siempre. Un reseller, SOLO sobre sus propios clientes:
+ * ahora es él quien paga los tokens de esos clientes con su clave de IA, así que
+ * necesita poder ponerles tope. Sin la comprobación de propiedad, un reseller
+ * podría cambiarle los créditos a un cliente de otro.
+ *
+ * Se mira la vinculación por los DOS sistemas —el nuevo `demoResellerId` y la
+ * tabla `reseller` vieja—, porque un cliente vinculado solo por el viejo tiene
+ * `demoResellerId` en nulo y su reseller no podría gestionarlo.
+ */
+async function puedeGestionarCreditos(userId: string): Promise<boolean> {
+  const me = await currentUser();
+  if (!me) return false;
+  if (isAdminLike(me.role)) return true;
+  if (me.role !== 'reseller') return false;
+
+  const [porNuevo, porViejo] = await Promise.all([
+    db.user.findFirst({ where: { id: userId, demoResellerId: me.id }, select: { id: true } }),
+    db.reseller.findFirst({ where: { userId, resellerid: me.id }, select: { userId: true } }),
+  ]);
+
+  return Boolean(porNuevo || porViejo);
+}
+
 export async function createIaCreditForUser(
   userId: string,
   total: number,
@@ -147,8 +175,7 @@ export async function createIaCreditForUser(
   used?: number,
 ): Promise<IaCreditResponse> {
   try {
-    const me = await currentUser();
-    if (!me || !isAdminLike(me.role)) {
+    if (!(await puedeGestionarCreditos(userId))) {
       return { success: false, message: 'No autorizado' };
     }
 
@@ -179,8 +206,7 @@ export async function rechargeIaCredit(
   used?: number,
 ): Promise<IaCreditResponse> {
   try {
-    const me = await currentUser();
-    if (!me || !isAdminLike(me.role)) {
+    if (!(await puedeGestionarCreditos(userId))) {
       return { success: false, message: 'No autorizado' };
     }
 
