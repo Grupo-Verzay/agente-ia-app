@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { CreditCard, CheckCircle2, AlertCircle, Loader2, ArrowUpCircle, Phone } from 'lucide-react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getOwnBillingAction } from '@/actions/billing/billing-actions';
+import { crearEnlacePagoRenovacion } from '@/actions/billing/wompi-checkout-actions';
 import { PLAN_LABELS } from '@/types/plans';
 import type { Plan } from '@prisma/client';
 
@@ -26,6 +28,7 @@ function fmtPrice(price: string | number | null | undefined, currency: string | 
 export function PlanBillingCard({ userPlan }: Props) {
     const [billing, setBilling] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [pagando, setPagando] = useState(false);
 
     useEffect(() => {
         getOwnBillingAction()
@@ -97,6 +100,36 @@ export function PlanBillingCard({ userPlan }: Props) {
                                     <span className="text-muted-foreground">Vencimiento</span>
                                     <span className="font-medium">{fmt(billing?.dueDate)}</span>
                                 </div>
+
+                                {/* Pagar y renovar sin intermediarios. El enlace se genera en
+                                    el momento porque lleva dentro esta cuenta: es lo que
+                                    permite que la renovacion se aplique sola al confirmarse el
+                                    pago, sin que nadie tenga que tocar nada.
+
+                                    Solo aparece si hay un precio asignado; sin el, el boton
+                                    llevaria a un cobro de importe cero. */}
+                                {Number(billing?.price ?? 0) > 0 && (
+                                    <Button
+                                        className="mt-2 w-full"
+                                        disabled={pagando}
+                                        onClick={async () => {
+                                            setPagando(true);
+                                            const res = await crearEnlacePagoRenovacion();
+                                            setPagando(false);
+                                            if (!res.success || !res.url) {
+                                                toast.error(res.message);
+                                                return;
+                                            }
+                                            window.open(res.url, '_blank', 'noopener,noreferrer');
+                                        }}
+                                    >
+                                        {pagando ? (
+                                            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Preparando pago...</>
+                                        ) : (
+                                            <><CreditCard className="mr-2 h-4 w-4" />Pagar y renovar</>
+                                        )}
+                                    </Button>
+                                )}
                             </div>
                         </>
                     )}
