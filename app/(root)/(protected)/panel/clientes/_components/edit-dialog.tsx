@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select"
-import { PLAN_LABELS, PLANS } from "@/types/plans"
+import { PLAN_LEVEL_LABELS, PLANS } from "@/types/plans"
 import { TimezoneCombobox } from "@/components/shared/TimezoneCombobox"
 import { useEffect, useState } from "react"
 import { Switch } from "@/components/ui/switch"
@@ -225,7 +225,7 @@ export const EditDialog = ({
               <SelectGroup>
                 {PLANS.map(plan => (
                   <SelectItem key={plan} value={plan}>
-                    {PLAN_LABELS[plan]}
+                    {PLAN_LEVEL_LABELS[plan]}
                   </SelectItem>
                 ))}
               </SelectGroup>
