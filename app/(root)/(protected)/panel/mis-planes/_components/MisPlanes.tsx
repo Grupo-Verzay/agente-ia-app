@@ -27,6 +27,7 @@ type BillingPeriod = "monthly" | "quarterly" | "yearly";
 type EditForm = {
   plan: Plan;
   assistanceType: string;
+  name: string;
   priceMonthly: number;
   priceQuarterly: number;
   priceYearly: number;
@@ -80,6 +81,7 @@ export function MisPlanes() {
     setForm({
       plan,
       assistanceType: type,
+      name: rp?.name ?? "",
       priceMonthly: rp?.priceMonthly ?? mp?.priceUSD ?? 0,
       priceQuarterly: rp?.priceQuarterly ?? mp?.priceQuarterly ?? 0,
       priceYearly: rp?.priceYearly ?? mp?.priceYearly ?? 0,
@@ -102,6 +104,7 @@ export function MisPlanes() {
     setSaving(true);
     const res = await upsertResellerPlan({
       ...form,
+      name: form.name || undefined,
       features: form.features.split("\n").map((f) => f.trim()).filter(Boolean),
       description: form.description || undefined,
       color: form.color || undefined,
@@ -265,6 +268,14 @@ export function MisPlanes() {
                   <Input type="number" min={0} value={form.credits}
                     onChange={(e) => setForm({ ...form, credits: parseInt(e.target.value) || 0 })} />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Nombre del plan (visible en tu landing)</Label>
+                <Input value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder={PLAN_LABELS[form.plan] ?? form.plan} />
+                <p className="text-[11px] text-muted-foreground">Si lo dejas vacío se usa el nombre por defecto: {PLAN_LABELS[form.plan] ?? form.plan}</p>
               </div>
 
               <div className="space-y-1">

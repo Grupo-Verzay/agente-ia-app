@@ -1700,6 +1700,10 @@ model ResellerPlan {
   isActive             Boolean  @default(true)
   color                String?
   order                Int      @default(0)
+  // Nombre comercial que el reseller le pone a este plan. La columna la crea el
+  // backend (dueño de las migraciones); aquí solo se declara. Vacío = nombre por
+  // defecto del nivel.
+  name                 String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   resellerUser         User     @relation(fields: [resellerUserId], references: [id], onDelete: Cascade)
