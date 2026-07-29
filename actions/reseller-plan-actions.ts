@@ -24,6 +24,7 @@ export type ResellerPlanItem = {
   isActive: boolean;
   color: string | null;
   order: number;
+  name: string | null;
 };
 
 export type TestimonialData = { quote: string; name: string; city: string; business: string; metric: string };
@@ -73,6 +74,7 @@ function mapPlan(p: {
   isActive: boolean;
   color: string | null;
   order: number;
+  name: string | null;
 }): ResellerPlanItem {
   return {
     ...p,
@@ -159,6 +161,7 @@ export async function upsertResellerPlan(data: {
   isActive?: boolean;
   color?: string;
   order?: number;
+  name?: string;
 }) {
   try {
     const user = await currentUser();
@@ -179,6 +182,9 @@ export async function upsertResellerPlan(data: {
       isActive: data.isActive ?? true,
       color: data.color ?? null,
       order: data.order ?? 0,
+      // Vacío se guarda como NULL para que vuelva al nombre por defecto del nivel,
+      // no como cadena vacía que se veria como un nombre en blanco.
+      name: data.name?.trim() || null,
     };
     await db.resellerPlan.upsert({
       where: {
@@ -438,6 +444,10 @@ export async function getResellerPlansBySlug(slug: string): Promise<{
         isPopular: rp.isPopular,
         color: rp.color ?? master.color,
         order: rp.order,
+        // El nombre del reseller manda sobre el de la plataforma en SU landing.
+        // Sin esto, el reseller podía guardar un nombre y no verlo: la landing
+        // seguía mostrando el de Verzay. Vacío → cae al de la plantilla.
+        name: rp.name?.trim() || master.name,
         isActive: true, // el reseller lo activó → visible aunque el maestro esté inactivo
       };
     };
