@@ -86,7 +86,9 @@ export const EditDialog = ({
   const [selectedPlan, setSelectedPlan] = useState<Plan>(user.plan as Plan);
 
   useEffect(() => {
-    if (!openEditDialog || currentUserRol === 'reseller') return;
+    // También para el reseller: si ve los campos y no se cargan, guardaría ceros
+    // encima del tope real de su cliente.
+    if (!openEditDialog) return;
     setCreditLoading(true);
     getIaCreditByUser(user.id).then(res => {
       if (res.success && res.data?.length) {
@@ -100,7 +102,7 @@ export const EditDialog = ({
       }
       setCreditLoading(false);
     });
-  }, [user.id, openEditDialog, currentUserRol]);
+  }, [user.id, openEditDialog]);
 
   useEffect(() => {
     setTz(user.timezone ?? "");
@@ -159,7 +161,11 @@ export const EditDialog = ({
 
   /* Ocultar/mostrar fields para reseller */
   if (currentUserRol === 'reseller') {
-    const idsToRemove = ["apiKeyId", "webhookUrl", "creditTotal", "creditUsed", "apiKeyIa"]
+    // Los créditos SÍ los ve el reseller: ahora es él quien paga los tokens de sus
+    // clientes con su propia clave de IA, así que es quien tiene que poder
+    // ponerles tope. Solo se le siguen ocultando los campos de infraestructura,
+    // que son de la plataforma y no suyos.
+    const idsToRemove = ["apiKeyId", "webhookUrl", "apiKeyIa"]
     fields = fields.filter(field => !idsToRemove.includes(field.id))
 
     const idsReadOnly = ["name", "email", "role", "plan"]
