@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { PaymentSource } from "@prisma/client";
 
 import { confirmPaymentInternal } from "@/actions/billing/billing-payment-internal";
+import { db } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Auth — mismo patrón que /api/cron/billing
@@ -36,12 +37,25 @@ type ConfirmPaymentBody = {
     notes?: string | null;
 };
 
-function parseBody(raw: unknown): { data: ConfirmPaymentBody } | { error: string } {
+type ConfirmPaymentInput = Omit<ConfirmPaymentBody, "clientUserId"> & {
+    clientUserId?: string;
+    clientEmail?: string;
+};
+
+function parseBody(raw: unknown): { data: ConfirmPaymentInput } | { error: string } {
     if (!raw || typeof raw !== "object") return { error: "Body inválido." };
     const b = raw as Record<string, unknown>;
 
-    if (!b.clientUserId || typeof b.clientUserId !== "string")
-        return { error: "clientUserId es requerido." };
+    // Se acepta el cliente por identificador O por correo. El identificador lo
+    // conoce quien ya está dentro de la plataforma (el webhook de Wompi lo saca
+    // de la referencia del pago), pero una tienda externa —WooCommerce— solo
+    // conoce el correo del comprador. Sin esto, integrar la tienda obligaría a
+    // meterle nuestro identificador interno a cada producto, que es justo lo que
+    // nadie va a mantener.
+    const clientUserId = typeof b.clientUserId === "string" ? b.clientUserId.trim() : "";
+    const clientEmail = typeof b.clientEmail === "string" ? b.clientEmail.trim().toLowerCase() : "";
+    if (!clientUserId && !clientEmail)
+        return { error: "clientUserId o clientEmail es requerido." };
     if (!b.externalReference || typeof b.externalReference !== "string")
         return { error: "externalReference es requerido." };
     if (!b.source || !VALID_SOURCES.includes(b.source as PaymentSource))
@@ -58,7 +72,8 @@ function parseBody(raw: unknown): { data: ConfirmPaymentBody } | { error: string
 
     return {
         data: {
-            clientUserId: b.clientUserId.trim(),
+            clientUserId: clientUserId || undefined,
+            clientEmail: clientEmail || undefined,
             amount,
             currencyCode,
             source: b.source as PaymentSource,
@@ -66,6 +81,33 @@ function parseBody(raw: unknown): { data: ConfirmPaymentBody } | { error: string
             notes: typeof b.notes === "string" ? b.notes.trim() || null : null,
         },
     };
+}
+
+/**
+ * Traduce el correo del comprador a la cuenta que hay que renovar.
+ *
+ * Solo cuentas principales: un asesor no tiene servicio propio, lo tiene su
+ * cuenta madre. Renovarle a un asesor no activaría nada y el pago quedaría
+ * aplicado donde no toca.
+ */
+async function resolverCliente(
+    input: ConfirmPaymentInput,
+): Promise<{ clientUserId: string } | { error: string }> {
+    if (input.clientUserId) return { clientUserId: input.clientUserId };
+
+    const usuario = await db.user.findFirst({
+        where: { email: { equals: input.clientEmail, mode: "insensitive" }, ownerId: null },
+        select: { id: true },
+    });
+
+    if (!usuario) {
+        // Se responde con el correo para que quede en el registro de la tienda:
+        // el fallo típico es un correo distinto al de la cuenta, y sin verlo el
+        // pago parece "perdido" sin explicación.
+        return { error: `No hay ninguna cuenta con el correo ${input.clientEmail}.` };
+    }
+
+    return { clientUserId: usuario.id };
 }
 
 // ---------------------------------------------------------------------------
@@ -96,7 +138,13 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, message: parsed.error }, { status: 400 });
     }
 
-    const result = await confirmPaymentInternal(parsed.data);
+    const cliente = await resolverCliente(parsed.data);
+    if ("error" in cliente) {
+        return NextResponse.json({ success: false, message: cliente.error }, { status: 404 });
+    }
+
+    const { clientEmail: _correo, ...resto } = parsed.data;
+    const result = await confirmPaymentInternal({ ...resto, clientUserId: cliente.clientUserId });
 
     return NextResponse.json(result, { status: result.success ? 200 : 400 });
 }
