@@ -318,7 +318,7 @@ function ResellerPlanCard({ plan, packSize }: {
         </div>
       )}
       <div className="mb-3">
-        <h3 className="font-bold text-white">{PLAN_LABELS[plan.plan] ?? plan.plan}</h3>
+        <h3 className="font-bold text-white">{plan.name?.trim() || PLAN_LABELS[plan.plan] || plan.plan}</h3>
         {plan.description && <p className="mt-1 text-xs text-slate-500">{plan.description}</p>}
       </div>
       <div className="mb-4">

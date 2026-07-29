@@ -229,7 +229,11 @@ function PlanCard({
 
       {/* Plan name */}
       <div className="mb-4">
-        <h3 className="text-base font-bold">{PLAN_LABELS[plan.plan as Plan]}</h3>
+        {/* El nombre guardado manda sobre la etiqueta fija: si se renombra un plan
+            en el panel, tiene que verlo el cliente, que es el motivo de
+            renombrarlo. La etiqueta queda de respaldo para los que nadie ha
+            tocado. */}
+        <h3 className="text-base font-bold">{plan.name?.trim() || PLAN_LABELS[plan.plan as Plan]}</h3>
         {plan.description && (
           <p className="mt-1 text-xs text-muted-foreground">{plan.description}</p>
         )}

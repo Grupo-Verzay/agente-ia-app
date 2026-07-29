@@ -95,6 +95,19 @@ export function PlanesMain() {
   const getPlan = (plan: Plan, type: string) =>
     plans.find((p) => p.plan === plan && p.assistanceType === type && p.isResellerPlan === isReseller);
 
+  /**
+   * Nombre a mostrar de un plan.
+   *
+   * El campo "Nombre" del editor ya se guardaba, pero las tarjetas seguian
+   * pintando la etiqueta fija del codigo: se podia renombrar un plan y no se
+   * notaba en ninguna parte, que es lo mismo que no poder renombrarlo.
+   *
+   * La etiqueta fija se conserva como respaldo para los planes que nadie ha
+   * renombrado, y por eso el campo puede dejarse vacio.
+   */
+  const nombreDePlan = (plan: Plan, type: string) =>
+    getPlan(plan, type)?.name?.trim() || PLAN_LABELS[plan] || plan;
+
   const openEdit = (plan: Plan, type: string) => {
     const existing = getPlan(plan, type);
     setForm({
@@ -361,7 +374,7 @@ export function PlanesMain() {
                             )}
                             <CardHeader className="pb-2 pt-4">
                               <div className="flex items-center justify-between">
-                                <CardTitle className="text-sm">{PLAN_LABELS[plan]}</CardTitle>
+                                <CardTitle className="text-sm">{nombreDePlan(plan, type)}</CardTitle>
                                 <div className="flex items-center gap-2">
                                   {p && (
                                     <Switch
@@ -414,7 +427,7 @@ export function PlanesMain() {
         <DialogContent className="flex max-h-[585px] max-w-lg flex-col">
           <DialogHeader>
             <DialogTitle>
-              {form ? `${PLAN_LABELS[form.plan]} · ${form.assistanceType} · ${form.isResellerPlan ? "Resellers" : "Clientes"}` : "Editar Plan"}
+              {form ? `${form.name?.trim() || PLAN_LABELS[form.plan]} · ${form.assistanceType} · ${form.isResellerPlan ? "Resellers" : "Clientes"}` : "Editar Plan"}
             </DialogTitle>
           </DialogHeader>
 
