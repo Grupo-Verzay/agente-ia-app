@@ -304,10 +304,11 @@ function StepCard({ step, accent, icon, title, description, items, checkColor }:
 function PlanCard({ plan, assistanceType, billingPeriod, whatsapp, resellerSlug, brand }: {
   plan: SubscriptionPlanItem; assistanceType: AssistanceType; billingPeriod: BillingPeriod; whatsapp: string; resellerSlug: string; brand: string | null;
 }) {
-  const isCustom = plan.plan === "personalizado";
   const price = billingPeriod === "monthly" ? plan.priceUSD
     : billingPeriod === "quarterly" ? (plan.priceQuarterly ?? plan.priceUSD)
     : (plan.priceYearly ?? plan.priceUSD);
+  // "A consultar" segun si hay precio, no segun el plan interno. Ver LandingClient.
+  const isCustom = !(Number(price) > 0);
   const checkoutUrl = billingPeriod === "monthly" ? plan.checkoutUrlMonthly
     : billingPeriod === "quarterly" ? (plan.checkoutUrlQuarterly ?? plan.checkoutUrlMonthly)
     : (plan.checkoutUrlYearly ?? plan.checkoutUrlMonthly);
