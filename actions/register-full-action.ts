@@ -15,6 +15,7 @@ import { AGENT_TEMPLATES } from "@/app/(root)/ai/_components/helpers/agentTempla
 import { AGENT_PROMPT_IDS } from "@/lib/agent-prompt-ids";
 import { cookies } from "next/headers";
 import { elegirServidorConCupo } from "@/lib/evolution-capacity";
+import { precioDePlanParaCuenta } from "@/lib/plan-pricing";
 
 /* ─────────────────────────────────────────
    Constants
@@ -52,6 +53,8 @@ export type FullRegisterResult =
     trialEndsLabel: string;
     completedSteps: RegisterCompletedStep[];
     whatsappUrl?: string;
+    /** Vino a comprar: la cuenta queda suspendida hasta que se confirme el pago. */
+    requiresPayment?: boolean;
   }
   | { success: false; error: string };
 
@@ -268,7 +271,8 @@ export async function fullRegisterAction(
   apiKeyRef?: string,
   affiliateCode?: string,
   resellerSlug?: string,
-  isPaid?: boolean
+  isPaid?: boolean,
+  planElegidoRef?: { planSlug?: string; assistanceType?: string }
 ): Promise<FullRegisterResult> {
   const parsed = fullRegisterSchema.safeParse(values);
   if (!parsed.success) {
@@ -337,14 +341,9 @@ export async function fullRegisterAction(
 
   const resolvedApiKeyId = apiKeyExists ? targetApiKeyId : null;
 
-  /* ── Look up plan credits before transaction ── */
-  const planCreditsConfig = await db.planConfig
-    .findUnique({ where: { plan: DEFAULT_REGISTER_PLAN } })
-    .catch(() => null);
-  const initialCredits = planCreditsConfig?.credits ?? FALLBACK_IA_CREDITS;
-
   /* ── Pre-lookup reseller for demo account creation ── */
   let resellerUserId: string | null = null;
+  let resellerDemoLimit = 3;
   if (resellerSlug) {
     const resellerRow = await db.reseller.findFirst({
       where: { slug: resellerSlug },
@@ -352,15 +351,36 @@ export async function fullRegisterAction(
     }).catch(() => null);
     if (resellerRow?.resellerid) {
       resellerUserId = resellerRow.resellerid;
-      const demoLimit = resellerRow.demoLimit ?? 3;
-      const demosUsed = await db.user.count({
-        where: { demoResellerId: resellerUserId, isDemo: true },
-      });
-      if (demosUsed >= demoLimit) {
-        return { success: false, error: "Prueba no disponible en este momento. Contacta al reseller para más información." };
-      }
+      resellerDemoLimit = resellerRow.demoLimit ?? 3;
     }
   }
+
+  const planElegido = await precioDePlanParaCuenta(
+    planElegidoRef?.planSlug,
+    planElegidoRef?.assistanceType,
+    resellerUserId,
+  );
+
+  /* El tope de demos existe para las pruebas que el reseller regala. Quien
+     llega desde la landing con un plan ya marcado viene a comprar, así que
+     entra como cliente del reseller: no gasta cupo de demos ni lo frena el
+     tope. Antes lo frenaba, y a partir de la cuarta venta la landing
+     respondía "Prueba no disponible". */
+  if (resellerUserId && !planElegido) {
+    const demosUsed = await db.user.count({
+      where: { demoResellerId: resellerUserId, isDemo: true },
+    });
+    if (demosUsed >= resellerDemoLimit) {
+      return { success: false, error: "Prueba no disponible en este momento. Contacta al reseller para más información." };
+    }
+  }
+
+  /* ── Look up plan credits before transaction ── */
+  const planDeLaCuenta = planElegido?.plan ?? DEFAULT_REGISTER_PLAN;
+  const planCreditsConfig = await db.planConfig
+    .findUnique({ where: { plan: planDeLaCuenta } })
+    .catch(() => null);
+  const initialCredits = planCreditsConfig?.credits ?? FALLBACK_IA_CREDITS;
 
   const completedSteps: RegisterCompletedStep[] = [];
   let userId: string | null = null;
@@ -377,7 +397,7 @@ export async function fullRegisterAction(
           company,
           notificationNumber,
           role: "user",
-          plan: DEFAULT_REGISTER_PLAN,
+          plan: planDeLaCuenta,
           apiKeyId: resolvedApiKeyId,
           delSeguimiento: DEFAULT_DEL_SEGUIMIENTO,
           webhookUrl: DEFAULT_WEBHOOK_URL,
@@ -390,13 +410,21 @@ export async function fullRegisterAction(
           autoReactivate: "30",
           delayTimeGpt: "10",
           image: "https://medias3.verzay.co/verzay-media/VERZAY-ROBOT-PROFILE.png",
-          trialEndsAt,
-          ...(resellerUserId && {
-            isDemo: true,
-            demoResellerId: resellerUserId,
-            demoCredits: 1000,
-            demoExpiresAt: trialEndsAt,
-          }),
+          // Quien viene a comprar no entra con prueba: la cuenta se activa al
+          // pagar. Marcarle una prueba le regalaría los 30 días y además lo
+          // metería en los seguimientos de prueba, que no son para él.
+          trialEndsAt: planElegido ? null : trialEndsAt,
+          // Con plan elegido queda como cliente del reseller (isDemo:false):
+          // es el estado que lo hace aparecer en su Clientes y su Finanzas con
+          // un monto que cobrar. Sin plan sigue siendo una demo prestada.
+          ...(resellerUserId && (planElegido
+            ? { isDemo: false, demoResellerId: resellerUserId }
+            : {
+              isDemo: true,
+              demoResellerId: resellerUserId,
+              demoCredits: 1000,
+              demoExpiresAt: trialEndsAt,
+            })),
         },
       });
 
@@ -405,18 +433,36 @@ export async function fullRegisterAction(
         data: {
           serviceName: "Agente IA",
           userId: created.id,
-          price: 0,
-          currencyCode: "USD",
+          // El precio del plan que eligió. Es lo que después compara la
+          // confirmación de pago para decidir si renueva o manda a revisión, y
+          // lo que hace que la cuenta salga con monto en Finanzas.
+          price: planElegido?.price ?? 0,
+          currencyCode: planElegido?.currency ?? "USD",
           paymentMethodLabel: "Link de pago",
           paymentNotes: "👉 https://verzay.com/agente-ia",
           notifyRemoteJid: notificationNumber,
-          billingStatus: "PAID",
-          accessStatus: "ACTIVE",
-          dueDate: trialEndsAt,
-          serviceStartAt: now,
-          serviceEndsAt: trialEndsAt,
+          // Con plan elegido la cuenta nace pendiente de pago y suspendida: se
+          // crea para poder cobrarla, no para regalar el mes. Al confirmarse el
+          // pago se marca pagada y la fecha se corre 30 días (licenseDays).
+          // Sin plan, sigue siendo la prueba de siempre.
+          ...(planElegido
+            ? {
+              billingStatus: "UNPAID" as const,
+              accessStatus: "SUSPENDED" as const,
+              dueDate: now,
+              serviceStartAt: now,
+              serviceEndsAt: now,
+              licenseDays: PAID_TRIAL_DAYS,
+            }
+            : {
+              billingStatus: "PAID" as const,
+              accessStatus: "ACTIVE" as const,
+              dueDate: trialEndsAt,
+              serviceStartAt: now,
+              serviceEndsAt: trialEndsAt,
+              licenseDays: trialDays,
+            }),
           graceDays: 0,
-          licenseDays: trialDays,
         },
       });
 
@@ -595,6 +641,7 @@ export async function fullRegisterAction(
       trialEndsLabel: formatTrialDate(trialEndsAt),
       completedSteps,
       whatsappUrl,
+      requiresPayment: Boolean(planElegido),
     };
   } catch (error: unknown) {
     // If user was created but something after the transaction failed, clean up

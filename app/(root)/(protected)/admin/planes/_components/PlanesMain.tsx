@@ -19,6 +19,7 @@ import {
   type SubscriptionPlanItem,
 } from "@/actions/subscription-plan-actions";
 import { PLAN_LABELS, PLANS } from "@/types/plans";
+import { UsdRateCard } from "./UsdRateCard";
 import dynamic from "next/dynamic";
 const PlanDetailTab = dynamic(() => import("./PlanDetailTab").then(m => m.PlanDetailTab), { ssr: false });
 
@@ -357,6 +358,7 @@ export function PlanesMain() {
               </div>
             ) : (
               <div className="space-y-6">
+                {!isReseller && <UsdRateCard />}
                 {ASSISTANCE_TYPES.map((type) => (
                   <div key={type}>
                     <h3 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">

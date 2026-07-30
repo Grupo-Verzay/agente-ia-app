@@ -4,7 +4,7 @@ import { getCountryCodes } from "@/actions/get-country-action";
 import { getPublicBrandingBySlug } from "@/actions/public-branding-actions";
 
 interface Props {
-  searchParams: { ref?: string; aff?: string; plan?: string; r?: string; obj?: string };
+  searchParams: { ref?: string; aff?: string; plan?: string; a?: string; r?: string; obj?: string };
 }
 
 // Marca del reseller en la pestaña del registro (cuando el cliente entra por
@@ -28,6 +28,7 @@ const RegisterPage = async ({ searchParams }: Props) => {
       apiKeyRef={searchParams.ref}
       affiliateCode={searchParams.aff}
       defaultPlan={searchParams.plan}
+      defaultAssistanceType={searchParams.a}
       resellerSlug={searchParams.r}
       defaultSalesObjective={searchParams.obj}
     />

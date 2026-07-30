@@ -391,14 +391,15 @@ function Step3Fields({ form }: { form: ReturnType<typeof useForm<FormValues>> })
 ───────────────────────────────────────── */
 const PLAN_DISPLAY: Record<string, string> = {
   lite: "Lite", basico: "Básico", intermedio: "Intermedio",
-  avanzado: "Avanzado", enterprise: "Enterprise",
+  avanzado: "Avanzado", enterprise: "Enterprise", personalizado: "Agencias",
 };
 
-const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, resellerSlug, defaultSalesObjective }: {
+const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, defaultAssistanceType, resellerSlug, defaultSalesObjective }: {
   countries: Country[];
   apiKeyRef?: string;
   affiliateCode?: string;
   defaultPlan?: string;
+  defaultAssistanceType?: string;
   resellerSlug?: string;
   defaultSalesObjective?: string;
 }) => {
@@ -449,7 +450,14 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, resell
     startTransition(async () => {
       const toastId = toast.loading("Iniciando configuración de tu cuenta...");
 
-      const result = await fullRegisterAction({ ...values, notificationNumber: e164, timezone }, apiKeyRef, affiliateCode, resellerSlug, true);
+      const result = await fullRegisterAction(
+        { ...values, notificationNumber: e164, timezone },
+        apiKeyRef,
+        affiliateCode,
+        resellerSlug,
+        true,
+        { planSlug: defaultPlan, assistanceType: defaultAssistanceType },
+      );
 
       if (!result.success) {
         toast.error(result.error, { id: toastId });
@@ -467,20 +475,28 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, resell
 
       const welcomeDelay = stepLabels.length * 400 + 200;
       setTimeout(() => {
+        // Quien compró no tiene prueba que anunciar: su cuenta se activa al
+        // pagar. Decirle "tu prueba ha iniciado" sería prometerle un mes que no
+        // tiene.
         toast.success(
-          `¡Bienvenido! Tu periodo de prueba gratuito ha iniciado. Vence el ${result.trialEndsLabel}`,
+          result.requiresPayment
+            ? "¡Cuenta creada! Falta el pago para activar tu plan."
+            : `¡Bienvenido! Tu periodo de prueba gratuito ha iniciado. Vence el ${result.trialEndsLabel}`,
           {
             duration: 8000,
-            description: defaultPlan
-              ? "Completa tu compra eligiendo el método de pago."
+            description: result.requiresPayment
+              ? "En tu perfil está el botón para pagar y activar los 30 días."
               : result.whatsappUrl
                 ? "Te llevamos al chat para ver tu agente en acción."
                 : "Ve a tu perfil para escanear el QR y comenzar a usar la app.",
           }
         );
 
+        // Con plan elegido va al perfil, que es donde está el botón de pago con
+        // la cuenta ya dentro del enlace. Antes iba a /planes, que no existe
+        // como página y dejaba al comprador en un 404.
         if (defaultPlan) {
-          router.push(`/planes?plan=${defaultPlan}`);
+          router.push("/profile");
         } else if (result.whatsappUrl) {
           window.location.href = result.whatsappUrl;
         } else {

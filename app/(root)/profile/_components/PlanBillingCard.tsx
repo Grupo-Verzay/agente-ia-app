@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getOwnBillingAction } from '@/actions/billing/billing-actions';
 import { crearEnlacePagoRenovacion } from '@/actions/billing/wompi-checkout-actions';
+import ChoosePlanToPay from '@/components/shared/ChoosePlanToPay';
 import { PLAN_LABELS } from '@/types/plans';
 import type { Plan } from '@prisma/client';
 
@@ -108,6 +109,17 @@ export function PlanBillingCard({ userPlan }: Props) {
 
                                     Solo aparece si hay un precio asignado; sin el, el boton
                                     llevaria a un cobro de importe cero. */}
+                                {/* Sin precio asignado —la cuenta que viene de la
+                                    prueba gratis— primero hay que elegir plan:
+                                    no hay monto contra el que generar el enlace.
+                                    Antes ahí no salía nada y la única forma de
+                                    contratar era escribir por WhatsApp. */}
+                                {Number(billing?.price ?? 0) <= 0 && !loading && (
+                                    <div className="mt-2">
+                                        <ChoosePlanToPay compact />
+                                    </div>
+                                )}
+
                                 {Number(billing?.price ?? 0) > 0 && (
                                     <Button
                                         className="mt-2 w-full"

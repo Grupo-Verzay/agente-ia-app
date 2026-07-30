@@ -110,6 +110,8 @@ export default async function RootGroupLayout({
                     paymentNotes={access.paymentNotes}
                     paymentUrl={access.paymentUrl}
                     reasonLabel={reasonLabel}
+                    awaitingFirstPayment={!billing?.lastPaymentAt}
+                    canPayOnline={Number(billing?.price ?? 0) > 0}
                 />
             );
         }
