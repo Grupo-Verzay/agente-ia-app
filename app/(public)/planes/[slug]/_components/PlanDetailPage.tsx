@@ -92,9 +92,11 @@ export function PlanDetailPage({ plan, detail, planLabel }: {
   planLabel: string;
 }) {
   const gradient = PLAN_COLORS[plan.plan] ?? "from-blue-500 to-blue-600";
-  const checkoutUrl = plan.checkoutUrlMonthly;
   const meetingUrl = detail?.meetingUrl;
-  const ctaUrl = detail?.ctaButtonUrl ?? checkoutUrl ?? "/registro";
+  // Sin CTA propio se va al registro con este plan marcado, no a la tienda:
+  // un pago sin cuenta detrás no se puede aplicar a nadie. "/registro" no
+  // existe como ruta —la buena es /register— y dejaba un 404.
+  const ctaUrl = detail?.ctaButtonUrl ?? `/register?plan=${plan.plan}&a=${plan.assistanceType ?? "IA"}`;
   const ctaText = detail?.ctaButtonText ?? "Comenzar ahora";
   const secondaryUrl = detail?.ctaSecondaryUrl ?? meetingUrl;
   const secondaryText = detail?.ctaSecondaryText ?? (meetingUrl ? "Agendar una demo" : null);

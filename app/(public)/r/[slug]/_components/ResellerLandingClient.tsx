@@ -309,9 +309,6 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsapp, resellerSlug,
     : (plan.priceYearly ?? plan.priceUSD);
   // "A consultar" segun si hay precio, no segun el plan interno. Ver LandingClient.
   const isCustom = !(Number(price) > 0);
-  const checkoutUrl = billingPeriod === "monthly" ? plan.checkoutUrlMonthly
-    : billingPeriod === "quarterly" ? (plan.checkoutUrlQuarterly ?? plan.checkoutUrlMonthly)
-    : (plan.checkoutUrlYearly ?? plan.checkoutUrlMonthly);
   const billedNote = billingPeriod === "monthly" ? "Facturado mensualmente"
     : billingPeriod === "quarterly" ? `Facturado $${(price * 3).toFixed(0)} cada 3 meses`
     : `Facturado $${(price * 12).toFixed(0)} al año`;
@@ -366,14 +363,15 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsapp, resellerSlug,
               <MessageCircle className="h-4 w-4" /> Contactar
             </Button>
           </a>
-        ) : checkoutUrl ? (
-          <a href={checkoutUrl} target="_blank" rel="noopener noreferrer">
-            <Button className={cn("w-full text-white", plan.isPopular ? (brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500") : "border border-white/10 bg-white/10 hover:bg-white/20")}>
-              Comenzar ahora
-            </Button>
-          </a>
         ) : (
-          <Link href={`/completar-registro?r=${resellerSlug}&plan=${plan.plan}`}>
+          /* Primero la cuenta, después el pago.
+             El slug del reseller es lo único que le dice al sistema de qué
+             marca es esta venta. Si el botón se va a la tienda, el pago llega
+             solo con correo y monto y no hay forma de saber si es de Aizen-Bot
+             o de Verzay, ni a qué cuenta activarle los 30 días. Registrando
+             primero, la cuenta queda ligada al reseller y con el precio de
+             ESTE plan suyo. */
+          <Link href={`/register?r=${resellerSlug}&plan=${plan.plan}&a=${assistanceType}`}>
             <Button className={cn("w-full text-white", plan.isPopular ? (brand ? "brand-btn" : "bg-blue-600 hover:bg-blue-500") : "border border-white/10 bg-white/10 hover:bg-white/20")}>
               Comenzar ahora
             </Button>

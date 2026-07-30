@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { fullRegisterSchema } from "@/lib/zod";
 import { LENGTH_PASSWORD_HASH } from "@/types/generic";
 import { AuthError } from "next-auth";
-import { Prisma } from "@prisma/client";
+import { Plan, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import { z } from "zod";
@@ -261,6 +261,57 @@ async function createInstanceForUser(
 }
 
 /* ─────────────────────────────────────────
+   Plan elegido en la landing
+───────────────────────────────────────── */
+type PlanElegido = { plan: Plan; price: number };
+
+/**
+ * Traduce el plan que el cliente marcó en la landing a lo que hay que dejar en
+ * la cuenta: el nivel y lo que se le va a cobrar.
+ *
+ * Hasta ahora el registro creaba a todo el mundo en el mismo nivel y con precio
+ * 0, así que un pago posterior no tenía contra qué compararse ni qué activar.
+ *
+ * El precio sale del plan del reseller cuando el cliente entra por su landing
+ * —cada marca pone el suyo— y del plan de la plataforma en los demás casos.
+ */
+async function resolverPlanElegido(
+  planSlug: string | undefined,
+  assistanceType: string | undefined,
+  resellerUserId: string | null,
+): Promise<PlanElegido | null> {
+  const slug = planSlug?.trim().toLowerCase();
+  if (!slug) return null;
+
+  // El plan llega por la URL, así que se valida contra el enum antes de tocar
+  // la base: cualquier cosa que no sea un nivel real se ignora y el registro
+  // sigue como siempre, en vez de reventar.
+  const plan = (Object.values(Plan) as string[]).includes(slug) ? (slug as Plan) : null;
+  if (!plan) return null;
+
+  const tipo = assistanceType?.trim().toUpperCase() === "HUMANO" ? "HUMANO" : "IA";
+
+  if (resellerUserId) {
+    const propio = await db.resellerPlan
+      .findFirst({
+        where: { resellerUserId, plan, assistanceType: tipo, isActive: true },
+        select: { priceMonthly: true },
+      })
+      .catch(() => null);
+    if (propio) return { plan, price: Number(propio.priceMonthly) };
+  }
+
+  const dePlataforma = await db.subscriptionPlan
+    .findFirst({
+      where: { plan, assistanceType: tipo, isResellerPlan: false, isActive: true },
+      select: { priceUSD: true },
+    })
+    .catch(() => null);
+
+  return { plan, price: Number(dePlataforma?.priceUSD ?? 0) };
+}
+
+/* ─────────────────────────────────────────
    Main server action
 ───────────────────────────────────────── */
 export async function fullRegisterAction(
@@ -268,7 +319,8 @@ export async function fullRegisterAction(
   apiKeyRef?: string,
   affiliateCode?: string,
   resellerSlug?: string,
-  isPaid?: boolean
+  isPaid?: boolean,
+  planElegidoRef?: { planSlug?: string; assistanceType?: string }
 ): Promise<FullRegisterResult> {
   const parsed = fullRegisterSchema.safeParse(values);
   if (!parsed.success) {
@@ -337,14 +389,9 @@ export async function fullRegisterAction(
 
   const resolvedApiKeyId = apiKeyExists ? targetApiKeyId : null;
 
-  /* ── Look up plan credits before transaction ── */
-  const planCreditsConfig = await db.planConfig
-    .findUnique({ where: { plan: DEFAULT_REGISTER_PLAN } })
-    .catch(() => null);
-  const initialCredits = planCreditsConfig?.credits ?? FALLBACK_IA_CREDITS;
-
   /* ── Pre-lookup reseller for demo account creation ── */
   let resellerUserId: string | null = null;
+  let resellerDemoLimit = 3;
   if (resellerSlug) {
     const resellerRow = await db.reseller.findFirst({
       where: { slug: resellerSlug },
@@ -352,15 +399,36 @@ export async function fullRegisterAction(
     }).catch(() => null);
     if (resellerRow?.resellerid) {
       resellerUserId = resellerRow.resellerid;
-      const demoLimit = resellerRow.demoLimit ?? 3;
-      const demosUsed = await db.user.count({
-        where: { demoResellerId: resellerUserId, isDemo: true },
-      });
-      if (demosUsed >= demoLimit) {
-        return { success: false, error: "Prueba no disponible en este momento. Contacta al reseller para más información." };
-      }
+      resellerDemoLimit = resellerRow.demoLimit ?? 3;
     }
   }
+
+  const planElegido = await resolverPlanElegido(
+    planElegidoRef?.planSlug,
+    planElegidoRef?.assistanceType,
+    resellerUserId,
+  );
+
+  /* El tope de demos existe para las pruebas que el reseller regala. Quien
+     llega desde la landing con un plan ya marcado viene a comprar, así que
+     entra como cliente del reseller: no gasta cupo de demos ni lo frena el
+     tope. Antes lo frenaba, y a partir de la cuarta venta la landing
+     respondía "Prueba no disponible". */
+  if (resellerUserId && !planElegido) {
+    const demosUsed = await db.user.count({
+      where: { demoResellerId: resellerUserId, isDemo: true },
+    });
+    if (demosUsed >= resellerDemoLimit) {
+      return { success: false, error: "Prueba no disponible en este momento. Contacta al reseller para más información." };
+    }
+  }
+
+  /* ── Look up plan credits before transaction ── */
+  const planDeLaCuenta = planElegido?.plan ?? DEFAULT_REGISTER_PLAN;
+  const planCreditsConfig = await db.planConfig
+    .findUnique({ where: { plan: planDeLaCuenta } })
+    .catch(() => null);
+  const initialCredits = planCreditsConfig?.credits ?? FALLBACK_IA_CREDITS;
 
   const completedSteps: RegisterCompletedStep[] = [];
   let userId: string | null = null;
@@ -377,7 +445,7 @@ export async function fullRegisterAction(
           company,
           notificationNumber,
           role: "user",
-          plan: DEFAULT_REGISTER_PLAN,
+          plan: planDeLaCuenta,
           apiKeyId: resolvedApiKeyId,
           delSeguimiento: DEFAULT_DEL_SEGUIMIENTO,
           webhookUrl: DEFAULT_WEBHOOK_URL,
@@ -391,12 +459,17 @@ export async function fullRegisterAction(
           delayTimeGpt: "10",
           image: "https://medias3.verzay.co/verzay-media/VERZAY-ROBOT-PROFILE.png",
           trialEndsAt,
-          ...(resellerUserId && {
-            isDemo: true,
-            demoResellerId: resellerUserId,
-            demoCredits: 1000,
-            demoExpiresAt: trialEndsAt,
-          }),
+          // Con plan elegido queda como cliente del reseller (isDemo:false):
+          // es el estado que lo hace aparecer en su Clientes y su Finanzas con
+          // un monto que cobrar. Sin plan sigue siendo una demo prestada.
+          ...(resellerUserId && (planElegido
+            ? { isDemo: false, demoResellerId: resellerUserId }
+            : {
+              isDemo: true,
+              demoResellerId: resellerUserId,
+              demoCredits: 1000,
+              demoExpiresAt: trialEndsAt,
+            })),
         },
       });
 
@@ -405,7 +478,10 @@ export async function fullRegisterAction(
         data: {
           serviceName: "Agente IA",
           userId: created.id,
-          price: 0,
+          // El precio del plan que eligió. Es lo que después compara la
+          // confirmación de pago para decidir si renueva o manda a revisión, y
+          // lo que hace que la cuenta salga con monto en Finanzas.
+          price: planElegido?.price ?? 0,
           currencyCode: "USD",
           paymentMethodLabel: "Link de pago",
           paymentNotes: "👉 https://verzay.com/agente-ia",

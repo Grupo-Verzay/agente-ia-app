@@ -993,16 +993,15 @@ function PlanCard({ plan, assistanceType, billingPeriod, whatsappNumber, onOpenD
               <MessageCircle className="h-4 w-4" /> Contactar
             </Button>
           </a>
-        ) : checkoutUrl ? (
-          <a href={checkoutUrl} target="_blank" rel="noopener noreferrer">
-            <Button className={cn("w-full", plan.isPopular
-              ? "bg-blue-600 text-white hover:bg-blue-500"
-              : "border border-white/10 bg-white/10 text-white hover:bg-white/20")}>
-              Comenzar ahora
-            </Button>
-          </a>
         ) : (
-          <Link href={`/completar-registro?plan=${plan.plan}`}>
+          /* Primero la cuenta, después el pago.
+             El enlace de tienda que hay guardado en el plan es el mismo para
+             todos: el pago llega con un correo y un monto, sin decir de qué
+             marca es ni a qué cuenta activarle la licencia, y no hay cuenta
+             que activar porque todavía no existe. Registrándose primero, la
+             cuenta queda creada con este plan y su precio, y el botón de pagar
+             del perfil ya lleva la cuenta dentro. */
+          <Link href={`/register?plan=${plan.plan}&a=${assistanceType}`}>
             <Button className={cn("w-full", plan.isPopular
               ? "bg-blue-600 text-white hover:bg-blue-500"
               : "border border-white/10 bg-white/10 text-white hover:bg-white/20")}>
