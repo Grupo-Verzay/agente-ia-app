@@ -9,6 +9,12 @@ import {
   resolveWhatsAppDispatcherLineByInstanceName,
   sendViaWhatsAppDispatcher,
 } from '@/actions/whatsapp-dispatcher'
+import {
+  DEFAULT_FOLLOW_UP_DAYS,
+  MAX_TRIAL_DAYS,
+  resolveTrialDays,
+  validarDiasDeSeguimiento,
+} from '@/lib/trial-defaults'
 
 export interface TrialFollowUpConfigData {
   enabled: boolean
@@ -19,6 +25,12 @@ export interface TrialFollowUpConfigData {
   message1: string
   message3: string
   message6: string
+  /** Duración de la prueba gratis de esta marca. */
+  trialDays: number
+  /** Día en que sale cada uno de los tres seguimientos. */
+  dayOffset1: number
+  dayOffset2: number
+  dayOffset3: number
 }
 
 // La URL de Evolution puede estar guardada sin protocolo (ej. "evoapi.ia-app.com").
@@ -61,17 +73,23 @@ export async function getTrialFollowUpConfig(resellerId?: string) {
     where: { resellerId: targetId },
   })
 
+  // Cada valor se lee tal cual está guardado, uno por seguimiento. Ordenarlos
+  // aquí (como hace el cron) desharía la correspondencia con su texto.
   return {
     success: true,
-    data: config ?? {
-      enabled: true,
-      enabled1: true,
-      enabled3: true,
-      enabled6: true,
-      instanceName: '',
-      message1: DEFAULT_MESSAGES.message1,
-      message3: DEFAULT_MESSAGES.message3,
-      message6: DEFAULT_MESSAGES.message6,
+    data: {
+      enabled: config?.enabled ?? true,
+      enabled1: config?.enabled1 ?? true,
+      enabled3: config?.enabled3 ?? true,
+      enabled6: config?.enabled6 ?? true,
+      instanceName: config?.instanceName ?? '',
+      message1: config?.message1 ?? DEFAULT_MESSAGES.message1,
+      message3: config?.message3 ?? DEFAULT_MESSAGES.message3,
+      message6: config?.message6 ?? DEFAULT_MESSAGES.message6,
+      trialDays: resolveTrialDays(config),
+      dayOffset1: config?.dayOffset1 ?? DEFAULT_FOLLOW_UP_DAYS[0],
+      dayOffset2: config?.dayOffset2 ?? DEFAULT_FOLLOW_UP_DAYS[1],
+      dayOffset3: config?.dayOffset3 ?? DEFAULT_FOLLOW_UP_DAYS[2],
     },
   }
 }
@@ -82,6 +100,27 @@ export async function saveTrialFollowUpConfig(data: TrialFollowUpConfigData, res
 
   const targetId = resellerId && isAdmin(user.role) ? resellerId : user.id
 
+  const dias = [data.dayOffset1, data.dayOffset2, data.dayOffset3].map((d) => Math.floor(Number(d)))
+  const validacion = validarDiasDeSeguimiento(dias)
+  if (!validacion.ok) return { success: false, message: validacion.error }
+
+  const trialDays = Math.floor(Number(data.trialDays))
+  if (!Number.isFinite(trialDays) || trialDays < 1 || trialDays > MAX_TRIAL_DAYS) {
+    return { success: false, message: `La prueba debe durar entre 1 y ${MAX_TRIAL_DAYS} días.` }
+  }
+
+  // Un seguimiento posterior al fin de la prueba no sale nunca: al llegar ese
+  // día la cuenta ya venció y deja de estar en la lista. Avisar aquí evita
+  // dejar configurado algo que en silencio no hace nada.
+  const activos = [data.enabled1, data.enabled3, data.enabled6]
+  const fueraDePlazo = dias.filter((d, i) => activos[i] && d > trialDays)
+  if (fueraDePlazo.length) {
+    return {
+      success: false,
+      message: `El día ${fueraDePlazo.join(' y el ')} queda después de que venza la prueba (${trialDays} días), así que no se enviaría. Bájalo o apaga ese seguimiento.`,
+    }
+  }
+
   const payload = {
     enabled: data.enabled,
     enabled1: data.enabled1,
@@ -91,6 +130,10 @@ export async function saveTrialFollowUpConfig(data: TrialFollowUpConfigData, res
     message1: data.message1 || null,
     message3: data.message3 || null,
     message6: data.message6 || null,
+    trialDays,
+    dayOffset1: dias[0],
+    dayOffset2: dias[1],
+    dayOffset3: dias[2],
   }
 
   await db.trialFollowUpConfig.upsert({

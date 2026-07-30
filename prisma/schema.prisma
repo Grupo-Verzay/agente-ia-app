@@ -2349,6 +2349,14 @@ model TrialFollowUpConfig {
   message1     String?
   message3     String?
   message6     String?
+  // Duración de la prueba gratis de esta marca y día en que sale cada uno de
+  // los tres seguimientos. Las columnas las crea api-webhook (dueño de las
+  // migraciones); aquí solo se declaran.
+  // NULL = los valores de siempre: 7 días de prueba, seguimientos en 1, 3 y 6.
+  trialDays    Int?
+  dayOffset1   Int?
+  dayOffset2   Int?
+  dayOffset3   Int?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   reseller     User     @relation(fields: [resellerId], references: [id], onDelete: Cascade)
