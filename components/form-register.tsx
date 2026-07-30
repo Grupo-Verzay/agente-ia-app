@@ -475,12 +475,17 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, defaul
 
       const welcomeDelay = stepLabels.length * 400 + 200;
       setTimeout(() => {
+        // Quien compró no tiene prueba que anunciar: su cuenta se activa al
+        // pagar. Decirle "tu prueba ha iniciado" sería prometerle un mes que no
+        // tiene.
         toast.success(
-          `¡Bienvenido! Tu periodo de prueba gratuito ha iniciado. Vence el ${result.trialEndsLabel}`,
+          result.requiresPayment
+            ? "¡Cuenta creada! Falta el pago para activar tu plan."
+            : `¡Bienvenido! Tu periodo de prueba gratuito ha iniciado. Vence el ${result.trialEndsLabel}`,
           {
             duration: 8000,
-            description: defaultPlan
-              ? "En tu perfil está el botón para pagar y activar el plan."
+            description: result.requiresPayment
+              ? "En tu perfil está el botón para pagar y activar los 30 días."
               : result.whatsappUrl
                 ? "Te llevamos al chat para ver tu agente en acción."
                 : "Ve a tu perfil para escanear el QR y comenzar a usar la app.",

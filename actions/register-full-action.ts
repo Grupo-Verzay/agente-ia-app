@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { fullRegisterSchema } from "@/lib/zod";
 import { LENGTH_PASSWORD_HASH } from "@/types/generic";
 import { AuthError } from "next-auth";
-import { Plan, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import { z } from "zod";
@@ -15,6 +15,7 @@ import { AGENT_TEMPLATES } from "@/app/(root)/ai/_components/helpers/agentTempla
 import { AGENT_PROMPT_IDS } from "@/lib/agent-prompt-ids";
 import { cookies } from "next/headers";
 import { elegirServidorConCupo } from "@/lib/evolution-capacity";
+import { precioDePlanParaCuenta } from "@/lib/plan-pricing";
 
 /* ─────────────────────────────────────────
    Constants
@@ -52,6 +53,8 @@ export type FullRegisterResult =
     trialEndsLabel: string;
     completedSteps: RegisterCompletedStep[];
     whatsappUrl?: string;
+    /** Vino a comprar: la cuenta queda suspendida hasta que se confirme el pago. */
+    requiresPayment?: boolean;
   }
   | { success: false; error: string };
 
@@ -261,57 +264,6 @@ async function createInstanceForUser(
 }
 
 /* ─────────────────────────────────────────
-   Plan elegido en la landing
-───────────────────────────────────────── */
-type PlanElegido = { plan: Plan; price: number };
-
-/**
- * Traduce el plan que el cliente marcó en la landing a lo que hay que dejar en
- * la cuenta: el nivel y lo que se le va a cobrar.
- *
- * Hasta ahora el registro creaba a todo el mundo en el mismo nivel y con precio
- * 0, así que un pago posterior no tenía contra qué compararse ni qué activar.
- *
- * El precio sale del plan del reseller cuando el cliente entra por su landing
- * —cada marca pone el suyo— y del plan de la plataforma en los demás casos.
- */
-async function resolverPlanElegido(
-  planSlug: string | undefined,
-  assistanceType: string | undefined,
-  resellerUserId: string | null,
-): Promise<PlanElegido | null> {
-  const slug = planSlug?.trim().toLowerCase();
-  if (!slug) return null;
-
-  // El plan llega por la URL, así que se valida contra el enum antes de tocar
-  // la base: cualquier cosa que no sea un nivel real se ignora y el registro
-  // sigue como siempre, en vez de reventar.
-  const plan = (Object.values(Plan) as string[]).includes(slug) ? (slug as Plan) : null;
-  if (!plan) return null;
-
-  const tipo = assistanceType?.trim().toUpperCase() === "HUMANO" ? "HUMANO" : "IA";
-
-  if (resellerUserId) {
-    const propio = await db.resellerPlan
-      .findFirst({
-        where: { resellerUserId, plan, assistanceType: tipo, isActive: true },
-        select: { priceMonthly: true },
-      })
-      .catch(() => null);
-    if (propio) return { plan, price: Number(propio.priceMonthly) };
-  }
-
-  const dePlataforma = await db.subscriptionPlan
-    .findFirst({
-      where: { plan, assistanceType: tipo, isResellerPlan: false, isActive: true },
-      select: { priceUSD: true },
-    })
-    .catch(() => null);
-
-  return { plan, price: Number(dePlataforma?.priceUSD ?? 0) };
-}
-
-/* ─────────────────────────────────────────
    Main server action
 ───────────────────────────────────────── */
 export async function fullRegisterAction(
@@ -403,7 +355,7 @@ export async function fullRegisterAction(
     }
   }
 
-  const planElegido = await resolverPlanElegido(
+  const planElegido = await precioDePlanParaCuenta(
     planElegidoRef?.planSlug,
     planElegidoRef?.assistanceType,
     resellerUserId,
@@ -458,7 +410,10 @@ export async function fullRegisterAction(
           autoReactivate: "30",
           delayTimeGpt: "10",
           image: "https://medias3.verzay.co/verzay-media/VERZAY-ROBOT-PROFILE.png",
-          trialEndsAt,
+          // Quien viene a comprar no entra con prueba: la cuenta se activa al
+          // pagar. Marcarle una prueba le regalaría los 30 días y además lo
+          // metería en los seguimientos de prueba, que no son para él.
+          trialEndsAt: planElegido ? null : trialEndsAt,
           // Con plan elegido queda como cliente del reseller (isDemo:false):
           // es el estado que lo hace aparecer en su Clientes y su Finanzas con
           // un monto que cobrar. Sin plan sigue siendo una demo prestada.
@@ -482,17 +437,32 @@ export async function fullRegisterAction(
           // confirmación de pago para decidir si renueva o manda a revisión, y
           // lo que hace que la cuenta salga con monto en Finanzas.
           price: planElegido?.price ?? 0,
-          currencyCode: "USD",
+          currencyCode: planElegido?.currency ?? "USD",
           paymentMethodLabel: "Link de pago",
           paymentNotes: "👉 https://verzay.com/agente-ia",
           notifyRemoteJid: notificationNumber,
-          billingStatus: "PAID",
-          accessStatus: "ACTIVE",
-          dueDate: trialEndsAt,
-          serviceStartAt: now,
-          serviceEndsAt: trialEndsAt,
+          // Con plan elegido la cuenta nace pendiente de pago y suspendida: se
+          // crea para poder cobrarla, no para regalar el mes. Al confirmarse el
+          // pago se marca pagada y la fecha se corre 30 días (licenseDays).
+          // Sin plan, sigue siendo la prueba de siempre.
+          ...(planElegido
+            ? {
+              billingStatus: "UNPAID" as const,
+              accessStatus: "SUSPENDED" as const,
+              dueDate: now,
+              serviceStartAt: now,
+              serviceEndsAt: now,
+              licenseDays: PAID_TRIAL_DAYS,
+            }
+            : {
+              billingStatus: "PAID" as const,
+              accessStatus: "ACTIVE" as const,
+              dueDate: trialEndsAt,
+              serviceStartAt: now,
+              serviceEndsAt: trialEndsAt,
+              licenseDays: trialDays,
+            }),
           graceDays: 0,
-          licenseDays: trialDays,
         },
       });
 
@@ -671,6 +641,7 @@ export async function fullRegisterAction(
       trialEndsLabel: formatTrialDate(trialEndsAt),
       completedSteps,
       whatsappUrl,
+      requiresPayment: Boolean(planElegido),
     };
   } catch (error: unknown) {
     // If user was created but something after the transaction failed, clean up

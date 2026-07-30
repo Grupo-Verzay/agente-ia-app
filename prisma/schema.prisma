@@ -1677,6 +1677,10 @@ model SiteConfig {
   connectionAlertMessage  String?
   /// Instancia que lo emite. NULL = la del dueño de cada cliente.
   connectionAlertInstance String?
+  // Tasa USD -> COP. Los planes se publican en USD como referencia, pero el
+  // cobro real entra en pesos por Wompi. NULL = no convertir. La columna la crea
+  // api-webhook (dueño de las migraciones); aquí solo se declara.
+  usdToCopRate            Decimal? @map("usd_to_cop_rate") @db.Decimal(12, 2)
   updatedAt               DateTime @updatedAt
 
   @@map("site_config")
