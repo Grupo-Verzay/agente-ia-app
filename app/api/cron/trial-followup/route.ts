@@ -37,7 +37,6 @@ Tu *prueba gratis* finaliza mañana. 🚀
 💬 Escríbenos para ayudarte a elegir el plan ideal.`,
 }
 
-const FOLLOW_UP_DAYS = [1, 3, 6]
 const MAX_ATTEMPTS = 3
 // Hora local del cliente en la que se envía el seguimiento. El cron corre cada
 // hora al minuto :30, así que al exigir la hora 9 el mensaje llega ~9:30 AM
@@ -105,6 +104,64 @@ function resolveMessage(template: string | null | undefined, fallback: string, n
   return (template || fallback).replace(/\{nombre\}/gi, name || 'amigo')
 }
 
+type SeguimientoConfig = {
+  enabled1: boolean
+  enabled3: boolean
+  enabled6: boolean
+  message1: string | null
+  message3: string | null
+  message6: string | null
+  dayOffset1: number | null
+  dayOffset2: number | null
+  dayOffset3: number | null
+}
+
+type Seguimiento = { day: number; enabled: boolean; message: string | null; fallback: string }
+
+/**
+ * Los tres seguimientos de una marca, ordenados por el día en que salen.
+ *
+ * El día ya no está fijo en 1/3/6: cada marca lo configura, porque una prueba
+ * de 3 días con el último seguimiento en el día 6 nunca lo enviaría. Por eso el
+ * texto se lleva pegado a su día en vez de deducirse del número: si alguien
+ * pone el primer seguimiento en el día 5 y el segundo en el 2, el texto tiene
+ * que seguir a su casilla, no al orden.
+ */
+function seguimientosDe(config: SeguimientoConfig | null | undefined): Seguimiento[] {
+  const slots: Seguimiento[] = [
+    {
+      day: config?.dayOffset1 ?? 1,
+      enabled: config?.enabled1 ?? true,
+      message: config?.message1 ?? null,
+      fallback: DEFAULT_MESSAGES[1],
+    },
+    {
+      day: config?.dayOffset2 ?? 3,
+      enabled: config?.enabled3 ?? true,
+      message: config?.message3 ?? null,
+      fallback: DEFAULT_MESSAGES[3],
+    },
+    {
+      day: config?.dayOffset3 ?? 6,
+      enabled: config?.enabled6 ?? true,
+      message: config?.message6 ?? null,
+      fallback: DEFAULT_MESSAGES[6],
+    },
+  ]
+
+  // El registro de envíos es único por (usuario, día), así que dos seguimientos
+  // el mismo día se pisarían: se queda el primero. El guardado ya lo impide,
+  // pero una fila vieja podría traerlo.
+  const vistos = new Set<number>()
+  const unicos: Seguimiento[] = []
+  for (const s of slots) {
+    if (!Number.isFinite(s.day) || s.day < 1 || vistos.has(s.day)) continue
+    vistos.add(s.day)
+    unicos.push(s)
+  }
+  return unicos.sort((a, b) => a.day - b.day)
+}
+
 async function runTrialFollowUps() {
   const now = new Date()
 
@@ -168,18 +225,25 @@ async function runTrialFollowUps() {
     const userLogs = logsByUser.get(user.id) ?? []
     const logByDay = new Map(userLogs.map(l => [l.day, l]))
 
-    // Día objetivo: el seguimiento más antiguo que YA tocaba (día <= days),
-    // que no se haya enviado con éxito y que no haya agotado los reintentos.
-    // Esto recupera envíos perdidos si el cron no corrió un día concreto (fix catch-up),
-    // y reintenta los FAILED hasta MAX_ATTEMPTS (fix reintentos).
-    const targetDay = FOLLOW_UP_DAYS.find(d => {
-      if (d > days) return false
-      const log = logByDay.get(d)
+    // Config aplicable: la del reseller del usuario; si no tiene, la central
+    // (admin). De ella salen también los días, que ya no son fijos: cada marca
+    // configura la duración de su prueba y cuándo sale cada seguimiento.
+    const config =
+      (user.demoResellerId ? configByReseller.get(user.demoResellerId) : null) ?? adminConfig ?? null
+
+    // Seguimiento objetivo: el más antiguo que YA tocaba (día <= days), que no
+    // se haya enviado con éxito y que no haya agotado los reintentos. Esto
+    // recupera envíos perdidos si el cron no corrió un día concreto (fix
+    // catch-up), y reintenta los FAILED hasta MAX_ATTEMPTS (fix reintentos).
+    const target = seguimientosDe(config).find(s => {
+      if (s.day > days) return false
+      const log = logByDay.get(s.day)
       if (!log) return true
       if (log.status === 'SENT') return false
       return log.attempts < MAX_ATTEMPTS
     })
-    if (targetDay === undefined) continue
+    if (!target) continue
+    const targetDay = target.day
 
     // Respeta la zona horaria del cliente: solo se envía durante la hora 9 local
     // (el cron corre a :30 → llega ~9:30 AM). Fuera de esa hora se difiere a la
@@ -190,13 +254,8 @@ async function runTrialFollowUps() {
       continue
     }
 
-    // Config aplicable: la del reseller del usuario; si no tiene, la central (admin).
-    const config =
-      (user.demoResellerId ? configByReseller.get(user.demoResellerId) : null) ?? adminConfig ?? null
-
-    // Apagado global o apagado específico para este día.
-    const dayEnabledKey = `enabled${targetDay}` as 'enabled1' | 'enabled3' | 'enabled6'
-    if (config && (!config.enabled || !config[dayEnabledKey])) { results.skipped++; continue }
+    // Apagado global o apagado específico para este seguimiento.
+    if ((config && !config.enabled) || !target.enabled) { results.skipped++; continue }
 
     const recordLog = (status: 'SENT' | 'FAILED', error?: string) =>
       db.trialFollowUpLog.upsert({
@@ -222,8 +281,7 @@ async function runTrialFollowUps() {
       continue
     }
 
-    const messageKey = `message${targetDay}` as 'message1' | 'message3' | 'message6'
-    const text = resolveMessage(config?.[messageKey], DEFAULT_MESSAGES[targetDay], user.name ?? '')
+    const text = resolveMessage(target.message, target.fallback, user.name ?? '')
 
     try {
       const sendResult = await sendViaWhatsAppDispatcher({

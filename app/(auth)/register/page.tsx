@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import FormRegister from "@/components/form-register";
 import { getCountryCodes } from "@/actions/get-country-action";
 import { getPublicBrandingBySlug } from "@/actions/public-branding-actions";
+import { db } from "@/lib/db";
+import { diasDePruebaDeMarca } from "@/lib/trial-days.server";
 
 interface Props {
   searchParams: { ref?: string; aff?: string; plan?: string; a?: string; r?: string; obj?: string };
@@ -22,6 +24,17 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 const RegisterPage = async ({ searchParams }: Props) => {
   const countries = await getCountryCodes();
 
+  // Los días de prueba los pone cada marca, así que el encabezado no puede
+  // anunciar un número fijo: se resuelve aquí, donde ya se sabe por qué landing
+  // entró el cliente.
+  const slug = searchParams.r?.trim();
+  const reseller = slug
+    ? await db.reseller
+      .findFirst({ where: { slug }, select: { resellerid: true } })
+      .catch(() => null)
+    : null;
+  const trialDays = await diasDePruebaDeMarca(reseller?.resellerid ?? null);
+
   return (
     <FormRegister
       countries={countries}
@@ -31,6 +44,7 @@ const RegisterPage = async ({ searchParams }: Props) => {
       defaultAssistanceType={searchParams.a}
       resellerSlug={searchParams.r}
       defaultSalesObjective={searchParams.obj}
+      trialDays={trialDays}
     />
   );
 };

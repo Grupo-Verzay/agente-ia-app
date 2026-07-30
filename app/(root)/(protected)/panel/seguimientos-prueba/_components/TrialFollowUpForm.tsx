@@ -34,6 +34,10 @@ interface Props {
     message1: string
     message3: string
     message6: string
+    trialDays: number
+    dayOffset1: number
+    dayOffset2: number
+    dayOffset3: number
   }
 }
 
@@ -48,11 +52,14 @@ const DEFAULT_MESSAGES: Record<DayKey, string> = {
 
 type DayKey = 'message1' | 'message3' | 'message6'
 type EnabledKey = 'enabled1' | 'enabled3' | 'enabled6'
+type OffsetKey = 'dayOffset1' | 'dayOffset2' | 'dayOffset3'
 
-const DAYS: { key: DayKey; enabledKey: EnabledKey; day: string; hint: string }[] = [
-  { key: 'message1', enabledKey: 'enabled1', day: 'Día 1', hint: 'Primer contacto — bienvenida y disposición a ayudar' },
-  { key: 'message3', enabledKey: 'enabled3', day: 'Día 3', hint: 'Seguimiento — ver cómo va la experiencia y ofrecer apoyo' },
-  { key: 'message6', enabledKey: 'enabled6', day: 'Día 6', hint: 'Cierre — recordar que la prueba termina y motivar a contratar' },
+// El día de cada seguimiento ya no está fijo: cada marca lo configura, porque
+// una prueba de 3 días con el último seguimiento en el día 6 nunca lo envía.
+const DAYS: { key: DayKey; enabledKey: EnabledKey; offsetKey: OffsetKey; hint: string }[] = [
+  { key: 'message1', enabledKey: 'enabled1', offsetKey: 'dayOffset1', hint: 'Primer contacto — bienvenida y disposición a ayudar' },
+  { key: 'message3', enabledKey: 'enabled3', offsetKey: 'dayOffset2', hint: 'Seguimiento — ver cómo va la experiencia y ofrecer apoyo' },
+  { key: 'message6', enabledKey: 'enabled6', offsetKey: 'dayOffset3', hint: 'Cierre — recordar que la prueba termina y motivar a contratar' },
 ]
 
 const fillName = (text: string) => text.replace(/\{nombre\}/gi, SAMPLE_NAME)
@@ -67,6 +74,10 @@ export function TrialFollowUpForm({ initial }: Props) {
     message1: initial.message1 ?? '',
     message3: initial.message3 ?? '',
     message6: initial.message6 ?? '',
+    trialDays: initial.trialDays,
+    dayOffset1: initial.dayOffset1,
+    dayOffset2: initial.dayOffset2,
+    dayOffset3: initial.dayOffset3,
   })
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState<DayKey | null>(null)
@@ -118,6 +129,10 @@ export function TrialFollowUpForm({ initial }: Props) {
       message1: initial.message1 ?? '',
       message3: initial.message3 ?? '',
       message6: initial.message6 ?? '',
+      trialDays: initial.trialDays,
+      dayOffset1: initial.dayOffset1,
+      dayOffset2: initial.dayOffset2,
+      dayOffset3: initial.dayOffset3,
     })
     toast.message('Cambios descartados')
   }
@@ -143,7 +158,7 @@ export function TrialFollowUpForm({ initial }: Props) {
                 Seguimientos automáticos por WhatsApp
               </CardTitle>
               <CardDescription className="mt-1 text-xs">
-                Envía mensajes automáticos a los prospectos que se registran en la prueba gratis (Día 1, 3 y 6).
+                Envía mensajes automáticos a los prospectos que se registran en la prueba gratis.
                 Usa <code className="bg-muted px-1 rounded text-[11px]">{'{nombre}'}</code> para insertar el nombre del prospecto.
               </CardDescription>
             </div>
@@ -153,7 +168,28 @@ export function TrialFollowUpForm({ initial }: Props) {
             />
           </div>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 space-y-4">
+          {/* Duración de la prueba de ESTA marca. Estaba fija en 7 días para
+              todos; cada marca vende distinto y no tiene por qué regalar los
+              mismos días. Solo afecta a los registros nuevos: a quien ya está
+              en prueba no se le mueve la fecha. */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">Días que dura la prueba gratis</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={1}
+                max={90}
+                value={form.trialDays}
+                onChange={(e) => setForm(f => ({ ...f, trialDays: Number(e.target.value) }))}
+                className="h-8 w-24"
+              />
+              <span className="text-[11px] text-muted-foreground">
+                Aplica a las cuentas que se registren de ahora en adelante.
+              </span>
+            </div>
+          </div>
+
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-semibold">Linea de WhatsApp para enviar</Label>
@@ -221,10 +257,14 @@ export function TrialFollowUpForm({ initial }: Props) {
       </Card>
 
       {/* Mensajes por día */}
-      {DAYS.map(({ key, enabledKey, day, hint }) => {
+      {DAYS.map(({ key, enabledKey, offsetKey, hint }) => {
         const value = form[key]
         const effective = value?.trim() || DEFAULT_MESSAGES[key]
         const dayOn = form.enabled && form[enabledKey]
+        const day = `Día ${form[offsetKey]}`
+        // Un seguimiento posterior al fin de la prueba no sale nunca: para
+        // entonces la cuenta ya venció y deja de estar en la lista.
+        const fueraDePlazo = dayOn && form[offsetKey] > form.trialDays
         return (
           <Card key={key} className={dayOn ? '' : 'opacity-60'}>
             <CardHeader className="pb-2">
@@ -236,11 +276,24 @@ export function TrialFollowUpForm({ initial }: Props) {
                   </CardTitle>
                   <CardDescription className="text-xs">{hint}</CardDescription>
                 </div>
-                <Switch
-                  checked={form[enabledKey]}
-                  disabled={!form.enabled}
-                  onCheckedChange={(v) => setForm(f => ({ ...f, [enabledKey]: v }))}
-                />
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-[11px] text-muted-foreground">Día</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={form[offsetKey]}
+                      disabled={!form.enabled}
+                      onChange={(e) => setForm(f => ({ ...f, [offsetKey]: Number(e.target.value) }))}
+                      className="h-7 w-16"
+                    />
+                  </div>
+                  <Switch
+                    checked={form[enabledKey]}
+                    disabled={!form.enabled}
+                    onCheckedChange={(v) => setForm(f => ({ ...f, [enabledKey]: v }))}
+                  />
+                </div>
               </div>
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
@@ -266,6 +319,12 @@ export function TrialFollowUpForm({ initial }: Props) {
                   {testing === key ? 'Enviando…' : 'Probar a mi número'}
                 </Button>
               </div>
+              {fueraDePlazo && (
+                <p className="text-[11px] text-amber-600">
+                  El día {form[offsetKey]} cae después de que venza la prueba ({form.trialDays} días), así que
+                  este mensaje no se enviaría.
+                </p>
+              )}
               {/* Vista previa */}
               <div className="rounded-md bg-muted/50 px-3 py-2">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Vista previa</p>

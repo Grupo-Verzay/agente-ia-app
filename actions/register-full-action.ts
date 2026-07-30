@@ -16,6 +16,7 @@ import { AGENT_PROMPT_IDS } from "@/lib/agent-prompt-ids";
 import { cookies } from "next/headers";
 import { elegirServidorConCupo } from "@/lib/evolution-capacity";
 import { precioDePlanParaCuenta } from "@/lib/plan-pricing";
+import { diasDePruebaDeMarca } from "@/lib/trial-days.server";
 
 /* ─────────────────────────────────────────
    Constants
@@ -26,7 +27,6 @@ const DEFAULT_API_URL = process.env.SECRET_API_KEY;
 const DEFAULT_DEL_SEGUIMIENTO = "Estamos para servirle.";
 const DEFAULT_REGISTER_PLAN = "avanzado" as const;
 const FALLBACK_IA_CREDITS = 8000;
-const FREE_TRIAL_DAYS = 7;
 const PAID_TRIAL_DAYS = 30;
 
 const DEFAULT_TAGS = [
@@ -300,10 +300,7 @@ export async function fullRegisterAction(
   }
 
   /* ── Prepare dates ── */
-  const trialDays = isPaid ? PAID_TRIAL_DAYS : FREE_TRIAL_DAYS;
   const now = new Date();
-  const trialEndsAt = new Date(now);
-  trialEndsAt.setDate(trialEndsAt.getDate() + trialDays);
 
   const resolvedTimezone =
     timezone ?? "America/Bogota";
@@ -374,6 +371,17 @@ export async function fullRegisterAction(
       return { success: false, error: "Prueba no disponible en este momento. Contacta al reseller para más información." };
     }
   }
+
+  /* ── Duración de la prueba ──
+     La pone cada marca desde su pantalla de seguimientos: Verzay y Aizen-Bot
+     venden distinto y no tienen por qué regalar los mismos días. Antes eran 7
+     fijos para todos. Quien viene a comprar no tiene prueba, así que solo se
+     usa para el resto. */
+  const trialDays = planElegido
+    ? PAID_TRIAL_DAYS
+    : await diasDePruebaDeMarca(resellerUserId);
+  const trialEndsAt = new Date(now);
+  trialEndsAt.setDate(trialEndsAt.getDate() + trialDays);
 
   /* ── Look up plan credits before transaction ── */
   const planDeLaCuenta = planElegido?.plan ?? DEFAULT_REGISTER_PLAN;

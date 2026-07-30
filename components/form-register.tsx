@@ -394,7 +394,7 @@ const PLAN_DISPLAY: Record<string, string> = {
   avanzado: "Avanzado", enterprise: "Enterprise", personalizado: "Agencias",
 };
 
-const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, defaultAssistanceType, resellerSlug, defaultSalesObjective }: {
+const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, defaultAssistanceType, resellerSlug, defaultSalesObjective, trialDays }: {
   countries: Country[];
   apiKeyRef?: string;
   affiliateCode?: string;
@@ -402,6 +402,8 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, defaul
   defaultAssistanceType?: string;
   resellerSlug?: string;
   defaultSalesObjective?: string;
+  /** Días de prueba de esta marca. Se resuelve en el servidor. */
+  trialDays?: number;
 }) => {
   const [step, setStep] = useState(1);
   const [areaCode, setAreaCode] = useState("");
@@ -511,8 +513,13 @@ const FormRegister = ({ countries, apiKeyRef, affiliateCode, defaultPlan, defaul
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-2xl font-bold tracking-tight">Activa tu cuenta</h1>
+        {/* Con plan elegido no hay días regalados: la cuenta se activa al pagar.
+            Y los días de prueba los pone cada marca, así que tampoco se pueden
+            anunciar 30 fijos como antes. */}
         <p className="text-muted-foreground mt-2 text-sm">
-          30 días de acceso · Configuración incluida
+          {defaultPlan
+            ? "Creas tu cuenta y activas el plan con el pago"
+            : `${trialDays ?? 7} días de acceso · Configuración incluida`}
         </p>
         {defaultPlan && PLAN_DISPLAY[defaultPlan] && (
           <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm text-primary">
