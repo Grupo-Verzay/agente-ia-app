@@ -399,6 +399,9 @@ export async function createRegistro(input: {
             const createdRegistro = await tx.registro.create({
                 data: {
                     sessionId: input.sessionId,
+                    // Explícito aunque el disparador de la base lo pondría igual:
+                    // aquí se sabe de quién es y así se lee en el código.
+                    userId: session.userId,
                     tipo: input.tipo,
                     fecha: input.fecha ? new Date(input.fecha) : new Date(),
                     estado: input.estado,
@@ -757,21 +760,29 @@ export async function getRegistrosByUserId(
             };
         }
 
-        const whereClauses: Prisma.RegistroWhereInput[] = [
-            {
-                session: {
-                    userId,
-                    ...(leadStatus === "none"
-                        ? { leadStatus: null }
-                        : leadStatus
-                            ? { leadStatus }
-                            : {}),
-                    ...(combinedSessionIds
-                        ? { id: { in: combinedSessionIds } }
-                        : {}),
-                },
-            },
-        ];
+        // El dueño se filtra por la columna del propio registro, no cruzando la
+        // sesión de cada uno. Antes se recorrían los registros de TODOS y se
+        // descartaban los ajenos de uno en uno: la auditoría midió 22.691
+        // páginas leídas para devolver 4 filas, y empeoraba con cada lead que
+        // entraba, fuera del cliente que fuera.
+        //
+        // Lo demás sí sigue viviendo en la sesión (el estado del lead, la
+        // selección por seguimientos), así que ese cruce se mantiene solo cuando
+        // hace falta.
+        const filtroDeSesion: Prisma.SessionWhereInput = {
+            ...(leadStatus === "none"
+                ? { leadStatus: null }
+                : leadStatus
+                    ? { leadStatus }
+                    : {}),
+            ...(combinedSessionIds ? { id: { in: combinedSessionIds } } : {}),
+        };
+
+        const whereClauses: Prisma.RegistroWhereInput[] = [{ userId }];
+
+        if (Object.keys(filtroDeSesion).length) {
+            whereClauses.push({ session: filtroDeSesion });
+        }
 
         if (tipo) {
             whereClauses.push({ tipo });
@@ -883,8 +894,10 @@ export async function getCrmDashboardStatsByUserId(
                 }
                 : undefined;
 
+        // Igual que el listado: el dueño sale de la columna del registro, sin
+        // cruzar la sesión de cada uno.
         const registroWhere = {
-            session: { userId },
+            userId,
             ...(fechaWhere ? { fecha: fechaWhere } : {}),
         };
 
@@ -911,7 +924,7 @@ export async function getCrmDashboardStatsByUserId(
 
             // 4) últimos 7 días
             db.registro.findMany({
-                where: { session: { userId }, fecha: { gte: start } },
+                where: { userId, fecha: { gte: start } },
                 select: { fecha: true },
                 orderBy: { fecha: "asc" },
             }),
