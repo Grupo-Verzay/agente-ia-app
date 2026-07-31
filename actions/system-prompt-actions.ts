@@ -1,6 +1,7 @@
 ﻿'use server';
 
 import { db } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { assertCanAccessTargetUser } from './billing/helpers/app-access-guard';
@@ -417,6 +418,34 @@ export async function patchSection(input: z.infer<typeof PatchSectionSchema>) {
     });
 }
 
+/**
+ * Cuántas revisiones se conservan de cada prompt.
+ *
+ * Cada una guarda el prompt entero —unos 23 kB— y hasta ahora no se borraba
+ * ninguna: la tabla acumulaba 181 MB desde octubre y era la cuarta más grande
+ * de la base. Veinte cubre de sobra el "vuelve a como estaba antes", que es
+ * para lo que se consultan.
+ */
+const REVISIONES_A_CONSERVAR = 20;
+
+/** Borra las revisiones que se salen de las últimas N de este prompt. */
+async function podarRevisionesAntiguas(
+    tx: Prisma.TransactionClient,
+    promptId: string,
+): Promise<void> {
+    const sobrantes = await tx.agentPromptRevision.findMany({
+        where: { promptId },
+        select: { id: true },
+        orderBy: { revisionNumber: "desc" },
+        skip: REVISIONES_A_CONSERVAR,
+    });
+
+    if (!sobrantes.length) return;
+    await tx.agentPromptRevision.deleteMany({
+        where: { id: { in: sobrantes.map((r) => r.id) } },
+    });
+}
+
 /** Publica (crea revisión) + deja el draft sincronizado. */
 export async function publishPrompt(input: z.infer<typeof PublishSchema>) {
     try {
@@ -455,6 +484,8 @@ export async function publishPrompt(input: z.infer<typeof PublishSchema>) {
                     version: { increment: 1 },
                 },
             });
+
+            await podarRevisionesAntiguas(tx, promptId);
 
             return { ok: true, data: { prompt: updated, revision } } as Ok<{ prompt: typeof updated; revision: typeof revision }>;
         });
