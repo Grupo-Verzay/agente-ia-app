@@ -178,9 +178,15 @@ interface Props {
   resellerFormName?: string | null;
   countries?: any[];
   isReseller?: boolean;
+  /** Plan marcado en la landing. Con él la cuenta nace pendiente de pago. */
+  planSlug?: string;
+  assistanceType?: string;
+  /** Enlaces de registro (?ref=) y de afiliado (?aff=), que antes entraban por /register. */
+  apiKeyRef?: string;
+  affiliateCode?: string;
 }
 
-export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerFormName, countries = [], isReseller = false }: Props) {
+export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerFormName, countries = [], isReseller = false, planSlug, assistanceType, apiKeyRef, affiliateCode }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successData, setSuccessData] = useState<{ email: string; whatsappUrl?: string } | null>(null);
@@ -256,10 +262,11 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
         clienteIdeal: values.clienteIdeal ?? '',
         tono: values.tono ?? '',
       },
-      undefined,
-      undefined,
+      apiKeyRef,
+      affiliateCode,
       resellerSlug,
-      false
+      false,
+      { planSlug, assistanceType }
     );
 
     setIsSubmitting(false);
@@ -274,7 +281,11 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
     // SIEMPRE el asistente "Da de alta tu Agente IA" (sin depender del auto-abrir,
     // que en algunos flujos —p. ej. cuentas demo de reseller— no aparecía).
     // Navegación dura para que la petición lleve la cookie de sesión recién creada.
-    window.location.href = "/profile?alta_agente=1";
+    //
+    // Quien vino con un plan no entra al asistente: su cuenta está pendiente de
+    // pago y lo que le toca ver es el botón de pagar. Configurar el agente antes
+    // de tenerlo activo sería trabajo que quizá no llegue a usar.
+    window.location.href = planSlug ? "/profile" : "/profile?alta_agente=1";
   };
 
   if (successData) {
@@ -316,7 +327,7 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
         </div>
 
         <p className="text-xs text-slate-500">
-          {isReseller ? 'Panel de reseller · Soporte dedicado incluido' : '🔒 Tus datos se guardan de forma segura · 7 días'}
+          {isReseller ? 'Panel de reseller · Soporte dedicado incluido' : '🔒 Tus datos se guardan de forma segura'}
         </p>
       </div>
     );
@@ -455,11 +466,11 @@ export function RegistroReunionForm({ resellerSlug, resellerSheetsUrl, resellerF
           <span className="text-blue-400">Términos</span> y la{' '}
           <span className="text-blue-400">Política de privacidad</span>.
         </p>
-        <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-slate-500">
-          🔒 Tus datos se guardan de forma segura ·
-          <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 font-semibold text-emerald-400">
-            7 días
-          </span>
+        {/* Sin la duración de la prueba: la pone cada marca desde su panel y
+            quien viene con un plan no tiene prueba, así que un número aquí solo
+            puede acabar mintiendo. */}
+        <p className="text-center text-xs text-slate-500">
+          🔒 Tus datos se guardan de forma segura
         </p>
       </form>
   );
