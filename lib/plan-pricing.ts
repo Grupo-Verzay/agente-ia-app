@@ -37,6 +37,58 @@ export async function convertirAMonedaDeCobro(
     return { price: Math.round(precioUSD * tasa), currency: "COP" };
 }
 
+/**
+ * Nombre comercial del plan de una cuenta.
+ *
+ * Cada marca le pone el suyo al mismo nivel interno, así que a un cliente de
+ * Aizen-Bot hay que mostrarle el nombre de Aizen-Bot y no el de Verzay. Sin
+ * nombre propio, la etiqueta por defecto del nivel.
+ */
+export async function etiquetaDePlanParaCuenta(
+    plan: Plan,
+    resellerUserId: string | null,
+): Promise<string | null> {
+    try {
+        if (resellerUserId) {
+            const propio = await db.resellerPlan.findFirst({
+                where: { resellerUserId, plan, isActive: true },
+                select: { name: true },
+                orderBy: { assistanceType: "asc" },
+            });
+            if (propio?.name?.trim()) return propio.name.trim();
+        }
+
+        const dePlataforma = await db.subscriptionPlan.findFirst({
+            where: { plan, isResellerPlan: false, isActive: true },
+            select: { name: true },
+            orderBy: { assistanceType: "asc" },
+        });
+        return dePlataforma?.name?.trim() || null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Cuántos dólares son esos pesos, con la tasa configurada.
+ *
+ * Es la referencia con la que el cliente vio el precio en la landing: verlo al
+ * lado del monto en pesos es lo que le confirma que no le están cobrando otra
+ * cosa. Sin tasa puesta, no hay equivalencia que mostrar.
+ */
+export async function equivalenteEnUsd(montoCop: number): Promise<number | null> {
+    if (!Number.isFinite(montoCop) || montoCop <= 0) return null;
+
+    const cfg = await db.siteConfig
+        .findUnique({ where: { id: 1 }, select: { usdToCopRate: true } })
+        .catch(() => null);
+
+    const tasa = Number(cfg?.usdToCopRate ?? 0);
+    if (!Number.isFinite(tasa) || tasa <= 0) return null;
+
+    return Math.round(montoCop / tasa);
+}
+
 /** El nivel llega por URL o por un formulario, así que se valida contra el enum. */
 export function normalizarPlan(valor: string | undefined | null): Plan | null {
     const slug = valor?.trim().toLowerCase();
