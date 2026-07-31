@@ -327,6 +327,12 @@ model Registro {
   detalles     String?
   meta         Json?
   sessionId    Int
+  // Dueño del registro. Antes había que llegar a él por la sesión, y listar los
+  // de alguien obligaba a recorrer los de todos. Lo rellena un disparador de la
+  // base cuando viene vacío, para que ninguno de los sitios que crean registros
+  // —el panel, el backend y la restauración de copias— pueda olvidarlo. La
+  // columna la crea api-webhook (dueño de las migraciones); aquí se declara.
+  userId       String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   id           Int           @id @default(autoincrement())
@@ -335,6 +341,7 @@ model Registro {
 
   @@index([tipo, fecha])
   @@index([sessionId])
+  @@index([userId, fecha(sort: Desc)], map: "Registro_userId_fecha_idx")
 }
 
 model Reminders {
