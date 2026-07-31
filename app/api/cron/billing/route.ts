@@ -1,6 +1,7 @@
 import { runBillingDailyJobSystem } from "@/actions/billing/billing-job-actions";
 import { runResellerBillingForAll } from "@/actions/billing/reseller-billing-actions";
 import { purgarCuentasEliminadasPendientes } from "@/lib/purge-account.server";
+import { podarRevisionesDePromptsPendientes } from "@/lib/prompt-revisions-cleanup.server";
 import { NextResponse } from "next/server";
 
 const CRON_HEADER = "x-cron-secret";
@@ -51,7 +52,20 @@ export async function POST(request: Request) {
     purgaCuentas = { error: e instanceof Error ? e.message : String(e) };
   }
 
-  return NextResponse.json({ ...result, resellerBilling, purgaCuentas }, { status: result.success ? 200 : 500 });
+  // Histórico de revisiones de prompts acumulado antes de que el publicado
+  // empezara a podar. Se pone al día de poco en poco; si no hay nada que
+  // recortar, no hace nada.
+  let podaRevisiones: unknown = null;
+  try {
+    podaRevisiones = await podarRevisionesDePromptsPendientes();
+  } catch (e) {
+    podaRevisiones = { error: e instanceof Error ? e.message : String(e) };
+  }
+
+  return NextResponse.json(
+    { ...result, resellerBilling, purgaCuentas, podaRevisiones },
+    { status: result.success ? 200 : 500 },
+  );
 }
 
 export async function GET(request: Request) {
