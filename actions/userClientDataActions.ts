@@ -9,6 +9,7 @@ import { getIaCreditByUser } from './actions-ia-credits';
 import { inheritResellerAiConfig } from './userAiconfig-actions';
 import { currentUser } from '@/lib/auth';
 import { isAdminLike, isAdminOrReseller } from '@/lib/rbac';
+import { purgarCuentaEliminada } from '@/lib/purge-account.server';
 import { getRemindersByUserId } from './reminders-actions';
 import { DEFAULT_REMINDERS_TEMPLATES } from '@/types/reminder';
 import bcrypt from "bcryptjs";
@@ -116,10 +117,14 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
       // gestionan dentro del equipo de su cuenta padre.
       // Opcionalmente excluir clientes de resellers (demoResellerId != null
       // y/o asignados por la tabla reseller vieja).
+      // `deletedAt: null` deja fuera las cuentas ya eliminadas: siguen en la
+      // base unos segundos mientras se purgan sus datos, y sin esto reaparecían
+      // en la lista después de borrarlas.
       where: userIds
-        ? { id: { in: userIds }, ownerId: null }
+        ? { id: { in: userIds }, ownerId: null, deletedAt: null }
         : {
             ownerId: null,
+            deletedAt: null,
             ...(filter?.excludeResellerClients ? { demoResellerId: null } : {}),
             ...(resellerAssignedIds.length ? { id: { notIn: resellerAssignedIds } } : {}),
           },
@@ -717,190 +722,48 @@ export async function deleteUser(id: string) {
       }
     }
 
-    // Borrar una cuenta real arrastra en cascada sus sesiones, chats y
-    // mensajes: en una cuenta con historial eso no cabe en los 5 segundos por
-    // defecto de una transacción de Prisma, y el borrado se caía entero con un
-    // error genérico. maxWait cubre además la espera por una conexión libre
-    // cuando la base está ocupada.
+    // FASE 1 — apagar y marcar. Transacción corta: solo toca la cuenta.
+    //
+    // Lo que de verdad importa al pulsar Eliminar es que la cuenta deje de
+    // funcionar YA: sin acceso, sin agente contestando y fuera de las listas.
+    // Eso son tres UPDATE. Borrar sus datos es otra cosa, y es lo que tardaba.
+    currentStep = "marcar_eliminada";
     await db.$transaction(async (tx) => {
-      // Asesores de esta cuenta. Se borran ANTES que ella porque la relación
-      // asesor→cuenta madre no está en cascada: al borrar la madre, Prisma les
-      // dejaba el vínculo en nulo y los asesores sobrevivían convertidos en
-      // cuentas principales sueltas. Aparecían luego en Clientes y en Finanzas
-      // como cuentas de nadie, sin servicio ni fecha de cobro.
-      //
-      // Se borran con tx.user.delete uno a uno, no con deleteMany, para que se
-      // dispare el borrado en cascada de TODO lo suyo (sesiones, mensajes,
-      // etiquetas). Un deleteMany masivo se saltaría esas cascadas y dejaría el
-      // rastro que precisamente estamos limpiando.
-      currentStep = "delete_advisors";
-      const asesores = await tx.user.findMany({
-        where: { ownerId: id },
-        select: { id: true },
-      });
-      for (const asesor of asesores) {
-        await tx.promptInstance.deleteMany({ where: { userId: asesor.id } });
-        await tx.reminders.deleteMany({ where: { userId: asesor.id } });
-        await tx.appointment.deleteMany({ where: { userId: asesor.id } });
-        await tx.service.deleteMany({ where: { userId: asesor.id } });
-        await tx.reseller.deleteMany({ where: { userId: asesor.id } });
-        await tx.user.delete({ where: { id: asesor.id } });
-      }
-
-      currentStep = "load_user";
-      const user = await tx.user.findUnique({
+      await tx.user.updateMany({
         where: { id },
-        select: { email: true, apiKeyId: true },
+        data: { deletedAt: new Date(), status: false },
       });
-
-      currentStep = "load_sessions";
-      const sessions = await tx.session.findMany({
+      // Los asesores caen con la cuenta madre: sin ella no tienen servicio.
+      await tx.user.updateMany({
+        where: { ownerId: id },
+        data: { deletedAt: new Date(), status: false },
+      });
+      await tx.userBilling.updateMany({
         where: { userId: id },
-        select: { id: true, instanceId: true, remoteJid: true },
+        data: { accessStatus: "SUSPENDED", suspendedAt: new Date(), suspendedReason: "Cuenta eliminada" },
       });
-      const instanceIds = sessions
-        .map((s) => s.instanceId)
-        .filter(Boolean) as string[];
-      const remoteJids = sessions
-        .map((s) => s.remoteJid)
-        .filter(Boolean) as string[];
+    });
 
-      currentStep = "load_instancias";
-      const instancias = await tx.instancia.findMany({
-        where: { userId: id },
-        select: { instanceName: true },
-      });
-      const instanceNames = instancias
-        .map((i) => i.instanceName)
-        .filter(Boolean) as string[];
-
-      // Cargar apiKey (para limpiar seguimientos + apikey huérfana)
-      currentStep = "load_api_key";
-      let userApiKey: { key: string } | null = null;
-      if (user?.apiKeyId) {
-        userApiKey = await tx.apiKey.findUnique({
-          where: { id: user.apiKeyId },
-          select: { key: true },
-        });
-      }
-
-      // 1) reseller (no tiene onDelete: Cascade)
-      currentStep = "delete_reseller_links";
-      await tx.reseller.deleteMany({ where: { userId: id } });
-      await tx.reseller.deleteMany({ where: { resellerid: id } });
-
-      // 2) Workflows + rr (no hay FK, pero limpiamos por orden)
-      currentStep = "cleanup_workflows_rr";
-      const workflows = await tx.workflow.findMany({
-        where: { userId: id },
-        select: { id: true },
-      });
-      const workflowIds = workflows.map((w) => w.id);
-
-      if (workflowIds.length) {
-        await tx.workflowNode.deleteMany({
-          where: { workflowId: { in: workflowIds } },
-        });
-
-        await tx.quickReply.deleteMany({
-          where: { workflowId: { in: workflowIds } },
-        });
-      }
-
-      await tx.quickReply.deleteMany({ where: { userId: id } });
-
-      // 3) Historias n8n (tabla sin FK; usamos instanceIds como ya hacías)
-      currentStep = "cleanup_n8n_chat_histories";
-      if (instanceIds.length) {
-        await tx.n8nChatHistory.deleteMany({
-          where: { sessionId: { in: instanceIds } },
-        });
-      }
-
-      // 4) Reminders (sin relación en Prisma)
-      currentStep = "cleanup_reminders";
-      await tx.reminders.deleteMany({ where: { userId: id } });
-
-      // 5) VerificationToken (por email)
-      if (user?.email) {
-        currentStep = "cleanup_verification_tokens";
-        await tx.verificationToken.deleteMany({
-          where: { identifier: user.email },
-        });
-      }
-
-      // 6) PromptInstance (sin onDelete: Cascade → bloquearía el delete de User)
-      currentStep = "cleanup_prompt_instances";
-      await tx.promptInstance.deleteMany({ where: { userId: id } });
-
-      // 7) Appointment + Service (por FKs entre sí y sin cascade en Service.user)
-      currentStep = "cleanup_appointments_services";
-      await tx.appointment.deleteMany({ where: { userId: id } });
-      await tx.service.deleteMany({ where: { userId: id } });
-
-      // 8) Seguimientos (tabla sin FKs: limpiamos por señales)
-      currentStep = "cleanup_seguimientos";
-      const orSeguimientos: Prisma.SeguimientoWhereInput[] = [];
-      if (remoteJids.length) orSeguimientos.push({ remoteJid: { in: remoteJids } });
-      if (instanceNames.length) orSeguimientos.push({ instancia: { in: instanceNames } });
-      if (userApiKey?.key) orSeguimientos.push({ apikey: userApiKey.key });
-
-      if (orSeguimientos.length) {
-        await tx.seguimiento.deleteMany({ where: { OR: orSeguimientos } });
-      }
-
-      // 9) Borrar usuario (aquí se activan TODOS los onDelete: Cascade)
-      currentStep = "delete_user";
-      await tx.user.delete({ where: { id } });
-
-      // 10) Limpiar ApiKey huérfana si ya no la usa nadie
-      if (user?.apiKeyId) {
-        currentStep = "cleanup_apikey";
-        await tx.apiKey.deleteMany({
-          where: {
-            id: user.apiKeyId,
-            users: { none: {} },
-          },
-        });
-      }
-    }, { maxWait: 20_000, timeout: 120_000 });
-
-    // Log simple de éxito
-    await db.log.create({
-      data: {
-        level: "info",
-        message: "deleteUser completed",
-        context: JSON.stringify({ userId: id }),
-      },
+    // FASE 2 — purgar los datos, por lotes y fuera de transacción.
+    //
+    // No se espera a que termine: la pantalla ya puede seguir, la cuenta ya está
+    // apagada y lo que queda es limpieza. Si el proceso se reinicia a medias, el
+    // barrido diario retoma lo que falte.
+    void purgarCuentaEliminada(id).catch((e) => {
+      console.error("[deleteUser] purga en segundo plano falló", { userId: id, error: e });
     });
 
     revalidatePath("/admin/clientes");
+    revalidatePath("/panel/clientes");
 
     return {
       success: true,
-      message: "User and related data deleted successfully.",
+      message: "Cuenta eliminada. Sus datos se están borrando en segundo plano.",
       debugStep: currentStep,
     };
   } catch (error) {
-    const errMsg = error?.message || String(error);
+    const errMsg = (error as { message?: string })?.message || String(error);
     console.error("[deleteUser] ERROR", { userId: id, step: currentStep, error: errMsg });
-
-    // Intentar dejar constancia del error
-    try {
-      await db.log.create({
-        data: {
-          level: "error",
-          message: `deleteUser failed at step ${currentStep}: ${errMsg}`,
-          context: JSON.stringify({ userId: id, step: currentStep }),
-        },
-      });
-    } catch (logErr) {
-      console.error("[deleteUser] failed to persist error log", logErr);
-    }
-
-    // El motivo real viaja hasta la pantalla. Antes se quedaba en el log del
-    // servidor y quien intentaba borrar solo veía "Error al eliminar cliente",
-    // que no dice ni en qué paso falló ni por qué.
     return {
       success: false,
       message: `No se pudo eliminar la cuenta (paso: ${currentStep}). ${errMsg}`,

@@ -28,6 +28,13 @@ export default {
             throw new Error("Usuario no existe");
           }
 
+        // Una cuenta eliminada sigue en la base los segundos que tarda la purga
+        // de sus datos. Sin esto podría entrar en esa ventana, y con la sesión
+        // ya abierta seguiría dentro mientras se le borra todo debajo.
+        if (user.deletedAt) {
+          throw new Error("Usuario no existe");
+        }
+
         // verificar si la contraseña es correcta
         const isValid = await bcrypt.compare(data.password, user.password);
         // const isValid = data.password === user.password;

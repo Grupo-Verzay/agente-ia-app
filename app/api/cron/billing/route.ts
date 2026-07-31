@@ -1,5 +1,6 @@
 import { runBillingDailyJobSystem } from "@/actions/billing/billing-job-actions";
 import { runResellerBillingForAll } from "@/actions/billing/reseller-billing-actions";
+import { purgarCuentasEliminadasPendientes } from "@/lib/purge-account.server";
 import { NextResponse } from "next/server";
 
 const CRON_HEADER = "x-cron-secret";
@@ -40,7 +41,17 @@ export async function POST(request: Request) {
     resellerBilling = { error: e instanceof Error ? e.message : String(e) };
   }
 
-  return NextResponse.json({ ...result, resellerBilling }, { status: result.success ? 200 : 500 });
+  // Rezagadas del borrado de cuentas: la purga corre en segundo plano al pulsar
+  // Eliminar, así que un reinicio a mitad dejaría la cuenta apagada pero con sus
+  // datos dentro. Aquí se retoma. Si no hay ninguna pendiente no hace nada.
+  let purgaCuentas: unknown = null;
+  try {
+    purgaCuentas = await purgarCuentasEliminadasPendientes();
+  } catch (e) {
+    purgaCuentas = { error: e instanceof Error ? e.message : String(e) };
+  }
+
+  return NextResponse.json({ ...result, resellerBilling, purgaCuentas }, { status: result.success ? 200 : 500 });
 }
 
 export async function GET(request: Request) {
