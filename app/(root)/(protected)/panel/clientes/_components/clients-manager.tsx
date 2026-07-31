@@ -223,7 +223,9 @@ export const ClientsManager = ({ users, apikeys, availableApikeys, currentUserRo
             toast.success('Cliente eliminado', { id: toastId });
             router.refresh();
         } else {
-            toast.error('Error al eliminar cliente', { id: toastId });
+            // El motivo viene del servidor (paso y error). Un "Error al
+            // eliminar cliente" a secas no dice nada y obliga a ir al log.
+            toast.error(result.message || 'Error al eliminar cliente', { id: toastId, duration: 10000 });
         }
     };
 

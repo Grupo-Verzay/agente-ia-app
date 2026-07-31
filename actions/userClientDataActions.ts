@@ -717,6 +717,11 @@ export async function deleteUser(id: string) {
       }
     }
 
+    // Borrar una cuenta real arrastra en cascada sus sesiones, chats y
+    // mensajes: en una cuenta con historial eso no cabe en los 5 segundos por
+    // defecto de una transacción de Prisma, y el borrado se caía entero con un
+    // error genérico. maxWait cubre además la espera por una conexión libre
+    // cuando la base está ocupada.
     await db.$transaction(async (tx) => {
       // Asesores de esta cuenta. Se borran ANTES que ella porque la relación
       // asesor→cuenta madre no está en cascada: al borrar la madre, Prisma les
@@ -858,7 +863,7 @@ export async function deleteUser(id: string) {
           },
         });
       }
-    });
+    }, { maxWait: 20_000, timeout: 120_000 });
 
     // Log simple de éxito
     await db.log.create({
@@ -893,9 +898,12 @@ export async function deleteUser(id: string) {
       console.error("[deleteUser] failed to persist error log", logErr);
     }
 
+    // El motivo real viaja hasta la pantalla. Antes se quedaba en el log del
+    // servidor y quien intentaba borrar solo veía "Error al eliminar cliente",
+    // que no dice ni en qué paso falló ni por qué.
     return {
       success: false,
-      message: "Failed to delete user and related data.",
+      message: `No se pudo eliminar la cuenta (paso: ${currentStep}). ${errMsg}`,
       debugStep: currentStep,
     };
   }
