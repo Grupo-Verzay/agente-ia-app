@@ -423,10 +423,10 @@ export async function patchSection(input: z.infer<typeof PatchSectionSchema>) {
  *
  * Cada una guarda el prompt entero —unos 23 kB— y hasta ahora no se borraba
  * ninguna: la tabla acumulaba 181 MB desde octubre y era la cuarta más grande
- * de la base. Veinte cubre de sobra el "vuelve a como estaba antes", que es
- * para lo que se consultan.
+ * de la base. Cinco cubre lo que de verdad se usa: volver a la anterior o a la
+ * de antes.
  */
-const REVISIONES_A_CONSERVAR = 20;
+const REVISIONES_A_CONSERVAR = 5;
 
 /** Borra las revisiones que se salen de las últimas N de este prompt. */
 async function podarRevisionesAntiguas(

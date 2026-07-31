@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
  * publicado; aquí solo se pone al día lo que se acumuló antes de que existiera
  * esa poda.
  */
-const REVISIONES_A_CONSERVAR = 20;
+const REVISIONES_A_CONSERVAR = 5;
 
 /**
  * Recorta el histórico de revisiones que ya estaba acumulado.
