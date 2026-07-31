@@ -743,7 +743,7 @@ export async function persistChatMessage(input: PersistChatMessageInput) {
       ${input.userId}, ${input.instanceName}, ${input.instanceType ?? null}, ${normalizedRemoteJid},
       ${remoteJidAlt}, ${input.senderPn ?? null}, ${messageId}, ${input.fromMe},
       ${input.pushName ?? null}, ${input.messageType ?? 'conversation'}, ${input.content ?? null},
-      ${input.mediaUrl ?? null}, ${input.raw ?? Prisma.JsonNull}, ${messageTimestamp}, NOW(), NOW()
+      ${input.mediaUrl ?? null}, ${recortarRawAdjuntos(input.raw)}, ${messageTimestamp}, NOW(), NOW()
     )
     ON CONFLICT ("userId", "instanceName", "remoteJid", "messageId", "fromMe")
     DO UPDATE SET
@@ -1064,6 +1064,57 @@ let slimRawDisponible = true;
  * El mensaje completo se conserva intacto en `chat_messages`, que es de donde se
  * lee la conversación abierta.
  */
+/**
+ * `raw` sin los adjuntos en base64, para la CONVERSACIÓN.
+ *
+ * `chat_messages.raw` guardaba el payload entero de WhatsApp, miniaturas y
+ * sidecars incluidos: la columna suma 167 MB, tiene filas de hasta 20 MB y la
+ * tabla crece ~6.000 filas al día. Nada de ese base64 se lee nunca — la media se
+ * pinta desde `mediaUrl`, la URL de S3 — así que era peso puro.
+ *
+ * Se distingue de `recortarRawParaBandeja` en una cosa: aquí SÍ se conserva el
+ * mensaje citado. En la lista de chats se puede tirar porque solo se muestra una
+ * vista previa de una línea; esto es la conversación abierta, donde la cita
+ * forma parte de lo que se lee.
+ *
+ * Solo afecta a lo que se guarda de aquí en adelante; las filas existentes se
+ * quedan como están.
+ */
+function recortarRawAdjuntos(raw: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
+  if (raw === null || raw === undefined) return Prisma.JsonNull;
+  if (typeof raw !== 'object' || Array.isArray(raw)) return raw as Prisma.InputJsonValue;
+
+  const objeto = raw as Record<string, unknown>;
+  const message = objeto.message;
+  if (!message || typeof message !== 'object' || Array.isArray(message)) {
+    return raw as Prisma.InputJsonValue;
+  }
+
+  const messageRecortado: Record<string, unknown> = {};
+
+  for (const [tipo, valor] of Object.entries(message as Record<string, unknown>)) {
+    if (!valor || typeof valor !== 'object' || Array.isArray(valor)) {
+      messageRecortado[tipo] = valor;
+      continue;
+    }
+
+    const campos: Record<string, unknown> = {};
+    for (const [campo, contenido] of Object.entries(valor as Record<string, unknown>)) {
+      if (
+        typeof contenido === 'string' &&
+        contenido.length > RAW_BLOB_MIN_LENGTH &&
+        !RAW_TEXT_KEYS.includes(campo)
+      ) {
+        continue;
+      }
+      campos[campo] = contenido;
+    }
+    messageRecortado[tipo] = campos;
+  }
+
+  return { ...objeto, message: messageRecortado } as Prisma.InputJsonValue;
+}
+
 function recortarRawParaBandeja(raw: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
   if (raw === null || raw === undefined) return Prisma.JsonNull;
   if (typeof raw !== 'object' || Array.isArray(raw)) return raw as Prisma.InputJsonValue;
