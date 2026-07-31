@@ -740,6 +740,10 @@ model User {
   tokenVersion                       Int                          @default(0)
   enabledSynthesizer                 Boolean                      @default(false)
   status                             Boolean                      @default(true)
+  // Cuenta eliminada: se apaga al instante y sus datos se purgan por lotes
+  // después. NULL = cuenta viva. La columna la crea api-webhook (dueño de las
+  // migraciones); aquí solo se declara.
+  deletedAt                          DateTime?
   enabledCrmFollowUps                Boolean                      @default(false)
   followUpWindowEnabled              Boolean                      @default(true) @map("follow_up_window_enabled")
   followUpSendStartHour              Int                          @default(9) @map("follow_up_send_start_hour")
