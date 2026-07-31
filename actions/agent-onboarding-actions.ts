@@ -283,6 +283,15 @@ export async function completeAgentOnboarding(
             ? [{ id: uid(), kind: "function", fn: "ejecutar_flujo", flowId: flow.id, flowName: flow.name }]
             : [];
           const textEl = says ? [{ id: uid(), kind: "text", text: says }] : [];
+          // Elementos (3) en adelante del paso: la transición, las notas de
+          // control y las reglas extra. Cada uno entra COMO ELEMENTO SEPARADO,
+          // no pegado al mensaje: antes venían escritos dentro de la
+          // instrucción fija, donde nadie podía tocarlos.
+          const extraEls = (def?.extras ?? []).map((t) => ({
+            id: uid(),
+            kind: "text" as const,
+            text: fillBusinessVars(t, b),
+          }));
           return {
             id: uid(),
             // El título del embudo ya viene con el formato correcto (MAYÚSCULA y
@@ -296,7 +305,7 @@ export async function completeAgentOnboarding(
             // Motor de Flujo: variable que recoge + condición para avanzar.
             variableQueRecoge: def?.variable ?? "",
             condicionParaAvanzar: def?.condicion ?? "",
-            elements: [...flowEl, ...textEl] as any[],
+            elements: [...flowEl, ...textEl, ...extraEls] as any[],
           };
         }),
     };

@@ -22,6 +22,16 @@ export type ObjectiveStep = {
   main: string;
   variable?: string;
   condicion?: string;
+  /**
+   * Elementos del paso a partir del (3): la transición, las notas de control y
+   * las reglas extra que tenga el paso.
+   *
+   * Cada uno entra como un elemento SEPARADO del paso, no pegado al texto del
+   * mensaje. Antes vivían escritos dentro de la instrucción fija, así que el
+   * dueño no podía tocarlos y encima duplicaban lo que el sistema ya generaba.
+   * El (1) —ejecutar el flujo— y el (2) —el mensaje— los arma el alta.
+   */
+  extras?: string[];
 };
 
 /**
@@ -137,6 +147,11 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
         condicion: "Si nombra un producto del catálogo, va directo al paso 3. Si no, va al paso 2 para mostrarle las opciones — NO bloquear.",
         ex: `¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
 ¿Qué producto te interesa?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Menciona un producto del catálogo → guardar en silencio producto_interes → current_step = 3
+- Escribe sin intención clara o pide ver opciones → current_step = 2`,
+        ],
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
@@ -165,6 +180,12 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
 2️⃣ *[CATEGORIA_2]*
 3️⃣ *[CATEGORIA_3]*
 ¿Cuál te interesa?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Elige una opción o nombra un producto del catálogo → guardar en silencio producto_interes → current_step = 3
+- Nombra algo fuera del catálogo → emitir: "Ese no lo manejamos 😕 ¿Te interesa alguno de la lista?" → repreguntar una vez.
+- Tras repreguntar 1 vez sin elegir → guardar producto_interes = "no definido" → current_step = 3 (se le presenta el más vendido)`,
+        ],
         main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND producto_interes == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -187,6 +208,16 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
 ✅ *[BENEFICIO_3]*
 💰 *[PRECIO]*
 ¿Te lo llevas?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — OBJECIÓN — TEXTO ÚNICO (un solo mensaje):
+Entiendo tu punto.
+*[RESPUESTA_A_LA_OBJECION]*
+¿Te gustaría que avancemos con *[ALTERNATIVA]*?`,
+          `(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Confirma (sí / lo quiero / dale / me lo llevo) → compra_confirmada = true → current_step = 4
+- Pide otra opción → producto_interes = null → oferta_presentada = false → current_step = 2
+- Objeta el precio o pide detalles → emitir Regla/parámetro (3) → permanecer en current_step = 3`,
+        ],
         main: `🔒 CONDICIÓN GATE: producto_interes != null AND compra_confirmada == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -207,6 +238,18 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
         variable: "nombre (opcional), metodo_pago",
         condicion: "Pide un dato a la vez. El nombre es opcional. Si no elige método de pago, repregunta MÁX. 1 vez, guarda \"por definir\" y avanza — no bloquear.",
         ex: `¡Perfecto! ¿A nombre de quién registro el pedido? 📝`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — SEGUNDA PREGUNTA (tras el nombre) — TEXTO ÚNICO:
+Gracias. ¿Cómo prefieres pagar y recibirlo?
+1️⃣ *[METODO_1]*
+2️⃣ *[METODO_2]*
+3️⃣ *[METODO_3]*`,
+          `(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Entrega el nombre → guardar en silencio nombre → emitir Regla/parámetro (3) → permanecer en current_step = 4
+- No entrega el nombre tras pedirlo 1 vez → emitir igual Regla/parámetro (3) → permanecer en current_step = 4 (el nombre es opcional)
+- Elige método de pago/envío → guardar metodo_pago → datos_completos = true → current_step = 5
+- No elige método tras repreguntar 1 vez → guardar metodo_pago = "por definir" → datos_completos = true → current_step = 5`,
+        ],
         main: `🔒 CONDICIÓN GATE: compra_confirmada == true AND datos_completos == false
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
@@ -230,6 +273,14 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
 💰 Total: *[TOTAL]*
 🚚 Entrega: *[TIEMPO_ENTREGA]*
 Te avisamos cuando salga. ¡Gracias por tu compra! 🎉`,
+        extras: [
+          `(3) FUNCIÓN: Ejecuta la tool de registro/notificación del pedido`,
+          `(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Emitir la confirmación → ejecutar tool → pedido_confirmado = true → halt
+- Si metodo_pago == "por definir" → notificar al asesor para que coordine el pago.`,
+          `(5) NOTA DE CONTROL (NO EMITIR):
+⛔ FIN DEL FLUJO. PROHIBIDO emitir contenido adicional tras el cierre.`,
+        ],
         main: `🔒 CONDICIÓN GATE: datos_completos == true AND pedido_confirmado == false
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
@@ -255,6 +306,11 @@ Te avisamos cuando salga. ¡Gracias por tu compra! 🎉`,
         condicion: "Captura el nombre si lo da. Si no lo da, se pregunta 1 vez más y luego se continúa igual — NO bloquear por el nombre.",
         ex: `¡Hola! 👋 Soy el asistente de *[NOMBRE_NEGOCIO]*.
 Para ayudarte mejor, ¿me compartes tu nombre?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Responde con un nombre → guardar en silencio nombre → current_step = 2
+- No entrega nombre → pedirlo una vez más, sin repetir la bienvenida.`,
+        ],
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
@@ -279,6 +335,12 @@ Para ayudarte mejor, ¿me compartes tu nombre?`,
         variable: "necesidad",
         condicion: "Captura la necesidad. Si responde vago, repregunta MÁX. 1 vez; luego guarda necesidad = \"no definida\" y avanza — no ciclar.",
         ex: `Cuéntame, *[NOMBRE]*, ¿qué es lo que necesitas resolver?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Describe su necesidad → guardar en silencio necesidad → current_step = 3
+- Responde vago ("info", "precios") → repreguntar una vez pidiendo más detalle.
+- Tras repreguntar 1 vez sin respuesta clara → guardar necesidad = "no definida" → current_step = 3`,
+        ],
         main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND necesidad == null
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
@@ -296,6 +358,11 @@ Para ayudarte mejor, ¿me compartes tu nombre?`,
         variable: "contexto (opcional)",
         condicion: "Captura plazo/presupuesto si lo da. Si lo evade, guarda contexto = 'no definido' y avanza igual — no bloquear.",
         ex: `Entiendo. ¿Para cuándo lo necesitas y manejas un presupuesto estimado?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Responde plazo y/o presupuesto → guardar en silencio contexto → current_step = 4
+- Evade el presupuesto → guardar contexto = "no definido" → current_step = 4`,
+        ],
         main: `🔒 CONDICIÓN GATE: necesidad != null AND contexto == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -316,6 +383,17 @@ Para ayudarte mejor, ¿me compartes tu nombre?`,
 Encaja con tu caso porque *[JUSTIFICACION]*.
 💰 Inversión: *[PRECIO]*
 ¿Qué te parece?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — NEGOCIACIÓN — TEXTO ÚNICO (un solo mensaje):
+Entiendo perfectamente tu punto.
+*[RESPUESTA_A_LA_OBJECION]*
+¿Te gustaría que avancemos con *[ALTERNATIVA]*?`,
+          `(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Confirma interés (sí / me interesa / dale) → interes_confirmado = true → current_step = 5
+- Plantea una objeción → emitir Regla/parámetro (3) → permanecer en current_step = 4
+- Pide más detalle → responder sin reejecutar el flujo → permanecer en current_step = 4
+- Pide tiempo para pensarlo → interes_confirmado = true → current_step = 5`,
+        ],
         main: `🔒 CONDICIÓN GATE: contexto != null AND interes_confirmado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -337,6 +415,15 @@ Encaja con tu caso porque *[JUSTIFICACION]*.
         condicion: "Captura el nombre si lo da (opcional). Ejecuta la tool de registro/notificación y CIERRA SIEMPRE, con o sin nombre. Sin correo obligatorio.",
         ex: `¡Excelente decisión, *[NOMBRE]*!
 Un asesor te contacta en breve. 📩`,
+        extras: [
+          `(3) FUNCIÓN: Ejecuta la tool de registro/notificación al asesor`,
+          `(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Si ya se tiene el nombre (nombre != null) → emitir el mensaje "nombre != null" → ejecutar tool → cierre_completado = true → halt
+- Si nombre == null → emitir el mensaje "nombre == null" (pide el nombre) → capturarlo si lo da → ejecutar tool igual → cierre_completado = true → halt (el flujo continúa; el nombre es opcional)
+- El correo NO es obligatorio: solo se guarda si el cliente lo ofrece.`,
+          `(5) NOTA DE CONTROL (NO EMITIR):
+⛔ FIN DEL FLUJO. PROHIBIDO emitir contenido adicional tras el cierre.`,
+        ],
         main: `🔒 CONDICIÓN GATE: interes_confirmado == true AND cierre_completado == false
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
@@ -361,6 +448,11 @@ Un asesor te contacta en breve. 📩`,
         condicion: "Si nombra un servicio del catálogo, va directo al paso 3. Si no, va al paso 2 para mostrarle las opciones — NO bloquear.",
         ex: `¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
 ¿Qué servicio te gustaría agendar?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Menciona un servicio del catálogo → guardar en silencio servicio → current_step = 3
+- Pide agendar sin decir el servicio → current_step = 2`,
+        ],
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
@@ -389,6 +481,12 @@ Un asesor te contacta en breve. 📩`,
 2️⃣ *[SERVICIO_2]*
 3️⃣ *[SERVICIO_3]*
 ¿Cuál te interesa?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Elige una opción o nombra un servicio del catálogo → guardar en silencio servicio → current_step = 3
+- Nombra algo fuera del catálogo → emitir: "Ese servicio no lo manejamos 😕 ¿Te interesa alguno de la lista?" → repreguntar una vez.
+- Tras repreguntar 1 vez sin elegir → guardar servicio = "no definido" → current_step = 3 (un asesor confirmará el servicio)`,
+        ],
         main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND servicio == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -410,6 +508,12 @@ Un asesor te contacta en breve. 📩`,
 2️⃣ *[HORARIO_2]*
 3️⃣ *[HORARIO_3]*
 ¿Cuál te queda mejor?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Elige un horario ofrecido → guardar en silencio fecha_hora → current_step = 4
+- Pide otro día u horario → volver a consultar la agenda y ofrecer nuevas opciones → permanecer en current_step = 3
+- Tras repreguntar 1 vez sin elegir → emitir: "Déjame que un asesor coordine el horario contigo 🙏" → guardar fecha_hora = "por coordinar" → current_step = 4`,
+        ],
         main: `🔒 CONDICIÓN GATE: servicio != null AND fecha_hora == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -429,6 +533,12 @@ Un asesor te contacta en breve. 📩`,
         condicion: "Confirma el horario y crea la cita. El nombre es opcional: si no lo da, crea la cita igual y avanza — no bloquear.",
         ex: `Perfecto, reservo *[SERVICIO]* para el *[FECHA_HORA]*.
 ¿A nombre de quién la registro? 📝`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Entrega el nombre → guardar en silencio nombre → crear la cita en la agenda → cita_confirmada = true → current_step = 5
+- No entrega el nombre tras pedirlo 1 vez → crear la cita igual → cita_confirmada = true → current_step = 5 (el nombre es opcional)
+- Cambia de horario → fecha_hora = null → current_step = 3`,
+        ],
         main: `🔒 CONDICIÓN GATE: fecha_hora != null AND cita_confirmada == false
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
@@ -451,6 +561,14 @@ Un asesor te contacta en breve. 📩`,
 🗓️ *[SERVICIO]* — *[FECHA_HORA]*
 📍 *[DIRECCION]*
 Te enviaré un recordatorio antes de tu cita. ¡Te esperamos! 😊`,
+        extras: [
+          `(3) FUNCIÓN: Ejecuta la tool de registro/notificación de la cita`,
+          `(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Emitir la confirmación → ejecutar tool → activar recordatorio → recordatorio_activado = true → halt
+- Si fecha_hora == "por coordinar" → notificar al asesor para que agende el horario con el cliente.`,
+          `(5) NOTA DE CONTROL (NO EMITIR):
+⛔ FIN DEL FLUJO. PROHIBIDO emitir contenido adicional tras el cierre.`,
+        ],
         main: `🔒 CONDICIÓN GATE: cita_confirmada == true AND recordatorio_activado == false
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
@@ -477,6 +595,12 @@ Te enviaré un recordatorio antes de tu cita. ¡Te esperamos! 😊`,
         condicion: "Captura lo que busca. Si solo saluda, repregunta 1 vez; luego guarda interes_declarado = \"no definido\" y avanza — no bloquear.",
         ex: `¡Hola! 👋 Gracias por tu interés en *[NOMBRE_NEGOCIO]*.
 Para orientarte mejor, ¿qué estás buscando?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Describe lo que busca → guardar en silencio interes_declarado → current_step = 2
+- Saluda sin explicar nada → pedirlo una vez más, sin repetir la bienvenida.
+- Tras repreguntar 1 vez sin describir → guardar interes_declarado = "no definido" → current_step = 2`,
+        ],
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
@@ -501,6 +625,12 @@ Para orientarte mejor, ¿qué estás buscando?`,
         variable: "perfil",
         condicion: "Captura si es personal o empresa (suma al score). Si no responde claro, repregunta 1 vez y avanza — no ciclar.",
         ex: `¿Es para uso *personal* o para tu *empresa*?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Personal → guardar perfil = "personal" → score = score + 0 → current_step = 3
+- Empresa / negocio / equipo → guardar perfil = "empresa" → score = score + 1 → current_step = 3
+- Tras repreguntar 1 vez sin definir → guardar perfil = "no definido" → current_step = 3`,
+        ],
         main: `🔒 CONDICIÓN GATE: interes_declarado != null AND perfil == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -521,6 +651,13 @@ Para orientarte mejor, ¿qué estás buscando?`,
 1️⃣ *Lo antes posible*
 2️⃣ *En 1 a 3 meses*
 3️⃣ *Solo estoy explorando*`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Opción 1 o "urgente" / "ya" / "esta semana" → guardar urgencia = "alta" → score = score + 1 → current_step = 4
+- Opción 2 o plazo de meses → guardar urgencia = "media" → score = score + 0 → current_step = 4
+- Opción 3 o "explorando" → guardar urgencia = "baja" → score = score - 1 → current_step = 4
+- Tras repreguntar 1 vez sin definir → guardar urgencia = "no definida" → current_step = 4`,
+        ],
         main: `🔒 CONDICIÓN GATE: perfil != null AND urgencia == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -537,6 +674,13 @@ Para orientarte mejor, ¿qué estás buscando?`,
         variable: "—",
         condicion: "Ajusta el score según presupuesto y autoridad. Si lo evade, registra \"no definido\" y avanza igual — no bloquear.",
         ex: `Para recomendarte la mejor opción, ¿manejas un presupuesto estimado? ¿Y la decisión la tomas tú o alguien más?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Da un rango + es quien decide → score = score + 2 → guardar calificacion_completa = true → current_step = 5
+- Da un rango pero decide otro → score = score + 1 → guardar calificacion_completa = true → current_step = 5
+- No tiene presupuesto definido → score = score - 1 → guardar calificacion_completa = true → current_step = 5
+- Evade dos veces → registrar "no definido" → guardar calificacion_completa = true → current_step = 5`,
+        ],
         main: `🔒 CONDICIÓN GATE: urgencia != null AND calificacion_completa == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -555,6 +699,20 @@ Para orientarte mejor, ¿qué estás buscando?`,
         condicion: "Clasifica por score (caliente/tibio/frío), emite el mensaje del segmento, ejecuta la tool y CIERRA SIEMPRE, con o sin datos. Fin del flujo.",
         ex: `Por lo que me cuentas, lo mejor es que hables directo con un asesor.
 ¿Me confirmas tu *nombre* y tu *correo* para coordinarlo hoy mismo? 📩`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — LEAD TIBIO — TEXTO ÚNICO (un solo mensaje):
+Te propongo una demo corta para que veas cómo funciona.
+¿Me compartes tu *nombre* y *correo* para enviarte la información? 📩`,
+          `(4) REGLA/PARÁMETRO — LEAD FRÍO — TEXTO ÚNICO (un solo mensaje):
+Perfecto, sin compromiso.
+Déjame tu *nombre* y *correo* y te envío material útil para cuando estés listo. 📩`,
+          `(5) FUNCIÓN: Ejecuta la tool de registro/notificación al asesor`,
+          `(6) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Entrega nombre y correo → guardar → ejecutar tool → emitir confirmación breve → lead_derivado = true → halt
+- Entrega solo parte o nada → ejecutar tool igual con lo que haya → lead_derivado = true → halt (nombre y correo son opcionales)`,
+          `(7) NOTA DE CONTROL (NO EMITIR):
+⛔ FIN DEL FLUJO. PROHIBIDO emitir contenido adicional tras la derivación.`,
+        ],
         main: `🔒 CONDICIÓN GATE: calificacion_completa == true AND lead_derivado == false
 📝 PLACEHOLDER: si nombre == null → omite el placeholder [NOMBRE] del mensaje, sin dejar espacios ni comas sueltas.
 
@@ -586,6 +744,13 @@ Para orientarte mejor, ¿qué estás buscando?`,
         condicion: "Captura el motivo. Si el tono es molesto, marca caso_sensible. Si solo saluda, repregunta 1 vez y avanza — no bloquear.",
         ex: `¡Hola! 👋 Soporte de *[NOMBRE_NEGOCIO]*.
 ¿En qué puedo ayudarte hoy?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Describe una duda, solicitud o reclamo → guardar en silencio motivo_consulta → current_step = 2
+- Si el tono es molesto o de reclamo → guardar caso_sensible = true → current_step = 2
+- Saluda sin explicar nada → pedirlo una vez más, sin repetir la bienvenida.
+- Tras repreguntar 1 vez sin describir → guardar motivo_consulta = "no definido" → current_step = 2`,
+        ],
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
@@ -610,6 +775,13 @@ Para orientarte mejor, ¿qué estás buscando?`,
         variable: "datos_caso",
         condicion: "Captura nombre + número de pedido/servicio. Si no lo tiene, acepta nombre + fecha o marca \"sin identificar\" y avanza — no bloquear.",
         ex: `Para ubicar tu caso, ¿me compartes tu *nombre* y tu *número de pedido o servicio*? 📋`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Entrega los datos → guardar en silencio datos_caso → current_step = 3
+- Entrega solo parte → pedir únicamente lo faltante, sin repetir la pregunta completa.
+- No tiene número de pedido → aceptar nombre + fecha aproximada → guardar datos_caso → current_step = 3
+- Tras pedir 1 vez sin dar datos → guardar datos_caso = "sin identificar" → current_step = 3`,
+        ],
         main: `🔒 CONDICIÓN GATE: motivo_consulta != null AND datos_caso == null
 📝 PLACEHOLDER: si caso_sensible == true → anteponer UNA sola frase de empatía antes del texto (ej: "Lamento el inconveniente.").
 
@@ -628,6 +800,12 @@ Para orientarte mejor, ¿qué estás buscando?`,
         variable: "—",
         condicion: "Consulta el caso en la fuente. Si lo encuentra, guarda su estado. Si no, tras 2 intentos lo marca \"requiere_humano\" y avanza — no bloquear.",
         ex: `Gracias, ya tengo tu caso. Estoy revisando la información, dame un momento. 🔎`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Caso encontrado → guardar estado_caso → current_step = 4
+- Caso NO encontrado → emitir: "No encuentro ese registro 😕 ¿Me confirmas el dato?" → repreguntar una vez.
+- Tras 2 intentos sin encontrarlo → guardar estado_caso = "requiere_humano" → current_step = 4`,
+        ],
         main: `🔒 CONDICIÓN GATE: datos_caso != null AND caso_validado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -647,6 +825,14 @@ Para orientarte mejor, ¿qué estás buscando?`,
         condicion: "Entrega la solución o escala al humano. Si pide más detalle, responde sin reejecutar y avanza al cierre — no bloquear.",
         ex: `Esto es lo que encontré: *[ESTADO_O_SOLUCIÓN]*
 Pasos a seguir: *[PASOS]*`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — CASO SIN SOLUCIÓN — TEXTO ÚNICO (un solo mensaje):
+Tu caso necesita revisión de un especialista. Ya lo escalé al área encargada y te contactarán en *[PLAZO]*. 🙏`,
+          `(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Solución entregada → current_step = 5
+- Caso escalado (estado_caso == "requiere_humano") → current_step = 5
+- Usuario pide más detalle → responder sin reejecutar el flujo → permanecer en current_step = 4`,
+        ],
         main: `🔒 CONDICIÓN GATE: caso_validado == true AND solucion_entregada == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -665,6 +851,15 @@ Pasos a seguir: *[PASOS]*`,
         variable: "—",
         condicion: "Confirma si quedó resuelto. Si no, vuelve a Resolución. Si plantea otro caso, reinicia en Identificación. Cierra siempre. Fin del flujo.",
         ex: `¿Esto resuelve tu solicitud? ¿Puedo ayudarte con algo más? 😊`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Confirma que quedó resuelto → guardar caso_cerrado = true → emitir despedida breve → halt
+- Dice que NO quedó resuelto → solucion_entregada = false → current_step = 4
+- Plantea un caso nuevo → reiniciar desde current_step = 2 con nuevo motivo_consulta
+- No responde tras la pregunta → guardar caso_cerrado = true → halt (no insistir)`,
+          `(4) NOTA DE CONTROL (NO EMITIR):
+⛔ FIN DEL FLUJO al confirmarse el cierre. PROHIBIDO emitir contenido adicional.`,
+        ],
         main: `🔒 CONDICIÓN GATE: solucion_entregada == true AND caso_cerrado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -687,6 +882,11 @@ Pasos a seguir: *[PASOS]*`,
         condicion: "Si menciona productos o pide el menú, va al paso 2. Si solo saluda, repregunta 1 vez y avanza — no bloquear.",
         ex: `¡Hola! 👋 Bienvenido a *[NOMBRE_NEGOCIO]*.
 ¿Qué te gustaría pedir hoy?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Menciona uno o más productos, o pide ver el menú → guardar en silencio lo mencionado → current_step = 2
+- Saluda sin pedir nada → pedirlo una vez más, sin repetir la bienvenida.`,
+        ],
         main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
 🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
 
@@ -712,6 +912,12 @@ Pasos a seguir: *[PASOS]*`,
         condicion: "Suma productos al carrito uno por uno. Cierra el carrito solo cuando el cliente confirma. Este paso puede repetirse en loop — no ciclar sin avanzar al confirmar.",
         ex: `Listo, agregué *[PRODUCTO]* a tu pedido.
 ¿Deseas agregar algo más o cerramos el pedido?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Menciona otro producto → agregar al carrito → permanecer en current_step = 2
+- Dice "es todo" / "cerrar" / "nada más" / "ya" → guardar carrito_cerrado = true → current_step = 3
+- Pide ver el menú → emitir catálogo → permanecer en current_step = 2`,
+        ],
         main: `🔒 CONDICIÓN GATE: bienvenida_enviada == true AND carrito_cerrado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -732,6 +938,14 @@ Pasos a seguir: *[PASOS]*`,
         condicion: "Define modalidad y captura dirección si es delivery. Valida cobertura antes de avanzar. Si la zona no está cubierta, ofrece recoger — no bloquear.",
         ex: `¿Es para *delivery* o lo *recoges en el local*?
 Si es delivery, indícame tu dirección con un punto de referencia. 📍`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Elige recoger → guardar datos_entrega = "local" → costo_envio = 0 → current_step = 4
+- Elige delivery + entrega dirección → validar zona:
+   - Zona cubierta → guardar datos_entrega = dirección + costo_envio → current_step = 4
+   - Zona NO cubierta → emitir: "Por ahora no llegamos a esa zona 😔 ¿Prefieres recogerlo en el local?" → permanecer en current_step = 3
+- Elige delivery sin dirección → pedir solo la dirección, sin repetir la pregunta completa.`,
+        ],
         main: `🔒 CONDICIÓN GATE: carrito_cerrado == true AND datos_entrega == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -753,6 +967,18 @@ Si es delivery, indícame tu dirección con un punto de referencia. 📍`,
 🚚 Envío: *[COSTO_ENVIO]*
 💰 *Total: [TOTAL]*
 ¿Confirmamos tu pedido?`,
+        extras: [
+          `(3) REGLA/PARÁMETRO — PAGO — TEXTO ÚNICO (un solo mensaje):
+¿Cómo prefieres pagar?
+1️⃣ *[METODO_1]*
+2️⃣ *[METODO_2]*
+3️⃣ *[METODO_3]*`,
+          `(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Confirma el resumen → emitir Regla/parámetro (3) → permanecer en current_step = 4
+- Agrega un producto → carrito_cerrado = false → current_step = 2
+- Elige método de pago → guardar metodo_pago → emitir sus datos → current_step = 5
+- No elige método tras repreguntar 1 vez → guardar metodo_pago = "por definir" → current_step = 5`,
+        ],
         main: `🔒 CONDICIÓN GATE: datos_entrega != null AND metodo_pago == null
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
@@ -777,6 +1003,14 @@ Si es delivery, indícame tu dirección con un punto de referencia. 📍`,
 ⏱️ Tiempo estimado: *[TIEMPO_ENTREGA]*
 📍 Entrega en: *[DATOS_ENTREGA]*
 Te avisamos cuando salga tu pedido. ¡Gracias por tu compra! 🛵`,
+        extras: [
+          `(3) FUNCIÓN: Ejecuta la tool de registro/notificación del pedido`,
+          `(4) REGLA/PARÁMETRO — TRANSICIÓN (NO EMITIR):
+- Emitir la confirmación → ejecutar tool → activar seguimiento → pedido_confirmado = true → halt
+- Si metodo_pago == "por definir" → notificar al asesor para que coordine el pago.`,
+          `(5) NOTA DE CONTROL (NO EMITIR):
+⛔ FIN DEL FLUJO. PROHIBIDO emitir contenido adicional tras el cierre.`,
+        ],
         main: `🔒 CONDICIÓN GATE: metodo_pago != null AND pedido_confirmado == false
 
 ✅ SECUENCIA OBLIGATORIA (orden estricto):
