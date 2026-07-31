@@ -1,52 +1,30 @@
-import type { Metadata } from "next";
-import FormRegister from "@/components/form-register";
-import { getCountryCodes } from "@/actions/get-country-action";
-import { getPublicBrandingBySlug } from "@/actions/public-branding-actions";
-import { db } from "@/lib/db";
-import { diasDePruebaDeMarca } from "@/lib/trial-days.server";
+import { redirect } from "next/navigation";
 
 interface Props {
-  searchParams: { ref?: string; aff?: string; plan?: string; a?: string; r?: string; obj?: string };
+  searchParams: { ref?: string; aff?: string; plan?: string; a?: string; r?: string; obj?: string; tipo?: string };
 }
 
-// Marca del reseller en la pestaña del registro (cuando el cliente entra por
-// ?r=slug). Sin esto, el registro salía con favicon/título de Verzay.
-export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
-  const slug = searchParams.r?.trim();
-  if (!slug) return {};
-  const b = await getPublicBrandingBySlug(slug);
-  return {
-    title: `Crea tu cuenta | ${b.brandName}`,
-    icons: { icon: b.faviconUrl },
-  };
-}
+/**
+ * Un solo registro para toda la plataforma.
+ *
+ * Había dos formularios: este, de tres pasos, y el de `/completar-registro`, de
+ * una sola pantalla. El de tres pasos pedía el rubro, el objetivo de ventas y
+ * una descripción del negocio ANTES de dejar crear la cuenta — a quien viene a
+ * comprar eso le pone una redacción por delante del pago. Todo eso lo pregunta
+ * después el asistente de alta del agente, ya dentro y con calma.
+ *
+ * La ruta se conserva porque la usan los enlaces de registro (`?ref=`) y los de
+ * afiliado (`?aff=`), que están repartidos por ahí fuera. Se redirige en vez de
+ * romperlos, arrastrando todos los parámetros tal cual.
+ */
+const RegisterPage = ({ searchParams }: Props) => {
+  const params = new URLSearchParams();
+  for (const [clave, valor] of Object.entries(searchParams)) {
+    if (typeof valor === "string" && valor.trim()) params.set(clave, valor);
+  }
 
-const RegisterPage = async ({ searchParams }: Props) => {
-  const countries = await getCountryCodes();
-
-  // Los días de prueba los pone cada marca, así que el encabezado no puede
-  // anunciar un número fijo: se resuelve aquí, donde ya se sabe por qué landing
-  // entró el cliente.
-  const slug = searchParams.r?.trim();
-  const reseller = slug
-    ? await db.reseller
-      .findFirst({ where: { slug }, select: { resellerid: true } })
-      .catch(() => null)
-    : null;
-  const trialDays = await diasDePruebaDeMarca(reseller?.resellerid ?? null);
-
-  return (
-    <FormRegister
-      countries={countries}
-      apiKeyRef={searchParams.ref}
-      affiliateCode={searchParams.aff}
-      defaultPlan={searchParams.plan}
-      defaultAssistanceType={searchParams.a}
-      resellerSlug={searchParams.r}
-      defaultSalesObjective={searchParams.obj}
-      trialDays={trialDays}
-    />
-  );
+  const query = params.toString();
+  redirect(query ? `/completar-registro?${query}` : "/completar-registro");
 };
 
 export default RegisterPage;

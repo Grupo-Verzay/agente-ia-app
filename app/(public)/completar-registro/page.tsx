@@ -8,7 +8,7 @@ import { getPublicBrandingBySlug } from '@/actions/public-branding-actions';
 import { getCountryCodes } from '@/actions/get-country-action';
 
 interface Props {
-  searchParams: { r?: string; tipo?: string };
+  searchParams: { r?: string; tipo?: string; plan?: string; a?: string; ref?: string; aff?: string; obj?: string };
 }
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
@@ -23,6 +23,9 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 export default async function CompletarRegistroPage({ searchParams }: Props) {
   const resellerSlug = searchParams.r;
   const isReseller = searchParams.tipo === 'reseller';
+  // Plan elegido en la landing. Con él, la cuenta nace pendiente de pago en vez
+  // de con prueba, así que el encabezado tampoco puede prometer días gratis.
+  const planSlug = searchParams.plan?.trim() || undefined;
   const [resellerConfig, countries, branding] = await Promise.all([
     resellerSlug
       ? getResellerPublicConfig(resellerSlug)
@@ -55,6 +58,11 @@ export default async function CompletarRegistroPage({ searchParams }: Props) {
           <h1 className="text-2xl font-bold text-white sm:text-3xl">
             {isReseller ? '🤝 Únete al programa de resellers' : '🚀 Activa tu cuenta'}
           </h1>
+          {planSlug && !isReseller && (
+            <p className="mt-2 text-sm text-slate-400">
+              Creas tu cuenta y activas el plan con el pago.
+            </p>
+          )}
           {isReseller && (
             <p className="mt-2 max-w-md text-sm text-slate-400">
               Cuéntanos sobre tu agencia o negocio para configurar tu cuenta de reseller.
@@ -65,7 +73,17 @@ export default async function CompletarRegistroPage({ searchParams }: Props) {
 
       {/* Card */}
       <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-white/[0.04] p-6 sm:p-8">
-        <RegistroReunionForm resellerSlug={resellerSlug} resellerSheetsUrl={resellerSheetsUrl} resellerFormName={resellerFormName} countries={countries} isReseller={isReseller} />
+        <RegistroReunionForm
+          resellerSlug={resellerSlug}
+          resellerSheetsUrl={resellerSheetsUrl}
+          resellerFormName={resellerFormName}
+          countries={countries}
+          isReseller={isReseller}
+          planSlug={planSlug}
+          assistanceType={searchParams.a}
+          apiKeyRef={searchParams.ref}
+          affiliateCode={searchParams.aff}
+        />
       </div>
 
     </div>
