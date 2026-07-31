@@ -16,6 +16,7 @@ import AppSkeleton from "@/components/custom/AppSkeleton";
 import { Breadcrumbs } from "@/components/custom/Breadcrumbs";
 import { PanelAwareTabNav } from "@/components/custom/PanelAwareTabNav";
 import BillingLockScreen from "@/components/shared/BillingLockScreen";
+import { equivalenteEnUsd, etiquetaDePlanParaCuenta } from "@/lib/plan-pricing";
 import { LockedRouteGuard } from "@/components/shared/LockedRouteGuard";
 
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
@@ -92,6 +93,23 @@ export default async function RootGroupLayout({
         const access = buildBillingServiceAccessState(billing);
 
         if (access.isLocked) {
+            // El nombre del plan lo pone cada marca, y los dólares son la
+            // referencia con la que el cliente vio el precio en la landing:
+            // verla al lado del monto en pesos es lo que le confirma que le
+            // están cobrando lo que eligió.
+            // El reseller dueño de la cuenta no viaja en la sesión, así que se
+            // lee aquí: es lo que decide con qué nombre se le llama a su plan.
+            const cuenta = await db.user
+                .findUnique({ where: { id: user.id }, select: { demoResellerId: true } })
+                .catch(() => null);
+
+            const [planLabel, amountUsd] = await Promise.all([
+                etiquetaDePlanParaCuenta(user.plan, cuenta?.demoResellerId ?? null),
+                (billing?.currencyCode ?? "COP").toUpperCase() === "COP"
+                    ? equivalenteEnUsd(Number(billing?.price ?? 0))
+                    : Promise.resolve(null),
+            ]);
+
             const reasonLabel =
                 access.reason === "SUSPENDED_STATUS"
                     ? "Servicio suspendido"
@@ -112,6 +130,8 @@ export default async function RootGroupLayout({
                     reasonLabel={reasonLabel}
                     awaitingFirstPayment={!billing?.lastPaymentAt}
                     canPayOnline={Number(billing?.price ?? 0) > 0}
+                    planLabel={planLabel}
+                    amountUsd={amountUsd}
                 />
             );
         }
