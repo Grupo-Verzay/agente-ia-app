@@ -98,6 +98,7 @@ export async function patchBusinessAndFirma(input: {
             where: { id: promptId },
             data: {
                 sections: next,
+                promptText: componerTextoDelPrompt(next),
                 version: { increment: 1 },
                 businessName: next.business.nombre || null,
                 businessSector: next.business.sector || null,
@@ -357,6 +358,18 @@ export async function getCurrentPrompt(promptId: string, agentId: string) {
 }
 
 /** Aplica un patch de una sección con optimistic locking. */
+/**
+ * Rehace el texto que lee el agente a partir de las secciones.
+ *
+ * El agente NO lee las secciones: lee `promptText`, que hasta ahora solo se
+ * rehacía al publicar. Quien editaba un paso y guardaba veía su cambio en
+ * pantalla, pero el agente seguía contestando con el texto de la última
+ * publicación. Es el motivo de que "no se actualice de verdad".
+ */
+function componerTextoDelPrompt(secciones: unknown): string {
+    return composePromptFromSections(normalizeAsDraft(normalizeAsStrict(secciones)));
+}
+
 export async function patchSection(input: z.infer<typeof PatchSectionSchema>) {
     const { promptId, version, sectionKey, patch } = PatchSectionSchema.parse(input);
 
@@ -407,6 +420,10 @@ export async function patchSection(input: z.infer<typeof PatchSectionSchema>) {
             where: { id: promptId },
             data: {
                 sections: next,
+                // El texto que lee el agente se rehace en cada guardado. Antes
+                // solo se rehacía al publicar, así que editar un paso no
+                // cambiaba nada de lo que el agente contestaba.
+                promptText: componerTextoDelPrompt(next),
                 version: { increment: 1 },
                 // Denormalizados para listados
                 businessName: next.business.nombre || null,
