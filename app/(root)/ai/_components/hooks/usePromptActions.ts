@@ -51,7 +51,9 @@ export function usePromptActions(opts: {
             });
 
             if (!res.ok) {
-                return setError("No se pudo publicar.");
+                // El motivo real, no un "no se pudo": sin él, un fallo del
+                // servidor obliga a ir a buscarlo a los registros.
+                return setError(("error" in res && res.error) || "No se pudo publicar.");
             }
 
             handleOk(res.data?.prompt?.version);
