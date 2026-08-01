@@ -445,12 +445,17 @@ export async function patchSection(input: z.infer<typeof PatchSectionSchema>) {
  */
 const REVISIONES_A_CONSERVAR = 5;
 
-/** Borra las revisiones que se salen de las últimas N de este prompt. */
-async function podarRevisionesAntiguas(
-    tx: Prisma.TransactionClient,
-    promptId: string,
-): Promise<void> {
-    const sobrantes = await tx.agentPromptRevision.findMany({
+/**
+ * Borra las revisiones que se salen de las últimas N de este prompt.
+ *
+ * Va FUERA de la transacción del publicado a propósito. Dentro, una cuenta con
+ * cientos de revisiones acumuladas se pasaba del tiempo límite y tumbaba la
+ * publicación entera: salía "No se pudo publicar" y no se guardaba nada. La
+ * poda es limpieza, no parte de publicar; si falla, se reintenta en el
+ * siguiente publicado o en el barrido diario.
+ */
+async function podarRevisionesAntiguas(promptId: string): Promise<void> {
+    const sobrantes = await db.agentPromptRevision.findMany({
         where: { promptId },
         select: { id: true },
         orderBy: { revisionNumber: "desc" },
@@ -458,7 +463,7 @@ async function podarRevisionesAntiguas(
     });
 
     if (!sobrantes.length) return;
-    await tx.agentPromptRevision.deleteMany({
+    await db.agentPromptRevision.deleteMany({
         where: { id: { in: sobrantes.map((r) => r.id) } },
     });
 }
@@ -502,10 +507,15 @@ export async function publishPrompt(input: z.infer<typeof PublishSchema>) {
                 },
             });
 
-            await podarRevisionesAntiguas(tx, promptId);
-
             return { ok: true, data: { prompt: updated, revision } } as Ok<{ prompt: typeof updated; revision: typeof revision }>;
         });
+
+        // Con la publicación ya confirmada: si esto falla, no se pierde nada.
+        if (result.ok) {
+            await podarRevisionesAntiguas(promptId).catch((e) => {
+                console.warn("[publishPrompt] no se pudieron podar las revisiones:", e);
+            });
+        }
 
         if (result.ok && input.revalidate) {
             revalidatePath(input.revalidate);
