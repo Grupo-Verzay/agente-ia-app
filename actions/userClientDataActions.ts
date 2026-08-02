@@ -86,11 +86,26 @@ export async function getEnrichedClients(filter?: FilterOptions): Promise<Client
       userIds = filter.userIds;
       if (!userIds.length) return { success: true, message: "Sin clientes.", data: [] };
     } else if (filter?.resellerId) {
-      const assignments = await db.reseller.findMany({
-        where: { resellerid: filter.resellerId },
-        select: { userId: true },
-      });
-      userIds = assignments.map(a => a.userId).filter(Boolean) as string[];
+      // Los clientes de un reseller llegan por dos caminos: la tabla `reseller`
+      // (el método viejo, asignación manual) y `demoResellerId` en el propio
+      // usuario (el que usa el registro desde la landing). Mirando solo el
+      // primero, todo el que se registraba por el enlace del reseller quedaba
+      // fuera de la lista — y como el panel de la plataforma excluye a los que
+      // tienen reseller, no aparecía en ningún sitio.
+      const [assignments, propios] = await Promise.all([
+        db.reseller.findMany({
+          where: { resellerid: filter.resellerId },
+          select: { userId: true },
+        }),
+        db.user.findMany({
+          where: { demoResellerId: filter.resellerId },
+          select: { id: true },
+        }),
+      ]);
+      userIds = Array.from(new Set([
+        ...(assignments.map(a => a.userId).filter(Boolean) as string[]),
+        ...propios.map(u => u.id),
+      ]));
 
       if (!userIds.length) {
         return {

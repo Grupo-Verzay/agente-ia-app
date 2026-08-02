@@ -43,7 +43,12 @@ export async function getClientsPageData(): Promise<
             // Combinar sistema viejo (reseller table) y nuevo (demoResellerId)
             const [oldAssignments, newClients] = await Promise.all([
                 db.reseller.findMany({ where: { resellerid: user.id }, select: { userId: true } }),
-                db.user.findMany({ where: { demoResellerId: user.id, isDemo: false }, select: { id: true } }),
+                // Sin filtrar por isDemo: las cuentas de prueba tambien son
+                // suyas y tienen que verse. Quedaban fuera de esta lista, y la
+                // unica pantalla que las mostraba —Mis Clientes— se dio de baja
+                // y hoy solo redirige aqui: se creaban y no aparecian en ningun
+                // sitio de la App. En la tabla se distinguen por su etiqueta.
+                db.user.findMany({ where: { demoResellerId: user.id }, select: { id: true } }),
             ]);
             const allIds = Array.from(new Set([
                 ...oldAssignments.map(r => r.userId).filter(Boolean) as string[],

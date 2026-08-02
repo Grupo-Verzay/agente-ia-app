@@ -54,6 +54,19 @@ export const getColumns = (openDialogGetUserId: (userId: string, dialog: DialogT
         <ArrowUpDown className="ml-0.5 h-3 w-3" />
       </Button>
     ),
+    // Las cuentas de prueba se listan junto a las demás, con su etiqueta. Antes
+    // quedaban fuera de esta lista y la única pantalla que las mostraba se dio
+    // de baja: se creaban y no aparecían por ningún sitio.
+    cell: ({ row }) => (
+      <div className="flex items-center gap-2">
+        <span>{row.original.name}</span>
+        {row.original.isDemo ? (
+          <span className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-amber-600 dark:text-amber-400">
+            Prueba
+          </span>
+        ) : null}
+      </div>
+    ),
   },
   {
     accessorKey: 'company',
