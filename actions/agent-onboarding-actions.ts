@@ -180,6 +180,16 @@ async function createFunnelWorkflows(
   if (flows.length === 0) return map;
 
   await db.$transaction(async (tx) => {
+    // Solo UN flujo puede arrancar la sesión. El alta del agente marcaba la
+    // BIENVENIDA del embudo nuevo sin apagar la del embudo anterior ni la que
+    // deja el registro, y la cuenta acababa con dos: el agente cogía una u otra
+    // según le diera y la conversación arrancaba unas veces con un flujo y
+    // otras con otro.
+    await tx.workflow.updateMany({
+      where: { userId, triggerOnNewSession: true },
+      data: { triggerOnNewSession: false },
+    });
+
     for (let i = 0; i < flows.length; i++) {
       const { name } = flows[i];
       // name + userId es único: borra el previo (si existe) y recrea vacío.
