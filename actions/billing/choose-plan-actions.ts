@@ -32,6 +32,12 @@ export type PlanDisponible = {
     features: string[];
     price: number;
     currency: string;
+    /**
+     * El mismo precio en dólares, que es como se publica y como lo vio en la
+     * landing. Se cobra en pesos, pero seis cifras a secas asustan y le hacen
+     * dudar de si le están cobrando lo que eligió.
+     */
+    priceUsd: number | null;
     isPopular: boolean;
     isCurrent: boolean;
 };
@@ -110,6 +116,9 @@ export async function getPlanesParaPagar(): Promise<{
                 features: p.features ?? [],
                 price: precio.price,
                 currency: precio.currency,
+                // El de referencia, no una reconversión: es el número exacto
+                // que el dueño escribió en Planes.
+                priceUsd: precio.currency === "COP" ? p.precioReferencia : null,
                 isPopular: p.isPopular,
                 isCurrent: p.plan === me.plan,
             });

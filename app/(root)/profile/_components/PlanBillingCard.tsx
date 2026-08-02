@@ -26,6 +26,14 @@ function fmtPrice(price: string | number | null | undefined, currency: string | 
     return new Intl.NumberFormat('es', { style: 'currency', currency: currency || 'COP', maximumFractionDigits: 0 }).format(Number(price));
 }
 
+/** Días que le quedan de prueba. Negativo o cero = ya se le pasó. */
+function diasRestantes(dueDate: string | null | undefined): number | null {
+    if (!dueDate) return null;
+    const ms = new Date(dueDate).getTime() - Date.now();
+    if (!Number.isFinite(ms)) return null;
+    return Math.max(0, Math.ceil(ms / 86_400_000));
+}
+
 export function PlanBillingCard({ userPlan }: Props) {
     const [billing, setBilling] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -37,9 +45,17 @@ export function PlanBillingCard({ userPlan }: Props) {
             .finally(() => setLoading(false));
     }, []);
 
-    const planLabel = PLAN_LABELS[userPlan] ?? userPlan;
+    // El nombre que le pone SU marca a este nivel. La tabla fija de nombres solo
+    // queda de respaldo: es genérica y no coincide con la de nadie —a un nivel 6
+    // le decía "Agencias" cuando Verzay lo vende como "Enterprise"—.
+    const planLabel = billing?.planLabel?.trim() || PLAN_LABELS[userPlan] || userPlan;
     const isPaid = billing?.billingStatus === 'PAID';
     const isActive = billing?.accessStatus === 'ACTIVE';
+
+    // Nunca ha pagado: sigue en prueba o compró sin completar el pago. Mientras
+    // esté así ve los tres planes, aunque ya tenga uno asignado con su precio.
+    const nuncaHaPagado = !!billing && !billing.lastPaymentAt;
+    const diasDePrueba = nuncaHaPagado && isActive ? diasRestantes(billing?.dueDate) : null;
 
     return (
         <>
@@ -72,7 +88,15 @@ export function PlanBillingCard({ userPlan }: Props) {
                                         {isActive ? 'Activo' : 'Suspendido'}
                                     </Badge>
                                 )}
-                                {billing && (
+                                {/* En prueba no está "al día": está probando. Decírselo
+                                    así es más honesto y de paso le recuerda que tiene
+                                    fecha de fin. */}
+                                {billing && diasDePrueba !== null ? (
+                                    <Badge variant="outline" className="text-amber-600 bg-amber-500/10 border-amber-500/30">
+                                        <AlertCircle className="h-3 w-3 mr-1 inline" />
+                                        Prueba · {diasDePrueba} {diasDePrueba === 1 ? 'día' : 'días'}
+                                    </Badge>
+                                ) : billing && (
                                     <Badge variant="outline" className={isPaid
                                         ? 'text-green-600 bg-green-500/10 border-green-500/30'
                                         : 'text-amber-600 bg-amber-500/10 border-amber-500/30'}>
@@ -83,9 +107,22 @@ export function PlanBillingCard({ userPlan }: Props) {
                                 )}
                             </div>
                             <div className="space-y-1.5 text-sm mt-auto">
-                                <div className="flex justify-between">
+                                <div className="flex justify-between gap-3">
                                     <span className="text-muted-foreground">Monto</span>
-                                    <span className="font-medium">{fmtPrice(billing?.price, billing?.currencyCode)}</span>
+                                    {/* Dólares arriba, pesos debajo: es la cifra con la
+                                        que vio el precio, y seis dígitos a secas asustan. */}
+                                    <span className="text-right font-medium tabular-nums">
+                                        {billing?.priceUsd ? (
+                                            <>
+                                                {fmtPrice(billing.priceUsd, 'USD')} USD/mes
+                                                <span className="block text-xs font-normal text-muted-foreground">
+                                                    {fmtPrice(billing?.price, billing?.currencyCode)} {billing?.currencyCode || 'COP'}
+                                                </span>
+                                            </>
+                                        ) : (
+                                            fmtPrice(billing?.price, billing?.currencyCode)
+                                        )}
+                                    </span>
                                 </div>
                                 <div className="flex flex-col gap-1">
                                     <span className="text-muted-foreground">Medio de pago</span>
@@ -109,18 +146,18 @@ export function PlanBillingCard({ userPlan }: Props) {
 
                                     Solo aparece si hay un precio asignado; sin el, el boton
                                     llevaria a un cobro de importe cero. */}
-                                {/* Sin precio asignado —la cuenta que viene de la
-                                    prueba gratis— primero hay que elegir plan:
-                                    no hay monto contra el que generar el enlace.
-                                    Antes ahí no salía nada y la única forma de
-                                    contratar era escribir por WhatsApp. */}
-                                {Number(billing?.price ?? 0) <= 0 && !loading && (
+                                {/* Mientras no haya pagado nunca, los tres planes.
+                                    Antes la condición era "no tiene precio asignado", y a
+                                    quien venía con uno puesto solo le salía un botón por
+                                    el importe más alto: no llegaba a enterarse de que
+                                    había un plan más barato con el que quedarse. */}
+                                {nuncaHaPagado && !loading && (
                                     <div className="mt-2">
-                                        <ChoosePlanToPay compact />
+                                        <ChoosePlanToPay compact whatsapp={billing?.brandWhatsapp} />
                                     </div>
                                 )}
 
-                                {Number(billing?.price ?? 0) > 0 && (
+                                {!nuncaHaPagado && Number(billing?.price ?? 0) > 0 && (
                                     <Button
                                         className="mt-2 w-full"
                                         disabled={pagando}
