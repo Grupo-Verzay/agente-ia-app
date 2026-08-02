@@ -21,7 +21,70 @@ type Props = {
   planLabel?: string | null;
   /** Los mismos pesos en dólares, la referencia con la que vio el precio. */
   amountUsd?: number | null;
+  /** WhatsApp de su marca. Sin él no se pinta el botón. */
+  brandWhatsapp?: string | null;
 };
+
+/** Fecha larga en español. `2026-08-09` cuesta más de leer que "09 de agosto". */
+function fechaLarga(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return d.toLocaleDateString("es", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+/**
+ * Los dos botones de las pantallas de cobro.
+ *
+ * Pagar a la derecha, que es donde termina la lectura. WhatsApp a la izquierda
+ * y en tono suave: es la salida para quien tiene una duda o ya pagó y quiere
+ * avisar, no una alternativa a pagar — si los dos pesan igual, una parte se va
+ * a escribir en vez de pagar.
+ */
+function AccionesDePago({
+  whatsapp,
+  canPayOnline,
+  payLabel,
+}: {
+  whatsapp?: string | null;
+  canPayOnline?: boolean;
+  payLabel: string;
+}) {
+  return (
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+      {whatsapp ? (
+        <a
+          href={`https://wa.me/${whatsapp}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center rounded-md border border-emerald-600/30 bg-emerald-600/10 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-600/15 dark:text-emerald-400"
+        >
+          Hablar por WhatsApp
+        </a>
+      ) : (
+        <span />
+      )}
+      {canPayOnline ? <BillingPayButton label={payLabel} /> : null}
+    </div>
+  );
+}
+
+/**
+ * Salir de la cuenta.
+ *
+ * Va como texto pequeño al pie, no como botón: no es lo que queremos que haga,
+ * pero tiene que existir. Sin ella, quien entró con la cuenta equivocada se
+ * queda encerrado en el bloqueo sin poder ni volver al login.
+ */
+function SalirDeLaCuenta() {
+  return (
+    <p className="mt-5 border-t border-border pt-4 text-center text-xs text-muted-foreground">
+      <Link href="/logout" className="underline hover:text-foreground">
+        Cerrar sesión
+      </Link>{" "}
+      · entrar con otra cuenta
+    </p>
+  );
+}
 
 export default function BillingLockScreen(props: Props) {
   const {
@@ -37,12 +100,35 @@ export default function BillingLockScreen(props: Props) {
     canPayOnline,
     planLabel,
     amountUsd,
+    brandWhatsapp,
   } = props;
 
   const moneda = currencyCode ?? "COP";
-  const importe = amountDue
-    ? `${amountDue} ${moneda}${amountUsd ? ` - ${amountUsd} USD` : ""}`
-    : null;
+
+  /**
+   * El importe, con los dólares arriba y los pesos debajo.
+   *
+   * Es la cifra con la que vio el precio publicado; seis dígitos en pesos, a
+   * secas, le hacen dudar de si le están cobrando lo que eligió. Los dos juntos
+   * y hace la cuenta solo. Sin equivalencia configurada, solo los pesos.
+   */
+  const Importe = () =>
+    !amountDue ? null : (
+      <div className="tabular-nums">
+        {amountUsd ? (
+          <>
+            <p className="text-2xl font-bold tracking-tight">${amountUsd} USD/mes</p>
+            <p className="text-sm text-muted-foreground">
+              {amountDue} {moneda}
+            </p>
+          </>
+        ) : (
+          <p className="text-2xl font-bold tracking-tight">
+            {amountDue} {moneda}
+          </p>
+        )}
+      </div>
+    );
 
   /* ─────────────────────────────────────────────────────────────────────────
      Cuenta nueva pendiente de su primer pago.
@@ -69,48 +155,55 @@ export default function BillingLockScreen(props: Props) {
             </p>
           </div>
 
-          {importe ? (
+          {amountDue ? (
             <div className="mt-6 border-t border-border pt-5">
-              <p className="text-2xl font-bold tracking-tight tabular-nums">
-                Total a pagar: {importe}
-              </p>
+              <Importe />
               <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">
-                Al operar desde <b>Colombia</b>, cobramos en <b>pesos</b>. En cuanto se confirme el
-                pago, tu cuenta se dará de alta automáticamente.
+                El cobro se hace en <b>pesos colombianos</b>. En cuanto se confirme el pago, tu
+                cuenta se dará de alta automáticamente.
               </p>
             </div>
           ) : null}
 
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-            <Link
-              href="/logout"
-              className="inline-flex items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted"
-            >
-              Cerrar sesión
-            </Link>
-            {canPayOnline ? <BillingPayButton label="Realizar pago" /> : null}
-          </div>
+          <AccionesDePago
+            whatsapp={brandWhatsapp}
+            canPayOnline={canPayOnline}
+            payLabel="Realizar pago"
+          />
 
           {/* Sin precio asignado no hay contra qué generar el enlace: primero
               elige plan. Le pasa a quien viene de la prueba gratis. */}
           {!canPayOnline ? (
             <div className="mt-6">
-              <ChoosePlanToPay />
+              <ChoosePlanToPay whatsapp={brandWhatsapp} />
             </div>
           ) : null}
+
+          <SalirDeLaCuenta />
         </section>
       </main>
     );
   }
 
+  /* ─────────────────────────────────────────────────────────────────────────
+     Se le venció la licencia.
+
+     Antes esto era un bloque rojo titulado "Acceso suspendido por facturación"
+     que empezaba diciéndole que había sido "bloqueado por seguridad". A quien
+     solo se le venció la licencia eso le suena a que hizo algo malo, y encima
+     abría con el problema en vez de con la salida.
+
+     Fuera también lo que no le sirve para decidir: el medio de pago, la URL de
+     pago —que era fija y apuntaba a Verzay aunque la cuenta fuera de otra
+     marca— y el aviso de que el bloqueo no se puede cerrar, que no aporta nada
+     a quien ya está viéndolo.
+  ───────────────────────────────────────────────────────────────────────── */
   return (
     <main className="min-h-screen w-full flex justify-center items-center bg-background p-6 md:p-10">
-      <section className="mx-auto max-w-3xl rounded-xl border border-destructive/40 bg-destructive/10 p-6 md:p-8">
-        <h1 className="text-2xl font-semibold text-destructive">
-          Acceso suspendido por facturacion
-        </h1>
+      <section className="mx-auto w-full max-w-2xl rounded-xl border border-border bg-card p-6 md:p-8">
+        <h1 className="text-xl font-semibold tracking-tight">Tu licencia venció</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Tu acceso ha sido bloqueado por seguridad. Debes regularizar el pago para volver a usar la plataforma.
+          El servicio está en pausa. Se reactiva solo en cuanto se confirme el pago.
         </p>
 
         <div className="mt-6 grid gap-2 text-sm">
@@ -127,53 +220,43 @@ export default function BillingLockScreen(props: Props) {
               <b>Plan:</b> {planLabel}
             </p>
           ) : null}
-          <p>
-            <b>Estado:</b> {reasonLabel}
-          </p>
-          {importe ? (
-            <p>
-              <b>Saldo pendiente:</b> {importe}
-            </p>
-          ) : null}
           {dueDateIso ? (
             <p>
-              <b>Fecha de vencimiento:</b> {dueDateIso.slice(0, 10)}
+              <b>Venció el:</b> {fechaLarga(dueDateIso)}
             </p>
           ) : null}
-          {paymentMethodLabel ? (
+          {/* El motivo solo se nombra cuando NO es el vencimiento normal —una
+              suspensión manual, por ejemplo—: repetir "servicio vencido" bajo un
+              título que ya lo dice es ruido. */}
+          {reasonLabel && !/vencid/i.test(reasonLabel) ? (
             <p>
-              <b>Medio de pago:</b> {paymentMethodLabel}
-            </p>
-          ) : null}
-          {paymentUrl ? (
-            <p>
-              <b>URL de pago:</b>{" "}
-              <a className="underline text-primary" href={paymentUrl} target="_blank" rel="noreferrer">
-                {paymentUrl}
-              </a>
+              <b>Estado:</b> {reasonLabel}
             </p>
           ) : null}
         </div>
 
-        <p className="mt-6 text-xs text-muted-foreground">
-          Este bloqueo no se puede cerrar. Si ya pagaste, contacta soporte para validacion.
-        </p>
+        {amountDue ? (
+          <div className="mt-6 border-t border-border pt-5">
+            <Importe />
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              El cobro se hace en <b>pesos colombianos</b>.
+            </p>
+          </div>
+        ) : null}
 
-        <div className="mt-6">
-          {canPayOnline ? <BillingPayButton label="Pagar y reactivar" /> : <ChoosePlanToPay />}
-        </div>
+        {canPayOnline ? (
+          <AccionesDePago
+            whatsapp={brandWhatsapp}
+            canPayOnline
+            payLabel="Pagar y reactivar"
+          />
+        ) : (
+          <div className="mt-6">
+            <ChoosePlanToPay whatsapp={brandWhatsapp} />
+          </div>
+        )}
 
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Link
-            href="/logout"
-            className="inline-flex items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted"
-          >
-            Salir e iniciar con otra cuenta
-          </Link>
-          <p className="text-xs text-muted-foreground">
-            Esta opcion cierra la sesion actual y te envia al login.
-          </p>
-        </div>
+        <SalirDeLaCuenta />
       </section>
     </main>
   );

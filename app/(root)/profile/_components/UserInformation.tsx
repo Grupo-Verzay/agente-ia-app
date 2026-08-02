@@ -26,6 +26,7 @@ import {
     Loader2,
     Lock,
     MapPin,
+    MessageCircle,
     MessageSquare,
     Monitor,
     Palette,
@@ -363,6 +364,25 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
             toast.success('Guardado', { id: 'brandName' });
         } catch (error: any) {
             toast.error(error?.message || 'Error al guardar', { id: 'brandName' });
+        } finally {
+            setLoadingField(null);
+        }
+    };
+
+    const handleBrandWhatsappBlur = async () => {
+        if (!userId) return;
+        const value = String((user as { brandWhatsapp?: string | null })?.brandWhatsapp ?? "").trim();
+        setLoadingField('brandWhatsapp');
+        toast.loading('Guardando...', { id: 'brandWhatsapp' });
+        try {
+            const result = await updateClientDataByField(userId, 'brandWhatsapp', value);
+            if (!result.success) {
+                toast.error(result.message || 'Error al guardar.', { id: 'brandWhatsapp' });
+                return;
+            }
+            toast.success('Guardado', { id: 'brandWhatsapp' });
+        } catch (error: any) {
+            toast.error(error?.message || 'Error al guardar', { id: 'brandWhatsapp' });
         } finally {
             setLoadingField(null);
         }
@@ -1095,6 +1115,44 @@ export const UserInformation = ({ userId, countries, instancesData, metaInstance
                                                     disabled={loadingField === 'brandName'}
                                                     onChange={(e) => handleChange("brandName" as keyof UserWithPausar, e.target.value)}
                                                     onBlur={handleBrandNameBlur}
+                                                />
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                    )}
+
+                                    {/* El número al que escriben TUS clientes desde las
+                                        pantallas de cobro. Sin él, un cliente de esta
+                                        marca acabaría escribiéndole a la plataforma, que
+                                        ni lo conoce ni puede resolverle nada — así que
+                                        mientras esté vacío el botón no se muestra. */}
+                                    {canSeeBrandingExtras && (
+                                    <Card className="border-border flex flex-col">
+                                        <CardHeader className="pb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                    <MessageCircle className="w-4 h-4 text-primary" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <CardTitle className="text-sm font-semibold">WhatsApp de soporte</CardTitle>
+                                                    <CardDescription className="text-xs">
+                                                        Al que escriben tus clientes desde el pago
+                                                    </CardDescription>
+                                                </div>
+                                                {loadingField === 'brandWhatsapp' && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent className="flex flex-col flex-1 pt-2">
+                                            <div className="mt-auto flex flex-col gap-2">
+                                                <p className="text-xs text-muted-foreground">Con indicativo del país. Si lo dejas vacío, no se muestra el botón.</p>
+                                                <Input
+                                                    id="brandWhatsapp"
+                                                    name="brandWhatsapp"
+                                                    placeholder="Ej. 573126536667"
+                                                    value={(user as { brandWhatsapp?: string | null })?.brandWhatsapp ?? ""}
+                                                    disabled={loadingField === 'brandWhatsapp'}
+                                                    onChange={(e) => handleChange("brandWhatsapp" as keyof UserWithPausar, e.target.value)}
+                                                    onBlur={handleBrandWhatsappBlur}
                                                 />
                                             </div>
                                         </CardContent>

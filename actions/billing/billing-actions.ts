@@ -14,6 +14,8 @@ import {
     setUserBillingWebhookEnabled,
     syncUserBillingLifecycle,
 } from "./helpers/billing-notifications.server";
+import { equivalenteEnUsd, etiquetaDePlanParaCuenta } from "@/lib/plan-pricing";
+import { whatsappDeLaMarca } from "@/lib/brand-support.server";
 import { serializeUserBilling, toDate } from "./helpers/billing-helpers";
 import {
     assertBillingScope,
@@ -175,11 +177,36 @@ export async function getOwnBillingAction(): Promise<ResponseFormat<unknown>> {
 
         if (!billing) return { success: true, message: "Sin billing.", data: null };
 
+        // Todo lo que la tarjeta necesita para hablarle al cliente en los
+        // terminos de SU marca: como llama su marca a este nivel de plan,
+        // cuantos dolares son esos pesos y a que WhatsApp escribir. Se resuelve
+        // aqui, en el servidor, porque son tres consultas y la tarjeta es un
+        // componente de cliente.
+        const cuenta = await db.user
+            .findUnique({
+                where: { id: me.id },
+                select: { plan: true, demoResellerId: true },
+            })
+            .catch(() => null);
+
+        const resellerId = cuenta?.demoResellerId ?? null;
+
+        const [planLabel, priceUsd, brandWhatsapp] = await Promise.all([
+            cuenta?.plan ? etiquetaDePlanParaCuenta(cuenta.plan, resellerId) : Promise.resolve(null),
+            (billing.currencyCode ?? "COP").toUpperCase() === "COP"
+                ? equivalenteEnUsd(Number(billing.price ?? 0))
+                : Promise.resolve(null),
+            whatsappDeLaMarca(resellerId),
+        ]);
+
         return {
             success: true,
             message: "Billing encontrado.",
             data: {
                 ...billing,
+                planLabel,
+                priceUsd,
+                brandWhatsapp,
                 price: billing.price ? billing.price.toString() : null,
                 dueDate: billing.dueDate ? billing.dueDate.toISOString() : null,
                 serviceStartAt: billing.serviceStartAt ? billing.serviceStartAt.toISOString() : null,
