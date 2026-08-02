@@ -68,24 +68,88 @@ export function fillBusinessVars(
 }
 
 // ── Modo de arranque del paso BIENVENIDA (lo elige el dueño en el alta) ──
-// El contenido trae por defecto el bloque "inteligente"; si el dueño elige
-// "obligatorio", se reemplaza ese bloque en el paso BIENVENIDA. El texto debe
-// coincidir EXACTO con el insertado en cada BIENVENIDA para poder sustituirlo.
-export const ARRANQUE_INTELIGENTE = `✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
-- Analiza el primer mensaje del usuario:
-   • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según la TRANSICIÓN), sin ejecutar BIENVENIDA.
-   • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo (BIENVENIDA).`;
+/**
+ * El paso de BIENVENIDA entero, en sus dos modos.
+ *
+ * Antes solo cambiaba el párrafo de "lógica de ejecución" y el resto era común.
+ * Ya no: entre un modo y otro cambian también la transición y las
+ * prohibiciones, así que el bloque se sustituye completo.
+ *
+ * Dos cosas importantes de este texto, y las dos vienen de fallos vistos en
+ * producción:
+ *
+ * - Se habla del "PRIMER elemento de TEXTO", nunca de "Regla/parámetro (2)".
+ *   La numeración no es fija: el elemento de FUNCIÓN solo existe si el paso
+ *   tiene flujo, y en una cuenta sin flujos todo se corre un puesto — el (2)
+ *   pasa a ser la nota de transición, que no debe emitirse jamás. El cliente
+ *   acababa recibiéndola.
+ *
+ * - El flujo va PRIMERO y el texto después. Al revés, el texto salía antes que
+ *   el mensaje del flujo y la conversación quedaba del revés.
+ */
+export const ARRANQUE_INTELIGENTE = `🔒 CONDICIÓN DE CHAT NUEVO (GATE): collected == {} AND current_step == 1
+🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO. Se ejecuta ante cualquier primer mensaje del usuario, sea texto, audio, imagen, sticker o mensaje de anuncio.
 
-export const ARRANQUE_OBLIGATORIO = `✅ LÓGICA DE EJECUCIÓN — MODO OBLIGATORIO:
-- Ejecutar SIEMPRE la SECUENCIA de abajo (BIENVENIDA), sin importar el mensaje.
-- Ignorar la intención del primer mensaje (no saltar de paso).`;
+✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
+   → Analizar el primer mensaje del usuario:
+      • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según el elemento de TRANSICIÓN), sin ejecutar la BIENVENIDA.
+      • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo.
+   → SECUENCIA: si el paso tiene elemento FUNCIÓN (Ejecutar flujo) → ejecutarlo; luego emitir el PRIMER elemento de TEXTO del paso, palabra por palabra.
+   → Si el paso NO tiene elemento FUNCIÓN → emitir igual ese mismo texto.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   → bienvenida_enviada = true
+   → Si hubo intención directa → current_step = el paso destino.
+   → Si no → current_step permanece en 1 hasta capturar la variable del paso, o si no tiene, hasta que el cliente responda.
+
+🚫 PROHIBIDO:
+- Repetir la bienvenida si bienvenida_enviada == true.
+- Formular preguntas propias o de confirmación.
+- Reformular, inventar, resumir o parafrasear el texto.
+- Emitir cualquier mensaje distinto del flujo + el PRIMER elemento de TEXTO.
+- Emitir los elementos marcados NO EMITIR (transición / notas de control).
+- Usar el Comportamiento obligatorio como sustituto de la ejecución del flujo.
+- Activar Q&A, CATÁLOGO, OBJECIONES o cualquier módulo lateral en este turno.
+- Agregar o quitar cualquier texto al emitir. Lo único permitido es la firma declarada en "Firma del agente", al inicio del mensaje.
+
+💬 EMIT SALIDA LITERAL: flujo (si existe) + PRIMER elemento de TEXTO del paso. Ambos cuentan como la salida de este turno. Esperar respuesta.`;
+
+export const ARRANQUE_OBLIGATORIO = `🔒 CONDICIÓN DE CHAT NUEVO (GATE): collected == {} AND current_step == 1
+🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO. Se ejecuta ante cualquier intención del usuario, sea texto, audio, imagen, sticker o mensaje de anuncio.
+
+✅ LÓGICA DE EJECUCIÓN — MODO OBLIGATORIO:
+   → Si el paso tiene elemento FUNCIÓN (Ejecutar flujo) → ejecutarlo SIEMPRE, sin importar el mensaje.
+   → Emitir a continuación el PRIMER elemento de TEXTO del paso, palabra por palabra.
+   → Si el paso NO tiene elemento FUNCIÓN → emitir igual ese mismo texto.
+   → Ignorar la intención del mensaje del usuario, sea cual sea su contenido.
+
+⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
+
+➡️ TRANSICIÓN:
+   → bienvenida_enviada = true
+   → current_step permanece en 1 hasta capturar la variable del paso, o si no tiene, hasta que el cliente responda.
+
+🚫 PROHIBIDO:
+- Saltar la BIENVENIDA por intención directa del usuario.
+- Repetir la bienvenida si bienvenida_enviada == true.
+- Formular preguntas propias o de confirmación.
+- Reformular, inventar, resumir o parafrasear el texto.
+- Emitir cualquier mensaje distinto del flujo + el PRIMER elemento de TEXTO.
+- Emitir los elementos marcados NO EMITIR (transición / notas de control).
+- Usar el Comportamiento obligatorio como sustituto de la ejecución del flujo.
+- Activar Q&A, CATÁLOGO, OBJECIONES o cualquier módulo lateral en este turno.
+- Agregar o quitar cualquier texto al emitir. Lo único permitido es la firma declarada en "Firma del agente", al inicio del mensaje.
+
+💬 EMIT SALIDA LITERAL: flujo (si existe) + PRIMER elemento de TEXTO del paso. Ambos cuentan como la salida de este turno. Esperar respuesta.`;
 
 export type ArranqueMode = "inteligente" | "obligatorio";
 
 /**
  * Ajusta el paso BIENVENIDA al modo de arranque elegido por el dueño.
  * El contenido viene con el modo "inteligente" por defecto; si se elige
- * "obligatorio", se sustituye ese único bloque. No toca ningún otro paso.
+ * "obligatorio", se sustituye ese bloque entero. No toca ningún otro paso.
  */
 export function applyArranqueMode(main: string, mode: ArranqueMode | undefined): string {
   if (mode === "obligatorio" && main.includes(ARRANQUE_INTELIGENTE)) {
@@ -152,26 +216,7 @@ export const ONBOARDING_OBJECTIVES: OnboardingObjective[] = [
 - Menciona un producto del catálogo → guardar en silencio producto_interes → current_step = 3
 - Escribe sin intención clara o pide ver opciones → current_step = 2`,
         ],
-        main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
-🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
-
-✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
-- Analiza el primer mensaje del usuario:
-   • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según la TRANSICIÓN), sin ejecutar BIENVENIDA.
-   • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo (BIENVENIDA).
-
-✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
-3º Guardar bienvenida_enviada = true.
-
-⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
-
-🚫 PROHIBIDO EN ESTE PASO:
-- Formular preguntas propias o de confirmación.
-- Dar precios en este turno.
-- Ejecutar cualquier tool.
-- Repetir la bienvenida si bienvenida_enviada == true.` },
+        main: ARRANQUE_INTELIGENTE },
       { t: "CATALOGO",
         variable: "producto_interes",
         condicion: "Captura el producto. Si no elige, repregunta MÁX. 1 vez; luego guarda producto_interes = \"no definido\" y avanza presentando el más vendido — no ciclar.",
@@ -311,26 +356,7 @@ Para ayudarte mejor, ¿me compartes tu nombre?`,
 - Responde con un nombre → guardar en silencio nombre → current_step = 2
 - No entrega nombre → pedirlo una vez más, sin repetir la bienvenida.`,
         ],
-        main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
-🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
-
-✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
-- Analiza el primer mensaje del usuario:
-   • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según la TRANSICIÓN), sin ejecutar BIENVENIDA.
-   • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo (BIENVENIDA).
-
-✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
-3º Guardar bienvenida_enviada = true.
-
-⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
-
-🚫 PROHIBIDO EN ESTE PASO:
-- Formular preguntas propias o de confirmación.
-- Dar precios, planes o propuestas en este turno.
-- Ejecutar cualquier tool.
-- Repetir la bienvenida si bienvenida_enviada == true.` },
+        main: ARRANQUE_INTELIGENTE },
       { t: "PREGUNTA 1",
         variable: "necesidad",
         condicion: "Captura la necesidad. Si responde vago, repregunta MÁX. 1 vez; luego guarda necesidad = \"no definida\" y avanza — no ciclar.",
@@ -453,26 +479,7 @@ Un asesor te contacta en breve. 📩`,
 - Menciona un servicio del catálogo → guardar en silencio servicio → current_step = 3
 - Pide agendar sin decir el servicio → current_step = 2`,
         ],
-        main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
-🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
-
-✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
-- Analiza el primer mensaje del usuario:
-   • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según la TRANSICIÓN), sin ejecutar BIENVENIDA.
-   • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo (BIENVENIDA).
-
-✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
-3º Guardar bienvenida_enviada = true.
-
-⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
-
-🚫 PROHIBIDO EN ESTE PASO:
-- Formular preguntas propias o de confirmación.
-- Ofrecer horarios en este turno.
-- Ejecutar cualquier tool.
-- Repetir la bienvenida si bienvenida_enviada == true.` },
+        main: ARRANQUE_INTELIGENTE },
       { t: "SERVICIO",
         variable: "servicio",
         condicion: "Captura el servicio. Si no elige, repregunta MÁX. 1 vez; luego guarda servicio = \"no definido\" y avanza — no ciclar.",
@@ -601,26 +608,7 @@ Para orientarte mejor, ¿qué estás buscando?`,
 - Saluda sin explicar nada → pedirlo una vez más, sin repetir la bienvenida.
 - Tras repreguntar 1 vez sin describir → guardar interes_declarado = "no definido" → current_step = 2`,
         ],
-        main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
-🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
-
-✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
-- Analiza el primer mensaje del usuario:
-   • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según la TRANSICIÓN), sin ejecutar BIENVENIDA.
-   • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo (BIENVENIDA).
-
-✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
-3º Guardar bienvenida_enviada = true.
-
-⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
-
-🚫 PROHIBIDO EN ESTE PASO:
-- Formular preguntas propias o de confirmación.
-- Dar precios, planes o propuestas en este turno.
-- Ejecutar cualquier tool.
-- Repetir la bienvenida si bienvenida_enviada == true.` },
+        main: ARRANQUE_INTELIGENTE },
       { t: "CALIFICACIÓN",
         variable: "perfil",
         condicion: "Captura si es personal o empresa (suma al score). Si no responde claro, repregunta 1 vez y avanza — no ciclar.",
@@ -751,26 +739,7 @@ Déjame tu *nombre* y *correo* y te envío material útil para cuando estés lis
 - Saluda sin explicar nada → pedirlo una vez más, sin repetir la bienvenida.
 - Tras repreguntar 1 vez sin describir → guardar motivo_consulta = "no definido" → current_step = 2`,
         ],
-        main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
-🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
-
-✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
-- Analiza el primer mensaje del usuario:
-   • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según la TRANSICIÓN), sin ejecutar BIENVENIDA.
-   • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo (BIENVENIDA).
-
-✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
-3º Guardar bienvenida_enviada = true.
-
-⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
-
-🚫 PROHIBIDO EN ESTE PASO:
-- Formular preguntas propias o de confirmación.
-- Dar soluciones o diagnósticos en este turno.
-- Ejecutar cualquier tool.
-- Repetir la bienvenida si bienvenida_enviada == true.` },
+        main: ARRANQUE_INTELIGENTE },
       { t: "IDENTIFICACIÓN",
         variable: "datos_caso",
         condicion: "Captura nombre + número de pedido/servicio. Si no lo tiene, acepta nombre + fecha o marca \"sin identificar\" y avanza — no bloquear.",
@@ -887,26 +856,7 @@ Tu caso necesita revisión de un especialista. Ya lo escalé al área encargada 
 - Menciona uno o más productos, o pide ver el menú → guardar en silencio lo mencionado → current_step = 2
 - Saluda sin pedir nada → pedirlo una vez más, sin repetir la bienvenida.`,
         ],
-        main: `🔒 CONDICIÓN GATE: current_step == 1 AND bienvenida_enviada == false
-🚨 PRIORIDAD ABSOLUTA — PRIMER TURNO.
-
-✅ LÓGICA DE EJECUCIÓN — MODO INTELIGENTE:
-- Analiza el primer mensaje del usuario:
-   • Si detecta una INTENCIÓN DIRECTA → ir al paso destino (según la TRANSICIÓN), sin ejecutar BIENVENIDA.
-   • Si NO detecta intención clara → ejecutar la SECUENCIA de abajo (BIENVENIDA).
-
-✅ SECUENCIA OBLIGATORIA (orden estricto):
-1º Emitir ÚNICAMENTE el texto exacto de Regla/parámetro (2).
-2º Si existe el flujo 'BIENVENIDA', ejecutarlo; si NO existe, continuar igual.
-3º Guardar bienvenida_enviada = true.
-
-⏸️ DESPUÉS de ejecutar: ESPERAR respuesta del usuario.
-
-🚫 PROHIBIDO EN ESTE PASO:
-- Formular preguntas propias o de confirmación.
-- Emitir precios o tomar el pedido en este turno.
-- Ejecutar cualquier tool.
-- Repetir la bienvenida si bienvenida_enviada == true.` },
+        main: ARRANQUE_INTELIGENTE },
       { t: "PEDIDO",
         variable: "—",
         condicion: "Suma productos al carrito uno por uno. Cierra el carrito solo cuando el cliente confirma. Este paso puede repetirse en loop — no ciclar sin avanzar al confirmar.",
