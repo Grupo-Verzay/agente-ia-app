@@ -88,6 +88,8 @@ export type ClientRow = {
     plan: string;
     createdAt: string | Date;
     status: boolean;
+    /** Cuenta de prueba: ni pagó ni debe: tiene su propio estado. */
+    isDemo?: boolean;
     billing?: UserBilling | null;
 };
 

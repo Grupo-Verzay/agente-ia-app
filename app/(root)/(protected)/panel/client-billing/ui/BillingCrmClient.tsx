@@ -570,7 +570,10 @@ export function BillingCrmClient({
             {
                 id: "paid",
                 header: "Pago",
-                accessorFn: (row) => row.billing?.billingStatus ?? "UNPAID",
+                // Una cuenta de prueba no es "pagó" ni "no pagó": es su propio
+                // estado. Saliendo por aquí, los filtros y los contadores de
+                // pago la dejan fuera solos, sin condiciones repartidas.
+                accessorFn: (row) => (row.isDemo ? "TRIAL" : row.billing?.billingStatus ?? "UNPAID"),
                 filterFn: (row, columnId, filterValue) => {
                     if (!filterValue) return true;
                     return String(row.getValue(columnId)) === String(filterValue);
@@ -579,7 +582,13 @@ export function BillingCrmClient({
                     const b = row.original.billing ?? null;
                     return (
                         <div className="py-2 flex justify-center">
-                            {StatusBadgePaid(b?.billingStatus ?? "UNPAID")}
+                            {row.original.isDemo ? (
+                                <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold leading-none text-amber-600 dark:text-amber-400">
+                                    Prueba
+                                </span>
+                            ) : (
+                                StatusBadgePaid(b?.billingStatus ?? "UNPAID")
+                            )}
                         </div>
                     );
                 },
