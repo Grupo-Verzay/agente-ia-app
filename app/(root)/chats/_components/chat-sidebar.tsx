@@ -84,6 +84,15 @@ import type { ChatData } from "@/actions/chat-actions";
 // A partir de este número de contactos visibles, solo se renderizan los items
 // dentro (y cerca) del viewport. Por debajo se renderiza la lista completa,
 // con el mismo comportamiento de siempre.
+/**
+ * Margen antes de devolver el filtro a "Todos" cuando no hay nada sin leer.
+ *
+ * Cubre la ventana en la que la lista ya está pintada desde la caché pero los
+ * contadores de no leídos todavía no han llegado. Dos segundos y medio es lo
+ * que tarda el refresco en asentarse; por debajo volvía a colarse el salto.
+ */
+const ESPERA_ANTES_DE_VOLVER_A_TODOS_MS = 2500;
+
 const SIDEBAR_VIRTUALIZE_AFTER = 50;
 const SIDEBAR_OVERSCAN_ITEMS = 10;
 // Alturas estimadas (px). Los contactos con sesión CRM muestran una fila de
@@ -451,10 +460,20 @@ export function ChatSidebar({
 
   // Si el filtro "No leídos" está activo pero ya no hay chats sin leer
   // (al entrar sin pendientes o tras leer todos), vuelve a "Todos".
+  //
+  // Con margen a propósito. La lista pinta primero desde la caché, y en esa
+  // primera pasada los contadores de no leídos todavía no han llegado: la
+  // cuenta da 0. Sin margen, el filtro saltaba a "Todos" nada más entrar —justo
+  // cuando había mensajes sin leer, que es lo que se quería ver—. Un segundo
+  // después llegaban los datos buenos y la pestaña ya decía "No leídos 2", pero
+  // el filtro se había movido y no volvía solo.
+  //
+  // Si dentro de ese margen aparece aunque sea un no leído, el temporizador se
+  // cancela y el filtro se queda donde está.
   useEffect(() => {
-    if (unreadOnly && contacts.length > 0 && filterCounts.unread === 0) {
-      setUnreadOnly(false);
-    }
+    if (!unreadOnly || contacts.length === 0 || filterCounts.unread > 0) return;
+    const t = setTimeout(() => setUnreadOnly(false), ESPERA_ANTES_DE_VOLVER_A_TODOS_MS);
+    return () => clearTimeout(t);
   }, [contacts.length, unreadOnly, filterCounts.unread, setUnreadOnly]);
 
   const filtered = useMemo(() => {
