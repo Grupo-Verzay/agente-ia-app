@@ -28,7 +28,7 @@ export async function getClientsWithBilling(): Promise<ResponseFormat<any[]>> {
           select: { userId: true },
         }),
         db.user.findMany({
-          where: { demoResellerId: me.id, isDemo: false },
+          where: { demoResellerId: me.id },
           select: { id: true },
         }),
       ]);
@@ -50,13 +50,13 @@ export async function getClientsWithBilling(): Promise<ResponseFormat<any[]>> {
       where: {
         status: true,
         ownerId: null,
-        // Las cuentas demo no se cobran: existen para enseñar el producto y no
-        // tienen fecha ni servicio. Salían aquí como "Empresa Demo — Sin fecha",
-        // inflando el total y metiéndose en los contadores de quién pagó y quién
-        // no, que es de lo que se decide a quién reclamar. El resto de la app ya
-        // las excluye de los listados de clientes; Finanzas se había quedado
-        // fuera de ese criterio.
-        isDemo: false,
+        // Las de prueba SÍ se listan. Se excluían porque no tenían fecha ni
+        // servicio y salían como "Empresa Demo — Sin fecha", ensuciando los
+        // contadores. Desde que el registro les pone fecha real de fin y días de
+        // licencia, ese motivo ya no vale: una prueba con fecha de vencimiento es
+        // justo la que hay que perseguir, y tenerla fuera dejaba ciego el único
+        // momento en que se puede hacer algo. Van con estado propio para no
+        // contarse como "pagó" ni como "no pagó".
         // Admin: solo clientes directos + cuentas principales de resellers.
         // Los clientes ASIGNADOS a un reseller (demoResellerId) los cobra el
         // reseller, no la plataforma, así que se excluyen de Finanzas del admin.
@@ -73,6 +73,9 @@ export async function getClientsWithBilling(): Promise<ResponseFormat<any[]>> {
         plan: true,
         createdAt: true,
         status: true,
+        // La pantalla lo necesita para separarlas: ni cuentan como pagadas ni
+        // como morosas, tienen su propio estado.
+        isDemo: true,
         billing: true,
       },
     });

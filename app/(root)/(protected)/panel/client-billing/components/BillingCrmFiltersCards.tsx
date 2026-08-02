@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ClientRow } from "@/types/billing";
 import { daysLeftService } from "../helpers";
-import { Database, CircleCheck, CircleX, UserX } from "lucide-react";
+import { Database, CircleCheck, CircleX, UserX, Hourglass } from "lucide-react";
 
 type Props = {
     table: Table<ClientRow>;
@@ -68,15 +68,19 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
 
     const total = table.getPreFilteredRowModel().rows.length;
 
+    // Las de prueba no entran en "pagó" ni en "no pagó": no se les ha cobrado
+    // nada todavia. Contarlas como morosas hacía ver deuda donde no la hay.
     const paidCount = React.useMemo(
-        () => data.filter((u) => (u.billing?.billingStatus ?? "UNPAID") === "PAID").length,
+        () => data.filter((u) => !u.isDemo && (u.billing?.billingStatus ?? "UNPAID") === "PAID").length,
         [data]
     );
 
     const unpaidCount = React.useMemo(
-        () => data.filter((u) => (u.billing?.billingStatus ?? "UNPAID") === "UNPAID").length,
+        () => data.filter((u) => !u.isDemo && (u.billing?.billingStatus ?? "UNPAID") === "UNPAID").length,
         [data]
     );
+
+    const trialCount = React.useMemo(() => data.filter((u) => u.isDemo).length, [data]);
 
     const dueSoonCount = React.useMemo(() => {
         return data.filter((u) => {
@@ -110,7 +114,7 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
     const anyQuickFilterActive = !!paidFilter || !!dueFilter;
 
     return (
-        <div className={cn("hidden sm:grid grid-cols-2 md:grid-cols-4 gap-3", className)}>
+        <div className={cn("hidden sm:grid grid-cols-2 md:grid-cols-5 gap-3", className)}>
             <StatCard
                 title="Total"
                 value={total}
@@ -136,6 +140,15 @@ export const BillingCrmFiltersCards = ({ table, data, className, soonDays }: Pro
                 active={paidFilter === "UNPAID"}
                 onClick={() => setExclusiveFilter("paid", "UNPAID")}
                 color="#EF4444"
+            />
+
+            <StatCard
+                title="En prueba"
+                value={trialCount}
+                icon={<Hourglass className="h-4 w-4" />}
+                active={paidFilter === "TRIAL"}
+                onClick={() => setExclusiveFilter("paid", "TRIAL")}
+                color="#F59E0B"
             />
 
             <StatCard
