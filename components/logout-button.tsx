@@ -17,12 +17,21 @@ type LogoutButtonProps = {
   user: User | null
   resellerImage?: string | null;
   resellerCompany?: string | null;
+  /**
+   * Nombre que le pone SU marca a este nivel de plan. Lo resuelve el servidor,
+   * que es donde se sabe de qué marca es la cuenta.
+   *
+   * Sin él quedaba el nombre interno del nivel —"Enterprise" para el 5,
+   * "Agencias" para el 6—, que no lo vende ninguna marca y hacía que el dueño
+   * moviera clientes de nivel para cuadrar un nombre que nunca fue el suyo.
+   */
+  planLabel?: string | null;
   collapsed?: boolean
 };
 
-const LogoutButton = ({ user, resellerImage, resellerCompany }: LogoutButtonProps) => {
+const LogoutButton = ({ user, resellerImage, resellerCompany, planLabel: planLabelDeLaMarca }: LogoutButtonProps) => {
   const { isMobile } = useSidebar()
-  const planLabel = getPlanLabel(user?.plan)
+  const planLabel = planLabelDeLaMarca?.trim() || getPlanLabel(user?.plan)
   const displayName = resellerCompany ?? user?.company ?? user?.name
 
   return (

@@ -26,9 +26,11 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
     user: User;
     resellerImage?: string | null;
     resellerCompany?: string | null;
+    /** Nombre que le pone SU marca al nivel de plan de la cuenta. */
+    planLabel?: string | null;
 }
 
-function SidebarFooterContent({ user, resellerImage, resellerCompany }: { user: User; resellerImage?: string | null; resellerCompany?: string | null }) {
+function SidebarFooterContent({ user, resellerImage, resellerCompany, planLabel }: { user: User; resellerImage?: string | null; resellerCompany?: string | null; planLabel?: string | null }) {
     const { state } = useSidebar();
     const collapsed = state === "collapsed";
 
@@ -38,7 +40,7 @@ function SidebarFooterContent({ user, resellerImage, resellerCompany }: { user: 
                 <SidebarTrigger />
             </div>
             <div className="flex flex-row w-full justify-center items-center">
-                <LogoutButton user={user} resellerImage={resellerImage} resellerCompany={resellerCompany} />
+                <LogoutButton user={user} resellerImage={resellerImage} resellerCompany={resellerCompany} planLabel={planLabel} />
                 {!collapsed && <NavCustomizer user={user} />}
                 {!collapsed && (
                     <div>
@@ -50,7 +52,7 @@ function SidebarFooterContent({ user, resellerImage, resellerCompany }: { user: 
     );
 }
 
-export function AppSidebar({ user, resellerImage, resellerCompany, ...props }: AppSidebarProps) {
+export function AppSidebar({ user, resellerImage, resellerCompany, planLabel, ...props }: AppSidebarProps) {
     const { isMobile, openMobile, setOpenMobile } = useSidebar();
     const pathname = usePathname();
     const previousPathname = useRef(pathname);
@@ -73,7 +75,7 @@ export function AppSidebar({ user, resellerImage, resellerCompany, ...props }: A
             <SidebarContent>
                 <NavMain user={user} />
             </SidebarContent>
-            <SidebarFooterContent user={user} resellerImage={resellerImage} resellerCompany={resellerCompany} />
+            <SidebarFooterContent user={user} resellerImage={resellerImage} resellerCompany={resellerCompany} planLabel={planLabel} />
             <SidebarRail />
         </Sidebar>
     )

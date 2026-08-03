@@ -22,7 +22,11 @@ import {
   type ResellerWithPools,
 } from "@/actions/reseller-license-actions"
 import { getAllSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions"
-import { PLAN_LABELS } from "@/types/plans"
+// Nivel, no nombre comercial: esta pantalla lista los seis a la vez y cada
+// marca los llama distinto. Con los nombres internos —"Enterprise" para el 5,
+// "Agencias" para el 6— el dueño creía estar viendo los suyos y asignaba el
+// nivel equivocado.
+import { PLAN_LEVEL_LABELS } from "@/types/plans"
 import { MetricCard } from "@/components/custom/MetricCard"
 
 interface Props {
@@ -265,7 +269,7 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-medium truncate">{PLAN_LABELS[pool.plan]} · {pool.assistanceType}</span>
+                          <span className="text-xs font-medium truncate">{PLAN_LEVEL_LABELS[pool.plan]} · {pool.assistanceType}</span>
                           <span className="text-[10px] text-muted-foreground shrink-0">{pool.usedLicenses}/{pool.totalLicenses}</span>
                         </div>
                         <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden">
@@ -284,7 +288,7 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
                       {assignedClients.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => handleMigrateLegacy(pool.subscriptionPlanId, `${PLAN_LABELS[pool.plan]} · ${pool.assistanceType}`)}
+                          onClick={() => handleMigrateLegacy(pool.subscriptionPlanId, `${PLAN_LEVEL_LABELS[pool.plan]} · ${pool.assistanceType}`)}
                           disabled={migrating}
                           className="shrink-0 rounded border border-primary/40 px-1.5 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
                           title="Migrar clientes del método antiguo a este pool"
@@ -361,7 +365,7 @@ export const MainReseller = ({ user, resellers, defaultResellerId }: Props) => {
               <SelectContent>
                 {plans.map(p => (
                   <SelectItem key={p.id} value={p.id}>
-                    {PLAN_LABELS[p.plan]} IA · {p.credits.toLocaleString()} créditos
+                    {PLAN_LEVEL_LABELS[p.plan]} IA · {p.credits.toLocaleString()} créditos
                     {p.priceWholesale != null ? ` · $${p.priceWholesale}/mes` : ""}
                   </SelectItem>
                 ))}

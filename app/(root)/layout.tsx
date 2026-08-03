@@ -189,6 +189,21 @@ export default async function RootGroupLayout({
     const resellerImage = onReseller?.data?.image ?? siteConfig.logoUrl ?? null;
     const resellerCompany = onReseller?.data?.company ?? null;
 
+    // Cómo llama SU marca al nivel de plan que tiene la cuenta.
+    //
+    // Al pie de la barra lateral se leía el nombre interno del nivel —"Enterprise"
+    // para el 5, "Agencias" para el 6—, que no es el que vende ninguna marca. El
+    // dueño de una cuenta de nivel 5 leía "Plan Enterprise", buscaba su Enterprise
+    // (que es el 6) y movía clientes de nivel para cuadrarlo. Los nombres internos
+    // no deben salir a pantalla.
+    const cuentaDeLaSesion = await db.user
+        .findUnique({ where: { id: user.id }, select: { demoResellerId: true } })
+        .catch(() => null);
+    const planLabelSidebar = await etiquetaDePlanParaCuenta(
+        user.plan,
+        cuentaDeLaSesion?.demoResellerId ?? null,
+    ).catch(() => null);
+
     // Tema fresco de DB: del reseller/super_admin, o del propio user
     let initialTheme: ThemeApp = 'Default';
     if (onReseller?.data?.theme) {
@@ -276,7 +291,7 @@ export default async function RootGroupLayout({
         <>
             <AppInitializer onReseller={onReseller} modules={modules} user={user} navPrefs={navPrefs} userIntegrations={userIntegrations} initialTheme={initialTheme} />
             <SidebarProvider defaultOpen={defaultOpen}>
-                <AppSidebar user={user} resellerImage={resellerImage} resellerCompany={resellerCompany} />
+                <AppSidebar user={user} resellerImage={resellerImage} resellerCompany={resellerCompany} planLabel={planLabelSidebar} />
                 <SidebarInset className="h-screen h-[100dvh] flex flex-col min-w-0 overflow-x-hidden">
                     <Breadcrumbs />
                     <main className={`flex-1 flex flex-col overflow-hidden overflow-x-hidden ${themeClass}`}>
