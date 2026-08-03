@@ -84,14 +84,6 @@ import type { ChatData } from "@/actions/chat-actions";
 // A partir de este número de contactos visibles, solo se renderizan los items
 // dentro (y cerca) del viewport. Por debajo se renderiza la lista completa,
 // con el mismo comportamiento de siempre.
-/**
- * Margen antes de devolver el filtro a "Todos" cuando no hay nada sin leer.
- *
- * Cubre la ventana en la que la lista ya está pintada desde la caché pero los
- * contadores de no leídos todavía no han llegado. Dos segundos y medio es lo
- * que tarda el refresco en asentarse; por debajo volvía a colarse el salto.
- */
-const ESPERA_ANTES_DE_VOLVER_A_TODOS_MS = 2500;
 
 const SIDEBAR_VIRTUALIZE_AFTER = 50;
 const SIDEBAR_OVERSCAN_ITEMS = 10;
@@ -244,7 +236,7 @@ export function ChatSidebar({
   const [deleteTarget, setDeleteTarget] = useState<SidebarContact | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set());
   const [advisorFilter, setAdvisorFilter] = useState<string | null>(null); // null=todos, 'unassigned'=sin asignar, id=asesor específico
-  const [internalUnreadOnly, setInternalUnreadOnly] = useState(true);
+  const [internalUnreadOnly, setInternalUnreadOnly] = useState(false);
   const unreadOnly = unreadOnlyProp ?? internalUnreadOnly;
   const setUnreadOnly = useCallback(
     (value: boolean | ((current: boolean) => boolean)) => {
@@ -458,23 +450,34 @@ export function ChatSidebar({
     setUnreadCount(filterCounts.unread);
   }, [filterCounts.unread, setUnreadCount]);
 
-  // Si el filtro "No leídos" está activo pero ya no hay chats sin leer
-  // (al entrar sin pendientes o tras leer todos), vuelve a "Todos".
+  // "No leídos" se enciende solo al entrar, pero únicamente cuando ya se sabe
+  // que hay alguno. Antes entraba encendido y, si a los dos segundos y medio la
+  // cuenta seguía en cero, se rendía y volvía a "Todos". La lista pinta primero
+  // desde la caché y los contadores llegan después: en el móvil tardan más de
+  // ese margen, así que el filtro se rendía justo cuando sí había sin leer y ya
+  // no volvía. Se veía "ningún chat coincide" y luego todos, con la pestaña
+  // marcando 5.
   //
-  // Con margen a propósito. La lista pinta primero desde la caché, y en esa
-  // primera pasada los contadores de no leídos todavía no han llegado: la
-  // cuenta da 0. Sin margen, el filtro saltaba a "Todos" nada más entrar —justo
-  // cuando había mensajes sin leer, que es lo que se quería ver—. Un segundo
-  // después llegaban los datos buenos y la pestaña ya decía "No leídos 2", pero
-  // el filtro se había movido y no volvía solo.
+  // Esperar a la cuenta real quita la carrera: sin dato no se enciende, y no
+  // hace falta adivinar cuánto tarda.
   //
-  // Si dentro de ese margen aparece aunque sea un no leído, el temporizador se
-  // cancela y el filtro se queda donde está.
+  // Una sola vez por visita. Si el usuario lo apaga, o si lee el último y
+  // volvemos a "Todos", no se vuelve a encender solo: mover el filtro bajo los
+  // dedos de alguien que está leyendo molesta más de lo que ayuda.
+  const autoFiltroConsumido = React.useRef(false);
+
   useEffect(() => {
-    if (!unreadOnly || contacts.length === 0 || filterCounts.unread > 0) return;
-    const t = setTimeout(() => setUnreadOnly(false), ESPERA_ANTES_DE_VOLVER_A_TODOS_MS);
-    return () => clearTimeout(t);
-  }, [contacts.length, unreadOnly, filterCounts.unread, setUnreadOnly]);
+    if (autoFiltroConsumido.current || filterCounts.unread === 0) return;
+    autoFiltroConsumido.current = true;
+    setUnreadOnly(true);
+  }, [filterCounts.unread, setUnreadOnly]);
+
+  // Leído el último, el filtro se queda vacío: vuelve a "Todos". Aquí la cuenta
+  // ya es de datos cargados, no del arranque, así que no hay margen que esperar.
+  useEffect(() => {
+    if (!unreadOnly || !autoFiltroConsumido.current || filterCounts.unread > 0) return;
+    setUnreadOnly(false);
+  }, [unreadOnly, filterCounts.unread, setUnreadOnly]);
 
   const filtered = useMemo(() => {
     if (tab === "deleted") return [];
