@@ -22,7 +22,11 @@ import {
   type ResellerWithPools,
 } from "@/actions/reseller-license-actions"
 import { getAllSubscriptionPlans, type SubscriptionPlanItem } from "@/actions/subscription-plan-actions"
-import { PLAN_LABELS } from "@/types/plans"
+// Nivel, no nombre comercial: esta pantalla lista los seis a la vez y cada
+// marca los llama distinto. Con los nombres internos —"Enterprise" para el 5,
+// "Agencias" para el 6— el dueño creía estar viendo los suyos y asignaba el
+// nivel equivocado.
+import { PLAN_LEVEL_LABELS } from "@/types/plans"
 
 interface Props {
   searchParams: { [key: string]: string | undefined }
@@ -178,7 +182,7 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
 
   const getPlanLabel = (planId: string) => {
     const p = plans.find(x => x.id === planId)
-    return p ? `${PLAN_LABELS[p.plan]} IA` : planId
+    return p ? `${PLAN_LEVEL_LABELS[p.plan]} IA` : planId
   }
 
   return (
@@ -314,7 +318,7 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                         {r.pools.map((pool) => (
                           <div key={pool.id} className="rounded-lg border border-border p-3 space-y-1">
-                            <p className="text-xs font-semibold">{PLAN_LABELS[pool.plan]} {pool.assistanceType}</p>
+                            <p className="text-xs font-semibold">{PLAN_LEVEL_LABELS[pool.plan]} {pool.assistanceType}</p>
                             <div className="flex items-center gap-2">
                               <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                                 <div
@@ -365,7 +369,7 @@ export const MainReseller = ({ searchParams, user, resellers, defaultResellerId 
                 <SelectContent>
                   {plans.map(p => (
                     <SelectItem key={p.id} value={p.id}>
-                      {PLAN_LABELS[p.plan]} IA · {p.credits.toLocaleString()} créditos
+                      {PLAN_LEVEL_LABELS[p.plan]} IA · {p.credits.toLocaleString()} créditos
                       {p.priceWholesale != null ? ` · $${p.priceWholesale}/mes` : ""}
                     </SelectItem>
                   ))}
